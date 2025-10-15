@@ -50,7 +50,7 @@ export default function DashboardPage() {
 
   // ---- date helpers ----
   function toLocalDate(d: Date, _tz: string) {
-    const s = d.toLocaleString('sv-SE', { timeZone: tz }); // "YYYY-MM-DD HH:mm:ss"
+    const s = d.toLocaleString('sv-SE', { timeZone: tz });
     return new Date(s.replace(' ', 'T'));
   }
   function startOfWeek(d: Date) {
@@ -83,7 +83,6 @@ export default function DashboardPage() {
       const we = addDays(ws, 13);
       return { start: ws, end: we };
     }
-    // month grid (full weeks)
     const first = startOfMonth(anchor);
     const last  = endOfMonth(anchor);
     const gridStart = startOfWeek(first);
@@ -124,14 +123,12 @@ export default function DashboardPage() {
   }, []);
 
   // ---- load days + assignments for visible range ----
-  // Dipende anche da 'rev' per il soft refresh
   useEffect(() => {
     let alive = true;
     (async () => {
       const from = fmtISO(range.start);
       const to   = fmtISO(range.end);
 
-      // 1) giorni
       const dres = await sb.from('calendar_days')
         .select('id, day, note')
         .gte('day', from).lte('day', to)
@@ -141,7 +138,6 @@ export default function DashboardPage() {
       const dayRows = (dres.data ?? []) as DayRow[];
       const ids = dayRows.map(r => r.id);
 
-      // 2) assegnazioni
       let map: Record<string, Assignment[]> = {};
       if (ids.length) {
         const ares = await sb
@@ -162,11 +158,10 @@ export default function DashboardPage() {
         });
       }
 
-      // 3) aggiornamento unico e ordine A→Z
-      if (!alive) return;
       Object.keys(map).forEach(k => {
         map[k].sort((a,b) => (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
       });
+      if (!alive) return;
       setDays(dayRows);
       setAssignments(map);
     })();
@@ -174,6 +169,24 @@ export default function DashboardPage() {
   }, [range.start, range.end, sb, rev]);
 
   const dayMap = useMemo(()=>indexDays(days), [days]);
+
+  // elimina assegnazione
+  const removeAssignment = async (a: Assignment) => {
+  // ottimistico: rimuovi l'id da TUTTE le chiavi, non solo da a.day_id
+  setAssignments(prev => {
+    const next: Record<string, Assignment[]> = {};
+    for (const k of Object.keys(prev)) {
+      next[k] = (prev[k] ?? []).filter(x => x.id !== a.id);
+    }
+    return next;
+  });
+
+  const { error } = await sb.from('assignments').delete().eq('id', a.id);
+  // se ok, riallinea lo stato con un soft refresh; se errore, idem per ripristinare
+  softRefresh();
+  if (error) console.error('delete failed', error.message);
+};
+
 
   // apertura veloce modale “Nuovo”
   const openNewForDate = async (d: Date) => {
@@ -225,6 +238,11 @@ export default function DashboardPage() {
     softRefresh();
   };
 
+  const onLogout = async () => {
+    await sb.auth.signOut();
+    window.location.href = '/login';
+  };
+
   // ---- render ----
   return (
     <div className="p-4 space-y-4">
@@ -245,7 +263,7 @@ export default function DashboardPage() {
             Oggi
           </button>
 
-          {/* FILTRA */}
+          {/* FILTRA + ORDINA */}
           <div className="ml-3 flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Filtra</span>
@@ -274,7 +292,6 @@ export default function DashboardPage() {
               </select>
             </div>
 
-            {/* ORDINA */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Ordina</span>
               <select
@@ -292,7 +309,15 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
-        <div className="text-sm opacity-70">{meEmail} · ruolo: {role}</div>
+        <div className="flex items-center gap-2 text-sm">
+          <span className="opacity-70">{meEmail} · ruolo: {role}</span>
+          <button
+            onClick={onLogout}
+            className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50"
+          >
+            Logout
+          </button>
+        </div>
       </div>
 
       {/* calendar */}
@@ -306,6 +331,7 @@ export default function DashboardPage() {
           onAdd={(d)=>openNewForDate(d)}
           sortMode={sortMode}
           filter={filter}
+          onDelete={removeAssignment}
         />
       ) : (
         <WeeksGrid
@@ -320,6 +346,7 @@ export default function DashboardPage() {
           sortMode={sortMode}
           filter={filter}
           setSortMode={setSortMode}
+          onDelete={removeAssignment}
         />
       )}
 
@@ -336,7 +363,6 @@ export default function DashboardPage() {
             setAssignments(prev=>{
               const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
               arr.push(row as any);
-              // ordina A→Z sempre
               arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
               return { ...prev, [dialogOpenForDay.id]: arr };
             });
@@ -374,8 +400,9 @@ function WeeksGrid(props:{
   sortMode: SortMode;
   filter: string;
   setSortMode: (m: SortMode)=>void;
+  onDelete:(a:Assignment)=>void;
 }) {
-  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filter, setSortMode } = props;
+  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filter, setSortMode, onDelete } = props;
   const dayMap = useMemo(()=>indexDays(days),[days]);
 
   return (
@@ -401,6 +428,7 @@ function WeeksGrid(props:{
               sortMode={sortMode}
               filter={filter}
               setSortMode={setSortMode}
+              onDelete={onDelete}
             />
           ))}
         </div>
@@ -418,8 +446,9 @@ function WeekGrid(props:{
   onAdd:(d:Date)=>void;
   sortMode: SortMode;
   filter: string;
+  onDelete:(a:Assignment)=>void;
 }) {
-  const { week, today, role, days, assignments, onAdd, sortMode, filter } = props;
+  const { week, today, role, days, assignments, onAdd, sortMode, filter, onDelete } = props;
   const dayMap = useMemo(()=>indexDays(days),[days]);
 
   return (
@@ -436,7 +465,7 @@ function WeekGrid(props:{
             )}
           </div>
           <div className="p-3 space-y-2 overflow-y-auto" style={{ minHeight: 500, maxHeight: 720 }}>
-            <AssignmentList dayMap={dayMap} d={d} assignments={assignments} compact={false} sortMode={sortMode} filter={filter}/>
+            <AssignmentList dayMap={dayMap} d={d} assignments={assignments} compact={false} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
           </div>
         </div>
       ))}
@@ -456,8 +485,9 @@ function DayCell(props:{
   sortMode: SortMode;
   filter: string;
   setSortMode: (m: SortMode)=>void;
+  onDelete:(a:Assignment)=>void;
 }) {
-  const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode } = props;
+  const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete } = props;
   const iso = d.toISOString().slice(0,10);
   const dayRow = dayMap[iso];
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
@@ -486,14 +516,14 @@ function DayCell(props:{
         )}
       </div>
       <div className="mt-2 space-y-1 overflow-y-auto" style={{ minHeight: 260, maxHeight: 680 }}>
-        <AssignmentListByIds items={list} sortMode={sortMode} filter={filter}/>
+        <AssignmentListByIds items={list} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
       </div>
     </div>
   );
 }
 
-function AssignmentListByIds({ items, sortMode, filter }:{
-  items: Assignment[]; sortMode: SortMode; filter: string;
+function AssignmentListByIds({ items, sortMode, filter, onDelete }:{
+  items: Assignment[]; sortMode: SortMode; filter: string; onDelete:(a:Assignment)=>void;
 }) {
   const visible = filterAssignments(items, filter);
   if (!visible.length) return <div className="text-xs opacity-50">—</div>;
@@ -501,19 +531,20 @@ function AssignmentListByIds({ items, sortMode, filter }:{
   return (
     <div className="flex flex-col gap-1">
       {sorted.map((a: Assignment)=>(
-        <AssignmentRow key={a.id} a={a}/>
+        <AssignmentRow key={a.id} a={a} onDelete={()=>onDelete(a)}/>
       ))}
     </div>
   );
 }
 
-function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter }:{
+function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onDelete }:{
   dayMap: Record<string, DayRow>;
   d: Date;
   assignments: Record<string, Assignment[]>;
   compact:boolean;
   sortMode: SortMode;
   filter: string;
+  onDelete:(a:Assignment)=>void;
 }) {
   const iso = d.toISOString().slice(0,10);
   const dayRow = dayMap[iso];
@@ -523,13 +554,13 @@ function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter }:{
   const sorted = sortAssignments(visible, sortMode);
   return (
     <div className="flex flex-col gap-2">
-      {sorted.map((a: Assignment)=>(<AssignmentRow key={a.id} a={a}/>))}
+      {sorted.map((a: Assignment)=>(<AssignmentRow key={a.id} a={a} onDelete={()=>onDelete(a)}/>))}
     </div>
   );
 }
 
 /** Riga compatta */
-function AssignmentRow({ a }:{ a:Assignment }) {
+function AssignmentRow({ a, onDelete }:{ a:Assignment; onDelete:()=>void }) {
   return (
     <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-xs shadow-sm">
       <div className="flex items-center justify-between gap-2">
@@ -545,6 +576,14 @@ function AssignmentRow({ a }:{ a:Assignment }) {
               {a.territory.name}
             </span>
           )}
+         <button
+  onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
+  className="ml-1 px-2 py-0.5 rounded-md border text-[10px] hover:bg-red-50"
+  title="Elimina assegnazione"
+>
+  Elimina
+</button>
+
         </div>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -568,7 +607,6 @@ function indexDays(rows: DayRow[]) {
   return m;
 }
 function capitalize(s:string){ return s.charAt(0).toUpperCase()+s.slice(1); }
-// confronta solo la parte yyyy-mm-dd
 function eqDate(a: Date, b: Date) { return a.toISOString().slice(0,10) === b.toISOString().slice(0,10); }
 
 function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
