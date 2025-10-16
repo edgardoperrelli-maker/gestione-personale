@@ -363,26 +363,36 @@ setTimeout(() => softRefresh(), 300);
       )}
 
       {/* dialog */}
-      {dialogOpenForDay && (
-        <NewAssignmentDialog
-          dayId={dialogOpenForDay.id}
-          iso={dialogOpenForDay.iso}
-          staffList={staff}
-          actList={activities}
-          terrList={territories}
-          onClose={()=>setDialogOpenForDay(null)}
-          onCreated={(row)=>{ 
-            setAssignments(prev=>{
-              const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
-              arr.push(row as any);
-              arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
-              return { ...prev, [dialogOpenForDay.id]: arr };
-            });
-            setDialogOpenForDay(null);
-            softRefresh();
-          }}
-        />
-      )}
+     {dialogOpenForDay && (() => {
+  // escludi operatori già assegnati quel giorno
+  const used = new Set(
+    (assignments[dialogOpenForDay.id] ?? [])
+      .map(a => a.staff?.id)
+      .filter(Boolean) as string[]
+  );
+  const staffAvailable = staff.filter(s => !used.has(s.id));
+
+  return (
+    <NewAssignmentDialog
+      dayId={dialogOpenForDay.id}
+      iso={dialogOpenForDay.iso}
+      staffList={staffAvailable}
+      actList={activities}
+      terrList={territories}
+      onClose={()=>setDialogOpenForDay(null)}
+      onCreated={(row)=>{ 
+        setAssignments(prev=>{
+          const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
+          arr.push(row as any);
+          arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
+          return { ...prev, [dialogOpenForDay.id]: arr };
+        });
+        setDialogOpenForDay(null);
+        softRefresh();
+      }}
+    />
+  );
+})()}
     </div>
   );
 }
