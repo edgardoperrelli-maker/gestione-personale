@@ -69,7 +69,12 @@ export default function DashboardPage() {
   function endOfMonth(d: Date) {
     const m = new Date(d.getFullYear(), d.getMonth()+1, 0); m.setHours(0,0,0,0); return m;
   }
-  function fmtISO(d: Date) { return d.toISOString().slice(0,10); }
+  // yyyy-mm-dd in fuso Europe/Rome
+function eqDate(a: Date, b: Date) { return fmtDay(a) === fmtDay(b); }
+function fmtDay(d: Date) {
+  const s = d.toLocaleString('sv-SE', { timeZone: tz });
+  return s.replace(' ', 'T').slice(0,10);
+}
 
   // ---- visible range by mode ----
   const range = useMemo(() => {
@@ -126,8 +131,8 @@ export default function DashboardPage() {
   useEffect(() => {
     let alive = true;
     (async () => {
-      const from = fmtISO(range.start);
-      const to   = fmtISO(range.end);
+      const from = fmtDay(range.start);
+      const to   = fmtDay(range.end);
 
       const dres = await sb.from('calendar_days')
         .select('id, day, note')
@@ -140,16 +145,16 @@ export default function DashboardPage() {
 
       let map: Record<string, Assignment[]> = {};
       if (ids.length) {
-        const ares = await sb
-          .from('assignments')
-          .select(`
-            id, day_id, reperibile, notes,
-            staff:staff_id ( id, display_name ),
-            territory:territory_id ( id, name ),
-            activity:activity_id ( id, name )
-          `)
-          .in('day_id', ids)
-          .order('created_at', { ascending: true });
+const ares = await sb
+  .from('assignments')
+  .select(`
+    id, day_id, reperibile, notes,
+    staff:staff_id ( id, display_name ),
+    territory:territory_id ( id, name ),
+    activity:activity_id ( id, name )
+  `)
+  .in('day_id', ids)
+  .order('created_at', { ascending: true });
         if (ares.error || !alive) return;
 
         (ares.data as any[]).forEach((a:any) => {
@@ -170,42 +175,49 @@ export default function DashboardPage() {
 
   const dayMap = useMemo(()=>indexDays(days), [days]);
 
-  // elimina assegnazione
-  const removeAssignment = async (a: Assignment) => {
-  // ottimistico: rimuovi l'id da TUTTE le chiavi, non solo da a.day_id
-  setAssignments(prev => {
+// elimina assegnazione
+const removeAssignment = async (a: Assignment) => {
+  const prev = assignments;
+  setAssignments(prevMap => {
     const next: Record<string, Assignment[]> = {};
-    for (const k of Object.keys(prev)) {
-      next[k] = (prev[k] ?? []).filter(x => x.id !== a.id);
-    }
+    for (const k of Object.keys(prevMap)) next[k] = (prevMap[k] ?? []).filter(x => x.id !== a.id);
     return next;
   });
 
-  const { error } = await sb.from('assignments').delete().eq('id', a.id);
-  // se ok, riallinea lo stato con un soft refresh; se errore, idem per ripristinare
+ const { error } = await sb.rpc('delete_assignment', { p_id: a.id });
+
+if (error) {
+  setAssignments(prev);
   softRefresh();
-  if (error) console.error('delete failed', error.message);
+  return;
+}
+setTimeout(() => softRefresh(), 300);
+
 };
 
-
   // apertura veloce modale “Nuovo”
-  const openNewForDate = async (d: Date) => {
-    if (role==='viewer') return;
-    const iso = fmtISO(d);
+ const openNewForDate = async (d: Date) => {
+  if (role==='viewer') return;
+  const iso = fmtDay(d);
 
-    const existing = dayMap[iso];
-    if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
+  // se il giorno esiste apri subito
+  const existing = dayMap[iso];
+  if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
 
-    const { data, error } = await sb
-      .from('calendar_days')
-      .upsert({ day: iso }, { onConflict: 'day' })
-      .select('id, day')
-      .single();
-    if (error || !data) return;
+  // crea o prendi il giorno (upsert su "day" unico)
+  const { data, error } = await sb
+    .from('calendar_days')
+    .upsert({ day: iso }, { onConflict: 'day' })
+    .select('id, day')
+    .single();
 
-    setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
-    setDialogOpenForDay({ id: data.id, iso });
-  };
+  if (error || !data) return;
+
+  // aggiorna mappa giorni e apri dialog
+  setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
+  setDialogOpenForDay({ id: data.id, iso });
+};
+
 
   // ---- top controls ----
   const title = useMemo(() => {
@@ -488,7 +500,7 @@ function DayCell(props:{
   onDelete:(a:Assignment)=>void;
 }) {
   const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete } = props;
-  const iso = d.toISOString().slice(0,10);
+  const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
   const weekend = [6,0].includes(d.getDay());
@@ -607,7 +619,13 @@ function indexDays(rows: DayRow[]) {
   return m;
 }
 function capitalize(s:string){ return s.charAt(0).toUpperCase()+s.slice(1); }
-function eqDate(a: Date, b: Date) { return a.toISOString().slice(0,10) === b.toISOString().slice(0,10); }
+
+// yyyy-mm-dd in Europe/Rome
+function fmtDay(d: Date){
+  return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10);
+}
+// confronta solo la parte yyyy-mm-dd in Europe/Rome
+function eqDate(a: Date, b: Date) { return fmtDay(a) === fmtDay(b); }
 
 function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
   const name = (a: Assignment) => a.staff?.display_name ?? '';
