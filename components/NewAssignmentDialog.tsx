@@ -18,30 +18,38 @@ type Assignment = {
   territory:{ id:string; name:string }|null;
 };
 
-export default function NewNewAssignmentDialog(props:{
-  dayId: string;
-  iso: string; // yyyy-mm-dd
+export default function NewAssignmentDialog(props:{
+  dayId:string; iso:string;
   staffList: Staff[];
   actList: Activity[];
   terrList: Territory[];
-  onClose: () => void;
-  onCreated: (row: Assignment) => void;
+  excludeStaffIds?: string[];
+  onClose: ()=>void;
+  onCreated: (row: Assignment)=>void;
 }) {
-  const { dayId, iso, staffList, actList, terrList, onClose, onCreated } = props;
-  const sb = supabaseBrowser();
+  const {
+    dayId, iso, staffList, actList, terrList,
+    excludeStaffIds = [],
+    onClose, onCreated
+  } = props;
 
-  const staffSorted = useMemo(
-    () => [...(staffList||[])].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
-    [staffList]
-  );
-  const actSorted = useMemo(
-    () => [...(actList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
-    [actList]
-  );
-  const terrSorted = useMemo(
-    () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
-    [terrList]
-  );
+const sb = supabaseBrowser();
+
+const staffFiltered = useMemo(
+  () => (staffList||[])
+    .filter(s => !(excludeStaffIds||[]).includes(s.id))
+    .sort((a,b)=> a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
+  [staffList, excludeStaffIds]
+);
+const actSorted = useMemo(
+  () => [...(actList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+  [actList]
+);
+const terrSorted = useMemo(
+  () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+  [terrList]
+);
+
 
   const [staffId, setStaffId] = useState<string>('');
   const [actId, setActId] = useState<string>('');
@@ -106,9 +114,10 @@ export default function NewNewAssignmentDialog(props:{
                 onChange={(e)=>setStaffId(e.target.value)}
               >
                 <option value="">— Seleziona —</option>
-                {staffSorted.map(s=>(
-                  <option key={s.id} value={s.id}>{s.display_name}</option>
-                ))}
+                {staffFiltered.map(s => (
+  <option key={s.id} value={s.id}>{s.display_name}</option>
+))}
+
               </select>
             </label>
 

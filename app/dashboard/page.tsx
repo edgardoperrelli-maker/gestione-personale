@@ -341,27 +341,38 @@ export default function DashboardPage() {
         />
       )}
 
-      {/* dialog */}
-      {dialogOpenForDay && (
-        <NewAssignmentDialog
-          dayId={dialogOpenForDay.id}
-          iso={dialogOpenForDay.iso}
-          staffList={staff}
-          actList={activities}
-          terrList={territories}
-          onClose={()=>setDialogOpenForDay(null)}
-          onCreated={(row)=>{ 
-            setAssignments(prev=>{
-              const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
-              arr.push(row as any);
-              arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
-              return { ...prev, [dialogOpenForDay.id]: arr };
-            });
-            setDialogOpenForDay(null);
-            softRefresh();
-          }}
-        />
-      )}
+{/* dialog */}
+{dialogOpenForDay && (() => {
+  const dayId = dialogOpenForDay.id;
+  const excludeStaffIds = Array.from(
+    new Set((assignments[dayId] ?? [])
+      .map(a => a.staff?.id)
+      .filter((x): x is string => !!x))
+  );
+
+  return (
+    <NewAssignmentDialog
+      dayId={dayId}
+      iso={dialogOpenForDay.iso}
+      staffList={staff}
+      actList={activities}
+      terrList={territories}
+      excludeStaffIds={excludeStaffIds}
+      onClose={()=>setDialogOpenForDay(null)}
+      onCreated={(row)=>{ 
+        setAssignments(prev=>{
+          const arr = prev[dayId] ? [...prev[dayId]] : [];
+          arr.push(row as any);
+          arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
+          return { ...prev, [dayId]: arr };
+        });
+        setDialogOpenForDay(null);
+        softRefresh();
+      }}
+    />
+  );
+})()}
+
     </div>
   );
 }
