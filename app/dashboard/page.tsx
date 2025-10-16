@@ -1,4 +1,3 @@
-// app/dashboard/page.tsx
 'use client';
 
 import { useEffect, useMemo, useState, startTransition } from 'react';
@@ -44,7 +43,6 @@ export default function DashboardPage() {
   const [sortMode, setSortMode] = useState<SortMode>('AZ');
   const [filter, setFilter] = useState<string>('NONE');
 
-  // soft refresh trigger
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev(v => v + 1));
 
@@ -69,12 +67,6 @@ export default function DashboardPage() {
   function endOfMonth(d: Date) {
     const m = new Date(d.getFullYear(), d.getMonth()+1, 0); m.setHours(0,0,0,0); return m;
   }
-  // yyyy-mm-dd in fuso Europe/Rome
-function eqDate(a: Date, b: Date) { return fmtDay(a) === fmtDay(b); }
-function fmtDay(d: Date) {
-  const s = d.toLocaleString('sv-SE', { timeZone: tz });
-  return s.replace(' ', 'T').slice(0,10);
-}
 
   // ---- visible range by mode ----
   const range = useMemo(() => {
@@ -122,7 +114,7 @@ function fmtDay(d: Date) {
       ]);
       if (!st.error && st.data) setStaff(st.data as Staff[]);
       if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
-      if (!te.error && te.data) setTerritories(te.data as Territory[]);
+      if (!te.error && te.data) setTerritories(te.data as Territory[])
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -145,16 +137,16 @@ function fmtDay(d: Date) {
 
       let map: Record<string, Assignment[]> = {};
       if (ids.length) {
-const ares = await sb
-  .from('assignments')
-  .select(`
-    id, day_id, reperibile, notes,
-    staff:staff_id ( id, display_name ),
-    territory:territory_id ( id, name ),
-    activity:activity_id ( id, name )
-  `)
-  .in('day_id', ids)
-  .order('created_at', { ascending: true });
+        const ares = await sb
+          .from('assignments')
+          .select(`
+            id, day_id, reperibile, notes,
+            staff:staff_id ( id, display_name ),
+            territory:territory_id ( id, name ),
+            activity:activity_id ( id, name )
+          `)
+          .in('day_id', ids)
+          .order('created_at', { ascending: true });
         if (ares.error || !alive) return;
 
         (ares.data as any[]).forEach((a:any) => {
@@ -175,49 +167,39 @@ const ares = await sb
 
   const dayMap = useMemo(()=>indexDays(days), [days]);
 
-// elimina assegnazione
-const removeAssignment = async (a: Assignment) => {
-  const prev = assignments;
-  setAssignments(prevMap => {
-    const next: Record<string, Assignment[]> = {};
-    for (const k of Object.keys(prevMap)) next[k] = (prevMap[k] ?? []).filter(x => x.id !== a.id);
-    return next;
-  });
+  // elimina assegnazione via RPC
+  const removeAssignment = async (a: Assignment) => {
+    const prev = assignments;
+    setAssignments(prevMap => {
+      const next: Record<string, Assignment[]> = {};
+      for (const k of Object.keys(prevMap)) next[k] = (prevMap[k] ?? []).filter(x => x.id !== a.id);
+      return next;
+    });
 
- const { error } = await sb.rpc('delete_assignment', { p_id: a.id });
+    const { error } = await sb.rpc('delete_assignment', { p_id: a.id });
 
-if (error) {
-  setAssignments(prev);
-  softRefresh();
-  return;
-}
-setTimeout(() => softRefresh(), 300);
-
-};
+    if (error) { setAssignments(prev); softRefresh(); return; }
+    setTimeout(() => softRefresh(), 300);
+  };
 
   // apertura veloce modale “Nuovo”
- const openNewForDate = async (d: Date) => {
-  if (role==='viewer') return;
-  const iso = fmtDay(d);
+  const openNewForDate = async (d: Date) => {
+    if (role==='viewer') return;
+    const iso = fmtDay(d);
 
-  // se il giorno esiste apri subito
-  const existing = dayMap[iso];
-  if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
+    const existing = dayMap[iso];
+    if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
 
-  // crea o prendi il giorno (upsert su "day" unico)
-  const { data, error } = await sb
-    .from('calendar_days')
-    .upsert({ day: iso }, { onConflict: 'day' })
-    .select('id, day')
-    .single();
+    const { data, error } = await sb
+      .from('calendar_days')
+      .upsert({ day: iso }, { onConflict: 'day' })
+      .select('id, day')
+      .single();
+    if (error || !data) return;
 
-  if (error || !data) return;
-
-  // aggiorna mappa giorni e apri dialog
-  setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
-  setDialogOpenForDay({ id: data.id, iso });
-};
-
+    setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
+    setDialogOpenForDay({ id: data.id, iso });
+  };
 
   // ---- top controls ----
   const title = useMemo(() => {
@@ -255,7 +237,6 @@ setTimeout(() => softRefresh(), 300);
     window.location.href = '/login';
   };
 
-  // ---- render ----
   return (
     <div className="p-4 space-y-4">
       {/* Top bar */}
@@ -275,7 +256,7 @@ setTimeout(() => softRefresh(), 300);
             Oggi
           </button>
 
-          {/* FILTRA + ORDINA */}
+          {/* Filtra */}
           <div className="ml-3 flex items-center gap-3">
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Filtra</span>
@@ -304,6 +285,7 @@ setTimeout(() => softRefresh(), 300);
               </select>
             </div>
 
+            {/* Ordina */}
             <div className="flex items-center gap-2">
               <span className="text-sm text-gray-600">Ordina</span>
               <select
@@ -323,10 +305,7 @@ setTimeout(() => softRefresh(), 300);
         </div>
         <div className="flex items-center gap-2 text-sm">
           <span className="opacity-70">{meEmail} · ruolo: {role}</span>
-          <button
-            onClick={onLogout}
-            className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50"
-          >
+          <button onClick={onLogout} className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
             Logout
           </button>
         </div>
@@ -363,48 +342,34 @@ setTimeout(() => softRefresh(), 300);
       )}
 
       {/* dialog */}
-     {dialogOpenForDay && (() => {
-  // escludi operatori già assegnati quel giorno
-  const used = new Set(
-    (assignments[dialogOpenForDay.id] ?? [])
-      .map(a => a.staff?.id)
-      .filter(Boolean) as string[]
-  );
-  const staffAvailable = staff.filter(s => !used.has(s.id));
-
-  return (
-    <NewAssignmentDialog
-      dayId={dialogOpenForDay.id}
-      iso={dialogOpenForDay.iso}
-      staffList={staffAvailable}
-      actList={activities}
-      terrList={territories}
-      onClose={()=>setDialogOpenForDay(null)}
-      onCreated={(row)=>{ 
-        setAssignments(prev=>{
-          const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
-          arr.push(row as any);
-          arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
-          return { ...prev, [dialogOpenForDay.id]: arr };
-        });
-        setDialogOpenForDay(null);
-        softRefresh();
-      }}
-    />
-  );
-})()}
+      {dialogOpenForDay && (
+        <NewAssignmentDialog
+          dayId={dialogOpenForDay.id}
+          iso={dialogOpenForDay.iso}
+          staffList={staff}
+          actList={activities}
+          terrList={territories}
+          onClose={()=>setDialogOpenForDay(null)}
+          onCreated={(row)=>{ 
+            setAssignments(prev=>{
+              const arr = prev[dialogOpenForDay.id] ? [...prev[dialogOpenForDay.id]] : [];
+              arr.push(row as any);
+              arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
+              return { ...prev, [dialogOpenForDay.id]: arr };
+            });
+            setDialogOpenForDay(null);
+            softRefresh();
+          }}
+        />
+      )}
     </div>
   );
 }
 
 // ---- Components ----
-
 function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; children:React.ReactNode}) {
   return (
-    <button
-      onClick={onClick}
-      className={`px-3 py-1.5 text-sm ${active?'bg-gray-900 text-white':'hover:bg-gray-50'}`}
-    >
+    <button onClick={onClick} className={`px-3 py-1.5 text-sm ${active?'bg-gray-900 text-white':'hover:bg-gray-50'}`}>
       {children}
     </button>
   );
@@ -430,9 +395,7 @@ function WeeksGrid(props:{
   return (
     <div className="grid gap-3">
       <div className="grid grid-cols-7 text-xs font-medium text-gray-600 px-1">
-        {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map((h)=>(
-          <div key={h} className="px-2">{h}</div>
-        ))}
+        {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map((h)=>(<div key={h} className="px-2">{h}</div>))}
       </div>
       {weeks.map((w,i)=>(
         <div key={i} className="grid grid-cols-7 gap-3">
@@ -568,7 +531,7 @@ function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onD
   filter: string;
   onDelete:(a:Assignment)=>void;
 }) {
-  const iso = d.toISOString().slice(0,10);
+  const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const items = dayRow ? (assignments[dayRow.id] ?? []) : [];
   const visible = filterAssignments(items, filter);
@@ -581,7 +544,6 @@ function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onD
   );
 }
 
-/** Riga compatta */
 function AssignmentRow({ a, onDelete }:{ a:Assignment; onDelete:()=>void }) {
   return (
     <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-xs shadow-sm">
@@ -598,14 +560,13 @@ function AssignmentRow({ a, onDelete }:{ a:Assignment; onDelete:()=>void }) {
               {a.territory.name}
             </span>
           )}
-         <button
-  onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
-  className="ml-1 px-2 py-0.5 rounded-md border text-[10px] hover:bg-red-50"
-  title="Elimina assegnazione"
->
-  Elimina
-</button>
-
+          <button
+            onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
+            className="ml-1 px-2 py-0.5 rounded-md border text-[10px] hover:bg-red-50"
+            title="Elimina assegnazione"
+          >
+            Elimina
+          </button>
         </div>
       </div>
       <div className="mt-1 flex flex-wrap items-center gap-1">
@@ -629,12 +590,7 @@ function indexDays(rows: DayRow[]) {
   return m;
 }
 function capitalize(s:string){ return s.charAt(0).toUpperCase()+s.slice(1); }
-
-// yyyy-mm-dd in Europe/Rome
-function fmtDay(d: Date){
-  return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10);
-}
-// confronta solo la parte yyyy-mm-dd in Europe/Rome
+function fmtDay(d: Date){ return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10); }
 function eqDate(a: Date, b: Date) { return fmtDay(a) === fmtDay(b); }
 
 function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
@@ -642,7 +598,6 @@ function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
   const act  = (a: Assignment) => a.activity?.name ?? '';
   const terr = (a: Assignment) => a.territory?.name ?? '';
   const cmp  = (a:string,b:string) => a.localeCompare(b,'it',{sensitivity:'base'});
-
   const arr = [...items];
   switch (mode) {
     case 'REPERIBILE':
@@ -659,18 +614,11 @@ function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
       return arr.sort((a,b) => cmp(name(a), name(b)));
   }
 }
-
 function filterAssignments(items: Assignment[], filter: string): Assignment[] {
   if (!filter || filter === 'NONE') return items;
   if (filter === 'REPERIBILE') return items.filter(a => !!a.reperibile);
-  if (filter.startsWith('STAFF:')) {
-    const id = filter.slice(6); return items.filter(a => a.staff?.id === id);
-  }
-  if (filter.startsWith('ACT:')) {
-    const id = filter.slice(4); return items.filter(a => a.activity?.id === id);
-  }
-  if (filter.startsWith('TERR:')) {
-    const id = filter.slice(5); return items.filter(a => a.territory?.id === id);
-  }
+  if (filter.startsWith('STAFF:')) { const id = filter.slice(6); return items.filter(a => a.staff?.id === id); }
+  if (filter.startsWith('ACT:'))   { const id = filter.slice(4); return items.filter(a => a.activity?.id === id); }
+  if (filter.startsWith('TERR:'))  { const id = filter.slice(5); return items.filter(a => a.territory?.id === id); }
   return items;
 }

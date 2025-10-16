@@ -1,128 +1,182 @@
+// components/NewNewAssignmentDialog.tsx
 'use client';
-import { useEffect, useState } from 'react';
+
+import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
-export default function NewAssignmentDialog({
-  dayId, iso, staffList, actList, terrList, onClose, onCreated
-}:{
-  dayId:string; iso:string;
-  staffList:any[]; actList:any[]; terrList:any[];
-  onClose:()=>void; onCreated:(row:any)=>void;
+type Staff = { id:string; display_name:string; active:boolean };
+type Activity = { id:string; name:string; active:boolean };
+type Territory = { id:string; name:string; active:boolean };
+
+type Assignment = {
+  id:string;
+  day_id:string;
+  reperibile:boolean;
+  notes:string|null;
+  staff:{ id:string; display_name:string }|null;
+  activity:{ id:string; name:string }|null;
+  territory:{ id:string; name:string }|null;
+};
+
+export default function NewNewAssignmentDialog(props:{
+  dayId: string;
+  iso: string; // yyyy-mm-dd
+  staffList: Staff[];
+  actList: Activity[];
+  terrList: Territory[];
+  onClose: () => void;
+  onCreated: (row: Assignment) => void;
 }) {
+  const { dayId, iso, staffList, actList, terrList, onClose, onCreated } = props;
   const sb = supabaseBrowser();
 
-  // blocco scroll
-  useEffect(() => {
-    const prev = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = prev; };
-  }, []);
+  const staffSorted = useMemo(
+    () => [...(staffList||[])].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
+    [staffList]
+  );
+  const actSorted = useMemo(
+    () => [...(actList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    [actList]
+  );
+  const terrSorted = useMemo(
+    () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    [terrList]
+  );
 
-  const [staffId, setStaff] = useState('');
-  const [actId, setAct]     = useState('');
-  const [terrId, setTerr]   = useState('');
-  const [rep, setRep]       = useState(false);
-  const [notes, setNotes]   = useState('');
-  const [err, setErr]       = useState<string|undefined>();
+  const [staffId, setStaffId] = useState<string>('');
+  const [actId, setActId] = useState<string>('');
+  const [terrId, setTerrId] = useState<string>('');
+  const [rep, setRep] = useState<boolean>(false);
+  const [notes, setNotes] = useState<string>('');
   const [saving, setSaving] = useState(false);
+  const [err, setErr] = useState<string|undefined>();
 
-  const canSave = !!staffId && !!actId && !!terrId;
+  useEffect(()=>{ setErr(undefined); }, [staffId, actId, terrId, rep, notes]);
 
-  const resetState = () => { setStaff(''); setAct(''); setTerr(''); setRep(false); setNotes(''); setErr(undefined); };
-  const closeAll = () => { resetState(); onClose(); };
+  const canSave = !!staffId && !saving;
 
-  const randomId = () => (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2));
-
-  // salvataggio ottimistico: aggiorna subito il padre e chiudi, poi inserisci su Supabase in background
   const save = async () => {
     if (!canSave) return;
-    setErr(undefined);
-    setSaving(true);
+    setSaving(true); setErr(undefined);
 
-    // costruisci riga ottimistica
-    const staffObj = staffList.find((s:any) => s.id === staffId) ?? null;
-    const actObj   = actList.find((a:any) => a.id === actId) ?? null;
-    const terrObj  = terrList.find((t:any) => t.id === terrId) ?? null;
+    const { data, error } = await sb
+      .from('assignments')
+      .insert({
+        day_id: dayId,
+        staff_id: staffId,
+        activity_id: actId || null,
+        territory_id: terrId || null,
+        reperibile: rep,
+        notes: notes?.trim() || null,
+      })
+      .select(`
+        id, day_id, reperibile, notes,
+        staff:staff_id ( id, display_name ),
+        activity:activity_id ( id, name ),
+        territory:territory_id ( id, name )
+      `)
+      .single();
 
-    const optimisticRow = {
-      id: randomId(),
-      day_id: dayId,
-      reperibile: !!rep,
-      notes: notes?.trim() || null,
-      staff: staffObj ? { id: staffObj.id, display_name: staffObj.display_name } : null,
-      activity: actObj ? { id: actObj.id, name: actObj.name } : null,
-      territory: terrObj ? { id: terrObj.id, name: terrObj.name } : null,
-    };
+    setSaving(false);
 
-    // aggiorna UI immediatamente
-    onCreated(optimisticRow);
-    onClose(); // chiudi subito
-
-    // inserisci sul DB senza join per massima velocità
-    try {
-    const { error } = await sb
-  .from('assignments')
-  .insert({
-    day_id: dayId,
-    staff_id: staffId,
-    activity_id: actId || null,
-    territory_id: terrId || null,
-    reperibile: !!rep,
-    notes: notes?.trim() || null,
-  });
-
-
-      if (error) {
-        console.error('Insert failed:', error.message);
-        // opzionale: mostrare toast non bloccante
-      }
-    } finally {
-      setSaving(false);
+    if (error || !data) {
+      setErr(error?.message || 'Errore di salvataggio');
+      return;
     }
+
+    onCreated(data as unknown as Assignment);
   };
 
   return (
-    <div className="fixed inset-0 bg-black/30 grid place-items-center p-4 z-50">
-      <div className="w-full max-w-md bg-white rounded-xl p-4 space-y-3">
-        <div className="flex justify-between items-center">
-          <h2 className="text-sm font-semibold">Nuova assegnazione · {iso.split('-').reverse().join('/')}</h2>
-          <button onClick={closeAll} className="text-sm px-2 py-1 border rounded">Chiudi</button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
+      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div className="relative w-full max-w-lg rounded-2xl border bg-white shadow-xl">
+        <div className="px-4 py-3 border-b flex items-center justify-between">
+          <div className="text-sm text-gray-500">Nuova assegnazione</div>
+          <div className="text-base font-semibold">{new Date(iso).toLocaleDateString('it-IT',{weekday:'long', day:'2-digit', month:'2-digit', year:'numeric'})}</div>
         </div>
 
-        <div className="space-y-2">
-          <label className="block text-xs">Operatore *</label>
-          <select className="w-full border rounded p-2 text-sm" value={staffId} onChange={e=>setStaff(e.target.value)}>
-            <option value="">{staffList.length ? 'Seleziona…' : '— Nessun operatore —'}</option>
-            {staffList.map((s:any) => <option key={s.id} value={s.id}>{s.display_name}</option>)}
-          </select>
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Operatore *</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={staffId}
+                onChange={(e)=>setStaffId(e.target.value)}
+              >
+                <option value="">— Seleziona —</option>
+                {staffSorted.map(s=>(
+                  <option key={s.id} value={s.id}>{s.display_name}</option>
+                ))}
+              </select>
+            </label>
 
-          <label className="block text-xs">Attività *</label>
-          <select className="w-full border rounded p-2 text-sm" value={actId} onChange={e=>setAct(e.target.value)}>
-            <option value="">{actList.length ? 'Seleziona…' : '— Nessuna attività —'}</option>
-            {actList.map((a:any) => <option key={a.id} value={a.id}>{a.name}</option>)}
-          </select>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Attività</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={actId}
+                onChange={(e)=>setActId(e.target.value)}
+              >
+                <option value="">— Nessuna —</option>
+                {actSorted.map(a=>(
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </label>
 
-          <label className="block text-xs">Territorio *</label>
-          <select className="w-full border rounded p-2 text-sm" value={terrId} onChange={e=>setTerr(e.target.value)}>
-            <option value="">{terrList.length ? 'Seleziona…' : '— Nessun territorio disponibile —'}</option>
-            {terrList.map((t:any) => <option key={t.id} value={t.id}>{t.name}</option>)}
-          </select>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Territorio</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={terrId}
+                onChange={(e)=>setTerrId(e.target.value)}
+              >
+                <option value="">— Nessuno —</option>
+                {terrSorted.map(t=>(
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
 
-          <div className="flex items-center gap-2">
-            <input id="rep" type="checkbox" checked={rep} onChange={e=>setRep(e.target.checked)} />
-            <label htmlFor="rep" className="text-sm">Reperibile</label>
+            <label className="text-sm flex items-center gap-2 mt-6 md:mt-0">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={rep}
+                onChange={(e)=>setRep(e.target.checked)}
+              />
+              <span>Reperibile</span>
+            </label>
           </div>
 
-          <label className="block text-xs">Note</label>
-          <input className="w-full border rounded p-2 text-sm" value={notes} onChange={e=>setNotes(e.target.value)} />
+          <label className="text-sm block">
+            <span className="block text-gray-600 mb-1">Note</span>
+            <input
+              className="w-full border rounded-lg px-3 py-2 bg-white"
+              value={notes}
+              onChange={(e)=>setNotes(e.target.value)}
+              placeholder="Opzionale"
+            />
+          </label>
+
+          {err && <div className="text-sm text-red-600">{err}</div>}
         </div>
 
-        {err && <div className="text-xs text-red-600">{err}</div>}
-        {!terrList.length && <div className="text-xs text-red-600">Nessun territorio. Controlla permessi/RLS e dati.</div>}
-
-        <div className="flex justify-end gap-2">
-          <button onClick={closeAll} className="px-3 py-1.5 border rounded text-sm">Annulla</button>
-          <button onClick={save} disabled={saving || !canSave} className="px-3 py-1.5 border rounded text-sm">
+        <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+            disabled={saving}
+          >
+            Annulla
+          </button>
+          <button
+            onClick={save}
+            disabled={!canSave}
+            className={`px-4 py-1.5 rounded-lg text-white ${canSave?'bg-gray-900 hover:bg-black':'bg-gray-400 cursor-not-allowed'}`}
+          >
             {saving ? 'Salvo…' : 'Salva'}
           </button>
         </div>
