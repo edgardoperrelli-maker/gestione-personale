@@ -1,105 +1,192 @@
 'use client';
+
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import type { Assignment, Staff, Activity, Territory } from '@/types';
 
-type Staff = { id:string; display_name:string; active:boolean };
-type Activity = { id:string; name:string; active:boolean };
-type Territory = { id:string; name:string; active:boolean };
-type Assignment = {
-  id:string; day_id:string; reperibile:boolean; notes:string|null;
-  staff:{ id:string; display_name:string }|null;
-  activity:{ id:string; name:string }|null;
-  territory:{ id:string; name:string }|null;
-};
-
-export default function EditAssignmentDialog({
-  assignment, staffList, actList, terrList, onClose, onSaved
+export default function NewAssignmentDialog({
+  dayId, iso, staffList, actList, terrList, excludeStaffIds = [], onClose, onCreated
 }:{
-  assignment: Assignment;
-  staffList: Staff[];
-  actList: Activity[];
-  terrList: Territory[];
-  onClose: ()=>void;
-  onSaved: (row: Assignment)=>void;
+  dayId:string; iso:string;
+  staffList:Staff[]; actList:Activity[]; terrList:Territory[];
+  excludeStaffIds?: string[];
+  onClose:()=>void; onCreated:(row:Assignment)=>void;
 }) {
   const sb = supabaseBrowser();
 
-  const staffSorted = useMemo(() => [...staffList].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})), [staffList]);
-  const actSorted   = useMemo(() => [...actList].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})), [actList]);
-  const terrSorted  = useMemo(() => [...terrList].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})), [terrList]);
+  const staffSorted = useMemo(
+    () => [...(staffList||[])].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
+    [staffList]
+  );
+  const actSorted = useMemo(
+    () => [...(actList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    [actList]
+  );
+  const terrSorted = useMemo(
+    () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    [terrList]
+  );
+// FILTRO: mostra solo operatori non ancora assegnati a quel giorno
+const excludeSet = useMemo(() => new Set(excludeStaffIds), [excludeStaffIds]);
 
-  const [staffId, setStaffId] = useState(assignment.staff?.id ?? '');
-  const [actId, setActId]     = useState(assignment.activity?.id ?? '');
-  const [terrId, setTerrId]   = useState(assignment.territory?.id ?? '');
-  const [rep, setRep]         = useState<boolean>(!!assignment.reperibile);
-  const [notes, setNotes]     = useState<string>(assignment.notes ?? '');
-  const [saving, setSaving]   = useState(false);
-  const [err, setErr]         = useState<string|undefined>();
+const availableStaff = useMemo(
+  () => (staffSorted ?? []).filter((s) => !excludeSet.has(s.id)),
+  [staffSorted, excludeSet]
+);
 
-  useEffect(()=>{ setErr(undefined); }, [staffId, actId, terrId, rep, notes]);
-  useEffect(()=>{ document.body.style.overflow='hidden'; return ()=>{ document.body.style.overflow=''; }; },[]);
+  // DEFAULT PER "NUOVO": nessun assignment
+  const [staffId, setStaffId]     = useState<string>('');
+  const [activityId, setActivityId] = useState<string>('');
+  const [territoryId, setTerritoryId] = useState<string>('');
+  const [reperibile, setReperibile] = useState<boolean>(false);
+  const [notes, setNotes]         = useState<string>('');
+  const [saving, setSaving]       = useState(false);
+  const [err, setErr]             = useState<string|undefined>();
+
+  useEffect(() => {
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = prev; };
+  }, []);
+
+  useEffect(() => { setErr(undefined); }, [staffId, activityId, territoryId, reperibile, notes]);
 
   const canSave = !!staffId && !saving;
 
-  const save = async () => {
+  async function save() {
     if (!canSave) return;
     setSaving(true); setErr(undefined);
 
-    const { error } = await sb.rpc('update_assignment', {
-      p_id: assignment.id,
-      p_staff_id: staffId || null,
-      p_activity_id: actId || null,
-      p_territory_id: terrId || null,
-      p_reperibile: rep,
-      p_notes: notes?.trim() || null,
-    });
-    if (error) { setSaving(false); setErr(error.message || 'Errore di salvataggio'); return; }
+    // INSERT riga
+    const ins = await sb
+      .from('assignments')
+      .insert({
+        day_id: dayId,
+        staff_id:     staffId || null,
+        activity_id:  activityId || null,
+        territory_id: territoryId || null,
+        reperibile,
+        notes:        notes || null,
+      })
+      .select()
+      .single();
 
-    const res = await sb.from('assignments').select(`
-      id, day_id, reperibile, notes,
-      staff:staff_id ( id, display_name ),
-      activity:activity_id ( id, name ),
-      territory:territory_id ( id, name )
-    `).eq('id', assignment.id).single();
+    if (ins.error || !ins.data) {
+      setSaving(false);
+      setErr(ins.error?.message || 'Errore di inserimento');
+      return;
+    }
+
+    // Rileggi con join per lo shape atteso
+    const res = await sb
+      .from('assignments')
+      .select(`
+        id, day_id, reperibile, notes,
+        staff:staff_id ( id, display_name ),
+        territory:territory_id ( id, name ),
+        activity:activity_id ( id, name )
+      `)
+      .eq('id', ins.data.id)
+      .single();
 
     setSaving(false);
-    if (res.error || !res.data) { setErr(res.error?.message || 'Errore di lettura'); return; }
-    onSaved(res.data as unknown as Assignment);
-  };
+
+    if (res.error || !res.data) {
+      setErr(res.error?.message || 'Errore di lettura');
+      return;
+    }
+
+    onCreated(res.data as unknown as Assignment);
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/30" onClick={onClose} />
       <div className="relative w-full max-w-lg rounded-2xl border bg-white shadow-xl">
         <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="text-sm text-gray-500">Modifica assegnazione</div>
-          <div className="text-base font-semibold">ID: {assignment.id.slice(0,8)}…</div>
+          <div className="text-sm text-gray-500">Nuova assegnazione</div>
+          <div className="text-base font-semibold">{iso}</div>
         </div>
 
-<form
-  onSubmit={(e)=>{ e.preventDefault(); if (canSave) save(); }}
-  className="p-4 space-y-4"
-  onKeyDown={(e)=>{
-    if ((e.key==='s' || e.key==='S') && (e.ctrlKey || e.metaKey)) {
-      e.preventDefault(); if (canSave) save();
-    }
-  }}
->
-  ...
-</form>
+        <form
+          onSubmit={(e)=>{ e.preventDefault(); if (canSave) save(); }}
+          onKeyDown={(e)=>{ if ((e.key==='s'||e.key==='S')&&(e.ctrlKey||e.metaKey)) { e.preventDefault(); if (canSave) save(); } }}
+          className="p-4 space-y-4"
+        >
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Operatore *</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={staffId}
+                onChange={(e)=>setStaffId(e.target.value)}
+                autoFocus
+              >
+                <option value="">— Seleziona —</option>
+                {staffSorted.map(s=>(
+                  <option key={s.id} value={s.id}>{s.display_name}</option>
+                ))}
+              </select>
+            </label>
 
-<div className="px-4 py-3 border-t flex items-center justify-end gap-2">
-  <button onClick={onClose} className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50" disabled={saving}>
-    Annulla
-  </button>
-  <button type="submit" formMethod="dialog" formAction="" 
-          onClick={(e)=>{ /* no-op, submit gestito dal form */ }}
-          disabled={!canSave}
-          className={`px-4 py-1.5 rounded-lg text-white ${canSave?'bg-gray-900 hover:bg-black':'bg-gray-400 cursor-not-allowed'}`}>
-    {saving ? 'Salvo…' : 'Salva'}
-  </button>
-</div>
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Attività</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={activityId}
+                onChange={(e)=>setActivityId(e.target.value)}
+              >
+                <option value="">— Nessuna —</option>
+                {actSorted.map(a=>(
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
+            </label>
 
+            <label className="text-sm">
+              <span className="block text-gray-600 mb-1">Territorio</span>
+              <select
+                className="w-full border rounded-lg px-3 py-2 bg-white"
+                value={territoryId}
+                onChange={(e)=>setTerritoryId(e.target.value)}
+              >
+                <option value="">— Nessuno —</option>
+                {terrSorted.map(t=>(
+                  <option key={t.id} value={t.id}>{t.name}</option>
+                ))}
+              </select>
+            </label>
+
+            <label className="text-sm flex items-center gap-2 mt-6 md:mt-0">
+              <input
+                type="checkbox"
+                className="h-4 w-4"
+                checked={reperibile}
+                onChange={(e)=>setReperibile(e.target.checked)}
+              />
+              <span>Reperibile</span>
+            </label>
+          </div>
+
+          <label className="text-sm block">
+            <span className="block text-gray-600 mb-1">Note</span>
+            <input
+              className="w-full border rounded-lg px-3 py-2 bg-white"
+              value={notes}
+              onChange={(e)=>setNotes(e.target.value)}
+              placeholder="Opzionale"
+            />
+          </label>
+
+          {err && <div className="text-sm text-red-600">{err}</div>}
+
+          <div className="px-0 pt-3 border-t flex items-center justify-end gap-2">
+            <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50" disabled={saving}>Annulla</button>
+            <button type="submit" disabled={!canSave} className={`px-4 py-1.5 rounded-lg text-white ${canSave?'bg-gray-900 hover:bg-black':'bg-gray-400 cursor-not-allowed'}`}>
+              {saving ? 'Salvo…' : 'Salva'}
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );

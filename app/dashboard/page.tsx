@@ -6,18 +6,8 @@ import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 
 type Role = 'viewer'|'editor'|'admin';
 type DayRow = { id:string; day:string; note?:string };
-type Assignment = {
-  id:string;
-  day_id:string;
-  staff:{ id:string; display_name:string }|null;
-  territory:{ id:string; name:string }|null;
-  activity:{ id:string; name:string }|null;
-  reperibile:boolean;
-  notes?:string|null;
-};
-type Staff = { id:string; display_name:string; active:boolean };
-type Activity = { id:string; name:string; active:boolean };
-type Territory = { id:string; name:string; active:boolean };
+import type { Assignment, Staff, Activity, Territory } from '@/types';
+
 type ViewMode = 'month'|'twoWeeks'|'week';
 type SortMode = 'AZ'|'REPERIBILE'|'ATTIVITA'|'TERRITORIO'|'SENZA_ATTIVITA'|'PER_TERRITORIO';
 
@@ -359,58 +349,78 @@ const openEditDialog = (a: Assignment) => {
 {/* dialog */}
 {dialogOpenForDay && (() => {
   const dayId = dialogOpenForDay.id;
-  const excludeStaffIds = Array.from(
-    new Set((assignments[dayId] ?? [])
-      .map(a => a.staff?.id)
-      .filter((x): x is string => !!x))
+
+  // ID operatori già assegnati quel giorno
+  const excludeIds = new Set(
+    (assignments[dayId] ?? [])
+      .map(a => a?.staff?.id ?? '')
+      .filter(id => id !== '')
   );
+
+  // Operatori disponibili per quel giorno
+  const availableStaffForDay = (staff ?? []).filter(s => !excludeIds.has(s.id));
 
   return (
     <NewAssignmentDialog
-      {...({
-        dayId,
-        iso: dialogOpenForDay.iso,
-        staffList: staff,
-        actList: activities,
-        terrList: territories,
-        excludeStaffIds,
-        onClose: () => setDialogOpenForDay(null),
-        onCreated: (row: Assignment) => {
-          setAssignments(prev => {
-            const arr = prev[dayId] ? [...prev[dayId]] : [];
-            arr.push(row as any);
-            arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
-            return { ...prev, [dayId]: arr };
-          });
-          setDialogOpenForDay(null);
-          softRefresh();
-        }
-      } as any)}
+      dayId={dayId}
+      iso={dialogOpenForDay.iso}
+      staffList={availableStaffForDay}   // <- passiamo già filtrati
+      actList={activities}
+      terrList={territories}
+      onClose={() => setDialogOpenForDay(null)}
+      onCreated={(row: Assignment) => {
+        setAssignments(prev => {
+          const arr = prev[dayId] ? [...prev[dayId]] : [];
+          const i = arr.findIndex(x => x.id === row.id);
+          if (i >= 0) arr[i] = row as any; else arr.push(row as any);
+          const seen = new Set<string>();
+          const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
+          dedup.sort((a:any,b:any)=>
+            (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'})
+          );
+          return { ...prev, [dayId]: dedup };
+        });
+        setDialogOpenForDay(null);
+      }}
     />
   );
 })()}
 
+
+
 {/* >>> PUNTO C: modale Modifica <<< */}
-{editAssignment && (
-  <EditAssignmentDialog
-    assignment={editAssignment}
-    staffList={staff}
-    actList={activities}
-    terrList={territories}
-    onClose={() => setEditAssignment(null)}
-    onSaved={(updated: Assignment) => {
-      setAssignments(prev => {
-        const dayId = updated.day_id;
-        const arr = [...(prev[dayId] ?? [])];
-        const i = arr.findIndex(x => x.id === updated.id);
-        if (i >= 0) arr[i] = updated as any;
-        return { ...prev, [dayId]: arr };
-      });
-      softRefresh();
-      setEditAssignment(null);
-    }}
-  />
-)}
+{editAssignment && (() => {
+  const dayId = editAssignment.day_id;
+
+  const excludeIds = new Set(
+    (assignments[dayId] ?? [])
+      .map(a => a?.staff?.id ?? '')
+      .filter(id => id !== '' && id !== (editAssignment.staff?.id ?? ''))
+  );
+
+  const availableStaffForEdit = (staff ?? []).filter(
+    s => s.id === (editAssignment.staff?.id ?? '') || !excludeIds.has(s.id)
+  );
+
+  return (
+    <EditAssignmentDialog
+      assignment={editAssignment}
+      staffList={availableStaffForEdit}
+      actList={activities}
+      terrList={territories}
+      onClose={() => setEditAssignment(null)}
+      onSaved={(updated: Assignment) => {
+        setAssignments(prev => {
+          const arr = [...(prev[updated.day_id] ?? [])];
+          const i = arr.findIndex(x => x.id === updated.id);
+          if (i >= 0) arr[i] = updated as any;
+          return { ...prev, [updated.day_id]: arr };
+        });
+        setEditAssignment(null);
+      }}
+    />
+  );
+})()}
 </div>
 );
 }
