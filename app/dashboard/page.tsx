@@ -1,5 +1,5 @@
 'use client';
-
+import EditAssignmentDialog from '../../components/EditAssignmentDialog';
 import { useEffect, useMemo, useState, startTransition } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
@@ -40,6 +40,7 @@ export default function DashboardPage() {
   const [territories, setTerritories] = useState<Territory[]>([]);
 
   const [dialogOpenForDay, setDialogOpenForDay] = useState<{id:string; iso:string}|null>(null);
+  const [editAssignment, setEditAssignment] = useState<Assignment|null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('AZ');
   const [filter, setFilter] = useState<string>('NONE');
 
@@ -166,21 +167,28 @@ export default function DashboardPage() {
   }, [range.start, range.end, sb, rev]);
 
   const dayMap = useMemo(()=>indexDays(days), [days]);
+// elimina assegnazione via RPC
+const removeAssignment = async (a: Assignment) => {
+  const prev = assignments;
+  setAssignments(prevMap => {
+    const next: Record<string, Assignment[]> = {};
+    for (const k of Object.keys(prevMap)) next[k] = (prevMap[k] ?? []).filter(x => x.id !== a.id);
+    return next;
+  });
 
-  // elimina assegnazione via RPC
-  const removeAssignment = async (a: Assignment) => {
-    const prev = assignments;
-    setAssignments(prevMap => {
-      const next: Record<string, Assignment[]> = {};
-      for (const k of Object.keys(prevMap)) next[k] = (prevMap[k] ?? []).filter(x => x.id !== a.id);
-      return next;
-    });
+  const { error } = await sb.rpc('delete_assignment', { p_id: a.id });
+  if (error) { 
+    setAssignments(prev); 
+    softRefresh(); 
+    return; 
+  }
+  setTimeout(() => softRefresh(), 300);
+};
 
-    const { error } = await sb.rpc('delete_assignment', { p_id: a.id });
-
-    if (error) { setAssignments(prev); softRefresh(); return; }
-    setTimeout(() => softRefresh(), 300);
-  };
+  // apertura modale “Modifica”
+const openEditDialog = (a: Assignment) => {
+  setEditAssignment(a); // apre modale di modifica
+};
 
   // apertura veloce modale “Nuovo”
   const openNewForDate = async (d: Date) => {
@@ -312,34 +320,41 @@ export default function DashboardPage() {
       </div>
 
       {/* calendar */}
-      {mode==='week' ? (
-        <WeekGrid
-          week={weeks[0] ?? []}
-          today={today}
-          role={role}
-          days={days}
-          assignments={assignments}
-          onAdd={(d)=>openNewForDate(d)}
-          sortMode={sortMode}
-          filter={filter}
-          onDelete={removeAssignment}
-        />
-      ) : (
-        <WeeksGrid
-          weeks={weeks}
-          anchor={anchor}
-          today={today}
-          role={role}
-          days={days}
-          assignments={assignments}
-          onAdd={(d)=>openNewForDate(d)}
-          showMonthLabels={mode==='month'}
-          sortMode={sortMode}
-          filter={filter}
-          setSortMode={setSortMode}
-          onDelete={removeAssignment}
-        />
-      )}
+{mode==='week' ? (
+  <WeeksGrid
+    weeks={[weeks[0] ?? []]}   // una sola riga di 7 “quadrotti”
+    anchor={anchor}
+    today={today}
+    role={role}
+    days={days}
+    assignments={assignments}
+    onAdd={(d)=>openNewForDate(d)}
+    showMonthLabels={false}
+    sortMode={sortMode}
+    filter={filter}
+    setSortMode={setSortMode}
+    onDelete={removeAssignment}
+    onEdit={openEditDialog}
+  />
+) : (
+  <WeeksGrid
+    weeks={weeks}
+    anchor={anchor}
+    today={today}
+    role={role}
+    days={days}
+    assignments={assignments}
+    onAdd={(d)=>openNewForDate(d)}
+    showMonthLabels={mode==='month'}
+    sortMode={sortMode}
+    filter={filter}
+    setSortMode={setSortMode}
+    onDelete={removeAssignment}
+    onEdit={openEditDialog}
+  />
+)}
+
+
 
 {/* dialog */}
 {dialogOpenForDay && (() => {
@@ -352,30 +367,54 @@ export default function DashboardPage() {
 
   return (
     <NewAssignmentDialog
-      dayId={dayId}
-      iso={dialogOpenForDay.iso}
-      staffList={staff}
-      actList={activities}
-      terrList={territories}
-      excludeStaffIds={excludeStaffIds}
-      onClose={()=>setDialogOpenForDay(null)}
-      onCreated={(row)=>{ 
-        setAssignments(prev=>{
-          const arr = prev[dayId] ? [...prev[dayId]] : [];
-          arr.push(row as any);
-          arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
-          return { ...prev, [dayId]: arr };
-        });
-        setDialogOpenForDay(null);
-        softRefresh();
-      }}
+      {...({
+        dayId,
+        iso: dialogOpenForDay.iso,
+        staffList: staff,
+        actList: activities,
+        terrList: territories,
+        excludeStaffIds,
+        onClose: () => setDialogOpenForDay(null),
+        onCreated: (row: Assignment) => {
+          setAssignments(prev => {
+            const arr = prev[dayId] ? [...prev[dayId]] : [];
+            arr.push(row as any);
+            arr.sort((a:any,b:any)=> (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'}));
+            return { ...prev, [dayId]: arr };
+          });
+          setDialogOpenForDay(null);
+          softRefresh();
+        }
+      } as any)}
     />
   );
 })()}
 
-    </div>
-  );
+{/* >>> PUNTO C: modale Modifica <<< */}
+{editAssignment && (
+  <EditAssignmentDialog
+    assignment={editAssignment}
+    staffList={staff}
+    actList={activities}
+    terrList={territories}
+    onClose={() => setEditAssignment(null)}
+    onSaved={(updated: Assignment) => {
+      setAssignments(prev => {
+        const dayId = updated.day_id;
+        const arr = [...(prev[dayId] ?? [])];
+        const i = arr.findIndex(x => x.id === updated.id);
+        if (i >= 0) arr[i] = updated as any;
+        return { ...prev, [dayId]: arr };
+      });
+      softRefresh();
+      setEditAssignment(null);
+    }}
+  />
+)}
+</div>
+);
 }
+
 
 // ---- Components ----
 function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; children:React.ReactNode}) {
@@ -386,89 +425,7 @@ function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; c
   );
 }
 
-function WeeksGrid(props:{
-  weeks: Date[][];
-  anchor: Date;
-  today: Date;
-  role: Role;
-  days: DayRow[];
-  assignments: Record<string, Assignment[]>;
-  onAdd:(d:Date)=>void;
-  showMonthLabels:boolean;
-  sortMode: SortMode;
-  filter: string;
-  setSortMode: (m: SortMode)=>void;
-  onDelete:(a:Assignment)=>void;
-}) {
-  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filter, setSortMode, onDelete } = props;
-  const dayMap = useMemo(()=>indexDays(days),[days]);
-
-  return (
-    <div className="grid gap-3">
-      <div className="grid grid-cols-7 text-xs font-medium text-gray-600 px-1">
-        {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map((h)=>(<div key={h} className="px-2">{h}</div>))}
-      </div>
-      {weeks.map((w,i)=>(
-        <div key={i} className="grid grid-cols-7 gap-3">
-          {w.map((d)=>(
-            <DayCell
-              key={d.toISOString()}
-              d={d}
-              isToday={eqDate(d,today)}
-              isCurrentMonth={d.getMonth()===anchor.getMonth()}
-              role={role}
-              dayMap={dayMap}
-              assignments={assignments}
-              onAdd={onAdd}
-              showMonthLabel={showMonthLabels && d.getDate()===1}
-              sortMode={sortMode}
-              filter={filter}
-              setSortMode={setSortMode}
-              onDelete={onDelete}
-            />
-          ))}
-        </div>
-      ))}
-    </div>
-  );
-}
-
-function WeekGrid(props:{
-  week: Date[];
-  today: Date;
-  role: Role;
-  days: DayRow[];
-  assignments: Record<string, Assignment[]>;
-  onAdd:(d:Date)=>void;
-  sortMode: SortMode;
-  filter: string;
-  onDelete:(a:Assignment)=>void;
-}) {
-  const { week, today, role, days, assignments, onAdd, sortMode, filter, onDelete } = props;
-  const dayMap = useMemo(()=>indexDays(days),[days]);
-
-  return (
-    <div className="grid grid-cols-7 gap-3">
-      {week.map((d)=>(
-        <div key={d.toISOString()} className="flex flex-col rounded-2xl border bg-white shadow-sm overflow-hidden">
-          <div className="px-3 py-2 text-xs font-medium border-b bg-gray-50">
-            {d.toLocaleDateString('it-IT',{ weekday:'long', day:'2-digit', month:'2-digit' })}
-          </div>
-          <div className={`flex items-center justify-between px-3 py-2 ${eqDate(d,today)?'bg-yellow-50':''}`}>
-            <div className="text-base font-semibold">{d.getDate()}</div>
-            {role!=='viewer' && (
-              <button onClick={()=>onAdd(d)} className="text-xs px-2 py-1 rounded-lg border bg-white hover:bg-gray-50">Nuovo</button>
-            )}
-          </div>
-          <div className="p-3 space-y-2 overflow-y-auto" style={{ minHeight: 500, maxHeight: 720 }}>
-            <AssignmentList dayMap={dayMap} d={d} assignments={assignments} compact={false} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
+/** DayCell: definito PRIMA di WeeksGrid */
 function DayCell(props:{
   d: Date;
   isToday: boolean;
@@ -482,8 +439,10 @@ function DayCell(props:{
   filter: string;
   setSortMode: (m: SortMode)=>void;
   onDelete:(a:Assignment)=>void;
+  onEdit:(a:Assignment)=>void;
 }) {
-  const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete } = props;
+  const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete, onEdit } = props;
+
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
@@ -511,36 +470,116 @@ function DayCell(props:{
           <button onClick={()=>onAdd(d)} className="text-xs px-2 py-1 rounded-lg border bg-white hover:bg-gray-50">Nuovo</button>
         )}
       </div>
-      <div className="mt-2 space-y-1 overflow-y-auto" style={{ minHeight: 260, maxHeight: 680 }}>
-        <AssignmentListByIds items={list} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
+      <div className="mt-2 space-y-2 overflow-y-auto" style={{ minHeight: 360, maxHeight: 900 }}>
+        <AssignmentListByIds items={list} sortMode={sortMode} filter={filter} onDelete={onDelete} onEdit={onEdit}/>
       </div>
     </div>
   );
 }
 
-function AssignmentListByIds({ items, sortMode, filter, onDelete }:{
-  items: Assignment[]; sortMode: SortMode; filter: string; onDelete:(a:Assignment)=>void;
+function WeeksGrid(props:{
+  weeks: Date[][];
+  anchor: Date;
+  today: Date;
+  role: Role;
+  days: DayRow[];
+  assignments: Record<string, Assignment[]>;
+  onAdd:(d:Date)=>void;
+  showMonthLabels:boolean;
+  sortMode: SortMode;
+  filter: string;
+  setSortMode: (m: SortMode)=>void;
+  onDelete:(a:Assignment)=>void;
+  onEdit:(a:Assignment)=>void;
+}) {
+  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filter, setSortMode, onDelete, onEdit } = props;
+  const dayMap = useMemo(()=>indexDays(days),[days]);
+
+  return (
+    <div className="grid gap-3">
+      <div className="grid grid-cols-7 text-xs font-medium text-gray-600 px-1">
+        {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map((h)=>(
+          <div key={h} className="px-2">{h}</div>
+        ))}
+      </div>
+
+      {weeks.map((w,i)=>(
+        <div key={i} className="grid grid-cols-7 gap-3">
+          {w.map((d)=>(
+            <DayCell
+              key={d.toISOString()}
+              d={d}
+              isToday={eqDate(d,today)}
+              isCurrentMonth={d.getMonth()===anchor.getMonth()}
+              role={role}
+              dayMap={dayMap}
+              assignments={assignments}
+              onAdd={onAdd}
+              showMonthLabel={showMonthLabels && d.getDate()===1}
+              sortMode={sortMode}
+              filter={filter}
+              setSortMode={setSortMode}
+              onDelete={onDelete}
+              onEdit={onEdit}
+            />
+          ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+
+
+function AssignmentListByIds({
+  items,
+  sortMode,
+  filter,
+  onDelete,
+  onEdit, // aggiunto
+}: {
+  items: Assignment[];
+  sortMode: SortMode;
+  filter: string;
+  onDelete: (a: Assignment) => void;
+  onEdit: (a: Assignment) => void; // aggiunto
 }) {
   const visible = filterAssignments(items, filter);
   if (!visible.length) return <div className="text-xs opacity-50">—</div>;
   const sorted = sortAssignments(visible, sortMode);
   return (
     <div className="flex flex-col gap-1">
-      {sorted.map((a: Assignment)=>(
-        <AssignmentRow key={a.id} a={a} onDelete={()=>onDelete(a)}/>
+      {sorted.map((a: Assignment) => (
+        <AssignmentRow
+          key={a.id}
+          a={a}
+          onDelete={() => onDelete(a)}
+          onEdit={() => onEdit(a)} // corretto: usa callback padre
+        />
       ))}
     </div>
   );
 }
 
-function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onDelete }:{
+
+function AssignmentList({
+  dayMap,
+  d,
+  assignments,
+  compact,
+  sortMode,
+  filter,
+  onDelete,
+  onEdit, // aggiunto
+}: {
   dayMap: Record<string, DayRow>;
   d: Date;
   assignments: Record<string, Assignment[]>;
-  compact:boolean;
+  compact: boolean;
   sortMode: SortMode;
   filter: string;
-  onDelete:(a:Assignment)=>void;
+  onDelete: (a: Assignment) => void;
+  onEdit: (a: Assignment) => void; // aggiunto
 }) {
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
@@ -548,51 +587,88 @@ function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onD
   const visible = filterAssignments(items, filter);
   if (!visible.length) return <div className="text-xs opacity-50">—</div>;
   const sorted = sortAssignments(visible, sortMode);
+
   return (
     <div className="flex flex-col gap-2">
-      {sorted.map((a: Assignment)=>(<AssignmentRow key={a.id} a={a} onDelete={()=>onDelete(a)}/>))}
+      {sorted.map((a: Assignment) => (
+        <AssignmentRow
+          key={a.id}
+          a={a}
+          onDelete={() => onDelete(a)}
+          onEdit={() => onEdit(a)} // nuova callback
+        />
+      ))}
     </div>
   );
 }
 
-function AssignmentRow({ a, onDelete }:{ a:Assignment; onDelete:()=>void }) {
+
+function AssignmentRow({ a, onDelete, onEdit }:{
+  a:Assignment; onDelete:()=>void; onEdit:(assignment:Assignment)=>void;
+}) {
   return (
-    <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-xs shadow-sm">
-      <div className="flex items-center justify-between gap-2">
-        <div className="font-semibold truncate">{a.staff?.display_name ?? '—'}</div>
-        <div className="flex items-center gap-1 shrink-0">
-          {a.reperibile && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-amber-100 text-amber-800 border border-amber-200">
-              Reperibile
-            </span>
-          )}
-          {a.territory && (
-            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-indigo-100 text-indigo-800 border border-indigo-200">
-              {a.territory.name}
-            </span>
-          )}
-          <button
-            onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
-            className="ml-1 px-2 py-0.5 rounded-md border text-[10px] hover:bg-red-50"
-            title="Elimina assegnazione"
-          >
-            Elimina
-          </button>
-        </div>
+    <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-[11px] shadow-sm">
+      {/* Nome cognome */}
+      <div className="font-semibold whitespace-normal break-words">
+        {a.staff?.display_name ?? '—'}
       </div>
-      <div className="mt-1 flex flex-wrap items-center gap-1">
-        {a.activity && (
-          <span className="inline-flex px-2 py-0.5 rounded-md border text-[11px] bg-emerald-50 border-emerald-200 text-emerald-800">
-            {a.activity.name}
+
+      {/* Territorio + Reperibile */}
+      <div className="mt-1 flex flex-wrap gap-1">
+        {a.territory && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-indigo-50 border-indigo-200 text-indigo-800">
+            {a.territory.name}
           </span>
         )}
-        {a.notes && (
-          <span className="ml-1 text-[11px] text-gray-600 truncate">• {a.notes}</span>
+        {a.reperibile && (
+          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-800">
+            Reperibile
+          </span>
         )}
+      </div>
+
+      {/* Attività */}
+      <div className="mt-1">
+        {a.activity ? (
+          <span className="inline-flex px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-800">
+            {a.activity.name}
+          </span>
+        ) : (
+          <span className="inline-flex px-2 py-0.5 rounded-md border bg-gray-50 text-gray-600">
+            Nessuna attività
+          </span>
+        )}
+      </div>
+
+      {/* Note */}
+      {a.notes && (
+        <div className="mt-1 text-[11px] text-gray-600 whitespace-pre-wrap break-words">
+          {a.notes}
+        </div>
+      )}
+
+      {/* Azioni */}
+      <div className="mt-2 flex flex-wrap gap-1">
+        <button
+          onClick={(e)=>{ e.stopPropagation(); onEdit(a); }}
+          className="px-2 py-0.5 rounded-md border hover:bg-blue-50"
+          title="Modifica assegnazione"
+        >
+          Modifica
+        </button>
+        <button
+          onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
+          className="px-2 py-0.5 rounded-md border hover:bg-red-50"
+          title="Elimina assegnazione"
+        >
+          Elimina
+        </button>
       </div>
     </div>
   );
 }
+
+
 
 // ---- utils ----
 function indexDays(rows: DayRow[]) {

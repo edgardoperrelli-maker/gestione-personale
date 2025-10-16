@@ -345,20 +345,31 @@ useEffect(() => {
         />
       )}
 
-   {dialogOpenForDay && (
+    {dialogOpenForDay && (
   <NewAssignmentDialog
-    dayId={dialogOpenForDay.id}
-    iso={dialogOpenForDay.iso}
+    assignment={{
+      id: `new-${dialogOpenForDay.iso}`,
+      day_id: dialogOpenForDay.id,
+      staff: null,
+      territory: null,
+      activity: null,
+      reperibile: false,
+      notes: null,
+    }}
     staffList={staff}
     actList={activities}
     terrList={territories}
-    excludeStaffIds={
-      (assignments[dialogOpenForDay.id] ?? [])
-        .map(a => a.staff?.id)
-        .filter((x): x is string => !!x)
-    }
     onClose={()=>setDialogOpenForDay(null)}
-    onCreated={(row)=>{ /* ... invariato ... */ }}
+    onSaved={(row: Assignment) => {
+      setAssignments(prev => {
+        const next: Record<string, Assignment[]> = { ...prev };
+        const arr = next[row.day_id] ?? [];
+        next[row.day_id] = [...arr, row];
+        return next;
+      });
+      setDialogOpenForDay(null);
+      setTimeout(() => softRefresh(), 300);
+    }}
   />
 )}
 
