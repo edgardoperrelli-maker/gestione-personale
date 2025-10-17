@@ -1,4 +1,5 @@
 'use client';
+import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import EditAssignmentDialog from '../../components/EditAssignmentDialog';
 import { useEffect, useMemo, useState, startTransition } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -432,28 +433,11 @@ function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; c
     </button>
   );
 }
-// --- INSERIRE PRIMA DEL RENDER DELLA GRIGLIA ---
-const FIXED_IT_HOLIDAYS = new Set<string>([
-  '-01-01', // Capodanno
-  '-01-06', // Epifania
-  '-04-25', // Liberazione
-  '-05-01', // Lavoro
-  '-06-02', // Repubblica
-  '-08-15', // Ferragosto
-  '-11-01', // Ognissanti
-  '-12-08', // Immacolata
-  '-12-25', // Natale
-  '-12-26', // Santo Stefano
-]);
-// TODO: aggiungi Pasquetta e altre mobili se necessario
-
-const isSaturday = (d: Date) => d.getDay() === 6;
-const isSunday   = (d: Date) => d.getDay() === 0;
-const isFixedHoliday = (d: Date) => FIXED_IT_HOLIDAYS.has(d.toISOString().slice(4, 10));
-
+// Colori: festività = rosso, weekend = arancione. Festività ha priorità sul weekend.
+// Usa helper già importati: isItalyHoliday, isWeekend
 const dayBgClass = (d: Date) => {
-  if (isSunday(d) || isFixedHoliday(d)) return 'bg-gradient-to-br from-rose-400 to-rose-500';
-  if (isSaturday(d))                    return 'bg-orange-100';
+  if (isItalyHoliday(d)) return 'bg-gradient-to-br from-rose-400 to-rose-500';
+  if (isWeekend(d))      return 'bg-orange-100';
   return 'bg-white';
 };
 
@@ -473,22 +457,24 @@ function DayCell(props:{
   onDelete:(a:Assignment)=>void;
   onEdit:(a:Assignment)=>void;
 }) {
-  const { d, isToday, isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete, onEdit } = props;
+  const { d, isToday, isCurrentMonth: _isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete, onEdit } = props;
 
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
-  const weekend = [6,0].includes(d.getDay());
 
-  return (
+return (
   <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} hover:ring-1 hover:ring-black/10`}>
     <div className="flex items-center justify-between">
       <div className="text-sm font-semibold flex items-center gap-2">
-        <span>
+        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}>
           {d.getDate()}
-          {showMonthLabel && ` ${d.toLocaleDateString('it-IT', { month: 'short' })}`}
         </span>
+        {showMonthLabel && (
+          <span>{d.toLocaleDateString('it-IT', { month: 'short' })}</span>
+        )}
         {sortMode !== 'AZ' && (
+
           <button
             onClick={() => setSortMode('AZ')}
             className="text-[10px] px-2 py-0.5 rounded-full border bg-white hover:bg-gray-50"
@@ -554,7 +540,7 @@ function WeeksGrid(props:{
         <div key={i} className="grid grid-cols-7 gap-3">
           {w.map((d: Date) => (
             <DayCell
-              key={d.toISOString()}
+              key={fmtDay(d)}
               d={d}
               isToday={eqDate(d,today)}
               isCurrentMonth={d.getMonth()===anchor.getMonth()}
