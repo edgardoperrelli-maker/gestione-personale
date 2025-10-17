@@ -24,3 +24,17 @@ body {
   color: var(--foreground);
   font-family: Arial, Helvetica, sans-serif;
 }
+:root{
+  --app-bg: #E6F3FF;     /* celeste chiarissimo */
+  --card-bg: #FFFFFF;    /* card */
+  --card-bd: #CFE6FF;    /* bordo card */
+  --we-bg:  #F3F8FF;     /* weekend su celeste */
+  --hol-bg: #FFE7EA;     /* festività tenue rosato */
+  --today-ring: #38BDF8; /* sky-400 */
+}
+html, body {
+  background-color: var(--app-bg);
+  color: #111;
+  height: 100%;
+  margin: 0;
+}

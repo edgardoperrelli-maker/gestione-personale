@@ -238,7 +238,8 @@ const openEditDialog = (a: Assignment) => {
   };
 
   return (
-    <div className="p-4 space-y-4">
+    <div className="p-4 space-y-4 min-h-screen">
+
       {/* Top bar */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -464,11 +465,13 @@ function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; c
 }
 // Colori: festività = rosso, weekend = arancione. Festività ha priorità sul weekend.
 // Usa helper già importati: isItalyHoliday, isWeekend
+// Colori: festività > weekend > default
 const dayBgClass = (d: Date) => {
-  if (isItalyHoliday(d)) return 'bg-gradient-to-br from-rose-400 to-rose-500';
-  if (isWeekend(d))      return 'bg-orange-100';
-  return 'bg-white';
+  if (isItalyHoliday(d)) return 'bg-[var(--hol-bg)]';
+  if (isWeekend(d))      return 'bg-[var(--we-bg)]';
+  return 'bg-[var(--card-bg)]';
 };
+
 
 /** DayCell: definito PRIMA di WeeksGrid */
 function DayCell(props:{
@@ -493,10 +496,11 @@ function DayCell(props:{
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
 
 return (
-  <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} hover:ring-1 hover:ring-black/10`}>
+  <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} border-[var(--card-bd)] hover:ring-1 hover:ring-black/10`}>
     <div className="flex items-center justify-between">
       <div className="text-sm font-semibold flex items-center gap-2">
-        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? 'ring-2 ring-offset-2 ring-blue-500' : ''}`}>
+        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? 'ring-2 ring-offset-2 ring-[var(--today-ring)]' : ''}`}>
+
           {d.getDate()}
         </span>
         {showMonthLabel && (
@@ -666,16 +670,17 @@ function AssignmentRow({ a, onDelete, onEdit }:{
   a: Assignment; onDelete: () => void; onEdit: (assignment: Assignment) => void;
 }) {
   return (
-    <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-[11px] shadow-sm">
+    <div className="rounded-xl border bg-[var(--card-bg)] hover:bg-white transition px-3 py-2 text-[11px] shadow-sm border-[var(--card-bd)]">
       {/* Riga titolo: nome a sinistra (truncate) + Reperibile a destra */}
       <div className="flex items-start justify-between gap-2">
         <div className="font-semibold min-w-0">
           <span className="block truncate">{a.staff?.display_name ?? '—'}</span>
         </div>
         {a.reperibile && (
-          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-800">
-            Reperibile
-          </span>
+          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full border bg-sky-50 border-sky-200 text-sky-700">
+  Reperibile
+</span>
+
         )}
       </div>
 
@@ -685,7 +690,7 @@ function AssignmentRow({ a, onDelete, onEdit }:{
         <div className="flex-1 space-y-1">
           <div className="flex flex-wrap gap-1">
             {a.territory && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-indigo-50 border-indigo-200 text-indigo-800">
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-50 border-[var(--card-bd)] text-slate-700">
                 {a.territory.name}
               </span>
             )}
@@ -693,7 +698,7 @@ function AssignmentRow({ a, onDelete, onEdit }:{
 
           <div>
             {a.activity ? (
-              <span className="inline-flex px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-800">
+              <span className="inline-flex px-2 py-0.5 rounded-md border bg-[var(--we-bg)] border-[var(--card-bd)] text-slate-800">
                 {a.activity.name}
               </span>
             ) : (
