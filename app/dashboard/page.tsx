@@ -1,4 +1,5 @@
 'use client';
+import InsertReperibileDialog from '@/components/InsertReperibileDialog';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import EditAssignmentDialog from '../../components/EditAssignmentDialog';
 import { useEffect, useMemo, useState, startTransition } from 'react';
@@ -34,6 +35,7 @@ export default function DashboardPage() {
   const [editAssignment, setEditAssignment] = useState<Assignment|null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('AZ');
   const [filter, setFilter] = useState<string>('NONE');
+const [openInsertRep, setOpenInsertRep] = useState(false);
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev(v => v + 1));
@@ -299,14 +301,27 @@ const openEditDialog = (a: Assignment) => {
                 <option value="PER_TERRITORIO">Per territorio</option>
               </select>
             </div>
+                   </div>
+
+          {/* NUOVO: tasto Inserisci Reperibile */}
+          <div className="flex items-center gap-2">
+            <button
+              className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+              onClick={() => setOpenInsertRep(true)}
+              title="Inserisci Reperibile"
+            >
+              Inserisci Reperibile
+            </button>
           </div>
         </div>
+
         <div className="flex items-center gap-2 text-sm">
           <span className="opacity-70">{meEmail} · ruolo: {role}</span>
           <button onClick={onLogout} className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
             Logout
           </button>
         </div>
+
       </div>
 
       {/* calendar */}
@@ -422,9 +437,23 @@ const openEditDialog = (a: Assignment) => {
 />
   );
 })()}
+
+{/* NUOVO DIALOG: Inserisci Reperibile */}
+<InsertReperibileDialog
+  open={openInsertRep}
+  onClose={() => setOpenInsertRep(false)}
+  staffList={staff}
+  terrList={territories}
+  onInserted={() => {
+    setOpenInsertRep(false);
+    softRefresh();
+  }}
+/>
+
 </div>
 );
 }
+
 // ---- Components ----
 function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; children:React.ReactNode}) {
   return (

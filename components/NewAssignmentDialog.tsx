@@ -15,15 +15,15 @@ export default function NewAssignmentDialog({
   const sb = supabaseBrowser();
 
   const staffSorted = useMemo(
-    () => [...(staffList||[])].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
+    () => [...(staffList || [])].sort((a,b)=>a.display_name.localeCompare(b.display_name,'it',{sensitivity:'base'})),
     [staffList]
   );
   const actSorted = useMemo(
-    () => [...(actList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    () => [...(actList || [])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
     [actList]
   );
   const terrSorted = useMemo(
-    () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
+    () => [...(terrList || [])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
     [terrList]
   );
 
@@ -33,6 +33,7 @@ export default function NewAssignmentDialog({
   const [reperibile, setReperibile]   = useState<boolean>(false);
   const [notes, setNotes]             = useState<string>('');
   const [err, setErr]                 = useState<string | undefined>();
+  const [saving, setSaving]           = useState<boolean>(false);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -41,41 +42,37 @@ export default function NewAssignmentDialog({
   }, []);
   useEffect(() => { setErr(undefined); }, [staffId, activityId, territoryId, reperibile, notes]);
 
-  const canSave = !!staffId;
+  const canSave = !!staffId && !saving;
 
-  // SALVA con chiusura immediata
   async function save() {
     if (!canSave) return;
+    setSaving(true);
     setErr(undefined);
 
-    // chiudi subito la modale
-    onClose();
-
-    // insert in background
     const ins = await sb
       .from('assignments')
       .insert({
-        day_id:      dayId,
-        staff_id:    staffId || null,
-        activity_id: activityId || null,
-        territory_id:territoryId || null,
-        reperibile,
-        notes:       notes || null,
+        day_id:       dayId,
+        staff_id:     staffId || null,
+        activity_id:  activityId || null,
+        territory_id: territoryId || null,
+        reperibile:   !!reperibile,
+        notes:        notes ?? null,
       })
       .select('id, day_id')
       .single();
 
     if (ins.error || !ins.data) {
-      console.error('Insert assignment failed:', ins.error?.message);
+      setSaving(false);
+      setErr(ins.error?.message || 'Errore nel salvataggio.');
       return;
     }
 
-    // costruisci oggetto per il parent usando le liste già caricate
     const normalized: Assignment = {
       id: ins.data.id,
       day_id: ins.data.day_id,
-      reperibile,
-      notes: notes || null,
+      reperibile: !!reperibile,
+      notes: notes ?? null,
       staff: staffId
         ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' }
         : null,
@@ -87,12 +84,16 @@ export default function NewAssignmentDialog({
         : null,
     };
 
-    onCreated(normalized, true);
+    onCreated(normalized, true); // il parent chiude la modale
+    setSaving(false);
   }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-black/30" onClick={onClose} />
+      <div
+        className="absolute inset-0 bg-black/30"
+        onClick={() => { if (!saving) onClose(); }}
+      />
       <div className="relative w-full max-w-lg rounded-2xl border bg-white shadow-xl">
         <div className="px-4 py-3 border-b flex items-center justify-between">
           <div className="text-sm text-gray-500">Nuova assegnazione</div>
@@ -111,6 +112,7 @@ export default function NewAssignmentDialog({
                 className="w-full border rounded-lg px-3 py-2 bg-white"
                 value={staffId}
                 onChange={(e)=>setStaffId(e.target.value)}
+                disabled={saving}
                 autoFocus
               >
                 <option value="">— Seleziona —</option>
@@ -126,6 +128,7 @@ export default function NewAssignmentDialog({
                 className="w-full border rounded-lg px-3 py-2 bg-white"
                 value={activityId}
                 onChange={(e)=>setActivityId(e.target.value)}
+                disabled={saving}
               >
                 <option value="">— Nessuna —</option>
                 {actSorted.map(a=>(
@@ -140,6 +143,7 @@ export default function NewAssignmentDialog({
                 className="w-full border rounded-lg px-3 py-2 bg-white"
                 value={territoryId}
                 onChange={(e)=>setTerritoryId(e.target.value)}
+                disabled={saving}
               >
                 <option value="">— Nessuno —</option>
                 {terrSorted.map(t=>(
@@ -154,6 +158,7 @@ export default function NewAssignmentDialog({
                 className="h-4 w-4"
                 checked={reperibile}
                 onChange={(e)=>setReperibile(e.target.checked)}
+                disabled={saving}
               />
               <span>Reperibile</span>
             </label>
@@ -166,6 +171,7 @@ export default function NewAssignmentDialog({
               value={notes}
               onChange={(e)=>setNotes(e.target.value)}
               placeholder="Opzionale"
+              disabled={saving}
             />
           </label>
 
@@ -176,6 +182,7 @@ export default function NewAssignmentDialog({
               type="button"
               onClick={onClose}
               className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+              disabled={saving}
             >
               Annulla
             </button>
@@ -184,7 +191,7 @@ export default function NewAssignmentDialog({
               disabled={!canSave}
               className={`px-4 py-1.5 rounded-lg text-white ${canSave ? 'bg-gray-900 hover:bg-black' : 'bg-gray-400 cursor-not-allowed'}`}
             >
-              Salva
+              {saving ? 'Salvo…' : 'Salva'}
             </button>
           </div>
         </form>

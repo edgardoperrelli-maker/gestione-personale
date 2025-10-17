@@ -345,33 +345,52 @@ useEffect(() => {
         />
       )}
 
-    {dialogOpenForDay && (
-  <NewAssignmentDialog
-    assignment={{
-      id: `new-${dialogOpenForDay.iso}`,
-      day_id: dialogOpenForDay.id,
-      staff: null,
-      territory: null,
-      activity: null,
-      reperibile: false,
-      notes: null,
-    }}
-    staffList={staff}
-    actList={activities}
-    terrList={territories}
-    onClose={()=>setDialogOpenForDay(null)}
-    onSaved={(row: Assignment) => {
-      setAssignments(prev => {
-        const next: Record<string, Assignment[]> = { ...prev };
-        const arr = next[row.day_id] ?? [];
-        next[row.day_id] = [...arr, row];
-        return next;
-      });
-      setDialogOpenForDay(null);
-      setTimeout(() => softRefresh(), 300);
-    }}
-  />
-)}
+{dialogOpenForDay && (() => {
+  const dayId = dialogOpenForDay.id;
+
+  // Escludi operatori già assegnati in quel giorno
+  const excludeIds = new Set(
+    (assignments[dayId] ?? [])
+      .map(a => a?.staff?.id ?? '')
+      .filter(id => id !== '')
+  );
+  const availableStaffForDay = (staff ?? []).filter(s => !excludeIds.has(s.id));
+
+  return (
+    <NewAssignmentDialog
+      dayId={dayId}
+      iso={dialogOpenForDay.iso}
+      staffList={availableStaffForDay}
+      actList={activities}
+      terrList={territories}
+      onClose={() => setDialogOpenForDay(null)}
+      onCreated={(row, close = true) => {
+  const r = row as Assignment; // cast unico
+
+  setAssignments(prev => {
+    const arr = prev[dayId] ? [...prev[dayId]] : [];
+    const i = arr.findIndex(x => x.id === r.id);
+    if (i >= 0) arr[i] = r as any; else arr.push(r as any);
+    const seen = new Set<string>();
+    const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
+    dedup.sort((a:any,b:any)=>
+      (a.staff?.display_name ?? '').localeCompare(
+        b.staff?.display_name ?? '',
+        'it',
+        { sensitivity: 'base' }
+      )
+    );
+    return { ...prev, [dayId]: dedup };
+  });
+
+  if (close) setDialogOpenForDay(null);
+  setTimeout(() => softRefresh(), 300);
+}}
+
+    />
+  );
+})()}
+
 
     </div>
   );
