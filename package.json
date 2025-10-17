@@ -5,7 +5,7 @@
   "scripts": {
     "seed:users": "tsx scripts/seedUsers.ts",
     "dev": "next dev --turbopack",
-    "build": "next build --turbopack",
+    "build": "next build",
     "start": "next start",
     "lint": "eslint"
   },
