@@ -107,7 +107,6 @@ export default function DashboardPage() {
       if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
       if (!te.error && te.data) setTerritories(te.data as Territory[])
     })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // ---- load days + assignments for visible range ----
@@ -361,28 +360,29 @@ const openEditDialog = (a: Assignment) => {
   const availableStaffForDay = (staff ?? []).filter(s => !excludeIds.has(s.id));
 
   return (
-    <NewAssignmentDialog
-      dayId={dayId}
-      iso={dialogOpenForDay.iso}
-      staffList={availableStaffForDay}   // <- passiamo già filtrati
-      actList={activities}
-      terrList={territories}
-      onClose={() => setDialogOpenForDay(null)}
-      onCreated={(row: Assignment) => {
-        setAssignments(prev => {
-          const arr = prev[dayId] ? [...prev[dayId]] : [];
-          const i = arr.findIndex(x => x.id === row.id);
-          if (i >= 0) arr[i] = row as any; else arr.push(row as any);
-          const seen = new Set<string>();
-          const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
-          dedup.sort((a:any,b:any)=>
-            (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'})
-          );
-          return { ...prev, [dayId]: dedup };
-        });
-        setDialogOpenForDay(null);
-      }}
-    />
+   <NewAssignmentDialog
+  dayId={dayId}
+  iso={dialogOpenForDay.iso}
+  staffList={availableStaffForDay}
+  actList={activities}
+  terrList={territories}
+  onClose={() => setDialogOpenForDay(null)}
+  onCreated={(row: Assignment, close = true) => {   // <-- usa il flag
+    setAssignments(prev => {
+      const arr = prev[dayId] ? [...prev[dayId]] : [];
+      const i = arr.findIndex(x => x.id === row.id);
+      if (i >= 0) arr[i] = row as any; else arr.push(row as any);
+      const seen = new Set<string>();
+      const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
+      dedup.sort((a:any,b:any)=>
+        (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'})
+      );
+      return { ...prev, [dayId]: dedup };
+    });
+    if (close) setDialogOpenForDay(null);            // <-- chiudi solo se close=true
+  }}
+/>
+
   );
 })()}
 
@@ -409,23 +409,21 @@ const openEditDialog = (a: Assignment) => {
       actList={activities}
       terrList={territories}
       onClose={() => setEditAssignment(null)}
-      onSaved={(updated: Assignment) => {
-        setAssignments(prev => {
-          const arr = [...(prev[updated.day_id] ?? [])];
-          const i = arr.findIndex(x => x.id === updated.id);
-          if (i >= 0) arr[i] = updated as any;
-          return { ...prev, [updated.day_id]: arr };
-        });
-        setEditAssignment(null);
-      }}
-    />
+      onSaved={(updated: Assignment, close = true) => {
+    setAssignments(prev => {
+      const arr = [...(prev[updated.day_id] ?? [])];
+      const i = arr.findIndex(x => x.id === updated.id);
+      if (i >= 0) arr[i] = updated as any;
+      return { ...prev, [updated.day_id]: arr };
+    });
+    if (close) setEditAssignment(null);              // <-- idem
+  }}
+/>
   );
 })()}
 </div>
 );
 }
-
-
 // ---- Components ----
 function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; children:React.ReactNode}) {
   return (
@@ -434,6 +432,30 @@ function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; c
     </button>
   );
 }
+// --- INSERIRE PRIMA DEL RENDER DELLA GRIGLIA ---
+const FIXED_IT_HOLIDAYS = new Set<string>([
+  '-01-01', // Capodanno
+  '-01-06', // Epifania
+  '-04-25', // Liberazione
+  '-05-01', // Lavoro
+  '-06-02', // Repubblica
+  '-08-15', // Ferragosto
+  '-11-01', // Ognissanti
+  '-12-08', // Immacolata
+  '-12-25', // Natale
+  '-12-26', // Santo Stefano
+]);
+// TODO: aggiungi Pasquetta e altre mobili se necessario
+
+const isSaturday = (d: Date) => d.getDay() === 6;
+const isSunday   = (d: Date) => d.getDay() === 0;
+const isFixedHoliday = (d: Date) => FIXED_IT_HOLIDAYS.has(d.toISOString().slice(4, 10));
+
+const dayBgClass = (d: Date) => {
+  if (isSunday(d) || isFixedHoliday(d)) return 'bg-gradient-to-br from-rose-400 to-rose-500';
+  if (isSaturday(d))                    return 'bg-orange-100';
+  return 'bg-white';
+};
 
 /** DayCell: definito PRIMA di WeeksGrid */
 function DayCell(props:{
@@ -459,33 +481,48 @@ function DayCell(props:{
   const weekend = [6,0].includes(d.getDay());
 
   return (
-    <div className={`rounded-2xl border bg-white shadow-sm p-2 flex flex-col ${!isCurrentMonth?'opacity-50':''} ${weekend?'bg-red-50/40':''} ${isToday?'ring-2 ring-yellow-400':''}`}>
-      <div className="flex items-center justify-between">
-        <div className="text-sm font-semibold flex items-center gap-2">
-          <span>
-            {d.getDate()}
-            {showMonthLabel && ` ${d.toLocaleDateString('it-IT',{ month:'short' })}`}
-          </span>
-          {sortMode!=='AZ' && (
-            <button
-              onClick={()=>setSortMode('AZ')}
-              className="text-[10px] px-2 py-0.5 rounded-full border bg-white hover:bg-gray-50"
-              title="Ordina A → Z"
-            >
-              A→Z
-            </button>
-          )}
-        </div>
-        {role!=='viewer' && (
-          <button onClick={()=>onAdd(d)} className="text-xs px-2 py-1 rounded-lg border bg-white hover:bg-gray-50">Nuovo</button>
+  <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} hover:ring-1 hover:ring-black/10`}>
+    <div className="flex items-center justify-between">
+      <div className="text-sm font-semibold flex items-center gap-2">
+        <span>
+          {d.getDate()}
+          {showMonthLabel && ` ${d.toLocaleDateString('it-IT', { month: 'short' })}`}
+        </span>
+        {sortMode !== 'AZ' && (
+          <button
+            onClick={() => setSortMode('AZ')}
+            className="text-[10px] px-2 py-0.5 rounded-full border bg-white hover:bg-gray-50"
+            title="Ordina A → Z"
+          >
+            A→Z
+          </button>
         )}
       </div>
-      <div className="mt-2 space-y-2 overflow-y-auto" style={{ minHeight: 360, maxHeight: 900 }}>
-        <AssignmentListByIds items={list} sortMode={sortMode} filter={filter} onDelete={onDelete} onEdit={onEdit}/>
-      </div>
+
+      {role !== 'viewer' && (
+        <button
+  onClick={() => onAdd(d)}
+  className="text-xs px-2 py-1 rounded-lg border bg-white text-gray-900 hover:bg-gray-50"
+>
+  Nuovo
+</button>
+
+      )}
     </div>
-  );
+
+    <div className="mt-2 space-y-2 overflow-y-auto" style={{ minHeight: 360, maxHeight: 900 }}>
+      <AssignmentListByIds
+        items={list}
+        sortMode={sortMode}
+        filter={filter}
+        onDelete={onDelete}
+        onEdit={onEdit}
+      />
+    </div>
+  </div>
+);
 }
+
 
 function WeeksGrid(props:{
   weeks: Date[][];
@@ -515,7 +552,7 @@ function WeeksGrid(props:{
 
       {weeks.map((w,i)=>(
         <div key={i} className="grid grid-cols-7 gap-3">
-          {w.map((d)=>(
+          {w.map((d: Date) => (
             <DayCell
               key={d.toISOString()}
               d={d}
@@ -538,7 +575,6 @@ function WeeksGrid(props:{
     </div>
   );
 }
-
 
 
 function AssignmentListByIds({
@@ -611,74 +647,75 @@ function AssignmentList({
     </div>
   );
 }
-
-
 function AssignmentRow({ a, onDelete, onEdit }:{
-  a:Assignment; onDelete:()=>void; onEdit:(assignment:Assignment)=>void;
+  a: Assignment; onDelete: () => void; onEdit: (assignment: Assignment) => void;
 }) {
   return (
     <div className="rounded-xl border bg-white hover:bg-gray-50 transition px-3 py-2 text-[11px] shadow-sm">
-      {/* Nome cognome */}
-      <div className="font-semibold whitespace-normal break-words">
-        {a.staff?.display_name ?? '—'}
-      </div>
-
-      {/* Territorio + Reperibile */}
-      <div className="mt-1 flex flex-wrap gap-1">
-        {a.territory && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-indigo-50 border-indigo-200 text-indigo-800">
-            {a.territory.name}
-          </span>
-        )}
+      {/* Riga titolo: nome a sinistra (truncate) + Reperibile a destra */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="font-semibold min-w-0">
+          <span className="block truncate">{a.staff?.display_name ?? '—'}</span>
+        </div>
         {a.reperibile && (
-          <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-800">
+          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full border bg-amber-50 border-amber-200 text-amber-800">
             Reperibile
           </span>
         )}
       </div>
 
-      {/* Attività */}
-      <div className="mt-1">
-        {a.activity ? (
-          <span className="inline-flex px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-800">
-            {a.activity.name}
-          </span>
-        ) : (
-          <span className="inline-flex px-2 py-0.5 rounded-md border bg-gray-50 text-gray-600">
-            Nessuna attività
-          </span>
-        )}
-      </div>
+      {/* Contenuto + colonna azioni */}
+      <div className="mt-1 flex gap-2">
+        {/* Sinistra: territorio, attività, note */}
+        <div className="flex-1 space-y-1">
+          <div className="flex flex-wrap gap-1">
+            {a.territory && (
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-indigo-50 border-indigo-200 text-indigo-800">
+                {a.territory.name}
+              </span>
+            )}
+          </div>
 
-      {/* Note */}
-      {a.notes && (
-        <div className="mt-1 text-[11px] text-gray-600 whitespace-pre-wrap break-words">
-          {a.notes}
+          <div>
+            {a.activity ? (
+              <span className="inline-flex px-2 py-0.5 rounded-md border bg-emerald-50 border-emerald-200 text-emerald-800">
+                {a.activity.name}
+              </span>
+            ) : (
+              <span className="inline-flex px-2 py-0.5 rounded-md border bg-gray-50 text-gray-600">
+                Nessuna attività
+              </span>
+            )}
+          </div>
+
+          {a.notes && (
+            <div className="text-[11px] text-gray-600 whitespace-pre-wrap break-words">
+              {a.notes}
+            </div>
+          )}
         </div>
-      )}
 
-      {/* Azioni */}
-      <div className="mt-2 flex flex-wrap gap-1">
-        <button
-          onClick={(e)=>{ e.stopPropagation(); onEdit(a); }}
-          className="px-2 py-0.5 rounded-md border hover:bg-blue-50"
-          title="Modifica assegnazione"
-        >
-          Modifica
-        </button>
-        <button
-          onClick={(e)=>{ e.stopPropagation(); onDelete(); }}
-          className="px-2 py-0.5 rounded-md border hover:bg-red-50"
-          title="Elimina assegnazione"
-        >
-          Elimina
-        </button>
+        {/* Destra: pulsanti verticali */}
+        <div className="flex flex-col gap-1">
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit(a); }}
+            className="px-2 py-0.5 rounded-md border hover:bg-blue-50 text-xs"
+            title="Modifica assegnazione"
+          >
+            Modifica
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="px-2 py-0.5 rounded-md border hover:bg-red-50 text-xs"
+            title="Elimina assegnazione"
+          >
+            Elimina
+          </button>
+        </div>
       </div>
     </div>
   );
 }
-
-
 
 // ---- utils ----
 function indexDays(rows: DayRow[]) {

@@ -5,12 +5,12 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 
 export default function NewAssignmentDialog({
-  dayId, iso, staffList, actList, terrList, excludeStaffIds = [], onClose, onCreated
+  dayId, iso, staffList, actList, terrList, onClose, onCreated
 }:{
-  dayId:string; iso:string;
-  staffList:Staff[]; actList:Activity[]; terrList:Territory[];
-  excludeStaffIds?: string[];
-  onClose:()=>void; onCreated:(row:Assignment)=>void;
+  dayId: string; iso: string;
+  staffList: Staff[]; actList: Activity[]; terrList: Territory[];
+  onClose: () => void;
+  onCreated: (row: Assignment, close?: boolean) => void;
 }) {
   const sb = supabaseBrowser();
 
@@ -26,77 +26,68 @@ export default function NewAssignmentDialog({
     () => [...(terrList||[])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
     [terrList]
   );
-// FILTRO: mostra solo operatori non ancora assegnati a quel giorno
-const excludeSet = useMemo(() => new Set(excludeStaffIds), [excludeStaffIds]);
 
-const availableStaff = useMemo(
-  () => (staffSorted ?? []).filter((s) => !excludeSet.has(s.id)),
-  [staffSorted, excludeSet]
-);
-
-  // DEFAULT PER "NUOVO": nessun assignment
-  const [staffId, setStaffId]     = useState<string>('');
-  const [activityId, setActivityId] = useState<string>('');
+  const [staffId, setStaffId]         = useState<string>('');
+  const [activityId, setActivityId]   = useState<string>('');
   const [territoryId, setTerritoryId] = useState<string>('');
-  const [reperibile, setReperibile] = useState<boolean>(false);
-  const [notes, setNotes]         = useState<string>('');
-  const [saving, setSaving]       = useState(false);
-  const [err, setErr]             = useState<string|undefined>();
+  const [reperibile, setReperibile]   = useState<boolean>(false);
+  const [notes, setNotes]             = useState<string>('');
+  const [err, setErr]                 = useState<string | undefined>();
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, []);
-
   useEffect(() => { setErr(undefined); }, [staffId, activityId, territoryId, reperibile, notes]);
 
-  const canSave = !!staffId && !saving;
+  const canSave = !!staffId;
 
+  // SALVA con chiusura immediata
   async function save() {
     if (!canSave) return;
-    setSaving(true); setErr(undefined);
+    setErr(undefined);
 
-    // INSERT riga
+    // chiudi subito la modale
+    onClose();
+
+    // insert in background
     const ins = await sb
       .from('assignments')
       .insert({
-        day_id: dayId,
-        staff_id:     staffId || null,
-        activity_id:  activityId || null,
-        territory_id: territoryId || null,
+        day_id:      dayId,
+        staff_id:    staffId || null,
+        activity_id: activityId || null,
+        territory_id:territoryId || null,
         reperibile,
-        notes:        notes || null,
+        notes:       notes || null,
       })
-      .select()
+      .select('id, day_id')
       .single();
 
     if (ins.error || !ins.data) {
-      setSaving(false);
-      setErr(ins.error?.message || 'Errore di inserimento');
+      console.error('Insert assignment failed:', ins.error?.message);
       return;
     }
 
-    // Rileggi con join per lo shape atteso
-    const res = await sb
-      .from('assignments')
-      .select(`
-        id, day_id, reperibile, notes,
-        staff:staff_id ( id, display_name ),
-        territory:territory_id ( id, name ),
-        activity:activity_id ( id, name )
-      `)
-      .eq('id', ins.data.id)
-      .single();
+    // costruisci oggetto per il parent usando le liste già caricate
+    const normalized: Assignment = {
+      id: ins.data.id,
+      day_id: ins.data.day_id,
+      reperibile,
+      notes: notes || null,
+      staff: staffId
+        ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' }
+        : null,
+      activity: activityId
+        ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' }
+        : null,
+      territory: territoryId
+        ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' }
+        : null,
+    };
 
-    setSaving(false);
-
-    if (res.error || !res.data) {
-      setErr(res.error?.message || 'Errore di lettura');
-      return;
-    }
-
-    onCreated(res.data as unknown as Assignment);
+    onCreated(normalized, true);
   }
 
   return (
@@ -110,13 +101,13 @@ const availableStaff = useMemo(
 
         <form
           onSubmit={(e)=>{ e.preventDefault(); if (canSave) save(); }}
-          onKeyDown={(e)=>{ if ((e.key==='s'||e.key==='S')&&(e.ctrlKey||e.metaKey)) { e.preventDefault(); if (canSave) save(); } }}
           className="p-4 space-y-4"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="text-sm">
               <span className="block text-gray-600 mb-1">Operatore *</span>
               <select
+                name="staff"
                 className="w-full border rounded-lg px-3 py-2 bg-white"
                 value={staffId}
                 onChange={(e)=>setStaffId(e.target.value)}
@@ -181,9 +172,19 @@ const availableStaff = useMemo(
           {err && <div className="text-sm text-red-600">{err}</div>}
 
           <div className="px-0 pt-3 border-t flex items-center justify-end gap-2">
-            <button type="button" onClick={onClose} className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50" disabled={saving}>Annulla</button>
-            <button type="submit" disabled={!canSave} className={`px-4 py-1.5 rounded-lg text-white ${canSave?'bg-gray-900 hover:bg-black':'bg-gray-400 cursor-not-allowed'}`}>
-              {saving ? 'Salvo…' : 'Salva'}
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+            >
+              Annulla
+            </button>
+            <button
+              type="submit"
+              disabled={!canSave}
+              className={`px-4 py-1.5 rounded-lg text-white ${canSave ? 'bg-gray-900 hover:bg-black' : 'bg-gray-400 cursor-not-allowed'}`}
+            >
+              Salva
             </button>
           </div>
         </form>
