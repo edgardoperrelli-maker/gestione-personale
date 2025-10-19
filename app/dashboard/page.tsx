@@ -23,7 +23,8 @@ export default function DashboardPage() {
   const [mode, setMode] = useState<ViewMode>('month');
 
   
-  const [role] = useState<Role>('viewer');
+  const [role, setRole] = useState<Role>('viewer');
+
 
   const [meEmail, setMeEmail] = useState<string>('');
 
