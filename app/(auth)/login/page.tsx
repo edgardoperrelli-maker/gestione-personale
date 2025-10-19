@@ -1,49 +1,86 @@
 'use client';
-import { useEffect, useState } from 'react';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { useRouter } from 'next/navigation';
+
+import { useState } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
 export default function LoginPage() {
-  const [username, setU] = useState('');
-  const [password, setP] = useState('');
+  const supabase = createClientComponentClient();
+  const router = useRouter();
+  const sp = useSearchParams();
+  const redirectTo = sp.get('redirect') || '/dashboard';
+
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
   const [err, setErr] = useState<string>();
   const [loading, setLoading] = useState(false);
-  const router = useRouter();
-  const sb = supabaseBrowser();
 
-  useEffect(() => {
-    (async () => {
-      const { data: { session } } = await sb.auth.getSession();
-      if (session) router.replace('/dashboard');
-    })();
-  }, []);
-
-  const onSubmit = async (e: React.FormEvent) => {
+  async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (loading) return;
     setErr(undefined);
     setLoading(true);
-    const u = username.trim();
-    const email = `u_${u}@local`;
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+    // 1) risolvi username -> email
+    const { data: row, error: qErr } = await supabase
+      .from('profiles')
+      .select('email')
+      .eq('username', username)
+      .single();
+
+    if (qErr || !row?.email) {
+      setLoading(false);
+      setErr('Utente non trovato');
+      return;
+    }
+
+    // 2) login con email mappata
+    const { error: authErr } = await supabase.auth.signInWithPassword({
+      email: row.email,
+      password,
+    });
+
     setLoading(false);
-    if (error) { setErr('Credenziali non valide'); return; }
-    if (data.session) router.push('/dashboard');
-  };
+    if (authErr) { setErr('Credenziali non valide'); return; }
+
+    router.push(redirectTo);
+    router.refresh();
+  }
 
   return (
-    <main className="min-h-screen grid place-items-center p-6">
-      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-3">
-        <h1 className="text-xl font-semibold">Accesso</h1>
-        <input className="w-full border p-2 rounded" placeholder="Username"
-          autoComplete="username" value={username} onChange={(e)=>setU(e.target.value)} />
-        <input className="w-full border p-2 rounded" placeholder="Password" type="password"
-          autoComplete="current-password" value={password} onChange={(e)=>setP(e.target.value)} />
+    <div className="min-h-screen flex items-center justify-center p-6">
+      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 border rounded-2xl p-6">
+        <h1 className="text-xl font-semibold text-center">Accesso</h1>
+
+        <label className="block text-sm">
+          <span className="text-gray-600">Nome utente</span>
+          <input
+            type="text"
+            className="mt-1 w-full border rounded-lg px-3 py-2"
+            value={username}
+            onChange={(e) => setUsername(e.target.value)}
+            autoComplete="username"
+            required
+          />
+        </label>
+
+        <label className="block text-sm">
+          <span className="text-gray-600">Password</span>
+          <input
+            type="password"
+            className="mt-1 w-full border rounded-lg px-3 py-2"
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            autoComplete="current-password"
+            required
+          />
+        </label>
+
         {err && <p className="text-sm text-red-600">{err}</p>}
-        <button className="w-full border p-2 rounded disabled:opacity-50" disabled={loading}>
+
+        <button type="submit" className="w-full rounded-xl px-4 py-2 border" disabled={loading}>
           {loading ? 'Accesso…' : 'Entra'}
         </button>
       </form>
-    </main>
+    </div>
   );
 }
