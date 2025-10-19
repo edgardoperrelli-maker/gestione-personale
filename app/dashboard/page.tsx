@@ -93,24 +93,41 @@ const [openInsertRep, setOpenInsertRep] = useState(false);
     return w;
   }, [daysArray]);
 
-  // ---- load identity + lists ----
-  useEffect(() => {
-    (async () => {
-      const { data: { user} } = await sb.auth.getUser();
-      setMeEmail(user?.email ?? '');
-      const roleRes = await sb.rpc('current_role');
-      if (!roleRes.error && roleRes.data) setRole(roleRes.data as Role);
+// ---- load identity + lists ----
+useEffect(() => {
+  (async () => {
+    const { data: { user } } = await sb.auth.getUser();
 
-      const [st, ac, te] = await Promise.all([
-        sb.from('staff').select('id,display_name,active').order('display_name'),
-        sb.from('activities').select('id,name,active').order('name'),
-        sb.from('territories').select('id,name,active').order('name'),
-      ]);
-      if (!st.error && st.data) setStaff(st.data as Staff[]);
-      if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
-      if (!te.error && te.data) setTerritories(te.data as Territory[])
-    })();
-  }, []);
+    // profilo con RLS: mostra username e ruolo
+    let username = '';
+    let roleLocal: Role = 'viewer';
+
+    if (user) {
+      const { data: prof } = await sb
+        .from('profiles')
+        .select('username, role')
+        .eq('id', user.id)
+        .single();
+
+      username = prof?.username ?? user.email ?? '';
+      if (prof?.role) roleLocal = prof.role as Role;
+    }
+
+    setMeEmail(username);
+    setRole(roleLocal);
+
+    // liste
+    const [st, ac, te] = await Promise.all([
+      sb.from('staff').select('id,display_name,active').order('display_name'),
+      sb.from('activities').select('id,name,active').order('name'),
+      sb.from('territories').select('id,name,active').order('name'),
+    ]);
+    if (!st.error && st.data) setStaff(st.data as Staff[]);
+    if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
+    if (!te.error && te.data) setTerritories(te.data as Territory[]);
+  })();
+}, []);
+
 
   // ---- load days + assignments for visible range ----
   useEffect(() => {
@@ -318,9 +335,12 @@ const openEditDialog = (a: Assignment) => {
 
         <div className="flex items-center gap-2 text-sm">
           <span className="opacity-70">{meEmail} · ruolo: {role}</span>
-          <button onClick={onLogout} className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
-            Logout
-          </button>
+         <form action="/api/logout" method="post">
+  <button type="submit" className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
+    Logout
+  </button>
+</form>
+
         </div>
 
       </div>
