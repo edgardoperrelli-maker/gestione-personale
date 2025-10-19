@@ -94,39 +94,35 @@ const [openInsertRep, setOpenInsertRep] = useState(false);
   }, [daysArray]);
 
 // ---- load identity + lists ----
+// ---- load identity + lists ----
 useEffect(() => {
   (async () => {
-    const { data: { user } } = await sb.auth.getUser();
+    const { data: { session }, error: eS } = await sb.auth.getSession();
+    console.log('[DBG] getSession err=', eS, 'uid=', session?.user?.id, 'email=', session?.user?.email);
 
-    // profilo con RLS: mostra username e ruolo
-    let username = '';
+    const uid = session?.user?.id ?? null;
+    const email = session?.user?.email ?? '';
+
+    let shown = email;
     let roleLocal: Role = 'viewer';
 
-    if (user) {
-      const { data: prof } = await sb
-        .from('profiles')
-        .select('username, role')
-        .eq('id', user.id)
-        .single();
+    if (uid) {
+      const q1 = await sb.from('profiles').select('username, role').eq('id', uid).maybeSingle();
+      console.log('[DBG] profiles by id ->', q1);
+      const p = q1.data ?? (await sb.from('profiles').select('username, role').eq('email', email).maybeSingle()).data ?? null;
+      console.log('[DBG] profiles final ->', p);
 
-      username = prof?.username ?? user.email ?? '';
-      if (prof?.role) roleLocal = prof.role as Role;
+      if (p) {
+        shown = p.username ?? email;
+        roleLocal = (p.role as Role) ?? 'viewer';
+      }
     }
 
-    setMeEmail(username);
+    setMeEmail(shown);
     setRole(roleLocal);
-
-    // liste
-    const [st, ac, te] = await Promise.all([
-      sb.from('staff').select('id,display_name,active').order('display_name'),
-      sb.from('activities').select('id,name,active').order('name'),
-      sb.from('territories').select('id,name,active').order('name'),
-    ]);
-    if (!st.error && st.data) setStaff(st.data as Staff[]);
-    if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
-    if (!te.error && te.data) setTerritories(te.data as Territory[]);
   })();
 }, []);
+
 
 
   // ---- load days + assignments for visible range ----

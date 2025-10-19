@@ -98,16 +98,11 @@ export default function DashboardPage() {
     for (let i=0;i<daysArray.length;i+=7) w.push(daysArray.slice(i,i+7));
     return w;
   }, [daysArray]);
-
-  // ---- load identity + lists ----
 // ---- load identity + lists ----
 useEffect(() => {
   (async () => {
     const { data: { user } } = await sb.auth.getUser();
     setMeEmail(user?.email ?? '');
-
-    const roleRes = await sb.rpc('current_role');
-    if (!roleRes.error && roleRes.data) setRole(roleRes.data as Role);
 
     const [st, ac, te] = await Promise.all([
       sb.from('staff').select('id,display_name,active').order('display_name'),

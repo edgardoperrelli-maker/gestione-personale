@@ -9,7 +9,7 @@ export async function middleware(req: NextRequest) {
 
   const url = req.nextUrl;
 
-  // proteggi SOLO la root esatta e le sezioni sotto /dashboard
+  // sezioni protette
   const protectedExact = ['/'];
   const protectedPrefixes = ['/dashboard'];
 
@@ -17,19 +17,18 @@ export async function middleware(req: NextRequest) {
     protectedExact.includes(url.pathname) ||
     protectedPrefixes.some((p) => url.pathname.startsWith(p));
 
-  // rotte pubbliche
-  const isLogin = url.pathname === '/login' || url.pathname.startsWith('/auth');
+  // rotta di login CORRETTA
+  const loginPath = '/auth/sign-in';
+  const isLogin = url.pathname === loginPath;
 
-  // non loggato → manda al login
   if (isProtected && !user) {
-    const redirectUrl = new URL('/login', url);
+    const redirectUrl = new URL(loginPath, url);
     if (!redirectUrl.searchParams.has('redirect')) {
       redirectUrl.searchParams.set('redirect', url.pathname + url.search);
     }
     return NextResponse.redirect(redirectUrl);
   }
 
-  // già loggato e va su /login → manda al dashboard
   if (isLogin && user) {
     return NextResponse.redirect(new URL('/dashboard', url));
   }
