@@ -22,7 +22,9 @@ export default function DashboardPage() {
   const [anchor, setAnchor] = useState<Date>(() => startOfMonth(today));
   const [mode, setMode] = useState<ViewMode>('month');
 
-  const [role, setRole] = useState<Role>('viewer');
+  
+  const [role] = useState<Role>('viewer');
+
   const [meEmail, setMeEmail] = useState<string>('');
 
   const [days, setDays] = useState<DayRow[]>([]);
@@ -42,10 +44,11 @@ const [openInsertRep, setOpenInsertRep] = useState(false);
   const softRefresh = () => startTransition(() => setRev(v => v + 1));
 
   // ---- date helpers ----
-  function toLocalDate(d: Date, _tz: string) {
-    const s = d.toLocaleString('sv-SE', { timeZone: tz });
-    return new Date(s.replace(' ', 'T'));
-  }
+ function toLocalDate(d: Date, tz: string) {
+  const s = d.toLocaleString('sv-SE', { timeZone: tz });
+  return new Date(s.replace(' ', 'T'));
+}
+
   function startOfWeek(d: Date) {
     const dd = new Date(d);
     const day = (dd.getDay()+6)%7; // Mon=0..Sun=6
@@ -158,7 +161,7 @@ useEffect(() => {
       const dayRows = (dres.data ?? []) as DayRow[];
       const ids = dayRows.map(r => r.id);
 
-      let map: Record<string, Assignment[]> = {};
+      const map: Record<string, Assignment[]> = {};
       if (ids.length) {
         const ares = await sb
           .from('assignments')
@@ -172,10 +175,13 @@ useEffect(() => {
           .order('created_at', { ascending: true });
         if (ares.error || !alive) return;
 
-        (ares.data as any[]).forEach((a:any) => {
-          if (!map[a.day_id]) map[a.day_id] = [];
-          map[a.day_id].push(a as Assignment);
-        });
+      const rows = ((ares.data ?? []) as unknown) as Assignment[];
+
+rows.forEach((a) => {
+  if (!map[a.day_id]) map[a.day_id] = [];
+  map[a.day_id].push(a);
+});
+
       }
 
       Object.keys(map).forEach(k => {
@@ -421,12 +427,21 @@ const openEditDialog = (a: Assignment) => {
     setAssignments(prev => {
       const arr = prev[dayId] ? [...prev[dayId]] : [];
       const i = arr.findIndex(x => x.id === row.id);
-      if (i >= 0) arr[i] = row as any; else arr.push(row as any);
+      if (i >= 0) arr[i] = row; else arr.push(row);
       const seen = new Set<string>();
-      const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
-      dedup.sort((a:any,b:any)=>
-        (a.staff?.display_name ?? '').localeCompare(b.staff?.display_name ?? '','it',{sensitivity:'base'})
-      );
+     const dedup = arr.filter((a) => {
+  const fresh = !seen.has(a.id);
+  if (fresh) seen.add(a.id);
+  return fresh;
+});
+dedup.sort((a, b) =>
+  (a.staff?.display_name ?? '').localeCompare(
+    b.staff?.display_name ?? '',
+    'it',
+    { sensitivity: 'base' }
+  )
+);
+
       return { ...prev, [dayId]: dedup };
     });
     if (close) setDialogOpenForDay(null);            // <-- chiudi solo se close=true
@@ -463,7 +478,8 @@ const openEditDialog = (a: Assignment) => {
     setAssignments(prev => {
       const arr = [...(prev[updated.day_id] ?? [])];
       const i = arr.findIndex(x => x.id === updated.id);
-      if (i >= 0) arr[i] = updated as any;
+      if (i >= 0) arr[i] = updated;
+
       return { ...prev, [updated.day_id]: arr };
     });
     if (close) setEditAssignment(null);              // <-- idem
@@ -671,7 +687,7 @@ function AssignmentList({
   dayMap: Record<string, DayRow>;
   d: Date;
   assignments: Record<string, Assignment[]>;
-  compact: boolean;
+  compact: boolean; // eslint-disable-line @typescript-eslint/no-unused-vars
   sortMode: SortMode;
   filter: string;
   onDelete: (a: Assignment) => void;

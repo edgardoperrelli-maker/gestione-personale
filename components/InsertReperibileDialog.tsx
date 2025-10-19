@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useState } from 'react';
+
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 
 type Staff = { id:string; display_name:string; active?:boolean };
@@ -117,10 +118,12 @@ export default function InsertReperibileDialog({
       setSaving(false);
       onInserted(created);
       onClose(); // chiude la modale
-    } catch (e:any) {
-      setSaving(false);
-      setErr(e?.message || 'Errore salvataggio.');
-    }
+    } catch (e: unknown) {
+  setSaving(false);
+  const msg = e instanceof Error ? e.message : String(e);
+  setErr(msg || 'Errore salvataggio.');
+}
+
   }
 
   // UI

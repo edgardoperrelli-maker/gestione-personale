@@ -29,7 +29,8 @@ export default function DashboardPage() {
   const [anchor, setAnchor] = useState<Date>(() => startOfMonth(today));
   const [mode, setMode] = useState<ViewMode>('month');
 
-  const [role, setRole] = useState<Role>('viewer');
+  const [role] = useState<Role>('viewer');
+
   const [meEmail, setMeEmail] = useState<string>('');
 
   const [days, setDays] = useState<DayRow[]>([]);
@@ -47,10 +48,11 @@ export default function DashboardPage() {
   const softRefresh = () => startTransition(() => setRev(v => v + 1));
 
   // ---- date helpers ----
-  function toLocalDate(d: Date, _tz: string) {
-    const s = d.toLocaleString('sv-SE', { timeZone: tz });
-    return new Date(s.replace(' ', 'T'));
-  }
+ function toLocalDate(d: Date, tz: string) {
+  const s = d.toLocaleString('sv-SE', { timeZone: tz });
+  return new Date(s.replace(' ', 'T'));
+}
+
   function startOfWeek(d: Date) {
     const dd = new Date(d);
     const day = (dd.getDay()+6)%7; // Mon=0..Sun=6
@@ -114,8 +116,10 @@ useEffect(() => {
     if (!ac.error && ac.data) setActivities(ac.data as Activity[]);
     if (!te.error && te.data) setTerritories(te.data as Territory[]);
   })();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+// disabilitato perché l'hook non deve rieseguire in base a dipendenze eslint
+// eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
+
 
 
   // ---- load days + assignments for visible range ----
@@ -134,7 +138,7 @@ useEffect(() => {
       const dayRows = (dres.data ?? []) as DayRow[];
       const ids = dayRows.map(r => r.id);
 
-      let map: Record<string, Assignment[]> = {};
+      const map: Record<string, Assignment[]> = {};
       if (ids.length) {
         const ares = await sb
           .from('assignments')
@@ -148,10 +152,12 @@ useEffect(() => {
           .order('created_at', { ascending: true });
         if (ares.error || !alive) return;
 
-        (ares.data as any[]).forEach((a:any) => {
-          if (!map[a.day_id]) map[a.day_id] = [];
-          map[a.day_id].push(a as Assignment);
-        });
+       const rows = (ares.data ?? []) as unknown as Assignment[];
+rows.forEach((a) => {
+  if (!map[a.day_id]) map[a.day_id] = [];
+  map[a.day_id].push(a);
+});
+
       }
 
       Object.keys(map).forEach(k => {
@@ -359,28 +365,35 @@ useEffect(() => {
       actList={activities}
       terrList={territories}
       onClose={() => setDialogOpenForDay(null)}
-      onCreated={(row, close = true) => {
-  const r = row as Assignment; // cast unico
+onCreated={(row, close = true) => {
+  const r = row as Assignment;
 
   setAssignments(prev => {
     const arr = prev[dayId] ? [...prev[dayId]] : [];
     const i = arr.findIndex(x => x.id === r.id);
-    if (i >= 0) arr[i] = r as any; else arr.push(r as any);
+    if (i >= 0) arr[i] = r; else arr.push(r);
+
     const seen = new Set<string>();
-    const dedup = arr.filter(a => !seen.has(a.id) && seen.add(a.id));
-    dedup.sort((a:any,b:any)=>
+    const dedup = arr.filter(a => {
+      const fresh = !seen.has(a.id);
+      if (fresh) seen.add(a.id);
+      return fresh;
+    });
+    dedup.sort((a, b) =>
       (a.staff?.display_name ?? '').localeCompare(
         b.staff?.display_name ?? '',
         'it',
         { sensitivity: 'base' }
       )
     );
+
     return { ...prev, [dayId]: dedup };
   });
 
   if (close) setDialogOpenForDay(null);
   setTimeout(() => softRefresh(), 300);
 }}
+
 
     />
   );
@@ -475,7 +488,7 @@ function WeekGrid(props:{
             )}
           </div>
           <div className="p-3 space-y-2 overflow-y-auto" style={{ minHeight: 500, maxHeight: 720 }}>
-            <AssignmentList dayMap={dayMap} d={d} assignments={assignments} compact={false} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
+            <AssignmentList dayMap={dayMap} d={d} assignments={assignments} _compact={false} sortMode={sortMode} filter={filter} onDelete={onDelete}/>
           </div>
         </div>
       ))}
@@ -547,11 +560,11 @@ function AssignmentListByIds({ items, sortMode, filter, onDelete }:{
   );
 }
 
-function AssignmentList({ dayMap, d, assignments, compact, sortMode, filter, onDelete }:{
+function AssignmentList({ dayMap, d, assignments, _compact, sortMode, filter, onDelete }:{
   dayMap: Record<string, DayRow>;
   d: Date;
   assignments: Record<string, Assignment[]>;
-  compact:boolean;
+  _compact:boolean;
   sortMode: SortMode;
   filter: string;
   onDelete:(a:Assignment)=>void;
