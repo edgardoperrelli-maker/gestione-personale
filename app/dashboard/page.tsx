@@ -219,23 +219,41 @@ const openEditDialog = (a: Assignment) => {
   setEditAssignment(a); // apre modale di modifica
 };
 
-  // apertura veloce modale “Nuovo”
- const openNewForDate = async (d: Date) => {
+// apertura veloce modale “Nuovo”
+const openNewForDate = async (d: Date) => {
   const iso = fmtDay(d);
 
   const existing = dayMap[iso];
   if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
 
-  const { data, error } = await sb
-    .from('calendar_days')
-    .upsert({ day: iso }, { onConflict: 'day' })
-    .select('id, day')
-    .single();
-  if (error || !data) return;
+  // user_id per RLS
+  const { data: { user } } = await sb.auth.getUser();
+  const res = await fetch('/api/calendar/upsert-day', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: undefined,
+      day: iso,
+      note: null,
+      user_id: user?.id,
+      version: undefined           // nuovo record: nessuna versione
+    })
+  });
 
-  setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
-  setDialogOpenForDay({ id: data.id, iso });
+  if (res.status === 409) {
+    const { current } = await res.json();
+    if (current?.id) setDialogOpenForDay({ id: current.id, iso });
+    return;
+  }
+  if (!res.ok) return;
+
+  const { row } = await res.json(); // { id, day, ... }
+  if (!row?.id) return;
+
+  setDays(prev => prev.some(x => x.id === row.id) ? prev : [...prev, { id: row.id, day: row.day }]);
+  setDialogOpenForDay({ id: row.id, iso });
 };
+
 
 
   // ---- top controls ----
