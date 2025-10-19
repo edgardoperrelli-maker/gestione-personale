@@ -5,6 +5,7 @@ import EditAssignmentDialog from '../../components/EditAssignmentDialog';
 import { useEffect, useMemo, useState, startTransition } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
+import OperatorCard from '@/components/OperatorCard';
 
 type Role = 'viewer'|'editor'|'admin';
 type DayRow = { id:string; day:string; note?:string };
@@ -93,7 +94,7 @@ const [openInsertRep, setOpenInsertRep] = useState(false);
     return w;
   }, [daysArray]);
 
-// ---- load identity + lists ----
+
 // ---- load identity + lists ----
 useEffect(() => {
   (async () => {
@@ -123,6 +124,22 @@ useEffect(() => {
   })();
 }, []);
 
+useEffect(() => {
+  let alive = true;
+  (async () => {
+    const [sRes, aRes, tRes] = await Promise.all([
+      sb.from('staff').select('id, display_name').order('display_name', { ascending: true }),
+      sb.from('activities_renamed').select('id, name').order('name', { ascending: true }),
+      sb.from('territories').select('id, name').order('name', { ascending: true }),
+    ]);
+    if (!alive) return;
+
+    if (!sRes.error && sRes.data) setStaff(sRes.data as Staff[]);
+    if (!aRes.error && aRes.data) setActivities(aRes.data as Activity[]);
+    if (!tRes.error && tRes.data) setTerritories(tRes.data as Territory[]);
+  })();
+  return () => { alive = false; };
+}, [sb]);
 
 
   // ---- load days + assignments for visible range ----
@@ -196,23 +213,23 @@ const openEditDialog = (a: Assignment) => {
 };
 
   // apertura veloce modale “Nuovo”
-  const openNewForDate = async (d: Date) => {
-    if (role==='viewer') return;
-    const iso = fmtDay(d);
+ const openNewForDate = async (d: Date) => {
+  const iso = fmtDay(d);
 
-    const existing = dayMap[iso];
-    if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
+  const existing = dayMap[iso];
+  if (existing) { setDialogOpenForDay({ id: existing.id, iso }); return; }
 
-    const { data, error } = await sb
-      .from('calendar_days')
-      .upsert({ day: iso }, { onConflict: 'day' })
-      .select('id, day')
-      .single();
-    if (error || !data) return;
+  const { data, error } = await sb
+    .from('calendar_days')
+    .upsert({ day: iso }, { onConflict: 'day' })
+    .select('id, day')
+    .single();
+  if (error || !data) return;
 
-    setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
-    setDialogOpenForDay({ id: data.id, iso });
-  };
+  setDays(prev => prev.some(x=>x.id===data.id) ? prev : [...prev, { id:data.id, day: iso }]);
+  setDialogOpenForDay({ id: data.id, iso });
+};
+
 
   // ---- top controls ----
   const title = useMemo(() => {
@@ -533,16 +550,13 @@ return (
           </button>
         )}
       </div>
-
-      {role !== 'viewer' && (
-        <button
+<button
   onClick={() => onAdd(d)}
   className="text-xs px-2 py-1 rounded-lg border bg-white text-gray-900 hover:bg-gray-50"
 >
   Nuovo
 </button>
 
-      )}
     </div>
 
     <div className="mt-2 space-y-2 overflow-y-auto" style={{ minHeight: 360, maxHeight: 900 }}>
@@ -631,13 +645,14 @@ function AssignmentListByIds({
   return (
     <div className="flex flex-col gap-1">
       {sorted.map((a: Assignment) => (
-        <AssignmentRow
-          key={a.id}
-          a={a}
-          onDelete={() => onDelete(a)}
-          onEdit={() => onEdit(a)} // corretto: usa callback padre
-        />
-      ))}
+  <OperatorCard
+    key={a.id}
+    a={a}
+    onDelete={() => onDelete(a)}
+    onEdit={(x) => onEdit(x)}
+  />
+))}
+
     </div>
   );
 }
@@ -672,83 +687,14 @@ function AssignmentList({
   return (
     <div className="flex flex-col gap-2">
       {sorted.map((a: Assignment) => (
-        <AssignmentRow
-          key={a.id}
-          a={a}
-          onDelete={() => onDelete(a)}
-          onEdit={() => onEdit(a)} // nuova callback
-        />
-      ))}
-    </div>
-  );
-}
-function AssignmentRow({ a, onDelete, onEdit }:{
-  a: Assignment; onDelete: () => void; onEdit: (assignment: Assignment) => void;
-}) {
-  return (
-    <div className="rounded-xl border bg-[var(--card-bg)] hover:bg-white transition px-3 py-2 text-[11px] shadow-sm border-[var(--card-bd)]">
-      {/* Riga titolo: nome a sinistra (truncate) + Reperibile a destra */}
-      <div className="flex items-start justify-between gap-2">
-        <div className="font-semibold min-w-0">
-          <span className="block truncate">{a.staff?.display_name ?? '—'}</span>
-        </div>
-        {a.reperibile && (
-          <span className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full border bg-sky-50 border-sky-200 text-sky-700">
-  Reperibile
-</span>
+  <OperatorCard
+    key={a.id}
+    a={a}
+    onDelete={() => onDelete(a)}
+    onEdit={(x) => onEdit(x)}
+  />
+))}
 
-        )}
-      </div>
-
-      {/* Contenuto + colonna azioni */}
-      <div className="mt-1 flex gap-2">
-        {/* Sinistra: territorio, attività, note */}
-        <div className="flex-1 space-y-1">
-          <div className="flex flex-wrap gap-1">
-            {a.territory && (
-              <span className="inline-flex items-center px-2 py-0.5 rounded-full border bg-slate-50 border-[var(--card-bd)] text-slate-700">
-                {a.territory.name}
-              </span>
-            )}
-          </div>
-
-          <div>
-            {a.activity ? (
-              <span className="inline-flex px-2 py-0.5 rounded-md border bg-[var(--we-bg)] border-[var(--card-bd)] text-slate-800">
-                {a.activity.name}
-              </span>
-            ) : (
-              <span className="inline-flex px-2 py-0.5 rounded-md border bg-gray-50 text-gray-600">
-                Nessuna attività
-              </span>
-            )}
-          </div>
-
-          {a.notes && (
-            <div className="text-[11px] text-gray-600 whitespace-pre-wrap break-words">
-              {a.notes}
-            </div>
-          )}
-        </div>
-
-        {/* Destra: pulsanti verticali */}
-        <div className="flex flex-col gap-1">
-          <button
-            onClick={(e) => { e.stopPropagation(); onEdit(a); }}
-            className="px-2 py-0.5 rounded-md border hover:bg-blue-50 text-xs"
-            title="Modifica assegnazione"
-          >
-            Modifica
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="px-2 py-0.5 rounded-md border hover:bg-red-50 text-xs"
-            title="Elimina assegnazione"
-          >
-            Elimina
-          </button>
-        </div>
-      </div>
     </div>
   );
 }
