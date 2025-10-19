@@ -1,10 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { Suspense, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
-export default function LoginPage() {
+// opzionale: evita export static
+export const dynamic = 'force-dynamic';
+
+function LoginInner() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const sp = useSearchParams();
@@ -20,7 +23,7 @@ export default function LoginPage() {
     setErr(undefined);
     setLoading(true);
 
-    // 1) risolvi username -> email
+    // username -> email
     const { data: row, error: qErr } = await supabase
       .from('profiles')
       .select('email')
@@ -33,7 +36,6 @@ export default function LoginPage() {
       return;
     }
 
-    // 2) login con email mappata
     const { error: authErr } = await supabase.auth.signInWithPassword({
       email: row.email,
       password,
@@ -83,4 +85,8 @@ export default function LoginPage() {
       </form>
     </div>
   );
+}
+
+export default function LoginPage() {
+  return <Suspense fallback={null}><LoginInner /></Suspense>;
 }
