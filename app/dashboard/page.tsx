@@ -6,6 +6,8 @@ import { useEffect, useMemo, useState, startTransition } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 import OperatorCard from '@/components/OperatorCard';
+import Link from 'next/link'
+
 
 type Role = 'viewer'|'editor'|'admin';
 type DayRow = { id:string; day:string; note?:string };
@@ -371,15 +373,23 @@ const openNewForDate = async (d: Date) => {
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-sm">
-          <span className="opacity-70">{meEmail} · ruolo: {role}</span>
-         <form action="/api/logout" method="post">
-  <button type="submit" className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
-    Logout
-  </button>
-</form>
+<div className="flex items-center gap-2 text-sm">
+  <Link
+    href="/hub"
+    className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50"
+    aria-label="Torna all’Hub"
+  >
+    ← Hub
+  </Link>
 
-        </div>
+  <span className="opacity-70">{meEmail} · ruolo: {role}</span>
+  <form action="/api/logout" method="post">
+    <button type="submit" className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
+      Logout
+    </button>
+  </form>
+</div>
+
 
       </div>
 
@@ -566,10 +576,10 @@ function DayCell(props:{
   const list = dayRow ? (assignments[dayRow.id] ?? []) : [];
 
 return (
-  <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} border-[var(--card-bd)] hover:ring-1 hover:ring-black/10`}>
+  <div className={`rounded-2xl border shadow-sm p-2 ${dayBgClass(d)} border-[--card-bd] hover:ring-1 hover:ring-black/10`}>
     <div className="flex items-center justify-between">
       <div className="text-sm font-semibold flex items-center gap-2">
-        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? 'ring-2 ring-offset-2 ring-[var(--today-ring)]' : ''}`}>
+        <span className={`inline-flex items-center justify-center w-7 h-7 rounded-full ${isToday ? 'ring-2 ring-offset-2 ring-[--today-ring]' : ''}`}>
 
           {d.getDate()}
         </span>

@@ -1,41 +1,36 @@
-import { NextResponse } from 'next/server';
-import type { NextRequest } from 'next/server';
-import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs';
+// middleware.ts
+import { NextRequest, NextResponse } from 'next/server'
+import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
 
 export async function middleware(req: NextRequest) {
-  const res = NextResponse.next();
-  const supabase = createMiddlewareClient({ req, res });
-  const { data: { user } } = await supabase.auth.getUser();
+  const res = NextResponse.next()
+  const supabase = createMiddlewareClient({ req, res })
+  const { data: { user } } = await supabase.auth.getUser()
 
-  const url = req.nextUrl;
+  const isAuthRoute = req.nextUrl.pathname === '/login'
+  const isProtected = req.nextUrl.pathname.startsWith('/hub') || req.nextUrl.pathname.startsWith('/dashboard')
 
-  // sezioni protette
-  const protectedExact = ['/'];
-  const protectedPrefixes = ['/dashboard'];
-
-  const isProtected =
-    protectedExact.includes(url.pathname) ||
-    protectedPrefixes.some((p) => url.pathname.startsWith(p));
-
-  // rotta di login CORRETTA
-  const loginPath = '/auth/sign-in';
-  const isLogin = url.pathname === loginPath;
-
-  if (isProtected && !user) {
-    const redirectUrl = new URL(loginPath, url);
-    if (!redirectUrl.searchParams.has('redirect')) {
-      redirectUrl.searchParams.set('redirect', url.pathname + url.search);
-    }
-    return NextResponse.redirect(redirectUrl);
+  if (!user && isProtected) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/login'
+    return NextResponse.redirect(url)
   }
 
-  if (isLogin && user) {
-    return NextResponse.redirect(new URL('/dashboard', url));
+  if (user && req.nextUrl.pathname === '/') {
+    const url = req.nextUrl.clone()
+    url.pathname = '/hub'
+    return NextResponse.redirect(url)
   }
 
-  return res;
+  if (user && isAuthRoute) {
+    const url = req.nextUrl.clone()
+    url.pathname = '/hub'
+    return NextResponse.redirect(url)
+  }
+
+  return res
 }
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|public|assets).*)'],
-};
+  matcher: ['/', '/login', '/hub/:path*', '/dashboard/:path*'],
+}

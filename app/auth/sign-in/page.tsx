@@ -8,7 +8,7 @@ function SignInInner() {
   const supabase = createClientComponentClient();
   const router = useRouter();
   const sp = useSearchParams();
-  const redirectTo = sp.get('redirect') || '/dashboard';
+  const redirectTo = sp.get('redirect') || '/hub';
 
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');

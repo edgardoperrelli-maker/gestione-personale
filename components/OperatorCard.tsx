@@ -83,7 +83,7 @@ export default function OperatorCard({
           </div>
 
           {a.notes && (
-            <div className="text-[11px] text-slate-800 whitespace-pre-wrap break-words">
+            <div className="text-[11px] text-slate-800 whitespace-pre-wrap wrap-break-word">
               {a.notes}
             </div>
           )}

@@ -14,7 +14,7 @@ export default function LoginClient() {
   useEffect(() => {
     (async () => {
       const { data: { session } } = await sb.auth.getSession();
-      if (session) router.replace('/dashboard');
+      if (session) router.replace('/hub');
     })();
   }, [router, sb]);
 
@@ -27,7 +27,7 @@ export default function LoginClient() {
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return setErr('Credenziali non valide');
-    if (data.session) router.push('/dashboard');
+    if (data.session) router.push('/hub');
   };
 
   return (
