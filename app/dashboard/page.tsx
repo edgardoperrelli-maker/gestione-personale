@@ -481,7 +481,6 @@ dedup.sort((a, b) =>
       .map(a => a?.staff?.id ?? '')
       .filter(id => id !== '' && id !== (editAssignment.staff?.id ?? ''))
   );
-
   const availableStaffForEdit = (staff ?? []).filter(
     s => s.id === (editAssignment.staff?.id ?? '') || !excludeIds.has(s.id)
   );
@@ -493,17 +492,20 @@ dedup.sort((a, b) =>
       actList={activities}
       terrList={territories}
       onClose={() => setEditAssignment(null)}
-      onSaved={(updated: Assignment, close = true) => {
-    setAssignments(prev => {
-      const arr = [...(prev[updated.day_id] ?? [])];
-      const i = arr.findIndex(x => x.id === updated.id);
-      if (i >= 0) arr[i] = updated;
-
-      return { ...prev, [updated.day_id]: arr };
-    });
-    if (close) setEditAssignment(null);              // <-- idem
-  }}
-/>
+      onSaved={(updated, close = true) => {
+        setAssignments(prev => {
+          const arr = [...(prev[updated.day_id] ?? [])];
+          const i = arr.findIndex(x => x.id === updated.id);
+          if (i >= 0) arr[i] = updated;
+          return { ...prev, [updated.day_id]: arr };
+        });
+        if (close) setEditAssignment(null);
+      }}
+      onDeleted={(a) => {
+        setEditAssignment(null);
+        removeAssignment(a);     // usa già la tua RPC + refresh
+      }}
+    />
   );
 })()}
 

@@ -98,12 +98,14 @@ export default function OperatorCard({
             Modifica
           </button>
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            className="px-2 py-0.5 rounded-md border bg-white/80 hover:bg-white text-xs"
-            title="Elimina assegnazione"
-          >
-            Elimina
-          </button>
+
+  onClick={(e) => { e.stopPropagation(); onDelete(); }}
+  className="px-2 py-0.5 rounded-md border bg-white/80 hover:bg-white text-xs"
+  title="Elimina assegnazione"
+>
+  Elimina
+</button>
+
         </div>
       </div>
     </div>
