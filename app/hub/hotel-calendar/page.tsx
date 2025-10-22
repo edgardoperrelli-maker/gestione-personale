@@ -210,6 +210,20 @@ export default function Page() {
   const [loaded, setLoaded] = useState(false);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [draft, setDraft] = useState<HotelBooking | null>(null);
+function goPrev() {
+  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() - 1, 1));
+  else setPivot(addDays(pivot, -7));
+}
+function goNext() {
+  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() + 1, 1));
+  else setPivot(addDays(pivot, 7));
+}
+const isMonth = mode === 'month';
+const fmtIt = (d: Date) => d.toLocaleDateString('it-IT');
+const weekStart = startOfWeekMonday(pivot);
+const weekEnd = addDays(weekStart, 6);
+const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
+
 
   // Load finestra
   useEffect(() => {
@@ -384,13 +398,8 @@ export default function Page() {
   function fmtDay(d: Date) { return d.getDate(); }
   function fmtKey(d: Date) { return yyyyMmDd(d); }
   function weekdayName(i: number) { return ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'][i]; }
-  function fmtIt(d: Date) { return d.toLocaleDateString('it-IT'); }
-
+  
   if (!loaded) return <div className="p-4 text-sm text-neutral-500">Caricamento…</div>;
-
-  const weekStart = startOfWeekMonday(pivot);
-  const weekEnd = addDays(weekStart, 6);
-  const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
 
   /* ---------- Render ---------- */
   return (
@@ -399,9 +408,20 @@ export default function Page() {
       <div className="flex items-center justify-between gap-2">
         {/* Sinistra: ← range → + pulsanti vista */}
         <div className="flex items-center gap-2">
-          <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(addDays(pivot, -7))} aria-label="Settimana precedente">←</button>
-          <div className="text-lg font-semibold">{rangeLabel}</div>
-          <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(addDays(pivot, 7))} aria-label="Settimana successiva">→</button>
+  <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={goPrev}>←</button>
+
+  {isMonth ? (
+    <div className="text-lg font-semibold">
+      {pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
+    </div>
+  ) : (
+    <div className="text-lg font-semibold">{rangeLabel}</div>
+  )}
+
+  <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={goNext}>→</button>
+
+  {/* pulsanti vista e Oggi restano uguali subito dopo */}
+
 
           <div className="ml-2 flex items-center gap-1">
             <button onClick={() => setMode('week')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'week' ? 'bg-black text-white border-black' : ''}`}>Settimana</button>
