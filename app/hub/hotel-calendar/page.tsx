@@ -296,7 +296,7 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
     <div className="p-4 space-y-4">
       {/* Toolbar */}
 <div className="flex items-center justify-between gap-2">
-  {/* Sinistra: frecce + intervallo settimana */}
+  {/* Sinistra: ← range → + pulsanti vista */}
   <div className="flex items-center gap-2">
     <button
       className="px-3 py-2 rounded-xl shadow border text-sm"
@@ -305,7 +305,9 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
     >
       ←
     </button>
+
     <div className="text-lg font-semibold">{rangeLabel}</div>
+
     <button
       className="px-3 py-2 rounded-xl shadow border text-sm"
       onClick={() => setPivot(addDays(pivot, 7))}
@@ -313,39 +315,40 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
     >
       →
     </button>
+
+    {/* Pulsanti subito dopo la freccia destra */}
+    <div className="ml-2 flex items-center gap-1">
+      <button
+        onClick={() => setMode('week')}
+        className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'week' ? 'bg-black text-white border-black' : ''}`}
+      >
+        Settimana
+      </button>
+      <button
+        onClick={() => setMode('twoWeeks')}
+        className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'twoWeeks' ? 'bg-black text-white border-black' : ''}`}
+      >
+        2 settimane
+      </button>
+      <button
+        onClick={() => setMode('month')}
+        className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'month' ? 'bg-black text-white border-black' : ''}`}
+      >
+        Mese
+      </button>
+      <button
+        className="px-3 py-2 rounded-xl shadow border text-sm"
+        onClick={() => setPivot(startOfDay(new Date()))}
+      >
+        Oggi
+      </button>
+    </div>
   </div>
 
-  {/* Destra: vista + Oggi + Hub */}
-  <div className="flex items-center gap-2">
-    <button
-      onClick={() => setMode('week')}
-      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'week' ? 'bg-black text-white border-black' : ''}`}
-    >
-      Settimana
-    </button>
-    <button
-      onClick={() => setMode('twoWeeks')}
-      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'twoWeeks' ? 'bg-black text-white border-black' : ''}`}
-    >
-      2 settimane
-    </button>
-    <button
-      onClick={() => setMode('month')}
-      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'month' ? 'bg-black text-white border-black' : ''}`}
-    >
-      Mese
-    </button>
-
-    <button
-      className="px-3 py-2 rounded-xl shadow border text-sm"
-      onClick={() => setPivot(startOfDay(new Date()))}
-    >
-      Oggi
-    </button>
-
-    <Link href="/hub" className="px-3 py-2 rounded-xl shadow border text-sm">Hub</Link>
-  </div>
+  {/* Destra: Hub */}
+  <Link href="/hub" className="px-3 py-2 rounded-xl shadow border text-sm">Hub</Link>
 </div>
+
 
 
       {/* Header giorni */}
