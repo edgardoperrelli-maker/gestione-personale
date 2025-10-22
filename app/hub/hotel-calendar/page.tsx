@@ -42,6 +42,7 @@ function chunk<T>(arr: T[], size: number) { const out: T[][] = []; for (let i=0;
   { id: '95b59ec2-e364-4e78-a045-b3ca460cd02f', name: 'SIMONE CIARALLO', territory: '' },
   { id: '0eddc815-de7c-4c1c-a78c-ce7f387c00df', name: 'VITTORIO GIOSI', territory: '' },
 ];
+const STORAGE_KEY = 'vbA_hotel_bookings';
 
 const MOCK_BOOKINGS: HotelBooking[] = [
   { id: 'b1', date: yyyyMmDd(addDays(new Date(), 1)), hotelName: 'Hotel Duomo', roomType: 'Doppia', roomPrice: 145, guests: [MOCK_GUESTS[0], MOCK_GUESTS[1]], territory: 'FIRENZE', notes: 'Late check-in', dinner: 'Standard', dinnerPrice: 25 },
@@ -191,8 +192,35 @@ export default function Page() {
   const [pivot, setPivot] = useState<Date>(startOfDay(new Date()));
   const [newModal, setNewModal] = useState<{ open: boolean; date: string | null }>({ open: false, date: null });
   const [editModal, setEditModal] = useState<{ open: boolean; booking: HotelBooking | null }>({ open: false, booking: null });
-  const [bookings, setBookings] = useState<HotelBooking[]>([...MOCK_BOOKINGS]);
+// DOPO
+const [bookings, setBookings] = useState<HotelBooking[]>([]);
+const [loaded, setLoaded] = useState(false);
+
+useEffect(() => {
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    setBookings(raw ? (JSON.parse(raw) as HotelBooking[]) : [...MOCK_BOOKINGS]);
+  } catch {
+    setBookings([...MOCK_BOOKINGS]);
+  } finally {
+    setLoaded(true);
+  }
+}, []);
+
+useEffect(() => {
+  if (!loaded) return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
+  } catch {}
+}, [bookings, loaded]);
+
+
   const [draft, setDraft] = useState<HotelBooking | null>(null);
+
+function deleteBooking(id: string) {
+    if (!confirm('Eliminare questa prenotazione?')) return;
+    setBookings(prev => prev.filter(b => b.id !== id));
+  }
 
   useEffect(() => {
     const handler = (e: any) => openEdit(e.detail as HotelBooking);
@@ -213,12 +241,7 @@ export default function Page() {
       if (idx >= 0) { const next = [...prev]; next[idx] = draft; return next; }
       return [...prev, draft];
     });
-    function deleteBooking(id: string) {
-  if (!confirm('Eliminare questa prenotazione?')) return;
-  setBookings((prev) => prev.filter((b) => b.id !== id));
-  const i = MOCK_BOOKINGS.findIndex((x) => x.id === id);
-  if (i >= 0) MOCK_BOOKINGS.splice(i, 1);
-}
+ 
 
     const i = MOCK_BOOKINGS.findIndex((x) => x.id === draft.id);
     if (i >= 0) MOCK_BOOKINGS[i] = draft; else MOCK_BOOKINGS.push(draft);
@@ -250,29 +273,83 @@ export default function Page() {
   function fmtKey(d: Date) { return yyyyMmDd(d); }
   function monthLabel(d: Date) { return d.toLocaleString('it-IT', { month: 'long', year: 'numeric' }); }
   function weekdayName(i: number) { return ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'][i]; }
+if (!loaded) {
+  return <div className="p-4 text-sm text-neutral-500">Caricamento…</div>;
+}
+function shiftPrev() {
+  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() - 1, 1));
+  else if (mode === 'twoWeeks') setPivot(addDays(pivot, -14));
+  else setPivot(addDays(pivot, -7));
+}
+function shiftNext() {
+  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() + 1, 1));
+  else if (mode === 'twoWeeks') setPivot(addDays(pivot, 14));
+  else setPivot(addDays(pivot, 7));
+}
+function fmtIt(d: Date) { return d.toLocaleDateString('it-IT'); }
+const weekStart = startOfWeekMonday(pivot);
+const weekEnd = addDays(weekStart, 6);
+const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
+
 
   return (
     <div className="p-4 space-y-4">
       {/* Toolbar */}
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <Link href="/hub" className="px-3 py-2 rounded-xl shadow border text-sm">Hub</Link>
-          <div className="text-lg font-semibold">Calendario hotel · {monthLabel(pivot)}</div>
-        </div>
-        <div className="flex items-center gap-2">
-          <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(addDays(pivot, -1))}>◀</button>
-          <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
-          <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(addDays(pivot, +1))}>▶</button>
-          <select className="px-3 py-2 rounded-xl shadow border text-sm" value={mode} onChange={(e) => setMode(e.target.value as ViewMode)}>
-            <option value="month">Mese</option>
-            <option value="twoWeeks">2 settimane</option>
-            <option value="week">Settimana</option>
-          </select>
-        </div>
-      </div>
+<div className="flex items-center justify-between gap-2">
+  {/* Sinistra: frecce + intervallo settimana */}
+  <div className="flex items-center gap-2">
+    <button
+      className="px-3 py-2 rounded-xl shadow border text-sm"
+      onClick={() => setPivot(addDays(pivot, -7))}
+      aria-label="Settimana precedente"
+    >
+      ←
+    </button>
+    <div className="text-lg font-semibold">{rangeLabel}</div>
+    <button
+      className="px-3 py-2 rounded-xl shadow border text-sm"
+      onClick={() => setPivot(addDays(pivot, 7))}
+      aria-label="Settimana successiva"
+    >
+      →
+    </button>
+  </div>
+
+  {/* Destra: vista + Oggi + Hub */}
+  <div className="flex items-center gap-2">
+    <button
+      onClick={() => setMode('week')}
+      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'week' ? 'bg-black text-white border-black' : ''}`}
+    >
+      Settimana
+    </button>
+    <button
+      onClick={() => setMode('twoWeeks')}
+      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'twoWeeks' ? 'bg-black text-white border-black' : ''}`}
+    >
+      2 settimane
+    </button>
+    <button
+      onClick={() => setMode('month')}
+      className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'month' ? 'bg-black text-white border-black' : ''}`}
+    >
+      Mese
+    </button>
+
+    <button
+      className="px-3 py-2 rounded-xl shadow border text-sm"
+      onClick={() => setPivot(startOfDay(new Date()))}
+    >
+      Oggi
+    </button>
+
+    <Link href="/hub" className="px-3 py-2 rounded-xl shadow border text-sm">Hub</Link>
+  </div>
+</div>
+
 
       {/* Header giorni */}
-      <div className="grid grid-cols-7 gap-2 sticky top-0 bg-white z-10">
+      <div className="grid grid-cols-7 gap-2">
         {Array.from({ length: 7 }).map((_, i) => (
           <div key={i} className="text-xs font-medium px-2 py-1">{weekdayName(i)}</div>
         ))}
@@ -287,10 +364,6 @@ export default function Page() {
               const dayBookings = bookingsByDay[key] ?? [];
               const isToday = key === today;
               const inMonth = d.getMonth() === pivot.getMonth();
-
-              function deleteBooking(id: string): void {
-                throw new Error('Function not implemented.');
-              }
 
               return (
                 <div
@@ -307,6 +380,7 @@ export default function Page() {
                   <div className="flex-1 overflow-auto space-y-2">
                     {dayBookings.map((b) => (
   <HotelCard key={b.id} booking={b} onDelete={() => deleteBooking(b.id)} />
+
 ))}
 
                     {dayBookings.length === 0 && (<div className="text-xs text-neutral-500">Nessuna prenotazione</div>)}
@@ -366,20 +440,7 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
           </span>
         </div>
         <div className="flex items-center gap-2">
-  <button
-    className="text-xs px-2 py-1 rounded-lg border shadow"
-    onClick={() => window.dispatchEvent(new CustomEvent('hotel-edit', { detail: booking }))}
-    aria-label={`Modifica prenotazione ${booking.id}`}
-  >
-    Modifica
-  </button>
-  <button
-    className="text-xs px-2 py-1 rounded-lg border shadow text-red-700"
-    onClick={() => onDelete()}
-    aria-label={`Elimina prenotazione ${booking.id}`}
-  >
-    Elimina
-  </button>
+  
 </div>
 
       </div>
@@ -391,11 +452,10 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
         <div className="font-medium">Prezzo camera</div>
         <div><Euro value={booking.roomPrice} /></div>
 
-        <div className="font-medium">Cena</div>
-        <div>{booking.dinner ?? '—'}</div>
+        
+<div className="font-medium">Prezzo cena totale</div>
+<div>{booking.dinnerPrice ? <Euro value={booking.dinnerPrice * (booking.guests?.length ?? 0)} /> : '—'}</div>
 
-        <div className="font-medium">Prezzo cena</div>
-        <div><Euro value={booking.dinnerPrice} /></div>
 
         <div className="font-medium">Note</div>
         <div className="truncate" title={booking.notes || ''}>{booking.notes || '—'}</div>
@@ -403,11 +463,34 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
 
       <div className="mt-2">
         <div className="text-xs font-medium mb-1">Ospiti</div>
-        <div className="flex flex-wrap gap-1">
-          {booking.guests.map((g) => (
-            <span key={g.id} className="text-[10px] px-2 py-1 rounded-full border">{g.name}</span>
-          ))}
-        </div>
+        <div className="flex flex-nowrap gap-1 overflow-x-auto">
+  {booking.guests.map((g) => (
+    <span
+      key={g.id}
+      className="whitespace-nowrap text-[10px] px-2 py-1 rounded-full border"
+      title={g.name}
+    >
+      {g.name}
+    </span>
+  ))}
+</div>
+<div className="mt-2 flex gap-2">
+  <button
+    className="text-xs px-2 py-1 rounded-lg border shadow"
+    onClick={() => window.dispatchEvent(new CustomEvent('hotel-edit', { detail: booking }))}
+    aria-label={`Modifica prenotazione ${booking.id}`}
+  >
+    Modifica
+  </button>
+  <button
+    className="text-xs px-2 py-1 rounded-lg border shadow text-red-700"
+    onClick={onDelete}
+    aria-label={`Elimina prenotazione ${booking.id}`}
+  >
+    Elimina
+  </button>
+</div>
+
       </div>
     </div>
   );
