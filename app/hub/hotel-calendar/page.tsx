@@ -25,7 +25,16 @@ type HotelBooking = {
 type ViewMode = 'month' | 'twoWeeks' | 'week';
 
 /* ---------- Util ---------- */
-function yyyyMmDd(d: Date) { return d.toISOString().slice(0, 10); }
+function yyyyMmDd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${y}-${m}-${day}`;
+}
+function ymdToDateLocal(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number);
+  return new Date(y, (m ?? 1) - 1, d ?? 1); // crea data in locale
+}
 function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
 function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
 function startOfWeekMonday(d: Date) { const x = startOfDay(d); const day = x.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(x, diff); }
@@ -296,8 +305,8 @@ export default function Page() {
 
     if (draft.id.startsWith('tmp-')) {
       // insert multiplo giorno
-      const from = new Date(draft.date);
-      const to = new Date(rangeEnd ?? draft.date);
+      const from = ymdToDateLocal(draft.date);
+      const to   = ymdToDateLocal(rangeEnd ?? draft.date);
       to.setHours(0,0,0,0);
 
       const payloads = [];
