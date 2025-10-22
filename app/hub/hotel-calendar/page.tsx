@@ -1,7 +1,8 @@
 'use client';
-
+import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useMemo, useState, useEffect } from 'react';
+const supabase = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!);
 
 type Guest = { id: string; name: string; territory: string };
 type HotelBooking = {
@@ -197,30 +198,66 @@ const [bookings, setBookings] = useState<HotelBooking[]>([]);
 const [loaded, setLoaded] = useState(false);
 
 useEffect(() => {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    setBookings(raw ? (JSON.parse(raw) as HotelBooking[]) : [...MOCK_BOOKINGS]);
-  } catch {
-    setBookings([...MOCK_BOOKINGS]);
-  } finally {
+  (async () => {
+    const { data, error } = await supabase
+      .from('hotel_bookings')
+      .select('*')
+      .gte('date', yyyyMmDd(addDays(startOfWeekMonday(pivot), -35)))   // margine
+      .lte('date', yyyyMmDd(addDays(endOfWeekSunday(pivot), 35)));
+    if (!error && data) {
+      setBookings(
+        data.map((r: any) => ({
+          id: r.id,
+          date: r.date,
+          hotelName: r.hotel_name,
+          roomType: r.room_type,
+          roomPrice: Number(r.room_price),
+          guests: r.guests ?? [],
+          territory: r.territory,
+          notes: r.notes ?? '',
+          dinnerPrice: r.dinner_price != null ? Number(r.dinner_price) : undefined,
+        }))
+      );
+    }
     setLoaded(true);
-  }
-}, []);
+  })();
+}, [pivot]);
+
 
 useEffect(() => {
-  if (!loaded) return;
-  try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(bookings));
-  } catch {}
-}, [bookings, loaded]);
+  const channel = supabase
+    .channel('hotel_bookings_changes')
+    .on('postgres_changes', { event: '*', schema: 'public', table: 'hotel_bookings' }, async () => {
+      // ricarica finestra corrente
+      const { data } = await supabase
+        .from('hotel_bookings')
+        .select('*')
+        .gte('date', yyyyMmDd(addDays(startOfWeekMonday(pivot), -35)))
+        .lte('date', yyyyMmDd(addDays(endOfWeekSunday(pivot), 35)));
+      if (data) {
+        setBookings(data.map((r: any) => ({
+          id: r.id, date: r.date, hotelName: r.hotel_name, roomType: r.room_type,
+          roomPrice: Number(r.room_price), guests: r.guests ?? [], territory: r.territory,
+          notes: r.notes ?? '', dinnerPrice: r.dinner_price != null ? Number(r.dinner_price) : undefined,
+        })));
+      }
+    })
+    .subscribe();
+
+  return () => { supabase.removeChannel(channel); };
+}, [pivot]);
 
 
   const [draft, setDraft] = useState<HotelBooking | null>(null);
 
-function deleteBooking(id: string) {
-    if (!confirm('Eliminare questa prenotazione?')) return;
-    setBookings(prev => prev.filter(b => b.id !== id));
-  }
+async function deleteBooking(id: string) {
+  if (!confirm('Eliminare questa prenotazione?')) return;
+  const prev = bookings;
+  setBookings(prev.filter(b => b.id !== id)); // ottimistica
+  const { error } = await supabase.from('hotel_bookings').delete().eq('id', id);
+  if (error) setBookings(prev); // rollback in caso di errore
+}
+
 
   useEffect(() => {
     const handler = (e: any) => openEdit(e.detail as HotelBooking);
@@ -234,19 +271,47 @@ function deleteBooking(id: string) {
   }
   function openEdit(b: HotelBooking) { setDraft({ ...b }); setEditModal({ open: true, booking: b }); }
   function closeModals() { setNewModal({ open: false, date: null }); setEditModal({ open: false, booking: null }); setDraft(null); }
-  function saveDraft() {
-    if (!draft) return;
-    setBookings((prev) => {
-      const idx = prev.findIndex((x) => x.id === draft.id);
-      if (idx >= 0) { const next = [...prev]; next[idx] = draft; return next; }
-      return [...prev, draft];
-    });
- 
+async function saveDraft() {
+  if (!draft) return;
 
-    const i = MOCK_BOOKINGS.findIndex((x) => x.id === draft.id);
-    if (i >= 0) MOCK_BOOKINGS[i] = draft; else MOCK_BOOKINGS.push(draft);
-    closeModals();
+  const payload = {
+    date: draft.date,
+    hotel_name: draft.hotelName,
+    room_type: draft.roomType,
+    room_price: draft.roomPrice,
+    guests: draft.guests,
+    territory: draft.territory,
+    notes: draft.notes ?? null,
+    dinner_price: draft.dinnerPrice ?? null,
+    updated_at: new Date().toISOString(),
+    
+  };
+
+  if (draft.id.startsWith('tmp-')) {
+    const { data, error } = await supabase
+      .from('hotel_bookings')
+      .insert(payload)
+      .select()
+      .single();
+    if (!error && data) {
+      setBookings(prev => [...prev, {
+        ...draft, id: data.id,
+      }]);
+    }
+  } else {
+    const { error } = await supabase
+      .from('hotel_bookings')
+      .update(payload)
+      .eq('id', draft.id);
+    if (!error) {
+      setBookings(prev => {
+        const i = prev.findIndex(x => x.id === draft.id);
+        const next = [...prev]; next[i] = draft; return next;
+      });
+    }
   }
+  closeModals();
+}
 
   const range = useMemo(() => {
     const monthStart = new Date(pivot.getFullYear(), pivot.getMonth(), 1);
