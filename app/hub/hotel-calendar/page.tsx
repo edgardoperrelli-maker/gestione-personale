@@ -205,6 +205,11 @@ export default function Page() {
   const [pivot, setPivot] = useState<Date>(startOfDay(new Date()));
   const [newModal, setNewModal] = useState<{ open: boolean; date: string | null }>({ open: false, date: null });
   const [editModal, setEditModal] = useState<{ open: boolean; booking: HotelBooking | null }>({ open: false, booking: null });
+const [exportModal, setExportModal] = useState<{open:boolean; from:string; to:string}>({
+  open: false,
+  from: yyyyMmDd(startOfWeekMonday(pivot)),
+  to: yyyyMmDd(endOfWeekSunday(pivot)),
+});
 
   const [bookings, setBookings] = useState<HotelBooking[]>([]);
   const [loaded, setLoaded] = useState(false);
@@ -372,6 +377,40 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
 
     closeModals();
   }
+async function exportXlsx() {
+  const { from, to } = exportModal;
+  if (!from || !to) return;
+
+  const fromD = ymdToDateLocal(from);
+  const toD   = ymdToDateLocal(to);
+
+  const inRange = (dStr: string) => {
+    const d = ymdToDateLocal(dStr);
+    return d >= fromD && d <= toD;
+  };
+
+  const rows = bookings
+    .filter(b => inRange(b.date))
+    .sort((a,b) => a.date.localeCompare(b.date))
+    .map(b => ({
+      Data: b.date,
+      Hotel: b.hotelName,
+      Territorio: b.territory,
+      Camera: b.roomType,
+      'Prezzo camera': b.roomPrice,
+      'Prezzo cena totale': (b.dinnerPrice ?? 0) * (b.guests?.length ?? 0),
+      Note: b.notes ?? '',
+      Ospiti: (b.guests ?? []).map(g => g.name).join(', '),
+    }));
+
+  const XLSX = await import('xlsx');
+  const ws = XLSX.utils.json_to_sheet(rows);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Prenotazioni');
+  XLSX.writeFile(wb, `prenotazioni_${from}_${to}.xlsx`);
+
+  setExportModal(m => ({ ...m, open: false }));
+}
 
   /* ---------- Derivati ---------- */
   const range = useMemo(() => {
@@ -433,6 +472,16 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
   onClick={() => openNew(yyyyMmDd(pivot))}
 >
   Nuova prenotazione
+</button>
+<button
+  className="px-3 py-2 rounded-xl shadow border text-sm"
+  onClick={() => setExportModal({
+    open: true,
+    from: yyyyMmDd(startOfWeekMonday(pivot)),
+    to: yyyyMmDd(endOfWeekSunday(pivot)),
+  })}
+>
+  Esporta XLSX
 </button>
 
           </div>
@@ -520,6 +569,40 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
           </>
         )}
       </Modal>
+
+      <Modal
+  open={exportModal.open}
+  title="Esporta prenotazioni"
+  onClose={() => setExportModal(m => ({ ...m, open: false }))}>
+  <div className="space-y-3">
+    <div className="grid grid-cols-2 gap-3">
+      <label className="text-xs">
+        <div className="mb-1">Dal</div>
+        <input
+          type="date"
+          className="w-full border rounded-lg px-2 py-1 text-sm"
+          value={exportModal.from}
+          onChange={(e) => setExportModal(m => ({ ...m, from: e.target.value }))}
+        />
+      </label>
+      <label className="text-xs">
+        <div className="mb-1">Al</div>
+        <input
+          type="date"
+          className="w-full border rounded-lg px-2 py-1 text-sm"
+          min={exportModal.from}
+          value={exportModal.to}
+          onChange={(e) => setExportModal(m => ({ ...m, to: e.target.value }))}
+        />
+      </label>
+    </div>
+    <div className="flex justify-end gap-2">
+      <button className="px-3 py-2 rounded-lg border" onClick={() => setExportModal(m => ({ ...m, open: false }))}>Annulla</button>
+      <button className="px-3 py-2 rounded-lg border shadow" onClick={exportXlsx}>Esporta</button>
+    </div>
+  </div>
+</Modal>
+
     </div>
   );
 }
