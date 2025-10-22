@@ -117,6 +117,19 @@ function BookingForm({
           />
         </label>
       </div>
+<label className="text-xs block">
+  <div className="mb-1">Territorio</div>
+  <select
+    className="w-full border rounded-lg px-2 py-1 text-sm"
+    value={(value.territory || '').toUpperCase()}
+    onChange={(e) => onChange({ ...value, territory: e.target.value })}
+  >
+    <option value="" disabled>Seleziona territorio</option>
+    {territories.map(t => (
+      <option key={t} value={t}>{t}</option>
+    ))}
+  </select>
+</label>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="text-xs">
@@ -386,6 +399,13 @@ export default function Page() {
             <button onClick={() => setMode('twoWeeks')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'twoWeeks' ? 'bg-black text-white border-black' : ''}`}>2 settimane</button>
             <button onClick={() => setMode('month')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'month' ? 'bg-black text-white border-black' : ''}`}>Mese</button>
             <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
+            <button
+  className="px-3 py-2 rounded-xl shadow border text-sm"
+  onClick={() => openNew(yyyyMmDd(pivot))}
+>
+  Nuova prenotazione
+</button>
+
           </div>
         </div>
 
@@ -416,11 +436,9 @@ export default function Page() {
                   className={`border rounded-2xl p-2 min-h-[220px] flex flex-col gap-2 bg-white ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-black' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">{fmtDay(d)}</div>
-                    <button className="text-xs px-2 py-1 rounded-lg border shadow" onClick={() => openNew(key)} aria-label={`Nuova prenotazione per ${key}`}>
-                      Nuovo
-                    </button>
-                  </div>
+  <div className="text-sm font-semibold">{fmtDay(d)}</div>
+</div>
+
 
                   <div className="flex-1 overflow-auto space-y-2">
                     {dayBookings.map((b) => (
