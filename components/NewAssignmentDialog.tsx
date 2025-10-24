@@ -34,6 +34,11 @@ export default function NewAssignmentDialog({
   const [notes, setNotes]             = useState<string>('');
   const [err, setErr]                 = useState<string | undefined>();
   const [saving, setSaving]           = useState<boolean>(false);
+  // --- NUOVO: range di date ---
+const [useRange, setUseRange] = useState(false);
+const [fromIso, setFromIso] = useState(iso);   // default = giorno aperto
+const [toIso, setToIso]     = useState(iso);
+
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -44,15 +49,45 @@ export default function NewAssignmentDialog({
 
   const canSave = !!staffId && !saving;
 
-  async function save() {
-    if (!canSave) return;
-    setSaving(true);
-    setErr(undefined);
+async function save() {
+  if (!canSave) return;
+  setSaving(true);
+  setErr(undefined);
 
+  // helper: itera giorni inclusivi
+  function* iterDays(a: string, b: string) {
+    const d1 = new Date(a);
+    const d2 = new Date(b);
+    for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
+      const isoX = d.toLocaleDateString('sv-SE').slice(0, 10);
+      yield isoX;
+    }
+  }
+
+  // helper: crea calendar_day se manca, usando la tua API già presente
+  async function ensureDay(isoStr: string): Promise<string | null> {
+    if (isoStr === iso) return dayId; // già aperto
+    const { data: { user } } = await sb.auth.getUser();
+    const res = await fetch('/api/calendar/upsert-day', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: undefined, day: isoStr, note: null, user_id: user?.id, version: undefined })
+    });
+    if (res.status === 409) {
+      const { current } = await res.json();
+      return current?.id ?? null;
+    }
+    if (!res.ok) return null;
+    const { row } = await res.json();
+    return row?.id ?? null;
+  }
+
+  // helper: crea una assignment e normalizza per la griglia
+  async function createOne(targetDayId: string): Promise<Assignment | null> {
     const ins = await sb
       .from('assignments')
       .insert({
-        day_id:       dayId,
+        day_id:       targetDayId,
         staff_id:     staffId || null,
         activity_id:  activityId || null,
         territory_id: territoryId || null,
@@ -62,11 +97,7 @@ export default function NewAssignmentDialog({
       .select('id, day_id')
       .single();
 
-    if (ins.error || !ins.data) {
-      setSaving(false);
-      setErr(ins.error?.message || 'Errore nel salvataggio.');
-      return;
-    }
+    if (ins.error || !ins.data) return null;
 
     const normalized: Assignment = {
       id: ins.data.id,
@@ -83,10 +114,48 @@ export default function NewAssignmentDialog({
         ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' }
         : null,
     };
-
-    onCreated(normalized, true); // il parent chiude la modale
-    setSaving(false);
+    return normalized;
   }
+
+  // singolo giorno
+  if (!useRange) {
+    const row = await createOne(dayId);
+    if (!row) {
+      setSaving(false);
+      setErr('Errore nel salvataggio.');
+      return;
+    }
+    onCreated(row, true);
+    setSaving(false);
+    return;
+  }
+
+  // range: normalizza ordine date
+  const a = fromIso <= toIso ? fromIso : toIso;
+  const b = toIso >= fromIso ? toIso : fromIso;
+
+  let last: Assignment | null = null;
+  for (const isoX of iterDays(a, b)) {
+    const targetDayId = await ensureDay(isoX);
+    if (!targetDayId) continue;
+
+    const row = await createOne(targetDayId);
+    if (!row) continue;
+
+    last = row;
+    onCreated(row, false); // aggiorna griglia ma NON chiudere
+  }
+
+  if (!last) {
+    setSaving(false);
+    setErr('Nessuna assegnazione creata.');
+    return;
+  }
+
+  onCreated(last, true); // chiudi alla fine
+  setSaving(false);
+}
+
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -177,7 +246,39 @@ export default function NewAssignmentDialog({
 
           {err && <div className="text-sm text-red-600">{err}</div>}
 
-          <div className="px-0 pt-3 border-t flex items-center justify-end gap-2">
+{/* --- NUOVO: più giorni (da/a) --- */}
+<div className="mt-2 rounded-lg border p-3 bg-white space-y-2">
+  <label className="flex items-center gap-2 text-sm">
+    <input type="checkbox" checked={useRange} onChange={e=>setUseRange(e.target.checked)} />
+    <span>Inserisci su più giorni (da / a)</span>
+  </label>
+
+  <div className="grid grid-cols-2 gap-3">
+    <label className="text-sm">
+      <span className="block text-gray-600 mb-1">Dal</span>
+      <input
+        type="date"
+        className="w-full border rounded-lg px-3 py-2 bg-white"
+        value={fromIso}
+        onChange={e=>setFromIso(e.target.value)}
+        disabled={!useRange}
+      />
+    </label>
+    <label className="text-sm">
+      <span className="block text-gray-600 mb-1">Al</span>
+      <input
+        type="date"
+        className="w-full border rounded-lg px-3 py-2 bg-white"
+        value={toIso}
+        onChange={e=>setToIso(e.target.value)}
+        disabled={!useRange}
+      />
+    </label>
+  </div>
+</div>
+
+<div className="px-0 pt-3 border-t flex items-center justify-end gap-2">
+
             <button
               type="button"
               onClick={onClose}

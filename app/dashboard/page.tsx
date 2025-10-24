@@ -7,6 +7,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 import OperatorCard from '@/components/OperatorCard';
 import Link from 'next/link'
+import ExportAssignmentsDialog from '@/components/ExportAssignmentsDialog';
 
 
 type Role = 'viewer'|'editor'|'admin';
@@ -42,6 +43,7 @@ export default function DashboardPage() {
   const [sortMode, setSortMode] = useState<SortMode>('AZ');
   const [filter, setFilter] = useState<string>('NONE');
 const [openInsertRep, setOpenInsertRep] = useState(false);
+const [openExport, setOpenExport] = useState(false);
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev(v => v + 1));
@@ -372,6 +374,13 @@ const openNewForDate = async (d: Date) => {
             </button>
           </div>
         </div>
+<button
+  className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+  onClick={() => setOpenExport(true)}
+  title="Esporta assegnazioni"
+>
+  Esporta
+</button>
 
 <div className="flex items-center gap-2 text-sm">
   <Link
@@ -529,6 +538,12 @@ dedup.sort((a, b) =>
     setOpenInsertRep(false);
     softRefresh();
   }}
+/>
+<ExportAssignmentsDialog
+  open={openExport}
+  onClose={() => setOpenExport(false)}
+  defaultFrom={range.start.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10)}
+  defaultTo={range.end.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10)}
 />
 
 </div>
