@@ -461,29 +461,32 @@ const openNewForDate = async (d: Date) => {
   actList={activities}
   terrList={territories}
   onClose={() => setDialogOpenForDay(null)}
-  onCreated={(row: Assignment, close = true) => {   // <-- usa il flag
-    setAssignments(prev => {
-      const arr = prev[dayId] ? [...prev[dayId]] : [];
-      const i = arr.findIndex(x => x.id === row.id);
-      if (i >= 0) arr[i] = row; else arr.push(row);
-      const seen = new Set<string>();
-     const dedup = arr.filter((a) => {
-  const fresh = !seen.has(a.id);
-  if (fresh) seen.add(a.id);
-  return fresh;
-});
-dedup.sort((a, b) =>
-  (a.staff?.display_name ?? '').localeCompare(
-    b.staff?.display_name ?? '',
-    'it',
-    { sensitivity: 'base' }
-  )
-);
+onCreated={(row: Assignment, close = true) => {
+  const bucket = row.day_id; // <-- usa il giorno reale della card
+  setAssignments(prev => {
+    const arr = prev[bucket] ? [...prev[bucket]] : [];
+    const i = arr.findIndex(x => x.id === row.id);
+    if (i >= 0) arr[i] = row; else arr.push(row);
 
-      return { ...prev, [dayId]: dedup };
+    const seen = new Set<string>();
+    const dedup = arr.filter(a => {
+      const fresh = !seen.has(a.id);
+      if (fresh) seen.add(a.id);
+      return fresh;
     });
-    if (close) setDialogOpenForDay(null);            // <-- chiudi solo se close=true
-  }}
+    dedup.sort((a, b) =>
+      (a.staff?.display_name ?? '').localeCompare(
+        b.staff?.display_name ?? '',
+        'it',
+        { sensitivity: 'base' }
+      )
+    );
+
+    return { ...prev, [bucket]: dedup };
+  });
+  if (close) setDialogOpenForDay(null);
+}}
+
 />
 
   );
