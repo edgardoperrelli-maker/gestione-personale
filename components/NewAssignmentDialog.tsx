@@ -60,8 +60,10 @@ async function save() {
     const d1 = new Date(a);
     const d2 = new Date(b);
     for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
-      yield d.toISOString().slice(0, 10); // YYYY-MM-DD
-    }
+  const isoX = d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10);
+  yield isoX; // YYYY-MM-DD locale
+}
+
   }
 
   // crea calendar_day se manca
@@ -73,7 +75,12 @@ async function save() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: undefined, day: isoStr, note: null, user_id: user?.id, version: undefined })
     });
-    if (res.status === 409) { const { current } = await res.json(); return current?.id ?? null; }
+    if (res.status === 409) {
+  const payload = await res.json();
+  const cur = payload?.current ?? payload?.row ?? null;
+  return cur?.id ?? null;
+}
+
     if (!res.ok) return null;
     const { row } = await res.json(); return row?.id ?? null;
   }
