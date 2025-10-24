@@ -49,40 +49,36 @@ const [toIso, setToIso]     = useState(iso);
 
   const canSave = !!staffId && !saving;
 
+// DOPO
 async function save() {
   if (!canSave) return;
   setSaving(true);
   setErr(undefined);
 
-  // helper: itera giorni inclusivi
+  // itera date inclusive
   function* iterDays(a: string, b: string) {
     const d1 = new Date(a);
     const d2 = new Date(b);
     for (let d = new Date(d1); d <= d2; d.setDate(d.getDate() + 1)) {
-      const isoX = d.toLocaleDateString('sv-SE').slice(0, 10);
-      yield isoX;
+      yield d.toISOString().slice(0, 10); // YYYY-MM-DD
     }
   }
 
-  // helper: crea calendar_day se manca, usando la tua API già presente
+  // crea calendar_day se manca
   async function ensureDay(isoStr: string): Promise<string | null> {
-    if (isoStr === iso) return dayId; // già aperto
+    if (isoStr === iso) return dayId; // giorno già aperto dal parent
     const { data: { user } } = await sb.auth.getUser();
     const res = await fetch('/api/calendar/upsert-day', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ id: undefined, day: isoStr, note: null, user_id: user?.id, version: undefined })
     });
-    if (res.status === 409) {
-      const { current } = await res.json();
-      return current?.id ?? null;
-    }
+    if (res.status === 409) { const { current } = await res.json(); return current?.id ?? null; }
     if (!res.ok) return null;
-    const { row } = await res.json();
-    return row?.id ?? null;
+    const { row } = await res.json(); return row?.id ?? null;
   }
 
-  // helper: crea una assignment e normalizza per la griglia
+  // inserisce una assignment e normalizza
   async function createOne(targetDayId: string): Promise<Assignment | null> {
     const ins = await sb
       .from('assignments')
@@ -99,38 +95,27 @@ async function save() {
 
     if (ins.error || !ins.data) return null;
 
-    const normalized: Assignment = {
+    return {
       id: ins.data.id,
       day_id: ins.data.day_id,
       reperibile: !!reperibile,
       notes: notes ?? null,
-      staff: staffId
-        ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' }
-        : null,
-      activity: activityId
-        ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' }
-        : null,
-      territory: territoryId
-        ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' }
-        : null,
+      staff: staffId ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' } : null,
+      activity: activityId ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' } : null,
+      territory: territoryId ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' } : null,
     };
-    return normalized;
   }
 
-  // singolo giorno
+  // se NON uso range: comportamento identico a prima
   if (!useRange) {
     const row = await createOne(dayId);
-    if (!row) {
-      setSaving(false);
-      setErr('Errore nel salvataggio.');
-      return;
-    }
+    if (!row) { setSaving(false); setErr('Errore nel salvataggio.'); return; }
     onCreated(row, true);
     setSaving(false);
     return;
   }
 
-  // range: normalizza ordine date
+  // normalizza ordine date
   const a = fromIso <= toIso ? fromIso : toIso;
   const b = toIso >= fromIso ? toIso : fromIso;
 
@@ -138,23 +123,18 @@ async function save() {
   for (const isoX of iterDays(a, b)) {
     const targetDayId = await ensureDay(isoX);
     if (!targetDayId) continue;
-
     const row = await createOne(targetDayId);
     if (!row) continue;
 
     last = row;
-    onCreated(row, false); // aggiorna griglia ma NON chiudere
+    onCreated(row, false); // aggiorna la griglia, NON chiudere
   }
 
-  if (!last) {
-    setSaving(false);
-    setErr('Nessuna assegnazione creata.');
-    return;
-  }
-
+  if (!last) { setSaving(false); setErr('Nessuna assegnazione creata.'); return; }
   onCreated(last, true); // chiudi alla fine
   setSaving(false);
 }
+
 
 
   return (
