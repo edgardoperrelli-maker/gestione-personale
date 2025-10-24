@@ -132,7 +132,7 @@ async function save() {
     if (!targetDayId) continue;
     const row = await createOne(targetDayId);
     if (!row) continue;
-
+(row as any).__iso = isoX;
     last = row;
     onCreated(row, false); // aggiorna la griglia, NON chiudere
   }

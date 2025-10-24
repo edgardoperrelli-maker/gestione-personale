@@ -462,7 +462,17 @@ const openNewForDate = async (d: Date) => {
   terrList={territories}
   onClose={() => setDialogOpenForDay(null)}
 onCreated={(row: Assignment, close = true) => {
-  const bucket = row.day_id; // <-- usa il giorno reale della card
+  const bucket = row.day_id;
+
+  // se il giorno non è presente in days, aggiungilo subito
+  setDays(prev => {
+    const exists = prev.some(r => r.id === bucket);
+    if (exists) return prev;
+    const isoX = (row as any).__iso; // passato dalla modale
+    if (!isoX) return prev;          // fallback: niente ISO, non toccare
+    return [...prev, { id: bucket, day: isoX }];
+  });
+
   setAssignments(prev => {
     const arr = prev[bucket] ? [...prev[bucket]] : [];
     const i = arr.findIndex(x => x.id === row.id);
@@ -484,8 +494,10 @@ onCreated={(row: Assignment, close = true) => {
 
     return { ...prev, [bucket]: dedup };
   });
+
   if (close) setDialogOpenForDay(null);
 }}
+
 
 />
 
