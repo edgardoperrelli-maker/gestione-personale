@@ -8,6 +8,7 @@ import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 import OperatorCard from '@/components/OperatorCard';
 import Link from 'next/link'
 import ExportAssignmentsDialog from '@/components/ExportAssignmentsDialog';
+import { COST_CENTERS, type CostCenter } from '@/constants/cost-centers';
 
 
 type Role = 'viewer'|'editor'|'admin';
@@ -41,7 +42,13 @@ export default function DashboardPage() {
   const [dialogOpenForDay, setDialogOpenForDay] = useState<{id:string; iso:string}|null>(null);
   const [editAssignment, setEditAssignment] = useState<Assignment|null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('AZ');
-  const [filter, setFilter] = useState<string>('NONE');
+  type FilterToken = string; // 'REPERIBILE' | 'STAFF:<id>' | 'ACT:<id>' | 'TERR:<id>' | 'CC:<name>'
+const [filters, setFilters] = useState<FilterToken[]>([]);
+function toggleToken(t: string) {
+  setFilters(prev => prev.includes(t) ? prev.filter(x => x !== t) : [...prev, t]);
+}
+const [filtersMenuOpen, setFiltersMenuOpen] = useState(false);
+
 const [openInsertRep, setOpenInsertRep] = useState(false);
 const [openExport, setOpenExport] = useState(false);
 
@@ -168,16 +175,17 @@ useEffect(() => {
 
       const map: Record<string, Assignment[]> = {};
       if (ids.length) {
-        const ares = await sb
-          .from('assignments')
-          .select(`
-            id, day_id, reperibile, notes,
-            staff:staff_id ( id, display_name ),
-            territory:territory_id ( id, name ),
-            activity:activity_id ( id, name )
-          `)
-          .in('day_id', ids)
-          .order('created_at', { ascending: true });
+const ares = await sb
+  .from('assignments')
+  .select(`
+    id, day_id, reperibile, notes, cost_center,
+    staff:staff_id ( id, display_name ),
+    territory:territory_id ( id, name ),
+    activity:activity_id ( id, name )
+  `)
+  .in('day_id', ids)
+  .order('created_at', { ascending: true });
+
         if (ares.error || !alive) return;
 
       const rows = ((ares.data ?? []) as unknown) as Assignment[];
@@ -316,34 +324,141 @@ const openNewForDate = async (d: Date) => {
             Oggi
           </button>
 
-          {/* Filtra */}
-          <div className="ml-3 flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <span className="text-sm text-gray-600">Filtra</span>
-              <select
-                className="px-2 py-1.5 text-sm border rounded-lg bg-white shadow-sm min-w-44"
-                value={filter}
-                onChange={(e)=>setFilter(e.target.value)}
-              >
-                <option value="NONE">— Nessun filtro —</option>
-                <option value="REPERIBILE">Solo reperibili</option>
-                <optgroup label="Operatori">
-                  {staff.map(s=>(
-                    <option key={s.id} value={`STAFF:${s.id}`}>{s.display_name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Attività">
-                  {activities.map(a=>(
-                    <option key={a.id} value={`ACT:${a.id}`}>{a.name}</option>
-                  ))}
-                </optgroup>
-                <optgroup label="Territori">
-                  {territories.map(t=>(
-                    <option key={t.id} value={`TERR:${t.id}`}>{t.name}</option>
-                  ))}
-                </optgroup>
-              </select>
-            </div>
+         {/* Filtra */}
+<div className="ml-3 relative">
+  <button
+    type="button"
+    onClick={() => setFiltersMenuOpen(v => !v)}
+    className="px-3 py-1.5 rounded-lg border bg-white shadow-sm text-sm"
+  >
+    Filtra {filters.length ? `(${filters.length})` : ''}
+  </button>
+
+  {filtersMenuOpen && (
+    <div
+      className="absolute z-50 mt-2 w-[520px] rounded-xl border bg-white shadow-lg p-3"
+      onMouseLeave={() => setFiltersMenuOpen(false)}
+    >
+      {/* Azioni rapide */}
+      <div className="flex items-center justify-between mb-2">
+        <div className="text-sm font-semibold">Filtri</div>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setFilters([])}
+            className="text-xs px-2 py-1 rounded-md border bg-white hover:bg-gray-50"
+            title="Pulisci tutti i filtri"
+          >
+            Azzera
+          </button>
+          <button
+            type="button"
+            onClick={() => setFiltersMenuOpen(false)}
+            className="text-xs px-2 py-1 rounded-md border bg-white hover:bg-gray-50"
+          >
+            Chiudi
+          </button>
+        </div>
+      </div>
+      <div className="grid grid-cols-2 gap-3 text-sm">
+        {/* Reperibile */}
+        <div>
+          <div className="font-medium mb-1">Reperibilità</div>
+          <label className="inline-flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={filters.includes('REPERIBILE')}
+              onChange={() => toggleToken('REPERIBILE')}
+            />
+            Solo reperibili
+          </label>
+        </div>
+
+        {/* Centri di costo */}
+        <div>
+          <div className="font-medium mb-1">Centri di costo</div>
+          <div className="flex flex-wrap gap-2">
+            {COST_CENTERS.map((cc) => {
+              const token = `CC:${cc}`;
+              const checked = filters.includes(token);
+              return (
+                <label key={cc} className="inline-flex items-center gap-2 border rounded-md px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleToken(token)}
+                  />
+                  {cc}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Operatori */}
+        <div>
+          <div className="font-medium mb-1">Operatori</div>
+          <div className="flex flex-col gap-1 max-h-40 overflow-auto pr-1">
+            {staff.map(s => {
+              const token = `STAFF:${s.id}`;
+              return (
+                <label key={s.id} className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={filters.includes(token)}
+                    onChange={() => toggleToken(token)}
+                  />
+                  {s.display_name}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Attività */}
+        <div>
+          <div className="font-medium mb-1">Attività</div>
+          <div className="flex flex-col gap-1 max-h-40 overflow-auto pr-1">
+            {activities.map(a => {
+              const token = `ACT:${a.id}`;
+              return (
+                <label key={a.id} className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={filters.includes(token)}
+                    onChange={() => toggleToken(token)}
+                  />
+                  {a.name}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Territori */}
+        <div className="col-span-2">
+          <div className="font-medium mb-1">Territori</div>
+          <div className="flex flex-wrap gap-2">
+            {territories.map(t => {
+              const token = `TERR:${t.id}`;
+              const checked = filters.includes(token);
+              return (
+                <label key={t.id} className="inline-flex items-center gap-2 border rounded-md px-2 py-1">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={() => toggleToken(token)}
+                  />
+                  {t.name}
+                </label>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
+</div>
 
             {/* Ordina */}
             <div className="flex items-center gap-2">
@@ -362,208 +477,195 @@ const openNewForDate = async (d: Date) => {
               </select>
             </div>
                    </div>
-
           {/* NUOVO: tasto Inserisci Reperibile */}
-          <div className="flex items-center gap-2">
-            <button
-              className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
-              onClick={() => setOpenInsertRep(true)}
-              title="Inserisci Reperibile"
-            >
-              Inserisci Reperibile
-            </button>
-          </div>
-        </div>
-<button
-  className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
-  onClick={() => setOpenExport(true)}
-  title="Esporta assegnazioni"
->
-  Esporta
-</button>
-
-<div className="flex items-center gap-2 text-sm">
-  <Link
-    href="/hub"
-    className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50"
-    aria-label="Torna all’Hub"
-  >
-    ← Hub
-  </Link>
-
-  <span className="opacity-70">{meEmail} · ruolo: {role}</span>
-  <form action="/api/logout" method="post">
-    <button type="submit" className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50">
-      Logout
+          <div className="ml-auto flex items-center gap-2">
+    <button
+      className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+      onClick={() => setOpenInsertRep(true)}
+      title="Inserisci Reperibile"
+    >
+      Inserisci Reperibile
     </button>
-  </form>
-</div>
 
+    <button
+      className="px-3 py-2 rounded-lg border bg-white hover:bg-gray-50"
+      onClick={() => setOpenExport(true)}
+      title="Esporta assegnazioni"
+    >
+      Esporta
+    </button>
 
-      </div>
+    <Link
+      href="/hub"
+      className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50 text-sm"
+      aria-label="Torna all’Hub"
+    >
+      ← Hub
+    </Link>
+
+    <span className="opacity-70 text-sm">{meEmail} · ruolo: {role}</span>
+
+    <form action="/api/logout" method="post">
+      <button type="submit" className="px-2 py-1 rounded-lg border bg-white shadow-sm hover:bg-gray-50 text-sm">
+        Logout
+      </button>
+    </form>
+  </div>
+</div> {/* fine Top bar */}
+
 
       {/* calendar */}
-{mode==='week' ? (
-  <WeeksGrid
-    weeks={[weeks[0] ?? []]}   // una sola riga di 7 “quadrotti”
-    anchor={anchor}
-    today={today}
-    role={role}
-    days={days}
-    assignments={assignments}
-    onAdd={(d)=>openNewForDate(d)}
-    showMonthLabels={false}
-    sortMode={sortMode}
-    filter={filter}
-    setSortMode={setSortMode}
-    onDelete={removeAssignment}
-    onEdit={openEditDialog}
-  />
-) : (
-  <WeeksGrid
-    weeks={weeks}
-    anchor={anchor}
-    today={today}
-    role={role}
-    days={days}
-    assignments={assignments}
-    onAdd={(d)=>openNewForDate(d)}
-    showMonthLabels={mode==='month'}
-    sortMode={sortMode}
-    filter={filter}
-    setSortMode={setSortMode}
-    onDelete={removeAssignment}
-    onEdit={openEditDialog}
-  />
-)}
+      {mode === 'week' ? (
+        <WeeksGrid
+          weeks={[weeks[0] ?? []]}
+          anchor={anchor}
+          today={today}
+          role={role}
+          days={days}
+          assignments={assignments}
+          onAdd={(d) => openNewForDate(d)}
+          showMonthLabels={false}
+          sortMode={sortMode}
+          filters={filters}
+          setSortMode={setSortMode}
+          onDelete={removeAssignment}
+          onEdit={openEditDialog}
+        />
+      ) : (
+        <WeeksGrid
+          weeks={weeks}
+          anchor={anchor}
+          today={today}
+          role={role}
+          days={days}
+          assignments={assignments}
+          onAdd={(d) => openNewForDate(d)}
+          showMonthLabels={mode === 'month'}
+          sortMode={sortMode}
+          filters={filters}
+          setSortMode={setSortMode}
+          onDelete={removeAssignment}
+          onEdit={openEditDialog}
+        />
+      )}
 
+      {/* dialog: Nuovo */}
+      {dialogOpenForDay ? (() => {
+        const { id: dayId, iso } = dialogOpenForDay!;
+        const excludeIds = new Set(
+          (assignments[dayId] ?? [])
+            .map(a => a?.staff?.id ?? '')
+            .filter(id => id !== '')
+        );
+        const availableStaffForDay = (staff ?? []).filter(s => !excludeIds.has(s.id));
 
+        return (
+          <NewAssignmentDialog
+            dayId={dayId}
+            iso={iso}
+            staffList={availableStaffForDay}
+            actList={activities}
+            terrList={territories}
+            onClose={() => setDialogOpenForDay(null)}
+            onCreated={(row: Assignment, close = true) => {
+              const bucket = row.day_id;
 
-{/* dialog */}
-{dialogOpenForDay && (() => {
-  const dayId = dialogOpenForDay.id;
+              setDays(prev => {
+                const exists = prev.some(r => r.id === bucket);
+                if (exists) return prev;
+                const isoX = (row as any).__iso;
+                if (!isoX) return prev;
+                return [...prev, { id: bucket, day: isoX }];
+              });
 
-  // ID operatori già assegnati quel giorno
-  const excludeIds = new Set(
-    (assignments[dayId] ?? [])
-      .map(a => a?.staff?.id ?? '')
-      .filter(id => id !== '')
+              setAssignments(prev => {
+                const arr = prev[bucket] ? [...prev[bucket]] : [];
+                const i = arr.findIndex(x => x.id === row.id);
+                if (i >= 0) arr[i] = row; else arr.push(row);
+
+                const seen = new Set<string>();
+                const dedup = arr.filter(a => {
+                  const fresh = !seen.has(a.id);
+                  if (fresh) seen.add(a.id);
+                  return fresh;
+                });
+                dedup.sort((a, b) =>
+                  (a.staff?.display_name ?? '').localeCompare(
+                    b.staff?.display_name ?? '',
+                    'it',
+                    { sensitivity: 'base' }
+                  )
+                );
+
+                return { ...prev, [bucket]: dedup };
+              });
+
+              if (close) setDialogOpenForDay(null);
+            }}
+          />
+        );
+      })() : null}
+
+      {/* dialog: Modifica */}
+      {editAssignment ? (() => {
+        const a0 = editAssignment!;
+        const dayId = a0.day_id;
+
+        const excludeIds = new Set(
+          (assignments[dayId] ?? [])
+            .map(a => a?.staff?.id ?? '')
+            .filter(id => id !== '' && id !== (a0.staff?.id ?? ''))
+        );
+        const availableStaffForEdit = (staff ?? []).filter(
+          s => s.id === (a0.staff?.id ?? '') || !excludeIds.has(s.id)
+        );
+
+        return (
+          <EditAssignmentDialog
+            assignment={a0}
+            staffList={availableStaffForEdit}
+            actList={activities}
+            terrList={territories}
+            onClose={() => setEditAssignment(null)}
+            onSaved={(updated, close = true) => {
+              setAssignments(prev => {
+                const arr = [...(prev[updated.day_id] ?? [])];
+                const i = arr.findIndex(x => x.id === updated.id);
+                if (i >= 0) arr[i] = updated;
+                return { ...prev, [updated.day_id]: arr };
+              });
+              if (close) setEditAssignment(null);
+            }}
+            onDeleted={(a) => {
+              setEditAssignment(null);
+              removeAssignment(a);
+            }}
+          />
+        );
+      })() : null}
+
+      {/* dialog: Inserisci Reperibile */}
+      <InsertReperibileDialog
+        open={openInsertRep}
+        onClose={() => setOpenInsertRep(false)}
+        staffList={staff}
+        terrList={territories}
+        onInserted={() => {
+          setOpenInsertRep(false);
+          softRefresh();
+        }}
+      />
+
+      {/* dialog: Export */}
+      <ExportAssignmentsDialog
+        open={openExport}
+        onClose={() => setOpenExport(false)}
+        defaultFrom={range.start.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
+        defaultTo={range.end.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
+      />
+    </div>  
   );
-
-  // Operatori disponibili per quel giorno
-  const availableStaffForDay = (staff ?? []).filter(s => !excludeIds.has(s.id));
-
-  return (
-   <NewAssignmentDialog
-  dayId={dayId}
-  iso={dialogOpenForDay.iso}
-  staffList={availableStaffForDay}
-  actList={activities}
-  terrList={territories}
-  onClose={() => setDialogOpenForDay(null)}
-onCreated={(row: Assignment, close = true) => {
-  const bucket = row.day_id;
-
-  // se il giorno non è presente in days, aggiungilo subito
-  setDays(prev => {
-    const exists = prev.some(r => r.id === bucket);
-    if (exists) return prev;
-    const isoX = (row as any).__iso; // passato dalla modale
-    if (!isoX) return prev;          // fallback: niente ISO, non toccare
-    return [...prev, { id: bucket, day: isoX }];
-  });
-
-  setAssignments(prev => {
-    const arr = prev[bucket] ? [...prev[bucket]] : [];
-    const i = arr.findIndex(x => x.id === row.id);
-    if (i >= 0) arr[i] = row; else arr.push(row);
-
-    const seen = new Set<string>();
-    const dedup = arr.filter(a => {
-      const fresh = !seen.has(a.id);
-      if (fresh) seen.add(a.id);
-      return fresh;
-    });
-    dedup.sort((a, b) =>
-      (a.staff?.display_name ?? '').localeCompare(
-        b.staff?.display_name ?? '',
-        'it',
-        { sensitivity: 'base' }
-      )
-    );
-
-    return { ...prev, [bucket]: dedup };
-  });
-
-  if (close) setDialogOpenForDay(null);
-}}
-
-
-/>
-
-  );
-})()}
-
-
-
-{/* >>> PUNTO C: modale Modifica <<< */}
-{editAssignment && (() => {
-  const dayId = editAssignment.day_id;
-
-  const excludeIds = new Set(
-    (assignments[dayId] ?? [])
-      .map(a => a?.staff?.id ?? '')
-      .filter(id => id !== '' && id !== (editAssignment.staff?.id ?? ''))
-  );
-  const availableStaffForEdit = (staff ?? []).filter(
-    s => s.id === (editAssignment.staff?.id ?? '') || !excludeIds.has(s.id)
-  );
-
-  return (
-    <EditAssignmentDialog
-      assignment={editAssignment}
-      staffList={availableStaffForEdit}
-      actList={activities}
-      terrList={territories}
-      onClose={() => setEditAssignment(null)}
-      onSaved={(updated, close = true) => {
-        setAssignments(prev => {
-          const arr = [...(prev[updated.day_id] ?? [])];
-          const i = arr.findIndex(x => x.id === updated.id);
-          if (i >= 0) arr[i] = updated;
-          return { ...prev, [updated.day_id]: arr };
-        });
-        if (close) setEditAssignment(null);
-      }}
-      onDeleted={(a) => {
-        setEditAssignment(null);
-        removeAssignment(a);     // usa già la tua RPC + refresh
-      }}
-    />
-  );
-})()}
-
-{/* NUOVO DIALOG: Inserisci Reperibile */}
-<InsertReperibileDialog
-  open={openInsertRep}
-  onClose={() => setOpenInsertRep(false)}
-  staffList={staff}
-  terrList={territories}
-  onInserted={() => {
-    setOpenInsertRep(false);
-    softRefresh();
-  }}
-/>
-<ExportAssignmentsDialog
-  open={openExport}
-  onClose={() => setOpenExport(false)}
-  defaultFrom={range.start.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10)}
-  defaultTo={range.end.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0,10)}
-/>
-
-</div>
-);
-}
+} // fine DashboardPage
 
 // ---- Components ----
 function SegBtn({active, onClick, children}:{active:boolean; onClick:()=>void; children:React.ReactNode}) {
@@ -594,12 +696,12 @@ function DayCell(props:{
   onAdd:(d:Date)=>void;
   showMonthLabel: boolean;
   sortMode: SortMode;
-  filter: string;
+  filters: string[];
   setSortMode: (m: SortMode)=>void;
   onDelete:(a:Assignment)=>void;
   onEdit:(a:Assignment)=>void;
 }) {
-  const { d, isToday, isCurrentMonth: _isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filter, setSortMode, onDelete, onEdit } = props;
+  const { d, isToday, isCurrentMonth: _isCurrentMonth, role, dayMap, assignments, onAdd, showMonthLabel, sortMode, filters, setSortMode, onDelete, onEdit } = props;
 
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
@@ -640,7 +742,7 @@ return (
       <AssignmentListByIds
         items={list}
         sortMode={sortMode}
-        filter={filter}
+        filters={filters}
         onDelete={onDelete}
         onEdit={onEdit}
       />
@@ -660,12 +762,12 @@ function WeeksGrid(props:{
   onAdd:(d:Date)=>void;
   showMonthLabels:boolean;
   sortMode: SortMode;
-  filter: string;
+  filters: string[];
   setSortMode: (m: SortMode)=>void;
   onDelete:(a:Assignment)=>void;
   onEdit:(a:Assignment)=>void;
 }) {
-  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filter, setSortMode, onDelete, onEdit } = props;
+  const { weeks, anchor, today, role, days, assignments, onAdd, showMonthLabels, sortMode, filters, setSortMode, onDelete, onEdit } = props;
   const dayMap = useMemo(()=>indexDays(days),[days]);
 
   return (
@@ -690,7 +792,7 @@ function WeeksGrid(props:{
               onAdd={onAdd}
               showMonthLabel={showMonthLabels && d.getDate()===1}
               sortMode={sortMode}
-              filter={filter}
+              filters={filters}
               setSortMode={setSortMode}
               onDelete={onDelete}
               onEdit={onEdit}
@@ -706,17 +808,18 @@ function WeeksGrid(props:{
 function AssignmentListByIds({
   items,
   sortMode,
-  filter,
+  filters,
   onDelete,
-  onEdit, // aggiunto
+  onEdit,
 }: {
   items: Assignment[];
   sortMode: SortMode;
-  filter: string;
+  filters: string[];
   onDelete: (a: Assignment) => void;
-  onEdit: (a: Assignment) => void; // aggiunto
+  onEdit: (a: Assignment) => void;
 }) {
-  const visible = filterAssignments(items, filter);
+  const visible = filterAssignments(items, filters);
+
   if (!visible.length) return <div className="text-xs opacity-50">—</div>;
   const sorted = sortAssignments(visible, sortMode);
   return (
@@ -736,28 +839,21 @@ function AssignmentListByIds({
 
 
 function AssignmentList({
-  dayMap,
-  d,
-  assignments,
-  compact,
-  sortMode,
-  filter,
-  onDelete,
-  onEdit, // aggiunto
+  dayMap, d, assignments, compact, sortMode, filters, onDelete, onEdit,
 }: {
   dayMap: Record<string, DayRow>;
   d: Date;
   assignments: Record<string, Assignment[]>;
   compact: boolean; // eslint-disable-line @typescript-eslint/no-unused-vars
   sortMode: SortMode;
-  filter: string;
+  filters: string[];
   onDelete: (a: Assignment) => void;
   onEdit: (a: Assignment) => void; // aggiunto
 }) {
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const items = dayRow ? (assignments[dayRow.id] ?? []) : [];
-  const visible = filterAssignments(items, filter);
+   const visible = filterAssignments(items, filters);
   if (!visible.length) return <div className="text-xs opacity-50">—</div>;
   const sorted = sortAssignments(visible, sortMode);
 
@@ -807,11 +903,36 @@ function sortAssignments(items: Assignment[], mode: SortMode): Assignment[] {
       return arr.sort((a,b) => cmp(name(a), name(b)));
   }
 }
-function filterAssignments(items: Assignment[], filter: string): Assignment[] {
-  if (!filter || filter === 'NONE') return items;
-  if (filter === 'REPERIBILE') return items.filter(a => !!a.reperibile);
-  if (filter.startsWith('STAFF:')) { const id = filter.slice(6); return items.filter(a => a.staff?.id === id); }
-  if (filter.startsWith('ACT:'))   { const id = filter.slice(4); return items.filter(a => a.activity?.id === id); }
-  if (filter.startsWith('TERR:'))  { const id = filter.slice(5); return items.filter(a => a.territory?.id === id); }
-  return items;
+function filterAssignments(items: Assignment[], tokens: string[]): Assignment[] {
+  if (!tokens || tokens.length === 0) return items;
+
+  const groups: Record<string, string[]> = {};
+  for (const t of tokens) {
+    const k = t.includes(':') ? t.split(':',1)[0] : t; // 'STAFF','ACT','TERR','CC','REPERIBILE'
+    (groups[k] ??= []).push(t);
+  }
+
+  return items.filter((a) => {
+    if (groups['REPERIBILE'] && !a.reperibile) return false;
+
+    if (groups['STAFF']) {
+      const ok = groups['STAFF'].some(t => a.staff?.id === t.slice(6));
+      if (!ok) return false;
+    }
+    if (groups['ACT']) {
+      const ok = groups['ACT'].some(t => a.activity?.id === t.slice(4));
+      if (!ok) return false;
+    }
+    if (groups['TERR']) {
+      const ok = groups['TERR'].some(t => a.territory?.id === t.slice(5));
+      if (!ok) return false;
+    }
+    if (groups['CC']) {
+      const ok = groups['CC'].some(t => a.cost_center === t.slice(3));
+      if (!ok) return false;
+    }
+    return true;
+  });
 }
+
+

@@ -44,19 +44,19 @@ function chunk<T>(arr: T[], size: number) { const out: T[][] = []; for (let i=0;
 
 /* ---------- Mock ospiti (solo per selezione) ---------- */
 const MOCK_GUESTS: Guest[] = [
-  { id: '80b25f40-35a8-429e-b21c-0eb07c71683e', name: 'ADRIANO LIBERATORI', territory: '' },
-  { id: '824a4397-1d3d-4a74-932a-98be67194be3', name: 'ALESSANDRO DE SANTIS', territory: '' },
-  { id: '35f71f5b-a1e6-4de4-8f93-94bd5cd55155', name: 'ALESSIO MACCHIA', territory: '' },
-{ id: '8cf3e732-c615-4546-9f46-e6484933a636', name: 'ARTUR SIKORA', territory: 'FIRENZE' },
-  { id: '3d24d108-8396-43b4-9d07-7c7de022fcbb', name: 'DANIEL TREGU', territory: '' },
-  { id: '15345c35-48b4-4374-aeea-2ba9d2c0576f', name: 'CRISTIANO DIONISI', territory: '' },
-  { id: 'b2330af0-0da9-41f2-9caa-6c7099f8a302', name: 'FEDERICO PICCININI', territory: '' },
-  { id: '87b22bd2-3fa9-4ee2-a738-33457063fcf2', name: 'LUCA FERRARA', territory: '' },
-  { id: '133f7437-3411-43e2-9f98-7e392c2c396c', name: 'LUIGI PASTORELLI', territory: '' },
-  { id: '1858c332-a60b-47ff-89df-f280f98b1c4c', name: 'MASSIMILIANO PASSACANTILLI', territory: '' },
-  { id: '387eca6d-1932-4e9a-9dca-781ea12de2c0', name: 'MATTIA PRATESI', territory: '' },
-  { id: '95b59ec2-e364-4e78-a045-b3ca460cd02f', name: 'SIMONE CIARALLO', territory: '' },
-  { id: '0eddc815-de7c-4c1c-a78c-ce7f387c00df', name: 'VITTORIO GIOSI', territory: '' },
+  { id: '80b25f40-35a8-429e-b21c-0eb07c71683e', name: 'LIBERATORI ADRIANO', territory: '' },
+  { id: '824a4397-1d3d-4a74-932a-98be67194be3', name: 'DE SANTIS ALESSANDRO', territory: '' },
+  { id: '35f71f5b-a1e6-4de4-8f93-94bd5cd55155', name: 'MACCHIA ALESSIO', territory: '' },
+  { id: '8cf3e732-c615-4546-9f46-e6484933a636', name: 'SIKORA ARTUR', territory: '' },
+  { id: '3d24d108-8396-43b4-9d07-7c7de022fcbb', name: 'TREGU DANIEL', territory: '' },
+  { id: '15345c35-48b4-4374-aeea-2ba9d2c0576f', name: 'DIONISI CRISTIANO', territory: '' },
+  { id: 'b2330af0-0da9-41f2-9caa-6c7099f8a302', name: 'PICCININI FEDERICO', territory: '' },
+  { id: '87b22bd2-3fa9-4ee2-a738-33457063fcf2', name: 'FERRARA LUCA', territory: '' },
+  { id: '133f7437-3411-43e2-9f98-7e392c2c396c', name: 'PASTORELLI LUIGI', territory: '' },
+  { id: '1858c332-a60b-47ff-89df-f280f98b1c4c', name: 'PASSACANTILLI MASSIMILIANO', territory: '' },
+  { id: '387eca6d-1932-4e9a-9dca-781ea12de2c0', name: 'PRATESI MATTIA', territory: '' },
+  { id: '95b59ec2-e364-4e78-a045-b3ca460cd02f', name: 'CIARALLO SIMONE', territory: '' },
+  { id: '0eddc815-de7c-4c1c-a78c-ce7f387c00df', name: 'GIOSI VITTORIO', territory: '' },
 
   
 ];

@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import type { Assignment, Staff, Activity, Territory } from '@/types';
+import type { Assignment, Staff, Activity, Territory, CostCenter } from '@/types';
+
+import { COST_CENTERS } from '@/constants/cost-centers';
 
 export default function NewAssignmentDialog({
   dayId, iso, staffList, actList, terrList, onClose, onCreated
@@ -31,23 +33,26 @@ export default function NewAssignmentDialog({
   const [activityId, setActivityId]   = useState<string>('');
   const [territoryId, setTerritoryId] = useState<string>('');
   const [reperibile, setReperibile]   = useState<boolean>(false);
-  const [notes, setNotes]             = useState<string>('');
-  const [err, setErr]                 = useState<string | undefined>();
-  const [saving, setSaving]           = useState<boolean>(false);
-  // --- NUOVO: range di date ---
+const [notes, setNotes]             = useState<string>('');
+const [err, setErr]                 = useState<string | undefined>();
+const [saving, setSaving]           = useState<boolean>(false);
+// --- NUOVO: range di date ---
 const [useRange, setUseRange] = useState(false);
-const [fromIso, setFromIso] = useState(iso);   // default = giorno aperto
+const [fromIso, setFromIso] = useState(iso);
 const [toIso, setToIso]     = useState(iso);
+const [costCenter, setCostCenter] = useState<CostCenter | ''>(''); // tipizzato
 
+useEffect(() => {
+  setErr(undefined);
+}, [staffId, activityId, territoryId, reperibile, notes, costCenter]);
+
+const canSave = !!staffId && !!costCenter && !saving; // unica dichiarazione
 
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
     return () => { document.body.style.overflow = prev; };
   }, []);
-  useEffect(() => { setErr(undefined); }, [staffId, activityId, territoryId, reperibile, notes]);
-
-  const canSave = !!staffId && !saving;
 
 // DOPO
 async function save() {
@@ -89,14 +94,16 @@ async function save() {
   async function createOne(targetDayId: string): Promise<Assignment | null> {
     const ins = await sb
       .from('assignments')
-      .insert({
-        day_id:       targetDayId,
-        staff_id:     staffId || null,
-        activity_id:  activityId || null,
-        territory_id: territoryId || null,
-        reperibile:   !!reperibile,
-        notes:        notes ?? null,
-      })
+   .insert({
+  day_id:       targetDayId,
+  staff_id:     staffId || null,
+  activity_id:  activityId || null,
+  territory_id: territoryId || null,
+  reperibile:   !!reperibile,
+  notes:        notes ?? null,
+  cost_center:  costCenter as CostCenter, // enum corretto
+})
+
       .select('id, day_id')
       .single();
 
@@ -107,6 +114,7 @@ async function save() {
       day_id: ins.data.day_id,
       reperibile: !!reperibile,
       notes: notes ?? null,
+      cost_center: costCenter as CostCenter,
       staff: staffId ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' } : null,
       activity: activityId ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' } : null,
       territory: territoryId ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' } : null,
@@ -161,22 +169,21 @@ async function save() {
           className="p-4 space-y-4"
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Operatore *</span>
-              <select
-                name="staff"
-                className="w-full border rounded-lg px-3 py-2 bg-white"
-                value={staffId}
-                onChange={(e)=>setStaffId(e.target.value)}
-                disabled={saving}
-                autoFocus
-              >
-                <option value="">— Seleziona —</option>
-                {staffSorted.map(s=>(
-                  <option key={s.id} value={s.id}>{s.display_name}</option>
-                ))}
-              </select>
-            </label>
+<label className="text-sm">
+  <span className="block text-gray-600 mb-1">Operatore *</span>
+  <select
+    className="w-full border rounded-lg px-3 py-2 bg-white"
+    value={staffId}
+    onChange={(e)=>setStaffId(e.target.value)}
+    disabled={saving}
+    autoFocus
+  >
+    <option value="">— Seleziona —</option>
+    {staffSorted.map(s=>(
+      <option key={s.id} value={s.id}>{s.display_name}</option>
+    ))}
+  </select>
+</label>
 
             <label className="text-sm">
               <span className="block text-gray-600 mb-1">Attività</span>
@@ -192,6 +199,21 @@ async function save() {
                 ))}
               </select>
             </label>
+<label className="text-sm">
+  <span className="block text-gray-600 mb-1">Centro di costo *</span>
+  <select
+    className="w-full border rounded-lg px-3 py-2 bg-white"
+    value={costCenter}
+    onChange={(e)=>setCostCenter(e.target.value as CostCenter)}
+    disabled={saving}
+    required
+  >
+    <option value="">— Seleziona —</option>
+    {COST_CENTERS.map(cc=>(
+      <option key={cc} value={cc}>{cc}</option>
+    ))}
+  </select>
+</label>
 
             <label className="text-sm">
               <span className="block text-gray-600 mb-1">Territorio</span>
