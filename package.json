@@ -12,8 +12,12 @@
   "dependencies": {
     "@supabase/auth-helpers-nextjs": "0.10.0",
     "@supabase/supabase-js": "2.75.1",
+    "exceljs": "^4.4.0",
     "geist": "^1.5.1",
     "jotai": "^2.15.0",
+    "jspdf": "^3.0.3",
+    "jspdf-autotable": "^5.0.2",
+    "jszip": "^3.10.1",
     "next": "15.5.5",
     "react": "19.1.0",
     "react-dom": "19.1.0",

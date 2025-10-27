@@ -24,6 +24,12 @@ export default function HubPage() {
             <h2 className="text-xl font-medium mb-2">SmarTracker</h2>
             <p className="text-sm opacity-70">Monitoraggio e tracciamento.</p>
           </Link>
+                    
+          <Link href="/hub/rapportini" className="block rounded-2xl border p-5 shadow-sm hover:shadow transition">
+            <h2 className="text-xl font-medium mb-2">Generazione Rapportini</h2>
+            <p className="text-sm opacity-70">Accedi a rapportini massivi e per clientela.</p>
+          </Link>
+
         </div>
       </main>
     </AuthGate>
