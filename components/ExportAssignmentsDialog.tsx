@@ -6,8 +6,8 @@ export default function ExportAssignmentsDialog({
 }:{
   open: boolean;
   onClose: () => void;
-  defaultFrom: string; // YYYY-MM-DD
-  defaultTo: string;   // YYYY-MM-DD
+  defaultFrom: string; // DD-MM-YYYY
+  defaultTo: string;   // DD-MM-YYYY
 }) {
   const [fromIso, setFromIso] = useState(defaultFrom);
   const [toIso, setToIso] = useState(defaultTo);

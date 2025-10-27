@@ -14,7 +14,7 @@ export async function GET(req: NextRequest) {
   const to = searchParams.get('to') || '';
 
   if (!/^\d{4}-\d{2}-\d{2}$/.test(from) || !/^\d{4}-\d{2}-\d{2}$/.test(to)) {
-    return NextResponse.json({ error: 'Parametri from/to non validi (YYYY-MM-DD)' }, { status: 400 });
+    return NextResponse.json({ error: 'Parametri from/to non validi (DD-MM-YYYY)' }, { status: 400 });
   }
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -44,7 +44,7 @@ export async function GET(req: NextRequest) {
 
   if (!dayIds.length) {
     // CSV vuoto ma con intestazione
-    const header = 'Data,Operatore,Attività,Territorio,Reperibile,Note\n';
+    const header = 'Data,Operatore,Attività,Territorio,Reperibile,Centro di costo,Note\n';
     return new NextResponse(header, {
       headers: {
         'Content-Type': 'text/csv; charset=utf-8',
@@ -54,41 +54,45 @@ export async function GET(req: NextRequest) {
   }
 
   // 2) prendo le assignments nel range
-  const aRes = await sb
-    .from('assignments')
-    .select(`
-      id, day_id, reperibile, notes,
-      staff:staff_id ( display_name ),
-      activity:activity_id ( name ),
-      territory:territory_id ( name )
-    `)
-    .in('day_id', dayIds)
-    .order('created_at');
+const aRes = await sb
+  .from('assignments')
+  .select(`
+    id, day_id, reperibile, cost_center, notes,
+    staff:staff_id ( display_name ),
+    activity:activity_id ( name ),
+    territory:territory_id ( name )
+  `)
+  .in('day_id', dayIds)
+  .order('created_at');
+
 
   if (aRes.error) {
     return NextResponse.json({ error: aRes.error.message }, { status: 500 });
   }
 
-  const rows = (aRes.data ?? []).map((r: any) => ({
-    day: dayMap.get(r.day_id) ?? '',
-    staff: r.staff?.display_name ?? '',
-    activity: r.activity?.name ?? '',
-    territory: r.territory?.name ?? '',
-    reperibile: r.reperibile ? 'SI' : 'NO',
-    notes: r.notes ?? '',
-  }));
+const rows = (aRes.data ?? []).map((r: any) => ({
+  day: dayMap.get(r.day_id) ?? '',
+  staff: r.staff?.display_name ?? '',
+  activity: r.activity?.name ?? '',
+  territory: r.territory?.name ?? '',
+  reperibile: r.reperibile ? 'SI' : 'NO',
+  cost_center: r.cost_center ?? '',
+  notes: r.notes ?? '',
+}));
 
-  const header = 'Data,Operatore,Attività,Territorio,Reperibile,Note';
-  const body = rows
-    .map(r => [
-      csvEscape(r.day),
-      csvEscape(r.staff),
-      csvEscape(r.activity),
-      csvEscape(r.territory),
-      csvEscape(r.reperibile),
-      csvEscape(r.notes),
-    ].join(','))
-    .join('\n');
+
+const header = 'Data,Operatore,Attività,Territorio,Reperibile,Centro di costo,Note';
+const body = rows
+  .map(r => [
+    csvEscape(r.day),
+    csvEscape(r.staff),
+    csvEscape(r.activity),
+    csvEscape(r.territory),
+    csvEscape(r.reperibile),
+    csvEscape(r.cost_center),
+    csvEscape(r.notes),
+  ].join(','))
+  .join('\n');
 
   const csv = header + '\n' + body + (body ? '\n' : '');
 
