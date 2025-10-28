@@ -166,7 +166,17 @@ export default function RapportinoClientelaPage() {
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = useCombined ? '' : opName;
 
-        let rowIdx = 7;
+       // INTESTAZIONI RIGA 6 (A–O)
+const hrow = ws.getRow(6);
+[
+  'NOMINATIVO','MATRICOLA','PDR','VIA','COMUNE','CAP',
+  'RECAPITO',"ATTIVITA'",'ACCESSIBILITA\'','FASCIA ORARIA',
+  'ATT/CESS','CAMBIO','MINI BAG','RG STOP','ASSENTE'
+].forEach((t, i) => { hrow.getCell(i+1).value = t; });
+hrow.commit();
+
+// i dati partono dalla riga 7
+let rowIdx = 7;
         for (const r of rowsForOp) {
           const nominativo = safeStr(r[COL.O_NOMINATIVO]);
           const matricola  = safeStr(r[COL.P_MATRICOLA]);
@@ -179,21 +189,27 @@ export default function RapportinoClientelaPage() {
           const access     = safeStr(r[COL.BI_ACCESSIBILITA]);
           const oraTxt     = toHHMM(r[COL.U_ORA]);
 
-          const rr = ws.getRow(rowIdx++);
-          rr.getCell(1).value  = nominativo;
-          rr.getCell(2).value  = matricola;
-          rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
-          rr.getCell(4).value  = via;
-          rr.getCell(5).value  = comune;
-          rr.getCell(6).value  = cap;
-          rr.getCell(7).value  = recapito;
-          rr.getCell(8).value  = attivita;
-          rr.getCell(9).value  = access;
-          rr.getCell(10).value = oraTxt;
-          rr.commit();
+const rr = ws.getRow(rowIdx++);
+rr.getCell(1).value  = nominativo;
+rr.getCell(2).value  = matricola;
+rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
+rr.getCell(4).value  = via;
+rr.getCell(5).value  = comune;
+rr.getCell(6).value  = cap;
+rr.getCell(7).value  = recapito;
+rr.getCell(8).value  = attivita;   // L
+rr.getCell(9).value  = access;
+rr.getCell(10).value = oraTxt;
+rr.getCell(11).value = '';         // ATT/CESS
+rr.getCell(12).value = '';         // CAMBIO
+rr.getCell(13).value = '';         // MINI BAG
+rr.getCell(14).value = '';         // RG STOP
+rr.getCell(15).value = '';         // ASSENTE
+rr.commit();
+
         }
 
-        for (let c = 1; c <= 10; c++) {
+        for (let c = 1; c <= 15; c++) {
           let maxLen = 8;
           for (let r = 7; r < rowIdx; r++) {
             const v = ws.getRow(r).getCell(c).value as any;
@@ -397,30 +413,43 @@ for (const [opName, rowsAll] of Object.entries(perOp)) {
 
 
     // Intestazioni
-    const head = [[
-      'NOMINATIVO', 'MATRICOLA', 'PDR', 'Via', 'COMUNE', 'CAP',
-      'Recapito', "ATTIVITA'", "ACCESSIBILITA'", 'Fascia oraria',
-      'ATTIVAZIONE', 'CESSAZIONE', 'CAMBIO MINIBAG', 'RG STOP', 'ASSENTE'
-    ]];
+   // Intestazioni ufficiali
+const head = [[
+  'NOMINATIVO', 'MATRICOLA', 'PDR', 'VIA', 'COMUNE', 'CAP',
+  'RECAPITO', "ATTIVITA'", 'ACCESSIBILITA\'', 'FASCIA ORARIA',
+  'ATT/CESS', 'CAMBIO', 'MINI BAG', 'RG STOP', 'ASSENTE'
+]];
 
-    // Dati
-    const body = rows.slice(0, 33).map(r => ([
-      safeStr(r[COL.O_NOMINATIVO]),
-      safeStr(r[COL.P_MATRICOLA]),
-      (safeStr(r[COL.N_PDR]) ? `00${safeStr(r[COL.N_PDR])}` : ''),
-      safeStr(r[COL.T_VIA]),
-      safeStr(r[COL.Q_COMUNE]),
-      safeStr(r[COL.R_CAP]),
-      safeStr(r[COL.BG_RECAPITO]),
-      safeStr(r[COL.M_ATTIVITA_OUT]),
-      safeStr(r[COL.BI_ACCESSIBILITA]),
-      toHHMM(r[COL.U_ORA]),
-      '', '', '', '', ''
-    ]));
+// Dati (max 33 righe)
+const body = rows.slice(0, 33).map(r => ([
+  safeStr(r[COL.O_NOMINATIVO]),
+  safeStr(r[COL.P_MATRICOLA]),
+  (safeStr(r[COL.N_PDR]) ? `00${safeStr(r[COL.N_PDR])}` : ''),
+  safeStr(r[COL.T_VIA]),
+  safeStr(r[COL.Q_COMUNE]),
+  safeStr(r[COL.R_CAP]),
+  safeStr(r[COL.BG_RECAPITO]),
+  safeStr(r[COL.L_ATTIVITA]),  // colonna L del file origine
+  safeStr(r[COL.BI_ACCESSIBILITA]),
+  toHHMM(r[COL.U_ORA]),
+  '',        // ATT/CESS
+  '',        // CAMBIO
+  '',        // MINI BAG
+  '',        // RG STOP
+  ''         // ASSENTE
+]));
 
-    // Tabella
 const pageWidth = doc.internal.pageSize.getWidth();
-const tableW = pageWidth - marginX * 2; // forza la tabella a stare in pagina
+const tableW = pageWidth - marginX * 2;
+
+// larghezze "di riferimento" per 15 colonne (A–O)
+const baseW = [110,72,120,160,78,48,96,70,78,78,70,70,70,62,60];
+// scala per farle entrare esattamente in pagina
+const totalBase = baseW.reduce((a,b)=>a+b,0);
+const scale = tableW / totalBase;
+const scaled = baseW.map(v => Math.floor(v * scale));
+// correggi l’arrotondamento sull’ultima colonna
+scaled[14] += tableW - scaled.slice(0,14).reduce((a,b)=>a+b,0);
 
 autoTable(doc, {
   head,
@@ -428,22 +457,31 @@ autoTable(doc, {
   startY: y,
   margin: { left: marginX, right: marginX },
   tableWidth: tableW,          // fit-to-page
+  pageBreak: 'avoid',
   styles: {
-    fontSize: 8,               // più stretto
+    fontSize: 7,
     cellPadding: 2,
-    overflow: 'linebreak',
+    overflow: 'ellipsize',     // niente a capo
     valign: 'middle',
     lineWidth: 0.3,
-    lineColor: [0, 0, 0],      // bordi su tutte le celle
+    lineColor: [0,0,0],
   },
   headStyles: {
-    fillColor: [213, 157, 203],
+    fillColor: [213,157,203],
     textColor: 0,
     halign: 'center',
     lineWidth: 0.3,
-    lineColor: [0, 0, 0],
+    lineColor: [0,0,0],
+  },
+  columnStyles: {
+    0:{cellWidth:scaled[0]},  1:{cellWidth:scaled[1]},  2:{cellWidth:scaled[2]},
+    3:{cellWidth:scaled[3]},  4:{cellWidth:scaled[4]},  5:{cellWidth:scaled[5]},
+    6:{cellWidth:scaled[6]},  7:{cellWidth:scaled[7]},  8:{cellWidth:scaled[8]},
+    9:{cellWidth:scaled[9]}, 10:{cellWidth:scaled[10]},11:{cellWidth:scaled[11]},
+   12:{cellWidth:scaled[12]},13:{cellWidth:scaled[13]},14:{cellWidth:scaled[14]},
   },
 });
+
 
 
     // Sezione finale
