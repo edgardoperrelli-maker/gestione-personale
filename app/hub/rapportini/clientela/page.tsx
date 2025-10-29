@@ -28,6 +28,19 @@ const COL = {
 
 type SaveTarget = 'download' | 'sharepoint' | 'supabase';
 export const dynamic = 'force-dynamic';
+function onlyHHMM(v: any): string {
+  const s = String(v ?? '').trim();
+  if (!s) return '';
+  // prendi tutte le occorrenze HH:MM
+  const hits = Array.from(s.matchAll(/\b(\d{1,2}):(\d{2})\b/g)).map(m => {
+    const h = String(m[1]).padStart(2,'0');
+    const mm = m[2];
+    return `${h}:${mm}`;
+  });
+  if (hits.length === 0) return '';
+  // se c'è un range tieni "HH:MM-HH:MM", altrimenti singolo
+  return hits.length >= 2 ? `${hits[0]}-${hits[1]}` : hits[0];
+}
 
 export default function RapportinoClientelaPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -177,37 +190,41 @@ hrow.commit();
 
 // i dati partono dalla riga 7
 let rowIdx = 7;
-        for (const r of rowsForOp) {
-          const nominativo = safeStr(r[COL.O_NOMINATIVO]);
-          const matricola  = safeStr(r[COL.P_MATRICOLA]);
-          const pdrRaw     = safeStr(r[COL.N_PDR]);
-          const via        = safeStr(r[COL.T_VIA]);
-          const comune     = safeStr(r[COL.Q_COMUNE]);
-          const cap        = safeStr(r[COL.R_CAP]);
-          const recapito   = safeStr(r[COL.BG_RECAPITO]);
-          const attivita   = safeStr(r[COL.M_ATTIVITA_OUT]);
-          const access     = safeStr(r[COL.BI_ACCESSIBILITA]);
-          const oraTxt     = toHHMM(r[COL.U_ORA]);
+const sorted = rowsForOp
+  .slice(0, 33)
+  .sort((a,b) => hhmmToMin(onlyHHMM(a[COL.U_ORA])) - hhmmToMin(onlyHHMM(b[COL.U_ORA])));
+for (const r of sorted) {
+  const nominativo = safeStr(r[COL.O_NOMINATIVO]);
+  const matricola  = safeStr(r[COL.P_MATRICOLA]);
+  const pdrRaw     = safeStr(r[COL.N_PDR]);
+  const via        = safeStr(r[COL.T_VIA]);
+  const comune     = safeStr(r[COL.Q_COMUNE]);
+  const cap        = safeStr(r[COL.R_CAP]);
+  const recapito   = safeStr(r[COL.BG_RECAPITO]);
+  const attivita   = safeStr(r[COL.L_ATTIVITA]);    // <— L, non M
+  const access     = safeStr(r[COL.BI_ACCESSIBILITA]);
+  const oraTxt     = onlyHHMM(r[COL.U_ORA]);
 
-const rr = ws.getRow(rowIdx++);
-rr.getCell(1).value  = nominativo;
-rr.getCell(2).value  = matricola;
-rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
-rr.getCell(4).value  = via;
-rr.getCell(5).value  = comune;
-rr.getCell(6).value  = cap;
-rr.getCell(7).value  = recapito;
-rr.getCell(8).value  = attivita;   // L
-rr.getCell(9).value  = access;
-rr.getCell(10).value = oraTxt;
-rr.getCell(11).value = '';         // ATT/CESS
-rr.getCell(12).value = '';         // CAMBIO
-rr.getCell(13).value = '';         // MINI BAG
-rr.getCell(14).value = '';         // RG STOP
-rr.getCell(15).value = '';         // ASSENTE
-rr.commit();
+  const rr = ws.getRow(rowIdx++);
+  rr.getCell(1).value  = nominativo;
+  rr.getCell(2).value  = matricola;
+  rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
+  rr.getCell(4).value  = via;
+  rr.getCell(5).value  = comune;
+  rr.getCell(6).value  = cap;
+  rr.getCell(7).value  = recapito;
+  rr.getCell(8).value  = attivita;       // colonna 8 = L
+  rr.getCell(9).value  = access;
+  rr.getCell(10).value = oraTxt;         // colonna 10 = Fascia oraria
+  rr.getCell(10).numFmt = '@';
+  rr.getCell(11).value = '';
+  rr.getCell(12).value = '';
+  rr.getCell(13).value = '';
+  rr.getCell(14).value = '';
+  rr.getCell(15).value = '';
+  rr.commit();
+}
 
-        }
 
         for (let c = 1; c <= 15; c++) {
           let maxLen = 8;
@@ -364,6 +381,12 @@ function safeStr(v: any) {
   if (v == null) return '';
   return String(v).trim();
 }
+function hhmmToMin(s: string) {
+  if (!s) return 24 * 60 + 1;          // vuoti in fondo
+  const m = /^(\d{2}):(\d{2})/.exec(s);
+  if (!m) return 24 * 60 + 1;
+  return parseInt(m[1],10) * 60 + parseInt(m[2],10);
+}
 
 function toHHMM(v: any) {
   if (v == null || v === '') return '';
@@ -389,7 +412,9 @@ async function makePdfs(perOp: Record<string, any[][]>, dateStr: string) {
   const zip = new JSZip();
 
 for (const [opName, rowsAll] of Object.entries(perOp)) {
-  const rows = rowsAll.slice(0, 33); // max 33 righe
+const rows = rowsAll
+  .slice(0, 33)
+  .sort((a,b) => hhmmToMin(onlyHHMM(a[COL.U_ORA])) - hhmmToMin(onlyHHMM(b[COL.U_ORA])));
   const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
   const marginX = 32;
 
@@ -421,7 +446,7 @@ const head = [[
 ]];
 
 // Dati (max 33 righe)
-const body = rows.slice(0, 33).map(r => ([
+const body = rows.map(r => ([
   safeStr(r[COL.O_NOMINATIVO]),
   safeStr(r[COL.P_MATRICOLA]),
   (safeStr(r[COL.N_PDR]) ? `00${safeStr(r[COL.N_PDR])}` : ''),
@@ -429,9 +454,9 @@ const body = rows.slice(0, 33).map(r => ([
   safeStr(r[COL.Q_COMUNE]),
   safeStr(r[COL.R_CAP]),
   safeStr(r[COL.BG_RECAPITO]),
-  safeStr(r[COL.L_ATTIVITA]),  // colonna L del file origine
+  safeStr(r[COL.L_ATTIVITA]),            // ATTIVITA' = colonna L
   safeStr(r[COL.BI_ACCESSIBILITA]),
-  toHHMM(r[COL.U_ORA]),
+  onlyHHMM(r[COL.U_ORA]),                // FASCIA ORARIA
   '',        // ATT/CESS
   '',        // CAMBIO
   '',        // MINI BAG
@@ -443,7 +468,7 @@ const pageWidth = doc.internal.pageSize.getWidth();
 const tableW = pageWidth - marginX * 2;
 
 // larghezze "di riferimento" per 15 colonne (A–O)
-const baseW = [110,72,120,160,78,48,96,70,78,78,70,70,70,62,60];
+const baseW = [110,72,120,160,78,48,96,90,78,78,70,70,70,62,60];
 // scala per farle entrare esattamente in pagina
 const totalBase = baseW.reduce((a,b)=>a+b,0);
 const scale = tableW / totalBase;
