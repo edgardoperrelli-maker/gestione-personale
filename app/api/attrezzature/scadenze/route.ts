@@ -142,14 +142,15 @@ if (process.env.CRON_ENFORCE_TIME === "1") {
     const hits: Hit[] = [];
 
     for (const r of raw) {
-      const base = {
-        CATEGORIA:  r["CATEGORIA"] ?? "",
-        DESCRIZIONE:r["DESCRIZIONE"] ?? "",
-        MODELLO:    r["MODELLO"] ?? "",
-        MATRICOLA:  r[" MATRICOLA"] ?? r["MATRICOLA"] ?? "",
-        CODICE:     r["CODICE"] ?? "",
-        ASSEGNATO:  r["ASSEGNATARIO"] ?? r["ASSEGNATO"] ?? "",
-      };
+const base = {
+  CATEGORIA: String(r["CATEGORIA"] ?? ""),
+  DESCRIZIONE: String(r["DESCRIZIONE"] ?? ""),
+  MODELLO: String(r["MODELLO"] ?? ""),
+  MATRICOLA: String(r[" MATRICOLA"] ?? r["MATRICOLA"] ?? ""),
+  CODICE: String(r["CODICE"] ?? ""),
+  ASSEGNATO: String(r["ASSEGNATO"] ?? ""),
+};
+
 
       for (const k of Object.keys(r)) {
         const kN = norm(k);
@@ -171,12 +172,13 @@ if (process.env.CRON_ENFORCE_TIME === "1") {
     const byDay = new Map<number, Hit[]>();
     for (let d=0; d<=7; d++) byDay.set(d, []);
     hits.filter(h => h.OFFSET >= 0 && h.OFFSET <= 7).forEach(h => byDay.get(h.OFFSET)!.push(h));
-    for (const d of byDay.keys()) byDay.get(d)!.sort((a,b) =>
-      a.TIPO.localeCompare(b.TIPO) ||
-      (a.CATEGORIA||"").localeCompare(b.CATEGORIA||"") ||
-      (a.DESCRIZIONE||"").localeCompare(b.DESCRIZIONE||"") ||
-      (a.CODICE||"").localeCompare(b.CODICE||"")
-    );
+  for (const d of byDay.keys()) byDay.get(d)!.sort((a,b) =>
+  String(a.TIPO ?? "").localeCompare(String(b.TIPO ?? "")) ||
+  String(a.CATEGORIA ?? "").localeCompare(String(b.CATEGORIA ?? "")) ||
+  String(a.DESCRIZIONE ?? "").localeCompare(String(b.DESCRIZIONE ?? "")) ||
+  String(a.CODICE ?? "").localeCompare(String(b.CODICE ?? ""))
+);
+
 
     // ===== prepara righe per Excel PRIMA dell'email =====
     const xrows: XRow[] = [];
@@ -219,10 +221,12 @@ if (process.env.CRON_ENFORCE_TIME === "1") {
       const flag = (d===1||d===3||d===7) ? " • PROMEMORIA" : "";
       const header = d===0 ? `OGGI ${fmt(ref)}` : `${d} giorni → ${fmt(ref)}`;
       lines.push(`${header}: ${arr.length} elemento/i${flag}`);
-      for (const h of arr) {
-        const tag = (d===1||d===3||d===7) ? `[REMINDER +${d}] ` : "";
-        lines.push(` - ${tag}[${h.TIPO}] col: “${h.COLONNA}” | ${h.CATEGORIA} | ${h.DESCRIZIONE} ${h.MODELLO} | Matricola: ${h.MATRICOLA} | Codice: ${h.CODICE} | Assegnato: ${h.ASSEGNATO} | Data: ${fmt(h.DATA)}`);
-      }
+ for (const h of arr) {
+  lines.push(
+    ` - [${String(h.TIPO ?? "")}] ${String(h.CATEGORIA ?? "")} | ${String(h.DESCRIZIONE ?? "")} ${String(h.MODELLO ?? "")} | Matricola: ${String(h.MATRICOLA ?? "")} | Codice: ${String(h.CODICE ?? "")} | Assegnato: ${String(h.ASSEGNATO ?? "")} | Scadenza: ${fmt(h.DATA)}`
+  );
+}
+
       lines.push("");
     }
     const body = lines.join("\n");
