@@ -247,12 +247,18 @@ const base = {
     const attachName = `scadenze_${todayStr}.xlsx`;
 
     // invio email
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 465),
-      secure: true,
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS },
-    });
+const host = process.env.SMTP_HOST || 'smtp.gmail.com';
+const port = Number(process.env.SMTP_PORT || 465);
+const secure = port === 465;
+
+const transporter = nodemailer.createTransport({
+  host,
+  port,
+  secure,
+  auth: { user: process.env.SMTP_USER!, pass: process.env.SMTP_PASS! },
+  tls: { servername: host }        // evita SNI strani in serverless
+});
+
 
     await transporter.sendMail({
       from: `"${process.env.ALERT_FROM_NAME || "Plenzich – Gestione Attrezzature (no-reply)"}" <${process.env.SMTP_USER}>`,
