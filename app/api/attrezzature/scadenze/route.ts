@@ -265,7 +265,13 @@ export async function GET() {
     });
 
     return NextResponse.json({ ok:true, sent:true, total: hits.length, scadute: scaduti.length, exported: xrows.length });
-  } catch (err: any) {
-    return NextResponse.json({ ok:false, error:String(err?.message || err) }, { status: 500 });
-  }
+} catch (err: any) {
+  console.error("Errore in /api/attrezzature/scadenze:", err);
+  return NextResponse.json({
+    ok: false,
+    error: String(err?.message || err),
+    stack: err?.stack || "no stack"
+  }, { status: 500 });
+}
+
 }
