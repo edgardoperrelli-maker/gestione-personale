@@ -140,17 +140,24 @@ if (process.env.CRON_ENFORCE_TIME === "1") {
     };
 
     const hits: Hit[] = [];
+function pick(r: Record<string, any>, target: string) {
+  const T = target.replace(/\s+/g, "").toUpperCase();
+  for (const k of Object.keys(r)) {
+    const K = String(k).replace(/\s+/g, "").toUpperCase();
+    if (K === T) return r[k];
+  }
+  return null;
+}
 
     for (const r of raw) {
 const base = {
-  CATEGORIA: String(r["CATEGORIA"] ?? ""),
-  DESCRIZIONE: String(r["DESCRIZIONE"] ?? ""),
-  MODELLO: String(r["MODELLO"] ?? ""),
-  MATRICOLA: String(r[" MATRICOLA"] ?? r["MATRICOLA"] ?? ""),
-  CODICE: String(r["CODICE"] ?? ""),
-  ASSEGNATO: String(r["ASSEGNATO"] ?? ""),
+  CATEGORIA: String(pick(r, "CATEGORIA") ?? ""),
+  DESCRIZIONE: String(pick(r, "DESCRIZIONE") ?? ""),
+  MODELLO:    String(pick(r, "MODELLO") ?? ""),
+  MATRICOLA:  String((pick(r, "MATRICOLA") ?? pick(r, " MATRICOLA")) ?? ""),
+  CODICE:     String(pick(r, "CODICE") ?? ""),
+  ASSEGNATO:  String(pick(r, "ASSEGNATO") ?? ""),
 };
-
 
       for (const k of Object.keys(r)) {
         const kN = norm(k);
