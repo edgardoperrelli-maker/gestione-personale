@@ -1,5 +1,5 @@
 {
   "crons": [
-    { "path": "/api/attrezzature/scadenze", "schedule": "0 7 * * *" }
+    { "path": "/api/attrezzature/scadenze", "schedule": "0 * * * *" }
   ]
 }
