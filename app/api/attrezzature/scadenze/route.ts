@@ -79,7 +79,7 @@ type XRow = {
   Descrizione?: string;
   Modello?: string;
   Matricola?: string;
-  Assegnato?: string;
+  Assegnatario?: string;
 };
 
 export async function GET() {
@@ -126,18 +126,19 @@ if (process.env.CRON_ENFORCE_TIME === "1") {
     const today = tzTodayRome();
     const plus = (n:number) => { const d = new Date(today); d.setDate(d.getDate()+n); return d; };
 
-    type Hit = {
-      DATA: Date;
-      OFFSET: number;   // <0 scaduti, 0 oggi, 1..7 prossimi
-      TIPO: string;
-      COLONNA: string;
-      CATEGORIA?: string;
-      DESCRIZIONE?: string;
-      MODELLO?: string;
-      MATRICOLA?: string;
-      CODICE?: string;
-      ASSEGNATO?: string;
-    };
+type Hit = {
+  DATA: Date;
+  OFFSET: number;
+  TIPO: string;
+  COLONNA: string;
+  CATEGORIA?: string;
+  DESCRIZIONE?: string;
+  MODELLO?: string;
+  MATRICOLA?: string;
+  CODICE?: string;
+  ASSEGNATO?: string;    // retro-compatibilità
+  ASSEGNATARIO?: string; // nuovo campo
+};
 
     const hits: Hit[] = [];
 function pick(r: Record<string, any>, target: string) {
@@ -150,14 +151,22 @@ function pick(r: Record<string, any>, target: string) {
 }
 
     for (const r of raw) {
+const assegn = pick(r, "ASSEGNATARIO") ?? pick(r, " ASSEGNATARIO");
+
 const base = {
-  CATEGORIA: String(pick(r, "CATEGORIA") ?? ""),
+  CATEGORIA:  String(pick(r, "CATEGORIA") ?? ""),
   DESCRIZIONE: String(pick(r, "DESCRIZIONE") ?? ""),
   MODELLO:    String(pick(r, "MODELLO") ?? ""),
   MATRICOLA:  String((pick(r, "MATRICOLA") ?? pick(r, " MATRICOLA")) ?? ""),
   CODICE:     String(pick(r, "CODICE") ?? ""),
-  ASSEGNATO:  String(pick(r, "ASSEGNATO") ?? ""),
+  ASSEGNATARIO: String(assegn ?? ""),
+  // compatibilità retro
+  ASSEGNATO: String(assegn ?? pick(r, "ASSEGNATO") ?? ""),
 };
+if (!base.ASSEGNATARIO) {
+  console.warn("Assegnatario non trovato per riga:", { keys: Object.keys(r) });
+}
+
 
       for (const k of Object.keys(r)) {
         const kN = norm(k);
@@ -181,9 +190,10 @@ const base = {
     hits.filter(h => h.OFFSET >= 0 && h.OFFSET <= 7).forEach(h => byDay.get(h.OFFSET)!.push(h));
   for (const d of byDay.keys()) byDay.get(d)!.sort((a,b) =>
   String(a.TIPO ?? "").localeCompare(String(b.TIPO ?? "")) ||
-  String(a.CATEGORIA ?? "").localeCompare(String(b.CATEGORIA ?? "")) ||
-  String(a.DESCRIZIONE ?? "").localeCompare(String(b.DESCRIZIONE ?? "")) ||
-  String(a.CODICE ?? "").localeCompare(String(b.CODICE ?? ""))
+String(a.CATEGORIA ?? "").localeCompare(String(b.CATEGORIA ?? "")) ||
+String(a.DESCRIZIONE ?? "").localeCompare(String(b.DESCRIZIONE ?? "")) ||
+String(a.CODICE ?? "").localeCompare(String(b.CODICE ?? ""))
+
 );
 
 
@@ -203,7 +213,7 @@ const base = {
         Descrizione: h.DESCRIZIONE || "",
         Modello: h.MODELLO || "",
         Matricola: h.MATRICOLA || "",
-        Assegnato: h.ASSEGNATO || "",
+        Assegnatario: h.ASSEGNATARIO || h.ASSEGNATO || "",
       });
     };
     for (const h of scaduti) pushRow("SCADUTO", h, h.OFFSET);
@@ -218,7 +228,7 @@ const base = {
     lines.push(`SCADUTE (prima di oggi): ${scaduti.length}`);
     for (const h of scaduti) {
       const giorni = Math.abs(h.OFFSET);
-      lines.push(` - [SCADUTO da ${giorni}g] [${h.TIPO}] col: “${h.COLONNA}” | ${h.CATEGORIA} | ${h.DESCRIZIONE} ${h.MODELLO} | Matricola: ${h.MATRICOLA} | Codice: ${h.CODICE} | Assegnato: ${h.ASSEGNATO} | Data: ${fmt(h.DATA)}`);
+      lines.push(` - [SCADUTO da ${giorni}g] [${h.TIPO}] col: “${h.COLONNA}” | ${h.CATEGORIA} | ${h.DESCRIZIONE} ${h.MODELLO} | Matricola: ${h.MATRICOLA} | Codice: ${h.CODICE} | Assegnatario: ${String(h.ASSEGNATARIO ?? h.ASSEGNATO ?? "")} | Scadenza: ${fmt(h.DATA)}`);
     }
     lines.push("");
 
@@ -240,10 +250,11 @@ const base = {
 
     // crea Excel allegato
     const wbOut = XLSX.utils.book_new();
-    const ws = XLSX.utils.json_to_sheet(xrows, { header: [
-      "Gruppo","Data","Offset","Reminder","Periodicità","Colonna",
-      "Codice","Categoria","Descrizione","Modello","Matricola","Assegnato"
-    ]});
+  const ws = XLSX.utils.json_to_sheet(xrows, { header: [
+  "Gruppo","Data","Offset","Reminder","Periodicità","Colonna",
+  "Codice","Categoria","Descrizione","Modello","Matricola","Assegnatario"
+]});
+
     (ws as any)['!cols'] = [
       {wch:10},{wch:12},{wch:7},{wch:9},{wch:12},{wch:20},
       {wch:12},{wch:18},{wch:28},{wch:16},{wch:14},{wch:16}
