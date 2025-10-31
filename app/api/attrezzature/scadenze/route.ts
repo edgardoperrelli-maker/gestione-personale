@@ -85,14 +85,11 @@ type XRow = {
 export async function GET() {
   try {
     // Gate: esegui invio solo alle 07:00 Europe/Rome
-    if (process.env.CRON_ENFORCE_TIME === "1") {
-      const hh = Number(new Intl.DateTimeFormat("en-GB", {
-        timeZone: "Europe/Rome", hour: "2-digit", hour12: false
-      }).format(new Date()));
-      if (hh !== 7) {
-        return NextResponse.json({ ok: true, skipped: `hour=${hh}` });
-      }
-    }
+if (process.env.CRON_ENFORCE_TIME === "1") {
+  const hh = Number(new Intl.DateTimeFormat("en-GB", { timeZone: "Europe/Rome", hour: "2-digit", hour12: false }).format(new Date()));
+  if (hh !== 7) return NextResponse.json({ ok: true, skipped: `hour=${hh}` });
+}
+
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
     const serviceKey  = process.env.SUPABASE_SERVICE_ROLE_KEY!;
