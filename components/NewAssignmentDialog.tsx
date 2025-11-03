@@ -2,7 +2,10 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import type { Assignment, Staff, Activity, Territory, CostCenter } from '@/types';
+import type { Assignment, Staff, Activity, Territory } from '@/types';
+import type { CostCenter } from '@/constants/cost-centers';
+
+
 
 import { COST_CENTERS } from '@/constants/cost-centers';
 

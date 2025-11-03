@@ -2,8 +2,8 @@ export type Staff = { id:string; display_name:string; active?:boolean };
 export type Activity = { id:string; name:string; active?:boolean };
 export type Territory = { id:string; name:string; active?:boolean };
 
-// NEW
 import type { CostCenter } from '@/constants/cost-centers';
+export type { CostCenter } from '@/constants/cost-centers';
 
 export type Assignment = {
   id: string;
@@ -11,8 +11,10 @@ export type Assignment = {
   staff?: { id:string; display_name:string } | null;
   activity?: { id:string; name:string } | null;
   territory?: { id:string; name:string } | null;
-  // NEW
   cost_center?: CostCenter | null;
   reperibile: boolean;
-  notes?: string | null; // opzionale per evitare mismatch con undefined
+  notes?: string | null;
 };
+
+
+
