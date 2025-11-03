@@ -1,9 +1,16 @@
-// constants/cost-centers.ts
-export type CostCenter = 'ALESSANDRINI' | 'PASTORELLI' | 'PASSACANTILLI' | 'PLENZICH';
+export type CostCenter =
+  | 'ALESSANDRINI'
+  | 'PASTORELLI'
+  | 'PASSACANTILLI'
+  | 'PLENZICH'
+  | 'FIRENZE MANUTENZIONI'
+  | 'MULTISERVIZI';
 
 export const COST_CENTERS: CostCenter[] = [
   'ALESSANDRINI',
   'PASTORELLI',
   'PASSACANTILLI',
   'PLENZICH',
+  'FIRENZE MANUTENZIONI',
+  'MULTISERVIZI',
 ];

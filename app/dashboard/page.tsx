@@ -8,7 +8,7 @@ import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 import OperatorCard from '@/components/OperatorCard';
 import Link from 'next/link'
 import ExportAssignmentsDialog from '@/components/ExportAssignmentsDialog';
-import { COST_CENTERS, type CostCenter } from '@/constants/cost-centers';
+import { COST_CENTERS } from '@/constants/cost-centers';
 
 
 type Role = 'viewer'|'editor'|'admin';
@@ -24,8 +24,7 @@ export default function DashboardPage() {
   const tz = 'Europe/Rome';
   const [today] = useState<Date>(() => toLocalDate(new Date(), tz));
   const [anchor, setAnchor] = useState<Date>(() => startOfMonth(today));
-  const [mode, setMode] = useState<ViewMode>('month');
-
+  const [mode, setMode] = useState<ViewMode>('week');
   
   const [role, setRole] = useState<Role>('viewer');
 
@@ -513,6 +512,25 @@ const openNewForDate = async (d: Date) => {
   </div>
 </div> {/* fine Top bar */}
 
+{/* Legenda rapida */}
+<div className="flex flex-wrap items-center gap-3 text-xs -mt-2">
+  <span className="inline-flex items-center gap-1">
+    <span className="h-3 w-3 rounded border border-rose-200 bg-rose-50 inline-block" />
+    Reperibile
+  </span>
+  <span className="inline-flex items-center gap-1">
+    <span className="h-3 w-3 rounded border border-amber-200 bg-amber-50 inline-block" />
+    Attività presente
+  </span>
+  <span className="inline-flex items-center gap-1">
+    <span className="h-3 w-3 rounded border border-blue-200 bg-blue-50 inline-block" />
+    Territorio
+  </span>
+  <span className="inline-flex items-center gap-1">
+    <span className="h-3 w-3 rounded border border-neutral-200 bg-neutral-50 inline-block" />
+    Nessuna attività
+  </span>
+</div>
 
       {/* calendar */}
       {mode === 'week' ? (
@@ -738,15 +756,16 @@ return (
 
     </div>
 
-    <div className="mt-2 space-y-2 overflow-y-auto" style={{ minHeight: 360, maxHeight: 900 }}>
-      <AssignmentListByIds
-        items={list}
-        sortMode={sortMode}
-        filters={filters}
-        onDelete={onDelete}
-        onEdit={onEdit}
-      />
-    </div>
+<div className="mt-2 space-y-2 overflow-visible">
+  <AssignmentListByIds
+    items={list}
+    sortMode={sortMode}
+    filters={filters}
+    onDelete={onDelete}
+    onEdit={onEdit}
+  />
+</div>
+
   </div>
 );
 }
@@ -771,8 +790,8 @@ function WeeksGrid(props:{
   const dayMap = useMemo(()=>indexDays(days),[days]);
 
   return (
-    <div className="grid gap-3">
-      <div className="grid grid-cols-7 text-xs font-medium text-gray-600 px-1">
+<div className="grid gap-4">
+  <div className="grid grid-cols-7 text-xs font-medium text-gray-600 px-1">
         {['Lun','Mar','Mer','Gio','Ven','Sab','Dom'].map((h)=>(
           <div key={h} className="px-2">{h}</div>
         ))}

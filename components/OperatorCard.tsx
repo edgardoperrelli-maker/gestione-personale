@@ -7,15 +7,13 @@ type Style = {
 };
 
 const STYLES: Record<string, Style> = {
-  FIRENZE:      { cardBg:'bg-orange-100', cardBd:'border-orange-300', text:'text-orange-900', band:'bg-orange-300', badgeBg:'bg-orange-100', badgeBd:'border-orange-300', badgeTx:'text-orange-900' },
-  AURELIA:      { cardBg:'bg-green-100',  cardBd:'border-green-300',  text:'text-green-900',  band:'bg-green-300',  badgeBg:'bg-green-100',  badgeBd:'border-green-300',  badgeTx:'text-green-900' },
-  'LAZIO EST':  { cardBg:'bg-sky-100',    cardBd:'border-sky-300',    text:'text-sky-900',    band:'bg-sky-300',    badgeBg:'bg-sky-100',    badgeBd:'border-sky-300',    badgeTx:'text-sky-900' },
-  PADOVA:       { cardBg:'bg-violet-100', cardBd:'border-violet-300', text:'text-violet-900', band:'bg-violet-300', badgeBg:'bg-violet-100', badgeBd:'border-violet-300', badgeTx:'text-violet-900' },
-  PERUGIA:      { cardBg:'bg-rose-100',   cardBd:'border-rose-300',   text:'text-rose-900',   band:'bg-rose-300',   badgeBg:'bg-rose-100',   badgeBd:'border-rose-300',   badgeTx:'text-rose-900' },
-  // più evidente
-  'LAZIO CENTRO': { cardBg:'bg-gray-200', cardBd:'border-gray-400',   text:'text-gray-900',   band:'bg-gray-400',   badgeBg:'bg-gray-200',   badgeBd:'border-gray-400',   badgeTx:'text-gray-900' },
-  // nuovo territorio
-  NAPOLI:       { cardBg:'bg-blue-100',   cardBd:'border-blue-300',   text:'text-blue-900',   band:'bg-blue-300',   badgeBg:'bg-blue-100',   badgeBd:'border-blue-300',   badgeTx:'text-blue-900' },
+  FIRENZE:      { cardBg:'bg-orange-50', cardBd:'border-orange-200', text:'text-orange-900', band:'bg-orange-200', badgeBg:'bg-orange-50', badgeBd:'border-orange-200', badgeTx:'text-orange-900' },
+  AURELIA:      { cardBg:'bg-green-50',  cardBd:'border-green-200',  text:'text-green-900',  band:'bg-green-200',  badgeBg:'bg-green-50',  badgeBd:'border-green-200',  badgeTx:'text-green-900' },
+  'LAZIO EST':  { cardBg:'bg-sky-50',    cardBd:'border-sky-200',    text:'text-sky-900',    band:'bg-sky-200',    badgeBg:'bg-sky-50',    badgeBd:'border-sky-200',    badgeTx:'text-sky-900' },
+  PADOVA:       { cardBg:'bg-violet-50', cardBd:'border-violet-200', text:'text-violet-900', band:'bg-violet-200', badgeBg:'bg-violet-50', badgeBd:'border-violet-200', badgeTx:'text-violet-900' },
+  PERUGIA:      { cardBg:'bg-rose-50',   cardBd:'border-rose-200',   text:'text-rose-900',   band:'bg-rose-200',   badgeBg:'bg-rose-50',   badgeBd:'border-rose-200',   badgeTx:'text-rose-900' },
+  'LAZIO CENTRO': { cardBg:'bg-gray-100', cardBd:'border-gray-300',  text:'text-gray-900',   band:'bg-gray-300',   badgeBg:'bg-gray-100',  badgeBd:'border-gray-300',   badgeTx:'text-gray-900' },
+  NAPOLI:       { cardBg:'bg-blue-50',   cardBd:'border-blue-200',   text:'text-blue-900',   band:'bg-blue-200',   badgeBg:'bg-blue-50',   badgeBd:'border-blue-200',   badgeTx:'text-blue-900' },
 };
 
 function norm(s?: string) {
@@ -42,72 +40,67 @@ export default function OperatorCard({
     badgeTx:'text-slate-700',
   };
 
+  const terr = a.territory?.name ?? '';
+  const act  = a.activity?.name ?? '';
+
   return (
-    <div className={`relative rounded-xl border ${s.cardBg} ${s.cardBd} px-3 py-2 text-[11px] shadow ${s.text} hover:shadow-md transition`}>
-      <div className={`absolute left-0 top-0 h-full w-1.5 rounded-l-xl ${s.band}`} />
+    <div
+      className={`relative rounded-lg border ${s.cardBg} ${s.cardBd} px-2 py-1.5 text-[10px] leading-tight shadow ${s.text} hover:shadow-md transition`}
+    >
+      <div className={`absolute left-0 top-0 h-full w-1 rounded-l-lg ${s.band}`} />
 
-      <div className="flex items-start justify-between gap-2">
-        <div className="font-semibold min-w-0">
-          <span className="block truncate">{a.staff?.display_name ?? '—'}</span>
-        </div>
-        {a.reperibile && (
-          <span
-            className="shrink-0 inline-flex items-center px-2 py-0.5 rounded-full border bg-red-100 border-red-400 text-red-900 font-bold uppercase tracking-wide"
-            title="Operatore reperibile"
-          >
-            Reperibile
+      {/* Riga 1: nome + REP + azioni */}
+      <div className="flex items-center justify-between gap-2">
+        <div className="min-w-0 flex items-center gap-1.5">
+          <span className="font-semibold uppercase tracking-tight truncate">
+            {a.staff?.display_name ?? '—'}
           </span>
-        )}
-      </div>
-
-      <div className="mt-1 flex gap-2">
-        <div className="flex-1 space-y-1">
-          <div className="flex flex-wrap gap-1">
-            {a.territory && (
-              <span className={`inline-flex items-center px-2 py-0.5 rounded-full border ${s.badgeBg} ${s.badgeBd} ${s.badgeTx}`}>
-                {a.territory.name}
-              </span>
-            )}
-          </div>
-
-          <div>
-            {a.activity ? (
-              <span className="inline-flex px-2 py-0.5 rounded-md border bg-white/70 border-black/10 text-slate-900">
-                {a.activity.name}
-              </span>
-            ) : (
-              <span className="inline-flex px-2 py-0.5 rounded-md border bg-white/70 border-black/10 text-gray-700">
-                Nessuna attività
-              </span>
-            )}
-          </div>
-
-          {a.notes && (
-            <div className="text-[11px] text-slate-800 whitespace-pre-wrap wrap-break-word">
-              {a.notes}
-            </div>
+          {a.reperibile && (
+            <span
+              className="shrink-0 inline-flex items-center px-1.5 py-px rounded border bg-red-100 border-red-300 text-red-800 font-bold"
+              title="Operatore reperibile"
+            >
+              REP
+            </span>
           )}
         </div>
 
-        <div className="flex flex-col gap-1">
+        <div className="shrink-0 flex items-center gap-1">
           <button
             onClick={(e) => { e.stopPropagation(); onEdit(a); }}
-            className="px-2 py-0.5 rounded-md border bg-white/80 hover:bg-white text-xs"
-            title="Modifica assegnazione"
+            className="px-1.5 py-0.5 rounded border bg-white/80 hover:bg-white text-[10px]"
+            title="Modifica"
           >
             Modifica
           </button>
-
           <button
-  onClick={(e) => { e.stopPropagation(); onDelete(); }}
-  className="px-2 py-0.5 rounded-md border bg-white/80 hover:bg-white text-xs"
-  title="Elimina assegnazione"
->
-  Elimina
-</button>
-
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
+            className="px-1.5 py-0.5 rounded border bg-white/80 hover:bg-white text-[10px]"
+            title="Elimina"
+          >
+            Elimina
+          </button>
         </div>
       </div>
+
+      {/* Riga 2: territorio + attività in linea */}
+      <div className="mt-1 flex items-center gap-1 overflow-hidden">
+        {terr && (
+          <span className={`inline-flex items-center px-1.5 py-px rounded border ${s.badgeBg} ${s.badgeBd} ${s.badgeTx} whitespace-nowrap`}>
+            {terr}
+          </span>
+        )}
+        <span className="text-[10px] text-slate-700 truncate">
+          {act || '—'}
+        </span>
+      </div>
+
+      {/* Riga 3: note compattate su una riga */}
+      {a.notes && (
+        <div className="mt-0.5 text-[10px] text-slate-800 truncate">
+          {a.notes}
+        </div>
+      )}
     </div>
   );
 }
