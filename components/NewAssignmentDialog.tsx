@@ -75,49 +75,73 @@ async function save() {
   }
 
   // crea calendar_day se manca
-  async function ensureDay(isoStr: string): Promise<string | null> {
-    if (isoStr === iso) return dayId; // giorno già aperto dal parent
-    const { data: { user } } = await sb.auth.getUser();
-    const res = await fetch('/api/calendar/upsert-day', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: undefined, day: isoStr, note: null, user_id: user?.id, version: undefined })
-    });
-    if (res.status === 409) {
-  const payload = await res.json();
-  const cur = payload?.current ?? payload?.row ?? null;
-  return cur?.id ?? null;
+async function ensureDay(isoStr: string): Promise<string | null> {
+  if (isoStr === iso) return dayId; // già aperto
+
+  const { data: { user } } = await sb.auth.getUser();
+  const res = await fetch('/api/calendar/upsert-day', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      id: undefined,
+      day: isoStr,
+      note: null,
+      user_id: user?.id,
+      version: undefined
+    })
+  });
+
+  // se il giorno esiste già
+  if (res.status === 409) {
+    const payload = await res.json();
+    const cur = payload?.current ?? payload?.row ?? null;
+    return cur?.id ?? null;
+  }
+
+  if (!res.ok) {
+    console.error('upsert-day failed', res.status, await res.text());
+    return null;
+  }
+
+  const { row } = await res.json();
+  return row?.id ?? null;
 }
 
-    if (!res.ok) return null;
-    const { row } = await res.json(); return row?.id ?? null;
-  }
 
   // inserisce una assignment e normalizza
   async function createOne(targetDayId: string): Promise<Assignment | null> {
-    const ins = await sb
-      .from('assignments')
-   .insert({
-  day_id:       targetDayId,
-  staff_id:     staffId || null,
-  activity_id:  activityId || null,
-  territory_id: territoryId || null,
-  reperibile:   !!reperibile,
-  notes:        notes ?? null,
-  cost_center:  costCenter as CostCenter, // enum corretto
-})
+const ins = await sb
+  .from('assignments')
+  .insert({
+    day_id:       targetDayId,
+    staff_id:     staffId || null,
+    activity_id:  activityId || null,
+    territory_id: territoryId || null,
+    reperibile:   !!reperibile,
+    notes:        notes ?? null,
+    cost_center:  costCenter as CostCenter,
+  })
+  .select('id, day_id')
+  .single();
 
-      .select('id, day_id')
-      .single();
+if (ins.error || !ins.data) {
+  // LOG DETTAGLIATO
+  console.error('[assignments.insert]', ins);
+  // Mostra messaggio utile nell’UI
+  const e: any = ins.error;
+  setErr(e?.message || e?.hint || e?.details || JSON.stringify(e));
+  return null;
+}
 
-    if (ins.error || !ins.data) return null;
+
 
     return {
       id: ins.data.id,
       day_id: ins.data.day_id,
       reperibile: !!reperibile,
       notes: notes ?? null,
-      cost_center: costCenter as CostCenter,
+      cost_center: (costCenter as string).trim() as CostCenter,
+
       staff: staffId ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' } : null,
       activity: activityId ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' } : null,
       territory: territoryId ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' } : null,
