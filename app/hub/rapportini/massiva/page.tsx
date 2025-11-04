@@ -35,27 +35,83 @@ const ATTIVITA_MAP: Record<string, string> = {
 type SaveTarget = 'download' | 'sharepoint' | 'supabase';
 export const dynamic = 'force-dynamic';
 // Rileva la colonna data cercando l’header "DATA" o la colonna con più valori validi
-function detectDateCol(rows: any[][], searchRows = 150): number {
-  if (!rows.length) return 0;
+function countMatches(rows: any[][], col: number, want: string, scan = 300): number {
+  if (col == null) return 0;
+  let n = 0;
+  for (let r = 1; r < Math.min(rows.length, scan); r++) {
+    if (normalizeDateCell(rows[r]?.[col]) === want) n++;
+  }
+  return n;
+}
+
+function normalizeDMY(v: any): string {
+  if (v == null || v === '') return '';
+  if (typeof v === 'number') return normalizeDateCell(v);
+  const s = String(v).trim().split(' ')[0].replace(/[-.]/g,'/');
+  let m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (m) return `${m[3].padStart(2,'0')}/${m[2].padStart(2,'0')}/${m[1]}`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2,'0'), mm = m[2].padStart(2,'0');
+    const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+  return s;
+}
+
+function eqDateLoose(cell: any, wantDDMMYYYY: string): boolean {
+  return normalizeDMY(cell) === wantDDMMYYYY;
+}
+
+function detectDateColHeader(rows: any[][]): number | null {
+  if (!rows.length) return null;
   const header = rows[0] || [];
-  // 1) prova con intestazioni
   for (let c = 0; c < Math.min(header.length, 200); c++) {
     const h = String(header[c] ?? '').trim().toUpperCase();
     if (h === 'DATA' || h === 'DATA APPUNTAMENTO' || h === 'DATA LAVORO' || h === 'DATA INTERVENTO') return c;
   }
-  // 2) prova euristica: colonna con più match di date
-  const cols = Math.min(rows[0]?.length ?? 0, 200);
-  let bestCol = 0, bestScore = -1;
-  for (let c = 0; c < cols; c++) {
-    let score = 0;
-    for (let r = 1; r < Math.min(rows.length, searchRows); r++) {
-      const v = rows[r]?.[c];
-      if (looksLikeDate(v)) score++;
-    }
-    if (score > bestScore) { bestScore = score; bestCol = c; }
-  }
-  return bestCol;
+  return null;
 }
+
+/** Scelta robusta della colonna data.
+ *  Priorità: CO (COL.A_DATE) -> header noto -> colonna con più match alla data voluta.
+ */
+function pickDateCol(rows: any[][], want: string): number {
+  const cols = Math.min(rows[0]?.length ?? 0, 200);
+  const pref = COL.A_DATE; // CO = 92
+
+  const count = (col: number, scan = 500) => {
+    if (col == null) return 0;
+    let n = 0;
+    for (let r = 1; r < Math.min(rows.length, scan); r++) {
+      if (eqDateLoose(rows[r]?.[col], want)) n++;
+    }
+    return n;
+  };
+
+  if (pref < cols && count(pref) > 0) return pref;
+
+  const byHeader = detectDateColHeader(rows);
+  if (byHeader != null && count(byHeader) > 0) return byHeader;
+
+  let bestCol = 0, best = -1;
+  for (let c = 0; c < cols; c++) {
+    const n = count(c);
+    if (n > best) { best = n; bestCol = c; }
+  }
+  return best > 0 ? bestCol : (pref < cols ? pref : 0);
+}
+function guessDataStartRow(rows: any[][]): number {
+  // se nelle prime 10 righe trovi "RISORSA" in COL.B_OPERATORE, parti dalla successiva
+  for (let i = 0; i < Math.min(rows.length, 10); i++) {
+    const v = String(rows[i]?.[COL.B_OPERATORE] ?? '').trim().toUpperCase();
+    if (v === 'RISORSA') return i + 1;
+  }
+  // altrimenti dalla riga 1
+  return 1;
+}
+
+
 
 function looksLikeDate(v: any): boolean {
   if (v == null || v === '') return false;
@@ -67,25 +123,88 @@ function looksLikeDate(v: any): boolean {
 
 function normalizeDateCell(v: any): string {
   if (v == null || v === '') return '';
+
+  // Excel seriale -> DD/MM/YYYY
   if (typeof v === 'number') {
-    // seriale Excel -> DD/MM/YYYY
     const ms = Math.round((v - 25569) * 86400 * 1000);
     const d = new Date(ms);
     const dd = String(d.getUTCDate()).padStart(2,'0');
-    const mm = String(d.getUTCMonth()+1).padStart(2,'0');
+    const mm = String(d.getUTCMonth() + 1).padStart(2,'0');
     const yyyy = String(d.getUTCFullYear());
     return `${dd}/${mm}/${yyyy}`;
   }
-  let s = String(v).trim();
-  s = s.split(' ')[0].replace(/-/g,'/'); // togli orario e normalizza separatore
-  // yyyy/mm/dd -> dd/mm/yyyy
-  let m = s.match(/^(\d{4})\/(\d{2})\/(\d{2})$/);
-  if (m) return `${m[3]}/${m[2]}/${m[1]}`;
-  // dd/mm/yy -> dd/mm/yyyy
-  m = s.match(/^(\d{2})\/(\d{2})\/(\d{2})$/);
-  if (m) return `${m[1]}/${m[2]}/20${m[3]}`;
-  return s; // già dd/mm/yyyy
+
+  // Stringa: rimuovi l'orario e normalizza separatori
+  let s = String(v).trim().split(' ')[0].replace(/[-.]/g, '/');
+
+  // yyyy/m/d  -> dd/mm/yyyy
+  let m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (m) {
+    const yyyy = m[1];
+    const mm = m[2].padStart(2,'0');
+    const dd = m[3].padStart(2,'0');
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // d/m/yy(yy) -> dd/mm/yyyy  [giorno-mese-prima, come nel master]
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (m) {
+    const dd = m[1].padStart(2,'0');
+    const mm = m[2].padStart(2,'0');
+    const yyyy = m[3].length === 2 ? `20${m[3]}` : m[3];
+    return `${dd}/${mm}/${yyyy}`;
+  }
+
+  // già DD/MM/YYYY o altro non riconosciuto
+  return s;
 }
+// Excel seriale -> yyyy,mm,dd in UTC
+function fromExcelSerial(n: number) {
+  const ms = Math.round((n - 25569) * 86400 * 1000);
+  const d = new Date(ms);
+  return { y: d.getUTCFullYear(), m: d.getUTCMonth() + 1, d: d.getUTCDate() };
+}
+
+// prova a leggere qualsiasi cella come {y,m,d}
+function parseDateAny(v: any): { y:number, m:number, d:number } | null {
+  if (v == null || v === '') return null;
+
+  if (typeof v === 'number') {
+    // numeri molto grandi o piccoli non sono date plausibili
+    if (v > 200000 || v < 10000) return null;
+    return fromExcelSerial(v);
+  }
+
+  const s0 = String(v).trim();
+  if (!s0) return null;
+  const s = s0.split(' ')[0].replace(/[-.]/g,'/'); // togli orario e normalizza
+
+  // yyyy/m/d
+  let m = s.match(/^(\d{4})\/(\d{1,2})\/(\d{1,2})$/);
+  if (m) return { y: +m[1], m: +m[2], d: +m[3] };
+
+  // d/m/yy(yy)
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{2}|\d{4})$/);
+  if (m) {
+    const d = +m[1], mo = +m[2], y = m[3].length === 2 ? +(`20${m[3]}`) : +m[3];
+    return { y, m: mo, d };
+  }
+
+  return null;
+}
+
+// voglio matchare DD/MM/YYYY
+function parseWanted(wantDDMMYYYY: string): { y:number, m:number, d:number } {
+  const [dd, mm, yyyy] = wantDDMMYYYY.split('/').map(n => +n);
+  return { y: yyyy, m: mm, d: dd };
+}
+
+function eqDateCell(cell: any, wantObj: {y:number,m:number,d:number}): boolean {
+  const p = parseDateAny(cell);
+  if (!p) return false;
+  return p.y === wantObj.y && p.m === wantObj.m && p.d === wantObj.d;
+}
+
 
 export default function RapportinoMassivaPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -125,7 +244,8 @@ export default function RapportinoMassivaPage() {
       wb.SheetNames[0];
 
     const ws = wb.Sheets[attSheetName];
-    const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: false }) as any[][];
+    const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true }) as any[][];
+
     setRawRows(rows);
 
     // header "RISORSA" in colonna B
@@ -144,9 +264,10 @@ export default function RapportinoMassivaPage() {
     setOperators(opList);
     setSelectedOps([]);
 
-    if (opList.length === 0) {
-      setErr(`Nessun operatore trovato in colonna B sul foglio "${attSheetName}".`);
-    }
+if (opList.length === 0) {
+  setErr(`Nessun operatore trovato nella colonna CR (n. 96) sul foglio "${attSheetName}".`);
+}
+
   }
 
   function addOperatorManually(op: string) {
@@ -166,39 +287,91 @@ export default function RapportinoMassivaPage() {
       prev.length === operators.length ? [] : operators
     );
   }
+// ritorna la colonna con più match esatti alla data voluta (DD/MM/YYYY), cercando tra tutte
+function findBestDateColAcrossAll(rows: any[][], want: string): number | null {
+  if (!rows.length) return null;
+  const cols = Math.min(rows[0]?.length ?? 0, 200);
+  let bestCol: number | null = null, best = 0;
+  for (let c = 0; c < cols; c++) {
+    let n = 0;
+    for (let r = 1; r < rows.length; r++) {
+      if (eqDateLoose(rows[r]?.[c], want)) n++;
+    }
+    if (n > best) { best = n; bestCol = c; }
+  }
+  return best > 0 ? bestCol : null;
+}
+function rowHasDate(row: any[], want: string): boolean {
+  if (!row) return false;
+  for (let c = 0; c < Math.min(row.length, 200); c++) {
+    if (eqDateLoose(row[c], want)) return true;
+  }
+  return false;
+}
+function rowHasWantedDate(row: any[], wantObj: {y:number,m:number,d:number}): boolean {
+  if (!row) return false;
+  for (let c = 0; c < Math.min(row.length, 200); c++) {
+    if (eqDateCell(row[c], wantObj)) return true;
+  }
+  return false;
+}
 
 const filteredRows = useMemo(() => {
   if (!rawRows.length) return [];
-  const dateCol = detectDateCol(rawRows); // auto-detect
-  const want = normalizeDateCell(dateStr);
+  const wantStr = normalizeDateCell(dateStr);        // es. 05/11/2025
+  const wantObj = parseWanted(wantStr);
+  const startRow = guessDataStartRow(rawRows);
 
-  const out: any[][] = [];
-  const seenPdr = new Set<string>();
-
-  for (let i = 1; i < rawRows.length; i++) { // salta header
+  // 1) priorità: colonna preferita/best
+  let dateCol = pickDateCol(rawRows, wantStr);
+  let out: any[][] = [];
+  for (let i = startRow; i < rawRows.length; i++) {
     const r = rawRows[i];
-    const d = normalizeDateCell(r?.[dateCol]);
-    if (d !== want) continue;
+    if (!eqDateCell(r?.[dateCol], wantObj)) continue;
 
-// Escludi righe con L="UT I51 CAMBIO DA DIAGNOSTICA"
-const lIdx = (COL as any).L_ATTIVITA as number | undefined;
-if (typeof lIdx === 'number') {
-  const lval = String(r?.[lIdx] ?? '').trim().toUpperCase();
-  if (lval === 'UT I51 CAMBIO DA DIAGNOSTICA') continue;
-}
+    const lIdx = (COL as any).L_ATTIVITA as number | undefined;
+    if (typeof lIdx === 'number') {
+      const lval = String(r?.[lIdx] ?? '').trim().toUpperCase();
+      if (lval === 'UT I51 CAMBIO DA DIAGNOSTICA') continue;
+    }
+    out.push(r);
+  }
+  if (out.length > 0) return out;
 
+  // 2) fallback: colonna con più match reali
+  const best = findBestDateColAcrossAll(rawRows, wantStr);
+  if (best != null && best !== dateCol) {
+    dateCol = best;
+    out = [];
+    for (let i = startRow; i < rawRows.length; i++) {
+      const r = rawRows[i];
+      if (!eqDateCell(r?.[dateCol], wantObj)) continue;
 
-    // Deduplica su N (PDR) solo dove M="S-AI-051"
-const pdrKey = String(r[COL.N_PDR] ?? '').trim();
-// se vuoi comunque evitare duplicati di PDR, lascia le 2 righe seguenti:
-// if (pdrKey && seenPdr.has(pdrKey)) continue;
-// if (pdrKey) seenPdr.add(pdrKey);
-out.push(r);
+      const lIdx = (COL as any).L_ATTIVITA as number | undefined;
+      if (typeof lIdx === 'number') {
+        const lval = String(r?.[lIdx] ?? '').trim().toUpperCase();
+        if (lval === 'UT I51 CAMBIO DA DIAGNOSTICA') continue;
+      }
+      out.push(r);
+    }
+    if (out.length > 0) return out;
+  }
 
+  // 3) fallback finale: cerca la data in QUALSIASI colonna della riga
+  out = [];
+  for (let i = startRow; i < rawRows.length; i++) {
+    const r = rawRows[i];
+    if (!rowHasWantedDate(r, wantObj)) continue;
+
+    const lIdx = (COL as any).L_ATTIVITA as number | undefined;
+    if (typeof lIdx === 'number') {
+      const lval = String(r?.[lIdx] ?? '').trim().toUpperCase();
+      if (lval === 'UT I51 CAMBIO DA DIAGNOSTICA') continue;
+    }
+    out.push(r);
   }
   return out;
 }, [rawRows, dateStr]);
-
 
   function safeStr(v: any) { return String(v ?? '').trim(); }
 
@@ -254,6 +427,33 @@ if (!rowsSorted.length) continue;
 const ws = cloneFromTemplate(base, opName, tplWb);
 ws.getCell('B2').value = dateStr;
 ws.getCell('B4').value = useCombined ? '' : opName;
+
+// === Inserisci 5 righe vuote prima della riga 30 e applica bordi A..O ===
+const EXTRA_EMPTY = 5;
+const INSERT_AT = 30; // inserisco PRIMA della 30
+ws.spliceRows(INSERT_AT, 0, ...Array(EXTRA_EMPTY).fill([]));
+
+// bordi su tutte le celle delle righe inserite, colonne A..O (1..15)
+const FIRST_INS = INSERT_AT;
+const LAST_INS  = INSERT_AT + EXTRA_EMPTY - 1;
+const LAST_COL  = 15; // O
+
+for (let r = FIRST_INS; r <= LAST_INS; r++) {
+  const row = ws.getRow(r);
+  for (let c = 1; c <= LAST_COL; c++) {
+    const cell = row.getCell(c);
+    cell.border = {
+      top:    { style: 'thin' },
+      left:   { style: 'thin' },
+      bottom: { style: 'thin' },
+      right:  { style: 'thin' },
+    };
+  }
+  row.commit?.();
+}
+// ============================================================
+
+
 // Header riga 6 (A..N)
 const hdr = [
   'Nominativo','Matricola','PDR','Via','Comune','CAP','Recapito',
@@ -296,7 +496,8 @@ for (const r of rowsSorted) {   // <-- usa rowsSorted
   rowIdx++;
 }
 // --- NOTE in fondo, righe 31..35, colonne A..C ---
-const NOTE_START = 31, NOTE_END = 37; // note A31:C37
+const NOTE_START = 31 + EXTRA_EMPTY; // 36
+const NOTE_END   = 37 + EXTRA_EMPTY; // 42
 const maxNotes = Math.min(notes.length, NOTE_END - NOTE_START + 1);
 for (let i = 0; i < maxNotes; i++) {
   const rr = NOTE_START + i;
@@ -320,7 +521,7 @@ ws.pageSetup.orientation = 'landscape';
 ws.pageSetup.fitToPage = true;
 ws.pageSetup.fitToWidth = 1;
 ws.pageSetup.fitToHeight = 0;
-(ws as any).pageSetup.printArea = 'A1:O37';
+(ws as any).pageSetup.printArea = `A1:O${NOTE_END}`; // A1:O42
 
       }
 
