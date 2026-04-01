@@ -224,6 +224,139 @@ export default function CronoprogrammaWorkspace() {
     setDialogOpenForDay({ id: row.id, iso });
   };
 
+  const ensureDayId = async (iso: string) => {
+    const existing = dayMap[iso];
+    if (existing) return existing.id;
+
+    const { data: { user } } = await sb.auth.getUser();
+    const res = await fetch('/api/calendar/upsert-day', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        id: undefined,
+        day: iso,
+        note: null,
+        user_id: user?.id,
+        version: undefined,
+      }),
+    });
+
+    if (res.status === 409) {
+      const { current } = await res.json();
+      if (current?.id) return current.id as string;
+      return null;
+    }
+    if (!res.ok) return null;
+
+    const { row } = await res.json();
+    if (!row?.id) return null;
+
+    setDays((prev) => (prev.some((x) => x.id === row.id) ? prev : [...prev, { id: row.id, day: row.day }]));
+    return row.id as string;
+  };
+
+  const findAssignmentById = (id: string) => {
+    for (const [dayId, list] of Object.entries(assignments)) {
+      const found = list.find((a) => a.id === id);
+      if (found) return { dayId, assignment: found };
+    }
+    return null;
+  };
+
+  const handleDropAssignment = async ({
+    assignmentId,
+    fromDay,
+    fromTerritoryId,
+    toDay,
+    toTerritoryId,
+    copy,
+  }: {
+    assignmentId: string;
+    fromDay: string;
+    fromTerritoryId: string | null;
+    toDay: Date;
+    toTerritoryId: string | null;
+    copy: boolean;
+  }) => {
+    const found = findAssignmentById(assignmentId);
+    if (!found) return;
+
+    const targetIso = fmtDay(toDay);
+    const targetDayId = await ensureDayId(targetIso);
+    if (!targetDayId) return;
+
+    if (!copy && fromDay === targetIso && fromTerritoryId === toTerritoryId) return;
+
+    const terrName = toTerritoryId
+      ? territories.find((t) => t.id === toTerritoryId)?.name ?? ''
+      : null;
+
+    if (copy) {
+      const ins = await sb
+        .from('assignments')
+        .insert({
+          day_id: targetDayId,
+          staff_id: found.assignment.staff?.id ?? null,
+          activity_id: found.assignment.activity?.id ?? null,
+          territory_id: toTerritoryId ?? null,
+          reperibile: found.assignment.reperibile,
+          notes: found.assignment.notes ?? null,
+          cost_center: found.assignment.cost_center ?? null,
+        })
+        .select('id, day_id')
+        .single();
+
+      if (ins.error || !ins.data) {
+        softRefresh();
+        return;
+      }
+
+      const newAssignment: Assignment = {
+        ...found.assignment,
+        id: ins.data.id,
+        day_id: ins.data.day_id,
+        territory: toTerritoryId ? { id: toTerritoryId, name: terrName ?? '' } : null,
+      };
+
+      setAssignments((prev) => {
+        const next = { ...prev };
+        next[targetDayId] = [...(next[targetDayId] ?? []), newAssignment];
+        return next;
+      });
+
+      return;
+    }
+
+    const upd = await sb
+      .from('assignments')
+      .update({ day_id: targetDayId, territory_id: toTerritoryId })
+      .eq('id', found.assignment.id);
+
+    if (upd.error) {
+      softRefresh();
+      return;
+    }
+
+    const updatedAssignment: Assignment = {
+      ...found.assignment,
+      day_id: targetDayId,
+      territory: toTerritoryId ? { id: toTerritoryId, name: terrName ?? '' } : null,
+    };
+
+    setAssignments((prev) => {
+      const next: Record<string, Assignment[]> = {};
+      for (const [dayId, list] of Object.entries(prev)) {
+        if (dayId === found.dayId) {
+          next[dayId] = list.filter((a) => a.id !== found.assignment.id);
+        } else {
+          next[dayId] = list;
+        }
+      }
+      next[targetDayId] = [...(next[targetDayId] ?? []), updatedAssignment];
+      return next;
+    });
+  };
+
   const title = useMemo(() => {
     if (mode === 'month') {
       const it = anchor.toLocaleDateString('it-IT', { month: 'long', year: 'numeric' });
@@ -351,6 +484,7 @@ export default function CronoprogrammaWorkspace() {
           onAdd={openNewForDate}
           onEdit={openEditDialog}
           onDelete={removeAssignment}
+          onDropAssignment={handleDropAssignment}
         />
       )}
 
