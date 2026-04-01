@@ -1,11 +1,32 @@
+import AppShell from '@/components/layout/AppShell';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
+import { redirect } from 'next/navigation';
 
-export default function HubLayout({ children }: { children: React.ReactNode }) {
+export const dynamic = 'force-dynamic';
+
+export default async function HubLayout({ children }: { children: React.ReactNode }) {
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient({ cookies: () => cookieStore });
+
+  const { data: { session } } = await supabase.auth.getSession();
+  if (!session) redirect('/login');
+
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('username, role')
+    .eq('id', session.user.id)
+    .maybeSingle();
+
+  const roleLabel =
+    profile?.role === 'admin' ? 'Admin' :
+    profile?.role === 'editor' ? 'Editor' : 'Operatore';
+
+  const userName = profile?.username ?? session.user.email ?? undefined;
+
   return (
-    <div className="min-h-dvh">
-      <nav className="border-b">
-        <div className="mx-auto max-w-6xl p-4 text-sm opacity-80">Hub</div>
-      </nav>
+    <AppShell roleLabel={roleLabel} userName={userName}>
       {children}
-    </div>
-  )
+    </AppShell>
+  );
 }

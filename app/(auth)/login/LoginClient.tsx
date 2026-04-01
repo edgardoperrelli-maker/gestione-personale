@@ -2,6 +2,8 @@
 import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { useRouter } from 'next/navigation';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
 
 export default function LoginClient() {
   const [username, setU] = useState('');
@@ -31,16 +33,41 @@ export default function LoginClient() {
   };
 
   return (
-    <form onSubmit={onSubmit} className="w-full max-w-sm space-y-3">
-      <h1 className="text-xl font-semibold">Accesso</h1>
-      <input className="w-full border p-2 rounded" placeholder="Username"
-        autoComplete="username" value={username} onChange={(e)=>setU(e.target.value)} />
-      <input className="w-full border p-2 rounded" placeholder="Password" type="password"
-        autoComplete="current-password" value={password} onChange={(e)=>setP(e.target.value)} />
-      {err && <p className="text-sm text-red-600">{err}</p>}
-      <button className="w-full border p-2 rounded disabled:opacity-50" disabled={loading}>
-        {loading ? 'Accesso…' : 'Entra'}
-      </button>
-    </form>
+    <div className="w-full">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 shadow-sm">
+        <div className="mb-6">
+          <h2 className="text-xl font-semibold text-[var(--brand-text-main)]">Accesso</h2>
+          <p className="text-sm text-[var(--brand-text-muted)]">Inserisci le credenziali aziendali.</p>
+        </div>
+        <form onSubmit={onSubmit} className="space-y-4">
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Username</label>
+            <Input
+              placeholder="Username"
+              autoComplete="username"
+              value={username}
+              onChange={(e) => setU(e.target.value)}
+            />
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Password</label>
+            <Input
+              placeholder="Password"
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(e) => setP(e.target.value)}
+            />
+          </div>
+          {err && <p className="text-sm text-rose-600">{err}</p>}
+          <Button type="submit" className="w-full" variant="primary" disabled={loading}>
+            {loading ? 'Accesso...' : 'Entra'}
+          </Button>
+        </form>
+      </div>
+      <div className="mt-4 text-xs text-[var(--brand-text-muted)]">
+        Problemi di accesso? Contatta l'amministratore.
+      </div>
+    </div>
   );
 }

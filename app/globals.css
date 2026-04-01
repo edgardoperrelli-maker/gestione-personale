@@ -1,57 +1,75 @@
-@import "tailwindcss";
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 
-@theme inline {
-  --color-background: #ffffff;
-  --color-foreground: #171717;
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-html, body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
-}
+:root {
+  --sidebar-bg-from: #0B1A2E;
+  --sidebar-bg-to: #0E223B;
+  --sidebar-border: rgba(255,255,255,0.08);
+  --sidebar-text: #e2e8f0;
+  --sidebar-muted: #94a3b8;
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --color-background: #0a0a0a;
-    --color-foreground: #ededed;
-  }
-}
+  --brand-bg: #EEF2FA;
+  --brand-surface: #ffffff;
+  --brand-primary: #1E3A5F;
+  --brand-primary-hover: #162C4A;
+  --brand-nav-active-bg: #E8EEF8;
+  --brand-primary-soft: #E1E9F5;
+  --brand-border: #DDE4F0;
+  --brand-text-main: #1A2438;
+  --brand-text-muted: #6B7280;
 
-
-/* opzionale, applica i token */
-html, body {
-  background: var(--color-background);
-  color: var(--color-foreground);
-  font-family: var(--font-sans), system-ui, sans-serif;
-}
-
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --app-bg: #EEF2FA;
+  --card-bg: #ffffff;
+  --card-bd: #DDE4F0;
+  --we-bg: #F3F6FC;
+  --hol-bg: #FFF0F2;
+  --today-ring: #3B82F6;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--brand-bg);
+  color: var(--brand-text-main);
+  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  line-height: 1.35;
 }
-:root{
-  --app-bg: #E6F3FF;     /* celeste chiarissimo */
-  --card-bg: #FFFFFF;    /* card */
-  --card-bd: #CFE6FF;    /* bordo card */
-  --we-bg:  #F3F8FF;     /* weekend su celeste */
-  --hol-bg: #FFE7EA;     /* festività tenue rosato */
-  --today-ring: #38BDF8; /* sky-400 */
+
+html, body { height: 100%; margin: 0; }
+
+input, select, textarea {
+  background-color: #ffffff;
+  color: #0f172a;
+  border: 1px solid var(--brand-border);
 }
-html, body {
-  background-color: var(--app-bg);
-  color: #111;
-  height: 100%;
-  margin: 0;
+input:focus, select:focus, textarea:focus {
+  outline: none;
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 1px var(--brand-primary);
+}
+label { color: #0f172a; }
+table { color: #0f172a; background-color: #ffffff; }
+th, td { border-color: var(--brand-border); }
+button { background-color: transparent; color: inherit; border: none; }
+
+* { scrollbar-width: thin; scrollbar-color: var(--brand-border) #f8fafc; }
+*::-webkit-scrollbar { width: 8px; height: 8px; }
+*::-webkit-scrollbar-track { background: #f8fafc; }
+*::-webkit-scrollbar-thumb { background-color: #cbd5e1; border: 2px solid #f8fafc; border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+
+.sidebar-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(59,130,246,0.25) transparent; }
+.sidebar-scrollbar::-webkit-scrollbar { width: 6px; }
+.sidebar-scrollbar::-webkit-scrollbar-track { background: transparent; }
+.sidebar-scrollbar::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.15); border-radius: 999px; }
+
+html { font-size: 16px; }
+@media (max-width: 1024px) {
+  html { font-size: 17px; }
+  input, select, textarea, button { font-size: 1rem !important; min-height: 44px; }
+}
+@media (max-width: 768px) {
+  html { font-size: 18px; }
+  input, select, textarea, button { min-height: 46px; }
 }
