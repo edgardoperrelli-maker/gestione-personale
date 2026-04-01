@@ -130,7 +130,7 @@ export default function AppShell({
                     <Link
                       key={item.href}
                       href={item.href}
-                      className={`group flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${
+                      className={`group flex items-start gap-3 rounded-xl border px-3 py-2 text-sm transition ${
                         isActive
                           ? 'border-blue-500/30 bg-blue-500/20 text-white'
                           : 'border-transparent text-[var(--sidebar-text)] hover:bg-white/5'
@@ -142,9 +142,14 @@ export default function AppShell({
                           isActive ? 'bg-blue-400' : 'bg-transparent group-hover:bg-blue-300/70'
                         }`}
                       />
-                      <span className="flex items-center gap-2">
-                        {NAV_ICONS[item.href]}
-                        <span>{item.label}</span>
+                      <span className="flex flex-1 flex-col gap-1">
+                        <span className="flex items-center gap-2">
+                          {NAV_ICONS[item.href]}
+                          <span className="font-medium">{item.label}</span>
+                        </span>
+                        {item.description && (
+                          <span className="text-[11px] text-[var(--sidebar-muted)]">{item.description}</span>
+                        )}
                       </span>
                     </Link>
                   );
@@ -225,7 +230,9 @@ export default function AppShell({
             </div>
           </header>
 
-          <main className="flex-1 px-4 pb-10 pt-6 lg:px-8">{children}</main>
+          <main className="flex-1 px-4 pb-10 pt-6 lg:px-8">
+            <div className="mx-auto w-full max-w-7xl">{children}</div>
+          </main>
         </div>
       </div>
 

@@ -35,13 +35,13 @@ export default function CronoToolbar({
   onExport: () => void;
 }) {
   return (
-    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-      <div className="flex flex-wrap items-center gap-3">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 shadow-sm">
+      <div className="flex flex-wrap items-center gap-2">
         <div className="flex items-center gap-2">
           <Button onClick={onPrev} size="sm">
             {'<'}
           </Button>
-          <div className="text-xl font-semibold tracking-tight">{title}</div>
+          <div className="text-lg font-semibold tracking-tight">{title}</div>
           <Button onClick={onNext} size="sm">
             {'>'}
           </Button>
@@ -98,14 +98,16 @@ export default function CronoToolbar({
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <Button onClick={onInsertRep}>Inserisci reperibile</Button>
-          <Button onClick={onExport} variant="outline">
+          <Button onClick={onInsertRep} size="sm">
+            Inserisci reperibile
+          </Button>
+          <Button onClick={onExport} variant="outline" size="sm">
             Esporta
           </Button>
         </div>
       </div>
 
-      <div className="mt-3 flex flex-wrap items-center gap-3">
+      <div className="mt-2 flex flex-wrap items-center gap-2">
         <Button onClick={onToggleFilters} variant="outline" size="sm">
           Filtri {filtersCount ? `(${filtersCount})` : ''}
         </Button>

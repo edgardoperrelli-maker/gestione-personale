@@ -19,7 +19,7 @@ export default function OperatorCard({
 
   return (
     <div
-      className="group relative rounded-xl border p-3 text-[11px] shadow-sm transition hover:shadow"
+      className="group relative rounded-lg border px-2.5 py-2 text-[10px] shadow-sm transition hover:shadow"
       style={{ backgroundColor: style.bg, borderColor: style.border, color: style.text }}
     >
       <span className="absolute left-0 top-0 h-full w-1 rounded-l-xl" style={{ backgroundColor: style.band }} />
@@ -32,7 +32,7 @@ export default function OperatorCard({
             </span>
             {a.reperibile && <Badge variant="danger">REP</Badge>}
           </div>
-          <div className="mt-1 text-[11px] opacity-75">{terr}</div>
+          <div className="mt-0.5 text-[10px] opacity-75">{terr}</div>
         </div>
 
         <div className="flex items-center gap-1 opacity-0 transition group-hover:opacity-100">
@@ -41,7 +41,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onEdit(a);
             }}
-            className="rounded-md border border-white/60 bg-white/70 px-2 py-1 text-[10px] text-[var(--brand-text-main)]"
+            className="rounded-md border border-white/60 bg-white/70 px-2 py-0.5 text-[10px] text-[var(--brand-text-main)]"
             title="Modifica"
           >
             Modifica
@@ -51,7 +51,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="rounded-md border border-white/60 bg-white/70 px-2 py-1 text-[10px] text-rose-700"
+            className="rounded-md border border-white/60 bg-white/70 px-2 py-0.5 text-[10px] text-rose-700"
             title="Elimina"
           >
             Elimina
@@ -59,14 +59,14 @@ export default function OperatorCard({
         </div>
       </div>
 
-      <div className="mt-2 flex flex-wrap gap-2 text-[10px]">
+      <div className="mt-1.5 flex flex-wrap gap-1.5 text-[10px]">
         <span className="rounded-full border border-white/70 bg-white/60 px-2 py-0.5">{act}</span>
         {a.cost_center && (
           <span className="rounded-full border border-white/70 bg-white/60 px-2 py-0.5">CdC: {a.cost_center}</span>
         )}
       </div>
 
-      {notes && <div className="mt-2 text-[10px] opacity-80">{notes}</div>}
+      {notes && <div className="mt-1.5 text-[10px] opacity-80 line-clamp-2">{notes}</div>}
     </div>
   );
 }

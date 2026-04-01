@@ -25,7 +25,7 @@ export default function CronoGridView({
   onDelete: (a: Assignment) => void;
 }) {
   const columns = includeNoTerritory ? [...territories, { id: 'none', name: 'Senza territorio' } as Territory] : territories;
-  const gridTemplate = `160px repeat(${columns.length}, 220px)`;
+  const gridTemplate = `140px repeat(${columns.length}, 190px)`;
 
   return (
     <div className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
@@ -35,9 +35,9 @@ export default function CronoGridView({
             className="grid border-b border-[var(--card-bd)] text-xs font-semibold text-[var(--brand-text-muted)]"
             style={{ gridTemplateColumns: gridTemplate }}
           >
-            <div className="px-3 py-3 text-[11px] uppercase tracking-widest">Giorno</div>
+            <div className="px-3 py-2 text-[10px] uppercase tracking-widest">Giorno</div>
             {columns.map((t) => (
-              <div key={t.id} className="border-l border-[var(--card-bd)] px-3 py-3 text-[11px] uppercase tracking-wide">
+              <div key={t.id} className="border-l border-[var(--card-bd)] px-3 py-2 text-[10px] uppercase tracking-wide">
                 {t.name}
               </div>
             ))}
@@ -52,7 +52,7 @@ export default function CronoGridView({
                 style={{ gridTemplateColumns: gridTemplate }}
               >
                 <div
-                  className={`px-3 py-3 text-sm font-medium ${
+                  className={`px-3 py-2 text-sm font-medium ${
                     isItalyHoliday(d) ? 'bg-[var(--hol-bg)]' : isWeekend(d) ? 'bg-[var(--we-bg)]' : ''
                   }`}
                 >
@@ -68,7 +68,7 @@ export default function CronoGridView({
                   return (
                     <div
                       key={t.id}
-                      className="group relative border-l border-[var(--card-bd)] px-2 py-2 hover:bg-blue-50/30"
+                      className="group relative border-l border-[var(--card-bd)] px-2 py-1.5 hover:bg-blue-50/30"
                     >
                       {sorted.length ? (
                         <div className="flex flex-col gap-2">
