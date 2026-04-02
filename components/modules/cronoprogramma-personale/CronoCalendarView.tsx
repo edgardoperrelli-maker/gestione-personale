@@ -12,8 +12,10 @@ import {
   indexDays,
   isCopyDropGesture,
   readAssignmentDragData,
+  readDayDragData,
   sortAssignments,
   writeAssignmentDragData,
+  writeDayDragData,
 } from './utils';
 
 const dayBgClass = (d: Date) => {
@@ -29,7 +31,7 @@ export default function CronoCalendarView({
   days,
   assignments,
   onAdd,
-  onCopyDayToNext,
+  onDropDay,
   showMonthLabels,
   sortMode,
   filters,
@@ -44,7 +46,7 @@ export default function CronoCalendarView({
   days: DayRow[];
   assignments: Record<string, Assignment[]>;
   onAdd: (d: Date) => void;
-  onCopyDayToNext: (d: Date) => void;
+  onDropDay: (args: { fromDay: string; toDay: Date; copy: boolean }) => void;
   showMonthLabels: boolean;
   sortMode: SortMode;
   filters: string[];
@@ -83,7 +85,7 @@ export default function CronoCalendarView({
               dayMap={dayMap}
               assignments={assignments}
               onAdd={onAdd}
-              onCopyDayToNext={onCopyDayToNext}
+              onDropDay={onDropDay}
               showMonthLabel={showMonthLabels && d.getDate() === 1}
               sortMode={sortMode}
               filters={filters}
@@ -106,7 +108,7 @@ function DayCell(props: {
   dayMap: Record<string, DayRow>;
   assignments: Record<string, Assignment[]>;
   onAdd: (d: Date) => void;
-  onCopyDayToNext: (d: Date) => void;
+  onDropDay: (args: { fromDay: string; toDay: Date; copy: boolean }) => void;
   showMonthLabel: boolean;
   sortMode: SortMode;
   filters: string[];
@@ -128,7 +130,7 @@ function DayCell(props: {
     dayMap,
     assignments,
     onAdd,
-    onCopyDayToNext,
+    onDropDay,
     showMonthLabel,
     sortMode,
     filters,
@@ -146,6 +148,11 @@ function DayCell(props: {
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    const dayData = readDayDragData(e.dataTransfer);
+    if (dayData) {
+      onDropDay({ fromDay: dayData.fromDay, toDay: d, copy: isCopyDropGesture(e) });
+      return;
+    }
     const data = readAssignmentDragData(e.dataTransfer);
     if (!data) return;
     onDropAssignment({
@@ -172,13 +179,19 @@ function DayCell(props: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <span
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full font-bold ${
+            draggable
+            className={`inline-flex h-7 w-7 cursor-grab items-center justify-center rounded-full font-bold active:cursor-grabbing ${
               isToday
                 ? 'bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)] ring-offset-1'
                 : isItalyHoliday(d)
                 ? 'text-rose-700'
                 : ''
             }`}
+            title="Trascina per spostare l'intero giorno"
+            onDragStart={(e) => {
+              e.stopPropagation();
+              writeDayDragData(e.dataTransfer, { fromDay: iso });
+            }}
           >
             {d.getDate()}
           </span>
@@ -199,13 +212,6 @@ function DayCell(props: {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <button
-            onClick={() => onCopyDayToNext(d)}
-            className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-xs text-gray-900 hover:bg-gray-50"
-            title="Copia l'intero giorno al successivo"
-          >
-            Copia +1
-          </button>
           <button
             onClick={() => onAdd(d)}
             className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-xs text-gray-900 hover:bg-gray-50"

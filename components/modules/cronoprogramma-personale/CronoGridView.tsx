@@ -9,8 +9,10 @@ import {
   fmtDay,
   isCopyDropGesture,
   readAssignmentDragData,
+  readDayDragData,
   sortAssignments,
   writeAssignmentDragData,
+  writeDayDragData,
 } from './utils';
 
 export default function CronoGridView({
@@ -21,7 +23,7 @@ export default function CronoGridView({
   includeNoTerritory,
   sortMode,
   onAdd,
-  onCopyDayToNext,
+  onDropDay,
   onEdit,
   onDelete,
   onDropAssignment,
@@ -33,7 +35,7 @@ export default function CronoGridView({
   includeNoTerritory: boolean;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
-  onCopyDayToNext: (d: Date) => void;
+  onDropDay: (args: { fromDay: string; toDay: Date; copy: boolean }) => void;
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDropAssignment: (args: {
@@ -105,6 +107,18 @@ export default function CronoGridView({
                   ? '3px solid #F43F5E'
                   : '3px solid transparent',
               }}
+              onDragOver={(e) => {
+                if (e.dataTransfer.types.includes('application/x-crono-day')) {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = isCopyDropGesture(e) ? 'copy' : 'move';
+                }
+              }}
+              onDrop={(e) => {
+                const dayData = readDayDragData(e.dataTransfer);
+                if (!dayData) return;
+                e.preventDefault();
+                onDropDay({ fromDay: dayData.fromDay, toDay: d, copy: isCopyDropGesture(e) });
+              }}
             >
               <div
                 className="text-[10px] uppercase tracking-wide font-medium"
@@ -113,10 +127,16 @@ export default function CronoGridView({
                 {d.toLocaleDateString('it-IT', { weekday: 'short' })}
               </div>
               <div
-                className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${
+                draggable
+                className={`inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-full text-sm font-bold active:cursor-grabbing ${
                   isToday ? 'text-white' : isHol ? 'text-rose-700' : 'text-[var(--brand-text-main)]'
                 }`}
                 style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
+                title="Trascina per spostare l'intero giorno"
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  writeDayDragData(e.dataTransfer, { fromDay: iso });
+                }}
               >
                 {d.getDate()}
               </div>
@@ -125,14 +145,6 @@ export default function CronoGridView({
                   Festivo
                 </div>
               )}
-              <button
-                type="button"
-                onClick={() => onCopyDayToNext(d)}
-                className="mt-1 w-fit rounded-md border border-[var(--brand-border)] bg-white px-2 py-1 text-[10px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-nav-active-bg)]"
-                title="Copia l'intero giorno al successivo"
-              >
-                Copia +1
-              </button>
             </div>
 
             {/* Celle territorio */}

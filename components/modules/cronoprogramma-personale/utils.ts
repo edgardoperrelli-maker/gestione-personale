@@ -124,6 +124,27 @@ export function indexDayIds(rows: { id: string; day: string }[]) {
   return m;
 }
 
+export type DayDragPayload = {
+  fromDay: string;
+};
+
+export function writeDayDragData(dataTransfer: DataTransfer, payload: DayDragPayload) {
+  dataTransfer.effectAllowed = 'copyMove';
+  dataTransfer.setData('application/x-crono-day', JSON.stringify(payload));
+}
+
+export function readDayDragData(dataTransfer: DataTransfer): DayDragPayload | null {
+  const raw = dataTransfer.getData('application/x-crono-day');
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<DayDragPayload>;
+    if (typeof parsed.fromDay !== 'string') return null;
+    return { fromDay: parsed.fromDay };
+  } catch {
+    return null;
+  }
+}
+
 export function writeAssignmentDragData(
   dataTransfer: DataTransfer,
   payload: AssignmentDragPayload
