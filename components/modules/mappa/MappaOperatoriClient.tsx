@@ -146,7 +146,9 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   useEffect(() => {
     if (!leaflet || !layerRef.current || !mapInstanceRef.current) return;
-    layerRef.current.clearLayers();
+    const layer = layerRef.current;
+    const map = mapInstanceRef.current;
+    layer.clearLayers();
 
     const adjusted = applyProximityOffset(rowsWithCoords);
     const bounds: Array<[number, number]> = [];
@@ -174,12 +176,12 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
       `;
 
       marker.bindPopup(popup);
-      marker.addTo(layerRef.current);
+      marker.addTo(layer);
       bounds.push([row.lat, row.lng]);
     });
 
     if (bounds.length) {
-      mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
+      map.fitBounds(bounds, { padding: [24, 24] });
     }
   }, [leaflet, rowsWithCoords]);
 

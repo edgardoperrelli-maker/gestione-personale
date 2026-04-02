@@ -92,6 +92,7 @@ export default function CronoToolbar({
           onValueChange={(v) => onPlannerViewChange(v as PlannerView)}
           items={[
             { value: 'grid', label: 'Vista griglia' },
+            { value: 'split', label: 'Split' },
             { value: 'calendar', label: 'Calendario' },
             { value: 'table', label: 'Tabella' },
           ]}

@@ -2,28 +2,31 @@
 @import "tailwindcss";
 
 :root {
-  --sidebar-bg-from: #0B1A2E;
-  --sidebar-bg-to: #0E223B;
-  --sidebar-border: rgba(255,255,255,0.08);
-  --sidebar-text: #e2e8f0;
-  --sidebar-muted: #94a3b8;
+  /* ── Sidebar (rosso Plenzich scuro) ── */
+  --sidebar-bg-from: #1A0808;
+  --sidebar-bg-to:   #2C1010;
+  --sidebar-border:  rgba(255,255,255,0.07);
+  --sidebar-text:    #e8dada;
+  --sidebar-muted:   #b89898;
 
-  --brand-bg: #EEF2FA;
-  --brand-surface: #ffffff;
-  --brand-primary: #1E3A5F;
-  --brand-primary-hover: #162C4A;
-  --brand-nav-active-bg: #E8EEF8;
-  --brand-primary-soft: #E1E9F5;
-  --brand-border: #DDE4F0;
-  --brand-text-main: #1A2438;
-  --brand-text-muted: #6B7280;
+  /* ── Brand (rosso Plenzich) ── */
+  --brand-bg:           #F6F2F2;
+  --brand-surface:      #ffffff;
+  --brand-primary:      #921B1B;
+  --brand-primary-hover:#741515;
+  --brand-nav-active-bg:#F3E8E8;
+  --brand-primary-soft: #F8ECEC;
+  --brand-border:       #E5D8D8;
+  --brand-text-main:    #1A0A0A;
+  --brand-text-muted:   #7A6060;
 
-  --app-bg: #EEF2FA;
-  --card-bg: #ffffff;
-  --card-bd: #DDE4F0;
-  --we-bg: #F3F6FC;
-  --hol-bg: #FFF0F2;
-  --today-ring: #3B82F6;
+  /* ── Calendario ── */
+  --app-bg:     #F6F2F2;
+  --card-bg:    #ffffff;
+  --card-bd:    #E5D8D8;
+  --we-bg:      #F8F4F4;
+  --hol-bg:     #FFF0F0;
+  --today-ring: #921B1B;
 }
 
 body {

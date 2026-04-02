@@ -6,7 +6,7 @@ const inter = Inter({ variable: '--font-inter', subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Gestione Personale',
-  description: 'Pianificazione operatori, rapportini, attrezzature.',
+  description: 'Pianificazione operatori e rapportini.',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {

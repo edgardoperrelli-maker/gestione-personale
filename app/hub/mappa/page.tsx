@@ -13,8 +13,14 @@ function addDays(d: Date, n: number) {
   return x;
 }
 
+function firstRelation<T>(value: T | T[] | null): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
 export default async function MappaPage() {
-  const supabase = createServerComponentClient({ cookies });
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient({ cookies: async () => cookieStore });
 
   const today = new Date();
   const dateFrom = fmtDay(addDays(today, -3));
@@ -46,6 +52,18 @@ export default async function MappaPage() {
     activity: { id: string; name: string } | null;
   };
 
+  type RawAssignmentRow = {
+    day_id: string;
+    reperibile: boolean;
+    cost_center: string | null;
+    staff: { id: string; display_name: string } | Array<{ id: string; display_name: string }> | null;
+    territory:
+      | { id: string; name: string; lat: number | null; lng: number | null }
+      | Array<{ id: string; name: string; lat: number | null; lng: number | null }>
+      | null;
+    activity: { id: string; name: string } | Array<{ id: string; name: string }> | null;
+  };
+
   let assignments: AssignmentRow[] = [];
   if (dayIds.length) {
     const { data } = await supabase
@@ -58,7 +76,12 @@ export default async function MappaPage() {
       `)
       .in('day_id', dayIds);
 
-    assignments = (data ?? []) as AssignmentRow[];
+    assignments = ((data ?? []) as RawAssignmentRow[]).map((row) => ({
+      ...row,
+      staff: firstRelation(row.staff),
+      territory: firstRelation(row.territory),
+      activity: firstRelation(row.activity),
+    }));
   }
 
   const rows: MappaStaffRow[] = assignments.map((a) => ({

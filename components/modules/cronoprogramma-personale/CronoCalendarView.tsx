@@ -8,7 +8,7 @@ import type { DayRow, SortMode } from './types';
 import { eqDate, fmtDay, indexDays, sortAssignments, filterAssignments } from './utils';
 
 const dayBgClass = (d: Date) => {
-  if (isItalyHoliday(d)) return 'bg-[var(--hol-bg)]';
+  if (isItalyHoliday(d)) return 'bg-rose-50';
   if (isWeekend(d)) return 'bg-[var(--we-bg)]';
   return 'bg-[var(--card-bg)]';
 };
@@ -109,12 +109,21 @@ function DayCell(props: {
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2 text-sm font-semibold">
           <span
-            className={`inline-flex h-7 w-7 items-center justify-center rounded-full ${
-              isToday ? 'bg-[var(--brand-primary)] text-white' : ''
+            className={`inline-flex h-7 w-7 items-center justify-center rounded-full font-bold ${
+              isToday
+                ? 'bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)] ring-offset-1'
+                : isItalyHoliday(d)
+                ? 'text-rose-700'
+                : ''
             }`}
           >
             {d.getDate()}
           </span>
+          {isItalyHoliday(d) && (
+            <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-wide">
+              Festivo
+            </span>
+          )}
           {showMonthLabel && <span>{d.toLocaleDateString('it-IT', { month: 'short' })}</span>}
           {sortMode !== 'AZ' && (
             <button

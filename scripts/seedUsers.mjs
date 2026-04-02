@@ -13,11 +13,11 @@ const sb = createClient(url, key, { auth: { autoRefreshToken: false, persistSess
 
 const USERS = [
   { username: 'Edgardo.Perrelli',     password: 'Plenzich@2026!', role: 'admin'  },
-  { username: 'Mara.Boccia',          password: 'Plenzich@25',    role: 'editor' },
-  { username: 'Francesco.Desantis',   password: 'Plenzich@25',    role: 'editor' },
-  { username: 'Lorenzo.Alessandrini', password: 'Plenzich@25',    role: 'editor' },
-  { username: 'Christian.Arragoni',   password: 'Plenzich@25',    role: 'editor' },
-  { username: 'tecnico.pdr',          password: 'Plenzich@25',    role: 'viewer' },
+  { username: 'Mara.Boccia',          password: 'Plenzich@25',    role: 'operatore' },
+  { username: 'Francesco.Desantis',   password: 'Plenzich@25',    role: 'operatore' },
+  { username: 'Lorenzo.Alessandrini', password: 'Plenzich@25',    role: 'operatore' },
+  { username: 'Christian.Arragoni',   password: 'Plenzich@25',    role: 'operatore' },
+  { username: 'tecnico.pdr',          password: 'Plenzich@25',    role: 'operatore' },
 ];
 
 async function findUserIdByEmail(email) {
@@ -34,7 +34,8 @@ async function findUserIdByEmail(email) {
 }
 
 async function upsertProfile(userId, username, role) {
-  const { error } = await sb.from('profiles').upsert({ id: userId, username, role });
+  const profileRole = role === 'admin' ? 'admin' : 'viewer';
+  const { error } = await sb.from('profiles').upsert({ id: userId, username, role: profileRole });
   if (error) throw new Error(`profiles upsert ${username}: ${error.message}`);
 }
 
@@ -46,9 +47,9 @@ async function logAudit(actor, action, entity, entityId, payload) {
 }
 
 async function createOrAttachUser(u) {
-  const email = `u_${u.username}@local`;
+  const email = `u_${u.username}@local.it`;
   const { data, error } = await sb.auth.admin.createUser({
-    email, password: u.password, email_confirm: true
+    email, password: u.password, email_confirm: true, app_metadata: { role: u.role }
   });
 
   let userId = null;

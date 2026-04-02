@@ -1,10 +1,16 @@
 import Link from 'next/link';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { APP_MODULES, getAllowedModulesForUser, type AppModuleKey } from '@/lib/moduleAccess';
 
-const modules = [
-  {
-    href: '/dashboard',
-    title: 'Cronoprogramma',
-    description: 'Pianifica turni, assegnazioni e reperibilita.',
+type ModuleCardConfig = {
+  icon: React.ReactNode;
+  badge?: string;
+  badgeStyle?: string;
+};
+
+const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
+  dashboard: {
     badge: 'Core',
     badgeStyle: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]',
     icon: (
@@ -14,10 +20,7 @@ const modules = [
       </svg>
     ),
   },
-  {
-    href: '/hub/hotel-calendar',
-    title: 'Calendario Hotel',
-    description: 'Prenotazioni, occupazione e flussi.',
+  'hotel-calendar': {
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <rect x="3" y="4" width="18" height="16" rx="2" />
@@ -26,10 +29,7 @@ const modules = [
       </svg>
     ),
   },
-  {
-    href: '/hub/smartracker',
-    title: 'SmarTracker',
-    description: 'Monitoraggio operativo e tracciamento.',
+  smartracker: {
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M4 12a8 8 0 1 0 16 0" />
@@ -37,10 +37,7 @@ const modules = [
       </svg>
     ),
   },
-  {
-    href: '/hub/rapportini',
-    title: 'Rapportini',
-    description: 'Massivi e per clientela con export.',
+  rapportini: {
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M6 2h9l5 5v15H6z" />
@@ -49,22 +46,7 @@ const modules = [
       </svg>
     ),
   },
-  {
-    href: '/hub/attrezzature',
-    title: 'Attrezzature',
-    description: 'Scadenziario con alert e controlli.',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M4 7h16" />
-        <path d="M6 7v10a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7" />
-        <path d="M9 7V4h6v3" />
-      </svg>
-    ),
-  },
-  {
-    href: '/hub/mappa',
-    title: 'Mappa Operatori',
-    description: 'Distribuzione territoriale in tempo reale.',
+  mappa: {
     badge: 'Nuovo',
     badgeStyle: 'bg-green-100 text-green-700',
     icon: (
@@ -74,47 +56,73 @@ const modules = [
       </svg>
     ),
   },
-];
+  impostazioni: {
+    badge: 'Admin',
+    badgeStyle: 'bg-amber-100 text-amber-700',
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />
+        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.04A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.06 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.88V9c0 .67.4 1.28 1.03 1.56H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.35 15Z" />
+      </svg>
+    ),
+  },
+};
 
-export default function HubPage() {
+export const dynamic = 'force-dynamic';
+
+export default async function HubPage() {
+  const cookieStore = await cookies();
+  const supabase = createServerComponentClient({ cookies: async () => cookieStore });
+  const { data: { user } } = await supabase.auth.getUser();
+
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    : { data: null };
+
+  const allowedModules = user ? getAllowedModulesForUser(user.app_metadata, profile?.role) : [];
+  const modules = APP_MODULES.filter((module) => allowedModules.includes(module.key));
+
   return (
     <main className="mx-auto max-w-5xl space-y-6">
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Hub Moduli</h1>
         <p className="text-sm text-[var(--brand-text-muted)]">
-          Accedi rapidamente ai moduli operativi di Gestione Personale.
+          Accedi rapidamente ai moduli operativi disponibili per questa utenza.
         </p>
       </header>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module) => (
-          <Link
-            key={module.href}
-            href={module.href}
-            className="group rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow"
-          >
-            <div className="flex items-start justify-between">
-              <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]">
-                {module.icon}
+        {modules.map((module) => {
+          const card = moduleCards[module.key];
+          return (
+            <Link
+              key={module.key}
+              href={module.href}
+              className="group rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow"
+            >
+              <div className="flex items-start justify-between">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]">
+                  {card.icon}
+                </div>
+                {card.badge && (
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${card.badgeStyle}`}>
+                    {card.badge}
+                  </span>
+                )}
               </div>
-              {module.badge && (
-                <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${module.badgeStyle}`}>
-                  {module.badge}
-                </span>
-              )}
-            </div>
 
-            <div className="mt-4">
-              <h2 className="text-lg font-semibold">{module.title}</h2>
-              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">{module.description}</p>
-            </div>
+              <div className="mt-4">
+                <h2 className="text-lg font-semibold">{module.label}</h2>
+                <p className="mt-1 text-sm text-[var(--brand-text-muted)]">{module.description}</p>
+              </div>
 
-            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
-              <span>Apri</span>
-              <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
-            </div>
-          </Link>
-        ))}
+              <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
+                <span>Apri</span>
+                <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
+              </div>
+            </Link>
+          );
+        })}
       </div>
     </main>
   );

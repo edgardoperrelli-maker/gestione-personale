@@ -1,4 +1,4 @@
-export type Role = 'viewer' | 'editor' | 'admin';
+export type Role = 'operatore' | 'admin';
 
 export type DayRow = { id: string; day: string; note?: string };
 
@@ -12,6 +12,6 @@ export type SortMode =
   | 'SENZA_ATTIVITA'
   | 'PER_TERRITORIO';
 
-export type PlannerView = 'grid' | 'calendar' | 'table';
+export type PlannerView = 'grid' | 'calendar' | 'table' | 'split';
 
 export type FilterToken = string;

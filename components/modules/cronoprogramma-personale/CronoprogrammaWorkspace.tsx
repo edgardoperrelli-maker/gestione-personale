@@ -11,6 +11,7 @@ import CronoToolbar from './CronoToolbar';
 import CronoFiltersPanel from './CronoFiltersPanel';
 import CronoStats from './CronoStats';
 import CronoGridView from './CronoGridView';
+import CronoSplitView from './CronoSplitView';
 import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
@@ -34,7 +35,7 @@ export default function CronoprogrammaWorkspace() {
   const [today] = useState<Date>(() => toLocalDate(new Date(), tz));
   const [anchor, setAnchor] = useState<Date>(() => startOfMonth(today));
   const [mode, setMode] = useState<ViewMode>('week');
-  const [plannerView, setPlannerView] = useState<PlannerView>('grid');
+  const [plannerView, setPlannerView] = useState<PlannerView>('calendar');
 
   const [days, setDays] = useState<DayRow[]>([]);
   const [assignments, setAssignments] = useState<Record<string, Assignment[]>>({});
@@ -92,6 +93,11 @@ export default function CronoprogrammaWorkspace() {
   const dayMap = useMemo(() => indexDays(days), [days]);
   const dayIdMap = useMemo(() => indexDayIds(days), [days]);
 
+  const firstRelation = <T,>(value: T | T[] | null): T | null => {
+    if (Array.isArray(value)) return value[0] ?? null;
+    return value ?? null;
+  };
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -143,7 +149,18 @@ export default function CronoprogrammaWorkspace() {
 
         if (ares.error || !alive) return;
 
-        const rows = (ares.data ?? []) as Assignment[];
+        type RawAssignment = Omit<Assignment, 'staff' | 'territory' | 'activity'> & {
+          staff?: Assignment['staff'] | Array<NonNullable<Assignment['staff']>> | null;
+          territory?: Assignment['territory'] | Array<NonNullable<Assignment['territory']>> | null;
+          activity?: Assignment['activity'] | Array<NonNullable<Assignment['activity']>> | null;
+        };
+
+        const rows = ((ares.data ?? []) as RawAssignment[]).map((row) => ({
+          ...row,
+          staff: firstRelation(row.staff ?? null),
+          territory: firstRelation(row.territory ?? null),
+          activity: firstRelation(row.activity ?? null),
+        })) as Assignment[];
 
         rows.forEach((a) => {
           if (!map[a.day_id]) map[a.day_id] = [];
@@ -477,6 +494,7 @@ export default function CronoprogrammaWorkspace() {
       {plannerView === 'grid' && (
         <CronoGridView
           days={daysArray}
+          today={today}
           assignmentsByCell={assignmentsByCell}
           territories={visibleTerritories}
           includeNoTerritory={includeNoTerritory}
@@ -507,6 +525,21 @@ export default function CronoprogrammaWorkspace() {
 
       {plannerView === 'table' && (
         <CronoTableView rows={tableRows} onEdit={openEditDialog} onDelete={removeAssignment} />
+      )}
+
+      {plannerView === 'split' && (
+        <CronoSplitView
+          days={daysArray}
+          today={today}
+          territories={visibleTerritories}
+          includeNoTerritory={includeNoTerritory}
+          assignmentsByCell={assignmentsByCell}
+          sortMode={sortMode}
+          onAdd={openNewForDate}
+          onEdit={openEditDialog}
+          onDelete={removeAssignment}
+          onDropAssignment={handleDropAssignment}
+        />
       )}
 
       {dialogOpenForDay

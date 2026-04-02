@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { toStoredProfileRole } from '@/lib/moduleAccess';
 
 export async function POST(req: NextRequest) {
   const { username, password, role } = await req.json();
@@ -7,7 +8,13 @@ export async function POST(req: NextRequest) {
   if (!username || !password) {
     return NextResponse.json({ error: 'username e password richiesti' }, { status: 400 });
   }
-  const email = `u_${username}@local`;
+  const normalizedUsername = String(username)
+    .trim()
+    .toLowerCase()
+    .replace(/^u_/, '')
+    .replace(/@local\.it$/, '')
+    .replace(/@local$/, '');
+  const email = `u_${normalizedUsername}@local.it`;
 
   // crea utente auth confermato
   const { data: userRes, error: userErr } = await supabaseAdmin.auth.admin.createUser({
@@ -22,8 +29,8 @@ export async function POST(req: NextRequest) {
   // profilo + ruolo
   const { error: insErr } = await supabaseAdmin.from('profiles').insert({
     id: userRes.user.id,
-    username,
-    role: role ?? 'viewer'
+    username: normalizedUsername,
+    role: toStoredProfileRole(role === 'admin' ? 'admin' : 'operatore')
   });
   if (insErr) {
     return NextResponse.json({ error: insErr.message }, { status: 400 });
@@ -35,7 +42,7 @@ export async function POST(req: NextRequest) {
     p_action: 'admin_create_user',
     p_entity: 'profiles',
     p_entity_id: userRes.user.id,
-    p_payload: { username, role: role ?? 'viewer' }
+    p_payload: { username: normalizedUsername, role: role ?? 'operatore' }
   });
 
   return NextResponse.json({ ok: true, user_id: userRes.user.id, email });

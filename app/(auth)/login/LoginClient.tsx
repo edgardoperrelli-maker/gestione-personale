@@ -13,6 +13,15 @@ export default function LoginClient() {
   const router = useRouter();
   const sb = supabaseBrowser();
 
+  const normalizeUsername = (value: string) => {
+    const trimmed = value.trim().toLowerCase();
+    const withoutDomain =
+      trimmed.endsWith('@local.it') ? trimmed.slice(0, -'@local.it'.length) :
+      trimmed.endsWith('@local') ? trimmed.slice(0, -'@local'.length) :
+      trimmed;
+    return withoutDomain.startsWith('u_') ? withoutDomain.slice(2) : withoutDomain;
+  };
+
   useEffect(() => {
     (async () => {
       const { data: { session } } = await sb.auth.getSession();
@@ -25,7 +34,7 @@ export default function LoginClient() {
     if (loading) return;
     setErr(undefined);
     setLoading(true);
-    const email = `u_${username.trim()}@local`;
+    const email = `u_${normalizeUsername(username)}@local.it`;
     const { data, error } = await sb.auth.signInWithPassword({ email, password });
     setLoading(false);
     if (error) return setErr('Credenziali non valide');
@@ -46,7 +55,7 @@ export default function LoginClient() {
               placeholder="Username"
               autoComplete="username"
               value={username}
-              onChange={(e) => setU(e.target.value)}
+              onChange={(e) => setU(normalizeUsername(e.target.value))}
             />
           </div>
           <div>
@@ -66,7 +75,7 @@ export default function LoginClient() {
         </form>
       </div>
       <div className="mt-4 text-xs text-[var(--brand-text-muted)]">
-        Problemi di accesso? Contatta l'amministratore.
+        Problemi di accesso? Contatta l&apos;amministratore.
       </div>
     </div>
   );
