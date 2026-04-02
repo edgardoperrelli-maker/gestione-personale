@@ -20,7 +20,7 @@
     "jspdf-autotable": "^5.0.2",
     "jszip": "^3.10.1",
     "leaflet": "^1.9.4",
-    "next": "15.5.5",
+    "next": "^15.5.9",
     "nodemailer": "^7.0.10",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -35,7 +35,7 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.5.5",
+    "eslint-config-next": "^15.5.9",
     "tailwindcss": "^4",
     "typescript": "^5"
   }
