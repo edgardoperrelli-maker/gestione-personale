@@ -5,6 +5,42 @@ import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 
+const LOCAL_DOMAIN = '@local.it';
+const LEGACY_LOCAL_DOMAIN = '@local';
+
+function normalizeLocalUsername(value: string) {
+  const trimmed = value.trim().toLowerCase();
+  const withoutDomain =
+    trimmed.endsWith(LOCAL_DOMAIN) ? trimmed.slice(0, -LOCAL_DOMAIN.length) :
+    trimmed.endsWith(LEGACY_LOCAL_DOMAIN) ? trimmed.slice(0, -LEGACY_LOCAL_DOMAIN.length) :
+    trimmed;
+  return withoutDomain.startsWith('u_') ? withoutDomain.slice(2) : withoutDomain;
+}
+
+function buildLoginCandidates(value: string) {
+  const raw = value.trim().toLowerCase();
+  if (!raw) return [];
+
+  const candidates = new Set<string>();
+  const normalizedUsername = normalizeLocalUsername(raw);
+  const isLocalAlias = raw.endsWith(LOCAL_DOMAIN) || raw.endsWith(LEGACY_LOCAL_DOMAIN);
+
+  if (!raw.includes('@')) {
+    candidates.add(`u_${normalizedUsername}${LOCAL_DOMAIN}`);
+    candidates.add(`u_${normalizedUsername}${LEGACY_LOCAL_DOMAIN}`);
+    return Array.from(candidates);
+  }
+
+  candidates.add(raw);
+
+  if (isLocalAlias || raw.startsWith('u_')) {
+    candidates.add(`u_${normalizedUsername}${LOCAL_DOMAIN}`);
+    candidates.add(`u_${normalizedUsername}${LEGACY_LOCAL_DOMAIN}`);
+  }
+
+  return Array.from(candidates);
+}
+
 export default function LoginClient() {
   const [username, setU] = useState('');
   const [password, setP] = useState('');
@@ -12,15 +48,6 @@ export default function LoginClient() {
   const [loading, setLoading] = useState(false);
   const router = useRouter();
   const sb = supabaseBrowser();
-
-  const normalizeUsername = (value: string) => {
-    const trimmed = value.trim().toLowerCase();
-    const withoutDomain =
-      trimmed.endsWith('@local.it') ? trimmed.slice(0, -'@local.it'.length) :
-      trimmed.endsWith('@local') ? trimmed.slice(0, -'@local'.length) :
-      trimmed;
-    return withoutDomain.startsWith('u_') ? withoutDomain.slice(2) : withoutDomain;
-  };
 
   useEffect(() => {
     (async () => {
@@ -34,11 +61,20 @@ export default function LoginClient() {
     if (loading) return;
     setErr(undefined);
     setLoading(true);
-    const email = `u_${normalizeUsername(username)}@local.it`;
-    const { data, error } = await sb.auth.signInWithPassword({ email, password });
+
+    const candidates = buildLoginCandidates(username);
+
+    for (const email of candidates) {
+      const { data, error } = await sb.auth.signInWithPassword({ email, password });
+      if (!error && data.session) {
+        setLoading(false);
+        router.push('/hub');
+        return;
+      }
+    }
+
     setLoading(false);
-    if (error) return setErr('Credenziali non valide');
-    if (data.session) router.push('/hub');
+    setErr('Credenziali non valide');
   };
 
   return (
@@ -52,10 +88,10 @@ export default function LoginClient() {
           <div>
             <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Username</label>
             <Input
-              placeholder="Username"
+              placeholder="Username o email"
               autoComplete="username"
               value={username}
-              onChange={(e) => setU(normalizeUsername(e.target.value))}
+              onChange={(e) => setU(e.target.value)}
             />
           </div>
           <div>
