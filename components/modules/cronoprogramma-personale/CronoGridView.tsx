@@ -5,7 +5,13 @@ import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import { eqDate } from './utils';
 import type { Assignment, Territory } from '@/types';
 import type { SortMode } from './types';
-import { fmtDay, sortAssignments } from './utils';
+import {
+  fmtDay,
+  isCopyDropGesture,
+  readAssignmentDragData,
+  sortAssignments,
+  writeAssignmentDragData,
+} from './utils';
 
 export default function CronoGridView({
   days,
@@ -15,6 +21,7 @@ export default function CronoGridView({
   includeNoTerritory,
   sortMode,
   onAdd,
+  onCopyDayToNext,
   onEdit,
   onDelete,
   onDropAssignment,
@@ -26,6 +33,7 @@ export default function CronoGridView({
   includeNoTerritory: boolean;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
+  onCopyDayToNext: (d: Date) => void;
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDropAssignment: (args: {
@@ -117,6 +125,14 @@ export default function CronoGridView({
                   Festivo
                 </div>
               )}
+              <button
+                type="button"
+                onClick={() => onCopyDayToNext(d)}
+                className="mt-1 w-fit rounded-md border border-[var(--brand-border)] bg-white px-2 py-1 text-[10px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-nav-active-bg)]"
+                title="Copia l'intero giorno al successivo"
+              >
+                Copia +1
+              </button>
             </div>
 
             {/* Celle territorio */}
@@ -127,14 +143,9 @@ export default function CronoGridView({
 
               const onDrop = (e: DragEvent<HTMLDivElement>) => {
                 e.preventDefault();
-                const raw = e.dataTransfer.getData('application/json');
-                if (!raw) return;
-                const data = JSON.parse(raw) as {
-                  id: string;
-                  fromDay: string;
-                  fromTerritoryId: string | null;
-                };
-                const copy = e.altKey || e.ctrlKey || e.metaKey;
+                const data = readAssignmentDragData(e.dataTransfer);
+                if (!data) return;
+                const copy = isCopyDropGesture(e);
                 onDropAssignment({
                   assignmentId: data.id,
                   fromDay: data.fromDay,
@@ -157,7 +168,10 @@ export default function CronoGridView({
                       : undefined,
                   }}
                   onClick={() => !sorted.length && onAdd(d)}
-                  onDragOver={(e) => e.preventDefault()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = isCopyDropGesture(e) ? 'copy' : 'move';
+                  }}
                   onDrop={onDrop}
                 >
                   {sorted.length ? (
@@ -166,16 +180,13 @@ export default function CronoGridView({
                         <div
                           key={a.id}
                           draggable
+                          className="cursor-grab active:cursor-grabbing"
                           onDragStart={(e) => {
-                            e.dataTransfer.effectAllowed = 'copyMove';
-                            e.dataTransfer.setData(
-                              'application/json',
-                              JSON.stringify({
-                                id: a.id,
-                                fromDay: iso,
-                                fromTerritoryId: t.id === 'none' ? null : t.id,
-                              })
-                            );
+                            writeAssignmentDragData(e.dataTransfer, {
+                              id: a.id,
+                              fromDay: iso,
+                              fromTerritoryId: t.id === 'none' ? null : t.id,
+                            });
                           }}
                         >
                           <OperatorCard

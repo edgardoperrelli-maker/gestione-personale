@@ -52,9 +52,60 @@ export default function CronoprogrammaWorkspace() {
 
   const [openInsertRep, setOpenInsertRep] = useState(false);
   const [openExport, setOpenExport] = useState(false);
+  const [actionFeedback, setActionFeedback] = useState<{
+    type: 'success' | 'error';
+    text: string;
+  } | null>(null);
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
+
+  const confirmTwice = (firstMessage: string, secondMessage: string) => {
+    if (typeof window === 'undefined') return true;
+    if (!window.confirm(firstMessage)) return false;
+    return window.confirm(secondMessage);
+  };
+
+  const assignmentSignature = (assignment: Assignment) =>
+    [
+      assignment.staff?.id ?? '',
+      assignment.activity?.id ?? '',
+      assignment.territory?.id ?? '',
+      assignment.reperibile ? '1' : '0',
+      assignment.notes ?? '',
+      assignment.cost_center ?? '',
+    ].join('|');
+
+  const assignmentConflictKey = (assignment: Assignment) =>
+    assignment.staff?.id ? `staff:${assignment.staff.id}` : assignmentSignature(assignment);
+
+  const fetchAssignmentsForDay = async (dayId: string) => {
+    const ares = await sb
+      .from('assignments')
+      .select(`
+        id, day_id, reperibile, notes, cost_center,
+        staff:staff_id ( id, display_name ),
+        territory:territory_id ( id, name ),
+        activity:activity_id ( id, name )
+      `)
+      .eq('day_id', dayId)
+      .order('created_at', { ascending: true });
+
+    if (ares.error) return null;
+
+    type RawAssignment = Omit<Assignment, 'staff' | 'territory' | 'activity'> & {
+      staff?: Assignment['staff'] | Array<NonNullable<Assignment['staff']>> | null;
+      territory?: Assignment['territory'] | Array<NonNullable<Assignment['territory']>> | null;
+      activity?: Assignment['activity'] | Array<NonNullable<Assignment['activity']>> | null;
+    };
+
+    return ((ares.data ?? []) as RawAssignment[]).map((row) => ({
+      ...row,
+      staff: firstRelation(row.staff ?? null),
+      territory: firstRelation(row.territory ?? null),
+      activity: firstRelation(row.activity ?? null),
+    })) as Assignment[];
+  };
 
   const toggleToken = (t: string) => {
     setFilters((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
@@ -185,6 +236,7 @@ export default function CronoprogrammaWorkspace() {
   }, [range.start, range.end, sb, rev]);
 
   const removeAssignment = async (a: Assignment) => {
+    setActionFeedback(null);
     const prev = assignments;
     setAssignments((prevMap) => {
       const next: Record<string, Assignment[]> = {};
@@ -295,6 +347,7 @@ export default function CronoprogrammaWorkspace() {
     toTerritoryId: string | null;
     copy: boolean;
   }) => {
+    setActionFeedback(null);
     const found = findAssignmentById(assignmentId);
     if (!found) return;
 
@@ -304,9 +357,68 @@ export default function CronoprogrammaWorkspace() {
 
     if (!copy && fromDay === targetIso && fromTerritoryId === toTerritoryId) return;
 
+    if (
+      !copy &&
+      !confirmTwice(
+        `Confermi lo spostamento della card dal ${fromDay} al ${targetIso}?`,
+        `Ultima conferma: la card verra rimossa dal ${fromDay} e spostata definitivamente al ${targetIso}.`
+      )
+    ) {
+      return;
+    }
+
     const terrName = toTerritoryId
       ? territories.find((t) => t.id === toTerritoryId)?.name ?? ''
       : null;
+
+    const targetAssignments = await fetchAssignmentsForDay(targetDayId);
+    if (!targetAssignments) {
+      setActionFeedback({
+        type: 'error',
+        text: `Impossibile verificare il contenuto del giorno ${targetIso}.`,
+      });
+      return;
+    }
+
+    const targetPreview: Assignment = {
+      ...found.assignment,
+      day_id: targetDayId,
+      territory: toTerritoryId ? { id: toTerritoryId, name: terrName ?? '' } : null,
+    };
+
+    const conflictingAssignments = targetAssignments.filter((assignment) => {
+      if (assignment.id === found.assignment.id) return false;
+      return assignmentConflictKey(assignment) === assignmentConflictKey(targetPreview);
+    });
+
+    const conflictIds = conflictingAssignments.map((assignment) => assignment.id);
+    if (conflictIds.length) {
+      const label = found.assignment.staff?.display_name ?? 'questa card';
+      const shouldOverwrite =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(
+              `${label} e gia presente nel giorno ${targetIso}. Vuoi sovrascrivere i dati esistenti?`
+            );
+
+      if (!shouldOverwrite) {
+        setActionFeedback({
+          type: 'error',
+          text: `Operazione annullata: nessun dato sovrascritto nel giorno ${targetIso}.`,
+        });
+        return;
+      }
+
+      const del = await sb.from('assignments').delete().in('id', conflictIds);
+      if (del.error) {
+        setActionFeedback({
+          type: 'error',
+          text: `Impossibile sovrascrivere i dati nel giorno ${targetIso}.`,
+        });
+        softRefresh();
+        return;
+      }
+    }
 
     if (copy) {
       const ins = await sb
@@ -337,7 +449,10 @@ export default function CronoprogrammaWorkspace() {
 
       setAssignments((prev) => {
         const next = { ...prev };
-        next[targetDayId] = [...(next[targetDayId] ?? []), newAssignment];
+        next[targetDayId] = [
+          ...(next[targetDayId] ?? []).filter((assignment) => !conflictIds.includes(assignment.id)),
+          newAssignment,
+        ];
         return next;
       });
 
@@ -364,14 +479,126 @@ export default function CronoprogrammaWorkspace() {
       const next: Record<string, Assignment[]> = {};
       for (const [dayId, list] of Object.entries(prev)) {
         if (dayId === found.dayId) {
-          next[dayId] = list.filter((a) => a.id !== found.assignment.id);
+          next[dayId] = list.filter(
+            (a) => a.id !== found.assignment.id && !(dayId === targetDayId && conflictIds.includes(a.id))
+          );
         } else {
-          next[dayId] = list;
+          next[dayId] = dayId === targetDayId ? list.filter((a) => !conflictIds.includes(a.id)) : list;
         }
       }
       next[targetDayId] = [...(next[targetDayId] ?? []), updatedAssignment];
       return next;
     });
+  };
+
+  const copyDayToNextDay = async (sourceDay: Date) => {
+    setActionFeedback(null);
+
+    const sourceIso = fmtDay(sourceDay);
+    const sourceDayRow = dayMap[sourceIso];
+    const sourceAssignments = sourceDayRow ? assignments[sourceDayRow.id] ?? [] : [];
+
+    if (!sourceAssignments.length) {
+      setActionFeedback({
+        type: 'error',
+        text: `Nessuna card da copiare nel giorno ${sourceIso}.`,
+      });
+      return;
+    }
+
+    const targetDate = addDays(sourceDay, 1);
+    const targetIso = fmtDay(targetDate);
+
+    if (
+      !confirmTwice(
+        `Vuoi copiare tutte le card del ${sourceIso} al giorno successivo ${targetIso}?`,
+        `Ultima conferma: verranno create nuove card per il ${targetIso}.`
+      )
+    ) {
+      return;
+    }
+
+    const targetDayId = await ensureDayId(targetIso);
+    if (!targetDayId) {
+      setActionFeedback({
+        type: 'error',
+        text: `Impossibile preparare il giorno ${targetIso}.`,
+      });
+      return;
+    }
+
+    const existingTargetAssignments = await fetchAssignmentsForDay(targetDayId);
+    if (!existingTargetAssignments) {
+      setActionFeedback({
+        type: 'error',
+        text: `Impossibile verificare il contenuto del giorno ${targetIso}.`,
+      });
+      return;
+    }
+
+    if (existingTargetAssignments.length > 0) {
+      const shouldOverwrite =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(
+              `Il giorno ${targetIso} contiene gia ${existingTargetAssignments.length} card. Vuoi sovrascrivere i dati esistenti?`
+            );
+
+      if (!shouldOverwrite) {
+        setActionFeedback({
+          type: 'error',
+          text: `Operazione annullata: il giorno ${targetIso} non e stato modificato.`,
+        });
+        return;
+      }
+
+      const del = await sb
+        .from('assignments')
+        .delete()
+        .in(
+          'id',
+          existingTargetAssignments.map((assignment) => assignment.id)
+        );
+
+      if (del.error) {
+        setActionFeedback({
+          type: 'error',
+          text: `Impossibile sovrascrivere il giorno ${targetIso}.`,
+        });
+        softRefresh();
+        return;
+      }
+    }
+
+    const insertPayload = sourceAssignments.map((assignment) => ({
+      day_id: targetDayId,
+      staff_id: assignment.staff?.id ?? null,
+      activity_id: assignment.activity?.id ?? null,
+      territory_id: assignment.territory?.id ?? null,
+      reperibile: assignment.reperibile,
+      notes: assignment.notes ?? null,
+      cost_center: assignment.cost_center ?? null,
+    }));
+
+    const ins = await sb.from('assignments').insert(insertPayload);
+
+    if (ins.error) {
+      setActionFeedback({
+        type: 'error',
+        text: `Copia non riuscita verso ${targetIso}.`,
+      });
+      softRefresh();
+      return;
+    }
+
+    setActionFeedback({
+      type: 'success',
+      text:
+        existingTargetAssignments.length > 0
+          ? `Copiate ${sourceAssignments.length} card al ${targetIso} dopo sovrascrittura.`
+          : `Copiate ${sourceAssignments.length} card al ${targetIso}.`,
+    });
+    softRefresh();
   };
 
   const title = useMemo(() => {
@@ -462,34 +689,49 @@ export default function CronoprogrammaWorkspace() {
 
   return (
     <div className="space-y-4">
-      <CronoToolbar
-        title={title}
-        mode={mode}
-        plannerView={plannerView}
-        sortMode={sortMode}
-        filtersCount={filters.length}
-        onPrev={goPrev}
-        onNext={goNext}
-        onToday={goToday}
-        onModeChange={gotoMode}
-        onPlannerViewChange={setPlannerView}
-        onSortModeChange={setSortMode}
-        onToggleFilters={() => setFiltersOpen((v) => !v)}
-        onInsertRep={() => setOpenInsertRep(true)}
-        onExport={() => setOpenExport(true)}
-      />
+      <div className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-surface)]/95 px-1 pb-4 pt-1 backdrop-blur supports-[backdrop-filter]:bg-[var(--brand-surface)]/88">
+        <CronoToolbar
+          title={title}
+          mode={mode}
+          plannerView={plannerView}
+          sortMode={sortMode}
+          filtersCount={filters.length}
+          onPrev={goPrev}
+          onNext={goNext}
+          onToday={goToday}
+          onModeChange={gotoMode}
+          onPlannerViewChange={setPlannerView}
+          onSortModeChange={setSortMode}
+          onToggleFilters={() => setFiltersOpen((v) => !v)}
+          onInsertRep={() => setOpenInsertRep(true)}
+          onExport={() => setOpenExport(true)}
+        />
 
-      <CronoFiltersPanel
-        open={filtersOpen}
-        filters={filters}
-        staff={staff}
-        activities={activities}
-        territories={territories}
-        onToggle={toggleToken}
-        onClear={() => setFilters([])}
-      />
+        <CronoFiltersPanel
+          open={filtersOpen}
+          filters={filters}
+          staff={staff}
+          activities={activities}
+          territories={territories}
+          onToggle={toggleToken}
+          onClear={() => setFilters([])}
+        />
 
-      <CronoStats total={stats.total} staff={stats.staff} reperibili={stats.reperibili} />
+        {actionFeedback && (
+          <div
+            className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
+            style={
+              actionFeedback.type === 'success'
+                ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }
+                : { borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }
+            }
+          >
+            {actionFeedback.text}
+          </div>
+        )}
+
+        <CronoStats total={stats.total} staff={stats.staff} reperibili={stats.reperibili} />
+      </div>
 
       {plannerView === 'grid' && (
         <CronoGridView
@@ -500,6 +742,7 @@ export default function CronoprogrammaWorkspace() {
           includeNoTerritory={includeNoTerritory}
           sortMode={sortMode}
           onAdd={openNewForDate}
+          onCopyDayToNext={copyDayToNextDay}
           onEdit={openEditDialog}
           onDelete={removeAssignment}
           onDropAssignment={handleDropAssignment}
@@ -514,12 +757,14 @@ export default function CronoprogrammaWorkspace() {
           days={days}
           assignments={assignments}
           onAdd={openNewForDate}
+          onCopyDayToNext={copyDayToNextDay}
           showMonthLabels={mode === 'month'}
           sortMode={sortMode}
           filters={filters}
           setSortMode={setSortMode}
           onDelete={removeAssignment}
           onEdit={openEditDialog}
+          onDropAssignment={handleDropAssignment}
         />
       )}
 
@@ -536,6 +781,7 @@ export default function CronoprogrammaWorkspace() {
           assignmentsByCell={assignmentsByCell}
           sortMode={sortMode}
           onAdd={openNewForDate}
+          onCopyDayToNext={copyDayToNextDay}
           onEdit={openEditDialog}
           onDelete={removeAssignment}
           onDropAssignment={handleDropAssignment}

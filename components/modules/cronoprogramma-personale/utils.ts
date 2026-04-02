@@ -1,6 +1,12 @@
 import type { Assignment } from '@/types';
 import type { SortMode } from './types';
 
+export type AssignmentDragPayload = {
+  id: string;
+  fromDay: string;
+  fromTerritoryId: string | null;
+};
+
 export function toLocalDate(d: Date, tzLocal: string) {
   const s = d.toLocaleString('sv-SE', { timeZone: tzLocal });
   return new Date(s.replace(' ', 'T'));
@@ -116,4 +122,43 @@ export function indexDayIds(rows: { id: string; day: string }[]) {
     m[r.id] = r.day;
   });
   return m;
+}
+
+export function writeAssignmentDragData(
+  dataTransfer: DataTransfer,
+  payload: AssignmentDragPayload
+) {
+  const raw = JSON.stringify(payload);
+  dataTransfer.effectAllowed = 'copyMove';
+  dataTransfer.setData('application/json', raw);
+  dataTransfer.setData('text/plain', raw);
+}
+
+export function readAssignmentDragData(dataTransfer: DataTransfer): AssignmentDragPayload | null {
+  const raw = dataTransfer.getData('application/json') || dataTransfer.getData('text/plain');
+  if (!raw) return null;
+
+  try {
+    const parsed = JSON.parse(raw) as Partial<AssignmentDragPayload>;
+    if (typeof parsed.id !== 'string' || typeof parsed.fromDay !== 'string') return null;
+    return {
+      id: parsed.id,
+      fromDay: parsed.fromDay,
+      fromTerritoryId:
+        typeof parsed.fromTerritoryId === 'string' || parsed.fromTerritoryId === null
+          ? parsed.fromTerritoryId
+          : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+export function isCopyDropGesture(e: {
+  altKey: boolean;
+  ctrlKey: boolean;
+  metaKey: boolean;
+  dataTransfer: DataTransfer;
+}) {
+  return e.altKey || e.ctrlKey || e.metaKey || e.dataTransfer.dropEffect === 'copy';
 }

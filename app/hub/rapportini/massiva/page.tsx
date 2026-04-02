@@ -1,12 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import JSZip from 'jszip';
 
 // lettere -> indici 0-based
 const COL = {
@@ -25,16 +22,15 @@ const COL = {
 } as const;
 
 
-/** Mappatura attività di output da colonna M (se serve normalizzare) */
+/** Mappatura attivitÃ  di output da colonna M (se serve normalizzare) */
 const ATTIVITA_MAP: Record<string, string> = {
   'S-AI-051': 'Sostituzione misuratore',
   'S-AI-052': 'Verifica misuratore',
   // aggiungi altre mappature se richieste
 };
 
-type SaveTarget = 'download' | 'sharepoint' | 'supabase';
 export const dynamic = 'force-dynamic';
-// Rileva la colonna data cercando l’header "DATA" o la colonna con più valori validi
+// Rileva la colonna data cercando lâ€™header "DATA" o la colonna con piÃ¹ valori validi
 function countMatches(rows: any[][], col: number, want: string, scan = 300): number {
   if (col == null) return 0;
   let n = 0;
@@ -74,7 +70,7 @@ function detectDateColHeader(rows: any[][]): number | null {
 }
 
 /** Scelta robusta della colonna data.
- *  Priorità: CO (COL.A_DATE) -> header noto -> colonna con più match alla data voluta.
+ *  PrioritÃ : CO (COL.A_DATE) -> header noto -> colonna con piÃ¹ match alla data voluta.
  */
 function pickDateCol(rows: any[][], want: string): number {
   const cols = Math.min(rows[0]?.length ?? 0, 200);
@@ -155,7 +151,7 @@ function normalizeDateCell(v: any): string {
     return `${dd}/${mm}/${yyyy}`;
   }
 
-  // già DD/MM/YYYY o altro non riconosciuto
+  // giÃ  DD/MM/YYYY o altro non riconosciuto
   return s;
 }
 // Excel seriale -> yyyy,mm,dd in UTC
@@ -205,6 +201,10 @@ function eqDateCell(cell: any, wantObj: {y:number,m:number,d:number}): boolean {
   return p.y === wantObj.y && p.m === wantObj.m && p.d === wantObj.d;
 }
 
+function normalizeOperatorName(v: unknown): string {
+  return String(v ?? '').replace(/\s+/g, ' ').trim();
+}
+
 
 export default function RapportinoMassivaPage() {
   const [file, setFile] = useState<File | null>(null);
@@ -219,8 +219,6 @@ export default function RapportinoMassivaPage() {
   });
   const [operators, setOperators] = useState<string[]>([]);
   const [selectedOps, setSelectedOps] = useState<string[]>([]);
-  const [saveTarget, setSaveTarget] = useState<SaveTarget>('download');
-  const [pathInput, setPathInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
@@ -236,7 +234,7 @@ export default function RapportinoMassivaPage() {
     const buf = await f.arrayBuffer();
     const wb = XLSX.read(buf, { type: 'array' });
 
-    // MASSIVA: priorità a "SHEET1", poi eventuali fogli conosciuti, poi il primo
+    // MASSIVA: prioritÃ  a "SHEET1", poi eventuali fogli conosciuti, poi il primo
     const attSheetName =
       wb.SheetNames.find(s => s.toUpperCase().includes('SHEET1')) ??
       wb.SheetNames.find(s => s.toUpperCase().includes('DETTAGLIO RISORSE INTERNE')) ??
@@ -257,7 +255,7 @@ export default function RapportinoMassivaPage() {
 
     const ops = new Set<string>();
     for (let i = start; i < rows.length; i++) {
-      const val = String(rows[i]?.[COL.B_OPERATORE] ?? '').trim();
+      const val = normalizeOperatorName(rows[i]?.[COL.B_OPERATORE]);
       if (val) ops.add(val);
     }
     const opList = Array.from(ops).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
@@ -271,7 +269,7 @@ if (opList.length === 0) {
   }
 
   function addOperatorManually(op: string) {
-    const v = op.trim();
+    const v = normalizeOperatorName(op);
     if (!v) return;
     setOperators(prev => (prev.includes(v) ? prev : [...prev, v]));
   }
@@ -287,7 +285,7 @@ if (opList.length === 0) {
       prev.length === operators.length ? [] : operators
     );
   }
-// ritorna la colonna con più match esatti alla data voluta (DD/MM/YYYY), cercando tra tutte
+// ritorna la colonna con piÃ¹ match esatti alla data voluta (DD/MM/YYYY), cercando tra tutte
 function findBestDateColAcrossAll(rows: any[][], want: string): number | null {
   if (!rows.length) return null;
   const cols = Math.min(rows[0]?.length ?? 0, 200);
@@ -322,7 +320,7 @@ const filteredRows = useMemo(() => {
   const wantObj = parseWanted(wantStr);
   const startRow = guessDataStartRow(rawRows);
 
-  // 1) priorità: colonna preferita/best
+  // 1) prioritÃ : colonna preferita/best
   let dateCol = pickDateCol(rawRows, wantStr);
   let out: any[][] = [];
   for (let i = startRow; i < rawRows.length; i++) {
@@ -338,7 +336,7 @@ const filteredRows = useMemo(() => {
   }
   if (out.length > 0) return out;
 
-  // 2) fallback: colonna con più match reali
+  // 2) fallback: colonna con piÃ¹ match reali
   const best = findBestDateColAcrossAll(rawRows, wantStr);
   if (best != null && best !== dateCol) {
     dateCol = best;
@@ -390,6 +388,9 @@ const filteredRows = useMemo(() => {
       if (!file) throw new Error('Seleziona il file MASSIVA.');
       if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) throw new Error('Data non valida (DD/MM/YYYY).');
       if (!filteredRows.length) throw new Error('Nessuna riga dopo i filtri per la data.');
+      if (!useCombined && selectedOps.length === 0) {
+        throw new Error('Seleziona almeno un operatore o attiva il foglio unico.');
+      }
 
       const tplRes = await fetch('/templates/RAPPORTINO_ATT_CLIENTELA.xlsx');
       if (!tplRes.ok) throw new Error('Template non trovato.');
@@ -412,12 +413,12 @@ const filteredRows = useMemo(() => {
         const opName = sanitizeSheetName(op).slice(0, 31);
 const rowsForOp = useCombined
   ? filteredRows
-  : filteredRows.filter(r => safeStr(r[COL.B_OPERATORE]) === op);
+  : filteredRows.filter(r => normalizeOperatorName(r[COL.B_OPERATORE]) === op);
 
 // NOTE: raccogli da CT
 const notes: Array<{nom:string; via:string; note:string}> = [];
 
-// Ordina per Fascia oraria A→Z
+// Ordina per Fascia oraria Aâ†’Z
 const rowsSorted = rowsForOp.slice().sort((a, b) =>
   safeStr(a[COL.FASCIA_ORARIA]).localeCompare(safeStr(b[COL.FASCIA_ORARIA]), 'it', { sensitivity: 'base' })
 );
@@ -457,7 +458,7 @@ for (let r = FIRST_INS; r <= LAST_INS; r++) {
 // Header riga 6 (A..N)
 const hdr = [
   'Nominativo','Matricola','PDR','Via','Comune','CAP','Recapito',
-  'Attività','Accessibilità','Fascia oraria','Cambio','Mini bag','RG stop','Assente'
+  'AttivitÃ ','AccessibilitÃ ','Fascia oraria','Cambio','Mini bag','RG stop','Assente'
 ];
 ['A','B','C','D','E','F','G','H','I','J','K','L','M','N'].forEach((col, i) => {
   ws.getCell(`${col}6`).value = hdr[i];
@@ -486,7 +487,7 @@ for (const r of rowsSorted) {   // <-- usa rowsSorted
   ws.getCell(`F${rowIdx}`).value = cap;
   ws.getCell(`G${rowIdx}`).value = recapito;
   ws.getCell(`H${rowIdx}`).value = attivita;
-  ws.getCell(`I${rowIdx}`).value = access;   // Accessibilità (CA)
+  ws.getCell(`I${rowIdx}`).value = access;   // AccessibilitÃ  (CA)
   ws.getCell(`J${rowIdx}`).value = fascia;   // Fascia oraria (95)
 
   // accumulate NOTE da CT
@@ -505,7 +506,7 @@ for (let i = 0; i < maxNotes; i++) {
   ws.getCell(`B${rr}`).value = notes[i].via;
   ws.getCell(`C${rr}`).value = notes[i].note;
 }
-// bordi griglia per l’area note A31:C35
+// bordi griglia per lâ€™area note A31:C35
 for (let r = NOTE_START; r <= NOTE_END; r++) {
   for (const c of ['A','B','C'] as const) {
     const cell = ws.getCell(`${c}${r}`);
@@ -525,37 +526,23 @@ ws.pageSetup.fitToHeight = 0;
 
       }
 
-      // rimuovi foglio base se è ancora presente
+      // rimuovi foglio base se Ã¨ ancora presente
       if (tplWb.worksheets.length > 1) {
         const idx = tplWb.worksheets.findIndex(w => w.name === baseName);
         if (idx >= 0) tplWb.removeWorksheet(idx + 1);
       }
 
-      if (saveTarget === 'download') {
-        const buf = await tplWb.xlsx.writeBuffer();
+      const buf = await tplWb.xlsx.writeBuffer();
+      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = outName;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(a.href);
+      a.remove();
 
-        // XLSX
-        {
-          const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = outName;
-          document.body.appendChild(a);
-          a.click();
-          URL.revokeObjectURL(a.href);
-          a.remove();
-        }
-
-        // ZIP PDF
-        await makePdfs(perOp, dateStr);
-
-        setMsg(`File generato: ${outName} + PDF`);
-        return;
-      }
-
-      // altri target
-      const baseMsg = 'Salvataggio non implementato in questa build.';
-      setMsg(baseMsg);
+      setMsg(`File generato: ${outName}`);
     } catch (e: any) {
       console.error(e);
       setErr(e?.message ?? 'Errore generazione.');
@@ -564,106 +551,232 @@ ws.pageSetup.fitToHeight = 0;
     }
   }
 
+  const selectedCount = useCombined ? operators.length : selectedOps.length;
+  const canGenerate = !!file && filteredRows.length > 0 && (useCombined || selectedOps.length > 0) && !busy;
+
   return (
     <AuthGate>
-      <main className="mx-auto max-w-3xl p-6">
-        <h1 className="text-2xl font-semibold mb-4">Genera Rapportino Massiva</h1>
-
-        <div className="rounded-2xl border p-4 mb-4">
-          <div className="mb-2 text-sm text-gray-700">
-            Carica il file MASSIVA (.xlsx, .xls, .xlsm). Seleziona la data. Filtra operatori. Genera file Excel e ZIP di PDF.
-          </div>
-          <div className="flex items-center gap-2">
-            <input type="file" accept=".xlsx,.xls,.xlsm" onChange={onPick} />
-            <span className="text-sm text-gray-600">{fileName}</span>
-            {file && (
-              <button
-                type="button"
-                className="rounded-2xl border px-3 py-1 text-sm"
-                onClick={() => { setFile(null); setFileName('Nessun file MASSIVA'); setRawRows([]); setErr(null); setMsg(null); }}
+      <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+        <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span
+                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
               >
-                Rimuovi
-              </button>
-            )}
-          </div>
-        </div>
+                Rapportini · Massiva
+              </span>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
+                  Genera rapportino massivo
+                </h1>
+                <p className="max-w-2xl text-sm leading-6" style={{ color: 'var(--brand-text-muted)' }}>
+                  Carica il file MASSIVA, filtra le righe per data e scegli se produrre un foglio unico oppure file separati per operatore in formato Excel.
+                </p>
+              </div>
+            </div>
 
-        <div className="grid sm:grid-cols-2 gap-4 mb-4">
-          <div className="rounded-2xl border p-4">
-            <label className="block text-sm font-medium mb-1">Data (DD/MM/YYYY)</label>
-            <input
-              value={dateStr}
-              onChange={(e) => setDateStr(e.target.value)}
-              placeholder="gg/mm/aaaa"
-              className="rounded border p-2 w-full"
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-primary-soft)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>File</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                  {file ? 'Caricato' : 'In attesa'}
+                </div>
+              </div>
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>Operatori</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>{selectedCount}</div>
+              </div>
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>Righe filtrate</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>{filteredRows.length}</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <section className="space-y-6">
+            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="flex flex-col gap-5">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>1. File sorgente</h2>
+                  <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                    Formati supportati: `.xlsx`, `.xls`, `.xlsm`.
+                  </p>
+                </div>
+
+                <div
+                  className="rounded-[24px] border border-dashed p-5"
+                  style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)' }}
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
+                        {file ? fileName : 'Nessun file MASSIVA selezionato'}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                        Il sistema legge il foglio principale e propone automaticamente gli operatori trovati.
+                      </div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        id="massiva-file-input"
+                        type="file"
+                        accept=".xlsx,.xls,.xlsm"
+                        onChange={onPick}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="massiva-file-input"
+                        className="inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: 'var(--brand-primary)' }}
+                      >
+                        {file ? 'Sostituisci file' : 'Carica file'}
+                      </label>
+                      {file && (
+                        <button
+                          type="button"
+                          className="rounded-2xl border px-4 py-2 text-sm font-medium transition hover:bg-black/5"
+                          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+                          onClick={() => { setFile(null); setFileName('Nessun file MASSIVA'); setRawRows([]); setErr(null); setMsg(null); }}
+                        >
+                          Rimuovi
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>2. Data di lavoro</h2>
+                    <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                      Il filtro applica la data a tutte le righe del file importato.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>
+                      Data (DD/MM/YYYY)
+                    </label>
+                    <input
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      placeholder="gg/mm/aaaa"
+                      className="w-full rounded-2xl border px-4 py-3 text-base outline-none transition"
+                      style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>3. Modalita output</h2>
+                    <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                      Scegli se produrre un foglio unico o mantenere la divisione per operatore.
+                    </p>
+                  </div>
+
+                  <label
+                    className="flex items-start gap-3 rounded-2xl border p-4 transition"
+                    style={{
+                      borderColor: useCombined ? 'var(--brand-primary)' : 'var(--brand-border)',
+                      backgroundColor: useCombined ? 'var(--brand-primary-soft)' : 'white',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={useCombined}
+                      onChange={(e) => setUseCombined(e.target.checked)}
+                      className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                        Foglio unico &quot;RAPPORTINO&quot;
+                      </div>
+                      <div className="text-sm leading-6" style={{ color: 'var(--brand-text-muted)' }}>
+                        Un solo foglio con tutte le righe filtrate, senza selezione manuale operatori.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <OperatorPicker
+              operators={operators}
+              selectedOps={selectedOps}
+              onToggle={toggleSelected}
+              onAdd={addOperatorManually}
+              onRemove={removeOperator}
+              onSelectAll={selectAllToggle}
+              disabled={useCombined}
             />
-            <div className="mt-3 text-xs text-gray-600">
-              Filtra le righe del file per la data inserita.
+          </section>
+
+          <aside className="space-y-6">
+            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>5. Riepilogo operativo</h2>
+                  <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                    Controlla i dati prima di scaricare il file Excel.
+                  </p>
+                </div>
+
+                <div className="space-y-3 text-sm" style={{ color: 'var(--brand-text-main)' }}>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>File sorgente</span>
+                    <span className="font-semibold">{file ? 'Pronto' : 'Assente'}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Data selezionata</span>
+                    <span className="font-semibold">{dateStr}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Operatori coinvolti</span>
+                    <span className="font-semibold">{selectedCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Righe utili</span>
+                    <span className="font-semibold">{filteredRows.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Output</span>
+                    <span className="font-semibold">Excel</span>
+                  </div>
+                </div>
+
+                {msg && (
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }}>
+                    {msg}
+                  </div>
+                )}
+                {err && (
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }}>
+                    {err}
+                  </div>
+                )}
+
+                <button
+                  disabled={!canGenerate}
+                  onClick={onGenerate}
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  {busy ? 'Elaborazione in corso...' : 'Download'}
+                </button>
+              </div>
             </div>
-          </div>
-
-          <div className="rounded-2xl border p-4">
-            <label className="block text-sm font-medium mb-1">Modalità output</label>
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-2 text-sm">
-                <input type="checkbox" checked={useCombined} onChange={(e) => setUseCombined(e.target.checked)} />
-                Singolo foglio “RAPPORTINO” con tutti gli operatori
-              </label>
-            </div>
-          </div>
-        </div>
-
-<OperatorPicker
-  operators={operators}
-  selectedOps={selectedOps}
-  onToggle={toggleSelected}
-  onAdd={addOperatorManually}
-  onRemove={removeOperator}
-  onSelectAll={selectAllToggle}
-  disabled={useCombined}
-/>
-
-
-        <div className="rounded-2xl border p-4 mb-4">
-          <label className="block text-sm font-medium mb-2">Destinazione</label>
-          <div className="flex flex-wrap items-center gap-3">
-            <label className="flex items-center gap-2 text-sm">
-              <input
-                type="radio"
-                checked={saveTarget === 'download'}
-                onChange={() => setSaveTarget('download')}
-              /> Download locale
-            </label>
-            <label className="flex items-center gap-2 text-sm opacity-60">
-              <input type="radio" disabled /> SharePoint (non attivo)
-            </label>
-            <label className="flex items-center gap-2 text-sm opacity-60">
-              <input type="radio" disabled /> Supabase (non attivo)
-            </label>
-          </div>
-
-          {saveTarget !== 'download' && (
-            <div className="mt-3">
-              <input
-                value={pathInput}
-                onChange={(e) => setPathInput(e.target.value)}
-                placeholder="Percorso/cartella di destinazione"
-                className="rounded border p-2 w-full"
-              />
-            </div>
-          )}
-        </div>
-
-        <div className="flex items-center gap-3">
-          <button
-            disabled={busy}
-            onClick={onGenerate}
-            className="rounded-2xl border px-4 py-2"
-          >
-            {busy ? 'Elaboro...' : 'Genera file'}
-          </button>
-          {msg && <span className="text-green-700 text-sm">{msg}</span>}
-          {err && <span className="text-red-700 text-sm">{err}</span>}
+          </aside>
         </div>
       </main>
     </AuthGate>
@@ -688,166 +801,130 @@ function OperatorPicker({
   onSelectAll: () => void;
   disabled?: boolean;
 }) {
-
-
   const [value, setValue] = useState('');
-  return (
-    <div className="rounded-2xl border p-4 mb-4">
-<div className="flex items-center gap-2 mb-3">
-  <input
-    value={value}
-    onChange={(e) => setValue(e.target.value)}
-    placeholder="Aggiungi operatore"
-    className="rounded border p-2 flex-1"
-    disabled={disabled}
-  />
-  <button
-    type="button"
-    className="rounded-2xl border px-4 py-2"
-    onClick={() => { if (!disabled) { onAdd(value); setValue(''); } }}
-    disabled={disabled}
-  >
-    Aggiungi
-  </button>
-  <button
-    type="button"
-    className="rounded-2xl border px-4 py-2"
-    onClick={onSelectAll}
-    disabled={disabled || operators.length === 0}
-  >
-    {selectedOps.length === operators.length && operators.length > 0
-      ? 'Deseleziona tutti'
-      : 'Seleziona tutti'}
-  </button>
-</div>
 
-      <ul className="grid sm:grid-cols-2 gap-2">
-        {operators.map((op) => (
-          <li key={op} className="flex items-center justify-between rounded border px-3 py-2">
-            <label className="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={selectedOps.includes(op)}
-                onChange={() => onToggle(op)}
-                disabled={disabled}
-              />
-              <span>{op}</span>
-            </label>
+  return (
+    <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>4. Selezione operatori</h2>
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              {disabled
+                ? 'Modalita foglio unico attiva: la selezione manuale e momentaneamente disabilitata.'
+                : 'Aggiungi manualmente operatori oppure seleziona quelli letti dal file.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
+            >
+              Totali: {operators.length}
+            </span>
+            <span
+              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ backgroundColor: selectedOps.length ? '#ECFDF3' : '#F8FAFC', color: selectedOps.length ? '#166534' : 'var(--brand-text-muted)' }}
+            >
+              Selezionati: {selectedOps.length}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 xl:flex-row">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Aggiungi operatore"
+            className="flex-1 rounded-2xl border px-4 py-3 text-sm outline-none transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+            disabled={disabled}
+          />
+          <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              className="text-xs text-red-700"
-              onClick={() => onRemove(op)}
+              className="rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+              onClick={() => { if (!disabled) { onAdd(value); setValue(''); } }}
               disabled={disabled}
             >
-              rimuovi
+              Aggiungi
             </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+            <button
+              type="button"
+              className="rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+              onClick={onSelectAll}
+              disabled={disabled || operators.length === 0}
+            >
+              {selectedOps.length === operators.length && operators.length > 0 ? 'Deseleziona tutti' : 'Seleziona tutti'}
+            </button>
+          </div>
+        </div>
+
+        {operators.length === 0 ? (
+          <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}>
+            Nessun operatore disponibile. Carica un file oppure aggiungi un nominativo manualmente.
+          </div>
+        ) : (
+          <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {operators.map((op) => {
+              const active = selectedOps.includes(op);
+
+              return (
+                <li
+                  key={op}
+                  className="rounded-2xl border p-4 transition"
+                  style={{
+                    borderColor: active ? 'var(--brand-primary)' : 'var(--brand-border)',
+                    backgroundColor: active ? 'var(--brand-primary-soft)' : 'white',
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <label className="flex min-w-0 flex-1 items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => onToggle(op)}
+                        disabled={disabled}
+                        className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                      <div className="min-w-0">
+                        <div
+                          className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold"
+                          style={{ color: 'var(--brand-text-main)' }}
+                          title={normalizeOperatorName(op)}
+                        >
+                          {normalizeOperatorName(op)}
+                        </div>
+                        <div className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                          {active ? 'Incluso nella generazione' : 'Non selezionato'}
+                        </div>
+                      </div>
+                    </label>
+
+                    <button
+                      type="button"
+                      className="text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
+                      style={{ color: '#B91C1C' }}
+                      onClick={() => onRemove(op)}
+                      disabled={disabled}
+                    >
+                      Rimuovi
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
 
-/* ------------ Helpers: cloneFromTemplate + PDF ZIP ------------ */
-async function makePdfs(perOp: Record<string, any[][]>, dateStr: string) {
-  const zip = new JSZip();
-
-  for (const [sheetName, rows] of Object.entries(perOp)) {
-    if (!rows.length) continue;
-
-    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt', format: 'a4' });
-    const title = `Rapportino ${sheetName === 'RAPPORTINO' ? '' : sheetName} - ${dateStr}`;
-    doc.setFontSize(12);
-    doc.text('Generato automaticamente da SmartRapportini', 40, 30); // richiesta: testo al posto del logo
-    doc.setFontSize(14);
-    doc.text(title.trim(), 40, 55);
-
-// 15 colonne totali (A..O): 10 dati + 5 vuote per allinearsi al template
-// A..N = 14 colonne con intestazioni; O opzionale per allineare larghezza
-// ==== A..O con larghezza identica all'Excel (una pagina) ====
-const head = [[
-  'Nominativo','Matricola','PDR','Via','Comune','CAP','Recapito',
-  'Attività','Accessibilità','Fascia oraria','Cambio','Mini bag','RG stop','Assente',''
-]];
-
-const MAX_BODY_ROWS = 31; // righe 7..37
-const body = rows.slice(0, MAX_BODY_ROWS).map(r => ([
-  String(r[COL.O_NOMINATIVO] ?? ''),
-  String(r[COL.P_MATRICOLA] ?? ''),
-  r[COL.N_PDR] ? `00${r[COL.N_PDR]}` : '',
-  String(r[COL.T_VIA] ?? ''),
-  String(r[COL.Q_COMUNE] ?? ''),
-  String(r[COL.R_CAP] ?? ''),
-  String(r[COL.BG_RECAPITO] ?? ''),
-  'S-AI-049',
-  String(r[COL.ACCESSIBILITA_CA] ?? ''),
-  String(r[COL.FASCIA_ORARIA] ?? ''), // CP
-  '', '', '', '', ''                  // K..O
-]));
-
-// larghezza pagina = colonne Excel; ripartizione pesata
-const left = 20, right = 20;
-const pageW = doc.internal.pageSize.getWidth();
-const tableW = pageW - left - right;
-
-// pesi colonne A..O ~ proporzioni Excel (Via più larga)
-const weights = [12,10,12,22,10,6,11,7,10,10,5,5,5,5,2];
-const sumW = weights.reduce((a,b)=>a+b,0);
-const cw = weights.map(w => (tableW * w) / sumW);
-
-autoTable(doc, {
-  head, body,
-  startY: 70,
-  margin: { left, right, top: 20, bottom: 20 },
-  theme: 'grid',
-  styles: { fontSize: 7, cellPadding: 2, lineWidth: 0.4, overflow: 'hidden' }, // no a capo
-  headStyles: { fontSize: 7 },
-  tableWidth: tableW,
-  columnStyles: Object.fromEntries(cw.map((w,i)=>[i,{cellWidth:w}])),
-  didParseCell: (data) => {
-    if (Array.isArray(data.cell.text) && data.cell.text.length) {
-      data.cell.text = [String(data.cell.text[0]).replace(/\s*\n+\s*/g, ' ')];
-    }
-  },
-});
-
-
-
-// NOTE per il PDF: max 5 righe, una per CT non vuoto
-const notes = rows
-  .map(r => ({
-    nom: String(r[COL.O_NOMINATIVO] ?? ''),
-    via: String(r[COL.T_VIA] ?? ''),
-    note: String(r[COL.NOTE_CT] ?? '')
-  }))
-  .filter(x => x.note);
-
-const notesBody = notes.slice(0, 5).map(n => [n.nom, n.via, n.note]);
-if (notesBody.length) {
-  autoTable(doc, {
-    head: [['Nominativo', 'Via', 'Note']],
-    body: notesBody,
-    startY: (doc as any).lastAutoTable?.finalY ? (doc as any).lastAutoTable.finalY + 18 : 90,
-    styles: { fontSize: 9, cellPadding: 4, lineWidth: 0.5, overflow: 'linebreak' },
-    margin: { left: 40, right: 40 },
-    theme: 'grid',
-  });
-}
-
-    const pdfBuf = doc.output('arraybuffer');
-    zip.file(`${sheetName || 'RAPPORTINO'}_${dateStr.replaceAll('/','-')}.pdf`, pdfBuf);
-  }
-
-  const blob = await zip.generateAsync({ type: 'blob' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(blob);
-  a.download = `RAPPORTINI_${dateStr.replaceAll('/','-')}_PDF.zip`;
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(a.href);
-  a.remove();
-}
-
+/* ------------ Helpers: cloneFromTemplate ------------ */
 function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Workbook) {
   const ws = wb.addWorksheet(name);
 
@@ -882,3 +959,7 @@ function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Wo
 
   return ws;
 }
+
+
+
+

@@ -1,12 +1,9 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
-import JSZip from 'jszip';
 
 /** Indici colonne ATTGIORN (0-based) */
 const COL = {
@@ -26,7 +23,6 @@ const COL = {
   BI_ACCESSIBILITA: 60,
 };
 
-type SaveTarget = 'download' | 'sharepoint' | 'supabase';
 export const dynamic = 'force-dynamic';
 function onlyHHMM(v: any): string {
   const s = String(v ?? '').trim();
@@ -38,8 +34,12 @@ function onlyHHMM(v: any): string {
     return `${h}:${mm}`;
   });
   if (hits.length === 0) return '';
-  // se c'è un range tieni "HH:MM-HH:MM", altrimenti singolo
+  // se c'Ã¨ un range tieni "HH:MM-HH:MM", altrimenti singolo
   return hits.length >= 2 ? `${hits[0]}-${hits[1]}` : hits[0];
+}
+
+function normalizeOperatorName(v: unknown): string {
+  return String(v ?? '').replace(/\s+/g, ' ').trim();
 }
 
 export default function RapportinoClientelaPage() {
@@ -55,11 +55,10 @@ export default function RapportinoClientelaPage() {
   });
   const [operators, setOperators] = useState<string[]>([]);
   const [selectedOps, setSelectedOps] = useState<string[]>([]);
-  const [saveTarget, setSaveTarget] = useState<SaveTarget>('download');
-  const [pathInput, setPathInput] = useState('');
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+  const [useCombined, setUseCombined] = useState(false);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     setErr(null); setMsg(null);
@@ -89,7 +88,7 @@ export default function RapportinoClientelaPage() {
 
     const ops = new Set<string>();
     for (let i = start; i < rows.length; i++) {
-      const val = String(rows[i]?.[COL.B_OPERATORE] ?? '').trim();
+      const val = normalizeOperatorName(rows[i]?.[COL.B_OPERATORE]);
       if (val) ops.add(val);
     }
     const opList = Array.from(ops).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
@@ -102,7 +101,7 @@ export default function RapportinoClientelaPage() {
   }
 
   function addOperatorManually(op: string) {
-    const v = op.trim();
+    const v = normalizeOperatorName(op);
     if (!v) return;
     setOperators(prev => (prev.includes(v) ? prev : [...prev, v]));
   }
@@ -112,6 +111,9 @@ export default function RapportinoClientelaPage() {
   }
   function toggleSelected(op: string) {
     setSelectedOps(prev => (prev.includes(op) ? prev.filter(x => x !== op) : [...prev, op]));
+  }
+  function selectAllToggle() {
+    setSelectedOps(prev => (prev.length === operators.length ? [] : operators));
   }
 
   const filteredRows = useMemo(() => {
@@ -154,6 +156,9 @@ export default function RapportinoClientelaPage() {
       if (!file) throw new Error('Seleziona il file ATTGIORN.');
       if (!/^\d{2}\/\d{2}\/\d{4}$/.test(dateStr)) throw new Error('Data non valida (DD/MM/YYYY).');
       if (!filteredRows.length) throw new Error('Nessuna riga dopo i filtri per la data.');
+      if (!useCombined && selectedOps.length === 0) {
+        throw new Error('Seleziona almeno un operatore o attiva il foglio unico.');
+      }
 
       const tplRes = await fetch('/templates/RAPPORTINO_ATT_CLIENTELA.xlsx');
       if (!tplRes.ok) throw new Error('Template non trovato.');
@@ -165,21 +170,18 @@ export default function RapportinoClientelaPage() {
       if (!base) throw new Error('Foglio template non valido.');
       base.name = '__TEMPLATE__';
 
-      const useCombined = selectedOps.length === 0;
       const targets = useCombined ? ['RAPPORTINO'] : selectedOps;
-      const perOp: Record<string, any[][]> = {};
 
       for (const op of targets) {
         const opName = sanitizeSheetName(op).slice(0, 31);
-        const rowsForOp = useCombined ? filteredRows : filteredRows.filter(r => safeStr(r[COL.B_OPERATORE]) === op);
-        perOp[opName] = rowsForOp;
+        const rowsForOp = useCombined ? filteredRows : filteredRows.filter(r => normalizeOperatorName(r[COL.B_OPERATORE]) === op);
         if (!rowsForOp.length) continue;
 
         const ws = cloneFromTemplate(base, opName, tplWb);
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = useCombined ? '' : opName;
 
-       // INTESTAZIONI RIGA 6 (A–O)
+       // INTESTAZIONI RIGA 6 (Aâ€“O)
 const hrow = ws.getRow(6);
 [
   'NOMINATIVO','MATRICOLA','PDR','VIA','COMUNE','CAP',
@@ -201,7 +203,7 @@ for (const r of sorted) {
   const comune     = safeStr(r[COL.Q_COMUNE]);
   const cap        = safeStr(r[COL.R_CAP]);
   const recapito   = safeStr(r[COL.BG_RECAPITO]);
-  const attivita   = safeStr(r[COL.L_ATTIVITA]);    // <— L, non M
+  const attivita   = safeStr(r[COL.L_ATTIVITA]);    // <â€” L, non M
   const access     = safeStr(r[COL.BI_ACCESSIBILITA]);
   const oraTxt     = onlyHHMM(r[COL.U_ORA]);
 
@@ -238,42 +240,16 @@ for (const r of sorted) {
       }
 
       const outName = `RAPPORTINI_${dateStr.replaceAll('/','-')}.xlsx`;
-
-      if (saveTarget === 'download') {
-        const buf = await tplWb.xlsx.writeBuffer();
-
-        // XLSX
-        {
-          const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-          const a = document.createElement('a');
-          a.href = URL.createObjectURL(blob);
-          a.download = outName;
-          document.body.appendChild(a);
-          a.click();
-          URL.revokeObjectURL(a.href);
-          a.remove();
-        }
-
-        // ZIP PDF
-        await makePdfs(perOp, dateStr);
-
-        setMsg(`File generato: ${outName} + PDF`);
-        return;
-      }
-
-      // altri target
       const buf = await tplWb.xlsx.writeBuffer();
       const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
-      const fd = new FormData();
-      fd.append('file', new File([blob], outName, { type: blob.type }));
-      fd.append('filename', outName);
-      fd.append('target', saveTarget);
-      fd.append('path', pathInput || '');
-
-      const res = await fetch('/api/rapportini/save', { method: 'POST', body: fd });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data?.error || 'Errore salvataggio');
-      setMsg(saveTarget === 'supabase' ? `Salvato su Supabase: ${data.path}` : 'SharePoint non configurato');
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = outName;
+      document.body.appendChild(a);
+      a.click();
+      URL.revokeObjectURL(a.href);
+      a.remove();
+      setMsg(`File generato: ${outName}`);
     } catch (e: any) {
       setErr(e?.message || 'Errore inatteso');
     } finally {
@@ -281,36 +257,165 @@ for (const r of sorted) {
     }
   }
 
+  const selectedCount = useCombined ? operators.length : selectedOps.length;
+  const canGenerate = !!file && filteredRows.length > 0 && (useCombined || selectedOps.length > 0) && !busy;
+
   return (
     <AuthGate>
-      <main className="mx-auto max-w-5xl p-6">
-        <h1 className="text-2xl font-semibold mb-4">Genera Rapportino Clientela</h1>
+      <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+        <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+          <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
+            <div className="space-y-3">
+              <span
+                className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+                style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
+              >
+                Rapportini · Clientela
+              </span>
+              <div className="space-y-2">
+                <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
+                  Genera rapportino clientela
+                </h1>
+                <p className="max-w-2xl text-sm leading-6" style={{ color: 'var(--brand-text-muted)' }}>
+                  Carica il file ATTGIORN, filtra le righe per data e scegli se produrre un foglio unico oppure file separati per operatore in formato Excel.
+                </p>
+              </div>
+            </div>
 
-        <div className="rounded-2xl border p-6 shadow-sm space-y-6">
-          <section className="space-y-2">
-            <label className="block text-sm font-medium">File origine (ATTGIORN)</label>
-            <input type="file" accept=".xlsx,.xls" onChange={onPick} className="block w-full rounded border p-2" />
-            <p className="text-sm opacity-70">Selezionato: {fileName}</p>
-          </section>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-primary-soft)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>File</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                  {file ? 'Caricato' : 'In attesa'}
+                </div>
+              </div>
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>Operatori</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>{selectedCount}</div>
+              </div>
+              <div className="rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="text-xs font-medium uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>Righe filtrate</div>
+                <div className="mt-2 text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>{filteredRows.length}</div>
+              </div>
+            </div>
+          </div>
+        </section>
 
-          <section className="space-y-2">
-            <label className="block text-sm font-medium">Data (DD/MM/YYYY)</label>
-            <input
-              type="text"
-              value={dateStr}
-              onChange={(e) => setDateStr(e.target.value)}
-              placeholder="DD/MM/YYYY"
-              className="block w-48 rounded border p-2"
-            />
-          </section>
+        <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
+          <section className="space-y-6">
+            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="flex flex-col gap-5">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>1. File sorgente</h2>
+                  <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                    Formati supportati: `.xlsx`, `.xls`.
+                  </p>
+                </div>
 
-          <section className="space-y-2">
-            <label className="block text-sm font-medium">Operatori (multi)</label>
+                <div
+                  className="rounded-[24px] border border-dashed p-5"
+                  style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)' }}
+                >
+                  <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                    <div className="space-y-2">
+                      <div className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
+                        {file ? fileName : 'Nessun file ATTGIORN selezionato'}
+                      </div>
+                      <div className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                        Il sistema legge il foglio ATTGIORN e propone automaticamente gli operatori trovati.
+                      </div>
+                    </div>
 
-            <div className="flex justify-end">
-              <button type="button" className="rounded-2xl border px-3 py-1 text-xs" onClick={() => setSelectedOps([])}>
-                Deseleziona tutti
-              </button>
+                    <div className="flex flex-wrap items-center gap-3">
+                      <input
+                        id="clientela-file-input"
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={onPick}
+                        className="hidden"
+                      />
+                      <label
+                        htmlFor="clientela-file-input"
+                        className="inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition"
+                        style={{ backgroundColor: 'var(--brand-primary)' }}
+                      >
+                        {file ? 'Sostituisci file' : 'Carica file'}
+                      </label>
+                      {file && (
+                        <button
+                          type="button"
+                          className="rounded-2xl border px-4 py-2 text-sm font-medium transition hover:bg-black/5"
+                          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+                          onClick={() => { setFile(null); setFileName('Nessun file caricato'); setRawRows([]); setErr(null); setMsg(null); }}
+                        >
+                          Rimuovi
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid gap-6 lg:grid-cols-2">
+              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>2. Data di lavoro</h2>
+                    <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                      Il filtro applica la data a tutte le righe del file importato.
+                    </p>
+                  </div>
+
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.14em]" style={{ color: 'var(--brand-text-muted)' }}>
+                      Data (DD/MM/YYYY)
+                    </label>
+                    <input
+                      type="text"
+                      value={dateStr}
+                      onChange={(e) => setDateStr(e.target.value)}
+                      placeholder="DD/MM/YYYY"
+                      className="w-full rounded-2xl border px-4 py-3 text-base outline-none transition"
+                      style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="space-y-4">
+                  <div className="space-y-1">
+                    <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>3. Modalita output</h2>
+                    <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                      Scegli se produrre un foglio unico o mantenere la divisione per operatore.
+                    </p>
+                  </div>
+
+                  <label
+                    className="flex items-start gap-3 rounded-2xl border p-4 transition"
+                    style={{
+                      borderColor: useCombined ? 'var(--brand-primary)' : 'var(--brand-border)',
+                      backgroundColor: useCombined ? 'var(--brand-primary-soft)' : 'white',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={useCombined}
+                      onChange={(e) => setUseCombined(e.target.checked)}
+                      className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    <div className="space-y-1">
+                      <div className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                        Foglio unico &quot;RAPPORTINO&quot;
+                      </div>
+                      <div className="text-sm leading-6" style={{ color: 'var(--brand-text-muted)' }}>
+                        Un solo foglio con tutte le righe filtrate, senza selezione manuale operatori.
+                      </div>
+                    </div>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <OperatorEditor
@@ -319,57 +424,66 @@ for (const r of sorted) {
               onRemove={removeOperator}
               selected={selectedOps}
               onToggle={toggleSelected}
+              onSelectAll={selectAllToggle}
+              disabled={useCombined}
             />
-            <p className="text-xs opacity-70">Se non selezioni alcun operatore, verrà creato un unico foglio “RAPPORTINO”.</p>
           </section>
 
-          <section className="space-y-2">
-            <label className="block text-sm font-medium">Dove salvare</label>
-            <div className="flex flex-col gap-3 text-sm">
-              <div className="flex gap-6">
-                <label className="inline-flex items-center gap-2">
-                  <input type="radio" name="saveTarget" checked={saveTarget === 'download'} onChange={() => setSaveTarget('download')} />
-                  Download
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input type="radio" name="saveTarget" checked={saveTarget === 'sharepoint'} onChange={() => setSaveTarget('sharepoint')} />
-                  SharePoint
-                </label>
-                <label className="inline-flex items-center gap-2">
-                  <input type="radio" name="saveTarget" checked={saveTarget === 'supabase'} onChange={() => setSaveTarget('supabase')} />
-                  Supabase Storage
-                </label>
-              </div>
-
-              {(saveTarget === 'sharepoint' || saveTarget === 'supabase') && (
-                <div className="flex items-center gap-2">
-                  <span className="w-28 text-xs opacity-70">Percorso</span>
-                  <input
-                    type="text"
-                    placeholder="es. 2025/10"
-                    className="rounded border p-2 flex-1"
-                    value={pathInput}
-                    onChange={(e) => setPathInput(e.target.value)}
-                  />
+          <aside className="space-y-6">
+            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="space-y-4">
+                <div className="space-y-1">
+                  <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>5. Riepilogo operativo</h2>
+                  <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                    Controlla i dati prima di scaricare il file Excel.
+                  </p>
                 </div>
-              )}
+
+                <div className="space-y-3 text-sm" style={{ color: 'var(--brand-text-main)' }}>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>File sorgente</span>
+                    <span className="font-semibold">{file ? 'Pronto' : 'Assente'}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Data selezionata</span>
+                    <span className="font-semibold">{dateStr}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Operatori coinvolti</span>
+                    <span className="font-semibold">{selectedCount}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Righe utili</span>
+                    <span className="font-semibold">{filteredRows.length}</span>
+                  </div>
+                  <div className="flex items-center justify-between rounded-2xl border px-4 py-3" style={{ borderColor: 'var(--brand-border)' }}>
+                    <span>Output</span>
+                    <span className="font-semibold">Excel</span>
+                  </div>
+                </div>
+
+                {err && (
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }}>
+                    {err}
+                  </div>
+                )}
+                {msg && (
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }}>
+                    {msg}
+                  </div>
+                )}
+
+                <button
+                  onClick={onGenerate}
+                  disabled={!canGenerate}
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                  style={{ backgroundColor: 'var(--brand-primary)' }}
+                >
+                  {busy ? 'Elaborazione in corso...' : 'Download'}
+                </button>
+              </div>
             </div>
-          </section>
-
-          <section className="flex gap-3">
-            <button onClick={onGenerate} disabled={busy || !file} className="rounded-2xl bg-black text-white px-4 py-2 disabled:opacity-50">
-              {busy ? 'Generazione…' : 'Genera'}
-            </button>
-            <button
-              onClick={() => { setFile(null); setFileName('Nessun file caricato'); setRawRows([]); setErr(null); setMsg(null); }}
-              className="rounded-2xl border px-4 py-2"
-            >
-              Annulla
-            </button>
-          </section>
-
-          {err && <div className="text-red-600 text-sm">{err}</div>}
-          {msg && <div className="text-green-700 text-sm">{msg}</div>}
+          </aside>
         </div>
       </main>
     </AuthGate>
@@ -408,171 +522,139 @@ function toHHMM(v: any) {
   return s;
 }
 
-async function makePdfs(perOp: Record<string, any[][]>, dateStr: string) {
-  const zip = new JSZip();
-
-for (const [opName, rowsAll] of Object.entries(perOp)) {
-const rows = rowsAll
-  .slice(0, 33)
-  .sort((a,b) => hhmmToMin(onlyHHMM(a[COL.U_ORA])) - hhmmToMin(onlyHHMM(b[COL.U_ORA])));
-  const doc = new jsPDF({ unit: 'pt', format: 'a4', orientation: 'landscape' });
-  const marginX = 32;
-
-
-  // intestazione con firma app
-  doc.setFontSize(9);
-  doc.setTextColor(100);
-  doc.text('Generato automaticamente da Gestione Personale Plenzich App', marginX, 20);
-
-  // intestazione principale
-  doc.setFontSize(10);
-  doc.setTextColor(0);
-  let y = 40;
-  doc.text('PREPOSTO:', marginX, y);
-  doc.text(`DATA: ${dateStr}    ANTINCENDIO:`, 250, y);
-  y += 16;
-  doc.text('SQUADRA PRIMO SOCCORSO:', marginX, y);
-  y += 16;
-  doc.text(`RISORSA ${opName}    CAPO SQUADRA: AMMINISTRATORE`, marginX, y);
-  y += 18;
-
-
-    // Intestazioni
-   // Intestazioni ufficiali
-const head = [[
-  'NOMINATIVO', 'MATRICOLA', 'PDR', 'VIA', 'COMUNE', 'CAP',
-  'RECAPITO', "ATTIVITA'", 'ACCESSIBILITA\'', 'FASCIA ORARIA',
-  'ATT/CESS', 'CAMBIO', 'MINI BAG', 'RG STOP', 'ASSENTE'
-]];
-
-// Dati (max 33 righe)
-const body = rows.map(r => ([
-  safeStr(r[COL.O_NOMINATIVO]),
-  safeStr(r[COL.P_MATRICOLA]),
-  (safeStr(r[COL.N_PDR]) ? `00${safeStr(r[COL.N_PDR])}` : ''),
-  safeStr(r[COL.T_VIA]),
-  safeStr(r[COL.Q_COMUNE]),
-  safeStr(r[COL.R_CAP]),
-  safeStr(r[COL.BG_RECAPITO]),
-  safeStr(r[COL.L_ATTIVITA]),            // ATTIVITA' = colonna L
-  safeStr(r[COL.BI_ACCESSIBILITA]),
-  onlyHHMM(r[COL.U_ORA]),                // FASCIA ORARIA
-  '',        // ATT/CESS
-  '',        // CAMBIO
-  '',        // MINI BAG
-  '',        // RG STOP
-  ''         // ASSENTE
-]));
-
-const pageWidth = doc.internal.pageSize.getWidth();
-const tableW = pageWidth - marginX * 2;
-
-// larghezze "di riferimento" per 15 colonne (A–O)
-const baseW = [110,72,120,160,78,48,96,90,78,78,70,70,70,62,60];
-// scala per farle entrare esattamente in pagina
-const totalBase = baseW.reduce((a,b)=>a+b,0);
-const scale = tableW / totalBase;
-const scaled = baseW.map(v => Math.floor(v * scale));
-// correggi l’arrotondamento sull’ultima colonna
-scaled[14] += tableW - scaled.slice(0,14).reduce((a,b)=>a+b,0);
-
-autoTable(doc, {
-  head,
-  body,
-  startY: y,
-  margin: { left: marginX, right: marginX },
-  tableWidth: tableW,          // fit-to-page
-  pageBreak: 'avoid',
-  styles: {
-    fontSize: 7,
-    cellPadding: 2,
-    overflow: 'ellipsize',     // niente a capo
-    valign: 'middle',
-    lineWidth: 0.3,
-    lineColor: [0,0,0],
-  },
-  headStyles: {
-    fillColor: [213,157,203],
-    textColor: 0,
-    halign: 'center',
-    lineWidth: 0.3,
-    lineColor: [0,0,0],
-  },
-  columnStyles: {
-    0:{cellWidth:scaled[0]},  1:{cellWidth:scaled[1]},  2:{cellWidth:scaled[2]},
-    3:{cellWidth:scaled[3]},  4:{cellWidth:scaled[4]},  5:{cellWidth:scaled[5]},
-    6:{cellWidth:scaled[6]},  7:{cellWidth:scaled[7]},  8:{cellWidth:scaled[8]},
-    9:{cellWidth:scaled[9]}, 10:{cellWidth:scaled[10]},11:{cellWidth:scaled[11]},
-   12:{cellWidth:scaled[12]},13:{cellWidth:scaled[13]},14:{cellWidth:scaled[14]},
-  },
-});
-
-
-
-    // Sezione finale
-    const last = (doc as any).lastAutoTable?.finalY || y;
-    doc.setFontSize(10);
-    doc.text('INTERVENTI CON NOTE', marginX, last + 20);
-
-    // Salva nel pacchetto ZIP
-    const pdfBlob = doc.output('blob');
-    const arrBuf = await pdfBlob.arrayBuffer();
-    const safe = opName.replace(/[\\/:*?"<>|]/g, ' ');
-    zip.file(`${safe}.pdf`, arrBuf);
-  }
-
-  const zipBuf = await zip.generateAsync({ type: 'blob' });
-  const a = document.createElement('a');
-  a.href = URL.createObjectURL(zipBuf);
-  a.download = `rapportini_pdf_${dateStr.replaceAll('/','-')}.zip`;
-  document.body.appendChild(a);
-  a.click();
-  URL.revokeObjectURL(a.href);
-  a.remove();
-}
-
-
 function sanitizeSheetName(s: string) {
   return s.replace(/[:\\/?*\[\]]/g, ' ');
 }
 
 function OperatorEditor({
-  operators, onAdd, onRemove, selected, onToggle,
+  operators, onAdd, onRemove, selected, onToggle, onSelectAll, disabled,
 }: {
   operators: string[];
   onAdd: (op: string) => void;
   onRemove: (op: string) => void;
   selected: string[];
   onToggle: (op: string) => void;
+  onSelectAll: () => void;
+  disabled?: boolean;
 }) {
   const [value, setValue] = useState('');
   return (
-    <div className="space-y-2">
-      <div className="flex gap-2">
-        <input
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder="Aggiungi operatore"
-          className="rounded border p-2 flex-1"
-        />
-        <button type="button" className="rounded-2xl border px-4 py-2" onClick={() => { onAdd(value); setValue(''); }}>
-          Aggiungi
-        </button>
-      </div>
-      <ul className="grid sm:grid-cols-2 gap-2">
-        {operators.map((op) => (
-          <li key={op} className="flex items-center justify-between rounded border p-2">
-            <label className="flex items-center gap-2 text-sm">
-              <input type="checkbox" checked={selected.includes(op)} onChange={() => onToggle(op)} />
-              {op}
-            </label>
-            <button className="text-xs opacity-70 hover:opacity-100" onClick={() => onRemove(op)}>
-              Rimuovi
+    <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      <div className="space-y-5">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="space-y-1">
+            <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>4. Selezione operatori</h2>
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              {disabled
+                ? 'Modalita foglio unico attiva: la selezione manuale e momentaneamente disabilitata.'
+                : 'Aggiungi manualmente operatori oppure seleziona quelli letti dal file.'}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2">
+            <span
+              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
+            >
+              Totali: {operators.length}
+            </span>
+            <span
+              className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
+              style={{ backgroundColor: selected.length ? '#ECFDF3' : '#F8FAFC', color: selected.length ? '#166534' : 'var(--brand-text-muted)' }}
+            >
+              Selezionati: {selected.length}
+            </span>
+          </div>
+        </div>
+
+        <div className="flex flex-col gap-3 xl:flex-row">
+          <input
+            value={value}
+            onChange={(e) => setValue(e.target.value)}
+            placeholder="Aggiungi operatore"
+            className="flex-1 rounded-2xl border px-4 py-3 text-sm outline-none transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+            disabled={disabled}
+          />
+          <div className="flex flex-wrap gap-3">
+            <button
+              type="button"
+              className="rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+              onClick={() => { if (!disabled) { onAdd(value); setValue(''); } }}
+              disabled={disabled}
+            >
+              Aggiungi
             </button>
-          </li>
-        ))}
-      </ul>
-    </div>
+            <button
+              type="button"
+              className="rounded-2xl border px-4 py-3 text-sm font-semibold transition disabled:cursor-not-allowed disabled:opacity-50"
+              style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+              onClick={onSelectAll}
+              disabled={disabled || operators.length === 0}
+            >
+              {selected.length === operators.length && operators.length > 0 ? 'Deseleziona tutti' : 'Seleziona tutti'}
+            </button>
+          </div>
+        </div>
+
+        {operators.length === 0 ? (
+          <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}>
+            Nessun operatore disponibile. Carica un file oppure aggiungi un nominativo manualmente.
+          </div>
+        ) : (
+          <ul className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+            {operators.map((op) => {
+              const active = selected.includes(op);
+              return (
+                <li
+                  key={op}
+                  className="rounded-2xl border p-4 transition"
+                  style={{
+                    borderColor: active ? 'var(--brand-primary)' : 'var(--brand-border)',
+                    backgroundColor: active ? 'var(--brand-primary-soft)' : 'white',
+                  }}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <label className="flex min-w-0 flex-1 items-start gap-3">
+                      <input
+                        type="checkbox"
+                        checked={active}
+                        onChange={() => onToggle(op)}
+                        disabled={disabled}
+                        className="mt-1 h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                      <div className="min-w-0">
+                        <div
+                          className="overflow-hidden text-ellipsis whitespace-nowrap text-sm font-semibold"
+                          style={{ color: 'var(--brand-text-main)' }}
+                          title={normalizeOperatorName(op)}
+                        >
+                          {normalizeOperatorName(op)}
+                        </div>
+                        <div className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                          {active ? 'Incluso nella generazione' : 'Non selezionato'}
+                        </div>
+                      </div>
+                    </label>
+
+                    <button
+                      className="text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
+                      style={{ color: '#B91C1C' }}
+                      onClick={() => onRemove(op)}
+                      disabled={disabled}
+                      type="button"
+                    >
+                      Rimuovi
+                    </button>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -613,3 +695,4 @@ function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Wo
 
   return ws;
 }
+

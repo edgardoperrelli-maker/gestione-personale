@@ -6,7 +6,14 @@ import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment, Territory } from '@/types';
 import { getTerritoryStyle, TERRITORY_COLORS } from '@/lib/territoryColors';
 import type { SortMode } from './types';
-import { fmtDay, sortAssignments, eqDate } from './utils';
+import {
+  eqDate,
+  fmtDay,
+  isCopyDropGesture,
+  readAssignmentDragData,
+  sortAssignments,
+  writeAssignmentDragData,
+} from './utils';
 
 function TerritoryDot({ name }: { name: string }) {
   const s = getTerritoryStyle(name);
@@ -38,6 +45,7 @@ function WeekCell({
   assignments,
   sortMode,
   onAdd,
+  onCopyDayToNext,
   onEdit,
   onDelete,
   onDrop,
@@ -48,6 +56,7 @@ function WeekCell({
   assignments: Assignment[];
   sortMode: SortMode;
   onAdd: (d: Date) => void;
+  onCopyDayToNext: (d: Date) => void;
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDrop: (e: DragEvent<HTMLDivElement>, d: Date, terrId: string | null) => void;
@@ -66,7 +75,10 @@ function WeekCell({
         minHeight: 120,
         backgroundColor: isHol ? 'var(--hol-bg)' : isWe ? 'var(--we-bg)' : 'transparent',
       }}
-      onDragOver={(e) => e.preventDefault()}
+      onDragOver={(e) => {
+        e.preventDefault();
+        e.dataTransfer.dropEffect = isCopyDropGesture(e) ? 'copy' : 'move';
+      }}
       onDrop={(e) => onDrop(e, d, terrId === 'none' ? null : terrId)}
     >
       <div
@@ -82,13 +94,23 @@ function WeekCell({
         <div className="text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">
           {d.toLocaleDateString('it-IT', { weekday: 'short' })}
         </div>
-        <div
-          className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${
-            isToday ? 'text-white' : 'text-[var(--brand-text-main)]'
-          }`}
-          style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
-        >
-          {d.getDate()}
+        <div className="flex items-center gap-2">
+          <div
+            className={`inline-flex h-6 w-6 items-center justify-center rounded-full text-sm font-bold ${
+              isToday ? 'text-white' : 'text-[var(--brand-text-main)]'
+            }`}
+            style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
+          >
+            {d.getDate()}
+          </div>
+          <button
+            type="button"
+            onClick={() => onCopyDayToNext(d)}
+            className="rounded-md border border-[var(--brand-border)] bg-white px-1.5 py-0.5 text-[10px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-nav-active-bg)]"
+            title="Copia l'intero giorno al successivo"
+          >
+            +1
+          </button>
         </div>
       </div>
 
@@ -97,16 +119,13 @@ function WeekCell({
           <div
             key={a.id}
             draggable
+            className="cursor-grab active:cursor-grabbing"
             onDragStart={(e) => {
-              e.dataTransfer.effectAllowed = 'copyMove';
-              e.dataTransfer.setData(
-                'application/json',
-                JSON.stringify({
-                  id: a.id,
-                  fromDay: iso,
-                  fromTerritoryId: terrId === 'none' ? null : terrId,
-                })
-              );
+              writeAssignmentDragData(e.dataTransfer, {
+                id: a.id,
+                fromDay: iso,
+                fromTerritoryId: terrId === 'none' ? null : terrId,
+              });
             }}
           >
             <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
@@ -144,6 +163,7 @@ function TerritoryWeek({
   assignmentsByCell,
   sortMode,
   onAdd,
+  onCopyDayToNext,
   onEdit,
   onDelete,
   onDrop,
@@ -154,6 +174,7 @@ function TerritoryWeek({
   assignmentsByCell: Record<string, Assignment[]>;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
+  onCopyDayToNext: (d: Date) => void;
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDrop: (e: DragEvent<HTMLDivElement>, d: Date, terrId: string | null) => void;
@@ -186,6 +207,7 @@ function TerritoryWeek({
               assignments={list}
               sortMode={sortMode}
               onAdd={onAdd}
+              onCopyDayToNext={onCopyDayToNext}
               onEdit={onEdit}
               onDelete={onDelete}
               onDrop={onDrop}
@@ -206,6 +228,7 @@ export default function CronoSplitView({
   assignmentsByCell,
   sortMode,
   onAdd,
+  onCopyDayToNext,
   onEdit,
   onDelete,
   onDropAssignment,
@@ -217,6 +240,7 @@ export default function CronoSplitView({
   assignmentsByCell: Record<string, Assignment[]>;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
+  onCopyDayToNext: (d: Date) => void;
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDropAssignment: (args: {
@@ -238,10 +262,9 @@ export default function CronoSplitView({
 
   const handleDrop = (e: DragEvent<HTMLDivElement>, toDay: Date, toTerritoryId: string | null) => {
     e.preventDefault();
-    const raw = e.dataTransfer.getData('application/json');
-    if (!raw) return;
-    const data = JSON.parse(raw) as { id: string; fromDay: string; fromTerritoryId: string | null };
-    const copy = e.altKey || e.ctrlKey || e.metaKey;
+    const data = readAssignmentDragData(e.dataTransfer);
+    if (!data) return;
+    const copy = isCopyDropGesture(e);
     onDropAssignment({
       assignmentId: data.id,
       fromDay: data.fromDay,
@@ -326,6 +349,7 @@ export default function CronoSplitView({
             assignmentsByCell={assignmentsByCell}
             sortMode={sortMode}
             onAdd={onAdd}
+            onCopyDayToNext={onCopyDayToNext}
             onEdit={onEdit}
             onDelete={onDelete}
             onDrop={handleDrop}
