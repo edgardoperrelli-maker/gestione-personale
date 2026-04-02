@@ -5,6 +5,7 @@ import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment } from '@/types';
 import type { DayRow, SortMode } from './types';
+import { getTerritoryStyle } from '@/lib/territoryColors';
 import {
   eqDate,
   filterAssignments,
@@ -223,22 +224,71 @@ function DayCell(props: {
 
       <div className="mt-2 space-y-2">
         {sorted.length ? (
-          sorted.map((a) => (
-            <div
-              key={a.id}
-              draggable
-              className="cursor-grab active:cursor-grabbing"
-              onDragStart={(e) =>
-                writeAssignmentDragData(e.dataTransfer, {
-                  id: a.id,
-                  fromDay: iso,
-                  fromTerritoryId: a.territory?.id ?? null,
-                })
+          sortMode === 'TERRITORIO' || sortMode === 'PER_TERRITORIO' ? (
+            (() => {
+              const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
+              const idx = new Map<string, number>();
+              for (const a of sorted) {
+                const key = a.territory?.id ?? '__none__';
+                if (!idx.has(key)) {
+                  idx.set(key, groups.length);
+                  groups.push({ terrName: a.territory?.name ?? '', terrId: a.territory?.id ?? null, items: [] });
+                }
+                groups[idx.get(key)!].items.push(a);
               }
-            >
-              <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
-            </div>
-          ))
+              return groups.map((g) => {
+                const s = getTerritoryStyle(g.terrName || null);
+                return (
+                  <div key={g.terrId ?? '__none__'}>
+                    <div
+                      className="mb-1 flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
+                      style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
+                    >
+                      <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
+                      <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
+                        {g.terrName || 'Senza territorio'}
+                      </span>
+                    </div>
+                    <div className="space-y-1">
+                      {g.items.map((a) => (
+                        <div
+                          key={a.id}
+                          draggable
+                          className="cursor-grab active:cursor-grabbing"
+                          onDragStart={(e) =>
+                            writeAssignmentDragData(e.dataTransfer, {
+                              id: a.id,
+                              fromDay: iso,
+                              fromTerritoryId: a.territory?.id ?? null,
+                            })
+                          }
+                        >
+                          <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()
+          ) : (
+            sorted.map((a) => (
+              <div
+                key={a.id}
+                draggable
+                className="cursor-grab active:cursor-grabbing"
+                onDragStart={(e) =>
+                  writeAssignmentDragData(e.dataTransfer, {
+                    id: a.id,
+                    fromDay: iso,
+                    fromTerritoryId: a.territory?.id ?? null,
+                  })
+                }
+              >
+                <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
+              </div>
+            ))
+          )
         ) : (
           <div className="text-xs opacity-50">-</div>
         )}

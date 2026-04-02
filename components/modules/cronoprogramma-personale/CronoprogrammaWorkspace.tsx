@@ -46,7 +46,7 @@ export default function CronoprogrammaWorkspace() {
 
   const [dialogOpenForDay, setDialogOpenForDay] = useState<{ id: string; iso: string } | null>(null);
   const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
-  const [sortMode, setSortMode] = useState<SortMode>('AZ');
+  const [sortMode, setSortMode] = useState<SortMode>('TERRITORIO');
   const [filters, setFilters] = useState<FilterToken[]>([]);
   const [filtersOpen, setFiltersOpen] = useState(false);
 
