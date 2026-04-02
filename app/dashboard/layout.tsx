@@ -19,7 +19,8 @@ function formatRole(role?: string | null) {
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
-  const supabase = createServerComponentClient({ cookies: async () => cookieStore });
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createServerComponentClient({ cookies: cookieMethods });
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) redirect('/login');

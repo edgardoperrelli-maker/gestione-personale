@@ -20,7 +20,8 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 
 export default async function MappaPage() {
   const cookieStore = await cookies();
-  const supabase = createServerComponentClient({ cookies: async () => cookieStore });
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createServerComponentClient({ cookies: cookieMethods });
 
   const today = new Date();
   const dateFrom = fmtDay(addDays(today, -3));

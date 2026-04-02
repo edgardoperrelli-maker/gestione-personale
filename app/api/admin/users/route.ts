@@ -36,7 +36,8 @@ function toUsername(email: string): string {
 
 async function requireAdmin(): Promise<{ userId: string } | NextResponse> {
   const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({ cookies: async () => cookieStore });
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
   const { data: profile } = await supabase

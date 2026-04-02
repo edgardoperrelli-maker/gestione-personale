@@ -4,7 +4,8 @@ import { cookies } from 'next/headers';
 
 export async function POST(req: Request) {
   const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({ cookies: async () => cookieStore });
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
   await supabase.auth.signOut();
   return NextResponse.redirect(new URL('/login', req.url), { status: 302 });
 }
