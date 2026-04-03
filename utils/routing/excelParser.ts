@@ -21,6 +21,22 @@ function findCol(headers: string[], patterns: RegExp[]): number | null {
 
 // ─── Mappature conosciute ────────────────────────────────────────────────────
 
+/** Indici fissi per il formato ATTGIORN — Dettaglio Risorse Interne */
+const ATTGIORN_COL = {
+  OPERATORE: 1,       // B  — RISORSA
+  ATTIVITA: 11,       // L
+  CODICE: 12,         // M  — codice (S-AI-051, ecc.)
+  PDR: 13,            // N
+  NOMINATIVO: 14,     // O
+  MATRICOLA: 15,      // P
+  COMUNE: 16,         // Q
+  CAP: 17,            // R
+  VIA: 19,            // T
+  ORA: 20,            // U  — fascia oraria
+  RECAPITO: 58,       // BG
+  ACCESSIBILITA: 60,  // BI
+} as const;
+
 /** Indici fissi per il formato "Rapportini / Massiva" (~95 colonne) */
 const MASSIVA_COL = {
   VIA: 54,        // BC
@@ -43,11 +59,36 @@ type ColMap = {
   pdR: number | null;
   fascia: number | null;
   operatore: number | null;
+  nominativo: number | null;
+  matricola: number | null;
+  recapito: number | null;
+  accessibilita: number | null;
+  attivita: number | null;
+  codice: number | null;
 };
 
 function detectFormat(headerRow: unknown[]): ColMap | null {
   const headers = headerRow.map(normalizeHeader);
   const ncols = headers.length;
+
+  // ── Formato ATTGIORN: presenza "risorsa" in col B (indice 1) ──────────────
+  if (/^risorsa$/i.test(headers[ATTGIORN_COL.OPERATORE] ?? '') ||
+      (headers[ATTGIORN_COL.VIA] && /^via$/i.test(headers[ATTGIORN_COL.VIA]))) {
+    return {
+      via: ATTGIORN_COL.VIA,
+      cap: ATTGIORN_COL.CAP,
+      comune: ATTGIORN_COL.COMUNE,
+      pdR: ATTGIORN_COL.PDR,
+      fascia: ATTGIORN_COL.ORA,
+      operatore: ATTGIORN_COL.OPERATORE,
+      nominativo: ATTGIORN_COL.NOMINATIVO,
+      matricola: ATTGIORN_COL.MATRICOLA,
+      recapito: ATTGIORN_COL.RECAPITO,
+      accessibilita: ATTGIORN_COL.ACCESSIBILITA,
+      attivita: ATTGIORN_COL.ATTIVITA,
+      codice: ATTGIORN_COL.CODICE,
+    };
+  }
 
   // ── Formato "Massiva/Rapportini": >80 colonne, colonna BC=via ───────────
   if (ncols >= MASSIVA_MIN_COLS) {
@@ -60,6 +101,12 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
         pdR: MASSIVA_COL.PDR,
         fascia: MASSIVA_COL.FASCIA,
         operatore: MASSIVA_COL.NOMINATIVO,
+        nominativo: null,
+        matricola: null,
+        recapito: null,
+        accessibilita: null,
+        attivita: null,
+        codice: null,
       };
     }
     // anche senza header corrispondente usiamo gli indici fissi se ncols > 80
@@ -70,6 +117,12 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
       pdR: MASSIVA_COL.PDR,
       fascia: MASSIVA_COL.FASCIA,
       operatore: MASSIVA_COL.NOMINATIVO,
+      nominativo: null,
+      matricola: null,
+      recapito: null,
+      accessibilita: null,
+      attivita: null,
+      codice: null,
     };
   }
 
@@ -84,6 +137,12 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
     pdR: findCol(headers, [/^pdr/, /^pdr\s*\//, /^punto.di.rec/, /^odl$/, /^codice$/]),
     fascia: findCol(headers, [/^fascia/, /^slot/, /^orario/]),
     operatore: findCol(headers, [/^nominativo$/, /^operatore$/, /^risorsa$/, /^nome.*/]),
+    nominativo: null,
+    matricola: null,
+    recapito: null,
+    accessibilita: null,
+    attivita: null,
+    codice: null,
   };
 }
 
@@ -92,6 +151,8 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
 function findHeaderRow(rows: unknown[][]): number {
   for (let i = 0; i < Math.min(rows.length, 10); i++) {
     const headers = (rows[i] as unknown[]).map(normalizeHeader);
+    // header row del formato "ATTGIORN": contiene "risorsa" nella col B (indice 1)
+    if (/^risorsa$/i.test(headers[ATTGIORN_COL.OPERATORE] ?? '')) return i;
     // header row del formato "Export Dati": contiene "indirizzo"
     if (headers.some((h) => /^indirizzo$|^via$/.test(h))) return i;
     // header row del formato "Massiva": contiene "risorsa" nella col OPERATORE
@@ -127,7 +188,13 @@ function str(v: unknown): string {
 export async function parseExcelToTasks(file: File): Promise<Task[]> {
   const buffer = await file.arrayBuffer();
   const wb = XLSX.read(buffer, { type: 'array' });
-  const ws = wb.Sheets[wb.SheetNames[0]];
+
+  // Cerca il foglio "Dettaglio Risorse Interne" per ATTGIORN, altrimenti il primo
+  const sheetName =
+    wb.SheetNames.find((s) => s.toUpperCase().includes('DETTAGLIO RISORSE INTERNE')) ??
+    wb.SheetNames.find((s) => s.toUpperCase().includes('ATTGIORN')) ??
+    wb.SheetNames[0];
+  const ws = wb.Sheets[sheetName];
   const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
 
   if (!rows.length) return [];
@@ -164,6 +231,12 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       citta,
       priorita: 0,
       fascia_oraria: colMap.fascia != null ? str(row[colMap.fascia]) : '',
+      nominativo: colMap.nominativo != null ? str(row[colMap.nominativo]) : undefined,
+      matricola: colMap.matricola != null ? str(row[colMap.matricola]) : undefined,
+      recapito: colMap.recapito != null ? str(row[colMap.recapito]) : undefined,
+      accessibilita: colMap.accessibilita != null ? str(row[colMap.accessibilita]) : undefined,
+      attivita: colMap.attivita != null ? str(row[colMap.attivita]) : undefined,
+      codice: colMap.codice != null ? str(row[colMap.codice]) : undefined,
     };
     if (operatore) task._operatore = operatore;
     tasks.push(task);

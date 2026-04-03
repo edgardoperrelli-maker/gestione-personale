@@ -527,7 +527,12 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     if (!file) return;
     e.target.value = '';
     const parsed = await parseExcelToTasks(file);
-    setExcelTasks(parsed);
+    // Filtra i record con codice S-AI-051
+    const filtered = parsed.filter((t) => {
+      const codice = (t.codice ?? '').toString().trim();
+      return !/S-AI-051/i.test(codice);
+    });
+    setExcelTasks(filtered);
     setExcelMode(true);
     setRouteMode(false);
     setRouteResult(null);
@@ -574,9 +579,13 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   // Salva la modifica e tenta geocodifica singola
   const saveAndGeocode = useCallback(async (taskId: string) => {
+    const { saveManualCorrection } = await import('@/utils/routing/geocodingCache');
+
     setGeocodingSingleId(taskId);
     const idx = excelTasks.findIndex((t) => t.id === taskId);
     if (idx === -1) { setGeocodingSingleId(null); return; }
+
+    const original = excelTasks[idx]; // indirizzo originale dal file Excel
 
     const updated = [...excelTasks];
     updated[idx] = { ...updated[idx], indirizzo: editDraft.indirizzo, cap: editDraft.cap, citta: editDraft.citta, lat: undefined, lng: undefined };
@@ -586,6 +595,25 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setEditingTaskId(null);
     setGeocodingSingleId(null);
     setDistribution(null); // distribuzione non è più valida
+
+    // Persisti nel DB solo se la geocodifica ha avuto successo
+    if (geocoded.lat !== undefined && geocoded.lng !== undefined) {
+      const { lat, lng } = geocoded;
+
+      // Salva l'indirizzo corretto (quello con cui Nominatim ha trovato le coords)
+      await saveManualCorrection(editDraft.indirizzo, editDraft.cap, editDraft.citta, lat, lng);
+
+      // Se l'indirizzo era diverso dall'originale nel file, salva anche l'originale
+      // → la prossima volta non compare nemmeno il bottone "Modifica"
+      const addressChanged =
+        original.indirizzo !== editDraft.indirizzo ||
+        original.cap !== editDraft.cap ||
+        original.citta !== editDraft.citta;
+
+      if (addressChanged) {
+        await saveManualCorrection(original.indirizzo, original.cap, original.citta, lat, lng);
+      }
+    }
   }, [excelTasks, editDraft]);
 
   // Toggle operatore selezionato (aggiunge con qty=0, rimuove se già presente)
@@ -662,6 +690,13 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setMovingTaskId(null);
   }, [distribution]);
 
+  const hhmmToMin = (s: string): number => {
+    if (!s) return 24 * 60 + 1;
+    const m = /^(\d{2}):(\d{2})/.exec(s);
+    if (!m) return 24 * 60 + 1;
+    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+  };
+
   const exportDistribution = useCallback(async () => {
     if (!distribution) return;
 
@@ -690,19 +725,23 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = op;
 
-        // Riga 6 — intestazioni colonne:
-        // A=N., B=PDR, C=VIA, D=COMUNE, E=CAP, F=FASCIA ORARIA,
-        // G-H=vuoti, I=ATT/CESS, J=CAMBIO, K=MINI BAG, L=RG STOP, M=ASSENTE
+        // Riga 6 — intestazioni colonne (16 colonne):
+        // A=NOMINATIVO, B=MATRICOLA, C=PDR, D=VIA, E=COMUNE, F=CAP,
+        // G=RECAPITO, H=ATTIVITA', I=ACCESSIBILITA', J=FASCIA ORARIA, K=ORDINE,
+        // L=ATT/CESS, M=CAMBIO, N=MINI BAG, O=RG STOP, P=ASSENTE
         const hrow = ws.getRow(6);
         [
-          'N.',
-          'PDR / ODL',
+          'NOMINATIVO',
+          'MATRICOLA',
+          'PDR',
           'VIA',
           'COMUNE',
           'CAP',
-          'FASCIA ORARIA',
+          'RECAPITO',
           "ATTIVITA'",
-          'ACCESSIBILITA\'',
+          "ACCESSIBILITA'",
+          'FASCIA ORARIA',
+          'ORDINE',
           'ATT/CESS',
           'CAMBIO',
           'MINI BAG',
@@ -711,35 +750,49 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
         ].forEach((t, i) => { hrow.getCell(i + 1).value = t; });
         hrow.commit();
 
-        // 3. Righe dati — ordine di esecuzione ottimizzato
-        tasks.forEach((t, idx) => {
+        // 3. Righe dati — ordinate per fascia oraria
+        // Esclude tutti i record con codice S-AI-051 (case-insensitive)
+        const filtered = tasks.filter((t) => {
+          const codice = (t.codice ?? '').toString().trim();
+          return !/S-AI-051/i.test(codice);
+        });
+
+        const sorted = [...filtered].sort(
+          (a, b) => hhmmToMin(a.fascia_oraria) - hhmmToMin(b.fascia_oraria)
+        );
+
+        sorted.forEach((t, idx) => {
           const rr = ws.getRow(7 + idx);
-          rr.getCell(1).value = idx + 1;              // N. ordine esecuzione
-          rr.getCell(2).value = t.odl || '';          // PDR / ODL
-          rr.getCell(3).value = t.indirizzo;          // VIA
-          rr.getCell(4).value = t.citta;              // COMUNE
-          rr.getCell(5).value = t.cap;                // CAP
-          rr.getCell(6).value = t.fascia_oraria || ''; // FASCIA ORARIA
-          rr.getCell(6).numFmt = '@';
-          rr.getCell(7).value = '';
-          rr.getCell(8).value = '';
-          rr.getCell(9).value = '';
-          rr.getCell(10).value = '';
-          rr.getCell(11).value = '';
-          rr.getCell(12).value = '';
-          rr.getCell(13).value = '';
+          const pdrRaw = t.odl || '';
+          rr.getCell(1).value = t.nominativo ?? '';
+          rr.getCell(2).value = t.matricola ?? '';
+          rr.getCell(3).value = pdrRaw ? `00${pdrRaw}` : '';
+          rr.getCell(4).value = t.indirizzo;
+          rr.getCell(5).value = t.citta;
+          rr.getCell(6).value = t.cap;
+          rr.getCell(7).value = t.recapito ?? '';
+          rr.getCell(8).value = t.attivita ?? '';
+          rr.getCell(9).value = t.accessibilita ?? '';
+          rr.getCell(10).value = t.fascia_oraria || '';
+          rr.getCell(10).numFmt = '@';
+          rr.getCell(11).value = idx + 1; // ORDINE: numero progressivo
+          rr.getCell(12).value = ''; // ATT/CESS
+          rr.getCell(13).value = ''; // CAMBIO
+          rr.getCell(14).value = ''; // MINI BAG
+          rr.getCell(15).value = ''; // RG STOP
+          rr.getCell(16).value = ''; // ASSENTE
           rr.commit();
         });
 
-        // Auto-larghezza colonne dati
-        for (let c = 1; c <= 13; c++) {
+        // Auto-larghezza colonne dati (16 colonne)
+        for (let c = 1; c <= 16; c++) {
           let maxLen = 8;
-          for (let r = 6; r < 7 + tasks.length; r++) {
+          for (let r = 6; r < 7 + sorted.length; r++) {
             const v = ws.getRow(r).getCell(c).value as any;
             const s = v == null ? '' : String(v?.text ?? v);
             maxLen = Math.max(maxLen, s.length + 2);
           }
-          ws.getColumn(c).width = Math.min(50, maxLen);
+          ws.getColumn(c).width = Math.min(60, maxLen);
         }
       }
 
@@ -784,9 +837,8 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
       <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <div className="text-xl font-semibold">Mappa Operatori</div>
+            <div className="text-xl font-semibold">Pinifica indirizzi</div>
             <div className="text-sm text-[var(--brand-text-muted)]">
-              Periodo: {dateFrom} — {dateTo}
             </div>
           </div>
 

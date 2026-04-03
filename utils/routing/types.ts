@@ -9,6 +9,13 @@ export interface Task {
   lat?: number;
   lng?: number;
   requiresTwoOperators?: boolean;
+  // Campi ATTGIORN
+  nominativo?: string;
+  matricola?: string;
+  recapito?: string;
+  accessibilita?: string;
+  attivita?: string;
+  codice?: string;
 }
 
 export interface OperatorBase {

@@ -1,4 +1,5 @@
 import type { Task } from './types';
+import { getCachedCoords } from './geocodingCache';
 
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const USER_AGENT = 'gestione-personale-app';
@@ -37,6 +38,7 @@ export async function geocodeTask(task: Task): Promise<Task> {
   const result = await new Promise<{ lat: number; lng: number } | null>((resolve) => {
     queue = queue.then(async () => {
       try {
+        // ── Nominatim (tentativo primario) ──────────────────────────────────
         const params = new URLSearchParams({
           q: key,
           format: 'json',
@@ -52,8 +54,15 @@ export async function geocodeTask(task: Task): Promise<Task> {
         cache.set(key, coord);
         resolve(coord);
       } catch (err) {
+        // ── Nominatim fallito → fallback a cache DB ─────────────────────────
         console.error(`[geocoding] Impossibile geocodificare "${key}":`, err);
-        resolve(null);
+        const dbCoord = await getCachedCoords(task.indirizzo, task.cap, task.citta);
+        if (dbCoord) {
+          cache.set(key, dbCoord); // scalda in-memory per sessione
+          resolve(dbCoord);
+        } else {
+          resolve(null);
+        }
       } finally {
         await delay(RATE_LIMIT_MS);
       }
