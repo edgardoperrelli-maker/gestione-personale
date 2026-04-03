@@ -57,6 +57,8 @@ type ColMap = {
   cap: number | null;
   comune: number | null;
   pdR: number | null;
+  odl: number | null;
+  odsin: number | null;
   fascia: number | null;
   operatore: number | null;
   nominativo: number | null;
@@ -70,6 +72,8 @@ type ColMap = {
 function detectFormat(headerRow: unknown[]): ColMap | null {
   const headers = headerRow.map(normalizeHeader);
   const ncols = headers.length;
+  const odl = findCol(headers, [/^codice[_\s]*odl$/, /^odl$/]);
+  const odsin = findCol(headers, [/^odsin$/, /^codice$/, /^codice\s+odsin$/, /^id$/]);
 
   // ── Formato ATTGIORN: presenza "risorsa" in col B (indice 1) ──────────────
   if (/^risorsa$/i.test(headers[ATTGIORN_COL.OPERATORE] ?? '') ||
@@ -79,6 +83,8 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
       cap: ATTGIORN_COL.CAP,
       comune: ATTGIORN_COL.COMUNE,
       pdR: ATTGIORN_COL.PDR,
+      odl,
+      odsin,
       fascia: ATTGIORN_COL.ORA,
       operatore: ATTGIORN_COL.OPERATORE,
       nominativo: ATTGIORN_COL.NOMINATIVO,
@@ -99,6 +105,8 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
         cap: MASSIVA_COL.CAP,
         comune: MASSIVA_COL.COMUNE,
         pdR: MASSIVA_COL.PDR,
+        odl,
+        odsin,
         fascia: MASSIVA_COL.FASCIA,
         operatore: MASSIVA_COL.NOMINATIVO,
         nominativo: null,
@@ -115,6 +123,8 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
       cap: MASSIVA_COL.CAP,
       comune: MASSIVA_COL.COMUNE,
       pdR: MASSIVA_COL.PDR,
+      odl,
+      odsin,
       fascia: MASSIVA_COL.FASCIA,
       operatore: MASSIVA_COL.NOMINATIVO,
       nominativo: null,
@@ -134,7 +144,9 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
     via,
     cap: findCol(headers, [/^cap$/, /^c\.a\.p\.?$/]),
     comune: findCol(headers, [/^comune$/, /^citt[aà]$/, /^localit/]),
-    pdR: findCol(headers, [/^pdr/, /^pdr\s*\//, /^punto.di.rec/, /^odl$/, /^codice$/]),
+    pdR: findCol(headers, [/^pdr/, /^pdr\s*\//, /^punto.di.rec/]),
+    odl,
+    odsin,
     fascia: findCol(headers, [/^fascia/, /^slot/, /^orario/]),
     operatore: findCol(headers, [/^nominativo$/, /^operatore$/, /^risorsa$/, /^nome.*/]),
     nominativo: null,
@@ -168,6 +180,12 @@ function findHeaderRow(rows: unknown[][]): number {
 
 function str(v: unknown): string {
   return String(v ?? '').trim();
+}
+
+function extractOdsin(v: unknown): string | undefined {
+  const digits = String(v ?? '').replace(/\D/g, '');
+  const match = digits.match(/200\d{8}/);
+  return match?.[0];
 }
 
 // ─── Export pubblico ─────────────────────────────────────────────────────────
@@ -223,9 +241,16 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
 
     const operatore = colMap.operatore != null ? str(row[colMap.operatore]) : '';
 
+    const odl = colMap.odl != null ? str(row[colMap.odl]) : (colMap.pdR != null ? str(row[colMap.pdR]) : '');
+    const odsin =
+      (colMap.odsin != null ? extractOdsin(row[colMap.odsin]) : undefined) ??
+      extractOdsin(odl) ??
+      (colMap.pdR != null ? extractOdsin(row[colMap.pdR]) : undefined);
+
     const task: Task & { _operatore?: string } = {
       id: `row-${i}`,
-      odl: colMap.pdR != null ? str(row[colMap.pdR]) : '',
+      odl,
+      odsin,
       indirizzo,
       cap,
       citta,

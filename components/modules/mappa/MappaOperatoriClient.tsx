@@ -40,6 +40,7 @@ type Props = {
 type DistEntry = { op: string; color: string; tasks: Task[]; km: number };
 type OpConfig = { name: string; qty: number };
 type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
+type CapacityDistributionResult = { groups: Task[][]; unassigned: Task[] };
 
 // ─── Palette colori operatori ────────────────────────────────────────────────
 
@@ -211,6 +212,125 @@ function capacityDistribute(tasks: Task[], ops: OpConfig[]): Task[][] {
 
 // ─── ExcelJS helpers (stessa logica del modulo Rapportini Clientela) ─────────
 
+function capacityDistributeWithUnassigned(tasks: Task[], ops: OpConfig[]): CapacityDistributionResult {
+  const n = ops.length;
+  if (!tasks.length || !n) {
+    return { groups: Array.from({ length: n }, () => []), unassigned: [...tasks] };
+  }
+
+  const explicitTargets = ops.map((op) => Math.max(0, Math.trunc(op.qty)));
+  const explicitTotal = explicitTargets.reduce((sum, qty) => sum + qty, 0);
+
+  let targets: number[];
+  if (explicitTotal === 0) {
+    targets = capacityDistribute(tasks, ops).map((group) => group.length);
+  } else if (explicitTotal <= tasks.length) {
+    targets = explicitTargets;
+  } else {
+    const scaled = explicitTargets.map((qty) => (qty / explicitTotal) * tasks.length);
+    targets = scaled.map((qty) => Math.floor(qty));
+
+    let remainder = tasks.length - targets.reduce((sum, qty) => sum + qty, 0);
+    const ranked = scaled
+      .map((qty, index) => ({ index, fraction: qty - Math.floor(qty) }))
+      .sort((a, b) => b.fraction - a.fraction);
+
+    for (const { index } of ranked) {
+      if (remainder <= 0) break;
+      if (targets[index] >= explicitTargets[index]) continue;
+      targets[index] += 1;
+      remainder -= 1;
+    }
+  }
+
+  const activeOps = targets
+    .map((target, index) => ({ index, target }))
+    .filter((entry) => entry.target > 0);
+
+  if (!activeOps.length) {
+    return { groups: Array.from({ length: n }, () => []), unassigned: [...tasks] };
+  }
+
+  type Pt = { lat: number; lng: number };
+
+  let centers: Pt[] = [{ lat: tasks[0].lat!, lng: tasks[0].lng! }];
+  while (centers.length < Math.min(activeOps.length, tasks.length)) {
+    let maxD = -1;
+    let best: Pt = centers[0];
+    for (const task of tasks) {
+      const minD = Math.min(...centers.map((center) => distanceMeters(center, { lat: task.lat!, lng: task.lng! })));
+      if (minD > maxD) {
+        maxD = minD;
+        best = { lat: task.lat!, lng: task.lng! };
+      }
+    }
+    centers.push(best);
+  }
+
+  let assignedGroups: Task[][] = Array.from({ length: activeOps.length }, () => []);
+  let unassigned: Task[] = [];
+
+  for (let iter = 0; iter < 8; iter++) {
+    assignedGroups = Array.from({ length: activeOps.length }, () => []);
+    unassigned = [];
+    const slots = activeOps.map((entry) => entry.target);
+
+    const rankedTasks = tasks
+      .map((task) => {
+        const preferences = centers
+          .map((center, clusterIndex) => ({
+            clusterIndex,
+            distance: distanceMeters(center, { lat: task.lat!, lng: task.lng! }),
+          }))
+          .sort((a, b) => a.distance - b.distance);
+
+        const best = preferences[0]?.distance ?? Infinity;
+        const second = preferences[1]?.distance ?? Infinity;
+
+        return {
+          task,
+          preferences,
+          advantage: second - best,
+          nearest: best,
+        };
+      })
+      .sort((a, b) => {
+        if (b.advantage !== a.advantage) return b.advantage - a.advantage;
+        return a.nearest - b.nearest;
+      });
+
+    for (const entry of rankedTasks) {
+      let placed = false;
+      for (const preference of entry.preferences) {
+        if (slots[preference.clusterIndex] <= 0) continue;
+        assignedGroups[preference.clusterIndex].push(entry.task);
+        slots[preference.clusterIndex] -= 1;
+        placed = true;
+        break;
+      }
+      if (!placed) {
+        unassigned.push(entry.task);
+      }
+    }
+
+    centers = centers.map((center, clusterIndex) => {
+      const group = assignedGroups[clusterIndex];
+      if (!group.length) return center;
+      return {
+        lat: group.reduce((sum, task) => sum + task.lat!, 0) / group.length,
+        lng: group.reduce((sum, task) => sum + task.lng!, 0) / group.length,
+      };
+    });
+  }
+
+  const groups = Array.from({ length: n }, () => [] as Task[]);
+  activeOps.forEach((entry, clusterIndex) => {
+    groups[entry.index] = assignedGroups[clusterIndex];
+  });
+
+  return { groups, unassigned };
+}
+
 function sanitizeSheetName(s: string) {
   return s.replace(/[:\\/?*[\]]/g, ' ');
 }
@@ -253,6 +373,43 @@ function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Wo
   return ws;
 }
 
+function copyCellTemplate(source: ExcelJS.Cell, target: ExcelJS.Cell) {
+  // @ts-ignore
+  target.style = JSON.parse(JSON.stringify(source.style || {}));
+  target.protection = source.protection;
+  target.numFmt = source.numFmt;
+}
+
+function copyColumnTemplate(ws: ExcelJS.Worksheet, sourceCol: number, targetCol: number) {
+  const source = ws.getColumn(sourceCol);
+  const target = ws.getColumn(targetCol);
+  target.width = source.width;
+  target.hidden = source.hidden;
+
+  for (let r = 1; r <= ws.rowCount; r++) {
+    copyCellTemplate(ws.getRow(r).getCell(sourceCol), ws.getRow(r).getCell(targetCol));
+  }
+}
+
+function prepareReportSheet(ws: ExcelJS.Worksheet) {
+  try {
+    ws.unMergeCells('A30:O30');
+  } catch {}
+
+  ws.spliceColumns(4, 0, []);
+  copyColumnTemplate(ws, 5, 4);
+
+  ws.spliceColumns(12, 0, []);
+  copyColumnTemplate(ws, 13, 12);
+
+  ws.mergeCells('A30:Q30');
+}
+
+function extractReportTime(value: string): string {
+  const match = value.match(/\b(\d{2}):(\d{2})\b/);
+  return match ? `${match[1]}:${match[2]}` : '';
+}
+
 // ─── Helper: trova la zona ZTL di un task dato il CAP ─────────────────────────
 
 function getTaskZtl(cap: string, ztlZones: ZtlZoneInfo[] = []): ZtlZoneInfo | null {
@@ -285,6 +442,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   const [excelTasks, setExcelTasks] = useState<Task[]>([]);
   const [geocodingProgress, setGeocodingProgress] = useState<{ done: number; total: number } | null>(null);
   const [excelMode, setExcelMode] = useState(false);
+  const [excelOnlyManualAction, setExcelOnlyManualAction] = useState(false);
 
   // Modifica task non geocodificati
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -297,6 +455,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
   const [customOpInput, setCustomOpInput] = useState('');
   const [distribution, setDistribution] = useState<DistEntry[] | null>(null);
+  const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
 
@@ -340,6 +499,27 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     return Array.from(names).sort();
   }, [rows]);
 
+  const excelOperators = useMemo(() => {
+    const names = new Set<string>();
+    selectedOps.forEach((op) => {
+      const name = op.name.trim();
+      if (name) names.add(name);
+    });
+    return Array.from(names).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
+  }, [selectedOps]);
+
+  const excelNeedsManualCount = useMemo(() => {
+    return excelTasks.filter((task) => task.lat == null || task.lng == null).length;
+  }, [excelTasks]);
+
+  const filteredExcelTasks = useMemo(() => {
+    return excelTasks.filter((task) => {
+      const needsManualAction = task.lat == null || task.lng == null;
+      if (excelOnlyManualAction && !needsManualAction) return false;
+      return true;
+    });
+  }, [excelOnlyManualAction, excelTasks]);
+
   // Route supabase
   const computedRoute = useMemo<RouteResult | null>(() => {
     if (!routeMode || excelMode) return null;
@@ -370,6 +550,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   const excelGeocoded = excelTasks.filter((t) => t.lat != null && t.lng != null).length;
   const isGeocoding = geocodingProgress !== null && geocodingProgress.done < geocodingProgress.total;
+
 
   // ─── Lookup supabase ────────────────────────────────────────────────────────
 
@@ -510,6 +691,31 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           leaflet.polyline(coords, { color, weight: 3, opacity: 0.75, dashArray: '6 4' }).addTo(rLayer);
         }
       });
+      unassignedTasks.forEach((t) => {
+        if (t.lat == null || t.lng == null) return;
+        const marker = leaflet.circleMarker([t.lat, t.lng], {
+          radius: 7,
+          color: '#D97706',
+          weight: 2,
+          fillColor: '#FEF3C7',
+          fillOpacity: 0.95,
+        });
+        excelMarkersRef.current.set(t.id, marker);
+        marker.on('click', () => {
+          setSelectedExcelTaskId(t.id);
+        });
+        marker.bindPopup(`
+          <div style="font-size:12px;line-height:1.5">
+            <div style="font-weight:600;color:#D97706">Non assegnata</div>
+            <div>${t.indirizzo}</div>
+            <div>${t.cap} ${t.citta}</div>
+            ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
+            ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
+          </div>
+        `);
+        marker.addTo(exLayer);
+        bounds.push([t.lat, t.lng]);
+      });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     } else {
       // Marker Excel singoli (arancione)
@@ -542,7 +748,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
       });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     }
-  }, [leaflet, excelTasks, excelMode, distribution]);
+  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks]);
 
   // Polyline percorso supabase / excel singolo
   useEffect(() => {
@@ -583,10 +789,12 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     });
     setExcelTasks(filtered);
     setExcelMode(true);
+    setExcelOnlyManualAction(false);
     setRouteMode(false);
     setRouteResult(null);
     setGeocodingProgress(null);
     setDistribution(null);
+    setUnassignedTasks([]);
     setSelectedOps([]);
     setSelectedExcelTaskId(null);
     setEditingTaskId(null);
@@ -597,6 +805,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     const total = excelTasks.length;
     setGeocodingProgress({ done: 0, total });
     setDistribution(null); // reset distribuzione quando si rigenera
+    setUnassignedTasks([]);
 
     const updated = [...excelTasks];
     for (let i = 0; i < updated.length; i++) {
@@ -612,10 +821,12 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     geocodingActiveRef.current = false;
     setExcelTasks([]);
     setExcelMode(false);
+    setExcelOnlyManualAction(false);
     setGeocodingProgress(null);
     setRouteMode(false);
     setRouteResult(null);
     setDistribution(null);
+    setUnassignedTasks([]);
     setSelectedOps([]);
     setSelectedExcelTaskId(null);
     setEditingTaskId(null);
@@ -657,6 +868,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setEditingTaskId(null);
     setGeocodingSingleId(null);
     setDistribution(null); // distribuzione non è più valida
+    setUnassignedTasks([]);
 
     // Persisti nel DB solo se la geocodifica ha avuto successo
     if (geocoded.lat !== undefined && geocoded.lng !== undefined) {
@@ -706,7 +918,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     const geocoded = excelTasks.filter((t) => t.lat != null && t.lng != null);
     if (!geocoded.length) return;
 
-    const groups = capacityDistribute(geocoded, selectedOps);
+    const { groups, unassigned } = capacityDistributeWithUnassigned(geocoded, selectedOps);
     const result: DistEntry[] = selectedOps.map((op, i) => {
       const grp = groups[i] ?? [];
       const routeRes =
@@ -721,6 +933,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
       };
     });
     setDistribution(result);
+    setUnassignedTasks(unassigned);
     setActiveOpIdx(0);
     setRouteMode(false);
     setRouteResult(null);
@@ -766,9 +979,31 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setMovingTaskId(null);
   }, [distribution]);
 
+  const assignUnassignedTask = useCallback((taskId: string, toIdx: number) => {
+    if (!distribution) return;
+    const task = unassignedTasks.find((entry) => entry.id === taskId);
+    if (!task) return;
+
+    const newDist = distribution.map((d) => ({ ...d, tasks: [...d.tasks] }));
+    newDist[toIdx].tasks.push(task);
+
+    const grp = newDist[toIdx].tasks;
+    if (grp.length >= 2) {
+      const res = optimizeRoute(grp);
+      newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm };
+    } else {
+      newDist[toIdx] = { ...newDist[toIdx], km: 0 };
+    }
+
+    setDistribution(newDist);
+    setUnassignedTasks((prev) => prev.filter((entry) => entry.id !== taskId));
+    setActiveOpIdx(toIdx);
+    setMovingTaskId(null);
+  }, [distribution, unassignedTasks]);
+
   const hhmmToMin = (s: string): number => {
     if (!s) return 24 * 60 + 1;
-    const m = /^(\d{2}):(\d{2})/.exec(s);
+    const m = /(\d{2}):(\d{2})/.exec(s);
     if (!m) return 24 * 60 + 1;
     return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
   };
@@ -796,6 +1031,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
       for (const { op, tasks } of distribution) {
         const sheetName = sanitizeSheetName(op).slice(0, 31);
         const ws = cloneFromTemplate(base, sheetName, tplWb);
+        prepareReportSheet(ws);
 
         // Intestazioni header template (B2 = data, B4 = operatore)
         ws.getCell('B2').value = dateStr;
@@ -810,6 +1046,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           'NOMINATIVO',
           'MATRICOLA',
           'PDR',
+          'ODSIN',
           'VIA',
           'COMUNE',
           'CAP',
@@ -843,25 +1080,26 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           rr.getCell(1).value = t.nominativo ?? '';
           rr.getCell(2).value = t.matricola ?? '';
           rr.getCell(3).value = pdrRaw ? `00${pdrRaw}` : '';
-          rr.getCell(4).value = t.indirizzo;
-          rr.getCell(5).value = t.citta;
-          rr.getCell(6).value = t.cap;
-          rr.getCell(7).value = t.recapito ?? '';
-          rr.getCell(8).value = t.attivita ?? '';
-          rr.getCell(9).value = t.accessibilita ?? '';
-          rr.getCell(10).value = t.fascia_oraria || '';
-          rr.getCell(10).numFmt = '@';
-          rr.getCell(11).value = idx + 1; // ORDINE: numero progressivo
-          rr.getCell(12).value = ''; // ATT/CESS
-          rr.getCell(13).value = ''; // CAMBIO
-          rr.getCell(14).value = ''; // MINI BAG
-          rr.getCell(15).value = ''; // RG STOP
-          rr.getCell(16).value = ''; // ASSENTE
+          rr.getCell(4).value = t.odsin ?? '';
+          rr.getCell(5).value = t.indirizzo;
+          rr.getCell(6).value = t.citta;
+          rr.getCell(7).value = t.cap;
+          rr.getCell(8).value = t.recapito ?? '';
+          rr.getCell(9).value = t.attivita ?? '';
+          rr.getCell(10).value = t.accessibilita ?? '';
+          rr.getCell(11).value = extractReportTime(t.fascia_oraria || '');
+          rr.getCell(11).numFmt = '@';
+          rr.getCell(12).value = idx + 1; // ORDINE: numero progressivo
+          rr.getCell(13).value = ''; // ATT/CESS
+          rr.getCell(14).value = ''; // CAMBIO
+          rr.getCell(15).value = ''; // MINI BAG
+          rr.getCell(16).value = ''; // RG STOP
+          rr.getCell(17).value = ''; // ASSENTE
           rr.commit();
         });
 
-        // Auto-larghezza colonne dati (16 colonne)
-        for (let c = 1; c <= 16; c++) {
+        // Auto-larghezza colonne dati (17 colonne)
+        for (let c = 1; c <= 17; c++) {
           let maxLen = 8;
           for (let r = 6; r < 7 + sorted.length; r++) {
             const v = ws.getRow(r).getCell(c).value as any;
@@ -889,7 +1127,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   const downloadTemplate = useCallback(() => {
     const headers = [
-      'CO', 'Id', 'Codice', 'Indirizzo', 'CAP', 'COMUNE',
+      'CO', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
       'Tipo OdL(CdL)/Servizio', 'Fascia Appuntamento/Blocco',
       'PdR / Impianto', 'Tempo Esecuzione', 'Num Risorse',
     ];
@@ -1144,7 +1382,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                           <button type="button" onClick={exportDistribution} className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
                             Esporta Excel
                           </button>
-                          <button type="button" onClick={() => { setDistribution(null); setZtlConflicts([]); }} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
+                          <button type="button" onClick={() => { setDistribution(null); setUnassignedTasks([]); setZtlConflicts([]); }} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
                             Azzera
                           </button>
                         </>
@@ -1281,14 +1519,23 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                                   if (di === activeOpIdx) return null;
                                   const ztl = getTaskZtl(t.cap, ztlZones);
                                   const blocked = ztl !== null && !ztl.authorized_names.includes(d.op);
+                                  const targetCap = 0;
+                                  const capReached = false;
+                                  const disabled = blocked;
                                   return (
                                     <button
                                       key={d.op}
                                       type="button"
                                       onClick={() => !blocked && moveTask(t.id, activeOpIdx, di)}
                                       disabled={blocked}
-                                      title={blocked ? `${d.op} non ha il permesso ZTL per ${ztl!.name}` : undefined}
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${blocked ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
+                                      title={
+                                        blocked
+                                          ? `${d.op} non ha il permesso ZTL per ${ztl!.name}`
+                                          : capReached
+                                            ? `${d.op} ha già raggiunto il limite di ${targetCap} attività`
+                                            : undefined
+                                      }
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
                                       style={{ backgroundColor: d.color }}
                                     >
                                       {d.op} ({d.tasks.length}) {blocked ? '🔒' : ''}
@@ -1301,6 +1548,103 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                         );
                       })}
                     </div>
+                    {unassignedTasks.length > 0 && (
+                      <div className="mt-4 border-t border-amber-200 pt-3">
+                        <div className="mb-2 text-sm font-semibold text-amber-800">
+                          Non assegnate ({unassignedTasks.length})
+                        </div>
+                        <div className="space-y-1.5">
+                          {unassignedTasks.map((t, idx) => {
+                            const isSelected = selectedExcelTaskId === t.id;
+                            const isMoving = movingTaskId === t.id;
+                            return (
+                              <div
+                                key={t.id}
+                                ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
+                                className={`rounded-lg border px-2 py-1.5 text-xs ${
+                                  isSelected
+                                    ? 'border-amber-400 bg-amber-100 shadow-sm'
+                                    : 'border-amber-200 bg-amber-50'
+                                }`}
+                              >
+                                <div
+                                  className="flex cursor-pointer items-start gap-1.5"
+                                  onClick={() => focusExcelTask(t.id)}
+                                >
+                                  <span className="mt-0.5 shrink-0 text-[9px] font-bold text-amber-600">{idx + 1}</span>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-1">
+                                      <span className="truncate font-medium">{t.odl || `Task ${idx + 1}`}</span>
+                                      {isSelected && (
+                                        <span className="shrink-0 rounded-full border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                          Selezionato
+                                        </span>
+                                      )}
+                                    </div>
+                                    <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
+                                  </div>
+                                  <div className="flex shrink-0 items-center gap-1">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setMovingTaskId(isMoving ? null : t.id);
+                                      }}
+                                      className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                                        isMoving
+                                          ? 'border-blue-400 bg-blue-100 text-blue-700'
+                                          : 'border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600'
+                                      }`}
+                                    >
+                                      Sposta
+                                    </button>
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        openEdit(t);
+                                      }}
+                                      className="rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                                      title="Correggi indirizzo e rigenera coordinate"
+                                    >
+                                      Correggi
+                                    </button>
+                                  </div>
+                                </div>
+                                {isMoving && (
+                                  <div className="mt-1.5 flex flex-wrap gap-1 border-t border-amber-200 pt-1.5">
+                                    <span className="w-full text-[10px] text-amber-700">Sposta a:</span>
+                                    {distribution!.map((d, di) => {
+                                      const ztl = getTaskZtl(t.cap, ztlZones);
+                                      const blocked = ztl !== null && !ztl.authorized_names.includes(d.op);
+                                      return (
+                                        <button
+                                          key={d.op}
+                                          type="button"
+                                          onClick={() => !blocked && assignUnassignedTask(t.id, di)}
+                                          disabled={blocked}
+                                          title={
+                                            blocked
+                                              ? `${d.op} non ha il permesso ZTL per ${ztl!.name}`
+                                              : undefined
+                                          }
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${
+                                            blocked ? 'cursor-not-allowed opacity-30' : 'hover:opacity-80'
+                                          }`}
+                                          style={{ backgroundColor: d.color }}
+                                        >
+                                          {d.op} ({d.tasks.length}){blocked ? ' ZTL' : ''}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
                   </>
                 );
               })()}
@@ -1350,9 +1694,56 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           ) : excelMode ? (
             /* ── Lista attività Excel (con edit per non geocodificate) ── */
             <>
-              <div className="mb-3 text-sm font-semibold text-amber-800">Attività da Excel</div>
+              <div className="sticky top-0 z-10 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-white pb-3">
+                <div className="flex items-center justify-between gap-2">
+                  <div className="text-sm font-semibold text-amber-800">Attivita da Excel</div>
+                  <span className="text-[10px] font-medium text-gray-400">
+                    {filteredExcelTasks.length}/{excelTasks.length}
+                  </span>
+                </div>
+                <div className="flex flex-wrap gap-1">
+                  <button
+                    type="button"
+                    onClick={() => setExcelOnlyManualAction((value) => !value)}
+                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
+                      excelOnlyManualAction
+                        ? 'border-amber-300 bg-amber-100 text-amber-800'
+                        : 'border-gray-200 bg-white text-gray-500 hover:border-amber-200 hover:text-amber-700'
+                    }`}
+                  >
+                    Solo da correggere ({excelNeedsManualCount})
+                  </button>
+                  {excelOnlyManualAction && (
+                    <button
+                      type="button"
+                      onClick={() => setExcelOnlyManualAction(false)}
+                      className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500 transition hover:border-gray-300 hover:text-gray-700"
+                    >
+                      Reset filtri
+                    </button>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operatori coinvolti</div>
+                  {excelOperators.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {excelOperators.map((name) => (
+                        <span
+                          key={name}
+                          className="max-w-full truncate rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                          title={name}
+                        >
+                          {name}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-[10px] text-gray-400">Nessun operatore selezionato.</div>
+                  )}
+                </div>
+              </div>
               <div className="space-y-1.5">
-                {excelTasks.map((t, idx) => {
+                {filteredExcelTasks.map((t, idx) => {
                   const hasCoords = t.lat != null && t.lng != null;
                   const op = (t as Task & { _operatore?: string })._operatore;
                   const isEditing = editingTaskId === t.id;
@@ -1467,6 +1858,11 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                     </div>
                   );
                 })}
+                {filteredExcelTasks.length === 0 && (
+                  <div className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-center text-xs text-gray-400">
+                    Nessun indirizzo corrisponde ai filtri correnti.
+                  </div>
+                )}
               </div>
             </>
           ) : (
