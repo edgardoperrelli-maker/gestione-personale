@@ -6,7 +6,7 @@ import { getTerritoryStyle } from '@/lib/territoryColors';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import { geocodeTask, optimizeRoute, parseExcelToTasks } from '@/utils/routing';
-import type { RouteResult, Task } from '@/utils/routing';
+import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -29,16 +29,34 @@ export type ZtlZoneInfo = {
   authorized_names: string[];
 };
 
+export type MappaOperatorOption = {
+  id: string;
+  displayName: string;
+  startAddress: string | null;
+  startLat: number | null;
+  startLng: number | null;
+};
+
 type Props = {
   rows: MappaStaffRow[];
+  operatorOptions: MappaOperatorOption[];
   territories: Array<{ id: string; name: string; lat: number | null; lng: number | null }>;
   dateFrom: string;
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
 };
 
-type DistEntry = { op: string; color: string; tasks: Task[]; km: number };
-type OpConfig = { name: string; qty: number };
+type DistEntry = {
+  op: string;
+  staffId: string;
+  color: string;
+  tasks: Task[];
+  km: number;
+  polyline: Array<{ lat: number; lng: number }>;
+  base: OperatorBase | null;
+  startAddress: string | null;
+};
+type OpConfig = { id: string; name: string; qty: number; base: OperatorBase | null; startAddress: string | null };
 type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
 type CapacityDistributionResult = { groups: Task[][]; unassigned: Task[] };
 
@@ -138,10 +156,18 @@ function capacityDistribute(tasks: Task[], ops: OpConfig[]): Task[][] {
 
   // ── Fase 1: K-means ─────────────────────────────────────────────────────────
 
-  // Centri iniziali: max-min spread
+  // Centri iniziali: usa le basi operatori se presenti, altrimenti max-min spread
   type Pt = { lat: number; lng: number };
-  let centers: Pt[] = [{ lat: tasks[0].lat!, lng: tasks[0].lng! }];
-  while (centers.length < Math.min(n, tasks.length)) {
+  let centers: Pt[] = ops
+    .map((op) => op.base)
+    .filter((base): base is OperatorBase => base !== null)
+    .map((base) => ({ lat: base.lat, lng: base.lng }));
+
+  if (!centers.length) {
+    centers = [{ lat: tasks[0].lat!, lng: tasks[0].lng! }];
+  }
+
+  while (centers.length < n) {
     let maxD = -1;
     let best: Pt = centers[0];
     for (const t of tasks) {
@@ -420,7 +446,7 @@ function getTaskZtl(cap: string, ztlZones: ZtlZoneInfo[] = []): ZtlZoneInfo | nu
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, territories, dateFrom, dateTo, ztlZones = [] }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [] }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -453,7 +479,6 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   // Distribuzione operatori
   const [showOpPicker, setShowOpPicker] = useState(false);
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
-  const [customOpInput, setCustomOpInput] = useState('');
   const [distribution, setDistribution] = useState<DistEntry[] | null>(null);
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
@@ -495,9 +520,10 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   // Operatori disponibili da Supabase (periodo corrente)
   const availableOperators = useMemo(() => {
-    const names = new Set(rows.map((r) => r.displayName));
-    return Array.from(names).sort();
-  }, [rows]);
+    return [...operatorOptions].sort((a, b) =>
+      a.displayName.localeCompare(b.displayName, 'it', { sensitivity: 'base' })
+    );
+  }, [operatorOptions]);
 
   const excelOperators = useMemo(() => {
     const names = new Set<string>();
@@ -657,7 +683,26 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     if (distribution) {
       // Marker e polyline per-operatore
       const bounds: Array<[number, number]> = [];
-      distribution.forEach(({ op, color, tasks }, i) => {
+      distribution.forEach(({ op, color, tasks, polyline, base, startAddress }, i) => {
+        if (base) {
+          bounds.push([base.lat, base.lng]);
+          const baseIcon = leaflet.divIcon({
+            className: '',
+            html: `<div style="background:#111827;color:#fff;border-radius:999px;min-width:22px;height:22px;padding:0 6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">S</div>`,
+            iconSize: [22, 22],
+            iconAnchor: [11, 11],
+          });
+          leaflet
+            .marker([base.lat, base.lng], { icon: baseIcon })
+            .bindPopup(`
+              <div style="font-size:12px;line-height:1.5">
+                <div style="font-weight:600;color:${color}">${op}</div>
+                <div>Punto di partenza</div>
+                ${startAddress ? `<div>${startAddress}</div>` : ''}
+              </div>
+            `)
+            .addTo(rLayer);
+        }
         tasks.forEach((t, idx) => {
           if (t.lat == null || t.lng == null) return;
           bounds.push([t.lat, t.lng]);
@@ -684,9 +729,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           `);
           marker.addTo(exLayer);
         });
-        const coords = tasks
-          .filter((t) => t.lat != null && t.lng != null)
-          .map((t) => [t.lat!, t.lng!] as [number, number]);
+        const coords = polyline.map((point) => [point.lat, point.lng] as [number, number]);
         if (coords.length >= 2) {
           leaflet.polyline(coords, { color, weight: 3, opacity: 0.75, dashArray: '6 4' }).addTo(rLayer);
         }
@@ -891,25 +934,31 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   }, [excelTasks, editDraft]);
 
   // Toggle operatore selezionato (aggiunge con qty=0, rimuove se già presente)
-  const toggleOp = useCallback((name: string) => {
+  const toggleOp = useCallback((operator: MappaOperatorOption) => {
+    const base =
+      operator.startLat != null && operator.startLng != null
+        ? { lat: operator.startLat, lng: operator.startLng }
+        : null;
+
     setSelectedOps((prev) =>
-      prev.some((o) => o.name === name)
-        ? prev.filter((o) => o.name !== name)
-        : [...prev, { name, qty: 0 }]
+      prev.some((o) => o.id === operator.id)
+        ? prev.filter((o) => o.id !== operator.id)
+        : [
+            ...prev,
+            {
+              id: operator.id,
+              name: operator.displayName,
+              qty: 0,
+              base,
+              startAddress: operator.startAddress,
+            },
+          ]
     );
   }, []);
 
-  // Aggiunge operatore custom
-  const addCustomOp = useCallback(() => {
-    const name = customOpInput.trim();
-    if (!name || selectedOps.some((o) => o.name === name)) return;
-    setSelectedOps((prev) => [...prev, { name, qty: 0 }]);
-    setCustomOpInput('');
-  }, [customOpInput, selectedOps]);
-
   // Aggiorna la quantità di un operatore
-  const changeOpQty = useCallback((name: string, qty: number) => {
-    setSelectedOps((prev) => prev.map((o) => o.name === name ? { ...o, qty } : o));
+  const changeOpQty = useCallback((id: string, qty: number) => {
+    setSelectedOps((prev) => prev.map((o) => o.id === id ? { ...o, qty } : o));
   }, []);
 
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
@@ -922,14 +971,18 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     const result: DistEntry[] = selectedOps.map((op, i) => {
       const grp = groups[i] ?? [];
       const routeRes =
-        grp.length >= 2
-          ? optimizeRoute(grp)
+        grp.length >= 1
+          ? optimizeRoute(grp, op.base ?? undefined)
           : { orderedTasks: grp, totalDistanceKm: 0, polyline: [] };
       return {
         op: op.name,
+        staffId: op.id,
         color: OP_COLORS[i % OP_COLORS.length],
         tasks: routeRes.orderedTasks,
         km: routeRes.totalDistanceKm,
+        polyline: routeRes.polyline,
+        base: op.base,
+        startAddress: op.startAddress,
       };
     });
     setDistribution(result);
@@ -942,11 +995,11 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
     // ── Controlla conflitti ZTL ─────────────────────────────────────────────
     const conflicts: string[] = [];
-    result.forEach(({ op, tasks }) => {
+    result.forEach(({ op, staffId, tasks }) => {
       tasks.forEach((t) => {
         const ztl = getTaskZtl(t.cap, ztlZones);
         if (!ztl) return;
-        const authorized = ztl.authorized_names.includes(op);
+        const authorized = ztl.authorized_staff_ids.includes(staffId);
         if (!authorized) {
           conflicts.push(`"${op}" non ha il permesso ZTL per ${ztl.name} (${t.indirizzo})`);
         }
@@ -967,11 +1020,11 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     // Ricalcola route per i due operatori coinvolti
     [fromIdx, toIdx].forEach((i) => {
       const grp = newDist[i].tasks;
-      if (grp.length >= 2) {
-        const res = optimizeRoute(grp);
-        newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm };
+      if (grp.length >= 1) {
+        const res = optimizeRoute(grp, newDist[i].base ?? undefined);
+        newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
       } else {
-        newDist[i] = { ...newDist[i], km: 0 };
+        newDist[i] = { ...newDist[i], km: 0, polyline: [] };
       }
     });
 
@@ -988,11 +1041,11 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     newDist[toIdx].tasks.push(task);
 
     const grp = newDist[toIdx].tasks;
-    if (grp.length >= 2) {
-      const res = optimizeRoute(grp);
-      newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm };
+    if (grp.length >= 1) {
+      const res = optimizeRoute(grp, newDist[toIdx].base ?? undefined);
+      newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
     } else {
-      newDist[toIdx] = { ...newDist[toIdx], km: 0 };
+      newDist[toIdx] = { ...newDist[toIdx], km: 0, polyline: [] };
     }
 
     setDistribution(newDist);
@@ -1317,25 +1370,21 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                   <div className="mt-2 space-y-2">
                     {availableOperators.length > 0 ? (
                       <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                        {availableOperators.map((name) => {
-                          const selIdx = selectedOps.findIndex((o) => o.name === name);
+                        {availableOperators.map((operator) => {
+                          const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
                           const checked = selIdx !== -1;
                           return (
-                            <label key={name} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
-                              <input type="checkbox" checked={checked} onChange={() => toggleOp(name)} className="accent-blue-600" />
-                              <span className="truncate text-xs text-gray-800">{name}</span>
+                            <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
+                              <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
+                              <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
                               {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
                             </label>
                           );
                         })}
                       </div>
                     ) : (
-                      <p className="text-xs text-gray-400">Nessun operatore Supabase per questo periodo.</p>
+                      <p className="text-xs text-gray-400">Nessun operatore valido nel cronoprogramma per questo periodo.</p>
                     )}
-                    <div className="flex gap-1 border-t border-gray-200 pt-2">
-                      <input type="text" value={customOpInput} onChange={(e) => setCustomOpInput(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && addCustomOp()} placeholder="Aggiungi nome manuale..." className="min-w-0 flex-1 rounded border border-gray-200 bg-white px-2 py-1 text-xs" />
-                      <button type="button" onClick={addCustomOp} className="rounded bg-gray-200 px-2 py-1 text-xs font-semibold hover:bg-gray-300">+</button>
-                    </div>
                   </div>
                 )}
 
@@ -1348,23 +1397,28 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                       <span />
                       {selectedOps.map((op, i) => (
                         <>
-                          <div key={op.name + '-name'} className="flex items-center gap-1.5 min-w-0">
+                          <div key={op.id + '-name'} className="flex min-w-0 items-center gap-1.5">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[i % OP_COLORS.length] }} />
-                            <span className="truncate text-xs font-medium text-gray-800">{op.name}</span>
+                            <div className="min-w-0">
+                              <div className="truncate text-xs font-medium text-gray-800">{op.name}</div>
+                              {op.startAddress && (
+                                <div className="truncate text-[10px] text-gray-400">{op.startAddress}</div>
+                              )}
+                            </div>
                           </div>
                           <input
-                            key={op.name + '-qty'}
+                            key={op.id + '-qty'}
                             type="number"
                             min={0}
                             value={op.qty || ''}
-                            onChange={(e) => changeOpQty(op.name, parseInt(e.target.value, 10) || 0)}
+                            onChange={(e) => changeOpQty(op.id, parseInt(e.target.value, 10) || 0)}
                             placeholder="auto"
                             className="w-16 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-right"
                           />
                           <button
-                            key={op.name + '-rm'}
+                            key={op.id + '-rm'}
                             type="button"
-                            onClick={() => setSelectedOps((prev) => prev.filter((o) => o.name !== op.name))}
+                            onClick={() => setSelectedOps((prev) => prev.filter((o) => o.id !== op.id))}
                             className="text-xs text-gray-400 hover:text-red-500"
                           >
                             ×
@@ -1454,7 +1508,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
               <div className="mb-3 flex flex-wrap gap-1">
                 {distribution.map((d, i) => (
                   <button
-                    key={d.op}
+                    key={d.staffId}
                     type="button"
                     onClick={() => setActiveOpIdx(i)}
                     className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition"
@@ -1470,11 +1524,16 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
               </div>
 
               {distribution[activeOpIdx] && (() => {
-                const { op, color, tasks, km } = distribution[activeOpIdx];
+                const { op, color, tasks, km, startAddress } = distribution[activeOpIdx];
                 return (
                   <>
                     <div className="mb-2 flex items-center justify-between">
-                      <span className="text-sm font-semibold">{op}</span>
+                      <div className="min-w-0">
+                        <span className="text-sm font-semibold">{op}</span>
+                        {startAddress && (
+                          <div className="truncate text-[10px] text-gray-400">Partenza: {startAddress}</div>
+                        )}
+                      </div>
                       <span
                         className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
                         style={{ backgroundColor: color }}
@@ -1518,13 +1577,13 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                                 {distribution!.map((d, di) => {
                                   if (di === activeOpIdx) return null;
                                   const ztl = getTaskZtl(t.cap, ztlZones);
-                                  const blocked = ztl !== null && !ztl.authorized_names.includes(d.op);
+                                  const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(d.staffId);
                                   const targetCap = 0;
                                   const capReached = false;
                                   const disabled = blocked;
                                   return (
                                     <button
-                                      key={d.op}
+                                      key={d.staffId}
                                       type="button"
                                       onClick={() => !blocked && moveTask(t.id, activeOpIdx, di)}
                                       disabled={blocked}
@@ -1616,10 +1675,10 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                                     <span className="w-full text-[10px] text-amber-700">Sposta a:</span>
                                     {distribution!.map((d, di) => {
                                       const ztl = getTaskZtl(t.cap, ztlZones);
-                                      const blocked = ztl !== null && !ztl.authorized_names.includes(d.op);
+                                      const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(d.staffId);
                                       return (
                                         <button
-                                          key={d.op}
+                                          key={d.staffId}
                                           type="button"
                                           onClick={() => !blocked && assignUnassignedTask(t.id, di)}
                                           disabled={blocked}

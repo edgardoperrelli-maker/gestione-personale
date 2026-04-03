@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import InsertReperibileDialog from '@/components/InsertReperibileDialog';
 import EditAssignmentDialog from '@/components/EditAssignmentDialog';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
@@ -143,17 +144,27 @@ export default function CronoprogrammaWorkspace() {
 
   const dayMap = useMemo(() => indexDays(days), [days]);
   const dayIdMap = useMemo(() => indexDayIds(days), [days]);
+  const todayIso = useMemo(() => fmtDay(today), [today]);
 
   const firstRelation = <T,>(value: T | T[] | null): T | null => {
     if (Array.isArray(value)) return value[0] ?? null;
     return value ?? null;
   };
 
+  const staffById = useMemo(() => {
+    const map = new Map<string, Staff>();
+    staff.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [staff]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
       const [sRes, aRes, tRes] = await Promise.all([
-        sb.from('staff').select('id, display_name').order('display_name', { ascending: true }),
+        sb
+          .from('staff')
+          .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
+          .order('display_name', { ascending: true }),
         sb.from('activities_renamed').select('id, name').order('name', { ascending: true }),
         sb.from('territories').select('id, name').order('name', { ascending: true }),
       ]);
@@ -602,7 +613,29 @@ export default function CronoprogrammaWorkspace() {
     softRefresh();
   };
 
-  const allAssignments = useMemo(() => Object.values(assignments).flat(), [assignments]);
+  const visibleAssignments = useMemo(() => {
+    const next: Record<string, Assignment[]> = {};
+    Object.entries(assignments).forEach(([dayId, list]) => {
+      const iso = dayIdMap[dayId];
+      if (!iso) {
+        next[dayId] = list;
+        return;
+      }
+      next[dayId] = list.filter((assignment) => {
+        const staffId = assignment.staff?.id;
+        return isStaffValidOnDay(staffId ? staffById.get(staffId) : null, iso, todayIso);
+      });
+    });
+    return next;
+  }, [assignments, dayIdMap, staffById, todayIso]);
+
+  const visibleStaff = useMemo(() => {
+    const rangeFromIso = fmtDay(range.start);
+    const rangeToIso = fmtDay(range.end);
+    return staff.filter((member) => isStaffRelevantForRange(member, rangeFromIso, rangeToIso, todayIso));
+  }, [range.end, range.start, staff, todayIso]);
+
+  const allAssignments = useMemo(() => Object.values(visibleAssignments).flat(), [visibleAssignments]);
   const filteredAssignments = useMemo(() => filterAssignments(allAssignments, filters), [allAssignments, filters]);
 
   const statsSource = filters.length ? filteredAssignments : allAssignments;
@@ -630,7 +663,7 @@ export default function CronoprogrammaWorkspace() {
 
   const assignmentsByCell = useMemo(() => {
     const map: Record<string, Assignment[]> = {};
-    Object.entries(assignments).forEach(([dayId, list]) => {
+    Object.entries(visibleAssignments).forEach(([dayId, list]) => {
       const iso = dayIdMap[dayId];
       if (!iso) return;
       const filtered = filterAssignments(list, filters);
@@ -641,11 +674,11 @@ export default function CronoprogrammaWorkspace() {
       });
     });
     return map;
-  }, [assignments, dayIdMap, filters]);
+  }, [dayIdMap, filters, visibleAssignments]);
 
   const tableRows: TableRow[] = useMemo(() => {
     const rows: TableRow[] = [];
-    Object.entries(assignments).forEach(([dayId, list]) => {
+    Object.entries(visibleAssignments).forEach(([dayId, list]) => {
       const day = dayIdMap[dayId];
       if (!day) return;
       const filtered = filterAssignments(list, filters);
@@ -653,7 +686,7 @@ export default function CronoprogrammaWorkspace() {
     });
     rows.sort((a, b) => a.day.localeCompare(b.day) || (a.assignment.staff?.display_name ?? '').localeCompare(b.assignment.staff?.display_name ?? ''));
     return rows;
-  }, [assignments, dayIdMap, filters]);
+  }, [dayIdMap, filters, visibleAssignments]);
 
   return (
     <div className="space-y-4">
@@ -678,7 +711,7 @@ export default function CronoprogrammaWorkspace() {
         <CronoFiltersPanel
           open={filtersOpen}
           filters={filters}
-          staff={staff}
+          staff={visibleStaff}
           activities={activities}
           territories={territories}
           onToggle={toggleToken}
@@ -723,7 +756,7 @@ export default function CronoprogrammaWorkspace() {
           anchor={anchor}
           today={today}
           days={days}
-          assignments={assignments}
+          assignments={visibleAssignments}
           onAdd={openNewForDate}
           showMonthLabels={mode === 'month'}
           sortMode={sortMode}
@@ -764,7 +797,9 @@ export default function CronoprogrammaWorkspace() {
                 .map((a) => a?.staff?.id ?? '')
                 .filter((id) => id !== '')
             );
-            const availableStaffForDay = (staff ?? []).filter((s) => !excludeIds.has(s.id));
+            const availableStaffForDay = (staff ?? []).filter(
+              (s) => isStaffValidOnDay(s, iso, todayIso) && !excludeIds.has(s.id)
+            );
 
             return (
               <NewAssignmentDialog
@@ -824,7 +859,9 @@ export default function CronoprogrammaWorkspace() {
                 .filter((id) => id !== '' && id !== (a0.staff?.id ?? ''))
             );
             const availableStaffForEdit = (staff ?? []).filter(
-              (s) => s.id === (a0.staff?.id ?? '') || !excludeIds.has(s.id)
+              (s) =>
+                (s.id === (a0.staff?.id ?? '') || !excludeIds.has(s.id)) &&
+                isStaffValidOnDay(s, dayIdMap[a0.day_id] ?? todayIso, todayIso)
             );
 
             return (
@@ -855,7 +892,7 @@ export default function CronoprogrammaWorkspace() {
       <InsertReperibileDialog
         open={openInsertRep}
         onClose={() => setOpenInsertRep(false)}
-        staffList={staff}
+        staffList={visibleStaff}
         terrList={territories}
         onInserted={() => {
           setOpenInsertRep(false);

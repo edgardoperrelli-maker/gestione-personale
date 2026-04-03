@@ -1,7 +1,13 @@
 import 'leaflet/dist/leaflet.css';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import MappaOperatoriClient, { type MappaStaffRow, type ZtlZoneInfo } from '@/components/modules/mappa/MappaOperatoriClient';
+import MappaOperatoriClient, {
+  type MappaOperatorOption,
+  type MappaStaffRow,
+  type ZtlZoneInfo,
+} from '@/components/modules/mappa/MappaOperatoriClient';
+import { formatStaffStartAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
+import type { Staff } from '@/types';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -24,6 +30,7 @@ export default async function MappaPage() {
   const supabase = createServerComponentClient({ cookies: cookieMethods });
 
   const today = new Date();
+  const todayIso = fmtDay(today);
   const dateFrom = fmtDay(addDays(today, -3));
   const dateTo = fmtDay(addDays(today, 4));
 
@@ -43,6 +50,17 @@ export default async function MappaPage() {
   (calendarDays ?? []).forEach((d) => dayIdMap.set(d.id, d.day));
 
   const dayIds = (calendarDays ?? []).map((d) => d.id);
+
+  const { data: staffRaw } = await supabase
+    .from('staff')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
+    .order('display_name', { ascending: true });
+
+  const staffList = (staffRaw ?? []) as Staff[];
+  const staffById = new Map<string, Staff>();
+  staffList.forEach((member) => {
+    staffById.set(member.id, member);
+  });
 
   type AssignmentRow = {
     day_id: string;
@@ -85,28 +103,40 @@ export default async function MappaPage() {
     }));
   }
 
-  const rows: MappaStaffRow[] = assignments.map((a) => ({
-    staffId: a.staff?.id ?? '',
-    displayName: a.staff?.display_name ?? '-',
-    territoryId: a.territory?.id ?? null,
-    territoryName: a.territory?.name ?? null,
-    activityName: a.activity?.name ?? null,
-    costCenter: a.cost_center ?? null,
-    day: dayIdMap.get(a.day_id) ?? '',
-    reperibile: !!a.reperibile,
-    lat: a.territory?.lat ?? null,
-    lng: a.territory?.lng ?? null,
-  }));
+  const rows: MappaStaffRow[] = assignments
+    .filter((assignment) => {
+      const staffId = assignment.staff?.id;
+      const isoDay = dayIdMap.get(assignment.day_id) ?? '';
+      return isStaffValidOnDay(staffId ? staffById.get(staffId) : null, isoDay, todayIso);
+    })
+    .map((a) => ({
+      staffId: a.staff?.id ?? '',
+      displayName: a.staff?.display_name ?? '-',
+      territoryId: a.territory?.id ?? null,
+      territoryName: a.territory?.name ?? null,
+      activityName: a.activity?.name ?? null,
+      costCenter: a.cost_center ?? null,
+      day: dayIdMap.get(a.day_id) ?? '',
+      reperibile: !!a.reperibile,
+      lat: a.territory?.lat ?? null,
+      lng: a.territory?.lng ?? null,
+    }));
+
+  const operatorOptions: MappaOperatorOption[] = staffList
+    .filter((member) => isStaffRelevantForRange(member, dateFrom, dateTo, todayIso))
+    .map((member) => ({
+      id: member.id,
+      displayName: member.display_name,
+      startAddress: formatStaffStartAddress(member) || null,
+      startLat: member.start_lat ?? null,
+      startLng: member.start_lng ?? null,
+    }));
 
   // ── Fetch ZTL zones ───────────────────────────────────────────────────────────
   const { data: ztlZonesRaw } = await supabase
     .from('ztl_zones')
     .select('id, name, cap_list')
     .eq('active', true);
-
-  const { data: staffList } = await supabase
-    .from('staff')
-    .select('id, display_name');
 
   const { data: ztlOps } = await supabase
     .from('ztl_zone_operators')
@@ -131,6 +161,7 @@ export default async function MappaPage() {
   return (
     <MappaOperatoriClient
       rows={rows}
+      operatorOptions={operatorOptions}
       territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
       dateFrom={dateFrom}
       dateTo={dateTo}

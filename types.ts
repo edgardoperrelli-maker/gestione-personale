@@ -1,4 +1,15 @@
-export type Staff = { id:string; display_name:string; active?:boolean };
+export type Staff = {
+  id:string;
+  display_name:string;
+  active?:boolean;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  start_address?: string | null;
+  start_cap?: string | null;
+  start_city?: string | null;
+  start_lat?: number | null;
+  start_lng?: number | null;
+};
 export type Activity = { id:string; name:string; active?:boolean };
 export type Territory = { id:string; name:string; active?:boolean };
 

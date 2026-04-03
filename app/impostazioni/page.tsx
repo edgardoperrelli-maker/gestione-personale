@@ -6,13 +6,19 @@ const MODULES = [
     href: '/impostazioni/utenze',
     title: 'Utenze',
     description: 'Gestisci password, ruoli e moduli visibili per ogni utente di accesso.',
-    icon: '👤',
+    icon: 'U',
+  },
+  {
+    href: '/impostazioni/personale',
+    title: 'Personale',
+    description: 'Definisci validita e indirizzo di partenza degli operatori del cronoprogramma.',
+    icon: 'P',
   },
   {
     href: '/impostazioni/zone-ztl',
     title: 'Zone ZTL',
     description: 'Definisci zone a traffico limitato, CAP e operatori autorizzati.',
-    icon: '🚫',
+    icon: 'Z',
   },
 ];
 
@@ -26,14 +32,16 @@ export default function ImpostazioniPage() {
         </p>
       </div>
 
-      <div className="grid gap-4 sm:grid-cols-2">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {MODULES.map((module) => (
           <Link
             key={module.href}
             href={module.href}
             className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 shadow-sm transition hover:shadow-md"
           >
-            <div className="mb-4 text-3xl">{module.icon}</div>
+            <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary-soft)] text-2xl font-bold text-[var(--brand-primary)]">
+              {module.icon}
+            </div>
             <h2 className="mb-2 text-lg font-semibold text-[var(--brand-text-main)]">{module.title}</h2>
             <p className="mb-4 text-sm text-[var(--brand-text-muted)]">{module.description}</p>
             <div className="flex items-center text-sm font-semibold text-[var(--brand-primary)]">
