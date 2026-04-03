@@ -66,7 +66,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
   },
   {
     key: 'impostazioni',
-    href: '/impostazioni/utenze',
+    href: '/impostazioni',
     label: 'Impostazioni',
     description: 'Utenze e configurazione accessi',
     section: 'system',

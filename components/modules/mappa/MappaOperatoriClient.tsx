@@ -21,11 +21,20 @@ export type MappaStaffRow = {
   lng: number | null;
 };
 
+export type ZtlZoneInfo = {
+  id: string;
+  name: string;
+  cap_list: string[];
+  authorized_staff_ids: string[];
+  authorized_names: string[];
+};
+
 type Props = {
   rows: MappaStaffRow[];
   territories: Array<{ id: string; name: string; lat: number | null; lng: number | null }>;
   dateFrom: string;
   dateTo: string;
+  ztlZones?: ZtlZoneInfo[];
 };
 
 type DistEntry = { op: string; color: string; tasks: Task[]; km: number };
@@ -243,9 +252,17 @@ function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Wo
   return ws;
 }
 
+// ─── Helper: trova la zona ZTL di un task dato il CAP ─────────────────────────
+
+function getTaskZtl(cap: string, ztlZones: ZtlZoneInfo[] = []): ZtlZoneInfo | null {
+  if (!cap) return null;
+  const normalizedCap = cap.trim();
+  return ztlZones.find((z) => z.cap_list.includes(normalizedCap)) ?? null;
+}
+
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, territories, dateFrom, dateTo }: Props) {
+export default function MappaOperatoriClient({ rows, territories, dateFrom, dateTo, ztlZones = [] }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -278,6 +295,9 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   const [distribution, setDistribution] = useState<DistEntry[] | null>(null);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+
+  // ZTL conflicts
+  const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
 
   // ─── Computed ──────────────────────────────────────────────────────────────
 
@@ -569,6 +589,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setSelectedOps([]);
     setEditingTaskId(null);
     setShowOpPicker(false);
+    setZtlConflicts([]);
   }, []);
 
   // Apre il form di modifica per un task
@@ -664,7 +685,21 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setRouteResult(null);
     setShowOpPicker(false);
     setMovingTaskId(null);
-  }, [selectedOps, excelTasks]);
+
+    // ── Controlla conflitti ZTL ─────────────────────────────────────────────
+    const conflicts: string[] = [];
+    result.forEach(({ op, tasks }) => {
+      tasks.forEach((t) => {
+        const ztl = getTaskZtl(t.cap, ztlZones);
+        if (!ztl) return;
+        const authorized = ztl.authorized_names.includes(op);
+        if (!authorized) {
+          conflicts.push(`"${op}" non ha il permesso ZTL per ${ztl.name} (${t.indirizzo})`);
+        }
+      });
+    });
+    setZtlConflicts(conflicts);
+  }, [selectedOps, excelTasks, ztlZones]);
 
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
@@ -1068,7 +1103,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                           <button type="button" onClick={exportDistribution} className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
                             Esporta Excel
                           </button>
-                          <button type="button" onClick={() => setDistribution(null)} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
+                          <button type="button" onClick={() => { setDistribution(null); setZtlConflicts([]); }} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
                             Azzera
                           </button>
                         </>
@@ -1099,6 +1134,32 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
           </div>
         )}
       </div>
+
+      {/* Banner conflitti ZTL */}
+      {ztlConflicts.length > 0 && (
+        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+          <div className="mb-2 flex items-center gap-2">
+            <span className="text-sm font-semibold text-amber-900">
+              ⚠ {ztlConflicts.length} conflitt{ztlConflicts.length === 1 ? 'o' : 'i'} ZTL
+            </span>
+            <button
+              type="button"
+              onClick={() => setZtlConflicts([])}
+              className="ml-auto text-xs text-amber-600 hover:text-amber-800"
+            >
+              Chiudi
+            </button>
+          </div>
+          <ul className="space-y-1">
+            {ztlConflicts.map((c, i) => (
+              <li key={i} className="text-xs text-amber-800">• {c}</li>
+            ))}
+          </ul>
+          <p className="mt-2 text-xs text-amber-700">
+            Usa &quot;Sposta&quot; per riassegnare le attività ZTL agli operatori autorizzati.
+          </p>
+        </div>
+      )}
 
       {/* Mappa + pannello laterale */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
@@ -1168,17 +1229,24 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                             {isMoving && (
                               <div className="mt-1.5 flex flex-wrap gap-1 border-t border-gray-100 pt-1.5">
                                 <span className="text-[10px] text-gray-400 w-full">Sposta a:</span>
-                                {distribution!.map((d, di) => di !== activeOpIdx && (
-                                  <button
-                                    key={d.op}
-                                    type="button"
-                                    onClick={() => moveTask(t.id, activeOpIdx, di)}
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-white hover:opacity-80"
-                                    style={{ backgroundColor: d.color }}
-                                  >
-                                    {d.op} ({d.tasks.length})
-                                  </button>
-                                ))}
+                                {distribution!.map((d, di) => {
+                                  if (di === activeOpIdx) return null;
+                                  const ztl = getTaskZtl(t.cap, ztlZones);
+                                  const blocked = ztl !== null && !ztl.authorized_names.includes(d.op);
+                                  return (
+                                    <button
+                                      key={d.op}
+                                      type="button"
+                                      onClick={() => !blocked && moveTask(t.id, activeOpIdx, di)}
+                                      disabled={blocked}
+                                      title={blocked ? `${d.op} non ha il permesso ZTL per ${ztl!.name}` : undefined}
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${blocked ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
+                                      style={{ backgroundColor: d.color }}
+                                    >
+                                      {d.op} ({d.tasks.length}) {blocked ? '🔒' : ''}
+                                    </button>
+                                  );
+                                })}
                               </div>
                             )}
                           </div>
@@ -1304,8 +1372,16 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                             <div className="flex items-center gap-1">
                               <span className="truncate font-medium">{op || t.odl || `Task ${idx + 1}`}</span>
                               {hasCoords && (
-                                <span className="ml-auto shrink-0 text-[9px] text-green-600">✓</span>
+                                <span className="shrink-0 text-[9px] text-green-600">✓</span>
                               )}
+                              {(() => {
+                                const ztl = getTaskZtl(t.cap, ztlZones);
+                                return ztl ? (
+                                  <span className="shrink-0 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 uppercase tracking-wide">
+                                    ZTL · {ztl.name}
+                                  </span>
+                                ) : null;
+                              })()}
                             </div>
                             <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
                           </div>

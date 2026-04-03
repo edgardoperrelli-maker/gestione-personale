@@ -1,7 +1,7 @@
 import 'leaflet/dist/leaflet.css';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import MappaOperatoriClient, { type MappaStaffRow } from '@/components/modules/mappa/MappaOperatoriClient';
+import MappaOperatoriClient, { type MappaStaffRow, type ZtlZoneInfo } from '@/components/modules/mappa/MappaOperatoriClient';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -98,12 +98,43 @@ export default async function MappaPage() {
     lng: a.territory?.lng ?? null,
   }));
 
+  // ── Fetch ZTL zones ───────────────────────────────────────────────────────────
+  const { data: ztlZonesRaw } = await supabase
+    .from('ztl_zones')
+    .select('id, name, cap_list')
+    .eq('active', true);
+
+  const { data: staffList } = await supabase
+    .from('staff')
+    .select('id, display_name');
+
+  const { data: ztlOps } = await supabase
+    .from('ztl_zone_operators')
+    .select('zone_id, staff_id');
+
+  const ztlZones: ZtlZoneInfo[] = (ztlZonesRaw ?? []).map((z) => ({
+    id: z.id,
+    name: z.name,
+    cap_list: z.cap_list ?? [],
+    authorized_staff_ids: (ztlOps ?? [])
+      .filter((o) => o.zone_id === z.id)
+      .map((o) => o.staff_id),
+    authorized_names: (ztlOps ?? [])
+      .filter((o) => o.zone_id === z.id)
+      .map((o) => {
+        const member = (staffList ?? []).find((s) => s.id === o.staff_id);
+        return member?.display_name ?? '';
+      })
+      .filter(Boolean),
+  }));
+
   return (
     <MappaOperatoriClient
       rows={rows}
       territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
       dateFrom={dateFrom}
       dateTo={dateTo}
+      ztlZones={ztlZones}
     />
   );
 }
