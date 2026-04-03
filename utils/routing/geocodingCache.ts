@@ -60,3 +60,28 @@ export async function saveManualCorrection(
     // silenzioso: la mappa funziona anche senza cache DB
   }
 }
+
+export async function saveResolvedCoords(
+  indirizzo: string,
+  cap: string,
+  citta: string,
+  lat: number,
+  lng: number,
+): Promise<void> {
+  try {
+    const supabase = createClientComponentClient();
+    await supabase.from('geocoding_cache').upsert(
+      {
+        lookup_key: buildKey(indirizzo, cap, citta),
+        indirizzo_raw: indirizzo,
+        cap_raw: cap,
+        citta_raw: citta,
+        lat,
+        lng,
+      },
+      { onConflict: 'lookup_key' },
+    );
+  } catch {
+    // silenzioso: la mappa funziona anche senza cache DB
+  }
+}

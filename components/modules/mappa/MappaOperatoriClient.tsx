@@ -39,6 +39,7 @@ type Props = {
 
 type DistEntry = { op: string; color: string; tasks: Task[]; km: number };
 type OpConfig = { name: string; qty: number };
+type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
 
 // ─── Palette colori operatori ────────────────────────────────────────────────
 
@@ -268,6 +269,8 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
   const routeLayerRef = useRef<Leaflet.LayerGroup | null>(null);
   const excelLayerRef = useRef<Leaflet.LayerGroup | null>(null);
+  const excelMarkersRef = useRef<Map<string, ExcelMarker>>(new Map());
+  const excelTaskItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const geocodingActiveRef = useRef(false);
 
@@ -285,6 +288,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   // Modifica task non geocodificati
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
+  const [selectedExcelTaskId, setSelectedExcelTaskId] = useState<string | null>(null);
   const [editDraft, setEditDraft] = useState({ indirizzo: '', cap: '', citta: '' });
   const [geocodingSingleId, setGeocodingSingleId] = useState<string | null>(null);
 
@@ -381,6 +385,21 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setRouteResult(activeRouteResult);
   }, [activeRouteResult]);
 
+  useEffect(() => {
+    if (!selectedExcelTaskId) return;
+    if (excelTasks.some((task) => task.id === selectedExcelTaskId)) return;
+    setSelectedExcelTaskId(null);
+  }, [excelTasks, selectedExcelTaskId]);
+
+  useEffect(() => {
+    if (!selectedExcelTaskId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const node = excelTaskItemRefs.current[selectedExcelTaskId];
+      node?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [selectedExcelTaskId, excelMode, distribution, activeOpIdx]);
+
   // Inizializzazione mappa
   useEffect(() => {
     let alive = true;
@@ -450,13 +469,14 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     const rLayer = routeLayerRef.current;
     exLayer.clearLayers();
     rLayer.clearLayers();
+    excelMarkersRef.current.clear();
 
     if (!excelMode) return;
 
     if (distribution) {
       // Marker e polyline per-operatore
       const bounds: Array<[number, number]> = [];
-      distribution.forEach(({ op, color, tasks }) => {
+      distribution.forEach(({ op, color, tasks }, i) => {
         tasks.forEach((t, idx) => {
           if (t.lat == null || t.lng == null) return;
           bounds.push([t.lat, t.lng]);
@@ -467,6 +487,11 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
             iconAnchor: [11, 11],
           });
           const marker = leaflet.marker([t.lat, t.lng], { icon });
+          excelMarkersRef.current.set(t.id, marker);
+          marker.on('click', () => {
+            setActiveOpIdx(i);
+            setSelectedExcelTaskId(t.id);
+          });
           marker.bindPopup(`
             <div style="font-size:12px;line-height:1.5">
               <div style="font-weight:600;color:${color}">${op}</div>
@@ -489,16 +514,20 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     } else {
       // Marker Excel singoli (arancione)
       const bounds: Array<[number, number]> = [];
-      excelTasks.forEach((t) => {
-        if (t.lat == null || t.lng == null) return;
-        const marker = leaflet.circleMarker([t.lat, t.lng], {
-          radius: 7,
-          color: '#D97706',
+        excelTasks.forEach((t) => {
+          if (t.lat == null || t.lng == null) return;
+          const marker = leaflet.circleMarker([t.lat, t.lng], {
+            radius: 7,
+            color: '#D97706',
           weight: 2,
-          fillColor: '#FEF3C7',
-          fillOpacity: 0.95,
-        });
-        const op = (t as Task & { _operatore?: string })._operatore ?? '';
+            fillColor: '#FEF3C7',
+            fillOpacity: 0.95,
+          });
+          excelMarkersRef.current.set(t.id, marker);
+          marker.on('click', () => {
+            setSelectedExcelTaskId(t.id);
+          });
+          const op = (t as Task & { _operatore?: string })._operatore ?? '';
         marker.bindPopup(`
           <div style="font-size:12px;line-height:1.5">
             ${op ? `<div style="font-weight:600">${op}</div>` : ''}
@@ -559,6 +588,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setGeocodingProgress(null);
     setDistribution(null);
     setSelectedOps([]);
+    setSelectedExcelTaskId(null);
     setEditingTaskId(null);
   }, []);
 
@@ -587,6 +617,7 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
     setRouteResult(null);
     setDistribution(null);
     setSelectedOps([]);
+    setSelectedExcelTaskId(null);
     setEditingTaskId(null);
     setShowOpPicker(false);
     setZtlConflicts([]);
@@ -594,8 +625,18 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
 
   // Apre il form di modifica per un task
   const openEdit = useCallback((task: Task) => {
+    setSelectedExcelTaskId(task.id);
     setEditingTaskId(task.id);
     setEditDraft({ indirizzo: task.indirizzo, cap: task.cap, citta: task.citta });
+  }, []);
+
+  const focusExcelTask = useCallback((taskId: string) => {
+    setSelectedExcelTaskId(taskId);
+    const marker = excelMarkersRef.current.get(taskId);
+    const map = mapInstanceRef.current;
+    if (!marker || !map) return;
+    map.panTo(marker.getLatLng(), { animate: true });
+    marker.openPopup();
   }, []);
 
   // Salva la modifica e tenta geocodifica singola
@@ -1203,12 +1244,19 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                         {km} km
                       </span>
                     </div>
-                    <div className="space-y-1.5">
-                      {tasks.map((t, idx) => {
-                        const isMoving = movingTaskId === t.id;
-                        return (
-                          <div key={t.id} className="rounded-lg border border-gray-100 px-2 py-1.5">
-                            <div className="flex items-start gap-2">
+                      <div className="space-y-1.5">
+                        {tasks.map((t, idx) => {
+                          const isMoving = movingTaskId === t.id;
+                          const isSelected = selectedExcelTaskId === t.id;
+                          return (
+                            <div
+                              key={t.id}
+                              ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
+                              className={`rounded-lg border px-2 py-1.5 transition ${
+                                isSelected ? 'border-amber-300 bg-amber-50 shadow-sm' : 'border-gray-100'
+                              }`}
+                            >
+                              <div className="flex items-start gap-2">
                               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: color }}>
                                 {idx + 1}
                               </span>
@@ -1309,14 +1357,18 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                   const op = (t as Task & { _operatore?: string })._operatore;
                   const isEditing = editingTaskId === t.id;
                   const isSaving = geocodingSingleId === t.id;
+                  const isSelected = selectedExcelTaskId === t.id;
 
                   return (
                     <div
                       key={t.id}
+                      ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
                       className={`rounded-lg border px-2 py-1.5 text-xs ${
-                        hasCoords
-                          ? 'border-amber-200 bg-amber-50'
-                          : 'border-gray-200 bg-gray-50'
+                        isSelected
+                          ? 'border-amber-400 bg-amber-100 shadow-sm'
+                          : hasCoords
+                            ? 'border-amber-200 bg-amber-50'
+                            : 'border-gray-200 bg-gray-50'
                       }`}
                     >
                       {isEditing ? (
@@ -1350,14 +1402,20 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                             <button
                               type="button"
                               disabled={isSaving}
-                              onClick={() => saveAndGeocode(t.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void saveAndGeocode(t.id);
+                              }}
                               className="flex-1 rounded bg-amber-500 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
                             >
                               {isSaving ? 'Geocodifica...' : 'Salva e geocodifica'}
                             </button>
                             <button
                               type="button"
-                              onClick={() => setEditingTaskId(null)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingTaskId(null);
+                              }}
                               className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
                             >
                               Annulla
@@ -1366,11 +1424,19 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                         </div>
                       ) : (
                         /* Vista normale */
-                        <div className="flex items-start gap-1.5">
+                        <div
+                          className="flex cursor-pointer items-start gap-1.5"
+                          onClick={() => focusExcelTask(t.id)}
+                        >
                           <span className="mt-0.5 shrink-0 text-[9px] font-bold text-amber-600">{idx + 1}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1">
                               <span className="truncate font-medium">{op || t.odl || `Task ${idx + 1}`}</span>
+                              {isSelected && (
+                                <span className="shrink-0 rounded-full border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                  Selezionato
+                                </span>
+                              )}
                               {hasCoords && (
                                 <span className="shrink-0 text-[9px] text-green-600">✓</span>
                               )}
@@ -1385,17 +1451,17 @@ export default function MappaOperatoriClient({ rows, territories, dateFrom, date
                             </div>
                             <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
                           </div>
-                          {/* Pulsante modifica per non geocodificati */}
-                          {!hasCoords && (
-                            <button
-                              type="button"
-                              onClick={() => openEdit(t)}
-                              className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
-                              title="Modifica indirizzo e riprova"
-                            >
-                              Modifica
-                            </button>
-                          )}
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openEdit(t);
+                            }}
+                            className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                            title={hasCoords ? 'Correggi indirizzo e rigenera coordinate' : 'Modifica indirizzo e riprova'}
+                          >
+                            {hasCoords ? 'Correggi' : 'Modifica'}
+                          </button>
                         </div>
                       )}
                     </div>
