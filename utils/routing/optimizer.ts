@@ -138,6 +138,83 @@ function centroid(tasks: Task[]): { lat: number; lng: number } | null {
 }
 
 /**
+ * Estrae i minuti dall'inizio della giornata da una stringa fascia_oraria.
+ * Stringa vuota o non parsabile → Infinity (gruppo va in fondo).
+ */
+function fasciaToMin(s: string | undefined | null): number {
+  if (!s) return Infinity;
+  const m = /(\d{1,2}):(\d{2})/.exec(s);
+  if (!m) return Infinity;
+  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
+}
+
+/**
+ * Ottimizza il percorso rispettando i gruppi di fascia oraria.
+ *
+ * Flusso:
+ *   1. Raggruppa i task per fascia (08:xx → bucket "480", 14:xx → "840", vuoto → Infinity)
+ *   2. Ordina i bucket per valore crescente (Infinity = ultimo)
+ *   3. Ottimizza geograficamente l'interno di ogni bucket con nearestNeighbor + twoOpt
+ *   4. Il punto di partenza del bucket N+1 = ultimo task con coordinate del bucket N
+ *   5. Calcola distanza totale e polyline dell'intero percorso
+ */
+export function optimizeRouteByFascia(tasks: Task[], base?: OperatorBase): RouteResult {
+  if (!tasks.length) {
+    return { orderedTasks: [], totalDistanceKm: 0, polyline: [] };
+  }
+
+  // 1. Raggruppa per fascia
+  const groupMap = new Map<number, Task[]>();
+  for (const t of tasks) {
+    const key = fasciaToMin(t.fascia_oraria);
+    if (!groupMap.has(key)) groupMap.set(key, []);
+    groupMap.get(key)!.push(t);
+  }
+
+  // 2. Ordina i bucket per fascia crescente (Infinity = ultimo)
+  const sortedKeys = Array.from(groupMap.keys()).sort((a, b) => {
+    if (a === Infinity) return 1;
+    if (b === Infinity) return -1;
+    return a - b;
+  });
+
+  // 3. Ottimizza ogni bucket e concatena
+  const allOrdered: Task[] = [];
+  let curStart: { lat: number; lng: number } | null = base ?? null;
+
+  for (const key of sortedKeys) {
+    const grp = groupMap.get(key)!;
+
+    let groupStart = curStart;
+    if (!groupStart) {
+      const first = grp.find((t) => t.lat != null && t.lng != null);
+      if (first) groupStart = { lat: first.lat!, lng: first.lng! };
+    }
+
+    const greedy = groupStart ? nearestNeighbor(grp, groupStart) : grp;
+    const optimized = twoOpt(greedy);
+    allOrdered.push(...optimized);
+
+    // Punto di partenza del prossimo bucket = ultimo task con coordinate
+    const lastWithCoords = [...optimized].reverse().find((t) => t.lat != null && t.lng != null);
+    curStart = lastWithCoords ? { lat: lastWithCoords.lat!, lng: lastWithCoords.lng! } : curStart;
+  }
+
+  // 4. Distanza totale
+  const rawDist = calculateTotalDistance(allOrdered);
+  const totalDistanceKm = Math.round(rawDist * 100) / 100;
+
+  // 5. Polyline
+  const polyline: Array<{ lat: number; lng: number }> = [];
+  if (base) polyline.push({ lat: base.lat, lng: base.lng });
+  for (const t of allOrdered) {
+    if (t.lat != null && t.lng != null) polyline.push({ lat: t.lat, lng: t.lng });
+  }
+
+  return { orderedTasks: allOrdered, totalDistanceKm, polyline };
+}
+
+/**
  * Punto di ingresso principale: ottimizza il percorso per una lista di task.
  *
  * Flusso:

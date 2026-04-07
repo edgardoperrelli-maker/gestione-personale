@@ -6,7 +6,7 @@ import { getTerritoryStyle } from '@/lib/territoryColors';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { geocodeTask, optimizeRoute, parseExcelToTasks } from '@/utils/routing';
+import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 
 export type MappaStaffRow = {
@@ -1132,7 +1132,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const grp = groups[i] ?? [];
       const routeRes =
         grp.length >= 1
-          ? optimizeRoute(grp, op.base ?? undefined)
+          ? optimizeRouteByFascia(grp, op.base ?? undefined)
           : { orderedTasks: grp, totalDistanceKm: 0, polyline: [] };
       return {
         op: op.name,
@@ -1181,7 +1181,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     [fromIdx, toIdx].forEach((i) => {
       const grp = newDist[i].tasks;
       if (grp.length >= 1) {
-        const res = optimizeRoute(grp, newDist[i].base ?? undefined);
+        const res = optimizeRouteByFascia(grp, newDist[i].base ?? undefined);
         newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
       } else {
         newDist[i] = { ...newDist[i], km: 0, polyline: [] };
@@ -1202,7 +1202,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
     const grp = newDist[toIdx].tasks;
     if (grp.length >= 1) {
-      const res = optimizeRoute(grp, newDist[toIdx].base ?? undefined);
+      const res = optimizeRouteByFascia(grp, newDist[toIdx].base ?? undefined);
       newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
     } else {
       newDist[toIdx] = { ...newDist[toIdx], km: 0, polyline: [] };
@@ -1214,12 +1214,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setMovingTaskId(null);
   }, [distribution, unassignedTasks]);
 
-  const hhmmToMin = (s: string): number => {
-    if (!s) return 24 * 60 + 1;
-    const m = /(\d{2}):(\d{2})/.exec(s);
-    if (!m) return 24 * 60 + 1;
-    return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-  };
+
 
   const exportDistribution = useCallback(async () => {
     if (!distribution) return;
@@ -1281,9 +1276,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           return !/S-AI-051/i.test(codice);
         });
 
-        const sorted = [...filtered].sort(
-          (a, b) => hhmmToMin(a.fascia_oraria) - hhmmToMin(b.fascia_oraria)
-        );
+        // L'ordine è già quello della route (ottimizzato per fascia + geografia)
+        const sorted = filtered;
 
         sorted.forEach((t, idx) => {
           const rr = ws.getRow(7 + idx);
