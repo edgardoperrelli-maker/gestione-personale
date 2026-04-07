@@ -674,8 +674,18 @@ const hdr = [
   ws.getCell(`${col}6`).value = hdr[i];
 });
 
+// Deduplica per PDR: se stesso PDR su righe diverse, si visita una sola volta
+const seenPdrExcel = new Set<string>();
+const rowsDeduped = rowsSorted.filter(r => {
+  const pdr = safeStr(r[COL.N_PDR]);
+  if (!pdr) return true;
+  if (seenPdrExcel.has(pdr)) return false;
+  seenPdrExcel.add(pdr);
+  return true;
+});
+
 let rowIdx = 7;
-for (const r of rowsSorted) {
+for (const r of rowsDeduped) {
   const nominativo = safeStr(r[COL.O_NOMINATIVO]);
   const matricola  = safeStr(r[COL.P_MATRICOLA]);
   const pdrRaw     = safeStr(r[COL.N_PDR]);
@@ -763,11 +773,15 @@ ws.pageSetup.fitToHeight = 0;
             selectedOps.includes(normalizeOperatorName(r[COL.B_OPERATORE]))
           );
 
-      // Raggruppa per operatore
+      // Raggruppa per operatore (deduplicando per PDR dentro ogni gruppo)
       const rowsByOperator: Record<string, any[]> = {};
+      const seenPdrByOp: Record<string, Set<string>> = {};
       for (const r of processedRows) {
         const op = normalizeOperatorName(r[COL.B_OPERATORE]);
-        if (!rowsByOperator[op]) rowsByOperator[op] = [];
+        if (!rowsByOperator[op]) { rowsByOperator[op] = []; seenPdrByOp[op] = new Set(); }
+        const pdr = safeStr(r[COL.N_PDR]);
+        if (pdr && seenPdrByOp[op].has(pdr)) continue;
+        if (pdr) seenPdrByOp[op].add(pdr);
         rowsByOperator[op].push(r);
       }
 

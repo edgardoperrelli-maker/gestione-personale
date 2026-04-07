@@ -1124,7 +1124,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
   const distributeToOps = useCallback(() => {
     if (!selectedOps.length) return;
-    const geocoded = excelTasks.filter((t) => t.lat != null && t.lng != null);
+    const seenPdr = new Set<string>();
+    const geocoded = excelTasks
+      .filter((t) => t.lat != null && t.lng != null)
+      .filter((t) => {
+        if (!t.pdr) return true;
+        if (seenPdr.has(t.pdr)) return false;
+        seenPdr.add(t.pdr);
+        return true;
+      });
     if (!geocoded.length) return;
 
     const { groups, unassigned } = capacityDistributeWithUnassigned(geocoded, selectedOps);
@@ -1270,10 +1278,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         hrow.commit();
 
         // 3. Righe dati — ordinate per fascia oraria
-        // Esclude tutti i record con codice S-AI-051 (case-insensitive)
+        // Esclude S-AI-051 e deduplica per PDR (stesso PDR = stessa visita)
+        const seenPdrSheet = new Set<string>();
         const filtered = tasks.filter((t) => {
           const codice = (t.codice ?? '').toString().trim();
-          return !/S-AI-051/i.test(codice);
+          if (/S-AI-051/i.test(codice)) return false;
+          if (t.pdr) {
+            if (seenPdrSheet.has(t.pdr)) return false;
+            seenPdrSheet.add(t.pdr);
+          }
+          return true;
         });
 
         // L'ordine è già quello della route (ottimizzato per fascia + geografia)
