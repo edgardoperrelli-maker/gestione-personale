@@ -42,7 +42,7 @@ const MASSIVA_COL = {
   VIA: 54,        // BC
   CAP: 62,        // BK
   COMUNE: 72,     // BU
-  PDR: 12,        // M
+  PDR: 13,        // N — DESCRIZIONE PDR/IMPIANTO
   FASCIA: 93,     // CQ
   NOMINATIVO: 52, // BA
   OPERATORE: 95,  // CR

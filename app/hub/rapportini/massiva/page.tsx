@@ -12,8 +12,8 @@ const COL = {
   B_OPERATORE: 95,   // CR
   O_NOMINATIVO: 52,  // BA
   P_MATRICOLA: 10,   // K
-  N_PDR: 12,         // M
-  ODS: 13,           // N   — codice ODS
+  N_PDR: 13,         // N — DESCRIZIONE PDR/IMPIANTO
+  ODS: 3,            // D — ODSIN
   T_VIA: 54,         // BC
   Q_COMUNE: 72,      // BU
   R_CAP: 62,         // BK
