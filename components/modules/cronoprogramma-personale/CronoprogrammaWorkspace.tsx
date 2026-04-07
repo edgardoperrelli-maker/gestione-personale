@@ -1,8 +1,9 @@
 'use client';
 
-import { startTransition, useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
+import Button from '@/components/Button';
 import InsertReperibileDialog from '@/components/InsertReperibileDialog';
 import EditAssignmentDialog from '@/components/EditAssignmentDialog';
 import NewAssignmentDialog from '@/components/NewAssignmentDialog';
@@ -34,7 +35,7 @@ export default function CronoprogrammaWorkspace() {
 
   const tz = 'Europe/Rome';
   const [today] = useState<Date>(() => toLocalDate(new Date(), tz));
-  const [anchor, setAnchor] = useState<Date>(() => startOfMonth(today));
+  const [anchor, setAnchor] = useState<Date>(() => startOfWeek(today));
   const [mode, setMode] = useState<ViewMode>('week');
   const [plannerView, setPlannerView] = useState<PlannerView>('calendar');
 
@@ -57,6 +58,8 @@ export default function CronoprogrammaWorkspace() {
     type: 'success' | 'error';
     text: string;
   } | null>(null);
+  const [dropChoiceDialog, setDropChoiceDialog] = useState<{ preferred: 'move' | 'copy' } | null>(null);
+  const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
@@ -66,6 +69,36 @@ export default function CronoprogrammaWorkspace() {
     if (!window.confirm(firstMessage)) return false;
     return window.confirm(secondMessage);
   };
+
+  const resolveDropChoiceDialog = (choice: 'move' | 'copy' | null) => {
+    const resolve = dropChoiceResolverRef.current;
+    dropChoiceResolverRef.current = null;
+    setDropChoiceDialog(null);
+    resolve?.(choice);
+  };
+
+  const chooseAssignmentDropMode = (preferred: 'move' | 'copy'): Promise<'move' | 'copy' | null> => {
+    if (typeof window === 'undefined') return Promise.resolve(preferred);
+
+    if (dropChoiceResolverRef.current) {
+      dropChoiceResolverRef.current(null);
+      dropChoiceResolverRef.current = null;
+    }
+
+    setDropChoiceDialog({ preferred });
+    return new Promise((resolve) => {
+      dropChoiceResolverRef.current = resolve;
+    });
+  };
+
+  useEffect(() => {
+    return () => {
+      if (dropChoiceResolverRef.current) {
+        dropChoiceResolverRef.current(null);
+        dropChoiceResolverRef.current = null;
+      }
+    };
+  }, []);
 
   const assignmentSignature = (assignment: Assignment) =>
     [
@@ -368,8 +401,12 @@ export default function CronoprogrammaWorkspace() {
 
     if (!copy && fromDay === targetIso && fromTerritoryId === toTerritoryId) return;
 
+    const dropMode = await chooseAssignmentDropMode(copy ? 'copy' : 'move');
+    if (!dropMode) return;
+    const shouldCopy = dropMode === 'copy';
+
     if (
-      !copy &&
+      !shouldCopy &&
       !confirmTwice(
         `Confermi lo spostamento della card dal ${fromDay} al ${targetIso}?`,
         `Ultima conferma: la card verra rimossa dal ${fromDay} e spostata definitivamente al ${targetIso}.`
@@ -431,7 +468,7 @@ export default function CronoprogrammaWorkspace() {
       }
     }
 
-    if (copy) {
+    if (shouldCopy) {
       const ins = await sb
         .from('assignments')
         .insert({
@@ -641,15 +678,15 @@ export default function CronoprogrammaWorkspace() {
   const statsSource = filters.length ? filteredAssignments : allAssignments;
   const stats = useMemo(() => {
     const staffIds = new Set<string>();
-    let reperibili = 0;
+    const reperibiliIds = new Set<string>();
     statsSource.forEach((a) => {
       if (a.staff?.id) staffIds.add(a.staff.id);
-      if (a.reperibile) reperibili += 1;
+      if (a.reperibile && a.staff?.id) reperibiliIds.add(a.staff.id);
     });
     return {
       total: statsSource.length,
       staff: staffIds.size,
-      reperibili,
+      reperibili: reperibiliIds.size,
     };
   }, [statsSource]);
 
@@ -906,6 +943,34 @@ export default function CronoprogrammaWorkspace() {
         defaultFrom={range.start.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
         defaultTo={range.end.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
       />
+
+      {dropChoiceDialog && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-2xl">
+            <div className="text-lg font-semibold text-[var(--brand-text-main)]">Operazione sulla card</div>
+            <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
+              Scegli se vuoi spostare o copiare la card trascinata.
+            </p>
+            <div className="mt-5 flex flex-wrap justify-end gap-2">
+              <Button variant="outline" onClick={() => resolveDropChoiceDialog(null)}>
+                Annulla
+              </Button>
+              <Button
+                variant={dropChoiceDialog.preferred === 'copy' ? 'outline' : 'soft'}
+                onClick={() => resolveDropChoiceDialog('copy')}
+              >
+                Copia
+              </Button>
+              <Button
+                variant={dropChoiceDialog.preferred === 'move' ? 'primary' : 'soft'}
+                onClick={() => resolveDropChoiceDialog('move')}
+              >
+                Sposta
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
