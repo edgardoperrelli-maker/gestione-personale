@@ -81,8 +81,11 @@ export async function PATCH(req: NextRequest) {
 
   const homeLat = normalizeNullableNumber(body.homeLat);
   const homeLng = normalizeNullableNumber(body.homeLng);
-  if (Number.isNaN(homeLat) || Number.isNaN(homeLng)) {
-    return NextResponse.json({ error: 'Coordinate casa non valide.' }, { status: 400 });
+  // Se casa non è compilata, homeLat e homeLng sono null → ok, salviamo null
+  // Se casa è compilata ma le coordinate sono NaN → errore (geocodificazione fallita)
+  const hasHomeAddress = !!(body.homeAddress || body.homeCap || body.homeCity);
+  if (hasHomeAddress && (Number.isNaN(homeLat) || Number.isNaN(homeLng))) {
+    return NextResponse.json({ error: 'Indirizzo casa compilato ma geocodificazione fallita.' }, { status: 400 });
   }
 
   const patch = {
@@ -96,8 +99,8 @@ export async function PATCH(req: NextRequest) {
     home_address: normalizeNullableString(body.homeAddress),
     home_cap: normalizeNullableString(body.homeCap),
     home_city: normalizeNullableString(body.homeCity),
-    home_lat: homeLat !== null && homeLng !== null ? homeLat : null,
-    home_lng: homeLat !== null && homeLng !== null ? homeLng : null,
+    home_lat: homeLat,
+    home_lng: homeLng,
   };
 
   const { data, error } = await supabaseAdmin
