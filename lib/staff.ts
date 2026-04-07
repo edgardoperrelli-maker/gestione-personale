@@ -44,3 +44,14 @@ export function formatStaffStartAddress(
 ): string {
   return [staff.start_address, [staff.start_cap, staff.start_city].filter(Boolean).join(' ')].filter(Boolean).join(', ');
 }
+
+export function formatStaffHomeAddress(
+  staff: Pick<Staff, 'home_address' | 'home_cap' | 'home_city'>
+): string {
+  return [
+    staff.home_address,
+    [staff.home_cap, staff.home_city].filter(Boolean).join(' '),
+  ]
+    .filter(Boolean)
+    .join(', ');
+}

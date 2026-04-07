@@ -52,6 +52,11 @@ export async function PATCH(req: NextRequest) {
     startCity?: string | null;
     startLat?: number | null;
     startLng?: number | null;
+    homeAddress?: string | null;
+    homeCap?: string | null;
+    homeCity?: string | null;
+    homeLat?: number | null;
+    homeLng?: number | null;
   };
 
   const id = String(body.id ?? '').trim();
@@ -74,6 +79,12 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Coordinate di partenza non valide.' }, { status: 400 });
   }
 
+  const homeLat = normalizeNullableNumber(body.homeLat);
+  const homeLng = normalizeNullableNumber(body.homeLng);
+  if (Number.isNaN(homeLat) || Number.isNaN(homeLng)) {
+    return NextResponse.json({ error: 'Coordinate casa non valide.' }, { status: 400 });
+  }
+
   const patch = {
     valid_from: validFrom,
     valid_to: validTo,
@@ -82,13 +93,18 @@ export async function PATCH(req: NextRequest) {
     start_city: normalizeNullableString(body.startCity),
     start_lat: startLat !== null && startLng !== null ? startLat : null,
     start_lng: startLat !== null && startLng !== null ? startLng : null,
+    home_address: normalizeNullableString(body.homeAddress),
+    home_cap: normalizeNullableString(body.homeCap),
+    home_city: normalizeNullableString(body.homeCity),
+    home_lat: homeLat !== null && homeLng !== null ? homeLat : null,
+    home_lng: homeLat !== null && homeLng !== null ? homeLng : null,
   };
 
   const { data, error } = await supabaseAdmin
     .from('staff')
     .update(patch)
     .eq('id', id)
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
     .single();
 
   if (error) {

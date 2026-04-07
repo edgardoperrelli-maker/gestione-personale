@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import { geocodeTask } from '@/utils/routing';
-import { formatStaffStartAddress, isStaffValidOnDay } from '@/lib/staff';
+import { formatStaffStartAddress, formatStaffHomeAddress, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 
 type Props = {
@@ -24,6 +24,7 @@ function validityLabel(staff: Staff, today: string) {
 export default function PersonaleClient({ initialStaff }: Props) {
   const [rows, setRows] = useState<Staff[]>(initialStaff);
   const [query, setQuery] = useState('');
+  const [validityFilter, setValidityFilter] = useState<'all' | 'valid' | 'invalid'>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
 
@@ -31,9 +32,22 @@ export default function PersonaleClient({ initialStaff }: Props) {
 
   const filteredRows = useMemo(() => {
     const term = query.trim().toLowerCase();
-    if (!term) return rows;
-    return rows.filter((row) => row.display_name.toLowerCase().includes(term));
-  }, [query, rows]);
+    let filtered = rows;
+
+    // Filtro ricerca per nome
+    if (term) {
+      filtered = filtered.filter((row) => row.display_name.toLowerCase().includes(term));
+    }
+
+    // Filtro per validità (basato su valid_from / valid_to)
+    if (validityFilter === 'valid') {
+      filtered = filtered.filter((row) => isStaffValidOnDay(row, today));
+    } else if (validityFilter === 'invalid') {
+      filtered = filtered.filter((row) => !isStaffValidOnDay(row, today));
+    }
+
+    return filtered;
+  }, [query, rows, validityFilter, today]);
 
   const updateRow = (id: string, patch: Partial<Staff>) => {
     setRows((prev) => prev.map((row) => (row.id === id ? { ...row, ...patch } : row)));
@@ -55,12 +69,13 @@ export default function PersonaleClient({ initialStaff }: Props) {
 
     let startLat: number | null = null;
     let startLng: number | null = null;
+    let homeLat: number | null = null;
+    let homeLng: number | null = null;
     let geocodeFailed = false;
-    const hasStartAddress = !!(row.start_address || row.start_cap || row.start_city);
 
-    if (hasStartAddress) {
-      const geocoded = await geocodeTask({
-        id: `staff-${row.id}`,
+    if (row.start_address || row.start_cap || row.start_city) {
+      const g = await geocodeTask({
+        id: `staff-${row.id}-magazzino`,
         odl: '',
         indirizzo: row.start_address ?? '',
         cap: row.start_cap ?? '',
@@ -68,9 +83,24 @@ export default function PersonaleClient({ initialStaff }: Props) {
         priorita: 0,
         fascia_oraria: '',
       });
-      startLat = geocoded.lat ?? null;
-      startLng = geocoded.lng ?? null;
-      geocodeFailed = startLat === null || startLng === null;
+      startLat = g.lat ?? null;
+      startLng = g.lng ?? null;
+      if (startLat === null || startLng === null) geocodeFailed = true;
+    }
+
+    if (row.home_address || row.home_cap || row.home_city) {
+      const g = await geocodeTask({
+        id: `staff-${row.id}-casa`,
+        odl: '',
+        indirizzo: row.home_address ?? '',
+        cap: row.home_cap ?? '',
+        citta: row.home_city ?? '',
+        priorita: 0,
+        fascia_oraria: '',
+      });
+      homeLat = g.lat ?? null;
+      homeLng = g.lng ?? null;
+      if (homeLat === null || homeLng === null) geocodeFailed = true;
     }
 
     try {
@@ -86,6 +116,11 @@ export default function PersonaleClient({ initialStaff }: Props) {
           startCity: row.start_city ?? null,
           startLat,
           startLng,
+          homeAddress: row.home_address ?? null,
+          homeCap: row.home_cap ?? null,
+          homeCity: row.home_city ?? null,
+          homeLat,
+          homeLng,
         }),
       });
       const json = await res.json() as { error?: string; staff?: Staff };
@@ -106,7 +141,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-wrap items-end justify-between gap-3">
+      <div className="space-y-4">
         <div>
           <h1 className="text-3xl font-bold text-[var(--brand-text-main)]">Personale</h1>
           <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
@@ -114,16 +149,51 @@ export default function PersonaleClient({ initialStaff }: Props) {
           </p>
         </div>
 
-        <div className="w-full max-w-sm">
-          <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-            Cerca operatore
-          </label>
-          <input
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Nome operatore..."
-            className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-          />
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[250px]">
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              Cerca operatore
+            </label>
+            <input
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Nome operatore..."
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+            />
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setValidityFilter('all')}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                validityFilter === 'all'
+                  ? 'bg-[var(--brand-primary)] text-white'
+                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+              }`}
+            >
+              Tutti
+            </button>
+            <button
+              onClick={() => setValidityFilter('valid')}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                validityFilter === 'valid'
+                  ? 'bg-green-600 text-white'
+                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-green-50'
+              }`}
+            >
+              ✓ Validi
+            </button>
+            <button
+              onClick={() => setValidityFilter('invalid')}
+              className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
+                validityFilter === 'invalid'
+                  ? 'bg-amber-600 text-white'
+                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-amber-50'
+              }`}
+            >
+              ⚠ Fuori validità
+            </button>
+          </div>
         </div>
       </div>
 
@@ -145,6 +215,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
           const saving = savingId === row.id;
           const startAddress = formatStaffStartAddress(row);
           const hasCoords = row.start_lat != null && row.start_lng != null;
+          const hasHomeCoords = row.home_lat != null && row.home_lng != null;
           const status = validityLabel(row, today);
 
           return (
@@ -160,8 +231,13 @@ export default function PersonaleClient({ initialStaff }: Props) {
                       {status}
                     </span>
                     <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
-                      {hasCoords ? 'Partenza geocodificata' : 'Partenza senza coordinate'}
+                      {hasCoords ? '🏭 Magazzino OK' : '🏭 Magazzino senza coords'}
                     </span>
+                    {(row.home_address || row.home_cap || row.home_city) && (
+                      <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
+                        {hasHomeCoords ? '🏠 Casa OK' : '🏠 Casa senza coords'}
+                      </span>
+                    )}
                   </div>
                 </div>
 
@@ -237,11 +313,58 @@ export default function PersonaleClient({ initialStaff }: Props) {
                 </div>
               </div>
 
-              <div className="mt-3 text-xs text-[var(--brand-text-muted)]">
-                {startAddress || 'Nessun indirizzo di partenza registrato.'}
-                {hasCoords && row.start_lat != null && row.start_lng != null && (
-                  <span>{` · ${row.start_lat.toFixed(5)}, ${row.start_lng.toFixed(5)}`}</span>
-                )}
+              {/* Indirizzo casa */}
+              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_120px_200px]">
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    Indirizzo casa (reperibile)
+                  </label>
+                  <input
+                    value={row.home_address ?? ''}
+                    onChange={(e) => updateRow(row.id, { home_address: e.target.value })}
+                    placeholder="Via, piazza, civico..."
+                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    CAP casa
+                  </label>
+                  <input
+                    value={row.home_cap ?? ''}
+                    onChange={(e) => updateRow(row.id, { home_cap: e.target.value })}
+                    placeholder="00000"
+                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    Città casa
+                  </label>
+                  <input
+                    value={row.home_city ?? ''}
+                    onChange={(e) => updateRow(row.id, { home_city: e.target.value })}
+                    placeholder="Città"
+                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  />
+                </div>
+              </div>
+
+              <div className="mt-3 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
+                <div>
+                  <span className="font-semibold">Magazzino: </span>
+                  {startAddress || 'Non impostato'}
+                  {hasCoords && (
+                    <span>{` · ${row.start_lat!.toFixed(5)}, ${row.start_lng!.toFixed(5)}`}</span>
+                  )}
+                </div>
+                <div>
+                  <span className="font-semibold">Casa: </span>
+                  {formatStaffHomeAddress(row) || 'Non impostata'}
+                  {hasHomeCoords && (
+                    <span>{` · ${row.home_lat!.toFixed(5)}, ${row.home_lng!.toFixed(5)}`}</span>
+                  )}
+                </div>
               </div>
             </div>
           );

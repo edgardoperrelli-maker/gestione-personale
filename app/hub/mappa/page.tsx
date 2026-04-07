@@ -6,7 +6,7 @@ import MappaOperatoriClient, {
   type MappaStaffRow,
   type ZtlZoneInfo,
 } from '@/components/modules/mappa/MappaOperatoriClient';
-import { formatStaffStartAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
+import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 
 function fmtDay(d: Date) {
@@ -53,7 +53,7 @@ export default async function MappaPage() {
 
   const { data: staffRaw } = await supabase
     .from('staff')
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
     .order('display_name', { ascending: true });
 
   const staffList = (staffRaw ?? []) as Staff[];
@@ -122,6 +122,17 @@ export default async function MappaPage() {
       lng: a.territory?.lng ?? null,
     }));
 
+  // Per ogni staff: insieme dei giorni ISO in cui è reperibile nel range caricato
+  const reperibileDatesMap = new Map<string, string[]>();
+  assignments.forEach((a) => {
+    if (a.reperibile && a.staff?.id) {
+      const isoDay = dayIdMap.get(a.day_id) ?? '';
+      if (!isoDay) return;
+      if (!reperibileDatesMap.has(a.staff.id)) reperibileDatesMap.set(a.staff.id, []);
+      reperibileDatesMap.get(a.staff.id)!.push(isoDay);
+    }
+  });
+
   const operatorOptions: MappaOperatorOption[] = staffList
     .filter((member) => isStaffRelevantForRange(member, dateFrom, dateTo, todayIso))
     .map((member) => ({
@@ -130,6 +141,10 @@ export default async function MappaPage() {
       startAddress: formatStaffStartAddress(member) || null,
       startLat: member.start_lat ?? null,
       startLng: member.start_lng ?? null,
+      homeAddress: formatStaffHomeAddress(member) || null,
+      homeLat: member.home_lat ?? null,
+      homeLng: member.home_lng ?? null,
+      reperibileDates: reperibileDatesMap.get(member.id) ?? [],
     }));
 
   // ── Fetch ZTL zones ───────────────────────────────────────────────────────────

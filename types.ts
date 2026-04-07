@@ -9,6 +9,11 @@ export type Staff = {
   start_city?: string | null;
   start_lat?: number | null;
   start_lng?: number | null;
+  home_address?: string | null;
+  home_cap?: string | null;
+  home_city?: string | null;
+  home_lat?: number | null;
+  home_lng?: number | null;
 };
 export type Activity = { id:string; name:string; active?:boolean };
 export type Territory = { id:string; name:string; active?:boolean };

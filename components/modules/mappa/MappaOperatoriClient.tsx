@@ -48,6 +48,11 @@ export type MappaOperatorOption = {
   startAddress: string | null;
   startLat: number | null;
   startLng: number | null;
+  homeAddress: string | null;
+  homeLat: number | null;
+  homeLng: number | null;
+  /** Giorni ISO (YYYY-MM-DD) in cui è reperibile nel range caricato */
+  reperibileDates: string[];
 };
 
 type Props = {
@@ -598,6 +603,19 @@ function buildAllegato10FieldsFromTask(t: Task, operatorName: string, dateStr: s
   };
 }
 
+// ─── Date helpers ────────────────────────────────────────────────────────────
+
+function isoTomorrow(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+}
+
+function isoToDisplay(iso: string): string {
+  const [y, m, g] = iso.split('-');
+  return `${g}/${m}/${y}`;
+}
+
 // ─── Componente principale ───────────────────────────────────────────────────
 
 export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [] }: Props) {
@@ -637,6 +655,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [planningDate, setPlanningDate] = useState<string>(isoTomorrow());
 
   // ZTL conflicts
   const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
@@ -1089,26 +1108,28 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Toggle operatore selezionato (aggiunge con qty=0, rimuove se già presente)
   const toggleOp = useCallback((operator: MappaOperatorOption) => {
-    const base =
-      operator.startLat != null && operator.startLng != null
+    // Reperibile solo se lo è nel giorno esatto di pianificazione selezionato
+    const isRepOnDay = operator.reperibileDates.includes(planningDate);
+    const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
+
+    const base = usesHome
+      ? { lat: operator.homeLat!, lng: operator.homeLng! }
+      : operator.startLat != null && operator.startLng != null
         ? { lat: operator.startLat, lng: operator.startLng }
         : null;
+    const startAddress = usesHome
+      ? (operator.homeAddress ?? operator.startAddress)
+      : operator.startAddress;
 
     setSelectedOps((prev) =>
       prev.some((o) => o.id === operator.id)
         ? prev.filter((o) => o.id !== operator.id)
         : [
             ...prev,
-            {
-              id: operator.id,
-              name: operator.displayName,
-              qty: 0,
-              base,
-              startAddress: operator.startAddress,
-            },
+            { id: operator.id, name: operator.displayName, qty: 0, base, startAddress },
           ]
     );
-  }, []);
+  }, [planningDate]);
 
   // Aggiorna la quantità di un operatore
   const changeOpQty = useCallback((id: string, qty: number) => {
@@ -1231,8 +1252,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       if (!base) throw new Error('Foglio template non valido.');
       base.name = '__TEMPLATE__';
 
-      const today = new Date();
-      const dateStr = `${String(today.getDate()).padStart(2, '0')}/${String(today.getMonth() + 1).padStart(2, '0')}/${today.getFullYear()}`;
+      const dateStr = isoToDisplay(planningDate);
 
       // 2. Un foglio per operatore (clonato dal template)
       for (const { op, tasks } of distribution) {
@@ -1323,7 +1343,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       // ── Crea ZIP con xlsx + Allegato 10 per ogni task ──
       const outputZip = new JSZip();
-      const dateSlugZip = today.toISOString().slice(0, 10);
+      const dateSlugZip = planningDate;
       const zipName = `RAPPORTINI_MAPPA_${dateSlugZip}.zip`;
 
       // Aggiungi il rapportino Excel
@@ -1423,9 +1443,24 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       {/* Header + filtri */}
       <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
-          <div>
+          <div className="flex flex-wrap items-center gap-4">
             <div className="text-xl font-semibold">Pianifica indirizzi</div>
-            <div className="text-sm text-[var(--brand-text-muted)]">
+            <div className="flex items-center gap-2">
+              <label className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                Data
+              </label>
+              <input
+                type="date"
+                value={planningDate}
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setPlanningDate(e.target.value);
+                    setSelectedOps([]);
+                    setDistribution(null);
+                  }
+                }}
+                className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm"
+              />
             </div>
           </div>
 
