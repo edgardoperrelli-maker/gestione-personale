@@ -160,8 +160,8 @@ export default function RapportinoClientelaPage() {
         throw new Error('Seleziona almeno un operatore o attiva il foglio unico.');
       }
 
-      const tplRes = await fetch('/templates/RAPPORTINO_ATT_CLIENTELA.xlsx');
-      if (!tplRes.ok) throw new Error('Template non trovato.');
+      const tplRes = await fetch('/templates/Rapportino.xlsx');
+      if (!tplRes.ok) throw new Error('Template Rapportino.xlsx non trovato in /public/templates/.');
       const tplBuf = await tplRes.arrayBuffer();
       const tplWb = new ExcelJS.Workbook();
       await tplWb.xlsx.load(tplBuf);
@@ -181,11 +181,11 @@ export default function RapportinoClientelaPage() {
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = useCombined ? '' : opName;
 
-       // INTESTAZIONI RIGA 6 (Aâ€“O)
+       // INTESTAZIONI RIGA 6 (A–Q) — allineato al template Rapportino.xlsx
 const hrow = ws.getRow(6);
 [
-  'NOMINATIVO','MATRICOLA','PDR','VIA','COMUNE','CAP',
-  'RECAPITO',"ATTIVITA'",'ACCESSIBILITA\'','FASCIA ORARIA',
+  'NOMINATIVO','MATRICOLA','PDR','ODSIN','VIA','COMUNE','CAP',
+  'RECAPITO','ATTIVITA','ACCESSIBILITA','FASCIA ORARIA','ORDINE',
   'ATT/CESS','CAMBIO','MINI BAG','RG STOP','ASSENTE'
 ].forEach((t, i) => { hrow.getCell(i+1).value = t; });
 hrow.commit();
@@ -207,24 +207,28 @@ for (const r of sorted) {
   const access     = safeStr(r[COL.BI_ACCESSIBILITA]);
   const oraTxt     = onlyHHMM(r[COL.U_ORA]);
 
-  const rr = ws.getRow(rowIdx++);
+  const rr = ws.getRow(rowIdx);
+  const ordine = rowIdx - 6;  // ORDINE progressivo
   rr.getCell(1).value  = nominativo;
   rr.getCell(2).value  = matricola;
   rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
-  rr.getCell(4).value  = via;
-  rr.getCell(5).value  = comune;
-  rr.getCell(6).value  = cap;
-  rr.getCell(7).value  = recapito;
-  rr.getCell(8).value  = attivita;       // colonna 8 = L
-  rr.getCell(9).value  = access;
-  rr.getCell(10).value = oraTxt;         // colonna 10 = Fascia oraria
-  rr.getCell(10).numFmt = '@';
-  rr.getCell(11).value = '';
-  rr.getCell(12).value = '';
-  rr.getCell(13).value = '';
-  rr.getCell(14).value = '';
-  rr.getCell(15).value = '';
+  rr.getCell(4).value  = '';            // ODSIN — non disponibile in clientela
+  rr.getCell(5).value  = via;
+  rr.getCell(6).value  = comune;
+  rr.getCell(7).value  = cap;
+  rr.getCell(8).value  = recapito;
+  rr.getCell(9).value  = attivita;
+  rr.getCell(10).value = access;
+  rr.getCell(11).value = oraTxt;       // FASCIA ORARIA
+  rr.getCell(11).numFmt = '@';
+  rr.getCell(12).value = ordine;       // ORDINE progressivo
+  rr.getCell(13).value = '';           // ATT/CESS
+  rr.getCell(14).value = '';           // CAMBIO
+  rr.getCell(15).value = '';           // MINI BAG
+  rr.getCell(16).value = '';           // RG STOP
+  rr.getCell(17).value = '';           // ASSENTE
   rr.commit();
+  rowIdx++;
 }
 
 

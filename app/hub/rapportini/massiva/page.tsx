@@ -627,8 +627,8 @@ const filteredRows = useMemo(() => {
         throw new Error('Seleziona almeno un operatore o attiva il foglio unico.');
       }
 
-      const tplRes = await fetch('/templates/RAPPORTINO_ATT_CLIENTELA.xlsx');
-      if (!tplRes.ok) throw new Error('Template non trovato.');
+      const tplRes = await fetch('/templates/Rapportino.xlsx');
+      if (!tplRes.ok) throw new Error('Template Rapportino.xlsx non trovato in /public/templates/.');
       const tplBuf = await tplRes.arrayBuffer();
       const tplWb = new ExcelJS.Workbook();
       await tplWb.xlsx.load(tplBuf);
@@ -664,70 +664,45 @@ const ws = cloneFromTemplate(base, opName, tplWb);
 ws.getCell('B2').value = dateStr;
 ws.getCell('B4').value = useCombined ? '' : opName;
 
-// === Inserisci 5 righe vuote prima della riga 30 e applica bordi A..O ===
-const EXTRA_EMPTY = 5;
-const INSERT_AT = 30; // inserisco PRIMA della 30
-ws.spliceRows(INSERT_AT, 0, ...Array(EXTRA_EMPTY).fill([]));
-
-// bordi su tutte le celle delle righe inserite, colonne A..P (1..16)
-const FIRST_INS = INSERT_AT;
-const LAST_INS  = INSERT_AT + EXTRA_EMPTY - 1;
-const LAST_COL  = 16; // P
-
-for (let r = FIRST_INS; r <= LAST_INS; r++) {
-  const row = ws.getRow(r);
-  for (let c = 1; c <= LAST_COL; c++) {
-    const cell = row.getCell(c);
-    cell.border = {
-      top:    { style: 'thin' },
-      left:   { style: 'thin' },
-      bottom: { style: 'thin' },
-      right:  { style: 'thin' },
-    };
-  }
-  row.commit?.();
-}
-// ============================================================
-
-
-// Header riga 6 (A..N)
+// Header riga 6 (A..Q) — allineato al template Rapportino.xlsx
 const hdr = [
-  'Nominativo','Matricola','PDR','Via','Comune','CAP','Recapito',
-  'AttivitÃ ','AccessibilitÃ ','Fascia oraria','Cambio','Mini bag','RG stop','Assente','ODS','Tipologia'
+  'NOMINATIVO','MATRICOLA','PDR','ODSIN','VIA','COMUNE','CAP',
+  'RECAPITO','ATTIVITA','ACCESSIBILITA','FASCIA ORARIA','ORDINE',
+  'ATT/CESS','CAMBIO','MINI BAG','RG STOP','ASSENTE'
 ];
-['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'].forEach((col, i) => {
+['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P','Q'].forEach((col, i) => {
   ws.getCell(`${col}6`).value = hdr[i];
 });
 
 let rowIdx = 7;
-for (const r of rowsSorted) {   // <-- usa rowsSorted
+for (const r of rowsSorted) {
   const nominativo = safeStr(r[COL.O_NOMINATIVO]);
   const matricola  = safeStr(r[COL.P_MATRICOLA]);
   const pdrRaw     = safeStr(r[COL.N_PDR]);
+  const ods        = safeStr(r[COL.ODS]);
   const via        = safeStr(r[COL.T_VIA]);
   const comune     = safeStr(r[COL.Q_COMUNE]);
   const cap        = safeStr(r[COL.R_CAP]);
   const recapito   = safeStr(r[COL.BG_RECAPITO]);
   const attivita   = safeStr(r[COL.L_ATTIVITA]) || 'S-AI-049';
-  const access     = safeStr(r[COL.ACCESSIBILITA_CA]); // CA
-  const fascia     = safeStr(r[COL.FASCIA_ORARIA]);    // 95
-  const ods        = safeStr(r[COL.ODS]);
-  const tipologia  = attivita;
-
-  const pdr = pdrRaw ? `00${pdrRaw}` : '';
+  const access     = safeStr(r[COL.ACCESSIBILITA_CA]);
+  const fascia     = safeStr(r[COL.FASCIA_ORARIA]);
+  const pdr        = pdrRaw ? `00${pdrRaw}` : '';
+  const ordine     = rowIdx - 6; // numero progressivo 1-based
 
   ws.getCell(`A${rowIdx}`).value = nominativo;
   ws.getCell(`B${rowIdx}`).value = matricola;
   ws.getCell(`C${rowIdx}`).value = pdr;
-  ws.getCell(`D${rowIdx}`).value = via;
-  ws.getCell(`E${rowIdx}`).value = comune;
-  ws.getCell(`F${rowIdx}`).value = cap;
-  ws.getCell(`G${rowIdx}`).value = recapito;
-  ws.getCell(`H${rowIdx}`).value = attivita;
-  ws.getCell(`I${rowIdx}`).value = access;   // AccessibilitÃ  (CA)
-  ws.getCell(`J${rowIdx}`).value = fascia;   // Fascia oraria (95)
-  ws.getCell(`O${rowIdx}`).value = ods;
-  ws.getCell(`P${rowIdx}`).value = tipologia;
+  ws.getCell(`D${rowIdx}`).value = ods;          // ODSIN
+  ws.getCell(`E${rowIdx}`).value = via;
+  ws.getCell(`F${rowIdx}`).value = comune;
+  ws.getCell(`G${rowIdx}`).value = cap;
+  ws.getCell(`H${rowIdx}`).value = recapito;
+  ws.getCell(`I${rowIdx}`).value = attivita;
+  ws.getCell(`J${rowIdx}`).value = access;
+  ws.getCell(`K${rowIdx}`).value = fascia;
+  ws.getCell(`K${rowIdx}`).numFmt = '@';
+  ws.getCell(`L${rowIdx}`).value = ordine;
 
   // accumulate NOTE da CT
   const noteText = safeStr(r[COL.NOTE_CT]);
@@ -735,9 +710,10 @@ for (const r of rowsSorted) {   // <-- usa rowsSorted
 
   rowIdx++;
 }
-// --- NOTE in fondo, righe 31..35, colonne A..C ---
-const NOTE_START = 31 + EXTRA_EMPTY; // 36
-const NOTE_END   = 37 + EXTRA_EMPTY; // 42
+
+// --- NOTE in fondo, righe 36+ (riga 35 = "INTERVENTI CON NOTE" dal template) ---
+const NOTE_START = 36;
+const NOTE_END   = 41;
 const maxNotes = Math.min(notes.length, NOTE_END - NOTE_START + 1);
 for (let i = 0; i < maxNotes; i++) {
   const rr = NOTE_START + i;
@@ -745,23 +721,20 @@ for (let i = 0; i < maxNotes; i++) {
   ws.getCell(`B${rr}`).value = notes[i].via;
   ws.getCell(`C${rr}`).value = notes[i].note;
 }
-// bordi griglia per lâ€™area note A31:C35
 for (let r = NOTE_START; r <= NOTE_END; r++) {
   for (const c of ['A','B','C'] as const) {
-    const cell = ws.getCell(`${c}${r}`);
-    cell.border = {
+    ws.getCell(`${c}${r}`).border = {
       top: {style:'thin'}, left:{style:'thin'},
-      bottom:{style:'thin'}, right:{style:'thin'}
+      bottom:{style:'thin'}, right:{style:'thin'},
     };
   }
 }
 
-// area di stampa: A1:P35 in orizzontale e adatta in larghezza
 ws.pageSetup.orientation = 'landscape';
 ws.pageSetup.fitToPage = true;
 ws.pageSetup.fitToWidth = 1;
 ws.pageSetup.fitToHeight = 0;
-(ws as any).pageSetup.printArea = `A1:P${NOTE_END}`; // A1:P42
+(ws as any).pageSetup.printArea = `A1:Q${NOTE_END}`;
 
       }
 
@@ -1260,8 +1233,8 @@ function cloneFromTemplate(base: ExcelJS.Worksheet, name: string, wb: ExcelJS.Wo
     style: JSON.parse(JSON.stringify(c.style || {})),
   })) ?? [];
 
-  // limitiamo a 33 righe come richiesto in precedenti specifiche
-  const maxRows = 37;
+  // copia tutte le righe dal template
+  const maxRows = base.rowCount || 71;
   for (let r = 1; r <= maxRows; r++) {
     const wr = ws.getRow(r);
     const br = base.getRow(r);

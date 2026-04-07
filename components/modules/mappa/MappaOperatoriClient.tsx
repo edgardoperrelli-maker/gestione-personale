@@ -465,62 +465,122 @@ function detectTerritory(cap: string): 'lazio' | 'firenze' {
   return 'lazio';
 }
 
+// ─── replaceMergeField CORRETTA (nessuna regex [\s\S]) ───────────────────────
 function replaceMergeField(xml: string, fieldName: string, value: string): string {
   const escaped = value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  const re = new RegExp(
-    `(MERGEFIELD\\s+${fieldName}[\\s\\S]*?fldCharType="separate"/>\\s*</w:r>[\\s\\S]*?<w:t[^>]*>)[^<]*(</w:t>)`,
-    'g'
-  );
-  return xml.replace(re, `$1${escaped}$2`);
+
+  let result = xml;
+  let searchFrom = 0;
+
+  while (true) {
+    const instrIdx = result.indexOf(`MERGEFIELD ${fieldName}`, searchFrom);
+    if (instrIdx < 0) break;
+
+    const sepIdx = result.indexOf('fldCharType="separate"', instrIdx);
+    if (sepIdx < 0 || sepIdx > instrIdx + 3000) { searchFrom = instrIdx + 1; continue; }
+
+    const tStart = result.indexOf('<w:t', sepIdx);
+    if (tStart < 0 || tStart > sepIdx + 500) { searchFrom = instrIdx + 1; continue; }
+
+    const tTagEnd = result.indexOf('>', tStart) + 1;
+    const tClose  = result.indexOf('</w:t>', tTagEnd);
+    if (tClose < 0 || tClose > tTagEnd + 300) { searchFrom = instrIdx + 1; continue; }
+
+    result = result.slice(0, tTagEnd) + escaped + result.slice(tClose);
+    searchFrom = tTagEnd + escaped.length;
+  }
+
+  return result;
 }
 
-async function fillLazioAllegato10(fields: Allegato10Fields): Promise<Uint8Array> {
+// ─── Cache template (1 fetch per sessione) ───────────────────────────────────
+interface TemplateCache { zip: JSZip; xml: string; }
+let _lazioCache: TemplateCache | null = null;
+let _firenzeCache: TemplateCache | null = null;
+
+async function getLazioTemplate(): Promise<TemplateCache> {
+  if (_lazioCache) return _lazioCache;
   const res = await fetch('/templates/ALLEGATO_10_LAZIO.docx');
-  if (!res.ok) throw new Error('Template Allegato 10 Lazio non trovato');
+  if (!res.ok) throw new Error('Template ALLEGATO_10_LAZIO.docx non trovato in /public/templates/');
   const buf = await res.arrayBuffer();
   const zip = await JSZip.loadAsync(buf);
-  let xml = await zip.file('word/document.xml')!.async('string');
+  const xml = await zip.file('word/document.xml')!.async('string');
+  _lazioCache = { zip, xml };
+  return _lazioCache;
+}
+
+async function getFirenzeTemplate(): Promise<TemplateCache> {
+  if (_firenzeCache) return _firenzeCache;
+  const res = await fetch('/templates/ALLEGATO_10_FIRENZE.docx');
+  if (!res.ok) throw new Error('Template ALLEGATO_10_FIRENZE.docx non trovato in /public/templates/');
+  const buf = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+  const xml = await zip.file('word/document.xml')!.async('string');
+  _firenzeCache = { zip, xml };
+  return _firenzeCache;
+}
+
+// ─── Fill XML (solo string manipulation, zero I/O) ───────────────────────────
+function fillLazioXml(templateXml: string, fields: Allegato10Fields): string {
+  let xml = templateXml;
   for (const [field, value] of Object.entries(fields)) {
     xml = replaceMergeField(xml, field, value);
   }
-  zip.file('word/document.xml', xml);
-  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  return xml;
 }
 
-async function fillFirenzeAllegato10(fields: Allegato10Fields): Promise<Uint8Array> {
-  const res = await fetch('/templates/ALLEGATO_10_FIRENZE.docx');
-  if (!res.ok) throw new Error('Template Allegato 10 Firenze non trovato');
-  const buf = await res.arrayBuffer();
-  const zip = await JSZip.loadAsync(buf);
-  let xml = await zip.file('word/document.xml')!.async('string');
-  const placeholderMap: Record<string, string> = {
-    '{{NOME_UTENTE}}':   fields.NOME_UTENTE || '',
-    '{{STRADA}}':        fields.STRADA || '',
-    '{{NOME_LOCALITA}}': fields.NOME_LOCALITA || '',
-    '{{RECAPITO}}':      fields.RECAPITO || '',
-    '{{PDR}}':           fields.PDR || '',
-    '{{ODS}}':           fields.ODS || '',
-    '{{DATA}}':          fields.DATA || '',
-    '{{CAMPO_28}}':      '',
-    '{{CAMPO_14}}':      '',
-    '{{CAMPO_9}}':       '',
-    '{{CAMPO_57}}':      '',
-    '{{CAMPO_87}}':      '',
-    '{{CAMPO_76}}':      '',
-    '{{CAMPO_11}}':      '',
+function fillFirenzeXml(templateXml: string, fields: Allegato10Fields): string {
+  const map: Record<string, string> = {
+    '{{NOME_UTENTE}}':   fields.NOME_UTENTE,
+    '{{STRADA}}':        fields.STRADA,
+    '{{NOME_LOCALITA}}': fields.NOME_LOCALITA,
+    '{{RECAPITO}}':      fields.RECAPITO,
+    '{{PDR}}':           fields.PDR,
+    '{{ODS}}':           fields.ODS,
+    '{{DATA}}':          fields.DATA,
+    '{{NUMERO_SERIE}}':  fields.NUMERO_SERIE,
+    '{{ESECUTORE}}':     fields.ESECUTORE,
   };
-  for (const [placeholder, value] of Object.entries(placeholderMap)) {
-    const escaped = value
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;');
-    xml = xml.replaceAll(placeholder, escaped);
+  let xml = templateXml;
+  for (const [ph, val] of Object.entries(map)) {
+    const esc = val.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+    xml = xml.replaceAll(ph, esc);
   }
-  zip.file('word/document.xml', xml);
-  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+  return xml;
+}
+
+// ─── Body concat (nessuna API merge) ─────────────────────────────────────────
+function extractBodyContent(xml: string): string {
+  const bodyStart = xml.indexOf('<w:body>') + '<w:body>'.length;
+  const bodyEnd   = xml.lastIndexOf('</w:body>');
+  const body      = xml.slice(bodyStart, bodyEnd);
+  const lastSect  = body.lastIndexOf('<w:sectPr');
+  return lastSect >= 0 ? body.slice(0, lastSect) : body;
+}
+
+async function buildCombinedDocx(filledXmls: string[], tpl: TemplateCache): Promise<Uint8Array> {
+  const PAGE_BREAK = '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+  const { zip: tplZip, xml: tplXml } = tpl;
+
+  const bodyOuter  = tplXml.slice(tplXml.indexOf('<w:body>'), tplXml.lastIndexOf('</w:body>') + '</w:body>'.length);
+  const sectIdx    = bodyOuter.lastIndexOf('<w:sectPr');
+  const sectPr     = sectIdx >= 0 ? bodyOuter.slice(sectIdx, bodyOuter.lastIndexOf('</w:body>')) : '';
+
+  const combined   = filledXmls.map(extractBodyContent).join(PAGE_BREAK);
+  const bodyStart  = tplXml.indexOf('<w:body>') + '<w:body>'.length;
+  const bodyEnd    = tplXml.lastIndexOf('</w:body>');
+  const finalXml   = tplXml.slice(0, bodyStart) + combined + sectPr + tplXml.slice(bodyEnd);
+
+  const out = new JSZip();
+  await Promise.all(Object.keys(tplZip.files).map(async (name) => {
+    const f = tplZip.files[name];
+    if (f.dir) return;
+    out.file(name, name === 'word/document.xml' ? finalXml : await f.async('uint8array'));
+  }));
+  return out.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
 }
 
 function buildAllegato10FieldsFromTask(t: Task, operatorName: string, dateStr: string): Allegato10Fields {
@@ -536,29 +596,6 @@ function buildAllegato10FieldsFromTask(t: Task, operatorName: string, dateStr: s
     DATA:          dateStr,
     RECAPITO:      String(t.recapito ?? '').trim(),
   };
-}
-
-/** Combina più documenti docx in uno solo tramite API endpoint */
-async function mergeMultipleDocx(documents: Uint8Array[]): Promise<Uint8Array> {
-  if (documents.length === 0) return new Uint8Array();
-  if (documents.length === 1) return documents[0];
-
-  // Converti i documenti in base64 per l'API
-  const docsBase64 = documents.map(doc => Buffer.from(doc).toString('base64'));
-
-  const res = await fetch('/api/merge-docx', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ documents: docsBase64 }),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error?.error || 'Errore durante il merge dei documenti');
-  }
-
-  const { document: mergedBase64 } = await res.json();
-  return new Uint8Array(Buffer.from(mergedBase64, 'base64'));
 }
 
 // ─── Componente principale ───────────────────────────────────────────────────
@@ -1183,8 +1220,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
     try {
       // 1. Carica il template rapportino
-      const tplRes = await fetch('/templates/RAPPORTINO_ATT_CLIENTELA.xlsx');
-      if (!tplRes.ok) throw new Error('Template RAPPORTINO_ATT_CLIENTELA.xlsx non trovato in /public/templates/');
+      const tplRes = await fetch('/templates/Rapportino.xlsx');
+      if (!tplRes.ok) throw new Error('Template Rapportino.xlsx non trovato in /public/templates/');
       const tplBuf = await tplRes.arrayBuffer();
 
       const tplWb = new ExcelJS.Workbook();
@@ -1296,62 +1333,49 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       // ── Allegato 10: genera un .docx per ogni task, combinati per operatore ──
       const allegato10Errors: string[] = [];
 
+      const allTasks = distribution.flatMap(({ tasks }) => tasks);
+      const needsLazio   = allTasks.some(t => detectTerritory(String(t.cap ?? '')) === 'lazio');
+      const needsFirenze = allTasks.some(t => detectTerritory(String(t.cap ?? '')) === 'firenze');
+
+      const [lazioTpl, firenzeTpl] = await Promise.all([
+        needsLazio   ? getLazioTemplate()   : Promise.resolve(null),
+        needsFirenze ? getFirenzeTemplate() : Promise.resolve(null),
+      ]);
+
       for (const { op, tasks } of distribution) {
-        try {
-          const docxListByTerritory: Record<'lazio' | 'firenze', Uint8Array[]> = { lazio: [], firenze: [] };
+        const filled: Record<'lazio' | 'firenze', string[]> = { lazio: [], firenze: [] };
 
-          // Genera un docx per ogni task
-          for (let idx = 0; idx < tasks.length; idx++) {
-            const t = tasks[idx];
-            try {
-              const fields = buildAllegato10FieldsFromTask(t, op, dateStr);
-              const cap = String(t.cap ?? '').trim();
-              const territory = detectTerritory(cap);
-
-              const docxBytes = territory === 'firenze'
-                ? await fillFirenzeAllegato10(fields)
-                : await fillLazioAllegato10(fields);
-
-              docxListByTerritory[territory].push(docxBytes);
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              allegato10Errors.push(`${op} task ${idx + 1}: ${errMsg}`);
-            }
+        for (let idx = 0; idx < tasks.length; idx++) {
+          const t = tasks[idx];
+          try {
+            const fields    = buildAllegato10FieldsFromTask(t, op, dateStr);
+            const territory = detectTerritory(String(t.cap ?? '').trim());
+            if (territory === 'lazio' && lazioTpl)
+              filled.lazio.push(fillLazioXml(lazioTpl.xml, fields));
+            else if (territory === 'firenze' && firenzeTpl)
+              filled.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
+          } catch (err) {
+            allegato10Errors.push(`${op} task ${idx + 1}: ${err instanceof Error ? err.message : String(err)}`);
           }
+        }
 
-          // Combina i docx per territorio e salva nel ZIP
-          if (docxListByTerritory.lazio.length > 0) {
-            try {
-              const mergedLazio = await mergeMultipleDocx(docxListByTerritory.lazio);
-              const safeOpName = op
-                .replace(/[^\w\s]/g, '')
-                .replace(/\s+/g, '_')
-                .slice(0, 30);
-              const docxName = `allegato10/${safeOpName}_Allegato10_LAZIO.docx`;
-              outputZip.file(docxName, mergedLazio);
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              allegato10Errors.push(`${op} merge Lazio: ${errMsg}`);
-            }
-          }
+        const safeOp = op.replace(/[^\w\s]/g,'').replace(/\s+/g,'_').slice(0,30);
 
-          if (docxListByTerritory.firenze.length > 0) {
-            try {
-              const mergedFirenze = await mergeMultipleDocx(docxListByTerritory.firenze);
-              const safeOpName = op
-                .replace(/[^\w\s]/g, '')
-                .replace(/\s+/g, '_')
-                .slice(0, 30);
-              const docxName = `allegato10/${safeOpName}_Allegato10_FIRENZE.docx`;
-              outputZip.file(docxName, mergedFirenze);
-            } catch (err) {
-              const errMsg = err instanceof Error ? err.message : String(err);
-              allegato10Errors.push(`${op} merge Firenze: ${errMsg}`);
-            }
+        if (filled.lazio.length > 0 && lazioTpl) {
+          try {
+            outputZip.file(`allegato10/${safeOp}_Allegato10_LAZIO.docx`,
+              await buildCombinedDocx(filled.lazio, lazioTpl));
+          } catch (err) {
+            allegato10Errors.push(`${op} merge Lazio: ${err instanceof Error ? err.message : String(err)}`);
           }
-        } catch (err) {
-          const errMsg = err instanceof Error ? err.message : String(err);
-          allegato10Errors.push(`${op}: ${errMsg}`);
+        }
+        if (filled.firenze.length > 0 && firenzeTpl) {
+          try {
+            outputZip.file(`allegato10/${safeOp}_Allegato10_FIRENZE.docx`,
+              await buildCombinedDocx(filled.firenze, firenzeTpl));
+          } catch (err) {
+            allegato10Errors.push(`${op} merge Firenze: ${err instanceof Error ? err.message : String(err)}`);
+          }
         }
       }
 
