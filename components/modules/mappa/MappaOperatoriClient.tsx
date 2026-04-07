@@ -1204,7 +1204,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div>
-            <div className="text-xl font-semibold">Pinifica indirizzi</div>
+            <div className="text-xl font-semibold">Pianifica indirizzi</div>
             <div className="text-sm text-[var(--brand-text-muted)]">
             </div>
           </div>
