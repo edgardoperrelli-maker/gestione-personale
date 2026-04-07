@@ -10,9 +10,11 @@
     "lint": "eslint"
   },
   "dependencies": {
+    "@benedicte/docx-merge": "^0.1.3",
     "@supabase/auth-helpers-nextjs": "0.10.0",
     "@supabase/supabase-js": "2.75.1",
     "@types/leaflet": "^1.9.21",
+    "docx": "^9.6.1",
     "exceljs": "^4.4.0",
     "geist": "^1.5.1",
     "jotai": "^2.15.0",

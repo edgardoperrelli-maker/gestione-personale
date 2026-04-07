@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
 
 // lettere -> indici 0-based
 const COL = {
@@ -12,12 +13,14 @@ const COL = {
   O_NOMINATIVO: 52,  // BA
   P_MATRICOLA: 10,   // K
   N_PDR: 12,         // M
+  ODS: 13,           // N   — codice ODS
   T_VIA: 54,         // BC
   Q_COMUNE: 72,      // BU
   R_CAP: 62,         // BK
   BG_RECAPITO: 74,   // BW
   ACCESSIBILITA_CA: 78, // CA
-  FASCIA_ORARIA: 93,    // 95   <-- VIRGOLA QUI
+  FASCIA_ORARIA: 93,    // 95
+  L_ATTIVITA: 11,    // L   — tipologia servizio
   NOTE_CT: 97           // CT
 } as const;
 
@@ -28,6 +31,150 @@ const ATTIVITA_MAP: Record<string, string> = {
   'S-AI-052': 'Verifica misuratore',
   // aggiungi altre mappature se richieste
 };
+
+// ──────────────────────────────────────────────────────────────────────────────
+// ALLEGATO 10 — Funzioni per la generazione automatica
+// ──────────────────────────────────────────────────────────────────────────────
+
+/** Rileva il territorio dal CAP.
+ *  Lazio:   00000–04999
+ *  Firenze: 50000–59999
+ *  Default: lazio se non riconosciuto
+ */
+function detectTerritory(cap: string): 'lazio' | 'firenze' {
+  const prefix = parseInt(cap.trim().slice(0, 2), 10);
+  if (!isNaN(prefix) && prefix >= 50 && prefix <= 59) return 'firenze';
+  return 'lazio';
+}
+
+/** Sostituisce il valore visualizzato di un MERGEFIELD nel documento Lazio.
+ *  Struttura XML: ... MERGEFIELD <name> ... fldCharType="separate"/> ... <w:t>VALORE</w:t> ... fldCharType="end"
+ */
+function replaceMergeField(xml: string, fieldName: string, value: string): string {
+  const escaped = value
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+  // Cerca MERGEFIELD <name>, poi il blocco separate→<w:t>…</w:t>
+  const re = new RegExp(
+    `(MERGEFIELD\\s+${fieldName}[\\s\\S]*?fldCharType="separate"/>\\s*</w:r>[\\s\\S]*?<w:t[^>]*>)[^<]*(</w:t>)`,
+    'g'
+  );
+  return xml.replace(re, `$1${escaped}$2`);
+}
+
+interface Allegato10Fields {
+  NOME_UTENTE:  string;
+  STRADA:       string;
+  ODS:          string;
+  NOME_LOCALITA:string;
+  PDR:          string;
+  NUMERO_SERIE: string;
+  ESECUTORE:    string;
+  DATA:         string;
+  RECAPITO:     string;
+}
+
+/** Genera Allegato 10 Lazio riempiendo i MERGEFIELD standard. */
+async function fillLazioAllegato10(fields: Allegato10Fields): Promise<Uint8Array> {
+  const res = await fetch('/templates/ALLEGATO_10_LAZIO.docx');
+  if (!res.ok) throw new Error('Template Allegato 10 Lazio non trovato in /public/templates/');
+  const buf = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+
+  let xml = await zip.file('word/document.xml')!.async('string');
+
+  // Riempi ogni MERGEFIELD
+  for (const [field, value] of Object.entries(fields)) {
+    xml = replaceMergeField(xml, field, value);
+  }
+
+  zip.file('word/document.xml', xml);
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+/** Genera Allegato 10 Firenze sostituendo i placeholder {{...}} iniettati dal patch script. */
+async function fillFirenzeAllegato10(fields: Allegato10Fields): Promise<Uint8Array> {
+  const res = await fetch('/templates/ALLEGATO_10_FIRENZE.docx');
+  if (!res.ok) throw new Error('Template Allegato 10 Firenze non trovato in /public/templates/');
+  const buf = await res.arrayBuffer();
+  const zip = await JSZip.loadAsync(buf);
+
+  let xml = await zip.file('word/document.xml')!.async('string');
+
+  /**
+   * Mappatura placeholder → campo dati.
+   * ⚠️ Dopo aver eseguito patch-firenze-template.mjs, aprire il .docx in Word
+   * e verificare la posizione di ogni {{PLACEHOLDER}} — aggiustare qui se necessario.
+   */
+  const placeholderMap: Record<string, string> = {
+    '{{NOME_UTENTE}}':   fields.NOME_UTENTE,
+    '{{STRADA}}':        fields.STRADA,
+    '{{NOME_LOCALITA}}': fields.NOME_LOCALITA,
+    '{{RECAPITO}}':      fields.RECAPITO,
+    '{{PDR}}':           fields.PDR,
+    '{{ODS}}':           fields.ODS,
+    '{{DATA}}':          fields.DATA,
+    // Campi da verificare dopo patch — compilati con i dati disponibili:
+    '{{CAMPO_28}}':      '',   // ⚠️ da identificare
+    '{{CAMPO_14}}':      '',
+    '{{CAMPO_9}}':       '',
+    '{{CAMPO_57}}':      '',
+    '{{CAMPO_87}}':      '',
+    '{{CAMPO_76}}':      '',
+    '{{CAMPO_11}}':      '',
+  };
+
+  for (const [placeholder, value] of Object.entries(placeholderMap)) {
+    const escaped = value
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+    xml = xml.replaceAll(placeholder, escaped);
+  }
+
+  zip.file('word/document.xml', xml);
+  return zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
+}
+
+/** Costruisce i campi Allegato 10 a partire da una riga Excel e dalla data selezionata. */
+function buildAllegato10Fields(r: any[], dateStr: string): Allegato10Fields {
+  const pdrRaw = String(r[COL.N_PDR] ?? '').trim();
+  return {
+    NOME_UTENTE:   String(r[COL.O_NOMINATIVO] ?? '').trim(),
+    STRADA:        String(r[COL.T_VIA] ?? '').trim(),
+    ODS:           String(r[COL.ODS] ?? '').trim(),
+    NOME_LOCALITA: String(r[COL.Q_COMUNE] ?? '').trim(),
+    PDR:           pdrRaw ? `00${pdrRaw}` : '',
+    NUMERO_SERIE:  String(r[COL.P_MATRICOLA] ?? '').trim(),
+    ESECUTORE:     String(r[COL.B_OPERATORE] ?? '').trim(),
+    DATA:          dateStr,
+    RECAPITO:      String(r[COL.BG_RECAPITO] ?? '').trim(),
+  };
+}
+
+/** Combina più documenti docx in uno solo tramite API endpoint */
+async function mergeMultipleDocx(documents: Uint8Array[]): Promise<Uint8Array> {
+  if (documents.length === 0) return new Uint8Array();
+  if (documents.length === 1) return documents[0];
+
+  // Converti i documenti in base64 per l'API
+  const docsBase64 = documents.map(doc => Buffer.from(doc).toString('base64'));
+
+  const res = await fetch('/api/merge-docx', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ documents: docsBase64 }),
+  });
+
+  if (!res.ok) {
+    const error = await res.json();
+    throw new Error(error?.error || 'Errore durante il merge dei documenti');
+  }
+
+  const { document: mergedBase64 } = await res.json();
+  return new Uint8Array(Buffer.from(mergedBase64, 'base64'));
+}
 
 export const dynamic = 'force-dynamic';
 // Rileva la colonna data cercando lâ€™header "DATA" o la colonna con piÃ¹ valori validi
@@ -434,10 +581,10 @@ const EXTRA_EMPTY = 5;
 const INSERT_AT = 30; // inserisco PRIMA della 30
 ws.spliceRows(INSERT_AT, 0, ...Array(EXTRA_EMPTY).fill([]));
 
-// bordi su tutte le celle delle righe inserite, colonne A..O (1..15)
+// bordi su tutte le celle delle righe inserite, colonne A..P (1..16)
 const FIRST_INS = INSERT_AT;
 const LAST_INS  = INSERT_AT + EXTRA_EMPTY - 1;
-const LAST_COL  = 15; // O
+const LAST_COL  = 16; // P
 
 for (let r = FIRST_INS; r <= LAST_INS; r++) {
   const row = ws.getRow(r);
@@ -458,9 +605,9 @@ for (let r = FIRST_INS; r <= LAST_INS; r++) {
 // Header riga 6 (A..N)
 const hdr = [
   'Nominativo','Matricola','PDR','Via','Comune','CAP','Recapito',
-  'AttivitÃ ','AccessibilitÃ ','Fascia oraria','Cambio','Mini bag','RG stop','Assente'
+  'AttivitÃ ','AccessibilitÃ ','Fascia oraria','Cambio','Mini bag','RG stop','Assente','ODS','Tipologia'
 ];
-['A','B','C','D','E','F','G','H','I','J','K','L','M','N'].forEach((col, i) => {
+['A','B','C','D','E','F','G','H','I','J','K','L','M','N','O','P'].forEach((col, i) => {
   ws.getCell(`${col}6`).value = hdr[i];
 });
 
@@ -473,9 +620,11 @@ for (const r of rowsSorted) {   // <-- usa rowsSorted
   const comune     = safeStr(r[COL.Q_COMUNE]);
   const cap        = safeStr(r[COL.R_CAP]);
   const recapito   = safeStr(r[COL.BG_RECAPITO]);
-  const attivita   = 'S-AI-049';
+  const attivita   = safeStr(r[COL.L_ATTIVITA]) || 'S-AI-049';
   const access     = safeStr(r[COL.ACCESSIBILITA_CA]); // CA
   const fascia     = safeStr(r[COL.FASCIA_ORARIA]);    // 95
+  const ods        = safeStr(r[COL.ODS]);
+  const tipologia  = attivita;
 
   const pdr = pdrRaw ? `00${pdrRaw}` : '';
 
@@ -489,6 +638,8 @@ for (const r of rowsSorted) {   // <-- usa rowsSorted
   ws.getCell(`H${rowIdx}`).value = attivita;
   ws.getCell(`I${rowIdx}`).value = access;   // AccessibilitÃ  (CA)
   ws.getCell(`J${rowIdx}`).value = fascia;   // Fascia oraria (95)
+  ws.getCell(`O${rowIdx}`).value = ods;
+  ws.getCell(`P${rowIdx}`).value = tipologia;
 
   // accumulate NOTE da CT
   const noteText = safeStr(r[COL.NOTE_CT]);
@@ -517,12 +668,12 @@ for (let r = NOTE_START; r <= NOTE_END; r++) {
   }
 }
 
-// area di stampa: A1:O35 in orizzontale e adatta in larghezza
+// area di stampa: A1:P35 in orizzontale e adatta in larghezza
 ws.pageSetup.orientation = 'landscape';
 ws.pageSetup.fitToPage = true;
 ws.pageSetup.fitToWidth = 1;
 ws.pageSetup.fitToHeight = 0;
-(ws as any).pageSetup.printArea = `A1:O${NOTE_END}`; // A1:O42
+(ws as any).pageSetup.printArea = `A1:P${NOTE_END}`; // A1:P42
 
       }
 
@@ -532,17 +683,118 @@ ws.pageSetup.fitToHeight = 0;
         if (idx >= 0) tplWb.removeWorksheet(idx + 1);
       }
 
-      const buf = await tplWb.xlsx.writeBuffer();
-      const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+      // ── Scrivi xlsx nel buffer ──
+      const xlsxBuf = await tplWb.xlsx.writeBuffer();
+
+      // ── Crea ZIP con xlsx + Allegato 10 per ogni riga ──
+      const outputZip = new JSZip();
+      const dateSlugZip = dateStr.replaceAll('/', '-');
+      const zipName = `RAPPORTINI_${dateSlugZip}.zip`;
+
+      // Aggiungi il rapportino Excel
+      outputZip.file(outName, xlsxBuf);
+
+      // ── Allegato 10: genera un .docx per ogni riga, combinati per operatore ──
+      const allegato10Errors: string[] = [];
+      const processedRows = useCombined ? filteredRows : filteredRows.filter(r =>
+        selectedOps.includes(normalizeOperatorName(r[COL.B_OPERATORE]))
+      );
+
+      // Raggruppa le righe per operatore
+      const rowsByOperator: Record<string, any[]> = {};
+      for (const r of processedRows) {
+        const opName = normalizeOperatorName(r[COL.B_OPERATORE]);
+        if (!rowsByOperator[opName]) {
+          rowsByOperator[opName] = [];
+        }
+        rowsByOperator[opName].push(r);
+      }
+
+      console.log(`[Allegato10] Inizio generazione per ${processedRows.length} righe, ${Object.keys(rowsByOperator).length} operatori`);
+
+      // Per ogni operatore, genera docx per ogni riga e combina
+      for (const [operatorName, rows] of Object.entries(rowsByOperator)) {
+        try {
+          console.log(`[Allegato10] Operatore: ${operatorName} (${rows.length} interventi)`);
+          const docxListByTerritory: Record<'lazio' | 'firenze', Uint8Array[]> = { lazio: [], firenze: [] };
+
+          // Genera un docx per ogni riga/intervento
+          for (let idx = 0; idx < rows.length; idx++) {
+            const r = rows[idx];
+            try {
+              const fields = buildAllegato10Fields(r, dateStr);
+              const cap = String(r[COL.R_CAP] ?? '').trim();
+              const territory = detectTerritory(cap);
+
+              console.log(`[Allegato10]   Riga ${idx + 1}/${rows.length}: ${fields.NOME_UTENTE} (${territory})`);
+              const docxBytes = territory === 'firenze'
+                ? await fillFirenzeAllegato10(fields)
+                : await fillLazioAllegato10(fields);
+
+              docxListByTerritory[territory].push(docxBytes);
+            } catch (err: any) {
+              const errMsg = String(err?.message ?? err);
+              console.error(`[Allegato10]   ✗ Errore intervento ${idx + 1}:`, errMsg);
+              allegato10Errors.push(`${operatorName} intervento ${idx + 1}: ${errMsg}`);
+            }
+          }
+
+          // Combina i docx per territorio e salva nel ZIP
+          if (docxListByTerritory.lazio.length > 0) {
+            try {
+              const mergedLazio = await mergeMultipleDocx(docxListByTerritory.lazio);
+              const safeOpName = operatorName
+                .replace(/[^\w\s]/g, '')
+                .replace(/\s+/g, '_')
+                .slice(0, 30);
+              const docxName = `allegato10/${safeOpName}_Allegato10_LAZIO.docx`;
+              outputZip.file(docxName, mergedLazio);
+              console.log(`[Allegato10] ✓ Salvato: ${docxName} (${docxListByTerritory.lazio.length} interventi)`);
+            } catch (err: any) {
+              const errMsg = String(err?.message ?? err);
+              console.error(`[Allegato10] ✗ Errore merge Lazio ${operatorName}:`, errMsg);
+              allegato10Errors.push(`${operatorName} merge Lazio: ${errMsg}`);
+            }
+          }
+
+          if (docxListByTerritory.firenze.length > 0) {
+            try {
+              const mergedFirenze = await mergeMultipleDocx(docxListByTerritory.firenze);
+              const safeOpName = operatorName
+                .replace(/[^\w\s]/g, '')
+                .replace(/\s+/g, '_')
+                .slice(0, 30);
+              const docxName = `allegato10/${safeOpName}_Allegato10_FIRENZE.docx`;
+              outputZip.file(docxName, mergedFirenze);
+              console.log(`[Allegato10] ✓ Salvato: ${docxName} (${docxListByTerritory.firenze.length} interventi)`);
+            } catch (err: any) {
+              const errMsg = String(err?.message ?? err);
+              console.error(`[Allegato10] ✗ Errore merge Firenze ${operatorName}:`, errMsg);
+              allegato10Errors.push(`${operatorName} merge Firenze: ${errMsg}`);
+            }
+          }
+        } catch (err: any) {
+          const errMsg = String(err?.message ?? err);
+          console.error(`[Allegato10] ✗ Errore operatore ${operatorName}:`, errMsg);
+          allegato10Errors.push(`${operatorName}: ${errMsg}`);
+        }
+      }
+      console.log(`[Allegato10] Generazione completata. Errori: ${allegato10Errors.length}`);
+
+      // ── Download ZIP ──
+      const zipBlob = await outputZip.generateAsync({ type: 'blob', compression: 'DEFLATE' });
       const a = document.createElement('a');
-      a.href = URL.createObjectURL(blob);
-      a.download = outName;
+      a.href = URL.createObjectURL(zipBlob);
+      a.download = zipName;
       document.body.appendChild(a);
       a.click();
       URL.revokeObjectURL(a.href);
       a.remove();
 
-      setMsg(`File generato: ${outName}`);
+      const errNote = allegato10Errors.length
+        ? ` (⚠️ ${allegato10Errors.length} Allegato 10 non generati: ${allegato10Errors[0]})`
+        : '';
+      setMsg(`ZIP generato: ${zipName} — ${processedRows.length} Allegati 10${errNote}`);
     } catch (e: any) {
       console.error(e);
       setErr(e?.message ?? 'Errore generazione.');
