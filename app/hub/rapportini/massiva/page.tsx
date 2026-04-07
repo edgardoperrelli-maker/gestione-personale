@@ -47,20 +47,49 @@ function detectTerritory(cap: string): 'lazio' | 'firenze' {
   return 'lazio';
 }
 
-/** Sostituisce il valore visualizzato di un MERGEFIELD nel documento Lazio.
- *  Struttura XML: ... MERGEFIELD <name> ... fldCharType="separate"/> ... <w:t>VALORE</w:t> ... fldCharType="end"
+/**
+ * Sostituisce il valore visualizzato di ogni MERGEFIELD con il nome dato.
+ *
+ * Approccio: ricerca sequenziale per finestre strette — nessuna regex [\s\S]
+ * che attraversi i confini delle textbox e moltiplichi il documento.
+ *
+ * Per ogni occorrenza di "MERGEFIELD <fieldName>" nel documento:
+ *  1. Cerca fldCharType="separate" entro 3000 caratteri
+ *  2. Cerca il primo <w:t> entro 500 caratteri dal separate
+ *  3. Sostituisce solo il contenuto tra > e </w:t>
  */
 function replaceMergeField(xml: string, fieldName: string, value: string): string {
   const escaped = value
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;');
-  // Cerca MERGEFIELD <name>, poi il blocco separate→<w:t>…</w:t>
-  const re = new RegExp(
-    `(MERGEFIELD\\s+${fieldName}[\\s\\S]*?fldCharType="separate"/>\\s*</w:r>[\\s\\S]*?<w:t[^>]*>)[^<]*(</w:t>)`,
-    'g'
-  );
-  return xml.replace(re, `$1${escaped}$2`);
+
+  let result = xml;
+  let searchFrom = 0;
+
+  while (true) {
+    const instrIdx = result.indexOf(`MERGEFIELD ${fieldName}`, searchFrom);
+    if (instrIdx < 0) break;
+
+    // fldCharType="separate" deve essere entro 3000 chars
+    const sepIdx = result.indexOf('fldCharType="separate"', instrIdx);
+    if (sepIdx < 0 || sepIdx > instrIdx + 3000) { searchFrom = instrIdx + 1; continue; }
+
+    // <w:t deve essere entro 500 chars dal separate
+    const tStart = result.indexOf('<w:t', sepIdx);
+    if (tStart < 0 || tStart > sepIdx + 500) { searchFrom = instrIdx + 1; continue; }
+
+    const tTagEnd = result.indexOf('>', tStart) + 1;
+
+    // </w:t> deve essere entro 300 chars
+    const tClose = result.indexOf('</w:t>', tTagEnd);
+    if (tClose < 0 || tClose > tTagEnd + 300) { searchFrom = instrIdx + 1; continue; }
+
+    result = result.slice(0, tTagEnd) + escaped + result.slice(tClose);
+    searchFrom = tTagEnd + escaped.length;
+  }
+
+  return result;
 }
 
 interface Allegato10Fields {
