@@ -435,20 +435,6 @@ function copyColumnTemplate(ws: ExcelJS.Worksheet, sourceCol: number, targetCol:
   }
 }
 
-function prepareReportSheet(ws: ExcelJS.Worksheet) {
-  try {
-    ws.unMergeCells('A30:O30');
-  } catch {}
-
-  ws.spliceColumns(4, 0, []);
-  copyColumnTemplate(ws, 5, 4);
-
-  ws.spliceColumns(12, 0, []);
-  copyColumnTemplate(ws, 13, 12);
-
-  ws.mergeCells('A30:Q30');
-}
-
 function extractReportTime(value: string): string {
   const match = value.match(/\b(\d{2}):(\d{2})\b/);
   return match ? `${match[1]}:${match[2]}` : '';
@@ -1258,7 +1244,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       for (const { op, tasks } of distribution) {
         const sheetName = sanitizeSheetName(op).slice(0, 31);
         const ws = cloneFromTemplate(base, sheetName, tplWb);
-        prepareReportSheet(ws);
 
         // Intestazioni header template (B2 = data, B4 = operatore)
         ws.getCell('B2').value = dateStr;
