@@ -251,6 +251,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       id: `row-${i}`,
       odl,
       odsin,
+      pdr: colMap.pdR != null ? str(row[colMap.pdR]) : undefined,
       indirizzo,
       cap,
       citta,

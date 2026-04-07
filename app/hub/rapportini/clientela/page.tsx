@@ -211,7 +211,7 @@ for (const r of sorted) {
   const ordine = rowIdx - 6;  // ORDINE progressivo
   rr.getCell(1).value  = nominativo;
   rr.getCell(2).value  = matricola;
-  rr.getCell(3).value  = pdrRaw ? `00${pdrRaw}` : '';
+  rr.getCell(3).value  = pdrRaw;
   rr.getCell(4).value  = '';            // ODSIN — non disponibile in clientela
   rr.getCell(5).value  = via;
   rr.getCell(6).value  = comune;

@@ -575,13 +575,12 @@ async function buildCombinedDocx(filledXmls: string[], tpl: TemplateCache): Prom
 }
 
 function buildAllegato10FieldsFromTask(t: Task, operatorName: string, dateStr: string): Allegato10Fields {
-  const pdrRaw = String(t.odl ?? '').trim();
   return {
     NOME_UTENTE:   String(t.nominativo ?? '').trim(),
     STRADA:        String(t.indirizzo ?? '').trim(),
     ODS:           String(t.odsin ?? '').trim(),
     NOME_LOCALITA: String(t.citta ?? '').trim(),
-    PDR:           pdrRaw ? `00${pdrRaw}` : '',
+    PDR:           String(t.pdr ?? '').trim(),
     NUMERO_SERIE:  String(t.matricola ?? '').trim(),
     ESECUTORE:     operatorName,
     DATA:          dateStr,
@@ -1288,10 +1287,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
         sorted.forEach((t, idx) => {
           const rr = ws.getRow(7 + idx);
-          const pdrRaw = t.odl || '';
+          const pdrRaw = t.pdr || '';
           rr.getCell(1).value = t.nominativo ?? '';
           rr.getCell(2).value = t.matricola ?? '';
-          rr.getCell(3).value = pdrRaw ? `00${pdrRaw}` : '';
+          rr.getCell(3).value = pdrRaw;
           rr.getCell(4).value = t.odsin ?? '';
           rr.getCell(5).value = t.indirizzo;
           rr.getCell(6).value = t.citta;

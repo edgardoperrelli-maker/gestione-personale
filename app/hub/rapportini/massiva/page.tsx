@@ -233,7 +233,7 @@ function buildAllegato10Fields(r: any[], dateStr: string): Allegato10Fields {
     STRADA:        String(r[COL.T_VIA] ?? '').trim(),
     ODS:           String(r[COL.ODS] ?? '').trim(),
     NOME_LOCALITA: String(r[COL.Q_COMUNE] ?? '').trim(),
-    PDR:           pdrRaw ? `00${pdrRaw}` : '',
+    PDR:           pdrRaw,
     NUMERO_SERIE:  String(r[COL.P_MATRICOLA] ?? '').trim(),
     ESECUTORE:     String(r[COL.B_OPERATORE] ?? '').trim(),
     DATA:          dateStr,
@@ -687,7 +687,7 @@ for (const r of rowsSorted) {
   const attivita   = safeStr(r[COL.L_ATTIVITA]) || 'S-AI-049';
   const access     = safeStr(r[COL.ACCESSIBILITA_CA]);
   const fascia     = safeStr(r[COL.FASCIA_ORARIA]);
-  const pdr        = pdrRaw ? `00${pdrRaw}` : '';
+  const pdr        = pdrRaw;
   const ordine     = rowIdx - 6; // numero progressivo 1-based
 
   ws.getCell(`A${rowIdx}`).value = nominativo;
