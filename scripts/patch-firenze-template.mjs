@@ -87,34 +87,33 @@ patch(
 }
 
 // ── TYPOGRAPHY: leggibilità anagrafica cliente ────────────────────────────────
-// Tre paragrafi con firma unica — nessuno spostamento del contenuto sotto.
+// Tre paragrafi con firma unica — tutta la sezione anagrafica a 12.5pt (sz=25)
 
 // P1: riga Nome/Indirizzo/Comune (auto spacing, line=411)
-// font sz 15→19 (+2pt) + line 411→325 (compensa per mantenere altezza invariata)
+// font sz → 25 (12.5pt) + line 411→300 (compensa per mantenere altezza invariata)
 {
   const OLD_SPACING = '<w:spacing w:after="0" w:line="411" w:lineRule="auto"/>';
-  const NEW_SPACING = '<w:spacing w:after="0" w:line="325" w:lineRule="auto"/>';
+  const NEW_SPACING = '<w:spacing w:after="0" w:line="300" w:lineRule="auto"/>';
   if (xml.includes(OLD_SPACING)) {
-    // Trova il paragrafo intero
     const pStart = xml.lastIndexOf('<w:p ', xml.indexOf(OLD_SPACING));
     const pEnd   = xml.indexOf('</w:p>', xml.indexOf(OLD_SPACING)) + '</w:p>'.length;
     let para = xml.slice(pStart, pEnd);
 
-    // Aumenta font sz 15→19 e szCs 15→19 dentro questo paragrafo
-    para = para.replaceAll('<w:sz w:val="15"/>', '<w:sz w:val="19"/>');
-    para = para.replaceAll('<w:szCs w:val="15"/>', '<w:szCs w:val="19"/>');
+    // Imposta tutti i font a 25 (12.5pt) dentro questo paragrafo
+    para = para.replaceAll(/<w:sz w:val="\d+"\/>/g, '<w:sz w:val="25"/>');
+    para = para.replaceAll(/<w:szCs w:val="\d+"\/>/g, '<w:szCs w:val="25"/>');
     // Aggiusta la spaziatura riga
     para = para.replace(OLD_SPACING, NEW_SPACING);
 
     xml = xml.slice(0, pStart) + para + xml.slice(pEnd);
-    console.log('✅ P1 (Nome/Indirizzo): sz 15→19, line 411→325');
+    console.log('✅ P1 (Nome/Indirizzo): sz → 25 (12.5pt), line 411→300');
   } else {
     console.warn('⚠️  P1 spacing non trovata');
   }
 }
 
 // P2: righe Telefono/PDR/Numero pratica/Data richiesta (exact, line=170)
-// font sz 15→17 (+1pt) — riempie esattamente l'altezza, nessun overflow
+// font sz → 25 (12.5pt) — riempie esattamente l'altezza, nessun overflow
 {
   const OLD_SPACING = '<w:spacing w:before="3" w:after="0" w:line="170" w:lineRule="exact"/>';
   if (xml.includes(OLD_SPACING)) {
@@ -122,18 +121,18 @@ patch(
     const pEnd   = xml.indexOf('</w:p>', xml.indexOf(OLD_SPACING)) + '</w:p>'.length;
     let para = xml.slice(pStart, pEnd);
 
-    para = para.replaceAll('<w:sz w:val="15"/>', '<w:sz w:val="17"/>');
-    para = para.replaceAll('<w:szCs w:val="15"/>', '<w:szCs w:val="17"/>');
+    para = para.replaceAll(/<w:sz w:val="\d+"\/>/g, '<w:sz w:val="25"/>');
+    para = para.replaceAll(/<w:szCs w:val="\d+"\/>/g, '<w:szCs w:val="25"/>');
 
     xml = xml.slice(0, pStart) + para + xml.slice(pEnd);
-    console.log('✅ P2 (Telefono/PDR/Data): sz 15→17');
+    console.log('✅ P2 (Telefono/PDR/Data): sz → 25 (12.5pt)');
   } else {
     console.warn('⚠️  P2 spacing non trovata');
   }
 }
 
-// P3: riga Numero richiesta (exact, line=180, già sz=18)
-// font sz 18→19 (+0.5pt) — marginalmente più grande, stessa altezza
+// P3: riga Numero richiesta (exact, line=180)
+// font sz → 25 (12.5pt) — stessa altezza
 {
   const OLD_SPACING = '<w:spacing w:before="1" w:after="0" w:line="180" w:lineRule="exact"/>';
   if (xml.includes(OLD_SPACING)) {
@@ -141,11 +140,11 @@ patch(
     const pEnd   = xml.indexOf('</w:p>', xml.indexOf(OLD_SPACING)) + '</w:p>'.length;
     let para = xml.slice(pStart, pEnd);
 
-    para = para.replaceAll('<w:sz w:val="18"/>', '<w:sz w:val="19"/>');
-    para = para.replaceAll('<w:szCs w:val="18"/>', '<w:szCs w:val="19"/>');
+    para = para.replaceAll(/<w:sz w:val="\d+"\/>/g, '<w:sz w:val="25"/>');
+    para = para.replaceAll(/<w:szCs w:val="\d+"\/>/g, '<w:szCs w:val="25"/>');
 
     xml = xml.slice(0, pStart) + para + xml.slice(pEnd);
-    console.log('✅ P3 (Numero richiesta): sz 18→19');
+    console.log('✅ P3 (Numero richiesta): sz → 25 (12.5pt)');
   } else {
     console.warn('⚠️  P3 spacing non trovata');
   }
