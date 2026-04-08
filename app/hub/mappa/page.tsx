@@ -173,6 +173,14 @@ export default async function MappaPage() {
       .filter(Boolean),
   }));
 
+  // ── Fetch Allegato 10 active codes ──────────────────────────────────────────
+  const { data: allegato10Rows } = await supabase
+    .from('allegato10_codici')
+    .select('codice')
+    .eq('genera_allegato', true);
+
+  const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
+
   return (
     <MappaOperatoriClient
       rows={rows}
@@ -181,6 +189,7 @@ export default async function MappaPage() {
       dateFrom={dateFrom}
       dateTo={dateTo}
       ztlZones={ztlZones}
+      allegato10ActiveCodes={allegato10ActiveCodes}
     />
   );
 }

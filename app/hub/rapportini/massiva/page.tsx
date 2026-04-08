@@ -1,6 +1,6 @@
 ﻿'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
@@ -458,6 +458,18 @@ export default function RapportinoMassivaPage() {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [useCombined, setUseCombined] = useState(false);
+  const [allegato10ActiveCodes, setAllegato10ActiveCodes] = useState<string[]>([]);
+
+  useEffect(() => {
+    fetch('/api/admin/allegato10-codici')
+      .then(r => r.json())
+      .then(({ codici }: { codici: Array<{ codice: string; genera_allegato: boolean }> }) => {
+        setAllegato10ActiveCodes(
+          (codici ?? []).filter(c => c.genera_allegato).map(c => c.codice)
+        );
+      })
+      .catch(() => {});
+  }, []);
 
   async function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     setErr(null); setMsg(null);
@@ -480,6 +492,21 @@ export default function RapportinoMassivaPage() {
     const rows = XLSX.utils.sheet_to_json<any[]>(ws, { header: 1, raw: true }) as any[][];
 
     setRawRows(rows);
+
+    // Auto-discovery codici servizio
+    const codiciFile = [...new Set(
+      (rows ?? [])
+        .slice(1) // salta header
+        .map((r: any[]) => String(r[COL.L_ATTIVITA] ?? '').trim())
+        .filter(c => c.length > 0)
+    )];
+    if (codiciFile.length > 0) {
+      fetch('/api/admin/allegato10-codici', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codici: codiciFile }),
+      }).catch(() => {});
+    }
 
     // header "RISORSA" in colonna B
     let start = 1;
@@ -804,12 +831,18 @@ ws.pageSetup.fitToHeight = 0;
           const r = rows[idx];
           try {
             const fields     = buildAllegato10Fields(r, dateStr);
-            const territory  = detectTerritory(String(r[COL.R_CAP] ?? '').trim());
+            const codiceRiga = safeStr(r[COL.L_ATTIVITA]) || 'S-AI-049';
+            const shouldGenerate = allegato10ActiveCodes.length === 0 ||
+              allegato10ActiveCodes.some(c => codiceRiga.toUpperCase().startsWith(c.toUpperCase()));
 
-            if (territory === 'lazio' && lazioTpl) {
-              filledByTerritory.lazio.push(fillLazioXml(lazioTpl.xml, fields));
-            } else if (territory === 'firenze' && firenzeTpl) {
-              filledByTerritory.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
+            if (shouldGenerate) {
+              const territory  = detectTerritory(String(r[COL.R_CAP] ?? '').trim());
+
+              if (territory === 'lazio' && lazioTpl) {
+                filledByTerritory.lazio.push(fillLazioXml(lazioTpl.xml, fields));
+              } else if (territory === 'firenze' && firenzeTpl) {
+                filledByTerritory.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
+              }
             }
           } catch (err: any) {
             allegato10Errors.push(`${operatorName} riga ${idx + 1}: ${err?.message ?? err}`);

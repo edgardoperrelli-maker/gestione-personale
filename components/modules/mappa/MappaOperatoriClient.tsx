@@ -62,6 +62,7 @@ type Props = {
   dateFrom: string;
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
+  allegato10ActiveCodes?: string[];
 };
 
 type DistEntry = {
@@ -603,7 +604,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [] }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [] }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -989,6 +990,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       return !/S-AI-051/i.test(codice);
     });
     setExcelTasks(filtered);
+
+    // Auto-discovery: registra i codici trovati nel file
+    const discoveredCodes = [...new Set(
+      parsed
+        .map(t => (t.codice ?? t.attivita ?? '').trim())
+        .filter(c => c.length > 0)
+    )];
+    if (discoveredCodes.length > 0) {
+      fetch('/api/admin/allegato10-codici', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ codici: discoveredCodes }),
+      }).catch(() => {}); // fire-and-forget
+    }
+
     setExcelMode(true);
     setExcelOnlyManualAction(false);
     setRouteMode(false);
@@ -1361,11 +1377,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           const t = tasks[idx];
           try {
             const fields    = buildAllegato10FieldsFromTask(t, op, dateStr);
-            const territory = detectTerritory(String(t.cap ?? '').trim());
-            if (territory === 'lazio' && lazioTpl)
-              filled.lazio.push(fillLazioXml(lazioTpl.xml, fields));
-            else if (territory === 'firenze' && firenzeTpl)
-              filled.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
+            const codiceTask = String(t.codice ?? t.attivita ?? '').trim();
+            const shouldGenerate = allegato10ActiveCodes.length === 0 ||
+              allegato10ActiveCodes.some(c => codiceTask.toUpperCase().startsWith(c.toUpperCase()));
+
+            if (shouldGenerate) {
+              const territory = detectTerritory(String(t.cap ?? '').trim());
+              if (territory === 'lazio' && lazioTpl)
+                filled.lazio.push(fillLazioXml(lazioTpl.xml, fields));
+              else if (territory === 'firenze' && firenzeTpl)
+                filled.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
+            }
           } catch (err) {
             allegato10Errors.push(`${op} task ${idx + 1}: ${err instanceof Error ? err.message : String(err)}`);
           }

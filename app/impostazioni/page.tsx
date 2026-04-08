@@ -20,6 +20,12 @@ const MODULES = [
     description: 'Definisci zone a traffico limitato, CAP e operatori autorizzati.',
     icon: 'Z',
   },
+  {
+    href: '/impostazioni/codici-allegato10',
+    title: 'Codici Allegato 10',
+    description: 'Seleziona i codici servizio per i quali viene generato automaticamente il verbale Word.',
+    icon: 'W',
+  },
 ];
 
 export default function ImpostazioniPage() {
