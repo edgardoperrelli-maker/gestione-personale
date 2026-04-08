@@ -1,67 +1,96 @@
 // scripts/patch-firenze-template.mjs
-// Eseguire con: node scripts/patch-firenze-template.mjs
-// Modifica public/templates/ALLEGATO_10_FIRENZE.docx aggiungendo placeholder {{...}}
+// Ri-eseguire con: node scripts/patch-firenze-template.mjs
+// Aggiunge {{PLACEHOLDER}} ai campi non ancora patchati nel template Firenze.
+// I placeholder già esistenti vengono preservati.
 
 import JSZip from 'jszip';
 import fs from 'fs';
-import path from 'path';
 
 const INPUT  = 'public/templates/ALLEGATO_10_FIRENZE.docx';
-const OUTPUT = 'public/templates/ALLEGATO_10_FIRENZE.docx'; // sovrascrive
+const OUTPUT = 'public/templates/ALLEGATO_10_FIRENZE.docx';
 
 const buf = fs.readFileSync(INPUT);
 const zip = await JSZip.loadAsync(buf);
 let xml = await zip.file('word/document.xml').async('string');
 
-/**
- * Ogni chiave è il numero ESATTO di spazi nel tag <w:t>; il valore è il placeholder.
- * MAPPATURA VERIFICATA sull'XML originale:
- *   219sp → dopo "Nome:"        → nome del cliente
- *    33sp → dopo "Indirizzo:"   → via/indirizzo
- *    60sp → dopo "Comune:" (riga 1 continuazione) → comune  ← ⚠️ verificare aprendo il .docx dopo il patch
- *    28sp → quarto campo riga 1 → da verificare
- *    31sp → dopo "Telefono:"    → recapito telefonico
- *    87sp → dopo "Telefono:" riga 2 → da verificare
- *    17sp → dopo "Pdr:"         → numero PDR
- *    76sp → dopo "Pdr:" riga 2  → da verificare
- *    84sp → campo Numero pratica/ODS → da verificare
- *    80sp → campo Data richiesta → da verificare
- *
- * Dopo aver eseguito lo script, aprire il .docx in Word e verificare
- * dove appare ogni placeholder; aggiustare la mappatura in fillFirenzeAllegato10()
- * di conseguenza.
- */
-const REPLACEMENTS = {
-  219: 'NOME_UTENTE',
-   33: 'STRADA',
-   60: 'NOME_LOCALITA',
-   28: 'CAMPO_28',        // ⚠️ da identificare
-   14: 'CAMPO_14',        // ⚠️ da identificare
-    9: 'CAMPO_9',         // ⚠️ da identificare
-   57: 'CAMPO_57',        // ⚠️ da identificare
-   31: 'RECAPITO',
-   87: 'CAMPO_87',        // ⚠️ da identificare
-   17: 'PDR',
-   76: 'CAMPO_76',        // ⚠️ da identificare
-   84: 'ODS',
-   11: 'CAMPO_11',        // ⚠️ da identificare
-   80: 'DATA',
-};
+let patchCount = 0;
 
-for (const [spaces, placeholder] of Object.entries(REPLACEMENTS)) {
-  const spaceStr = ' '.repeat(Number(spaces));
-  const from = `<w:t xml:space="preserve">${spaceStr}</w:t>`;
-  const to   = `<w:t xml:space="preserve">{{${placeholder}}}</w:t>`;
+function patch(from, to, label) {
   if (!xml.includes(from)) {
-    console.warn(`⚠️  Sequenza ${spaces}sp NON trovata — template cambiato?`);
-    continue;
+    console.warn(`⚠️  Pattern NON trovato: ${label}`);
+    return;
   }
   xml = xml.replace(from, to);
-  console.log(`✅ ${spaces}sp → {{${placeholder}}}`);
+  patchCount++;
+  console.log(`✅ ${label}`);
+}
+
+// ── 1. Numero pratica: ":" + 93 spazi → {{NUMERO_PRATICA}} ──────────────────
+// Il blank è "<w:t xml:space="preserve">: [93 spazi]</w:t>"
+patch(
+  '<w:t xml:space="preserve">:' + ' '.repeat(93) + '</w:t>',
+  '<w:t xml:space="preserve">: {{NUMERO_PRATICA}}</w:t>',
+  'Numero pratica → {{NUMERO_PRATICA}}'
+);
+
+// ── 2. Eseguito il: 36 spazi → {{ESEGUITO_DATA}} ────────────────────────────
+patch(
+  '<w:t xml:space="preserve">' + ' '.repeat(36) + '</w:t>',
+  '<w:t xml:space="preserve">{{ESEGUITO_DATA}}</w:t>',
+  'Eseguito il (36sp) → {{ESEGUITO_DATA}}'
+);
+
+// ── 3. Addetto: blank run dopo "detto" (unico nel doc) → {{ADDETTO}} ────────
+// "detto" (parte di "Addetto") è unico. Troviamo il primo run sottolineato dopo.
+{
+  const ANCHOR = 'detto</w:t></w:r>';
+  const anchorIdx = xml.indexOf(ANCHOR);
+  if (anchorIdx < 0) {
+    console.warn('⚠️  Anchor "detto" non trovato');
+  } else {
+    const after = xml.slice(anchorIdx + ANCHOR.length);
+    // Il blank sottolineato è il PRIMO <w:t> con 1 spazio che ha <w:u> nel suo rPr
+    const blankPattern = /(<w:r[^>]*><w:rPr>(?:<[^>]+>)*<w:u w:val="single"[^>]*\/>(?:<[^>]+>)*<\/w:rPr>)<w:t xml:space="preserve"> <\/w:t>(<\/w:r>)/;
+    const m = blankPattern.exec(after);
+    if (!m) {
+      console.warn('⚠️  Blank sottolineato dopo "detto" non trovato');
+    } else {
+      const replacement = m[1] + '<w:t xml:space="preserve">{{ADDETTO}}</w:t>' + m[2];
+      xml = xml.slice(0, anchorIdx + ANCHOR.length) + after.replace(blankPattern, replacement);
+      patchCount++;
+      console.log('✅ Addetto → {{ADDETTO}}');
+    }
+  }
+}
+
+// ── 4. Matricola contatore esistente: primo "ola:" → {{MATRICOLA_ESISTENTE}} ─
+// "ola:" appare 2 volte nel doc (Matricola esistente e Matricola nuova).
+// La PRIMA è il contatore esistente (quella da compilare con NUMERO_SERIE).
+{
+  const ANCHOR = 'ola:</w:t></w:r>';
+  const anchorIdx = xml.indexOf(ANCHOR);
+  if (anchorIdx < 0) {
+    console.warn('⚠️  Anchor "ola:" non trovato');
+  } else {
+    const after = xml.slice(anchorIdx + ANCHOR.length);
+    const blankPattern = /(<w:r[^>]*><w:rPr>(?:<[^>]+>)*<w:u w:val="single"[^>]*\/>(?:<[^>]+>)*<\/w:rPr>)<w:t xml:space="preserve"> <\/w:t>(<\/w:r>)/;
+    const m = blankPattern.exec(after);
+    if (!m) {
+      console.warn('⚠️  Blank sottolineato dopo prima "ola:" non trovato');
+    } else {
+      const replacement = m[1] + '<w:t xml:space="preserve">{{MATRICOLA_ESISTENTE}}</w:t>' + m[2];
+      xml = xml.slice(0, anchorIdx + ANCHOR.length) + after.replace(blankPattern, replacement);
+      patchCount++;
+      console.log('✅ Matricola contatore esistente → {{MATRICOLA_ESISTENTE}}');
+    }
+  }
 }
 
 zip.file('word/document.xml', xml);
 const out = await zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
 fs.writeFileSync(OUTPUT, out);
-console.log(`\n📄 Template patchato salvato in ${OUTPUT}`);
-console.log('👉 Aprirlo in Word per verificare la posizione di ogni {{PLACEHOLDER}}');
+
+console.log(`\n📄 Template aggiornato: ${patchCount} nuovi placeholder aggiunti.`);
+console.log('📋 Placeholder attuali nel template:');
+const phs = [...new Set(xml.match(/\{\{[^}]+\}\}/g) || [])].sort();
+phs.forEach(p => console.log('  ' + p));

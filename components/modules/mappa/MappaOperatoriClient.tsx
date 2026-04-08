@@ -526,23 +526,28 @@ function fillLazioXml(templateXml: string, fields: Allegato10Fields): string {
 
 function fillFirenzeXml(templateXml: string, fields: Allegato10Fields): string {
   const map: Record<string, string> = {
-    '{{NOME_UTENTE}}':   fields.NOME_UTENTE,
-    '{{STRADA}}':        fields.STRADA,
-    '{{NOME_LOCALITA}}': fields.NOME_LOCALITA,
-    '{{RECAPITO}}':      fields.RECAPITO,
-    '{{PDR}}':           fields.PDR,
-    '{{ODS}}':           fields.ODS,
-    '{{DATA}}':          fields.DATA,
-    '{{NUMERO_SERIE}}':  fields.NUMERO_SERIE,
-    '{{ESECUTORE}}':     fields.ESECUTORE,
-    // Campi multipli del form — verificati sullo screenshot
-    '{{CAMPO_28}}':      '',                   // continuazione riga Indirizzo
-    '{{CAMPO_14}}':      fields.NOME_LOCALITA, // primo blank "Comune:"
-    '{{CAMPO_9}}':       '',                   // secondo slot Comune
-    '{{CAMPO_57}}':      '',                   // terzo slot Comune
-    '{{CAMPO_87}}':      '',                   // seconda riga Telefono
-    '{{CAMPO_76}}':      '',                   // seconda riga PDR
-    '{{CAMPO_11}}':      '',                   // Numero richiesta
+    // ── Dati cliente ─────────────────────────────────────────────────────────
+    '{{NOME_UTENTE}}':          fields.NOME_UTENTE,
+    '{{STRADA}}':               fields.STRADA,
+    '{{NOME_LOCALITA}}':        fields.NOME_LOCALITA,
+    '{{CAMPO_28}}':             '',                   // continuazione Indirizzo
+    '{{CAMPO_14}}':             fields.NOME_LOCALITA, // primo blank "Comune:"
+    '{{CAMPO_9}}':              '',
+    '{{CAMPO_57}}':             '',
+    '{{RECAPITO}}':             fields.RECAPITO,
+    '{{CAMPO_87}}':             '',                   // 2a riga Telefono
+    '{{PDR}}':                  fields.PDR,
+    '{{CAMPO_76}}':             '',                   // 2a riga PDR
+    // ── Campi pratiche ───────────────────────────────────────────────────────
+    '{{NUMERO_PRATICA}}':       fields.ODS,           // Numero pratica → ODS
+    '{{CAMPO_11}}':             '',                   // Numero richiesta (inizio)
+    '{{ODS}}':                  fields.DATA,          // Data richiesta → DATA intervento
+    '{{DATA}}':                 '',                   // Numero richiesta → vuoto
+    // ── Esito intervento ─────────────────────────────────────────────────────
+    '{{ESEGUITO_DATA}}':        fields.DATA,          // Eseguito il → DATA
+    '{{ADDETTO}}':              fields.ESECUTORE,     // Addetto → operatore mappa
+    // ── Contatore ────────────────────────────────────────────────────────────
+    '{{MATRICOLA_ESISTENTE}}':  fields.NUMERO_SERIE,  // Matricola contatore esistente
   };
   let xml = templateXml;
   for (const [ph, val] of Object.entries(map)) {
