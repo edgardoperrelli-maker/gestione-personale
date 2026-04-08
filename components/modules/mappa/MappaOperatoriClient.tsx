@@ -535,6 +535,14 @@ function fillFirenzeXml(templateXml: string, fields: Allegato10Fields): string {
     '{{DATA}}':          fields.DATA,
     '{{NUMERO_SERIE}}':  fields.NUMERO_SERIE,
     '{{ESECUTORE}}':     fields.ESECUTORE,
+    // Campi multipli del form — verificati sullo screenshot
+    '{{CAMPO_28}}':      '',                   // continuazione riga Indirizzo
+    '{{CAMPO_14}}':      fields.NOME_LOCALITA, // primo blank "Comune:"
+    '{{CAMPO_9}}':       '',                   // secondo slot Comune
+    '{{CAMPO_57}}':      '',                   // terzo slot Comune
+    '{{CAMPO_87}}':      '',                   // seconda riga Telefono
+    '{{CAMPO_76}}':      '',                   // seconda riga PDR
+    '{{CAMPO_11}}':      '',                   // Numero richiesta
   };
   let xml = templateXml;
   for (const [ph, val] of Object.entries(map)) {

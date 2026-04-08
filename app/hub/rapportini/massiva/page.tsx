@@ -213,6 +213,13 @@ function fillFirenzeXml(templateXml: string, fields: Allegato10Fields): string {
     '{{DATA}}':          fields.DATA,
     '{{NUMERO_SERIE}}':  fields.NUMERO_SERIE,
     '{{ESECUTORE}}':     fields.ESECUTORE,
+    '{{CAMPO_28}}':      '',
+    '{{CAMPO_14}}':      fields.NOME_LOCALITA,
+    '{{CAMPO_9}}':       '',
+    '{{CAMPO_57}}':      '',
+    '{{CAMPO_87}}':      '',
+    '{{CAMPO_76}}':      '',
+    '{{CAMPO_11}}':      '',
   };
   let xml = templateXml;
   for (const [placeholder, value] of Object.entries(placeholderMap)) {
