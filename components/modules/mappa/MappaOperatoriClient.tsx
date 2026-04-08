@@ -1377,7 +1377,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           const t = tasks[idx];
           try {
             const fields    = buildAllegato10FieldsFromTask(t, op, dateStr);
-            const codiceTask = String(t.codice ?? t.attivita ?? '').trim();
+            const codiceTask = (t.codice || t.attivita || '').trim();
             const shouldGenerate = allegato10ActiveCodes.length === 0 ||
               allegato10ActiveCodes.some(c => codiceTask.toUpperCase().startsWith(c.toUpperCase()));
 

@@ -2,7 +2,6 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
-import SettingsSubNav from '@/components/layout/SettingsSubNav';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 
 export const dynamic = 'force-dynamic';
@@ -26,7 +25,6 @@ export default async function ImpostazioniLayout({ children }: { children: React
 
   return (
     <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules}>
-      <SettingsSubNav />
       {children}
     </AppShell>
   );
