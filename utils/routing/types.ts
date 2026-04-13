@@ -20,6 +20,7 @@ export interface Task {
   codice?: string;
   isAppointment?: boolean;
   appointmentId?: string;
+  appointmentDate?: string;
 }
 
 export interface OperatorBase {

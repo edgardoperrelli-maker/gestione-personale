@@ -71,6 +71,8 @@ export default async function MappaPage() {
     .lte('data', dateTo)
     .order('data', { ascending: true });
 
+  console.log('appointments raw:', JSON.stringify(appointmentsRaw));
+
   type AppointmentRow = {
     id: string;
     pdr: string;
@@ -89,7 +91,6 @@ export default async function MappaPage() {
   };
 
   const appointmentTasks: Task[] = (appointmentsRaw ?? [])
-    .filter((a) => a.lat !== null && a.lng !== null)
     .map((a) => ({
       id: `apt-${a.id}`,
       odl: '',
@@ -98,12 +99,13 @@ export default async function MappaPage() {
       citta: a.citta ?? '',
       priorita: 0,
       fascia_oraria: a.fascia_oraria ?? '',
-      lat: a.lat as number,
-      lng: a.lng as number,
+      lat: a.lat as number | undefined,
+      lng: a.lng as number | undefined,
       nominativo: a.nome_cognome ?? undefined,
       isAppointment: true,
       appointmentId: a.id,
       pdr: a.pdr,
+      appointmentDate: a.data,
     }));
 
   type AssignmentRow = {
