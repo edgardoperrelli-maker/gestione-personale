@@ -169,7 +169,7 @@ async function persistResolvedCoords(
 
 export async function geocodeTask(task: Task): Promise<Task> {
   try {
-    if (task.lat !== undefined && task.lng !== undefined) return task;
+    if (task.lat != null && task.lng != null) return task;
 
     const rawAddress = task.indirizzo;
     const normalizedAddress = normalizeAddress(task.indirizzo);
@@ -199,16 +199,17 @@ export async function geocodeTask(task: Task): Promise<Task> {
 
     if (!normalizedAddress) return task;
 
-    const nominatimStructured = await fetchNominatim(
-      new URLSearchParams({
-        street: normalizedAddress,
-        city: normalizedCity,
-        postalcode: normalizedCap,
-        countrycodes: 'it',
-        format: 'jsonv2',
-        limit: '1',
-      }),
-    );
+    const nominatimStructuredParams = new URLSearchParams({
+      street: normalizedAddress,
+      city: normalizedCity,
+      postalcode: normalizedCap,
+      countrycodes: 'it',
+      format: 'jsonv2',
+      limit: '1',
+    });
+    console.log('[geocodeTask] calling Nominatim structured:', nominatimStructuredParams.toString());
+    const nominatimStructured = await fetchNominatim(nominatimStructuredParams);
+    console.log('[geocodeTask] Nominatim structured response:', nominatimStructured);
 
     if (nominatimStructured) {
       saveInMemoryCoords(rawKey, normalizedKey, nominatimStructured);
