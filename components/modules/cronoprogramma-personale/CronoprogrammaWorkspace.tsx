@@ -791,34 +791,18 @@ export default function CronoprogrammaWorkspace() {
       <div className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-surface)]/95 px-1 pb-4 pt-1 backdrop-blur supports-[backdrop-filter]:bg-[var(--brand-surface)]/88">
         <CronoToolbar
           title={title}
-          mode={mode}
           plannerView={plannerView}
-          sortMode={sortMode}
-          filtersCount={filters.length}
           reperibili={stats.reperibili}
           onPrev={goPrev}
           onNext={goNext}
           onToday={goToday}
-          onModeChange={gotoMode}
           onPlannerViewChange={setPlannerView}
-          onSortModeChange={setSortMode}
-          onToggleFilters={() => setFiltersOpen((v) => !v)}
           onInsertRep={() => setOpenInsertRep(true)}
           onNewAppointment={() => {
             setNewAppointmentDate(undefined);
             setShowAppointmentModal(true);
           }}
           onExport={() => setOpenExport(true)}
-        />
-
-        <CronoFiltersPanel
-          open={filtersOpen}
-          filters={filters}
-          staff={visibleStaff}
-          activities={activities}
-          territories={territories}
-          onToggle={toggleToken}
-          onClear={() => setFilters([])}
         />
 
         {actionFeedback && (

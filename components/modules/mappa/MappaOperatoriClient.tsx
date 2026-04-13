@@ -940,38 +940,47 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     } else {
-      // Marker Excel singoli (arancione) + Appuntamenti (viola)
+      // Marker Excel singoli (arancione) + Appuntamenti (viola) filtrati per data
       const bounds: Array<[number, number]> = [];
-        excelTasks.forEach((t) => {
-          if (t.lat == null || t.lng == null) return;
-          const isAppt = t.isAppointment;
-          const marker = leaflet.circleMarker([t.lat, t.lng], {
-            radius: isAppt ? 10 : 7,
-            color: isAppt ? '#5B21B6' : '#D97706',
-            weight: isAppt ? 2 : 2,
-            fillColor: isAppt ? '#7C3AED' : '#FEF3C7',
-            fillOpacity: 0.95,
-          });
-          excelMarkersRef.current.set(t.id, marker);
-          marker.on('click', () => {
-            setSelectedExcelTaskId(t.id);
-          });
-          const op = (t as Task & { _operatore?: string })._operatore ?? '';
-        marker.bindPopup(`
-          <div style="font-size:12px;line-height:1.5">
-            ${op ? `<div style="font-weight:600">${op}</div>` : ''}
-            <div>${t.indirizzo}</div>
-            <div>${t.cap} ${t.citta}</div>
-            ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
-            ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
-          </div>
-        `);
-        marker.addTo(exLayer);
-        bounds.push([t.lat, t.lng]);
-      });
+
+      // Filtra appuntamenti per la data selezionata
+      const appointmentsForDay = (appointmentTasks ?? []).filter(
+        (t) => t.appointmentDate === planningDate
+      );
+
+      // Combina task Excel con appuntamenti della data
+      const tasksToShow = [...excelTasks, ...appointmentsForDay];
+
+      tasksToShow.forEach((t) => {
+        if (t.lat == null || t.lng == null) return;
+        const isAppt = t.isAppointment;
+        const marker = leaflet.circleMarker([t.lat, t.lng], {
+          radius: isAppt ? 10 : 7,
+          color: isAppt ? '#5B21B6' : '#D97706',
+          weight: isAppt ? 2 : 2,
+          fillColor: isAppt ? '#7C3AED' : '#FEF3C7',
+          fillOpacity: 0.95,
+        });
+        excelMarkersRef.current.set(t.id, marker);
+        marker.on('click', () => {
+          setSelectedExcelTaskId(t.id);
+        });
+        const op = (t as Task & { _operatore?: string })._operatore ?? '';
+      marker.bindPopup(`
+        <div style="font-size:12px;line-height:1.5">
+          ${op ? `<div style="font-weight:600">${op}</div>` : ''}
+          <div>${t.indirizzo}</div>
+          <div>${t.cap} ${t.citta}</div>
+          ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
+          ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
+        </div>
+      `);
+      marker.addTo(exLayer);
+      bounds.push([t.lat, t.lng]);
+    });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     }
-  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks]);
+  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, appointmentTasks, planningDate]);
 
   // Polyline percorso supabase / excel singolo
   useEffect(() => {
@@ -1496,6 +1505,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 }}
                 className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm"
               />
+              {(() => {
+                const count = (appointmentTasks ?? []).filter(
+                  (t) => t.appointmentDate === planningDate
+                ).length;
+                if (count === 0) return null;
+                return (
+                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                    {count} APT
+                  </span>
+                );
+              })()}
             </div>
           </div>
 
@@ -1736,24 +1756,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 )}
               </div>
             )}
-          </div>
-        )}
-
-        {/* Stats supabase */}
-        {!excelMode && (
-          <div className="mt-4 grid gap-3 sm:grid-cols-5">
-            {[
-              { label: 'Assegnazioni filtrate', value: stats.total },
-              { label: 'Operatori unici', value: stats.staff },
-              { label: 'Reperibili', value: stats.reperibili },
-              { label: 'Su mappa', value: stats.inMap },
-              { label: 'Senza coordinate', value: stats.missing },
-            ].map(({ label, value }) => (
-              <div key={label} className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-3 py-2">
-                <div className="text-xs text-[var(--brand-text-muted)]">{label}</div>
-                <div className="text-lg font-semibold text-[var(--brand-primary)]">{value}</div>
-              </div>
-            ))}
           </div>
         )}
       </div>
@@ -2219,8 +2221,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 )}
               </div>
             </>
-          ) : (
-            /* ── Supabase: operatori senza coordinate ── */
+          ) : excelMode ? (
+            /* ── Supabase: operatori senza coordinate (solo in Excel mode) ── */
             <>
               <div className="mb-3 text-sm font-semibold">Senza coordinate</div>
               {rowsNoCoords.length ? (
@@ -2242,6 +2244,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 <div className="text-sm text-[var(--brand-text-muted)]">Tutti gli operatori hanno coordinate.</div>
               )}
             </>
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-[var(--brand-text-muted)]">
+              Carica un file Excel o aggiungi appuntamenti per visualizzare gli interventi.
+            </div>
           )}
         </div>
       </div>
