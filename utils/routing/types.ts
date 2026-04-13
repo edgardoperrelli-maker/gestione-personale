@@ -18,6 +18,8 @@ export interface Task {
   accessibilita?: string;
   attivita?: string;
   codice?: string;
+  isAppointment?: boolean;
+  appointmentId?: string;
 }
 
 export interface OperatorBase {

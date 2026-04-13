@@ -63,6 +63,7 @@ type Props = {
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
   allegato10ActiveCodes?: string[];
+  appointmentTasks?: Task[];
 };
 
 type DistEntry = {
@@ -617,7 +618,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [] }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], appointmentTasks = [] }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -717,6 +718,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       return true;
     });
   }, [excelOnlyManualAction, excelTasks]);
+
+  // Merge Excel tasks con appointment tasks per distribuzione
+  const allTasks = useMemo(() => {
+    if (!excelMode) return excelTasks;
+    return [...excelTasks, ...(appointmentTasks ?? [])];
+  }, [excelMode, excelTasks, appointmentTasks]);
 
   // Route supabase
   const computedRoute = useMemo<RouteResult | null>(() => {
@@ -933,15 +940,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     } else {
-      // Marker Excel singoli (arancione)
+      // Marker Excel singoli (arancione) + Appuntamenti (viola)
       const bounds: Array<[number, number]> = [];
         excelTasks.forEach((t) => {
           if (t.lat == null || t.lng == null) return;
+          const isAppt = t.isAppointment;
           const marker = leaflet.circleMarker([t.lat, t.lng], {
-            radius: 7,
-            color: '#D97706',
-          weight: 2,
-            fillColor: '#FEF3C7',
+            radius: isAppt ? 10 : 7,
+            color: isAppt ? '#5B21B6' : '#D97706',
+            weight: isAppt ? 2 : 2,
+            fillColor: isAppt ? '#7C3AED' : '#FEF3C7',
             fillOpacity: 0.95,
           });
           excelMarkersRef.current.set(t.id, marker);
@@ -1154,7 +1162,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const distributeToOps = useCallback(() => {
     if (!selectedOps.length) return;
     const seenPdr = new Set<string>();
-    const geocoded = excelTasks
+    const geocoded = allTasks
       .filter((t) => t.lat != null && t.lng != null)
       .filter((t) => {
         if (!t.pdr) return true;
@@ -1203,7 +1211,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       });
     });
     setZtlConflicts(conflicts);
-  }, [selectedOps, excelTasks, ztlZones]);
+  }, [selectedOps, allTasks, ztlZones]);
 
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
@@ -2180,6 +2188,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                   </span>
                                 ) : null;
                               })()}
+                              {t.isAppointment && (
+                                <span className="shrink-0 rounded-full bg-violet-100 border border-violet-300 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 uppercase tracking-wide">
+                                  APT
+                                </span>
+                              )}
                             </div>
                             <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
                           </div>

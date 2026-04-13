@@ -16,6 +16,8 @@ import CronoGridView from './CronoGridView';
 import CronoSplitView from './CronoSplitView';
 import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
+import AppointmentDayCards from './AppointmentDayCards';
+import AppointmentModal from './AppointmentModal';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
 import {
   addDays,
@@ -29,6 +31,26 @@ import {
   startOfWeek,
   toLocalDate,
 } from './utils';
+
+type AppointmentTerritory = { id: string; name: string } | null;
+
+type Appointment = {
+  id: string;
+  pdr: string;
+  nome_cognome: string | null;
+  indirizzo: string | null;
+  cap: string | null;
+  citta: string | null;
+  lat: number | null;
+  lng: number | null;
+  data: string; // YYYY-MM-DD
+  fascia_oraria: string | null;
+  tipo_intervento: string | null;
+  territorio_id: string | null;
+  note: string | null;
+  status: 'pending' | 'confirmed';
+  territories: AppointmentTerritory;
+};
 
 export default function CronoprogrammaWorkspace() {
   const sb = supabaseBrowser();
@@ -59,6 +81,11 @@ export default function CronoprogrammaWorkspace() {
     text: string;
   } | null>(null);
   const [dropChoiceDialog, setDropChoiceDialog] = useState<{ preferred: 'move' | 'copy' } | null>(null);
+
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
   const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
   const [rev, setRev] = useState(0);
@@ -270,9 +297,17 @@ export default function CronoprogrammaWorkspace() {
           })
         );
       });
+
+      // Carica appuntamenti per il range
+      const apptRes = await fetch(
+        `/api/appointments?from=${from}&to=${to}`
+      );
+      const apptJson = await apptRes.json() as { appointments?: Appointment[] };
+
       if (!alive) return;
       setDays(dayRows);
       setAssignments(map);
+      if (apptJson.appointments) setAppointments(apptJson.appointments);
     })();
     return () => {
       alive = false;
@@ -295,6 +330,32 @@ export default function CronoprogrammaWorkspace() {
       return;
     }
     setTimeout(() => softRefresh(), 300);
+  };
+
+  const handleAppointmentDrop = async (appointmentId: string, newDate: string) => {
+    const res = await fetch('/api/appointments', {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: appointmentId, data: newDate }),
+    });
+    const json = await res.json() as { appointment?: Appointment; error?: string };
+    if (!res.ok || !json.appointment) return;
+    setAppointments((prev) =>
+      prev.map((a) => (a.id === appointmentId ? json.appointment! : a))
+    );
+  };
+
+  const handleAppointmentDelete = (id: string) => {
+    setAppointments((prev) => prev.filter((a) => a.id !== id));
+    setSelectedAppointment(null);
+  };
+
+  const handleAppointmentCreated = (newAppt: Appointment) => {
+    setAppointments((prev) =>
+      [...prev, newAppt].sort((a, b) => a.data.localeCompare(b.data))
+    );
+    setShowAppointmentModal(false);
+    setNewAppointmentDate(undefined);
   };
 
   const openEditDialog = (a: Assignment) => {
@@ -734,6 +795,7 @@ export default function CronoprogrammaWorkspace() {
           plannerView={plannerView}
           sortMode={sortMode}
           filtersCount={filters.length}
+          reperibili={stats.reperibili}
           onPrev={goPrev}
           onNext={goNext}
           onToday={goToday}
@@ -742,6 +804,10 @@ export default function CronoprogrammaWorkspace() {
           onSortModeChange={setSortMode}
           onToggleFilters={() => setFiltersOpen((v) => !v)}
           onInsertRep={() => setOpenInsertRep(true)}
+          onNewAppointment={() => {
+            setNewAppointmentDate(undefined);
+            setShowAppointmentModal(true);
+          }}
           onExport={() => setOpenExport(true)}
         />
 
@@ -767,9 +833,21 @@ export default function CronoprogrammaWorkspace() {
             {actionFeedback.text}
           </div>
         )}
-
-        <CronoStats total={stats.total} staff={stats.staff} reperibili={stats.reperibili} />
       </div>
+
+      <AppointmentDayCards
+        days={daysArray.slice(0, 7)}
+        appointments={appointments}
+        onAppointmentClick={(a) => {
+          setSelectedAppointment(a);
+          setShowAppointmentModal(false);
+        }}
+        onAppointmentDrop={handleAppointmentDrop}
+        onNewAppointment={(date) => {
+          setNewAppointmentDate(date);
+          setShowAppointmentModal(true);
+        }}
+      />
 
       {plannerView === 'grid' && (
         <CronoGridView
@@ -803,6 +881,7 @@ export default function CronoprogrammaWorkspace() {
           onEdit={openEditDialog}
           onDropAssignment={handleDropAssignment}
           onDropDay={handleDropDay}
+          staffCount={visibleStaff.length}
         />
       )}
 
@@ -970,6 +1049,30 @@ export default function CronoprogrammaWorkspace() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal dettaglio appuntamento */}
+      {selectedAppointment && (
+        <AppointmentModal
+          mode="view"
+          appointment={selectedAppointment}
+          onClose={() => setSelectedAppointment(null)}
+          onDelete={handleAppointmentDelete}
+        />
+      )}
+
+      {/* Modal crea appuntamento */}
+      {showAppointmentModal && (
+        <AppointmentModal
+          mode="create"
+          defaultDate={newAppointmentDate}
+          territories={territories}
+          onClose={() => {
+            setShowAppointmentModal(false);
+            setNewAppointmentDate(undefined);
+          }}
+          onCreate={handleAppointmentCreated}
+        />
       )}
     </div>
   );

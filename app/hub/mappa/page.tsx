@@ -8,6 +8,7 @@ import MappaOperatoriClient, {
 } from '@/components/modules/mappa/MappaOperatoriClient';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
+import type { Task } from '@/utils/routing/types';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -61,6 +62,49 @@ export default async function MappaPage() {
   staffList.forEach((member) => {
     staffById.set(member.id, member);
   });
+
+  // ── Fetch appuntamenti ──────────────────────────────────────────────────────────
+  const { data: appointmentsRaw } = await supabase
+    .from('appointments')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, status, territories(id, name)')
+    .gte('data', todayIso)
+    .lte('data', dateTo)
+    .order('data', { ascending: true });
+
+  type AppointmentRow = {
+    id: string;
+    pdr: string;
+    nome_cognome: string | null;
+    indirizzo: string | null;
+    cap: string | null;
+    citta: string | null;
+    lat: number | null;
+    lng: number | null;
+    data: string;
+    fascia_oraria: string | null;
+    tipo_intervento: string | null;
+    territorio_id: string | null;
+    status: string;
+    territories: { id: string; name: string } | null;
+  };
+
+  const appointmentTasks: Task[] = (appointmentsRaw ?? [])
+    .filter((a) => a.lat !== null && a.lng !== null)
+    .map((a) => ({
+      id: `apt-${a.id}`,
+      odl: '',
+      indirizzo: a.indirizzo ?? '',
+      cap: a.cap ?? '',
+      citta: a.citta ?? '',
+      priorita: 0,
+      fascia_oraria: a.fascia_oraria ?? '',
+      lat: a.lat as number,
+      lng: a.lng as number,
+      nominativo: a.nome_cognome ?? undefined,
+      isAppointment: true,
+      appointmentId: a.id,
+      pdr: a.pdr,
+    }));
 
   type AssignmentRow = {
     day_id: string;
@@ -190,6 +234,7 @@ export default async function MappaPage() {
       dateTo={dateTo}
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
+      appointmentTasks={appointmentTasks}
     />
   );
 }
