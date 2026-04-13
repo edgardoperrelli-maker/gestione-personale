@@ -9,6 +9,7 @@ export default function CronoToolbar({
   plannerView,
   sortMode,
   filtersCount,
+  reperibili,
   onPrev,
   onNext,
   onToday,
@@ -17,6 +18,7 @@ export default function CronoToolbar({
   onSortModeChange,
   onToggleFilters,
   onInsertRep,
+  onNewAppointment,
   onExport,
 }: {
   title: string;
@@ -24,6 +26,7 @@ export default function CronoToolbar({
   plannerView: PlannerView;
   sortMode: SortMode;
   filtersCount: number;
+  reperibili: number;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
@@ -32,6 +35,7 @@ export default function CronoToolbar({
   onSortModeChange: (m: SortMode) => void;
   onToggleFilters: () => void;
   onInsertRep: () => void;
+  onNewAppointment: () => void;
   onExport: () => void;
 }) {
   return (
@@ -99,8 +103,18 @@ export default function CronoToolbar({
         />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
+          {/* Reperibili nel range — spostato qui dalle stat card */}
+          {reperibili > 0 && (
+            <span className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-3 py-1.5 text-sm">
+              <span className="text-[var(--brand-text-muted)]">Reperibili </span>
+              <span className="font-semibold text-[var(--brand-primary)]">{reperibili}</span>
+            </span>
+          )}
           <Button onClick={onInsertRep} size="sm">
             Inserisci reperibile
+          </Button>
+          <Button onClick={onNewAppointment} size="sm" variant="soft">
+            + Appuntamento
           </Button>
           <Button onClick={onExport} variant="outline" size="sm">
             Esporta

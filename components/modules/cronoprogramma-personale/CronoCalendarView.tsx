@@ -40,6 +40,7 @@ export default function CronoCalendarView({
   onDelete,
   onEdit,
   onDropAssignment,
+  staffCount,
 }: {
   weeks: Date[][];
   anchor: Date;
@@ -62,6 +63,7 @@ export default function CronoCalendarView({
     toTerritoryId: string | null;
     copy: boolean;
   }) => void;
+  staffCount: number;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
 
@@ -94,6 +96,7 @@ export default function CronoCalendarView({
               onDelete={onDelete}
               onEdit={onEdit}
               onDropAssignment={onDropAssignment}
+              staffCount={staffCount}
             />
           ))}
         </div>
@@ -124,6 +127,7 @@ function DayCell(props: {
     toTerritoryId: string | null;
     copy: boolean;
   }) => void;
+  staffCount: number;
 }) {
   const {
     d,
@@ -138,6 +142,7 @@ function DayCell(props: {
     onDelete,
     onEdit,
     onDropAssignment,
+    staffCount,
   } = props;
 
   const iso = fmtDay(d);
@@ -202,6 +207,23 @@ function DayCell(props: {
             </span>
           )}
           {showMonthLabel && <span>{d.toLocaleDateString('it-IT', { month: 'short' })}</span>}
+          {(() => {
+            const dayId = dayMap[iso]?.id;
+            const dayAssignments = dayId ? (assignments[dayId] ?? []) : [];
+            const assignedIds = new Set(
+              dayAssignments.map((a) => a.staff?.id).filter(Boolean)
+            );
+            const unassigned = staffCount - assignedIds.size;
+            if (unassigned <= 0) return null;
+            return (
+              <span
+                title={`${unassigned} operator${unassigned === 1 ? 'e' : 'i'} senza assegnazione`}
+                className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+              >
+                ⚠ {unassigned}
+              </span>
+            );
+          })()}
           {sortMode !== 'AZ' && (
             <button
               onClick={() => props.setSortMode('AZ')}
