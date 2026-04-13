@@ -660,6 +660,31 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // ZTL conflicts
   const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
 
+  // Geocoded appointment tasks
+  const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>(appointmentTasks);
+
+  useEffect(() => {
+    console.log('[geocoding] useEffect fired, tasks:', appointmentTasks.length);
+    let alive = true;
+    setGeocodedAppointmentTasks(appointmentTasks); // reset immediato
+    (async () => {
+      const updated = [...appointmentTasks];
+      for (let i = 0; i < updated.length; i++) {
+        const task = updated[i];
+        if (task.lat != null && task.lng != null) continue;
+        if (!alive) return;
+        console.log(`[geocoding] Before geocoding task ${i}:`, { id: task.id, indirizzo: task.indirizzo });
+        const result = await geocodeTask(updated[i]);
+        console.log('[geocoding] result for', updated[i].indirizzo, ':', result.lat, result.lng);
+        updated[i] = result;
+        console.log(`[geocoding] After geocoding task ${i}:`, { id: updated[i].id, lat: updated[i].lat, lng: updated[i].lng });
+        if (alive) setGeocodedAppointmentTasks([...updated]);
+      }
+      console.log('[geocoding] Final state:', updated);
+    })();
+    return () => { alive = false; };
+  }, [appointmentTasks]);
+
   // ─── Computed ──────────────────────────────────────────────────────────────
 
   const dayOptions = useMemo(() => {
@@ -721,9 +746,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Merge Excel tasks con appointment tasks per distribuzione
   const allTasks = useMemo(() => {
-    if (!excelMode) return excelTasks;
-    return [...excelTasks, ...(appointmentTasks ?? [])];
-  }, [excelMode, excelTasks, appointmentTasks]);
+    return [...excelTasks, ...(geocodedAppointmentTasks ?? [])];
+  }, [excelTasks, geocodedAppointmentTasks]);
 
   // Route supabase
   const computedRoute = useMemo<RouteResult | null>(() => {
@@ -850,6 +874,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Marker Excel + route distribuzione (effetto unificato)
   useEffect(() => {
+    console.log('[markers] useEffect fired, geocodedAppointmentTasks:', geocodedAppointmentTasks.length);
     if (!leaflet || !excelLayerRef.current || !routeLayerRef.current || !mapInstanceRef.current) return;
     const exLayer = excelLayerRef.current;
     const rLayer = routeLayerRef.current;
@@ -857,9 +882,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     rLayer.clearLayers();
     excelMarkersRef.current.clear();
 
-    if (!excelMode) return;
-
-    if (distribution) {
+    if (distribution && excelMode) {
       // Marker e polyline per-operatore
       const bounds: Array<[number, number]> = [];
       distribution.forEach(({ op, color, tasks, polyline, base, startAddress }, i) => {
@@ -944,7 +967,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const bounds: Array<[number, number]> = [];
 
       // Filtra appuntamenti per la data selezionata
-      const appointmentsForDay = (appointmentTasks ?? []).filter(
+      const appointmentsForDay = (geocodedAppointmentTasks ?? []).filter(
         (t) => t.appointmentDate === planningDate
       );
 
@@ -980,7 +1003,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     }
-  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, appointmentTasks, planningDate]);
+  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, geocodedAppointmentTasks, planningDate]);
 
   // Polyline percorso supabase / excel singolo
   useEffect(() => {
@@ -1506,7 +1529,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm"
               />
               {(() => {
-                const count = (appointmentTasks ?? []).filter(
+                const count = (geocodedAppointmentTasks ?? []).filter(
                   (t) => t.appointmentDate === planningDate
                 ).length;
                 if (count === 0) return null;
@@ -2244,6 +2267,29 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 <div className="text-sm text-[var(--brand-text-muted)]">Tutti gli operatori hanno coordinate.</div>
               )}
             </>
+          ) : geocodedAppointmentTasks.filter(t => t.appointmentDate === planningDate).length > 0 ? (
+            /* ── Lista appuntamenti del giorno ── */
+            <div className="space-y-2">
+              <div className="mb-3 text-sm font-semibold text-violet-800">
+                Appuntamenti · {planningDate}
+              </div>
+              {geocodedAppointmentTasks
+                .filter(t => t.appointmentDate === planningDate)
+                .map(t => (
+                  <div
+                    key={t.id}
+                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs cursor-pointer hover:bg-violet-100"
+                    onClick={() => setSelectedExcelTaskId(t.id)}
+                  >
+                    <div className="font-semibold text-violet-900">{(t as Task & { pdr?: string }).pdr ?? t.id}</div>
+                    <div className="mt-0.5 text-violet-700">{t.indirizzo}</div>
+                    <div className="text-violet-500">{t.cap} {t.citta}</div>
+                    {t.fascia_oraria && <div className="mt-0.5 text-violet-400">{t.fascia_oraria}</div>}
+                    {t.lat == null && <div className="mt-1 text-[10px] text-amber-500">⚠ Geocodifica in corso...</div>}
+                  </div>
+                ))
+              }
+            </div>
           ) : (
             <div className="flex flex-1 items-center justify-center text-sm text-[var(--brand-text-muted)]">
               Carica un file Excel o aggiungi appuntamenti per visualizzare gli interventi.

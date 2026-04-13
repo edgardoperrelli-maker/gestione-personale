@@ -1,0 +1,34 @@
+
+> gestione-personale@0.1.0 dev
+> next dev --turbopack
+
+   ▲ Next.js 15.5.9 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.1.5:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\Edgardo\\Desktop\\gestione-personale-main',
+  testMode: true
+}
+ ✓ Compiled middleware in 151ms
+ ✓ Ready in 1512ms
+ ○ Compiling / ...
+ ✓ Compiled / in 1733ms
+ GET / 307 in 2042ms
+ ✓ Compiled /login in 311ms
+ GET /login 200 in 430ms
+ ○ Compiling /hub/mappa ...
+ ✓ Compiled /hub/mappa in 1258ms
+appointments raw: [{"id":"86914bc3-2651-48dd-8493-1c0a55065a84","pdr":"00882101374532","nome_cognome":"PAOLUCCI PAOLO","indirizzo":"VIA GIOACCHINO BELLI","cap":"00019","citta":"TIVOLI","lat":null,"lng":null,"data":"2026-04-14","fascia_oraria":"14:30-16:00","tipo_intervento":"s-ai-022","territorio_id":"78374dec-53ac-4905-8939-9b53dfc8498a","status":"pending","territories":{"id":"78374dec-53ac-4905-8939-9b53dfc8498a","name":"LAZIO EST"}},{"id":"6e27b3a4-a892-49e0-b5e2-48e2ae8e2bd2","pdr":"00882101333850","nome_cognome":"BATTISTI EMANUELE","indirizzo":"VIA DEL LAVORO","cap":"00019","citta":"TIVOLI","lat":null,"lng":null,"data":"2026-04-17","fascia_oraria":"08:00-10:00","tipo_intervento":"S-AI049","territorio_id":"78374dec-53ac-4905-8939-9b53dfc8498a","status":"pending","territories":{"id":"78374dec-53ac-4905-8939-9b53dfc8498a","name":"LAZIO EST"}}]
+ GET /hub/mappa 200 in 3375ms
+ ✓ Compiled /favicon.ico in 137ms
+ GET /favicon.ico?favicon.0b3bf435.ico 200 in 435ms
+ GET / 307 in 94ms
+ GET /login 200 in 92ms
+ GET / 307 in 192ms
+ GET / 307 in 235ms
+ GET /login 200 in 288ms
+ GET /login 200 in 252ms
+ GET /favicon.ico?favicon.0b3bf435.ico 200 in 94ms
