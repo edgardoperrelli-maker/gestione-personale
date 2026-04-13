@@ -3,6 +3,7 @@
 import { useMemo, useState } from 'react';
 import { geocodeTask } from '@/utils/routing';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffValidOnDay } from '@/lib/staff';
+import NewOperatorModal from './NewOperatorModal';
 import type { Staff } from '@/types';
 
 type Props = {
@@ -27,6 +28,8 @@ export default function PersonaleClient({ initialStaff }: Props) {
   const [validityFilter, setValidityFilter] = useState<'all' | 'valid' | 'invalid'>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<Feedback>(null);
+  const [showNewModal, setShowNewModal] = useState(false);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const today = useMemo(() => todayIso(), []);
 
@@ -56,6 +59,23 @@ export default function PersonaleClient({ initialStaff }: Props) {
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedback({ type, text });
     window.setTimeout(() => setFeedback(null), 3500);
+  };
+
+  const handleOperatorCreated = (newStaff: Staff) => {
+    setRows((prev) =>
+      [...prev, newStaff].sort((a, b) =>
+        a.display_name.localeCompare(b.display_name, 'it', { sensitivity: 'base' })
+      )
+    );
+    setShowNewModal(false);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
   };
 
   const handleSave = async (row: Staff) => {
@@ -141,7 +161,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
 
   return (
     <div className="space-y-6">
-      <div className="space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold text-[var(--brand-text-main)]">Personale</h1>
           <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
@@ -149,6 +169,17 @@ export default function PersonaleClient({ initialStaff }: Props) {
           </p>
         </div>
 
+        <button
+          type="button"
+          onClick={() => setShowNewModal(true)}
+          className="flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-800 shadow-sm transition hover:bg-green-100 hover:border-green-300"
+        >
+          <span className="text-lg leading-none">+</span>
+          Nuovo Operatore
+        </button>
+      </div>
+
+      <div className="space-y-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[250px]">
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
@@ -213,6 +244,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
       <div className="grid gap-4">
         {filteredRows.map((row) => {
           const saving = savingId === row.id;
+          const isExpanded = expandedIds.has(row.id);
           const startAddress = formatStaffStartAddress(row);
           const hasCoords = row.start_lat != null && row.start_lng != null;
           const hasHomeCoords = row.home_lat != null && row.home_lng != null;
@@ -221,151 +253,166 @@ export default function PersonaleClient({ initialStaff }: Props) {
           return (
             <div
               key={row.id}
-              className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm"
+              className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm"
             >
-              <div className="flex flex-wrap items-start justify-between gap-3">
-                <div>
-                  <div className="text-lg font-semibold text-[var(--brand-text-main)]">{row.display_name}</div>
-                  <div className="mt-1 flex flex-wrap gap-2 text-xs">
-                    <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[var(--brand-primary)]">
-                      {status}
+              {/* HEADER CARD — sempre visibile */}
+              <button
+                type="button"
+                onClick={() => toggleExpand(row.id)}
+                className="flex w-full items-center justify-between gap-3 px-5 py-4 text-left"
+              >
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="text-lg font-semibold text-[var(--brand-text-main)]">
+                    {row.display_name}
+                  </span>
+                  <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs text-[var(--brand-primary)]">
+                    {status}
+                  </span>
+                  <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                    {hasCoords ? '🏭 Magazzino OK' : '🏭 Senza coords'}
+                  </span>
+                  {(row.home_address || row.home_cap || row.home_city) && (
+                    <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                      {hasHomeCoords ? '🏠 Casa OK' : '🏠 Casa senza coords'}
                     </span>
-                    <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
-                      {hasCoords ? '🏭 Magazzino OK' : '🏭 Magazzino senza coords'}
-                    </span>
-                    {(row.home_address || row.home_cap || row.home_city) && (
-                      <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
-                        {hasHomeCoords ? '🏠 Casa OK' : '🏠 Casa senza coords'}
-                      </span>
-                    )}
+                  )}
+                </div>
+                <span className="text-[var(--brand-text-muted)] text-sm">
+                  {isExpanded ? '▲' : '▼'}
+                </span>
+              </button>
+
+              {/* DETTAGLIO — visibile solo se espanso */}
+              {isExpanded && (
+                <div className="border-t border-[var(--brand-border)] px-5 pb-5 pt-4">
+                  <div className="flex justify-end mb-4">
+                    <button
+                      type="button"
+                      disabled={saving}
+                      onClick={() => void handleSave(row)}
+                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    >
+                      {saving ? 'Salvataggio...' : 'Salva'}
+                    </button>
+                  </div>
+
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[220px_220px_minmax(0,1fr)_120px_200px]">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Valido dal
+                      </label>
+                      <input
+                        type="date"
+                        value={row.valid_from ?? ''}
+                        onChange={(e) => updateRow(row.id, { valid_from: e.target.value || null })}
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Valido fino al
+                      </label>
+                      <input
+                        type="date"
+                        value={row.valid_to ?? ''}
+                        onChange={(e) => updateRow(row.id, { valid_to: e.target.value || null })}
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Indirizzo di partenza
+                      </label>
+                      <input
+                        value={row.start_address ?? ''}
+                        onChange={(e) => updateRow(row.id, { start_address: e.target.value })}
+                        placeholder="Via, piazza, civico..."
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        CAP
+                      </label>
+                      <input
+                        value={row.start_cap ?? ''}
+                        onChange={(e) => updateRow(row.id, { start_cap: e.target.value })}
+                        placeholder="00000"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Citta
+                      </label>
+                      <input
+                        value={row.start_city ?? ''}
+                        onChange={(e) => updateRow(row.id, { start_city: e.target.value })}
+                        placeholder="Citta"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Indirizzo casa */}
+                  <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_120px_200px]">
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Indirizzo casa (reperibile)
+                      </label>
+                      <input
+                        value={row.home_address ?? ''}
+                        onChange={(e) => updateRow(row.id, { home_address: e.target.value })}
+                        placeholder="Via, piazza, civico..."
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        CAP casa
+                      </label>
+                      <input
+                        value={row.home_cap ?? ''}
+                        onChange={(e) => updateRow(row.id, { home_cap: e.target.value })}
+                        placeholder="00000"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                    <div>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Città casa
+                      </label>
+                      <input
+                        value={row.home_city ?? ''}
+                        onChange={(e) => updateRow(row.id, { home_city: e.target.value })}
+                        placeholder="Città"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="mt-3 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
+                    <div>
+                      <span className="font-semibold">Magazzino: </span>
+                      {startAddress || 'Non impostato'}
+                      {hasCoords && (
+                        <span>{` · ${row.start_lat!.toFixed(5)}, ${row.start_lng!.toFixed(5)}`}</span>
+                      )}
+                    </div>
+                    <div>
+                      <span className="font-semibold">Casa: </span>
+                      {formatStaffHomeAddress(row) || 'Non impostata'}
+                      {hasHomeCoords && (
+                        <span>{` · ${row.home_lat!.toFixed(5)}, ${row.home_lng!.toFixed(5)}`}</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-
-                <button
-                  type="button"
-                  disabled={saving}
-                  onClick={() => void handleSave(row)}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
-                >
-                  {saving ? 'Salvataggio...' : 'Salva'}
-                </button>
-              </div>
-
-              <div className="mt-4 grid gap-4 lg:grid-cols-[220px_220px_minmax(0,1fr)_120px_200px]">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Valido dal
-                  </label>
-                  <input
-                    type="date"
-                    value={row.valid_from ?? ''}
-                    onChange={(e) => updateRow(row.id, { valid_from: e.target.value || null })}
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Valido fino al
-                  </label>
-                  <input
-                    type="date"
-                    value={row.valid_to ?? ''}
-                    onChange={(e) => updateRow(row.id, { valid_to: e.target.value || null })}
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Indirizzo di partenza
-                  </label>
-                  <input
-                    value={row.start_address ?? ''}
-                    onChange={(e) => updateRow(row.id, { start_address: e.target.value })}
-                    placeholder="Via, piazza, civico..."
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    CAP
-                  </label>
-                  <input
-                    value={row.start_cap ?? ''}
-                    onChange={(e) => updateRow(row.id, { start_cap: e.target.value })}
-                    placeholder="00000"
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Citta
-                  </label>
-                  <input
-                    value={row.start_city ?? ''}
-                    onChange={(e) => updateRow(row.id, { start_city: e.target.value })}
-                    placeholder="Citta"
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              {/* Indirizzo casa */}
-              <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_120px_200px]">
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Indirizzo casa (reperibile)
-                  </label>
-                  <input
-                    value={row.home_address ?? ''}
-                    onChange={(e) => updateRow(row.id, { home_address: e.target.value })}
-                    placeholder="Via, piazza, civico..."
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    CAP casa
-                  </label>
-                  <input
-                    value={row.home_cap ?? ''}
-                    onChange={(e) => updateRow(row.id, { home_cap: e.target.value })}
-                    placeholder="00000"
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-                <div>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Città casa
-                  </label>
-                  <input
-                    value={row.home_city ?? ''}
-                    onChange={(e) => updateRow(row.id, { home_city: e.target.value })}
-                    placeholder="Città"
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
-                  />
-                </div>
-              </div>
-
-              <div className="mt-3 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
-                <div>
-                  <span className="font-semibold">Magazzino: </span>
-                  {startAddress || 'Non impostato'}
-                  {hasCoords && (
-                    <span>{` · ${row.start_lat!.toFixed(5)}, ${row.start_lng!.toFixed(5)}`}</span>
-                  )}
-                </div>
-                <div>
-                  <span className="font-semibold">Casa: </span>
-                  {formatStaffHomeAddress(row) || 'Non impostata'}
-                  {hasHomeCoords && (
-                    <span>{` · ${row.home_lat!.toFixed(5)}, ${row.home_lng!.toFixed(5)}`}</span>
-                  )}
-                </div>
-              </div>
+              )}
             </div>
           );
         })}
@@ -376,6 +423,13 @@ export default function PersonaleClient({ initialStaff }: Props) {
           </div>
         )}
       </div>
+
+      {showNewModal && (
+        <NewOperatorModal
+          onClose={() => setShowNewModal(false)}
+          onCreated={handleOperatorCreated}
+        />
+      )}
     </div>
   );
 }
