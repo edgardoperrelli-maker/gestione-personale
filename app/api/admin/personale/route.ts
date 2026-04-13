@@ -116,3 +116,83 @@ export async function PATCH(req: NextRequest) {
 
   return NextResponse.json({ ok: true, staff: data });
 }
+
+export async function POST(req: NextRequest) {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+
+  const body = await req.json() as {
+    displayName?: string;
+    validFrom?: string | null;
+    validTo?: string | null;
+    startAddress?: string | null;
+    startCap?: string | null;
+    startCity?: string | null;
+    startLat?: number | null;
+    startLng?: number | null;
+    homeAddress?: string | null;
+    homeCap?: string | null;
+    homeCity?: string | null;
+    homeLat?: number | null;
+    homeLng?: number | null;
+  };
+
+  // Validazione displayName
+  const displayName = String(body.displayName ?? '').trim();
+  if (!displayName) {
+    return NextResponse.json({ error: 'Nome operatore richiesto.' }, { status: 400 });
+  }
+
+  // Normalizzazione e validazione date
+  const validFrom = normalizeNullableDate(body.validFrom);
+  const validTo = normalizeNullableDate(body.validTo);
+  if (validFrom === '' || validTo === '') {
+    return NextResponse.json({ error: 'Formato data non valido. Usa YYYY-MM-DD.' }, { status: 400 });
+  }
+  if (validFrom && validTo && validFrom > validTo) {
+    return NextResponse.json({ error: 'La data fine validità non può precedere la data inizio.' }, { status: 400 });
+  }
+
+  // Normalizzazione coordinate magazzino
+  const startLat = normalizeNullableNumber(body.startLat);
+  const startLng = normalizeNullableNumber(body.startLng);
+  if (Number.isNaN(startLat) || Number.isNaN(startLng)) {
+    return NextResponse.json({ error: 'Coordinate magazzino non valide.' }, { status: 400 });
+  }
+
+  // Normalizzazione coordinate casa
+  const homeLat = normalizeNullableNumber(body.homeLat);
+  const homeLng = normalizeNullableNumber(body.homeLng);
+  // Se casa è compilata, le coordinate devono essere valide
+  const hasHomeAddress = !!(body.homeAddress || body.homeCap || body.homeCity);
+  if (hasHomeAddress && (Number.isNaN(homeLat) || Number.isNaN(homeLng))) {
+    return NextResponse.json({ error: 'Indirizzo casa compilato ma geocodificazione fallita.' }, { status: 400 });
+  }
+
+  // Insert
+  const { data, error } = await supabaseAdmin
+    .from('staff')
+    .insert({
+      display_name: displayName,
+      valid_from: validFrom,
+      valid_to: validTo,
+      start_address: normalizeNullableString(body.startAddress),
+      start_cap: normalizeNullableString(body.startCap),
+      start_city: normalizeNullableString(body.startCity),
+      start_lat: startLat,
+      start_lng: startLng,
+      home_address: normalizeNullableString(body.homeAddress),
+      home_cap: normalizeNullableString(body.homeCap),
+      home_city: normalizeNullableString(body.homeCity),
+      home_lat: homeLat,
+      home_lng: homeLng,
+    })
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
+    .single();
+
+  if (error) {
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  return NextResponse.json({ ok: true, staff: data });
+}
