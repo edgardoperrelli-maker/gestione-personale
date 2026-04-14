@@ -1193,6 +1193,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
   const distributeToOps = useCallback(() => {
     if (!selectedOps.length) return;
+
     const seenPdr = new Set<string>();
     const geocoded = allTasks
       .filter((t) => t.lat != null && t.lng != null)
@@ -1202,11 +1203,59 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         seenPdr.add(t.pdr);
         return true;
       });
+
     if (!geocoded.length) return;
 
-    const { groups, unassigned } = capacityDistributeWithUnassigned(geocoded, selectedOps);
+    // ── Fase 1: pre-assegna i task ZTL agli operatori autorizzati più vicini ──
+    // Mappa opIdx → task pre-assegnati
+    const preAssigned: Map<number, Task[]> = new Map(
+      selectedOps.map((_, i) => [i, []])
+    );
+    const ztlAssignedIds = new Set<string>();
+
+    for (const task of geocoded) {
+      const ztl = getTaskZtl(task.cap, ztlZones);
+      if (!ztl) continue; // task non ZTL — gestito dall'algoritmo normale
+
+      // Trova gli operatori autorizzati presenti in selectedOps
+      const authorizedIdxs = selectedOps
+        .map((op, i) => ({ i, op }))
+        .filter(({ op }) => ztl.authorized_staff_ids.includes(op.id));
+
+      if (!authorizedIdxs.length) {
+        // Nessun operatore autorizzato disponibile — lascia all'algoritmo normale
+        continue;
+      }
+
+      // Scegli il più vicino al task tra gli autorizzati
+      const nearest = authorizedIdxs.reduce((best, curr) => {
+        const currBase = selectedOps[curr.i].base;
+        const bestBase = selectedOps[best.i].base;
+        if (!currBase) return best;
+        if (!bestBase) return curr;
+        const dCurr = distanceMeters({ lat: task.lat!, lng: task.lng! }, currBase);
+        const dBest = distanceMeters({ lat: task.lat!, lng: task.lng! }, bestBase);
+        return dCurr < dBest ? curr : best;
+      });
+
+      preAssigned.get(nearest.i)!.push(task);
+      ztlAssignedIds.add(task.id);
+    }
+
+    // ── Fase 2: distribuisci i task non-ZTL con l'algoritmo normale ──
+    const nonZtlTasks = geocoded.filter((t) => !ztlAssignedIds.has(t.id));
+
+    // Calcola le quantità rimanenti per ogni operatore (qty - pre-assegnati ZTL)
+    const adjustedOps: OpConfig[] = selectedOps.map((op, i) => ({
+      ...op,
+      qty: Math.max(0, op.qty - (preAssigned.get(i)?.length ?? 0)),
+    }));
+
+    const { groups, unassigned } = capacityDistributeWithUnassigned(nonZtlTasks, adjustedOps);
+
+    // ── Fase 3: unisci pre-assegnati ZTL con distribuzione normale ──
     const result: DistEntry[] = selectedOps.map((op, i) => {
-      const grp = groups[i] ?? [];
+      const grp = [...(preAssigned.get(i) ?? []), ...(groups[i] ?? [])];
       const routeRes =
         grp.length >= 1
           ? optimizeRouteByFascia(grp, op.base ?? undefined)
@@ -1222,6 +1271,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         startAddress: op.startAddress,
       };
     });
+
     setDistribution(result);
     setUnassignedTasks(unassigned);
     setActiveOpIdx(0);
@@ -1230,14 +1280,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setShowOpPicker(false);
     setMovingTaskId(null);
 
-    // ── Controlla conflitti ZTL ─────────────────────────────────────────────
+    // ── Controlla conflitti residui (task ZTL senza operatori autorizzati) ──
     const conflicts: string[] = [];
     result.forEach(({ op, staffId, tasks }) => {
       tasks.forEach((t) => {
         const ztl = getTaskZtl(t.cap, ztlZones);
         if (!ztl) return;
-        const authorized = ztl.authorized_staff_ids.includes(staffId);
-        if (!authorized) {
+        if (!ztl.authorized_staff_ids.includes(staffId)) {
           conflicts.push(`"${op}" non ha il permesso ZTL per ${ztl.name} (${t.indirizzo})`);
         }
       });
