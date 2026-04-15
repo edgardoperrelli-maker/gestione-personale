@@ -1,4 +1,5 @@
 import 'leaflet/dist/leaflet.css';
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import MappaOperatoriClient, {
@@ -9,7 +10,6 @@ import MappaOperatoriClient, {
 import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
-import type { Task } from '@/utils/routing/types';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -26,15 +26,11 @@ function firstRelation<T>(value: T | T[] | null): T | null {
   return value ?? null;
 }
 
-export default async function MappaPage({
-  searchParams,
+async function MappaPageContent({
+  pianoId,
 }: {
-  searchParams: Promise<{ vista?: string; pianoId?: string }>;
+  pianoId?: string;
 }) {
-  const params = await searchParams;
-  const vista = params.vista ?? 'pianifica';
-  const pianoId = params.pianoId;
-
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
@@ -43,29 +39,6 @@ export default async function MappaPage({
   const todayIso = fmtDay(today);
   const dateFrom = fmtDay(addDays(today, -3));
   const dateTo = fmtDay(addDays(today, 4));
-
-  // If vista is 'registro', show RegistroPianificazioni instead
-  if (vista === 'registro') {
-    return (
-      <div className="space-y-4">
-        <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
-          <a
-            href="/hub/mappa?vista=pianifica"
-            className="rounded-lg px-4 py-1.5 text-sm font-medium transition text-[var(--brand-text-muted)] hover:bg-gray-50"
-          >
-            Pianificazione indirizzi
-          </a>
-          <a
-            href="/hub/mappa?vista=registro"
-            className="rounded-lg px-4 py-1.5 text-sm font-medium transition bg-[var(--brand-primary)] text-white shadow-sm"
-          >
-            Registro pianificazioni
-          </a>
-        </div>
-        <RegistroPianificazioni />
-      </div>
-    );
-  }
 
   // Parallelizza le query indipendenti
   const [
@@ -266,32 +239,60 @@ export default async function MappaPage({
   }
 
   return (
+    <MappaOperatoriClient
+      rows={rows}
+      operatorOptions={operatorOptions}
+      territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
+      dateFrom={dateFrom}
+      dateTo={dateTo}
+      ztlZones={ztlZones}
+      allegato10ActiveCodes={allegato10ActiveCodes}
+      initialPianoId={initialPianoId}
+      initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
+    />
+  );
+}
+
+export default async function MappaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vista?: string; pianoId?: string }>;
+}) {
+  const params = await searchParams;
+  const vista = params.vista ?? 'pianifica';
+  const pianoId = params.pianoId;
+
+  const navButtonClass = (isActive: boolean) =>
+    `rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+      isActive
+        ? 'bg-[var(--brand-primary)] text-white shadow-sm'
+        : 'text-[var(--brand-text-muted)] hover:bg-gray-50'
+    }`;
+
+  return (
     <div className="space-y-4">
       <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
-        <a
-          href="/hub/mappa?vista=pianifica"
-          className="rounded-lg px-4 py-1.5 text-sm font-medium transition bg-[var(--brand-primary)] text-white shadow-sm"
-        >
+        <a href="/hub/mappa?vista=pianifica" className={navButtonClass(vista !== 'registro')}>
           Pianificazione indirizzi
         </a>
-        <a
-          href="/hub/mappa?vista=registro"
-          className="rounded-lg px-4 py-1.5 text-sm font-medium transition text-[var(--brand-text-muted)] hover:bg-gray-50"
-        >
+        <a href="/hub/mappa?vista=registro" className={navButtonClass(vista === 'registro')}>
           Registro pianificazioni
         </a>
       </div>
-      <MappaOperatoriClient
-        rows={rows}
-        operatorOptions={operatorOptions}
-        territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
-        dateFrom={dateFrom}
-        dateTo={dateTo}
-        ztlZones={ztlZones}
-        allegato10ActiveCodes={allegato10ActiveCodes}
-        initialPianoId={initialPianoId}
-        initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
-      />
+
+      {vista === 'registro' ? (
+        <RegistroPianificazioni />
+      ) : (
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)]">
+              Caricamento mappa...
+            </div>
+          }
+        >
+          <MappaPageContent pianoId={pianoId} />
+        </Suspense>
+      )}
     </div>
   );
 }
