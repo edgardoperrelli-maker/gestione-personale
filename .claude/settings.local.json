@@ -6,7 +6,8 @@
       "Bash(git add *)",
       "Bash(git commit *)",
       "mcp__claude_ai_Supabase__apply_migration",
-      "Bash(head *)"
+      "Bash(head *)",
+      "Bash(grep *)"
     ]
   }
 }

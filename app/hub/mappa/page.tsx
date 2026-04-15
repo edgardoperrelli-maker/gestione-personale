@@ -46,81 +46,73 @@ export default async function MappaPage({
 
   // If vista is 'registro', show RegistroPianificazioni instead
   if (vista === 'registro') {
-    return <RegistroPianificazioni />;
+    return (
+      <div className="space-y-4">
+        <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
+          <a
+            href="/hub/mappa?vista=pianifica"
+            className="rounded-lg px-4 py-1.5 text-sm font-medium transition text-[var(--brand-text-muted)] hover:bg-gray-50"
+          >
+            Pianificazione indirizzi
+          </a>
+          <a
+            href="/hub/mappa?vista=registro"
+            className="rounded-lg px-4 py-1.5 text-sm font-medium transition bg-[var(--brand-primary)] text-white shadow-sm"
+          >
+            Registro pianificazioni
+          </a>
+        </div>
+        <RegistroPianificazioni />
+      </div>
+    );
   }
 
-  const { data: territories } = await supabase
-    .from('territories')
-    .select('id, name, lat, lng')
-    .order('name', { ascending: true });
-
-  const { data: calendarDays } = await supabase
-    .from('calendar_days')
-    .select('id, day')
-    .gte('day', dateFrom)
-    .lte('day', dateTo)
-    .order('day');
+  // Parallelizza le query indipendenti
+  const [
+    { data: territories },
+    { data: calendarDays },
+    { data: staffRaw },
+    { data: ztlZonesRaw },
+    { data: ztlOps },
+    { data: allegato10Rows },
+  ] = await Promise.all([
+    supabase
+      .from('territories')
+      .select('id, name, lat, lng')
+      .order('name', { ascending: true }),
+    supabase
+      .from('calendar_days')
+      .select('id, day')
+      .gte('day', dateFrom)
+      .lte('day', dateTo)
+      .order('day'),
+    supabase
+      .from('staff')
+      .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
+      .order('display_name', { ascending: true }),
+    supabase
+      .from('ztl_zones')
+      .select('id, name, cap_list')
+      .eq('active', true),
+    supabase
+      .from('ztl_zone_operators')
+      .select('zone_id, staff_id'),
+    supabase
+      .from('allegato10_codici')
+      .select('codice')
+      .eq('genera_allegato', true),
+  ]);
 
   const dayIdMap = new Map<string, string>();
   (calendarDays ?? []).forEach((d) => dayIdMap.set(d.id, d.day));
 
   const dayIds = (calendarDays ?? []).map((d) => d.id);
 
-  const { data: staffRaw } = await supabase
-    .from('staff')
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
-    .order('display_name', { ascending: true });
-
   const staffList = (staffRaw ?? []) as Staff[];
   const staffById = new Map<string, Staff>();
   staffList.forEach((member) => {
     staffById.set(member.id, member);
   });
-
-  // ── Fetch appuntamenti ──────────────────────────────────────────────────────────
-  const { data: appointmentsRaw } = await supabase
-    .from('appointments')
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, status, territories(id, name)')
-    .gte('data', todayIso)
-    .lte('data', dateTo)
-    .order('data', { ascending: true });
-
-  console.log('appointments raw:', JSON.stringify(appointmentsRaw));
-
-  type AppointmentRow = {
-    id: string;
-    pdr: string;
-    nome_cognome: string | null;
-    indirizzo: string | null;
-    cap: string | null;
-    citta: string | null;
-    lat: number | null;
-    lng: number | null;
-    data: string;
-    fascia_oraria: string | null;
-    tipo_intervento: string | null;
-    territorio_id: string | null;
-    status: string;
-    territories: { id: string; name: string } | null;
-  };
-
-  const appointmentTasks: Task[] = (appointmentsRaw ?? [])
-    .map((a) => ({
-      id: `apt-${a.id}`,
-      odl: '',
-      indirizzo: a.indirizzo ?? '',
-      cap: a.cap ?? '',
-      citta: a.citta ?? '',
-      priorita: 0,
-      fascia_oraria: a.fascia_oraria ?? '',
-      lat: a.lat as number | undefined,
-      lng: a.lng as number | undefined,
-      nominativo: a.nome_cognome ?? undefined,
-      isAppointment: true,
-      appointmentId: a.id,
-      pdr: a.pdr,
-      appointmentDate: a.data,
-    }));
 
   type AssignmentRow = {
     day_id: string;
@@ -207,16 +199,7 @@ export default async function MappaPage({
       reperibileDates: reperibileDatesMap.get(member.id) ?? [],
     }));
 
-  // ── Fetch ZTL zones ───────────────────────────────────────────────────────────
-  const { data: ztlZonesRaw } = await supabase
-    .from('ztl_zones')
-    .select('id, name, cap_list')
-    .eq('active', true);
-
-  const { data: ztlOps } = await supabase
-    .from('ztl_zone_operators')
-    .select('zone_id, staff_id');
-
+  // ── Costruisci ZTL zones dai risultati parallelizzati ────────────────────────
   const ztlZones: ZtlZoneInfo[] = (ztlZonesRaw ?? []).map((z) => ({
     id: z.id,
     name: z.name,
@@ -233,12 +216,7 @@ export default async function MappaPage({
       .filter(Boolean),
   }));
 
-  // ── Fetch Allegato 10 active codes ──────────────────────────────────────────
-  const { data: allegato10Rows } = await supabase
-    .from('allegato10_codici')
-    .select('codice')
-    .eq('genera_allegato', true);
-
+  // ── Costruisci Allegato 10 active codes dai risultati parallelizzati ────────
   const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
 
   // Fetch saved piano if pianoId is provided
@@ -288,17 +266,32 @@ export default async function MappaPage({
   }
 
   return (
-    <MappaOperatoriClient
-      rows={rows}
-      operatorOptions={operatorOptions}
-      territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
-      dateFrom={dateFrom}
-      dateTo={dateTo}
-      ztlZones={ztlZones}
-      allegato10ActiveCodes={allegato10ActiveCodes}
-      appointmentTasks={appointmentTasks}
-      initialPianoId={initialPianoId}
-      initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
-    />
+    <div className="space-y-4">
+      <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
+        <a
+          href="/hub/mappa?vista=pianifica"
+          className="rounded-lg px-4 py-1.5 text-sm font-medium transition bg-[var(--brand-primary)] text-white shadow-sm"
+        >
+          Pianificazione indirizzi
+        </a>
+        <a
+          href="/hub/mappa?vista=registro"
+          className="rounded-lg px-4 py-1.5 text-sm font-medium transition text-[var(--brand-text-muted)] hover:bg-gray-50"
+        >
+          Registro pianificazioni
+        </a>
+      </div>
+      <MappaOperatoriClient
+        rows={rows}
+        operatorOptions={operatorOptions}
+        territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
+        dateFrom={dateFrom}
+        dateTo={dateTo}
+        ztlZones={ztlZones}
+        allegato10ActiveCodes={allegato10ActiveCodes}
+        initialPianoId={initialPianoId}
+        initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
+      />
+    </div>
   );
 }

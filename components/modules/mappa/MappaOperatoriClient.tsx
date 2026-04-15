@@ -63,7 +63,6 @@ type Props = {
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
   allegato10ActiveCodes?: string[];
-  appointmentTasks?: Task[];
   initialPianoId?: string;
   initialDistribution?: Record<string, any>;
 };
@@ -620,7 +619,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], appointmentTasks = [], initialPianoId, initialDistribution }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -664,7 +663,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
 
   // Geocoded appointment tasks
-  const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>(appointmentTasks);
+  const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
 
   // Template file states
   const [templateTasks, setTemplateTasks] = useState<Task[]>([]);
@@ -675,12 +675,50 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [savingDistribution, setSavingDistribution] = useState(false);
   const [savedDistribution, setSavedDistribution] = useState(false);
 
+  // Carica appuntamenti lazy quando planningDate cambia
   useEffect(() => {
-    console.log('[geocoding] useEffect fired, tasks:', appointmentTasks.length);
     let alive = true;
-    setGeocodedAppointmentTasks(appointmentTasks); // reset immediato
+    setLoadingAppointments(true);
+
+    fetch(`/api/appointments/mappa?date=${planningDate}`)
+      .then((r) => r.json())
+      .then((rows: any[]) => {
+        if (!alive) return;
+        const appointmentTasks: Task[] = (rows ?? []).map((a) => ({
+          id: `apt-${a.id}`,
+          odl: '',
+          indirizzo: a.indirizzo ?? '',
+          cap: a.cap ?? '',
+          citta: a.citta ?? '',
+          priorita: 0,
+          fascia_oraria: a.fascia_oraria ?? '',
+          lat: a.lat ?? undefined,
+          lng: a.lng ?? undefined,
+          nominativo: a.nome_cognome ?? undefined,
+          isAppointment: true,
+          appointmentId: a.id,
+          pdr: a.pdr,
+          appointmentDate: a.data,
+        }));
+        if (alive) setGeocodedAppointmentTasks(appointmentTasks);
+      })
+      .catch(() => {
+        if (alive) setGeocodedAppointmentTasks([]);
+      })
+      .finally(() => {
+        if (alive) setLoadingAppointments(false);
+      });
+
+    return () => { alive = false; };
+  }, [planningDate]);
+
+  // Geocodifica appuntamenti appena caricati
+  useEffect(() => {
+    console.log('[geocoding] useEffect fired, tasks:', geocodedAppointmentTasks.length);
+    let alive = true;
+
     (async () => {
-      const updated = [...appointmentTasks];
+      const updated = [...geocodedAppointmentTasks];
       for (let i = 0; i < updated.length; i++) {
         const task = updated[i];
         if (task.lat != null && task.lng != null) continue;
@@ -695,7 +733,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       console.log('[geocoding] Final state:', updated);
     })();
     return () => { alive = false; };
-  }, [appointmentTasks]);
+  }, [geocodedAppointmentTasks.length > 0 ? geocodedAppointmentTasks[0]?.id : null]);
 
   // Inizializza da piano salvato se pianoId è fornito
   useEffect(() => {
