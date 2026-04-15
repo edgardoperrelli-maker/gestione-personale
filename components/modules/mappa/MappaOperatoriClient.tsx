@@ -64,6 +64,8 @@ type Props = {
   ztlZones?: ZtlZoneInfo[];
   allegato10ActiveCodes?: string[];
   appointmentTasks?: Task[];
+  initialPianoId?: string;
+  initialDistribution?: Record<string, any>;
 };
 
 type DistEntry = {
@@ -618,7 +620,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], appointmentTasks = [] }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], appointmentTasks = [], initialPianoId, initialDistribution }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -656,6 +658,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [planningDate, setPlanningDate] = useState<string>(isoTomorrow());
+  const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
 
   // ZTL conflicts
   const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
@@ -693,6 +696,42 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     })();
     return () => { alive = false; };
   }, [appointmentTasks]);
+
+  // Inizializza da piano salvato se pianoId è fornito
+  useEffect(() => {
+    if (!initialDistribution) return;
+
+    // Ricostruisci selectedOps e distribution da initialDistribution
+    const operators: OpConfig[] = [];
+    const distEntries: DistEntry[] = [];
+
+    Object.entries(initialDistribution).forEach(([key, data]: [string, any]) => {
+      const staffId = data.staff_id;
+      const staffName = data.staff_name;
+
+      operators.push({
+        id: staffId,
+        name: staffName,
+        qty: data.task_count || 0,
+        base: null,
+        startAddress: data.start_address || null,
+      });
+
+      distEntries.push({
+        op: staffName,
+        staffId,
+        color: data.colore || OP_COLORS[operators.length % OP_COLORS.length],
+        tasks: data.tasks || [],
+        km: data.km || 0,
+        polyline: data.polyline || [],
+        base: null,
+        startAddress: data.start_address || null,
+      });
+    });
+
+    setSelectedOps(operators);
+    setDistribution(distEntries);
+  }, [initialDistribution]);
 
   // ─── Computed ──────────────────────────────────────────────────────────────
 
@@ -1310,26 +1349,48 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Salva distribuzione su Supabase
   const saveDistribution = useCallback(async () => {
-    if (!distribution) return;
+    if (!distribution || !selectedOps.length) return;
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
-      const res = await fetch('/api/mappa/distribuzioni', {
+      const operatori = selectedOps.map((op, idx) => {
+        const dist = distribution[idx];
+        return {
+          staff_id: dist.staffId,
+          staff_name: op.name,
+          colore: dist.color,
+          km: dist.km,
+          task_count: dist.tasks.length,
+          start_address: dist.startAddress || null,
+          tasks: dist.tasks,
+          polyline: dist.polyline,
+        };
+      });
+
+      const res = await fetch('/api/mappa/piani', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: planningDate,
-          distribuzioni: distribution.map(d => ({
-            staff_id: d.staffId,
-            task_count: d.tasks.length,
-          })),
+          territorio: selectedOps[0]?.name || 'Generale',
+          note: '',
+          operatori,
         }),
       });
-      if (res.ok) setSavedDistribution(true);
+
+      if (res.ok) {
+        const { id } = await res.json();
+        setPianoId(id);
+        setSavedDistribution(true);
+        // Update URL with pianoId using replaceState
+        const url = new URL(window.location.href);
+        url.searchParams.set('pianoId', id);
+        window.history.replaceState({}, '', url.toString());
+      }
     } finally {
       setSavingDistribution(false);
     }
-  }, [distribution, planningDate]);
+  }, [distribution, planningDate, selectedOps]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {

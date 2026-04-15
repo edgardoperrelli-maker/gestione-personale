@@ -6,6 +6,7 @@ import MappaOperatoriClient, {
   type MappaStaffRow,
   type ZtlZoneInfo,
 } from '@/components/modules/mappa/MappaOperatoriClient';
+import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 import type { Task } from '@/utils/routing/types';
@@ -25,7 +26,15 @@ function firstRelation<T>(value: T | T[] | null): T | null {
   return value ?? null;
 }
 
-export default async function MappaPage() {
+export default async function MappaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vista?: string; pianoId?: string }>;
+}) {
+  const params = await searchParams;
+  const vista = params.vista ?? 'pianifica';
+  const pianoId = params.pianoId;
+
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
@@ -34,6 +43,11 @@ export default async function MappaPage() {
   const todayIso = fmtDay(today);
   const dateFrom = fmtDay(addDays(today, -3));
   const dateTo = fmtDay(addDays(today, 4));
+
+  // If vista is 'registro', show RegistroPianificazioni instead
+  if (vista === 'registro') {
+    return <RegistroPianificazioni />;
+  }
 
   const { data: territories } = await supabase
     .from('territories')
@@ -227,6 +241,52 @@ export default async function MappaPage() {
 
   const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
 
+  // Fetch saved piano if pianoId is provided
+  let initialPianoId: string | undefined;
+  let initialDistribution: Record<string, any> = {};
+
+  if (pianoId) {
+    const { data: pianoData } = await supabase
+      .from('mappa_piani')
+      .select(`
+        id,
+        data,
+        territorio,
+        note,
+        mappa_piani_operatori (
+          staff_id,
+          staff_name,
+          colore,
+          km,
+          task_count,
+          start_address,
+          tasks,
+          polyline
+        )
+      `)
+      .eq('id', pianoId)
+      .single();
+
+    if (pianoData) {
+      initialPianoId = pianoData.id;
+      // Reconstruct initialDistribution from saved operators
+      const operators = pianoData.mappa_piani_operatori || [];
+      operators.forEach((op: any) => {
+        const key = `${op.staff_id}|${pianoData.territorio}`;
+        initialDistribution[key] = {
+          staff_id: op.staff_id,
+          staff_name: op.staff_name,
+          colore: op.colore,
+          km: op.km,
+          task_count: op.task_count,
+          start_address: op.start_address,
+          tasks: op.tasks,
+          polyline: op.polyline,
+        };
+      });
+    }
+  }
+
   return (
     <MappaOperatoriClient
       rows={rows}
@@ -237,6 +297,8 @@ export default async function MappaPage() {
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
       appointmentTasks={appointmentTasks}
+      initialPianoId={initialPianoId}
+      initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
     />
   );
 }
