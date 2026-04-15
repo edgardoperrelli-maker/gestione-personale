@@ -809,6 +809,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     );
   }, [operatorOptions]);
 
+  // Territori disponibili
+  const availableTerritories = useMemo(() => {
+    const names = territories.map((t) => t.name).filter(Boolean);
+    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
+  }, [territories]);
+
   const excelOperators = useMemo(() => {
     const names = new Set<string>();
     selectedOps.forEach((op) => {
@@ -1853,26 +1859,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm"
                 >
                   <option value="">Tutti i territori</option>
-                  {territories.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
+                  {availableTerritories.map((t) => (
+                    <option key={t} value={t}>
+                      {t}
+                    </option>
                   ))}
-                </select>
-
-                <select
-                  value={dayFilter}
-                  onChange={(e) => setDayFilter(e.target.value)}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm"
-                >
-                  <option value="">Tutti i giorni</option>
-                  {dayOptions.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={onlyRep} onChange={(e) => setOnlyRep(e.target.checked)} />
-                  Solo reperibili
-                </label>
+                </select>        
 
                 <button
                   type="button"
