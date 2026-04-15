@@ -1176,7 +1176,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (fileTemplateInputRef.current) {
       fileTemplateInputRef.current.value = '';
     }
-  }, [distribution, distributeToOps]);
+  }, []);
 
   // Apre il form di modifica per un task
   const openEdit = useCallback((task: Task) => {
