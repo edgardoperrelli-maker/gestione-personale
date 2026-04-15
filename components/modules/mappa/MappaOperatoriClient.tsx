@@ -1113,6 +1113,71 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setZtlConflicts([]);
   }, []);
 
+  const handleTemplateFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setTemplateGeocoding({ done: 0, total: 0 });
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+
+      const tasks: Task[] = rows.map((row: any, idx) => ({
+        id: `template-${Date.now()}-${idx}`,
+        indirizzo: row.indirizzo || '',
+        cap: row.cap || '',
+        citta: row.citta || '',
+      }));
+
+      setTemplateGeocoding({ done: 0, total: tasks.length });
+      const geocoded: Task[] = [];
+
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?` +
+            `street=${encodeURIComponent(task.indirizzo)}&` +
+            `postalcode=${encodeURIComponent(task.cap)}&` +
+            `city=${encodeURIComponent(task.citta)}&` +
+            `format=json&limit=1`
+          );
+          const results = await response.json();
+          if (results.length > 0) {
+            geocoded.push({
+              ...task,
+              lat: parseFloat(results[0].lat),
+              lng: parseFloat(results[0].lon),
+            });
+          } else {
+            geocoded.push(task);
+          }
+        } catch (error) {
+          console.error(`Geocoding error for task ${i}:`, error);
+          geocoded.push(task);
+        }
+        setTemplateGeocoding({ done: i + 1, total: tasks.length });
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      setTemplateTasks(geocoded);
+      setTemplateGeocoding(null);
+
+      if (distribution) {
+        distributeToOps();
+      }
+    } catch (error) {
+      console.error('Error processing template file:', error);
+      setTemplateGeocoding(null);
+    }
+
+    if (fileTemplateInputRef.current) {
+      fileTemplateInputRef.current.value = '';
+    }
+  }, [distribution, distributeToOps]);
+
   // Apre il form di modifica per un task
   const openEdit = useCallback((task: Task) => {
     setSelectedExcelTaskId(task.id);
