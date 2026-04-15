@@ -89,9 +89,11 @@ export default function CronoprogrammaWorkspace() {
   const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
   const [taskCountMap, setTaskCountMap] = useState<Record<string,number>>({});
+  const [taskCountRefresh, setTaskCountRefresh] = useState(0);
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
+  const refreshTaskCounts = () => setTaskCountRefresh((v) => v + 1);
 
   const confirmTwice = (firstMessage: string, secondMessage: string) => {
     if (typeof window === 'undefined') return true;
@@ -341,7 +343,7 @@ export default function CronoprogrammaWorkspace() {
     return () => {
       alive = false;
     };
-  }, [range.start, range.end]);
+  }, [range.start, range.end, taskCountRefresh]);
 
   const removeAssignment = async (a: Assignment) => {
     setActionFeedback(null);
