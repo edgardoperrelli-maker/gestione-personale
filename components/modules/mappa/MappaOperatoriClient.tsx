@@ -1706,6 +1706,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             )}
 
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
+            <input ref={fileTemplateInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleTemplateFileChange} />
 
             {!excelMode && (
               <button
@@ -1897,6 +1898,37 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           </button>
                         </>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {needsSaturazione && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-gray-600">
+                      Completamento: {geocodificati} / {totalQtyRichiesta}
+                    </span>
+                    <button
+                      onClick={() => fileTemplateInputRef.current?.click()}
+                      className="rounded-lg border border-violet-400 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100"
+                    >
+                      + Integra da template ({totalQtyRichiesta - geocodificati} mancanti)
+                    </button>
+                  </div>
+                )}
+
+                {templateGeocoding && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                      <span>Geocodifica template</span>
+                      <span>{templateGeocoding.done} / {templateGeocoding.total}</span>
+                    </div>
+                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-violet-500 transition-all"
+                        style={{
+                          width: `${templateGeocoding.total > 0 ? (templateGeocoding.done / templateGeocoding.total) * 100 : 0}%`
+                        }}
+                      />
                     </div>
                   </div>
                 )}
