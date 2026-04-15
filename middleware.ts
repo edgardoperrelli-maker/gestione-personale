@@ -41,7 +41,7 @@ export async function middleware(req: NextRequest) {
   }
 
   // Block password recovery page — all users have fake @local.it emails
-  if (req.nextUrl.pathname.startsWith('/account/password')) {
+  if (req.nextUrl.pathname.startsWith('/account')) {
     const url = req.nextUrl.clone()
     url.pathname = '/hub'
     return NextResponse.redirect(url)

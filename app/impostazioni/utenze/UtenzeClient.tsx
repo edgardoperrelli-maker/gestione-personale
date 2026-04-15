@@ -118,6 +118,9 @@ export default function UtenzeClient() {
   const [deleting, setDeleting] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
+  const [resetId, setResetId] = useState<string | null>(null);
+  const [newPwd, setNewPwd] = useState('');
+  const [resetting, setResetting] = useState(false);
   const [form, setForm] = useState<{
     username: string;
     password: string;
@@ -437,6 +440,25 @@ export default function UtenzeClient() {
                     >
                       {ROLE_LABELS[user.role]}
                     </span>
+                    {resetId === user.userId ? (
+                      <button
+                        type="button"
+                        onClick={() => { setResetId(null); setNewPwd(''); }}
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium"
+                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
+                      >
+                        ← Indietro
+                      </button>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setResetId(user.userId); setNewPwd(''); }}
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-blue-300 hover:text-blue-600"
+                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
+                      >
+                        Reset password
+                      </button>
+                    )}
                     {confirmDelete === user.userId ? (
                       <>
                         <button
@@ -469,6 +491,54 @@ export default function UtenzeClient() {
                     )}
                   </div>
                 </div>
+
+                {resetId === user.userId && (
+                  <div className="mt-3 flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                    <input
+                      type="password"
+                      value={newPwd}
+                      onChange={(e) => setNewPwd(e.target.value)}
+                      placeholder="Nuova password (min. 6 car.)"
+                      className="rounded border border-gray-300 px-2 py-1 text-xs flex-1 max-w-xs"
+                      autoFocus
+                    />
+                    <button
+                      onClick={async () => {
+                        if (newPwd.length < 6) return;
+                        setResetting(true);
+                        try {
+                          const response = await fetch('/api/admin/users', {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ userId: user.userId, password: newPwd }),
+                          });
+                          if (response.ok) {
+                            showFeedback('success', `Password resettata per "${user.username}"`);
+                            setResetId(null);
+                            setNewPwd('');
+                          } else {
+                            const json = await response.json() as { error?: string };
+                            showFeedback('error', json.error ?? 'Errore nel reset password');
+                          }
+                        } catch (err) {
+                          showFeedback('error', err instanceof Error ? err.message : 'Errore');
+                        } finally {
+                          setResetting(false);
+                        }
+                      }}
+                      disabled={resetting || newPwd.length < 6}
+                      className="rounded bg-blue-600 px-3 py-1 text-xs text-white font-medium disabled:opacity-50 transition"
+                    >
+                      {resetting ? '...' : 'Salva'}
+                    </button>
+                    <button
+                      onClick={() => { setResetId(null); setNewPwd(''); }}
+                      className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:bg-white transition"
+                    >
+                      Annulla
+                    </button>
+                  </div>
+                )}
 
                 <div className="mt-4 grid gap-4 lg:grid-cols-3">
                   <div>
