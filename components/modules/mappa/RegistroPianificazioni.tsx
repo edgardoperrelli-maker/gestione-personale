@@ -10,7 +10,7 @@ interface Piano {
   note?: string;
   stato: string;
   created_at: string;
-  mappa_piani_operatori: Array<{
+  operatori: Array<{
     staff_id: string;
     staff_name: string;
   }>;
@@ -131,7 +131,7 @@ export default function RegistroPianificazioni() {
                   </td>
                   <td className="px-4 py-3 text-gray-700">{piano.territorio}</td>
                   <td className="px-4 py-3 text-gray-700">
-                    {piano.mappa_piani_operatori.length}
+                    {piano.operatori.length}
                   </td>
                   <td className="px-4 py-3 truncate text-gray-500">
                     {piano.note ? (

@@ -2,6 +2,7 @@ import 'leaflet/dist/leaflet.css';
 import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import MappaOperatoriClient, {
   type MappaOperatorOption,
   type MappaStaffRow,
@@ -193,48 +194,27 @@ async function MappaPageContent({
   const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
 
   // Fetch saved piano if pianoId is provided
-  let initialPianoId: string | undefined;
-  let initialDistribution: Record<string, any> = {};
+  let initialDistribution: any[] | undefined = undefined;
+  let initialPianoId: string | undefined = undefined;
 
   if (pianoId) {
-    const { data: pianoData } = await supabase
-      .from('mappa_piani')
-      .select(`
-        id,
-        data,
-        territorio,
-        note,
-        mappa_piani_operatori (
-          staff_id,
-          staff_name,
-          colore,
-          km,
-          task_count,
-          start_address,
-          tasks,
-          polyline
-        )
-      `)
-      .eq('id', pianoId)
-      .single();
+    const { data: opRows } = await supabaseAdmin
+      .from('mappa_piani_operatori')
+      .select('staff_id, staff_name, colore, km, task_count, start_address, tasks, polyline')
+      .eq('piano_id', pianoId);
 
-    if (pianoData) {
-      initialPianoId = pianoData.id;
-      // Reconstruct initialDistribution from saved operators
-      const operators = pianoData.mappa_piani_operatori || [];
-      operators.forEach((op: any) => {
-        const key = `${op.staff_id}|${pianoData.territorio}`;
-        initialDistribution[key] = {
-          staff_id: op.staff_id,
-          staff_name: op.staff_name,
-          colore: op.colore,
-          km: op.km,
-          task_count: op.task_count,
-          start_address: op.start_address,
-          tasks: op.tasks,
-          polyline: op.polyline,
-        };
-      });
+    if (opRows && opRows.length > 0) {
+      initialPianoId = pianoId;
+      initialDistribution = opRows.map((op: any) => ({
+        op: (op.staff_name ?? op.staff_id ?? 'Operatore').trim(),
+        staffId: op.staff_id ?? '',
+        color: op.colore ?? '#2563EB',
+        tasks: Array.isArray(op.tasks) ? op.tasks : [],
+        km: Number(op.km ?? 0),
+        polyline: Array.isArray(op.polyline) ? op.polyline : [],
+        base: null,
+        startAddress: op.start_address ?? null,
+      }));
     }
   }
 
@@ -248,7 +228,7 @@ async function MappaPageContent({
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
       initialPianoId={initialPianoId}
-      initialDistribution={Object.keys(initialDistribution).length > 0 ? initialDistribution : undefined}
+      initialDistribution={initialDistribution}
     />
   );
 }

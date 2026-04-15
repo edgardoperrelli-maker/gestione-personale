@@ -1,207 +1,151 @@
+import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { type NextRequest, NextResponse } from 'next/server';
 
-const supabase = createClient(
+const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-interface OperatorRow {
-  staff_id: string;
-  staff_name: string;
-  colore?: string;
-  km?: number;
-  task_count?: number;
-  start_address?: string;
-  tasks?: any;
-  polyline?: any;
-}
+export const runtime = 'nodejs';
 
-interface PianoRequest {
-  data: string;
-  territorio: string;
-  note?: string;
-  operatori: OperatorRow[];
-}
-
-// GET: Fetch saved plans for a date range
-export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const from = searchParams.get('from');
-  const to = searchParams.get('to');
-  const pianoId = searchParams.get('pianoId');
-
+export async function GET(req: Request) {
   try {
-    let query = supabase
+    const { searchParams } = new URL(req.url);
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const now = new Date();
+    const isoFrom = from ?? new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+    const isoTo = to ?? new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000)
+      .toISOString().slice(0, 10);
+
+    const { data: piani, error: ePiani } = await supabaseAdmin
       .from('mappa_piani')
-      .select(`
-        id,
-        data,
-        territorio,
-        note,
-        stato,
-        created_at,
-        mappa_piani_operatori (
-          id,
-          staff_id,
-          staff_name,
-          colore,
-          km,
-          task_count,
-          start_address,
-          tasks,
-          polyline
-        )
-      `);
+      .select('id, data, territorio, note, stato, created_at')
+      .gte('data', isoFrom)
+      .lte('data', isoTo)
+      .order('data', { ascending: false });
 
-    // If pianoId is provided, fetch specific plan
-    if (pianoId) {
-      query = query.eq('id', pianoId);
-    } else {
-      // Otherwise, fetch plans for date range (default: last 30 days)
-      const toDate = to ? new Date(to) : new Date();
-      const fromDate = from ? new Date(from) : new Date(toDate.getTime() - 30 * 24 * 60 * 60 * 1000);
+    if (ePiani) throw new Error(ePiani.message);
+    if (!piani || piani.length === 0) return NextResponse.json([]);
 
-      const fromISO = fromDate.toISOString().split('T')[0];
-      const toISO = toDate.toISOString().split('T')[0];
+    const pianoIds = piani.map((p: any) => p.id);
+    const { data: operatori, error: eOp } = await supabaseAdmin
+      .from('mappa_piani_operatori')
+      .select('piano_id, staff_id, staff_name, colore, km, task_count, start_address')
+      .in('piano_id', pianoIds);
 
-      query = query.gte('data', fromISO).lte('data', toISO);
-    }
+    if (eOp) throw new Error(eOp.message);
 
-    query = query.order('data', { ascending: false });
+    const result = piani.map((p: any) => ({
+      ...p,
+      operatori: (operatori ?? []).filter((o: any) => o.piano_id === p.id),
+    }));
 
-    const { data, error } = await query;
-
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json(data || []);
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    return NextResponse.json(result);
+  } catch (err: any) {
+    console.error('[GET /api/mappa/piani]', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// POST: Save a plan with operators
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const body: PianoRequest = await request.json();
-    const { data, territorio, note, operatori } = body;
+    const body = await req.json();
+    const { data: isoData, territorio, note, stato = 'bozza', operatori } = body;
 
-    if (!data || !territorio || !operatori || operatori.length === 0) {
-      return NextResponse.json(
-        { error: 'Missing required fields: data, territorio, operatori' },
-        { status: 400 }
-      );
+    if (!isoData) {
+      return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
+    }
+    if (!operatori || !Array.isArray(operatori) || operatori.length === 0) {
+      return NextResponse.json({ error: 'Campo operatori obbligatorio' }, { status: 400 });
     }
 
-    // Insert piano (created_by will be set to a default value since we use service role)
-    const { data: pianoData, error: pianoError } = await supabase
+    const { data: piano, error: ePiano } = await supabaseAdmin
       .from('mappa_piani')
-      .insert({
-        data,
-        territorio,
-        note,
-        stato: 'bozza',
-        created_by: '00000000-0000-0000-0000-000000000000', // placeholder UUID for service role
-      })
+      .insert({ data: isoData, territorio: territorio ?? null, note: note ?? null, stato })
       .select('id')
       .single();
 
-    if (pianoError) {
-      return NextResponse.json({ error: pianoError.message }, { status: 500 });
-    }
+    if (ePiano) throw new Error(ePiano.message);
 
-    const pianoId = pianoData.id;
+    const pianoId = piano.id;
 
-    // Batch insert operators
-    const operatoriWithPianoId = operatori.map((op) => ({
+    const opRows = operatori.map((op: any) => ({
       piano_id: pianoId,
-      ...op,
+      staff_id: String(op.staff_id),
+      staff_name: String(op.staff_name),
+      colore: String(op.colore ?? '#2563EB'),
+      km: Number(op.km ?? 0),
+      task_count: Number(op.task_count ?? 0),
+      start_address: op.start_address ?? null,
+      tasks: op.tasks ?? [],
+      polyline: op.polyline ?? [],
     }));
 
-    const { error: operatoriError } = await supabase
+    const { error: eOp } = await supabaseAdmin
       .from('mappa_piani_operatori')
-      .insert(operatoriWithPianoId);
+      .insert(opRows);
 
-    if (operatoriError) {
-      return NextResponse.json({ error: operatoriError.message }, { status: 500 });
-    }
+    if (eOp) throw new Error(eOp.message);
 
-    // Upsert distributions (fire-and-forget)
-    const distributions = operatori.map((op) => ({
-      staff_id: op.staff_id,
-      data,
-      task_count: op.task_count || 0,
+    // Aggiorna contatori nel cronoprogramma
+    const distribuzioniRows = operatori.map((op: any) => ({
+      staff_id: String(op.staff_id),
+      data: isoData,
+      task_count: Number(op.task_count ?? 0),
+      updated_at: new Date().toISOString(),
     }));
 
-    supabase.from('mappa_distribuzioni').upsert(distributions).then().catch();
+    const { error: eDist } = await supabaseAdmin
+      .from('mappa_distribuzioni')
+      .upsert(distribuzioniRows, { onConflict: 'staff_id,data' });
 
-    return NextResponse.json({ id: pianoId, data, territorio, note, operatori }, { status: 201 });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+    if (eDist) console.error('[POST /api/mappa/piani] upsert distribuzioni:', eDist.message);
+
+    return NextResponse.json({ ok: true, id: pianoId });
+  } catch (err: any) {
+    console.error('[POST /api/mappa/piani]', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
 
-// DELETE: Delete a plan and zero out mappa_distribuzioni counters
-export async function DELETE(request: NextRequest) {
+export async function DELETE(req: Request) {
   try {
-    const searchParams = request.nextUrl.searchParams;
-    const pianoId = searchParams.get('id');
+    const { searchParams } = new URL(req.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
 
-    if (!pianoId) {
-      return NextResponse.json({ error: 'Missing pianoId' }, { status: 400 });
-    }
-
-    // 1. Recupera la data del piano
-    const { data: piano, error: pianoFetchError } = await supabase
+    const { data: piano } = await supabaseAdmin
       .from('mappa_piani')
       .select('data')
-      .eq('id', pianoId)
+      .eq('id', id)
       .single();
 
-    if (pianoFetchError || !piano) {
-      return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
-    }
+    if (!piano) return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
 
-    // 2. Recupera gli operatori del piano PRIMA di eliminarlo
-    const { data: operatori } = await supabase
+    const { data: operatori } = await supabaseAdmin
       .from('mappa_piani_operatori')
       .select('staff_id')
-      .eq('piano_id', pianoId);
+      .eq('piano_id', id);
 
-    // 3. Azzera i contatori in mappa_distribuzioni per ogni operatore del piano
-    //    Usa task_count = 0 (non DELETE) così il crono mostra (0) invece di sparire
     if (operatori && operatori.length > 0) {
-      const staffIds = operatori.map((o) => o.staff_id);
-      await supabase
+      await supabaseAdmin
         .from('mappa_distribuzioni')
         .update({ task_count: 0, updated_at: new Date().toISOString() })
-        .in('staff_id', staffIds)
-        .eq('data', piano.data);
+        .in('staff_id', operatori.map((o: any) => o.staff_id))
+        .eq('data', (piano as any).data);
     }
 
-    // 4. Elimina il piano (CASCADE elimina mappa_piani_operatori)
-    const { error } = await supabase
+    const { error } = await supabaseAdmin
       .from('mappa_piani')
       .delete()
-      .eq('id', pianoId);
+      .eq('id', id);
 
-    if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
+    if (error) throw new Error(error.message);
     return NextResponse.json({ ok: true });
-  } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Unknown error' },
-      { status: 500 }
-    );
+  } catch (err: any) {
+    console.error('[DELETE /api/mappa/piani]', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
