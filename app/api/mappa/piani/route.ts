@@ -149,7 +149,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-// DELETE: Delete a plan and cascade delete operators
+// DELETE: Delete a plan and zero out mappa_distribuzioni counters
 export async function DELETE(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams;
@@ -159,6 +159,35 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: 'Missing pianoId' }, { status: 400 });
     }
 
+    // 1. Recupera la data del piano
+    const { data: piano, error: pianoFetchError } = await supabase
+      .from('mappa_piani')
+      .select('data')
+      .eq('id', pianoId)
+      .single();
+
+    if (pianoFetchError || !piano) {
+      return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
+    }
+
+    // 2. Recupera gli operatori del piano PRIMA di eliminarlo
+    const { data: operatori } = await supabase
+      .from('mappa_piani_operatori')
+      .select('staff_id')
+      .eq('piano_id', pianoId);
+
+    // 3. Azzera i contatori in mappa_distribuzioni per ogni operatore del piano
+    //    Usa task_count = 0 (non DELETE) così il crono mostra (0) invece di sparire
+    if (operatori && operatori.length > 0) {
+      const staffIds = operatori.map((o) => o.staff_id);
+      await supabase
+        .from('mappa_distribuzioni')
+        .update({ task_count: 0, updated_at: new Date().toISOString() })
+        .in('staff_id', staffIds)
+        .eq('data', piano.data);
+    }
+
+    // 4. Elimina il piano (CASCADE elimina mappa_piani_operatori)
     const { error } = await supabase
       .from('mappa_piani')
       .delete()
@@ -168,7 +197,7 @@ export async function DELETE(request: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : 'Unknown error' },

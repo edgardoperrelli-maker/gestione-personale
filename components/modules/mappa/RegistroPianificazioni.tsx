@@ -19,7 +19,8 @@ interface Piano {
 export default function RegistroPianificazioni() {
   const [piani, setPiani] = useState<Piano[]>([]);
   const [loading, setLoading] = useState(true);
-  const [deleting, setDeleting] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [confirmId, setConfirmId] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchPiani = async () => {
@@ -57,26 +58,22 @@ export default function RegistroPianificazioni() {
   }, []);
 
   const handleDelete = async (pianoId: string) => {
-    if (!confirm('Elimina questa pianificazione? Questa azione non può essere annullata.')) {
-      return;
-    }
-
-    setDeleting(pianoId);
+    setDeletingId(pianoId);
     try {
       const response = await fetch(`/api/mappa/piani?id=${pianoId}`, {
         method: 'DELETE',
       });
 
       if (response.ok) {
-        setPiani(piani.filter((p) => p.id !== pianoId));
+        setPiani((prev) => prev.filter((p) => p.id !== pianoId));
       } else {
-        alert('Errore durante l\'eliminazione');
+        console.error('Error deleting piano');
       }
     } catch (error) {
       console.error('Error deleting piano:', error);
-      alert('Errore durante l\'eliminazione');
     } finally {
-      setDeleting(null);
+      setDeletingId(null);
+      setConfirmId(null);
     }
   };
 
@@ -93,19 +90,14 @@ export default function RegistroPianificazioni() {
   }
 
   return (
-    <div className="space-y-6 p-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold">Registro Pianificazioni</h1>
-          <p className="mt-1 text-sm text-gray-500">
-            {piani.length} pianificazione{piani.length !== 1 ? 'i' : ''}
-          </p>
-        </div>
+    <div className="space-y-4">
+      <div className="mb-4 flex items-center justify-between">
+        <h2 className="text-base font-semibold">Registro pianificazioni</h2>
         <Link
           href="/hub/mappa?vista=pianifica"
-          className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700"
+          className="rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90"
         >
-          Nuova pianificazione
+          + Nuova pianificazione
         </Link>
       </div>
 
@@ -162,18 +154,37 @@ export default function RegistroPianificazioni() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleReopen(piano.id)}
-                      className="mr-2 rounded border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                      disabled={deleting === piano.id}
+                      className="mr-2 rounded border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      disabled={deletingId === piano.id || confirmId === piano.id}
                     >
                       Riapri
                     </button>
-                    <button
-                      onClick={() => handleDelete(piano.id)}
-                      className="rounded border border-red-300 bg-red-50 px-3 py-1 text-xs font-medium text-red-700 hover:bg-red-100 disabled:opacity-50"
-                      disabled={deleting === piano.id}
-                    >
-                      {deleting === piano.id ? 'Eliminazione...' : 'Elimina'}
-                    </button>
+
+                    {confirmId === piano.id ? (
+                      <div className="inline-flex items-center gap-1">
+                        <span className="text-xs font-medium text-red-600">Elimina?</span>
+                        <button
+                          onClick={() => handleDelete(piano.id)}
+                          disabled={deletingId === piano.id}
+                          className="rounded border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                        >
+                          {deletingId === piano.id ? '...' : 'Sì'}
+                        </button>
+                        <button
+                          onClick={() => setConfirmId(null)}
+                          className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-50"
+                        >
+                          No
+                        </button>
+                      </div>
+                    ) : (
+                      <button
+                        onClick={() => setConfirmId(piano.id)}
+                        className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:border-red-300 hover:text-red-600"
+                      >
+                        Elimina
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
