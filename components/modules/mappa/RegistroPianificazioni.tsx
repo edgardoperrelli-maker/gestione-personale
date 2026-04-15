@@ -10,6 +10,8 @@ interface Piano {
   note?: string;
   stato: string;
   created_at: string;
+  created_by_name: string | null;
+  updated_by_name: string | null;
   operatori: Array<{
     staff_id: string;
     staff_name: string;
@@ -115,6 +117,9 @@ export default function RegistroPianificazioni() {
                 <th className="px-4 py-3 text-left font-semibold text-gray-900">Operatori</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-900">Note</th>
                 <th className="px-4 py-3 text-left font-semibold text-gray-900">Stato</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-900">
+                  Autore
+                </th>
                 <th className="px-4 py-3 text-right font-semibold text-gray-900">Azioni</th>
               </tr>
             </thead>
@@ -150,6 +155,20 @@ export default function RegistroPianificazioni() {
                     >
                       {piano.stato === 'confermato' ? 'Confermato' : 'Bozza'}
                     </span>
+                  </td>
+                  <td className="px-3 py-2 text-sm text-gray-700">
+                    <div className="text-xs">
+                      {piano.updated_by_name
+                        ? (
+                          <span title={`Ultima modifica: ${piano.updated_by_name}`}>
+                            {piano.updated_by_name}
+                          </span>
+                        )
+                        : piano.created_by_name
+                          ? piano.created_by_name
+                          : <span className="opacity-40">—</span>
+                      }
+                    </div>
                   </td>
                   <td className="px-4 py-3 text-right">
                     <button
