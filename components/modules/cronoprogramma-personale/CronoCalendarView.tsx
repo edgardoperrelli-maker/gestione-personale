@@ -41,6 +41,7 @@ export default function CronoCalendarView({
   onEdit,
   onDropAssignment,
   staffCount,
+  taskCountMap,
 }: {
   weeks: Date[][];
   anchor: Date;
@@ -64,6 +65,7 @@ export default function CronoCalendarView({
     copy: boolean;
   }) => void;
   staffCount: number;
+  taskCountMap?: Record<string,number>;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
 
@@ -97,6 +99,7 @@ export default function CronoCalendarView({
               onEdit={onEdit}
               onDropAssignment={onDropAssignment}
               staffCount={staffCount}
+              taskCountMap={taskCountMap}
             />
           ))}
         </div>
@@ -128,6 +131,7 @@ function DayCell(props: {
     copy: boolean;
   }) => void;
   staffCount: number;
+  taskCountMap?: Record<string,number>;
 }) {
   const {
     d,
@@ -143,6 +147,7 @@ function DayCell(props: {
     onEdit,
     onDropAssignment,
     staffCount,
+    taskCountMap,
   } = props;
 
   const iso = fmtDay(d);
@@ -285,7 +290,7 @@ function DayCell(props: {
                             })
                           }
                         >
-                          <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
+                          <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
                         </div>
                       ))}
                     </div>
@@ -307,7 +312,7 @@ function DayCell(props: {
                   })
                 }
               >
-                <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
+                <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
               </div>
             ))
           )
