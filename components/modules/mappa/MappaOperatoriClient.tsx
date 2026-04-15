@@ -749,10 +749,26 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     });
   }, [excelOnlyManualAction, excelTasks]);
 
-  // Merge Excel tasks con appointment tasks per distribuzione
+  // Rileva territorio dalla prima attività Excel
+  const excelTerritory = useMemo(() => {
+    const first = excelTasks.find(t => t.cap && t.cap.trim().length >= 2);
+    return first ? detectTerritory(first.cap) : null;
+  }, [excelTasks]);
+
+  // Filtra appuntamenti per data pianificazione e territorio
+  const filteredAppointmentTasks = useMemo(() => {
+    return (geocodedAppointmentTasks ?? []).filter(t => {
+      if (t.appointmentDate !== planningDate) return false;
+      if (!excelTerritory) return true;
+      if (!t.cap) return false;
+      return detectTerritory(t.cap) === excelTerritory;
+    });
+  }, [geocodedAppointmentTasks, planningDate, excelTerritory]);
+
+  // Merge Excel tasks con appointment tasks filtrati per distribuzione
   const allTasks = useMemo(() => {
-    return [...excelTasks, ...templateTasks, ...(geocodedAppointmentTasks ?? [])];
-  }, [excelTasks, templateTasks, geocodedAppointmentTasks]);
+    return [...excelTasks, ...templateTasks, ...filteredAppointmentTasks];
+  }, [excelTasks, templateTasks, filteredAppointmentTasks]);
 
   const totalQtyRichiesta = selectedOps.reduce((s,o) => s + (o.qty||0), 0);
   const geocodificati = allTasks.filter(t => t.lat != null && t.lng != null).length;
@@ -975,13 +991,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       // Marker Excel singoli (arancione) + Appuntamenti (viola) filtrati per data
       const bounds: Array<[number, number]> = [];
 
-      // Filtra appuntamenti per la data selezionata
-      const appointmentsForDay = (geocodedAppointmentTasks ?? []).filter(
-        (t) => t.appointmentDate === planningDate
-      );
-
-      // Combina task Excel con appuntamenti della data
-      const tasksToShow = [...excelTasks, ...appointmentsForDay];
+      // Combina task Excel con appuntamenti della data (già filtrati)
+      const tasksToShow = [...excelTasks, ...filteredAppointmentTasks];
 
       tasksToShow.forEach((t) => {
         if (t.lat == null || t.lng == null) return;
@@ -1012,7 +1023,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     }
-  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, geocodedAppointmentTasks, planningDate]);
+  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, filteredAppointmentTasks]);
 
   // Polyline percorso supabase / excel singolo
   useEffect(() => {
@@ -1662,9 +1673,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm"
               />
               {(() => {
-                const count = (geocodedAppointmentTasks ?? []).filter(
-                  (t) => t.appointmentDate === planningDate
-                ).length;
+                const count = filteredAppointmentTasks.length;
                 if (count === 0) return null;
                 return (
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
@@ -2432,14 +2441,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 <div className="text-sm text-[var(--brand-text-muted)]">Tutti gli operatori hanno coordinate.</div>
               )}
             </>
-          ) : geocodedAppointmentTasks.filter(t => t.appointmentDate === planningDate).length > 0 ? (
+          ) : filteredAppointmentTasks.length > 0 ? (
             /* ── Lista appuntamenti del giorno ── */
             <div className="space-y-2">
               <div className="mb-3 text-sm font-semibold text-violet-800">
                 Appuntamenti · {planningDate}
               </div>
-              {geocodedAppointmentTasks
-                .filter(t => t.appointmentDate === planningDate)
+              {filteredAppointmentTasks
                 .map(t => (
                   <div
                     key={t.id}
