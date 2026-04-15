@@ -1354,6 +1354,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setShowOpPicker(false);
     setMovingTaskId(null);
 
+    // Fire-and-forget save to Supabase
+    fetch('/api/mappa/distribuzioni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: planningDate,
+        distribuzioni: result.map(d => ({ staff_id: d.staffId, task_count: d.tasks.length }))
+      })
+    }).catch(() => {});
+
     // ── Controlla conflitti residui (task ZTL senza operatori autorizzati) ──
     const conflicts: string[] = [];
     result.forEach(({ op, staffId, tasks }) => {
