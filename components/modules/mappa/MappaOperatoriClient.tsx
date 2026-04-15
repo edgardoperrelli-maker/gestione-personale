@@ -737,6 +737,35 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
   }, [selectedOps]);
 
+  // Filtra operatori per territorio del cronoprogramma
+  const territoryFilteredOperators = useMemo(() => {
+    if (!excelTerritory) return availableOperators;
+
+    // Filtra rows per il giorno di pianificazione
+    const rowsForDay = rows.filter(r => r.day === planningDate);
+
+    // Se non ci sono righe per quel giorno, usa tutte le righe disponibili
+    const rowsToCheck = rowsForDay.length > 0 ? rowsForDay : rows;
+
+    // Staff con territorio matching (confronto case-insensitive sul nome)
+    const staffIdsInTerritory = new Set(
+      rowsToCheck
+        .filter(r => {
+          if (!r.territoryName) return false;
+          const name = r.territoryName.toLowerCase();
+          if (excelTerritory === 'firenze') {
+            return name.includes('firenze') || name.includes('toscana');
+          }
+          // lazio
+          return name.includes('lazio') || name.includes('roma');
+        })
+        .map(r => r.staffId)
+    );
+
+    if (staffIdsInTerritory.size === 0) return availableOperators;
+    return availableOperators.filter(op => staffIdsInTerritory.has(op.id));
+  }, [availableOperators, excelTerritory, rows, planningDate]);
+
   const excelNeedsManualCount = useMemo(() => {
     return excelTasks.filter((task) => task.lat == null || task.lng == null).length;
   }, [excelTasks]);
@@ -1844,20 +1873,27 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 {/* Pannello selezione — inline, nessun absolute */}
                 {showOpPicker && (
                   <div className="mt-2 space-y-2">
-                    {availableOperators.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                        {availableOperators.map((operator) => {
-                          const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
-                          const checked = selIdx !== -1;
-                          return (
-                            <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
-                              <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
-                              <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
-                              {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
-                            </label>
-                          );
-                        })}
-                      </div>
+                    {territoryFilteredOperators.length > 0 ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {territoryFilteredOperators.map((operator) => {
+                            const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
+                            const checked = selIdx !== -1;
+                            return (
+                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
+                                <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
+                                <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
+                                {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {excelTerritory !== null && territoryFilteredOperators.length < availableOperators.length && (
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Filtro territorio attivo · {territoryFilteredOperators.length} operatori su {availableOperators.length}
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <p className="text-xs text-gray-400">Nessun operatore valido nel cronoprogramma per questo periodo.</p>
                     )}
