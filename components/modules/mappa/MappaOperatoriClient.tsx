@@ -663,6 +663,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Geocoded appointment tasks
   const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>(appointmentTasks);
 
+  // Template file states
+  const [templateTasks, setTemplateTasks] = useState<Task[]>([]);
+  const [templateGeocoding, setTemplateGeocoding] = useState<{done:number;total:number}|null>(null);
+  const fileTemplateInputRef = useRef<HTMLInputElement|null>(null);
+
   useEffect(() => {
     console.log('[geocoding] useEffect fired, tasks:', appointmentTasks.length);
     let alive = true;
@@ -746,8 +751,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Merge Excel tasks con appointment tasks per distribuzione
   const allTasks = useMemo(() => {
-    return [...excelTasks, ...(geocodedAppointmentTasks ?? [])];
-  }, [excelTasks, geocodedAppointmentTasks]);
+    return [...excelTasks, ...templateTasks, ...(geocodedAppointmentTasks ?? [])];
+  }, [excelTasks, templateTasks, geocodedAppointmentTasks]);
+
+  const totalQtyRichiesta = selectedOps.reduce((s,o) => s + (o.qty||0), 0);
+  const geocodificati = allTasks.filter(t => t.lat != null && t.lng != null).length;
+  const needsSaturazione = totalQtyRichiesta > 0 && geocodificati < totalQtyRichiesta && !!distribution;
 
   // Route supabase
   const computedRoute = useMemo<RouteResult | null>(() => {
