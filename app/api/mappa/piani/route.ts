@@ -98,13 +98,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Get current user
-    const authHeader = request.headers.get('Authorization');
-    if (!authHeader) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Insert piano
+    // Insert piano (created_by will be set to a default value since we use service role)
     const { data: pianoData, error: pianoError } = await supabase
       .from('mappa_piani')
       .insert({
@@ -112,7 +106,7 @@ export async function POST(request: NextRequest) {
         territorio,
         note,
         stato: 'bozza',
-        created_by: authHeader.split('Bearer ')[1]?.split('.')[0] || 'unknown',
+        created_by: '00000000-0000-0000-0000-000000000000', // placeholder UUID for service role
       })
       .select('id')
       .single();
