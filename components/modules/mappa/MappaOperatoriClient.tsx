@@ -668,6 +668,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [templateGeocoding, setTemplateGeocoding] = useState<{done:number;total:number}|null>(null);
   const fileTemplateInputRef = useRef<HTMLInputElement|null>(null);
 
+  // Distribution save states
+  const [savingDistribution, setSavingDistribution] = useState(false);
+  const [savedDistribution, setSavedDistribution] = useState(false);
+
   useEffect(() => {
     console.log('[geocoding] useEffect fired, tasks:', appointmentTasks.length);
     let alive = true;
@@ -1303,6 +1307,34 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const changeOpQty = useCallback((id: string, qty: number) => {
     setSelectedOps((prev) => prev.map((o) => o.id === id ? { ...o, qty } : o));
   }, []);
+
+  // Salva distribuzione su Supabase
+  const saveDistribution = useCallback(async () => {
+    if (!distribution) return;
+    setSavingDistribution(true);
+    setSavedDistribution(false);
+    try {
+      const res = await fetch('/api/mappa/distribuzioni', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: planningDate,
+          distribuzioni: distribution.map(d => ({
+            staff_id: d.staffId,
+            task_count: d.tasks.length,
+          })),
+        }),
+      });
+      if (res.ok) setSavedDistribution(true);
+    } finally {
+      setSavingDistribution(false);
+    }
+  }, [distribution, planningDate]);
+
+  // Resetta savedDistribution quando distribution cambia
+  useEffect(() => {
+    setSavedDistribution(false);
+  }, [distribution]);
 
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
   const distributeToOps = useCallback(() => {
@@ -1950,6 +1982,22 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           </button>
                           <button type="button" onClick={() => { setDistribution(null); setUnassignedTasks([]); setZtlConflicts([]); }} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
                             Azzera
+                          </button>
+                          <button
+                            type="button"
+                            onClick={saveDistribution}
+                            disabled={savingDistribution}
+                            className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                              savedDistribution
+                                ? 'bg-green-100 text-green-700 border border-green-300'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            } disabled:opacity-50`}
+                          >
+                            {savingDistribution
+                              ? 'Salvataggio...'
+                              : savedDistribution
+                                ? '✓ Salvata'
+                                : 'Salva distribuzione'}
                           </button>
                         </>
                       )}
