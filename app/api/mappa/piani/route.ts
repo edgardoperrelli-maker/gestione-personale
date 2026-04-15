@@ -1,5 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
+import { cookies } from 'next/headers';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -21,7 +23,7 @@ export async function GET(req: Request) {
 
     const { data: piani, error: ePiani } = await supabaseAdmin
       .from('mappa_piani')
-      .select('id, data, territorio, note, stato, created_at')
+      .select('id, data, territorio, note, stato, created_at, created_by, updated_by')
       .gte('data', isoFrom)
       .lte('data', isoTo)
       .order('data', { ascending: false });
@@ -37,9 +39,29 @@ export async function GET(req: Request) {
 
     if (eOp) throw new Error(eOp.message);
 
+    // Raccogli tutti gli uuid autori (created_by e updated_by)
+    const userIds = [
+      ...new Set(
+        piani.flatMap((p: any) => [p.created_by, p.updated_by].filter(Boolean))
+      )
+    ];
+
+    let profileMap: Record<string, string> = {};
+    if (userIds.length > 0) {
+      const { data: profiles } = await supabaseAdmin
+        .from('profiles')
+        .select('id, display_name')
+        .in('id', userIds);
+      (profiles ?? []).forEach((p: any) => {
+        profileMap[p.id] = p.display_name ?? p.id;
+      });
+    }
+
     const result = piani.map((p: any) => ({
       ...p,
       operatori: (operatori ?? []).filter((o: any) => o.piano_id === p.id),
+      created_by_name: p.created_by ? (profileMap[p.created_by] ?? 'Sconosciuto') : null,
+      updated_by_name: p.updated_by ? (profileMap[p.updated_by] ?? 'Sconosciuto') : null,
     }));
 
     return NextResponse.json(result);
@@ -61,9 +83,21 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Campo operatori obbligatorio' }, { status: 400 });
     }
 
+    // Recupera l'utente autenticato
+    const supabaseBrowser = createRouteHandlerClient({ cookies });
+    const { data: { user } } = await supabaseBrowser.auth.getUser();
+    const userId = user?.id ?? null;
+
     const { data: piano, error: ePiano } = await supabaseAdmin
       .from('mappa_piani')
-      .insert({ data: isoData, territorio: territorio ?? null, note: note ?? null, stato })
+      .insert({
+        data: isoData,
+        territorio: territorio ?? null,
+        note: note ?? null,
+        stato,
+        created_by: userId,
+        updated_by: userId,
+      })
       .select('id')
       .single();
 
