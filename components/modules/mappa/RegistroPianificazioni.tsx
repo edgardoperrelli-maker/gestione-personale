@@ -25,10 +25,29 @@ export default function RegistroPianificazioni() {
     const fetchPiani = async () => {
       try {
         const response = await fetch('/api/mappa/piani');
+
+        if (!response.ok) {
+          console.error('API error:', response.status, response.statusText);
+          setPiani([]);
+          setLoading(false);
+          return;
+        }
+
         const data = await response.json();
-        setPiani(data);
+
+        // Assicurati che data sia un array
+        if (Array.isArray(data)) {
+          setPiani(data);
+        } else if (data?.error) {
+          console.error('API error:', data.error);
+          setPiani([]);
+        } else {
+          console.error('Expected array, got:', typeof data, data);
+          setPiani([]);
+        }
       } catch (error) {
         console.error('Error fetching piani:', error);
+        setPiani([]);
       } finally {
         setLoading(false);
       }
