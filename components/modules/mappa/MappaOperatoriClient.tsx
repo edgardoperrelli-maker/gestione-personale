@@ -737,6 +737,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
   }, [selectedOps]);
 
+  // Rileva territorio dalla prima attività Excel
+  const excelTerritory = useMemo(() => {
+    const first = excelTasks.find(t => t.cap && t.cap.trim().length >= 2);
+    return first ? detectTerritory(first.cap) : null;
+  }, [excelTasks]);
+
   // Filtra operatori per territorio del cronoprogramma
   const territoryFilteredOperators = useMemo(() => {
     if (!excelTerritory) return availableOperators;
@@ -777,12 +783,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       return true;
     });
   }, [excelOnlyManualAction, excelTasks]);
-
-  // Rileva territorio dalla prima attività Excel
-  const excelTerritory = useMemo(() => {
-    const first = excelTasks.find(t => t.cap && t.cap.trim().length >= 2);
-    return first ? detectTerritory(first.cap) : null;
-  }, [excelTasks]);
 
   // Filtra appuntamenti per data pianificazione e territorio
   const filteredAppointmentTasks = useMemo(() => {
