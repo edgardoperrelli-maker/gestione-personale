@@ -1,7 +1,7 @@
 'use client';
 
 import type * as Leaflet from 'leaflet';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
@@ -63,7 +63,8 @@ type Props = {
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
   allegato10ActiveCodes?: string[];
-  appointmentTasks?: Task[];
+  initialPianoId?: string;
+  initialDistribution?: DistEntry[];
 };
 
 type DistEntry = {
@@ -618,7 +619,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], appointmentTasks = [] }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -651,24 +652,121 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Distribuzione operatori
   const [showOpPicker, setShowOpPicker] = useState(false);
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
-  const [distribution, setDistribution] = useState<DistEntry[] | null>(null);
+  const [distribution, setDistribution] = useState<DistEntry[] | null>(
+    initialDistribution ?? null
+  );
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [planningDate, setPlanningDate] = useState<string>(isoTomorrow());
+  const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
+  const [currentPianoId, setCurrentPianoId] = useState<string | undefined>(initialPianoId);
+
+  // Modalità modifica: quando si riapre un piano salvato
+  const isEditMode = !!initialPianoId;
 
   // ZTL conflicts
   const [ztlConflicts, setZtlConflicts] = useState<string[]>([]);
 
   // Geocoded appointment tasks
-  const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>(appointmentTasks);
+  const [geocodedAppointmentTasks, setGeocodedAppointmentTasks] = useState<Task[]>([]);
+  const [loadingAppointments, setLoadingAppointments] = useState(false);
 
+  // Template file states
+  const [templateTasks, setTemplateTasks] = useState<Task[]>([]);
+  const [templateGeocoding, setTemplateGeocoding] = useState<{done:number;total:number}|null>(null);
+  const fileTemplateInputRef = useRef<HTMLInputElement|null>(null);
+
+  // Appointments fetch controller
+  const appointmentFetchRef = useRef<AbortController | null>(null);
+
+  // Distribution save states
+  const [savingDistribution, setSavingDistribution] = useState(false);
+  const [savedDistribution, setSavedDistribution] = useState(false);
+
+  // Inizializza modalità quando piano è riaperto dal registro
   useEffect(() => {
-    console.log('[geocoding] useEffect fired, tasks:', appointmentTasks.length);
+    if (!initialDistribution || initialDistribution.length === 0) return;
+
+    // Ricostruisci selectedOps da initialDistribution
+    const ops: OpConfig[] = initialDistribution
+      .filter((d) => d.op && d.staffId) // Filtra operatori malformati
+      .map((d) => ({
+        id: d.staffId,
+        name: d.op,          // DistEntry usa 'op', OpConfig usa 'name'
+        qty: d.tasks.length, // imposta qty uguale ai task assegnati
+        base: d.base,
+        startAddress: d.startAddress,
+      }));
+
+    setSelectedOps(ops);
+    setExcelMode(true);
+    setActiveOpIdx(0);
+    setSavedDistribution(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Carica appuntamenti lazy quando planningDate cambia
+  useEffect(() => {
+    // Cancel previous fetch if still in progress
+    if (appointmentFetchRef.current) {
+      appointmentFetchRef.current.abort();
+    }
+
+    // Create new AbortController for this fetch
+    const controller = new AbortController();
+    appointmentFetchRef.current = controller;
+
+    setLoadingAppointments(true);
+
+    fetch(`/api/appointments/mappa?date=${planningDate}`, {
+      signal: controller.signal,
+    })
+      .then((r) => r.json())
+      .then((rows: any[]) => {
+        // Only update state if this fetch wasn't cancelled
+        if (controller.signal.aborted) return;
+        const appointmentTasks: Task[] = (rows ?? []).map((a) => ({
+          id: `apt-${a.id}`,
+          odl: '',
+          indirizzo: a.indirizzo ?? '',
+          cap: a.cap ?? '',
+          citta: a.citta ?? '',
+          priorita: 0,
+          fascia_oraria: a.fascia_oraria ?? '',
+          lat: a.lat ?? undefined,
+          lng: a.lng ?? undefined,
+          nominativo: a.nome_cognome ?? undefined,
+          isAppointment: true,
+          appointmentId: a.id,
+          pdr: a.pdr,
+          appointmentDate: a.data,
+        }));
+        setGeocodedAppointmentTasks(appointmentTasks);
+      })
+      .catch((err: any) => {
+        // Ignore AbortError (fetch was cancelled)
+        if (err.name === 'AbortError') return;
+        if (controller.signal.aborted) return;
+        setGeocodedAppointmentTasks([]);
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) {
+          setLoadingAppointments(false);
+        }
+      });
+
+    return () => {
+      controller.abort();
+    };
+  }, [planningDate]);
+
+  // Geocodifica appuntamenti appena caricati
+  useEffect(() => {
+    console.log('[geocoding] useEffect fired, tasks:', geocodedAppointmentTasks.length);
     let alive = true;
-    setGeocodedAppointmentTasks(appointmentTasks); // reset immediato
+
     (async () => {
-      const updated = [...appointmentTasks];
+      const updated = [...geocodedAppointmentTasks];
       for (let i = 0; i < updated.length; i++) {
         const task = updated[i];
         if (task.lat != null && task.lng != null) continue;
@@ -683,7 +781,48 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       console.log('[geocoding] Final state:', updated);
     })();
     return () => { alive = false; };
-  }, [appointmentTasks]);
+  }, [geocodedAppointmentTasks.length > 0 ? geocodedAppointmentTasks[0]?.id : null]);
+
+  // Inizializza da piano salvato se pianoId è fornito
+  useEffect(() => {
+    if (!initialDistribution || initialDistribution.length === 0) return;
+
+    // 1. Raccogli tutti i task da tutti gli operatori (de-duplica per id)
+    const allRestoredTasks: Task[] = [];
+    const seenIds = new Set<string>();
+    for (const d of initialDistribution) {
+      for (const t of (d.tasks ?? [])) {
+        if (!seenIds.has(t.id)) {
+          seenIds.add(t.id);
+          allRestoredTasks.push(t);
+        }
+      }
+    }
+
+    // 2. Ripopola excelTasks — i task hanno già lat/lng salvati
+    setExcelTasks(allRestoredTasks);
+
+    // 3. Imposta il geocoding progress come completato
+    if (allRestoredTasks.length > 0) {
+      setGeocodingProgress({ done: allRestoredTasks.length, total: allRestoredTasks.length });
+    }
+
+    // 4. Ricostruisci selectedOps da initialDistribution
+    const ops: OpConfig[] = initialDistribution.map((d) => ({
+      id: d.staffId,
+      name: d.op ?? d.staffId ?? 'Operatore',
+      qty: d.tasks?.length ?? 0,
+      base: d.base ?? null,
+      startAddress: d.startAddress ?? null,
+    }));
+    setSelectedOps(ops);
+
+    // 5. Imposta la distribuzione e la modalità corretta
+    setDistribution(initialDistribution);
+    setExcelMode(true);
+    setActiveOpIdx(0);
+    setSavedDistribution(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Computed ──────────────────────────────────────────────────────────────
 
@@ -726,11 +865,46 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const excelOperators = useMemo(() => {
     const names = new Set<string>();
     selectedOps.forEach((op) => {
-      const name = op.name.trim();
+      const name = op.name?.trim();
       if (name) names.add(name);
     });
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
   }, [selectedOps]);
+
+  // Rileva territorio dalla prima attività Excel
+  const excelTerritory = useMemo(() => {
+    const first = excelTasks.find(t => t.cap && t.cap.trim().length >= 2);
+    return first ? detectTerritory(first.cap) : null;
+  }, [excelTasks]);
+
+  // Filtra operatori per territorio del cronoprogramma
+  const territoryFilteredOperators = useMemo(() => {
+    if (!excelTerritory) return availableOperators;
+
+    // Filtra rows per il giorno di pianificazione
+    const rowsForDay = rows.filter(r => r.day === planningDate);
+
+    // Se non ci sono righe per quel giorno, usa tutte le righe disponibili
+    const rowsToCheck = rowsForDay.length > 0 ? rowsForDay : rows;
+
+    // Staff con territorio matching (confronto case-insensitive sul nome)
+    const staffIdsInTerritory = new Set(
+      rowsToCheck
+        .filter(r => {
+          if (!r.territoryName) return false;
+          const name = r.territoryName.toLowerCase();
+          if (excelTerritory === 'firenze') {
+            return name.includes('firenze') || name.includes('toscana');
+          }
+          // lazio
+          return name.includes('lazio') || name.includes('roma');
+        })
+        .map(r => r.staffId)
+    );
+
+    if (staffIdsInTerritory.size === 0) return availableOperators;
+    return availableOperators.filter(op => staffIdsInTerritory.has(op.id));
+  }, [availableOperators, excelTerritory, rows, planningDate]);
 
   const excelNeedsManualCount = useMemo(() => {
     return excelTasks.filter((task) => task.lat == null || task.lng == null).length;
@@ -744,10 +918,24 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     });
   }, [excelOnlyManualAction, excelTasks]);
 
-  // Merge Excel tasks con appointment tasks per distribuzione
+  // Filtra appuntamenti per data pianificazione e territorio
+  const filteredAppointmentTasks = useMemo(() => {
+    return (geocodedAppointmentTasks ?? []).filter(t => {
+      if (t.appointmentDate !== planningDate) return false;
+      if (!excelTerritory) return true;
+      if (!t.cap) return false;
+      return detectTerritory(t.cap) === excelTerritory;
+    });
+  }, [geocodedAppointmentTasks, planningDate, excelTerritory]);
+
+  // Merge Excel tasks con appointment tasks filtrati per distribuzione
   const allTasks = useMemo(() => {
-    return [...excelTasks, ...(geocodedAppointmentTasks ?? [])];
-  }, [excelTasks, geocodedAppointmentTasks]);
+    return [...excelTasks, ...templateTasks, ...filteredAppointmentTasks];
+  }, [excelTasks, templateTasks, filteredAppointmentTasks]);
+
+  const totalQtyRichiesta = selectedOps.reduce((s,o) => s + (o.qty||0), 0);
+  const geocodificati = allTasks.filter(t => t.lat != null && t.lng != null).length;
+  const needsSaturazione = totalQtyRichiesta > 0 && geocodificati < totalQtyRichiesta && !!distribution;
 
   // Route supabase
   const computedRoute = useMemo<RouteResult | null>(() => {
@@ -966,13 +1154,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       // Marker Excel singoli (arancione) + Appuntamenti (viola) filtrati per data
       const bounds: Array<[number, number]> = [];
 
-      // Filtra appuntamenti per la data selezionata
-      const appointmentsForDay = (geocodedAppointmentTasks ?? []).filter(
-        (t) => t.appointmentDate === planningDate
-      );
-
-      // Combina task Excel con appuntamenti della data
-      const tasksToShow = [...excelTasks, ...appointmentsForDay];
+      // Combina task Excel con appuntamenti della data (già filtrati)
+      const tasksToShow = [...excelTasks, ...filteredAppointmentTasks];
 
       tasksToShow.forEach((t) => {
         if (t.lat == null || t.lng == null) return;
@@ -1003,7 +1186,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     });
       if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     }
-  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, geocodedAppointmentTasks, planningDate]);
+  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, filteredAppointmentTasks]);
 
   // Polyline percorso supabase / excel singolo
   useEffect(() => {
@@ -1104,6 +1287,74 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setZtlConflicts([]);
   }, []);
 
+  const handleTemplateFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    try {
+      setTemplateGeocoding({ done: 0, total: 0 });
+      const data = await file.arrayBuffer();
+      const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
+      const sheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet);
+
+      const tasks: Task[] = rows.map((row: any, idx) => ({
+        id: `template-${Date.now()}-${idx}`,
+        indirizzo: row.indirizzo || '',
+        cap: row.cap || '',
+        citta: row.citta || '',
+        odl: row.odl || '',
+        priorita: row.priorita || '',
+        fascia_oraria: row.fascia_oraria || '',
+      }));
+
+      setTemplateGeocoding({ done: 0, total: tasks.length });
+      const geocoded: Task[] = [];
+
+      for (let i = 0; i < tasks.length; i++) {
+        const task = tasks[i];
+        try {
+          const response = await fetch(
+            `https://nominatim.openstreetmap.org/search?` +
+            `street=${encodeURIComponent(task.indirizzo)}&` +
+            `postalcode=${encodeURIComponent(task.cap)}&` +
+            `city=${encodeURIComponent(task.citta)}&` +
+            `format=json&limit=1`
+          );
+          const results = await response.json();
+          if (results.length > 0) {
+            geocoded.push({
+              ...task,
+              lat: parseFloat(results[0].lat),
+              lng: parseFloat(results[0].lon),
+            });
+          } else {
+            geocoded.push(task);
+          }
+        } catch (error) {
+          console.error(`Geocoding error for task ${i}:`, error);
+          geocoded.push(task);
+        }
+        setTemplateGeocoding({ done: i + 1, total: tasks.length });
+        await new Promise(r => setTimeout(r, 100));
+      }
+
+      setTemplateTasks(geocoded);
+      setTemplateGeocoding(null);
+
+      if (distribution) {
+        distributeToOps();
+      }
+    } catch (error) {
+      console.error('Error processing template file:', error);
+      setTemplateGeocoding(null);
+    }
+
+    if (fileTemplateInputRef.current) {
+      fileTemplateInputRef.current.value = '';
+    }
+  }, []);
+
   // Apre il form di modifica per un task
   const openEdit = useCallback((task: Task) => {
     setSelectedExcelTaskId(task.id);
@@ -1190,9 +1441,64 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSelectedOps((prev) => prev.map((o) => o.id === id ? { ...o, qty } : o));
   }, []);
 
+  // Salva distribuzione su Supabase
+  const saveDistribution = useCallback(async () => {
+    if (!distribution || !selectedOps.length) return;
+    setSavingDistribution(true);
+    setSavedDistribution(false);
+    try {
+      const operatori = selectedOps.map((op, idx) => {
+        const dist = distribution[idx];
+        return {
+          staff_id: dist.staffId,
+          staff_name: op.name,
+          colore: dist.color,
+          km: dist.km,
+          task_count: dist.tasks.length,
+          start_address: dist.startAddress || null,
+          tasks: dist.tasks,
+          polyline: dist.polyline,
+        };
+      });
+
+      const res = await fetch('/api/mappa/piani', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          data: planningDate,
+          territorio: excelTerritory || 'Generale',
+          note: '',
+          stato: 'confermato',
+          operatori,
+        }),
+      });
+
+      if (res.ok) {
+        const json = await res.json();
+        setSavedDistribution(true);
+        if (json.id) {
+          setCurrentPianoId(json.id);
+          window.history.replaceState(
+            {},
+            '',
+            `/hub/mappa?vista=pianifica&pianoId=${json.id}`
+          );
+        }
+      }
+    } finally {
+      setSavingDistribution(false);
+    }
+  }, [distribution, planningDate, selectedOps]);
+
+  // Resetta savedDistribution quando distribution cambia
+  useEffect(() => {
+    setSavedDistribution(false);
+  }, [distribution]);
+
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
   const distributeToOps = useCallback(() => {
     if (!selectedOps.length) return;
+
     const seenPdr = new Set<string>();
     const geocoded = allTasks
       .filter((t) => t.lat != null && t.lng != null)
@@ -1202,17 +1508,65 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         seenPdr.add(t.pdr);
         return true;
       });
+
     if (!geocoded.length) return;
 
-    const { groups, unassigned } = capacityDistributeWithUnassigned(geocoded, selectedOps);
+    // ── Fase 1: pre-assegna i task ZTL agli operatori autorizzati più vicini ──
+    // Mappa opIdx → task pre-assegnati
+    const preAssigned: Map<number, Task[]> = new Map(
+      selectedOps.map((_, i) => [i, []])
+    );
+    const ztlAssignedIds = new Set<string>();
+
+    for (const task of geocoded) {
+      const ztl = getTaskZtl(task.cap, ztlZones);
+      if (!ztl) continue; // task non ZTL — gestito dall'algoritmo normale
+
+      // Trova gli operatori autorizzati presenti in selectedOps
+      const authorizedIdxs = selectedOps
+        .map((op, i) => ({ i, op }))
+        .filter(({ op }) => ztl.authorized_staff_ids.includes(op.id));
+
+      if (!authorizedIdxs.length) {
+        // Nessun operatore autorizzato disponibile — lascia all'algoritmo normale
+        continue;
+      }
+
+      // Scegli il più vicino al task tra gli autorizzati
+      const nearest = authorizedIdxs.reduce((best, curr) => {
+        const currBase = selectedOps[curr.i].base;
+        const bestBase = selectedOps[best.i].base;
+        if (!currBase) return best;
+        if (!bestBase) return curr;
+        const dCurr = distanceMeters({ lat: task.lat!, lng: task.lng! }, currBase);
+        const dBest = distanceMeters({ lat: task.lat!, lng: task.lng! }, bestBase);
+        return dCurr < dBest ? curr : best;
+      });
+
+      preAssigned.get(nearest.i)!.push(task);
+      ztlAssignedIds.add(task.id);
+    }
+
+    // ── Fase 2: distribuisci i task non-ZTL con l'algoritmo normale ──
+    const nonZtlTasks = geocoded.filter((t) => !ztlAssignedIds.has(t.id));
+
+    // Calcola le quantità rimanenti per ogni operatore (qty - pre-assegnati ZTL)
+    const adjustedOps: OpConfig[] = selectedOps.map((op, i) => ({
+      ...op,
+      qty: Math.max(0, op.qty - (preAssigned.get(i)?.length ?? 0)),
+    }));
+
+    const { groups, unassigned } = capacityDistributeWithUnassigned(nonZtlTasks, adjustedOps);
+
+    // ── Fase 3: unisci pre-assegnati ZTL con distribuzione normale ──
     const result: DistEntry[] = selectedOps.map((op, i) => {
-      const grp = groups[i] ?? [];
+      const grp = [...(preAssigned.get(i) ?? []), ...(groups[i] ?? [])];
       const routeRes =
         grp.length >= 1
           ? optimizeRouteByFascia(grp, op.base ?? undefined)
           : { orderedTasks: grp, totalDistanceKm: 0, polyline: [] };
       return {
-        op: op.name,
+        op: op.name ?? op.id ?? 'Operatore',
         staffId: op.id,
         color: OP_COLORS[i % OP_COLORS.length],
         tasks: routeRes.orderedTasks,
@@ -1222,6 +1576,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         startAddress: op.startAddress,
       };
     });
+
     setDistribution(result);
     setUnassignedTasks(unassigned);
     setActiveOpIdx(0);
@@ -1230,15 +1585,24 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setShowOpPicker(false);
     setMovingTaskId(null);
 
-    // ── Controlla conflitti ZTL ─────────────────────────────────────────────
+    // Fire-and-forget save to Supabase
+    fetch('/api/mappa/distribuzioni', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        data: planningDate,
+        distribuzioni: result.map(d => ({ staff_id: d.staffId, task_count: d.tasks.length }))
+      })
+    }).catch(() => {});
+
+    // ── Controlla conflitti residui (task ZTL senza operatori autorizzati) ──
     const conflicts: string[] = [];
     result.forEach(({ op, staffId, tasks }) => {
       tasks.forEach((t) => {
         const ztl = getTaskZtl(t.cap, ztlZones);
         if (!ztl) return;
-        const authorized = ztl.authorized_staff_ids.includes(staffId);
-        if (!authorized) {
-          conflicts.push(`"${op}" non ha il permesso ZTL per ${ztl.name} (${t.indirizzo})`);
+        if (!ztl.authorized_staff_ids.includes(staffId)) {
+          conflicts.push(`"${op ?? 'Operatore'}" non ha il permesso ZTL per ${ztl.name} (${t.indirizzo})`);
         }
       });
     });
@@ -1312,13 +1676,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const dateStr = isoToDisplay(planningDate);
 
       // 2. Un foglio per operatore (clonato dal template)
-      for (const { op, tasks } of distribution) {
-        const sheetName = sanitizeSheetName(op).slice(0, 31);
+      for (const { op, tasks, staffId } of distribution) {
+        const opName = op ?? staffId ?? 'Operatore';
+        const sheetName = sanitizeSheetName(opName).slice(0, 31);
         const ws = cloneFromTemplate(base, sheetName, tplWb);
 
         // Intestazioni header template (B2 = data, B4 = operatore)
         ws.getCell('B2').value = dateStr;
-        ws.getCell('B4').value = op;
+        ws.getCell('B4').value = opName;
 
         // Riga 6 — intestazioni colonne (16 colonne):
         // A=NOMINATIVO, B=MATRICOLA, C=PDR, D=VIA, E=COMUNE, F=CAP,
@@ -1423,13 +1788,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         needsFirenze ? getFirenzeTemplate() : Promise.resolve(null),
       ]);
 
-      for (const { op, tasks } of distribution) {
+      for (const { op, tasks, staffId } of distribution) {
+        const opName = op ?? staffId ?? 'Operatore';
         const filled: Record<'lazio' | 'firenze', string[]> = { lazio: [], firenze: [] };
 
         for (let idx = 0; idx < tasks.length; idx++) {
           const t = tasks[idx];
           try {
-            const fields    = buildAllegato10FieldsFromTask(t, op, dateStr);
+            const fields    = buildAllegato10FieldsFromTask(t, opName, dateStr);
             const codiceTask = (t.codice || t.attivita || '').trim();
             const shouldGenerate = allegato10ActiveCodes.length === 0 ||
               allegato10ActiveCodes.some(c => codiceTask.toUpperCase().startsWith(c.toUpperCase()));
@@ -1442,18 +1808,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 filled.firenze.push(fillFirenzeXml(firenzeTpl.xml, fields));
             }
           } catch (err) {
-            allegato10Errors.push(`${op} task ${idx + 1}: ${err instanceof Error ? err.message : String(err)}`);
+            allegato10Errors.push(`${opName} task ${idx + 1}: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
 
-        const safeOp = op.replace(/[^\w\s]/g,'').replace(/\s+/g,'_').slice(0,30);
+        const safeOp = opName.replace(/[^\w\s]/g,'').replace(/\s+/g,'_').slice(0,30);
 
         if (filled.lazio.length > 0 && lazioTpl) {
           try {
             outputZip.file(`allegato10/${safeOp}_Allegato10_LAZIO.docx`,
               await buildCombinedDocx(filled.lazio, lazioTpl));
           } catch (err) {
-            allegato10Errors.push(`${op} merge Lazio: ${err instanceof Error ? err.message : String(err)}`);
+            allegato10Errors.push(`${opName} merge Lazio: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
         if (filled.firenze.length > 0 && firenzeTpl) {
@@ -1461,7 +1827,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             outputZip.file(`allegato10/${safeOp}_Allegato10_FIRENZE.docx`,
               await buildCombinedDocx(filled.firenze, firenzeTpl));
           } catch (err) {
-            allegato10Errors.push(`${op} merge Firenze: ${err instanceof Error ? err.message : String(err)}`);
+            allegato10Errors.push(`${opName} merge Firenze: ${err instanceof Error ? err.message : String(err)}`);
           }
         }
       }
@@ -1519,19 +1885,26 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <input
                 type="date"
                 value={planningDate}
+                disabled={isEditMode}
                 onChange={(e) => {
+                  if (isEditMode) return;
                   if (e.target.value) {
                     setPlanningDate(e.target.value);
                     setSelectedOps([]);
                     setDistribution(null);
                   }
                 }}
-                className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm"
+                className={`rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm ${
+                  isEditMode ? 'opacity-50 cursor-not-allowed' : ''
+                }`}
               />
+              {isEditMode && (
+                <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                  Pianificazione in modifica
+                </span>
+              )}
               {(() => {
-                const count = (geocodedAppointmentTasks ?? []).filter(
-                  (t) => t.appointmentDate === planningDate
-                ).length;
+                const count = filteredAppointmentTasks.length;
                 if (count === 0) return null;
                 return (
                   <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
@@ -1544,45 +1917,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {!excelMode && (
-              <>
-                <select
-                  value={territoryFilter}
-                  onChange={(e) => setTerritoryFilter(e.target.value)}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm"
-                >
-                  <option value="">Tutti i territori</option>
-                  {territories.map((t) => (
-                    <option key={t.id} value={t.id}>{t.name}</option>
-                  ))}
-                </select>
-
-                <select
-                  value={dayFilter}
-                  onChange={(e) => setDayFilter(e.target.value)}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm"
-                >
-                  <option value="">Tutti i giorni</option>
-                  {dayOptions.map((d) => (
-                    <option key={d} value={d}>{d}</option>
-                  ))}
-                </select>
-
-                <label className="inline-flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={onlyRep} onChange={(e) => setOnlyRep(e.target.checked)} />
-                  Solo reperibili
-                </label>
-
-                <button
-                  type="button"
-                  onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm"
-                >
-                  Azzera
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
+                className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm"
+              >
+                Azzera
+              </button>
             )}
 
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
+            <input ref={fileTemplateInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleTemplateFileChange} />
 
             {!excelMode && (
               <button
@@ -1701,20 +2046,27 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 {/* Pannello selezione — inline, nessun absolute */}
                 {showOpPicker && (
                   <div className="mt-2 space-y-2">
-                    {availableOperators.length > 0 ? (
-                      <div className="grid grid-cols-2 gap-x-3 gap-y-1">
-                        {availableOperators.map((operator) => {
-                          const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
-                          const checked = selIdx !== -1;
-                          return (
-                            <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
-                              <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
-                              <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
-                              {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
-                            </label>
-                          );
-                        })}
-                      </div>
+                    {territoryFilteredOperators.length > 0 ? (
+                      <>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {territoryFilteredOperators.map((operator) => {
+                            const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
+                            const checked = selIdx !== -1;
+                            return (
+                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
+                                <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
+                                <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
+                                {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
+                              </label>
+                            );
+                          })}
+                        </div>
+                        {excelTerritory !== null && territoryFilteredOperators.length < availableOperators.length && (
+                          <p className="text-[10px] text-gray-400 mt-1">
+                            Filtro territorio attivo · {territoryFilteredOperators.length} operatori su {availableOperators.length}
+                          </p>
+                        )}
+                      </>
                     ) : (
                       <p className="text-xs text-gray-400">Nessun operatore valido nel cronoprogramma per questo periodo.</p>
                     )}
@@ -1729,7 +2081,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 text-right">N. interventi</span>
                       <span />
                       {selectedOps.map((op, i) => (
-                        <>
+                        <React.Fragment key={op.id}>
                           <div key={op.id + '-name'} className="flex min-w-0 items-center gap-1.5">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[i % OP_COLORS.length] }} />
                             <div className="min-w-0">
@@ -1756,7 +2108,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           >
                             ×
                           </button>
-                        </>
+                        </React.Fragment>
                       ))}
                     </div>
                     <p className="text-[10px] text-gray-400">Lascia vuoto per distribuzione automatica uguale.</p>
@@ -1769,11 +2121,73 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           <button type="button" onClick={exportDistribution} className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
                             Esporta Excel
                           </button>
-                          <button type="button" onClick={() => { setDistribution(null); setUnassignedTasks([]); setZtlConflicts([]); }} className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setDistribution(null);
+                              setUnassignedTasks([]);
+                              setZtlConflicts([]);
+                              if (isEditMode) {
+                                setCurrentPianoId(undefined);
+                                window.history.replaceState({}, '', '/hub/mappa?vista=pianifica');
+                              }
+                            }}
+                            className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+                          >
                             Azzera
+                          </button>
+                          {excelMode && (
+                            <button
+                              type="button"
+                              onClick={() => fileTemplateInputRef.current?.click()}
+                              className="rounded-lg border border-violet-400 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100"
+                            >
+                              + Aggiungi attività da template
+                            </button>
+                          )}
+                          <button
+                            type="button"
+                            onClick={saveDistribution}
+                            disabled={savingDistribution}
+                            className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                              savedDistribution
+                                ? 'bg-green-100 text-green-700 border border-green-300'
+                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                            } disabled:opacity-50`}
+                          >
+                            {savingDistribution
+                              ? 'Salvataggio...'
+                              : savedDistribution && currentPianoId
+                                ? '✓ Salvata'
+                                : 'Salva distribuzione'}
                           </button>
                         </>
                       )}
+                    </div>
+                  </div>
+                )}
+
+                {distribution !== null && excelMode && (
+                  <div className="mt-3 flex items-center justify-between">
+                    <span className="text-xs text-gray-600">
+                      Completamento: {geocodificati} / {totalQtyRichiesta}
+                    </span>
+                  </div>
+                )}
+
+                {templateGeocoding && (
+                  <div className="mt-2">
+                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                      <span>Geocodifica template</span>
+                      <span>{templateGeocoding.done} / {templateGeocoding.total}</span>
+                    </div>
+                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                      <div
+                        className="h-full bg-violet-500 transition-all"
+                        style={{
+                          width: `${templateGeocoding.total > 0 ? (templateGeocoding.done / templateGeocoding.total) * 100 : 0}%`
+                        }}
+                      />
                     </div>
                   </div>
                 )}
@@ -1833,7 +2247,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         : { backgroundColor: '#f3f4f6', color: '#374151' }
                     }
                   >
-                    {d.op.split(' ')[0]} <span className="opacity-80">({d.tasks.length})</span>
+                    {(d.op ?? d.staffId ?? '?').split(' ')[0]} <span className="opacity-80">({d.tasks.length})</span>
                   </button>
                 ))}
               </div>
@@ -1844,7 +2258,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   <>
                     <div className="mb-2 flex items-center justify-between">
                       <div className="min-w-0">
-                        <span className="text-sm font-semibold">{op}</span>
+                        <span className="text-sm font-semibold">{op ?? 'Operatore'}</span>
                         {startAddress && (
                           <div className="truncate text-[10px] text-gray-400">Partenza: {startAddress}</div>
                         )}
@@ -1904,15 +2318,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                       disabled={blocked}
                                       title={
                                         blocked
-                                          ? `${d.op} non ha il permesso ZTL per ${ztl!.name}`
+                                          ? `${d.op ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}`
                                           : capReached
-                                            ? `${d.op} ha già raggiunto il limite di ${targetCap} attività`
+                                            ? `${d.op ?? 'Operatore'} ha già raggiunto il limite di ${targetCap} attività`
                                             : undefined
                                       }
                                       className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
                                       style={{ backgroundColor: d.color }}
                                     >
-                                      {d.op} ({d.tasks.length}) {blocked ? '🔒' : ''}
+                                      {d.op ?? 'Operatore'} ({d.tasks.length}) {blocked ? '🔒' : ''}
                                     </button>
                                   );
                                 })}
@@ -1999,7 +2413,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                           disabled={blocked}
                                           title={
                                             blocked
-                                              ? `${d.op} non ha il permesso ZTL per ${ztl!.name}`
+                                              ? `${d.op ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}`
                                               : undefined
                                           }
                                           className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${
@@ -2007,7 +2421,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                           }`}
                                           style={{ backgroundColor: d.color }}
                                         >
-                                          {d.op} ({d.tasks.length}){blocked ? ' ZTL' : ''}
+                                          {d.op ?? 'Operatore'} ({d.tasks.length}){blocked ? ' ZTL' : ''}
                                         </button>
                                       );
                                     })}
@@ -2267,14 +2681,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 <div className="text-sm text-[var(--brand-text-muted)]">Tutti gli operatori hanno coordinate.</div>
               )}
             </>
-          ) : geocodedAppointmentTasks.filter(t => t.appointmentDate === planningDate).length > 0 ? (
+          ) : filteredAppointmentTasks.length > 0 ? (
             /* ── Lista appuntamenti del giorno ── */
             <div className="space-y-2">
               <div className="mb-3 text-sm font-semibold text-violet-800">
                 Appuntamenti · {planningDate}
               </div>
-              {geocodedAppointmentTasks
-                .filter(t => t.appointmentDate === planningDate)
+              {filteredAppointmentTasks
                 .map(t => (
                   <div
                     key={t.id}

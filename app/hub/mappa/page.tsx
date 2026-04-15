@@ -1,14 +1,16 @@
 import 'leaflet/dist/leaflet.css';
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import MappaOperatoriClient, {
   type MappaOperatorOption,
   type MappaStaffRow,
   type ZtlZoneInfo,
 } from '@/components/modules/mappa/MappaOperatoriClient';
+import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
-import type { Task } from '@/utils/routing/types';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -25,7 +27,11 @@ function firstRelation<T>(value: T | T[] | null): T | null {
   return value ?? null;
 }
 
-export default async function MappaPage() {
+async function MappaPageContent({
+  pianoId,
+}: {
+  pianoId?: string;
+}) {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
@@ -35,78 +41,52 @@ export default async function MappaPage() {
   const dateFrom = fmtDay(addDays(today, -3));
   const dateTo = fmtDay(addDays(today, 4));
 
-  const { data: territories } = await supabase
-    .from('territories')
-    .select('id, name, lat, lng')
-    .order('name', { ascending: true });
-
-  const { data: calendarDays } = await supabase
-    .from('calendar_days')
-    .select('id, day')
-    .gte('day', dateFrom)
-    .lte('day', dateTo)
-    .order('day');
+  // Parallelizza le query indipendenti
+  const [
+    { data: territories },
+    { data: calendarDays },
+    { data: staffRaw },
+    { data: ztlZonesRaw },
+    { data: ztlOps },
+    { data: allegato10Rows },
+  ] = await Promise.all([
+    supabase
+      .from('territories')
+      .select('id, name, lat, lng')
+      .order('name', { ascending: true }),
+    supabase
+      .from('calendar_days')
+      .select('id, day')
+      .gte('day', dateFrom)
+      .lte('day', dateTo)
+      .order('day'),
+    supabase
+      .from('staff')
+      .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
+      .order('display_name', { ascending: true }),
+    supabase
+      .from('ztl_zones')
+      .select('id, name, cap_list')
+      .eq('active', true),
+    supabase
+      .from('ztl_zone_operators')
+      .select('zone_id, staff_id'),
+    supabase
+      .from('allegato10_codici')
+      .select('codice')
+      .eq('genera_allegato', true),
+  ]);
 
   const dayIdMap = new Map<string, string>();
   (calendarDays ?? []).forEach((d) => dayIdMap.set(d.id, d.day));
 
   const dayIds = (calendarDays ?? []).map((d) => d.id);
 
-  const { data: staffRaw } = await supabase
-    .from('staff')
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
-    .order('display_name', { ascending: true });
-
   const staffList = (staffRaw ?? []) as Staff[];
   const staffById = new Map<string, Staff>();
   staffList.forEach((member) => {
     staffById.set(member.id, member);
   });
-
-  // ── Fetch appuntamenti ──────────────────────────────────────────────────────────
-  const { data: appointmentsRaw } = await supabase
-    .from('appointments')
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, status, territories(id, name)')
-    .gte('data', todayIso)
-    .lte('data', dateTo)
-    .order('data', { ascending: true });
-
-  console.log('appointments raw:', JSON.stringify(appointmentsRaw));
-
-  type AppointmentRow = {
-    id: string;
-    pdr: string;
-    nome_cognome: string | null;
-    indirizzo: string | null;
-    cap: string | null;
-    citta: string | null;
-    lat: number | null;
-    lng: number | null;
-    data: string;
-    fascia_oraria: string | null;
-    tipo_intervento: string | null;
-    territorio_id: string | null;
-    status: string;
-    territories: { id: string; name: string } | null;
-  };
-
-  const appointmentTasks: Task[] = (appointmentsRaw ?? [])
-    .map((a) => ({
-      id: `apt-${a.id}`,
-      odl: '',
-      indirizzo: a.indirizzo ?? '',
-      cap: a.cap ?? '',
-      citta: a.citta ?? '',
-      priorita: 0,
-      fascia_oraria: a.fascia_oraria ?? '',
-      lat: a.lat as number | undefined,
-      lng: a.lng as number | undefined,
-      nominativo: a.nome_cognome ?? undefined,
-      isAppointment: true,
-      appointmentId: a.id,
-      pdr: a.pdr,
-      appointmentDate: a.data,
-    }));
 
   type AssignmentRow = {
     day_id: string;
@@ -193,16 +173,7 @@ export default async function MappaPage() {
       reperibileDates: reperibileDatesMap.get(member.id) ?? [],
     }));
 
-  // ── Fetch ZTL zones ───────────────────────────────────────────────────────────
-  const { data: ztlZonesRaw } = await supabase
-    .from('ztl_zones')
-    .select('id, name, cap_list')
-    .eq('active', true);
-
-  const { data: ztlOps } = await supabase
-    .from('ztl_zone_operators')
-    .select('zone_id, staff_id');
-
+  // ── Costruisci ZTL zones dai risultati parallelizzati ────────────────────────
   const ztlZones: ZtlZoneInfo[] = (ztlZonesRaw ?? []).map((z) => ({
     id: z.id,
     name: z.name,
@@ -219,13 +190,33 @@ export default async function MappaPage() {
       .filter(Boolean),
   }));
 
-  // ── Fetch Allegato 10 active codes ──────────────────────────────────────────
-  const { data: allegato10Rows } = await supabase
-    .from('allegato10_codici')
-    .select('codice')
-    .eq('genera_allegato', true);
-
+  // ── Costruisci Allegato 10 active codes dai risultati parallelizzati ────────
   const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
+
+  // Fetch saved piano if pianoId is provided
+  let initialDistribution: any[] | undefined = undefined;
+  let initialPianoId: string | undefined = undefined;
+
+  if (pianoId) {
+    const { data: opRows } = await supabaseAdmin
+      .from('mappa_piani_operatori')
+      .select('staff_id, staff_name, colore, km, task_count, start_address, tasks, polyline')
+      .eq('piano_id', pianoId);
+
+    if (opRows && opRows.length > 0) {
+      initialPianoId = pianoId;
+      initialDistribution = opRows.map((op: any) => ({
+        op: (op.staff_name ?? op.staff_id ?? 'Operatore').trim(),
+        staffId: op.staff_id ?? '',
+        color: op.colore ?? '#2563EB',
+        tasks: Array.isArray(op.tasks) ? op.tasks : [],
+        km: Number(op.km ?? 0),
+        polyline: Array.isArray(op.polyline) ? op.polyline : [],
+        base: null,
+        startAddress: op.start_address ?? null,
+      }));
+    }
+  }
 
   return (
     <MappaOperatoriClient
@@ -236,7 +227,52 @@ export default async function MappaPage() {
       dateTo={dateTo}
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
-      appointmentTasks={appointmentTasks}
+      initialPianoId={initialPianoId}
+      initialDistribution={initialDistribution}
     />
+  );
+}
+
+export default async function MappaPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ vista?: string; pianoId?: string }>;
+}) {
+  const params = await searchParams;
+  const vista = params.vista ?? 'pianifica';
+  const pianoId = params.pianoId;
+
+  const navButtonClass = (isActive: boolean) =>
+    `rounded-lg px-4 py-1.5 text-sm font-medium transition ${
+      isActive
+        ? 'bg-[var(--brand-primary)] text-white shadow-sm'
+        : 'text-[var(--brand-text-muted)] hover:bg-gray-50'
+    }`;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
+        <a href="/hub/mappa?vista=pianifica" className={navButtonClass(vista !== 'registro')}>
+          Pianificazione indirizzi
+        </a>
+        <a href="/hub/mappa?vista=registro" className={navButtonClass(vista === 'registro')}>
+          Registro pianificazioni
+        </a>
+      </div>
+
+      {vista === 'registro' ? (
+        <RegistroPianificazioni />
+      ) : (
+        <Suspense
+          fallback={
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)]">
+              Caricamento mappa...
+            </div>
+          }
+        >
+          <MappaPageContent pianoId={pianoId} />
+        </Suspense>
+      )}
+    </div>
   );
 }

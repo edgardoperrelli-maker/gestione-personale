@@ -6,10 +6,12 @@ export default function OperatorCard({
   a,
   onDelete,
   onEdit,
+  taskCount,
 }: {
   a: Assignment;
   onDelete: () => void;
   onEdit: (assignment: Assignment) => void;
+  taskCount?: number;
 }) {
   const style = getTerritoryStyle(a.territory?.name);
   const terr = a.territory?.name ?? '';
@@ -40,7 +42,7 @@ export default function OperatorCard({
             className="block min-w-0 truncate whitespace-nowrap font-semibold uppercase tracking-tight"
             title={a.staff?.display_name ?? '-'}
           >
-            {a.staff?.display_name ?? '-'}
+            {`${a.staff?.display_name ?? '-'}${taskCount != null && taskCount > 0 ? ` (${taskCount})` : ''}`}
           </span>
         </div>
 

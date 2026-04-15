@@ -52,6 +52,7 @@ function WeekCell({
   onDelete,
   onDrop,
   terrId,
+  taskCountMap,
 }: {
   d: Date;
   today: Date;
@@ -63,6 +64,7 @@ function WeekCell({
   onDelete: (a: Assignment) => void;
   onDrop: (e: DragEvent<HTMLDivElement>, d: Date, terrId: string | null) => void;
   terrId: string;
+  taskCountMap?: Record<string,number>;
 }) {
   const iso = fmtDay(d);
   const isHol = isItalyHoliday(d);
@@ -138,7 +140,7 @@ function WeekCell({
               });
             }}
           >
-            <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} />
+            <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
           </div>
         ))}
 
@@ -177,6 +179,7 @@ function TerritoryWeek({
   onEdit,
   onDelete,
   onDrop,
+  taskCountMap,
 }: {
   territory: Territory & { id: string };
   days: Date[];
@@ -188,6 +191,7 @@ function TerritoryWeek({
   onEdit: (a: Assignment) => void;
   onDelete: (a: Assignment) => void;
   onDrop: (e: DragEvent<HTMLDivElement>, d: Date, terrId: string | null) => void;
+  taskCountMap?: Record<string,number>;
 }) {
   const s = getTerritoryStyle(territory.name);
   const terrId = territory.id;
@@ -222,6 +226,7 @@ function TerritoryWeek({
               onDelete={onDelete}
               onDrop={onDrop}
               terrId={terrId}
+              taskCountMap={taskCountMap}
             />
           );
         })}
@@ -242,6 +247,7 @@ export default function CronoSplitView({
   onEdit,
   onDelete,
   onDropAssignment,
+  taskCountMap,
 }: {
   days: Date[];
   today: Date;
@@ -261,6 +267,7 @@ export default function CronoSplitView({
     toTerritoryId: string | null;
     copy: boolean;
   }) => void;
+  taskCountMap?: Record<string,number>;
 }) {
   const allColumns: Array<Territory & { id: string }> = [
     ...territories,
@@ -363,6 +370,7 @@ export default function CronoSplitView({
             onEdit={onEdit}
             onDelete={onDelete}
             onDrop={handleDrop}
+            taskCountMap={taskCountMap}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-[var(--brand-text-muted)]">

@@ -88,8 +88,12 @@ export default function CronoprogrammaWorkspace() {
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
   const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
+  const [taskCountMap, setTaskCountMap] = useState<Record<string,number>>({});
+  const [taskCountRefresh, setTaskCountRefresh] = useState(0);
+
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
+  const refreshTaskCounts = () => setTaskCountRefresh((v) => v + 1);
 
   const confirmTwice = (firstMessage: string, secondMessage: string) => {
     if (typeof window === 'undefined') return true;
@@ -313,6 +317,33 @@ export default function CronoprogrammaWorkspace() {
       alive = false;
     };
   }, [range.start, range.end, sb, rev]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const isoFrom = fmtDay(range.start);
+      const isoTo = fmtDay(range.end);
+
+      if (!isoFrom || !isoTo) return;
+
+      try {
+        const response = await fetch(`/api/mappa/distribuzioni?from=${isoFrom}&to=${isoTo}`);
+        const rows = await response.json() as Array<{ staff_id: string; data: string; task_count: number }>;
+        if (!alive) return;
+
+        const m: Record<string, number> = {};
+        for (const r of rows) {
+          m[`${r.staff_id}|${r.data}`] = r.task_count;
+        }
+        setTaskCountMap(m);
+      } catch (error) {
+        console.error('Error fetching task counts:', error);
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, [range.start, range.end, taskCountRefresh]);
 
   const removeAssignment = async (a: Assignment) => {
     setActionFeedback(null);
@@ -866,6 +897,7 @@ export default function CronoprogrammaWorkspace() {
           onDropAssignment={handleDropAssignment}
           onDropDay={handleDropDay}
           staffCount={visibleStaff.length}
+          taskCountMap={taskCountMap}
         />
       )}
 
@@ -886,6 +918,7 @@ export default function CronoprogrammaWorkspace() {
           onDelete={removeAssignment}
           onDropAssignment={handleDropAssignment}
           onDropDay={handleDropDay}
+          taskCountMap={taskCountMap}
         />
       )}
 
