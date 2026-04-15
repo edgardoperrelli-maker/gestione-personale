@@ -809,12 +809,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     );
   }, [operatorOptions]);
 
-  // Territori disponibili
-  const availableTerritories = useMemo(() => {
-    const names = territories.map((t) => t.name).filter(Boolean);
-    return [...new Set(names)].sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
-  }, [territories]);
-
   const excelOperators = useMemo(() => {
     const names = new Set<string>();
     selectedOps.forEach((op) => {
@@ -1852,28 +1846,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
             {!excelMode && (
-              <>
-                <select
-                  value={territoryFilter}
-                  onChange={(e) => setTerritoryFilter(e.target.value)}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm"
-                >
-                  <option value="">Tutti i territori</option>
-                  {availableTerritories.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
-                    </option>
-                  ))}
-                </select>        
-
-                <button
-                  type="button"
-                  onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
-                  className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm"
-                >
-                  Azzera
-                </button>
-              </>
+              <button
+                type="button"
+                onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
+                className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm"
+              >
+                Azzera
+              </button>
             )}
 
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
