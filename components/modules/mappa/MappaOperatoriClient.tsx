@@ -684,6 +684,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [savingDistribution, setSavingDistribution] = useState(false);
   const [savedDistribution, setSavedDistribution] = useState(false);
 
+  // Setup modale per data e territorio all'apertura
+  const [setupDone, setSetupDone] = useState(false);
+  const [setupModalDate, setSetupModalDate] = useState(isoTomorrow());
+  const [setupModalTerritory, setSetupModalTerritory] = useState('');
+
   // Inizializza modalità quando piano è riaperto dal registro
   useEffect(() => {
     if (!initialDistribution || initialDistribution.length === 0) return;
@@ -707,6 +712,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Carica appuntamenti lazy quando planningDate cambia
   useEffect(() => {
+    if (!setupDone && !isEditMode) return;
     // Cancel previous fetch if still in progress
     if (appointmentFetchRef.current) {
       appointmentFetchRef.current.abort();
@@ -718,7 +724,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
     setLoadingAppointments(true);
 
-    fetch(`/api/appointments/mappa?date=${planningDate}`, {
+    const url = territoryFilter
+      ? `/api/appointments/mappa?date=${planningDate}&territory_id=${territoryFilter}`
+      : `/api/appointments/mappa?date=${planningDate}`;
+
+    fetch(url, {
       signal: controller.signal,
     })
       .then((r) => r.json())
@@ -758,7 +768,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return () => {
       controller.abort();
     };
-  }, [planningDate]);
+  }, [planningDate, territoryFilter, setupDone, isEditMode]);
 
   // Geocodifica appuntamenti appena caricati
   useEffect(() => {
@@ -930,8 +940,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Merge Excel tasks con appointment tasks filtrati per distribuzione
   const allTasks = useMemo(() => {
-    return [...excelTasks, ...templateTasks, ...filteredAppointmentTasks];
-  }, [excelTasks, templateTasks, filteredAppointmentTasks]);
+    return [...excelTasks, ...templateTasks];
+  }, [excelTasks, templateTasks]);
 
   const totalQtyRichiesta = selectedOps.reduce((s,o) => s + (o.qty||0), 0);
   const geocodificati = allTasks.filter(t => t.lat != null && t.lng != null).length;
@@ -977,6 +987,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return m;
   }, [rowsWithCoords]);
 
+  // ─── Derived state ──────────────────────────────────────────────────────────
+
+  const mapReady = setupDone || isEditMode;
+
   // ─── Effects ────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -1000,6 +1014,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Inizializzazione mappa
   useEffect(() => {
+    if (!mapReady) return;
     let alive = true;
     (async () => {
       const L = await import('leaflet');
@@ -1022,7 +1037,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         mapInstanceRef.current = null;
       }
     };
-  }, []);
+  }, [mapReady]);
 
   // Marker Supabase
   useEffect(() => {
@@ -1851,6 +1866,28 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
   }, [distribution]);
 
+  const handleNuovaPianificazione = useCallback(() => {
+    geocodingActiveRef.current = false;
+    setExcelTasks([]);
+    setExcelMode(false);
+    setExcelOnlyManualAction(false);
+    setGeocodingProgress(null);
+    setTemplateGeocoding(null);
+    setTemplateTasks([]);
+    setRouteMode(false);
+    setRouteResult(null);
+    setDistribution(null);
+    setUnassignedTasks([]);
+    setSelectedOps([]);
+    setSelectedExcelTaskId(null);
+    setEditingTaskId(null);
+    setShowOpPicker(false);
+    setZtlConflicts([]);
+    setTerritoryFilter('');
+    setPlanningDate(isoTomorrow());
+    setSetupDone(false);
+  }, []);
+
   const downloadTemplate = useCallback(() => {
     const headers = [
       'CO', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
@@ -1871,8 +1908,67 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
+  // Modale setup vincolante all'apertura
+  if (!isEditMode && !setupDone) {
+    const isDateValid = setupModalDate && setupModalDate.trim() !== '';
+    const isTerritoryValid = setupModalTerritory !== '';
+    return (
+      <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 rounded-2xl">
+        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-lg max-w-md">
+          <h2 className="text-lg font-semibold mb-6">Configura pianificazione</h2>
+          <div className="space-y-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Data pianificazione
+              </label>
+              <input
+                type="date"
+                value={setupModalDate}
+                onChange={(e) => setSetupModalDate(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Territorio
+              </label>
+              <select
+                value={setupModalTerritory}
+                onChange={(e) => setSetupModalTerritory(e.target.value)}
+                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+              >
+                <option value="" disabled>— Seleziona territorio —</option>
+                {territories.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <button
+              type="button"
+              disabled={!isDateValid || !isTerritoryValid}
+              onClick={() => {
+                setPlanningDate(setupModalDate);
+                setTerritoryFilter(setupModalTerritory);
+                setSetupDone(true);
+              }}
+              className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${
+                isDateValid && isTerritoryValid
+                  ? 'bg-blue-600 hover:bg-blue-700'
+                  : 'bg-gray-300 cursor-not-allowed'
+              }`}
+            >
+              Conferma
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="relative space-y-4">
       {/* Header + filtri */}
       <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
@@ -1885,9 +1981,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <input
                 type="date"
                 value={planningDate}
-                disabled={isEditMode}
+                disabled={isEditMode || setupDone}
                 onChange={(e) => {
-                  if (isEditMode) return;
+                  if (isEditMode || setupDone) return;
                   if (e.target.value) {
                     setPlanningDate(e.target.value);
                     setSelectedOps([]);
@@ -1895,7 +1991,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   }
                 }}
                 className={`rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm ${
-                  isEditMode ? 'opacity-50 cursor-not-allowed' : ''
+                  isEditMode || setupDone ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               />
               {isEditMode && (
@@ -1903,6 +1999,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   Pianificazione in modifica
                 </span>
               )}
+              {setupDone && territoryFilter && (() => {
+                const selectedTerritoryName = territories.find(
+                  (t) => t.id === territoryFilter
+                )?.name ?? '';
+                return (
+                  <span className="text-sm font-medium text-gray-700">
+                    Territorio: {selectedTerritoryName}
+                  </span>
+                );
+              })()}
               {(() => {
                 const count = filteredAppointmentTasks.length;
                 if (count === 0) return null;
@@ -1916,6 +2022,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           </div>
 
           <div className="ml-auto flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={handleNuovaPianificazione}
+              className="rounded-lg border border-red-400 bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600"
+            >
+              Nuova pianificazione
+            </button>
+
             {!excelMode && (
               <button
                 type="button"
@@ -1978,6 +2092,29 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             })()}
           </div>
         </div>
+
+        {/* Banner alert appuntamenti non assegnati */}
+        {(() => {
+          const now = new Date();
+          const afterFifteen = now.getHours() >= 15;
+          const isTomorrow = planningDate === isoTomorrow();
+          const hasUnassignedAppointments = filteredAppointmentTasks.length > 0;
+          const showAlert = afterFifteen && isTomorrow && hasUnassignedAppointments;
+
+          if (!showAlert) return null;
+
+          return (
+            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+              <span>⚠️</span>
+              <span>
+                {filteredAppointmentTasks.length} appuntament
+                {filteredAppointmentTasks.length === 1 ? 'o' : 'i'} per domani
+                non ancora assegnat
+                {filteredAppointmentTasks.length === 1 ? 'o' : 'i'} a nessun operatore.
+              </span>
+            </div>
+          );
+        })()}
 
         {/* Barra stato Excel + operatori */}
         {excelMode && (

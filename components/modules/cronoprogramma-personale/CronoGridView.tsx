@@ -27,6 +27,7 @@ export default function CronoGridView({
   onEdit,
   onDelete,
   onDropAssignment,
+  taskCountMap,
 }: {
   days: Date[];
   today: Date;
@@ -46,6 +47,7 @@ export default function CronoGridView({
     toTerritoryId: string | null;
     copy: boolean;
   }) => void;
+  taskCountMap?: Record<string, number>;
 }) {
   const columns = includeNoTerritory
     ? [...territories, { id: 'none', name: 'Senza territorio' } as Territory]
@@ -205,6 +207,7 @@ export default function CronoGridView({
                             a={a}
                             onDelete={() => onDelete(a)}
                             onEdit={onEdit}
+                            taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]}
                           />
                         </div>
                       ))}

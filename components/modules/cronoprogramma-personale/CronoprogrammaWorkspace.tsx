@@ -328,8 +328,10 @@ export default function CronoprogrammaWorkspace() {
 
       try {
         const response = await fetch(`/api/mappa/distribuzioni?from=${isoFrom}&to=${isoTo}`);
-        const rows = await response.json() as Array<{ staff_id: string; data: string; task_count: number }>;
+        if (!response.ok) return;
+        const rows = await response.json();
         if (!alive) return;
+        if (!Array.isArray(rows)) return;
 
         const m: Record<string, number> = {};
         for (const r of rows) {
@@ -877,6 +879,7 @@ export default function CronoprogrammaWorkspace() {
           onDelete={removeAssignment}
           onDropAssignment={handleDropAssignment}
           onDropDay={handleDropDay}
+          taskCountMap={taskCountMap}
         />
       )}
 
@@ -931,7 +934,7 @@ export default function CronoprogrammaWorkspace() {
                 .filter((id) => id !== '')
             );
             const availableStaffForDay = (staff ?? []).filter(
-              (s) => isStaffValidOnDay(s, iso, todayIso) && !excludeIds.has(s.id)
+              (s) => isStaffValidOnDay(s, todayIso) && !excludeIds.has(s.id)
             );
 
             return (
@@ -994,7 +997,7 @@ export default function CronoprogrammaWorkspace() {
             const availableStaffForEdit = (staff ?? []).filter(
               (s) =>
                 (s.id === (a0.staff?.id ?? '') || !excludeIds.has(s.id)) &&
-                isStaffValidOnDay(s, dayIdMap[a0.day_id] ?? todayIso, todayIso)
+                isStaffValidOnDay(s, todayIso)
             );
 
             return (
