@@ -29,7 +29,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     href: '/dashboard',
     label: 'Cronoprogramma',
     description: 'Pianificazione turni e assegnazioni',
-    section: 'overview',
+    section: 'modules',
     matchPrefixes: ['/dashboard'],
   },
   {

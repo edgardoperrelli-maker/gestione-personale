@@ -29,7 +29,7 @@ export async function middleware(req: NextRequest) {
 
     if (!canAccessPath(req.nextUrl.pathname, allowedModules, metadataRole)) {
       const url = req.nextUrl.clone()
-      url.pathname = allowedModules.includes('dashboard') ? '/dashboard' : '/hub'
+      url.pathname = '/hub'
       return NextResponse.redirect(url)
     }
   }
