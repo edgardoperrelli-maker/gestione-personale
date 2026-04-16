@@ -12,6 +12,7 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
+    const territory_id = searchParams.get('territory_id');
 
     if (!date) {
       return NextResponse.json(
@@ -20,13 +21,19 @@ export async function GET(req: Request) {
       );
     }
 
-    const { data, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('appointments')
       .select(
         'id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id'
       )
       .eq('data', date)
       .order('data', { ascending: true });
+
+    if (territory_id) {
+      query = query.eq('territorio_id', territory_id);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('[GET /api/appointments/mappa]', error);

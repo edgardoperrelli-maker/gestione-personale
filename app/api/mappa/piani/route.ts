@@ -84,7 +84,10 @@ export async function POST(req: Request) {
     }
 
     // Recupera l'utente autenticato
-    const supabaseBrowser = createRouteHandlerClient({ cookies });
+    const cookieStore = await cookies();
+    const supabaseBrowser = createRouteHandlerClient({
+      cookies: () => cookieStore as any,
+    });
     const { data: { user } } = await supabaseBrowser.auth.getUser();
     const userId = user?.id ?? null;
 
