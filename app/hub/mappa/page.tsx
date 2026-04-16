@@ -239,40 +239,96 @@ export default async function MappaPage({
   searchParams: Promise<{ vista?: string; pianoId?: string }>;
 }) {
   const params = await searchParams;
-  const vista = params.vista ?? 'pianifica';
+  const vista = params.vista ?? '';
   const pianoId = params.pianoId;
 
-  const navButtonClass = (isActive: boolean) =>
-    `rounded-lg px-4 py-1.5 text-sm font-medium transition ${
-      isActive
-        ? 'bg-[var(--brand-primary)] text-white shadow-sm'
-        : 'text-[var(--brand-text-muted)] hover:bg-gray-50'
-    }`;
-
   return (
-    <div className="space-y-4">
-      <div className="flex gap-1 rounded-xl border border-[var(--brand-border)] bg-white p-1 w-fit shadow-sm">
-        <a href="/hub/mappa?vista=pianifica" className={navButtonClass(vista !== 'registro')}>
-          Pianificazione indirizzi
-        </a>
-        <a href="/hub/mappa?vista=registro" className={navButtonClass(vista === 'registro')}>
-          Registro pianificazioni
-        </a>
-      </div>
+    <div className="space-y-6">
 
-      {vista === 'registro' ? (
-        <RegistroPianificazioni />
-      ) : (
-        <Suspense
-          fallback={
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)]">
-              Caricamento mappa...
+      {/* Landing — solo card, nessun contenuto */}
+      {vista === '' && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <a
+            href="/hub/mappa?vista=pianifica"
+            className="group rounded-2xl border border-[var(--brand-border)]
+                       bg-white p-5 shadow-sm transition
+                       hover:border-blue-200 hover:shadow"
+          >
+            <div className="flex h-11 w-11 items-center justify-center
+                            rounded-xl bg-[var(--brand-primary-soft)]
+                            text-[var(--brand-primary)]">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none"
+                   stroke="currentColor" strokeWidth="1.6">
+                <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z"/>
+                <circle cx="12" cy="10" r="2.5"/>
+              </svg>
             </div>
-          }
-        >
-          <MappaPageContent pianoId={pianoId} />
-        </Suspense>
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold">Pianificazione indirizzi</h2>
+              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
+                Distribuzione territoriale operatori
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold
+                            text-[var(--brand-primary)]">
+              <span>Apri</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+
+          <a
+            href="/hub/mappa?vista=registro"
+            className="group rounded-2xl border border-[var(--brand-border)]
+                       bg-white p-5 shadow-sm transition
+                       hover:border-blue-200 hover:shadow"
+          >
+            <div className="flex h-11 w-11 items-center justify-center
+                            rounded-xl bg-[var(--brand-primary-soft)]
+                            text-[var(--brand-primary)]">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none"
+                   stroke="currentColor" strokeWidth="1.6">
+                <path d="M6 2h9l5 5v15H6z"/>
+                <path d="M15 2v5h5"/>
+                <path d="M9 13h6M9 17h6"/>
+              </svg>
+            </div>
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold">Registro pianificazioni</h2>
+              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
+                Storico e gestione piani salvati
+              </p>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold
+                            text-[var(--brand-primary)]">
+              <span>Apri</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
+        </div>
       )}
+
+      {/* Modulo pianificazione — a schermo pieno, no card */}
+      {vista === 'pianifica' && (
+        <div className="relative">
+          <Suspense
+            fallback={
+              <div className="rounded-2xl border border-[var(--brand-border)]
+                              bg-white p-8 text-center text-sm
+                              text-[var(--brand-text-muted)]">
+                Caricamento mappa...
+              </div>
+            }
+          >
+            <MappaPageContent pianoId={pianoId} />
+          </Suspense>
+        </div>
+      )}
+
+      {/* Modulo registro — a schermo pieno, no card */}
+      {vista === 'registro' && (
+        <RegistroPianificazioni />
+      )}
+
     </div>
   );
 }

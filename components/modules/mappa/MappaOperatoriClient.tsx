@@ -1462,6 +1462,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
+      // Se esiste già un piano salvato, eliminalo prima di crearne uno nuovo
+      if (currentPianoId) {
+        await fetch(`/api/mappa/piani?id=${currentPianoId}`, {
+          method: 'DELETE',
+        });
+        setCurrentPianoId(undefined);
+      }
+
       const operatori = selectedOps.map((op, idx) => {
         const dist = distribution[idx];
         return {
@@ -1908,67 +1916,66 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // ─── Render ─────────────────────────────────────────────────────────────────
 
-  // Modale setup vincolante all'apertura
-  if (!isEditMode && !setupDone) {
-    const isDateValid = setupModalDate && setupModalDate.trim() !== '';
-    const isTerritoryValid = setupModalTerritory !== '';
-    return (
-      <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 rounded-2xl">
-        <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-lg max-w-md">
-          <h2 className="text-lg font-semibold mb-6">Configura pianificazione</h2>
-          <div className="space-y-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Data pianificazione
-              </label>
-              <input
-                type="date"
-                value={setupModalDate}
-                onChange={(e) => setSetupModalDate(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Territorio
-              </label>
-              <select
-                value={setupModalTerritory}
-                onChange={(e) => setSetupModalTerritory(e.target.value)}
-                className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              >
-                <option value="" disabled>— Seleziona territorio —</option>
-                {territories.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <button
-              type="button"
-              disabled={!isDateValid || !isTerritoryValid}
-              onClick={() => {
-                setPlanningDate(setupModalDate);
-                setTerritoryFilter(setupModalTerritory);
-                setSetupDone(true);
-              }}
-              className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${
-                isDateValid && isTerritoryValid
-                  ? 'bg-blue-600 hover:bg-blue-700'
-                  : 'bg-gray-300 cursor-not-allowed'
-              }`}
-            >
-              Conferma
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="relative space-y-4">
+      {!isEditMode && !setupDone && (() => {
+        const isDateValid = setupModalDate && setupModalDate.trim() !== '';
+        const isTerritoryValid = setupModalTerritory !== '';
+        return (
+          <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 rounded-2xl"
+               style={{ minHeight: '300px' }}>
+            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-lg max-w-md w-full mx-4">
+              <h2 className="text-lg font-semibold mb-6">Configura pianificazione</h2>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Data pianificazione
+                  </label>
+                  <input
+                    type="date"
+                    value={setupModalDate}
+                    onChange={(e) => setSetupModalDate(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Territorio
+                  </label>
+                  <select
+                    value={setupModalTerritory}
+                    onChange={(e) => setSetupModalTerritory(e.target.value)}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  >
+                    <option value="" disabled>— Seleziona territorio —</option>
+                    {territories.map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <button
+                  type="button"
+                  disabled={!isDateValid || !isTerritoryValid}
+                  onClick={() => {
+                    setPlanningDate(setupModalDate);
+                    setTerritoryFilter(setupModalTerritory);
+                    setSetupDone(true);
+                  }}
+                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${
+                    isDateValid && isTerritoryValid
+                      ? 'bg-blue-600 hover:bg-blue-700'
+                      : 'bg-gray-300 cursor-not-allowed'
+                  }`}
+                >
+                  Conferma
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {/* Header + filtri */}
       <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
