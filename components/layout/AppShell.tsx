@@ -1,5 +1,7 @@
 'use client';
 
+import type * as React from 'react';
+import { AnimatePresence, LayoutGroup, motion } from 'framer-motion';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
@@ -93,12 +95,27 @@ function SidebarContent({
 
   return (
     <div className="flex flex-col h-full">
-      {/* Brand */}
-      <div className="border-b border-white/10 px-5 py-5">
-        <p className="text-base font-bold text-white tracking-tight">GestiLab</p>
-        <p className="mt-0.5 text-xs font-medium" style={{ color: 'rgba(220,100,100,0.75)' }}>
-          Plenzich S.p.A.
-        </p>
+      <div className="border-b border-[var(--sidebar-border)] px-4 pt-5 pb-4">
+        <div className="flex flex-col gap-0.5 text-center">
+          <p
+            className="text-[18px] font-bold tracking-[0.2em]"
+            style={{ color: '#DB2128' }}
+          >
+            PLENZICH
+          </p>
+          <p
+            className="text-[11px] font-medium tracking-[0.15em]"
+            style={{ color: 'var(--sidebar-muted)' }}
+          >
+            S.p.A.
+          </p>
+          <p
+            className="mt-1 text-[10px] tracking-[0.2em]"
+            style={{ color: 'var(--sidebar-muted)' }}
+          >
+            — GESTIONE PERSONALE —
+          </p>
+        </div>
       </div>
 
       {/* Nav */}
@@ -109,44 +126,59 @@ function SidebarContent({
               <p className="px-2 mb-1 text-[10px] font-semibold uppercase tracking-[0.18em] text-white/30">
                 {group.label}
               </p>
-              <ul className="flex flex-col gap-0.5">
-                {group.items.map((item) => {
-                  const Icon = NAV_ICONS[item.href];
-                  const active = matchesPath(pathname, item);
-                  return (
-                    <li key={item.href}>
-                      <Link
-                        href={item.href}
-                        onClick={onNavigate}
-                        className={`group flex items-center gap-3 rounded-xl border px-3 py-2.5 text-sm transition-all ${
-                          active
-                            ? 'border-red-800/30 bg-red-900/25 text-white'
-                            : 'border-transparent text-[var(--sidebar-text)] hover:bg-white/6 hover:text-white'
-                        }`}
-                      >
-                        <span
-                          className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all ${
+              <LayoutGroup>
+                <ul className="flex flex-col gap-0.5">
+                  {group.items.map((item) => {
+                    const Icon = NAV_ICONS[item.href];
+                    const active = matchesPath(pathname, item);
+                    return (
+                      <li key={item.href}>
+                        <Link
+                          href={item.href}
+                          onClick={onNavigate}
+                          className={`group relative flex items-center gap-3 overflow-hidden rounded-xl border px-3 py-2.5 text-sm transition-all ${
                             active
-                              ? 'border-red-700/30 bg-red-900/25 text-red-300'
-                              : 'border-transparent text-[var(--sidebar-muted)]'
+                              ? 'border-[var(--brand-primary-border)] bg-[var(--brand-nav-active-bg)] text-white'
+                              : 'border-transparent text-[var(--sidebar-text)] hover:bg-white/6 hover:text-white'
                           }`}
                         >
-                          {Icon}
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block font-medium leading-5 text-sm">{item.label}</span>
-                          {item.description && (
-                            <span className={`mt-0.5 block text-[11px] leading-snug truncate ${active ? 'text-white/60' : 'text-[var(--sidebar-muted)]'}`}>
-                              {item.description}
-                            </span>
+                          {active && (
+                            <motion.div
+                              layoutId="sidebar-active-indicator"
+                              className="absolute left-0 top-0 bottom-0 w-[3px] rounded-r-full bg-[var(--brand-primary)]"
+                              transition={{ type: 'spring', stiffness: 380, damping: 30 }}
+                            />
                           )}
-                        </span>
-                        {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-red-400" />}
-                      </Link>
-                    </li>
-                  );
-                })}
-              </ul>
+                          <span
+                            className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition-all ${
+                              active
+                                ? 'border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+                                : 'border-transparent text-[var(--sidebar-muted)]'
+                            }`}
+                          >
+                            {Icon}
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className={`block text-sm font-medium leading-5 ${active ? 'text-[var(--brand-text-main)]' : ''}`}>
+                              {item.label}
+                            </span>
+                            {item.description && (
+                              <span
+                                className={`mt-0.5 block truncate text-[11px] leading-snug ${
+                                  active ? 'text-[var(--brand-text-muted)]' : 'text-[var(--sidebar-muted)]'
+                                }`}
+                              >
+                                {item.description}
+                              </span>
+                            )}
+                          </span>
+                          {active && <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--brand-primary)]" />}
+                        </Link>
+                      </li>
+                    );
+                  })}
+                </ul>
+              </LayoutGroup>
             </div>
           ))}
         </div>
@@ -325,36 +357,48 @@ export default function AppShell({
       </div>
 
       {/* ── Mobile drawer ── */}
-      {mobileOpen && (
-        <>
-          <div className="fixed inset-0 z-40 bg-black/50" onClick={() => setMobileOpen(false)} />
-          <aside
-            className="fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[90vw] flex-col shadow-2xl"
-            style={{ background: 'linear-gradient(180deg, #1A0808 0%, #2C1010 100%)', borderRight: '1px solid rgba(255,255,255,0.07)' }}
-          >
-            <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
-              <span className="text-sm font-semibold text-white">Menu</span>
-              <button
-                type="button"
-                onClick={() => setMobileOpen(false)}
-                className="flex items-center justify-center rounded-lg border border-white/20 p-1.5 text-white/60 hover:text-white"
-              >
-                <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
-                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                </svg>
-              </button>
-            </div>
-            <SidebarContent
-              pathname={pathname}
-              roleLabel={roleLabel}
-              userName={userName}
-              allowedModules={allowedModules}
-              onNavigate={() => setMobileOpen(false)}
-              onLogout={handleLogout}
+      <AnimatePresence>
+        {mobileOpen && (
+          <>
+            <motion.div
+              className="fixed inset-0 z-40 bg-black/50"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => setMobileOpen(false)}
             />
-          </aside>
-        </>
-      )}
+            <motion.aside
+              className="fixed inset-y-0 left-0 z-50 flex w-[280px] max-w-[90vw] flex-col shadow-2xl"
+              style={{ background: 'linear-gradient(180deg, #1A0808 0%, #2C1010 100%)', borderRight: '1px solid rgba(255,255,255,0.07)' }}
+              initial={{ x: -24, opacity: 0 }}
+              animate={{ x: 0, opacity: 1 }}
+              exit={{ x: -24, opacity: 0 }}
+              transition={{ type: 'spring', stiffness: 320, damping: 30 }}
+            >
+              <div className="flex items-center justify-between border-b border-white/10 px-5 py-4">
+                <span className="text-sm font-semibold text-white">Menu</span>
+                <button
+                  type="button"
+                  onClick={() => setMobileOpen(false)}
+                  className="flex items-center justify-center rounded-lg border border-white/20 p-1.5 text-white/60 hover:text-white"
+                >
+                  <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <SidebarContent
+                pathname={pathname}
+                roleLabel={roleLabel}
+                userName={userName}
+                allowedModules={allowedModules}
+                onNavigate={() => setMobileOpen(false)}
+                onLogout={handleLogout}
+              />
+            </motion.aside>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

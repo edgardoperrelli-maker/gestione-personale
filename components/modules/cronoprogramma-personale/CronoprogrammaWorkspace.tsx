@@ -1,5 +1,6 @@
 'use client';
 
+import { motion } from 'framer-motion';
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
@@ -18,6 +19,7 @@ import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
 import AppointmentDayCards from './AppointmentDayCards';
 import AppointmentModal from './AppointmentModal';
+import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
 import {
   addDays,
@@ -820,8 +822,16 @@ export default function CronoprogrammaWorkspace() {
   }, [dayIdMap, filters, visibleAssignments]);
 
   return (
-    <div className="space-y-4">
-      <div className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-surface)]/95 px-1 pb-4 pt-1 backdrop-blur supports-[backdrop-filter]:bg-[var(--brand-surface)]/88">
+    <motion.div
+      className="space-y-4"
+      variants={staggerContainer}
+      initial="initial"
+      animate="animate"
+    >
+      <motion.div
+        className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-surface)]/95 px-1 pb-4 pt-1 backdrop-blur supports-[backdrop-filter]:bg-[var(--brand-surface)]/88"
+        variants={staggerItem}
+      >
         <CronoToolbar
           title={title}
           plannerView={plannerView}
@@ -843,86 +853,96 @@ export default function CronoprogrammaWorkspace() {
             className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
             style={
               actionFeedback.type === 'success'
-                ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }
-                : { borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }
+                ? { borderColor: 'var(--success)', backgroundColor: 'var(--success-soft)', color: 'var(--success)' }
+                : { borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }
             }
           >
             {actionFeedback.text}
           </div>
         )}
-      </div>
+      </motion.div>
 
-      <AppointmentDayCards
-        days={daysArray.slice(0, 7)}
-        appointments={appointments}
-        onAppointmentClick={(a) => {
-          setSelectedAppointment(a);
-          setShowAppointmentModal(false);
-        }}
-        onAppointmentDrop={handleAppointmentDrop}
-        onNewAppointment={(date) => {
-          setNewAppointmentDate(date);
-          setShowAppointmentModal(true);
-        }}
-      />
+      <motion.div variants={staggerItem}>
+        <AppointmentDayCards
+          days={daysArray.slice(0, 7)}
+          appointments={appointments}
+          onAppointmentClick={(a) => {
+            setSelectedAppointment(a);
+            setShowAppointmentModal(false);
+          }}
+          onAppointmentDrop={handleAppointmentDrop}
+          onNewAppointment={(date) => {
+            setNewAppointmentDate(date);
+            setShowAppointmentModal(true);
+          }}
+        />
+      </motion.div>
 
       {plannerView === 'grid' && (
-        <CronoGridView
-          days={daysArray}
-          today={today}
-          assignmentsByCell={assignmentsByCell}
-          territories={visibleTerritories}
-          includeNoTerritory={includeNoTerritory}
-          sortMode={sortMode}
-          onAdd={openNewForDate}
-          onEdit={openEditDialog}
-          onDelete={removeAssignment}
-          onDropAssignment={handleDropAssignment}
-          onDropDay={handleDropDay}
-          taskCountMap={taskCountMap}
-        />
+        <motion.div variants={staggerItem}>
+          <CronoGridView
+            days={daysArray}
+            today={today}
+            assignmentsByCell={assignmentsByCell}
+            territories={visibleTerritories}
+            includeNoTerritory={includeNoTerritory}
+            sortMode={sortMode}
+            onAdd={openNewForDate}
+            onEdit={openEditDialog}
+            onDelete={removeAssignment}
+            onDropAssignment={handleDropAssignment}
+            onDropDay={handleDropDay}
+            taskCountMap={taskCountMap}
+          />
+        </motion.div>
       )}
 
       {plannerView === 'calendar' && (
-        <CronoCalendarView
-          weeks={mode === 'week' ? [weeks[0] ?? []] : weeks}
-          anchor={anchor}
-          today={today}
-          days={days}
-          assignments={visibleAssignments}
-          onAdd={openNewForDate}
-          showMonthLabels={mode === 'month'}
-          sortMode={sortMode}
-          filters={filters}
-          setSortMode={setSortMode}
-          onDelete={removeAssignment}
-          onEdit={openEditDialog}
-          onDropAssignment={handleDropAssignment}
-          onDropDay={handleDropDay}
-          staffCount={visibleStaff.length}
-          taskCountMap={taskCountMap}
-        />
+        <motion.div variants={staggerItem}>
+          <CronoCalendarView
+            weeks={mode === 'week' ? [weeks[0] ?? []] : weeks}
+            anchor={anchor}
+            today={today}
+            days={days}
+            assignments={visibleAssignments}
+            onAdd={openNewForDate}
+            showMonthLabels={mode === 'month'}
+            sortMode={sortMode}
+            filters={filters}
+            setSortMode={setSortMode}
+            onDelete={removeAssignment}
+            onEdit={openEditDialog}
+            onDropAssignment={handleDropAssignment}
+            onDropDay={handleDropDay}
+            staffCount={visibleStaff.length}
+            taskCountMap={taskCountMap}
+          />
+        </motion.div>
       )}
 
       {plannerView === 'table' && (
-        <CronoTableView rows={tableRows} onEdit={openEditDialog} onDelete={removeAssignment} />
+        <motion.div variants={staggerItem}>
+          <CronoTableView rows={tableRows} onEdit={openEditDialog} onDelete={removeAssignment} />
+        </motion.div>
       )}
 
       {plannerView === 'split' && (
-        <CronoSplitView
-          days={daysArray}
-          today={today}
-          territories={visibleTerritories}
-          includeNoTerritory={includeNoTerritory}
-          assignmentsByCell={assignmentsByCell}
-          sortMode={sortMode}
-          onAdd={openNewForDate}
-          onEdit={openEditDialog}
-          onDelete={removeAssignment}
-          onDropAssignment={handleDropAssignment}
-          onDropDay={handleDropDay}
-          taskCountMap={taskCountMap}
-        />
+        <motion.div variants={staggerItem}>
+          <CronoSplitView
+            days={daysArray}
+            today={today}
+            territories={visibleTerritories}
+            includeNoTerritory={includeNoTerritory}
+            assignmentsByCell={assignmentsByCell}
+            sortMode={sortMode}
+            onAdd={openNewForDate}
+            onEdit={openEditDialog}
+            onDelete={removeAssignment}
+            onDropAssignment={handleDropAssignment}
+            onDropDay={handleDropDay}
+            taskCountMap={taskCountMap}
+          />
+        </motion.div>
       )}
 
       {dialogOpenForDay
@@ -1094,6 +1114,6 @@ export default function CronoprogrammaWorkspace() {
           onCreate={handleAppointmentCreated}
         />
       )}
-    </div>
+    </motion.div>
   );
 }
