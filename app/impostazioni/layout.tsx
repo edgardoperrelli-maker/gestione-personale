@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
+import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 
 export const dynamic = 'force-dynamic';
@@ -25,7 +26,7 @@ export default async function ImpostazioniLayout({ children }: { children: React
 
   return (
     <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules}>
-      {children}
+      <PageTransitionWrapper>{children}</PageTransitionWrapper>
     </AppShell>
   );
 }

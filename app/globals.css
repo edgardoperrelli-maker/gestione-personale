@@ -2,31 +2,122 @@
 @import "tailwindcss";
 
 :root {
-  /* ── Sidebar (rosso Plenzich scuro) ── */
-  --sidebar-bg-from: #1A0808;
-  --sidebar-bg-to:   #2C1010;
-  --sidebar-border:  rgba(255,255,255,0.07);
-  --sidebar-text:    #e8dada;
-  --sidebar-muted:   #b89898;
+  /* ── Sidebar (scura con nero caldo + rosso Plenzich) ── */
+  --sidebar-bg-from: #1C0A0C;
+  --sidebar-bg-to:   #2A1012;
+  --sidebar-border:  rgba(255, 220, 220, 0.08);
+  --sidebar-text:    #F0E2E4;
+  --sidebar-muted:   #B59C9E;
 
-  /* ── Brand (rosso Plenzich) ── */
-  --brand-bg:           #F6F2F2;
-  --brand-surface:      #ffffff;
-  --brand-primary:      #921B1B;
-  --brand-primary-hover:#741515;
-  --brand-nav-active-bg:#F3E8E8;
-  --brand-primary-soft: #F8ECEC;
-  --brand-border:       #E5D8D8;
-  --brand-text-main:    #1A0A0A;
-  --brand-text-muted:   #7A6060;
+  /* ── Brand (rosso Plenzich dal logo) ── */
+  --brand-bg:             #F7F3F3;
+  --brand-surface:        #FFFFFF;
+  --brand-surface-muted:  #FBF6F6;
+
+  --brand-primary:        #DB2128;
+  --brand-primary-hover:  #B8181E;
+  --brand-primary-soft:   #FCE8EA;
+  --brand-primary-border: #F5BFC3;
+  --brand-nav-active-bg:  #FCE8EA;
+
+  --brand-gold:           #F6E325;
+  --brand-gold-soft:      #FEF9D5;
+
+  --brand-border:         #EBE0E0;
+  --brand-border-strong:  #D8C6C6;
+
+  --brand-text-main:      #201D1D;
+  --brand-text-muted:     #7A6060;
+  --brand-text-subtle:    #BFA7A7;
+
+  /* ── KPI variants (derivati dal logo) ── */
+  --kpi-rosso-bg:         #FCE8EA;
+  --kpi-rosso-text:       #A61820;
+  --kpi-rosso-icon:       #DB2128;
+
+  --kpi-giallo-bg:        #FEF9D5;
+  --kpi-giallo-text:      #7A6A08;
+  --kpi-giallo-icon:      #D4C41A;
+
+  --kpi-terracotta-bg:    #FDEBDC;
+  --kpi-terracotta-text:  #A14A0E;
+  --kpi-terracotta-icon:  #DC6B14;
+
+  --kpi-grafite-bg:       #EEE9E9;
+  --kpi-grafite-text:     #3A3434;
+  --kpi-grafite-icon:     #5A4F4F;
+
+  /* ── Semantici ── */
+  --success:      #2E7D4E;
+  --success-soft: #DFF0E4;
+  --warning:      #DC6B14;
+  --warning-soft: #FDEBDC;
+  --danger:       #C41E24;
+  --danger-soft:  #FCE0E2;
+  --info:         #1E5A8A;
+  --info-soft:    #E3EDF7;
 
   /* ── Calendario ── */
-  --app-bg:     #F6F2F2;
-  --card-bg:    #ffffff;
-  --card-bd:    #E5D8D8;
-  --we-bg:      #F8F4F4;
-  --hol-bg:     #FFF0F0;
-  --today-ring: #921B1B;
+  --app-bg:     #F7F3F3;
+  --card-bg:    #FFFFFF;
+  --card-bd:    #EBE0E0;
+  --we-bg:      #F9F3F3;
+  --hol-bg:     #FFEEEF;
+  --today-ring: #DB2128;
+
+  /* ── Shadows calde ── */
+  --shadow-sm:    0 1px 2px rgba(32, 29, 29, 0.04);
+  --shadow-md:    0 2px 8px rgba(32, 29, 29, 0.06);
+  --shadow-lg:    0 8px 24px rgba(32, 29, 29, 0.08);
+  --shadow-hover: 0 4px 16px rgba(32, 29, 29, 0.10);
+
+  /* ── Legacy (retrocompatibilità con nomi vecchi) ── */
+  --text-gold-soft: #7A6060;
+  --border-light:   #EBE0E0;
+}
+
+@theme inline {
+  --color-brand-bg: var(--brand-bg);
+  --color-brand-surface: var(--brand-surface);
+  --color-brand-surface-muted: var(--brand-surface-muted);
+  --color-brand-primary: var(--brand-primary);
+  --color-brand-primary-hover: var(--brand-primary-hover);
+  --color-brand-primary-soft: var(--brand-primary-soft);
+  --color-brand-primary-border: var(--brand-primary-border);
+  --color-brand-gold: var(--brand-gold);
+  --color-brand-gold-soft: var(--brand-gold-soft);
+  --color-brand-border: var(--brand-border);
+  --color-brand-border-strong: var(--brand-border-strong);
+  --color-brand-text-main: var(--brand-text-main);
+  --color-brand-text-muted: var(--brand-text-muted);
+  --color-brand-text-subtle: var(--brand-text-subtle);
+
+  --color-kpi-rosso-bg: var(--kpi-rosso-bg);
+  --color-kpi-rosso-text: var(--kpi-rosso-text);
+  --color-kpi-rosso-icon: var(--kpi-rosso-icon);
+  --color-kpi-giallo-bg: var(--kpi-giallo-bg);
+  --color-kpi-giallo-text: var(--kpi-giallo-text);
+  --color-kpi-giallo-icon: var(--kpi-giallo-icon);
+  --color-kpi-terracotta-bg: var(--kpi-terracotta-bg);
+  --color-kpi-terracotta-text: var(--kpi-terracotta-text);
+  --color-kpi-terracotta-icon: var(--kpi-terracotta-icon);
+  --color-kpi-grafite-bg: var(--kpi-grafite-bg);
+  --color-kpi-grafite-text: var(--kpi-grafite-text);
+  --color-kpi-grafite-icon: var(--kpi-grafite-icon);
+
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-info: var(--info);
+  --color-info-soft: var(--info-soft);
+
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
 }
 
 body {

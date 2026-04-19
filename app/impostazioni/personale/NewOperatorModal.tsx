@@ -284,7 +284,7 @@ export default function NewOperatorModal({ onClose, onCreated }: Props) {
 
           {/* Error feedback */}
           {error && (
-            <div className="rounded-2xl border border-[#FECACA] bg-[#FEF2F2] px-4 py-3 text-sm text-[#B91C1C]">
+            <div className="rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 text-sm text-[var(--danger)]">
               {error}
             </div>
           )}

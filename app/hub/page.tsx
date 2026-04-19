@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { StaggerGrid } from '@/components/layout/StaggerGrid';
 import { APP_MODULES, getAllowedModulesForUser, type AppModuleKey } from '@/lib/moduleAccess';
 
 type ModuleCardConfig = {
@@ -82,6 +83,36 @@ export default async function HubPage() {
 
   const allowedModules = user ? getAllowedModulesForUser(user.app_metadata, profile?.role) : [];
   const modules = APP_MODULES.filter((module) => allowedModules.includes(module.key));
+  const cardThemes = [
+    {
+      card: 'bg-[var(--kpi-rosso-bg)] text-[var(--kpi-rosso-text)]',
+      icon: 'bg-white/70 text-[var(--kpi-rosso-icon)]',
+      badge: 'bg-white/75 text-[var(--kpi-rosso-text)]',
+      link: 'text-[var(--kpi-rosso-text)]',
+      border: 'border-[var(--brand-primary-border)]',
+    },
+    {
+      card: 'bg-[var(--kpi-giallo-bg)] text-[var(--kpi-giallo-text)]',
+      icon: 'bg-white/70 text-[var(--kpi-giallo-icon)]',
+      badge: 'bg-white/75 text-[var(--kpi-giallo-text)]',
+      link: 'text-[var(--kpi-giallo-text)]',
+      border: 'border-[var(--brand-primary-border)]',
+    },
+    {
+      card: 'bg-[var(--kpi-terracotta-bg)] text-[var(--kpi-terracotta-text)]',
+      icon: 'bg-white/70 text-[var(--kpi-terracotta-icon)]',
+      badge: 'bg-white/75 text-[var(--kpi-terracotta-text)]',
+      link: 'text-[var(--kpi-terracotta-text)]',
+      border: 'border-[var(--brand-primary-border)]',
+    },
+    {
+      card: 'bg-[var(--kpi-grafite-bg)] text-[var(--kpi-grafite-text)]',
+      icon: 'bg-white/70 text-[var(--kpi-grafite-icon)]',
+      badge: 'bg-white/75 text-[var(--kpi-grafite-text)]',
+      link: 'text-[var(--kpi-grafite-text)]',
+      border: 'border-[var(--brand-border-strong)]',
+    },
+  ] as const;
 
   return (
     <main className="mx-auto max-w-5xl space-y-6">
@@ -92,21 +123,22 @@ export default async function HubPage() {
         </p>
       </header>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module) => {
+      <StaggerGrid className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {modules.map((module, index) => {
           const card = moduleCards[module.key];
+          const theme = cardThemes[index % cardThemes.length];
           return (
             <Link
               key={module.key}
               href={module.href}
-              className="group rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm transition hover:border-blue-200 hover:shadow"
+              className={`group flex h-full flex-col rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] ${theme.card} ${theme.border}`}
             >
               <div className="flex items-start justify-between">
-                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]">
+                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${theme.icon}`}>
                   {card.icon}
                 </div>
                 {card.badge && (
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${card.badgeStyle}`}>
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${card.badgeStyle ?? theme.badge}`}>
                     {card.badge}
                   </span>
                 )}
@@ -114,17 +146,17 @@ export default async function HubPage() {
 
               <div className="mt-4">
                 <h2 className="text-lg font-semibold">{module.label}</h2>
-                <p className="mt-1 text-sm text-[var(--brand-text-muted)]">{module.description}</p>
+                <p className="mt-1 text-sm text-current/75">{module.description}</p>
               </div>
 
-              <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
+              <div className={`mt-auto pt-4 flex items-center gap-2 text-sm font-semibold ${theme.link}`}>
                 <span>Apri</span>
                 <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
               </div>
             </Link>
           );
         })}
-      </div>
+      </StaggerGrid>
     </main>
   );
 }

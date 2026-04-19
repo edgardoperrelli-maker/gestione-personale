@@ -2,6 +2,7 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
+import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 
 function formatRole(role?: string | null) {
@@ -38,7 +39,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
 
   return (
     <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules}>
-      {children}
+      <PageTransitionWrapper>{children}</PageTransitionWrapper>
     </AppShell>
   );
 }
