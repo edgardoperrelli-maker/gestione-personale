@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 const TABS = [
   { href: '/impostazioni/utenze',    label: 'Utenze' },
   { href: '/impostazioni/personale', label: 'Personale' },
+  { href: '/impostazioni/territori', label: 'Territori' },
   { href: '/impostazioni/zone-ztl',  label: 'Zone ZTL' },
 ];
 

@@ -16,7 +16,16 @@ export type Staff = {
   home_lng?: number | null;
 };
 export type Activity = { id:string; name:string; active?:boolean };
-export type Territory = { id:string; name:string; active?:boolean };
+export type Territory = {
+  id:string;
+  name:string;
+  active?:boolean;
+  valid_from?: string | null;
+  valid_to?: string | null;
+  lat?: number | null;
+  lng?: number | null;
+  created_at?: string | null;
+};
 
 import type { CostCenter } from '@/constants/cost-centers';
 export type { CostCenter } from '@/constants/cost-centers';

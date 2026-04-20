@@ -15,6 +15,12 @@ const MODULES = [
     icon: 'P',
   },
   {
+    href: '/impostazioni/territori',
+    title: 'Territori',
+    description: 'Gestisci territori, coordinate mappa e validita temporale condivisa con cronoprogramma e mappa.',
+    icon: 'T',
+  },
+  {
     href: '/impostazioni/zone-ztl',
     title: 'Zone ZTL',
     description: 'Definisci zone a traffico limitato, CAP e operatori autorizzati.',

@@ -4,6 +4,7 @@ import { motion } from 'framer-motion';
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
+import { isTerritoryRelevantForRange } from '@/lib/territories';
 import Button from '@/components/Button';
 import InsertReperibileDialog from '@/components/InsertReperibileDialog';
 import EditAssignmentDialog from '@/components/EditAssignmentDialog';
@@ -223,6 +224,12 @@ export default function CronoprogrammaWorkspace() {
     return map;
   }, [staff]);
 
+  const territoryById = useMemo(() => {
+    const map = new Map<string, Territory>();
+    territories.forEach((item) => map.set(item.id, item));
+    return map;
+  }, [territories]);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -232,7 +239,7 @@ export default function CronoprogrammaWorkspace() {
           .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
           .order('display_name', { ascending: true }),
         sb.from('activities_renamed').select('id, name').order('name', { ascending: true }),
-        sb.from('territories').select('id, name').order('name', { ascending: true }),
+        sb.from('territories').select('*').order('name', { ascending: true }),
       ]);
       if (!alive) return;
 
@@ -768,6 +775,14 @@ export default function CronoprogrammaWorkspace() {
     return staff.filter((member) => isStaffRelevantForRange(member, rangeFromIso, rangeToIso, todayIso));
   }, [range.end, range.start, staff, todayIso]);
 
+  const rangeTerritories = useMemo(() => {
+    const rangeFromIso = fmtDay(range.start);
+    const rangeToIso = fmtDay(range.end);
+    return territories.filter((territory) =>
+      isTerritoryRelevantForRange(territory, rangeFromIso, rangeToIso, todayIso)
+    );
+  }, [range.end, range.start, territories, todayIso]);
+
   const allAssignments = useMemo(() => Object.values(visibleAssignments).flat(), [visibleAssignments]);
   const filteredAssignments = useMemo(() => filterAssignments(allAssignments, filters), [allAssignments, filters]);
 
@@ -787,10 +802,27 @@ export default function CronoprogrammaWorkspace() {
   }, [statsSource]);
 
   const visibleTerritories = useMemo(() => {
+    const pool = new Map<string, Territory>();
+    rangeTerritories.forEach((territory) => {
+      pool.set(territory.id, territory);
+    });
+
+    allAssignments.forEach((assignment) => {
+      const territoryId = assignment.territory?.id;
+      if (!territoryId) return;
+      const territory =
+        territoryById.get(territoryId) ??
+        { id: territoryId, name: assignment.territory?.name ?? territoryId };
+      pool.set(territory.id, territory);
+    });
+
+    const baseTerritories = [...pool.values()].sort((a, b) =>
+      a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
+    );
     const terrFilterIds = filters.filter((t) => t.startsWith('TERR:')).map((t) => t.slice(5));
-    if (terrFilterIds.length === 0) return territories;
-    return territories.filter((t) => terrFilterIds.includes(t.id));
-  }, [territories, filters]);
+    if (terrFilterIds.length === 0) return baseTerritories;
+    return baseTerritories.filter((territory) => terrFilterIds.includes(territory.id));
+  }, [allAssignments, filters, rangeTerritories, territoryById]);
 
   const includeNoTerritory = filteredAssignments.some((a) => !a.territory?.id);
 
@@ -1008,6 +1040,7 @@ export default function CronoprogrammaWorkspace() {
         ? (() => {
             const a0 = editAssignment;
             const dayId = a0.day_id;
+            const assignmentIso = dayIdMap[dayId] ?? todayIso;
 
             const excludeIds = new Set(
               (assignments[dayId] ?? [])
@@ -1023,6 +1056,7 @@ export default function CronoprogrammaWorkspace() {
             return (
               <EditAssignmentDialog
                 assignment={a0}
+                iso={assignmentIso}
                 staffList={availableStaffForEdit}
                 actList={activities}
                 terrList={territories}

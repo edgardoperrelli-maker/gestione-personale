@@ -10,7 +10,8 @@ import MappaOperatoriClient, {
 } from '@/components/modules/mappa/MappaOperatoriClient';
 import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
-import type { Staff } from '@/types';
+import type { Task } from '@/utils/routing';
+import type { Staff, Territory } from '@/types';
 
 function fmtDay(d: Date) {
   return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -52,7 +53,7 @@ async function MappaPageContent({
   ] = await Promise.all([
     supabase
       .from('territories')
-      .select('id, name, lat, lng')
+      .select('*')
       .order('name', { ascending: true }),
     supabase
       .from('calendar_days')
@@ -194,7 +195,29 @@ async function MappaPageContent({
   const allegato10ActiveCodes: string[] = (allegato10Rows ?? []).map(r => r.codice);
 
   // Fetch saved piano if pianoId is provided
-  let initialDistribution: any[] | undefined = undefined;
+  type SavedPianoOperatorRow = {
+    staff_id: string | null;
+    staff_name: string | null;
+    colore: string | null;
+    km: number | null;
+    task_count: number | null;
+    start_address: string | null;
+    tasks: Task[] | null;
+    polyline: Array<{ lat: number; lng: number }> | null;
+  };
+
+  type InitialDistributionEntry = {
+    op: string;
+    staffId: string;
+    color: string;
+    tasks: Task[];
+    km: number;
+    polyline: Array<{ lat: number; lng: number }>;
+    base: null;
+    startAddress: string | null;
+  };
+
+  let initialDistribution: InitialDistributionEntry[] | undefined = undefined;
   let initialPianoId: string | undefined = undefined;
 
   if (pianoId) {
@@ -205,7 +228,7 @@ async function MappaPageContent({
 
     if (opRows && opRows.length > 0) {
       initialPianoId = pianoId;
-      initialDistribution = opRows.map((op: any) => ({
+      initialDistribution = (opRows as SavedPianoOperatorRow[]).map((op) => ({
         op: (op.staff_name ?? op.staff_id ?? 'Operatore').trim(),
         staffId: op.staff_id ?? '',
         color: op.colore ?? '#2563EB',
@@ -222,7 +245,7 @@ async function MappaPageContent({
     <MappaOperatoriClient
       rows={rows}
       operatorOptions={operatorOptions}
-      territories={(territories ?? []) as Array<{ id: string; name: string; lat: number | null; lng: number | null }>}
+      territories={(territories ?? []) as Territory[]}
       dateFrom={dateFrom}
       dateTo={dateTo}
       ztlZones={ztlZones}

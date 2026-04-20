@@ -1,8 +1,10 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import Button from '@/components/Button';
 import { getTerritoryStyle } from '@/lib/territoryColors';
+import { isTerritoryValidOnDay } from '@/lib/territories';
+import type { Territory } from '@/types';
 
 type AppointmentTerritory = { id: string; name: string } | null;
 
@@ -34,14 +36,12 @@ type Props =
   | {
       mode: 'create';
       defaultDate?: string;
-      territories: Array<{ id: string; name: string }>;
+      territories: Territory[];
       onClose: () => void;
       onCreate: (appointment: Appointment) => void;
     };
 
 export default function AppointmentModal(props: Props) {
-  const [showBackdrop, setShowBackdrop] = useState(true);
-
   useEffect(() => {
     const handleEsc = (e: KeyboardEvent) => {
       if (e.key === 'Escape') props.onClose();
@@ -49,8 +49,6 @@ export default function AppointmentModal(props: Props) {
     window.addEventListener('keydown', handleEsc);
     return () => window.removeEventListener('keydown', handleEsc);
   }, [props]);
-
-  if (!showBackdrop) return null;
 
   if (props.mode === 'view') {
     return <ViewMode {...props} />;
@@ -234,7 +232,7 @@ function CreateMode({
 }: {
   mode: 'create';
   defaultDate?: string;
-  territories: Array<{ id: string; name: string }>;
+  territories: Territory[];
   onClose: () => void;
   onCreate: (appointment: Appointment) => void;
 }) {
@@ -250,6 +248,27 @@ function CreateMode({
   const [citta, setCitta] = useState('');
   const [note, setNote] = useState('');
   const [loading, setLoading] = useState(false);
+  const todayIso = useMemo(
+    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
+    []
+  );
+  const availableTerritories = useMemo(() => {
+    if (!data) {
+      return territories
+        .filter((territory) => territory.active !== false)
+        .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+    }
+
+    return territories
+      .filter((territory) => isTerritoryValidOnDay(territory, data, todayIso))
+      .sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+  }, [data, territories, todayIso]);
+
+  useEffect(() => {
+    if (!territorioId) return;
+    if (availableTerritories.some((territory) => territory.id === territorioId)) return;
+    setTerritorioId('');
+  }, [availableTerritories, territorioId]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,13 +284,12 @@ function CreateMode({
 
     setLoading(true);
 
-    let lat: number | null = null;
-    let lng: number | null = null;
+    const lat: number | null = null;
+    const lng: number | null = null;
 
     // Geocodifica se indirizzo compilato
     if (indirizzo.trim() || cap.trim() || citta.trim()) {
       try {
-        const addressParts = [indirizzo, cap, citta].filter(Boolean).join(' ');
         // In produzione useremmo una vera API di geocoding
         // Per ora skippiamo il geocoding
       } catch (err) {
@@ -410,7 +428,7 @@ function CreateMode({
               className="mt-1 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
             >
               <option value="">Nessun territorio</option>
-              {territories.map((t) => (
+              {availableTerritories.map((t) => (
                 <option key={t.id} value={t.id}>
                   {t.name}
                 </option>

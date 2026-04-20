@@ -3,9 +3,10 @@
 import { useEffect, useState } from 'react';
 
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { isTerritoryValidOnDay } from '@/lib/territories';
+import type { Territory } from '@/types';
 
 type Staff = { id:string; display_name:string; active?:boolean };
-type Territory = { id:string; name:string; active?:boolean };
 
 export default function InsertReperibileDialog({
   open, onClose, staffList, terrList, onInserted,
@@ -23,6 +24,7 @@ export default function InsertReperibileDialog({
   const [terrId, setTerrId] = useState<string>('');
   const [startIso, setStartIso] = useState<string>(''); // YYYY-MM-DD
   const [endIso, setEndIso] = useState<string>('');
+  const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
 
   useEffect(() => {
     if (!open) {
@@ -62,6 +64,18 @@ export default function InsertReperibileDialog({
     const days = eachDateInclusive(startIso, endIso);
     if (!days.length) {
       setErr('Intervallo date non valido.');
+      return;
+    }
+
+    const selectedTerritory = terrList.find((territory) => territory.id === terrId);
+    if (!selectedTerritory) {
+      setErr('Territorio selezionato non disponibile.');
+      return;
+    }
+
+    const invalidDay = days.find((iso) => !isTerritoryValidOnDay(selectedTerritory, iso, todayIso));
+    if (invalidDay) {
+      setErr(`Il territorio ${selectedTerritory.name} non e valido per il ${invalidDay}.`);
       return;
     }
 

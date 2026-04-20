@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import type { CostCenter } from '@/constants/cost-centers';
 
@@ -27,9 +28,9 @@ export default function NewAssignmentDialog({
     () => [...(actList || [])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
     [actList]
   );
-  const terrSorted = useMemo(
-    () => [...(terrList || [])].sort((a,b)=>a.name.localeCompare(b.name,'it',{sensitivity:'base'})),
-    [terrList]
+  const todayIso = useMemo(
+    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
+    []
   );
 
   const [staffId, setStaffId]         = useState<string>('');
@@ -50,6 +51,20 @@ useEffect(() => {
 }, [staffId, activityId, territoryId, reperibile, notes, costCenter]);
 
 const canSave = !!staffId && !!costCenter && !saving; // unica dichiarazione
+
+  const terrSorted = useMemo(() => {
+    const baseIso = useRange ? (fromIso || iso) : iso;
+    const available = terrList.filter((territory) =>
+      isTerritoryValidOnDay(territory, baseIso, todayIso)
+    );
+
+    const selected = terrList.find((territory) => territory.id === territoryId);
+    if (selected && !available.some((territory) => territory.id === selected.id)) {
+      available.push(selected);
+    }
+
+    return available.sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+  }, [fromIso, iso, terrList, territoryId, todayIso, useRange]);
 
   useEffect(() => {
     const prev = document.body.style.overflow;
@@ -128,7 +143,7 @@ if (ins.error || !ins.data) {
   // LOG DETTAGLIATO
   console.error('[assignments.insert]', ins);
   // Mostra messaggio utile nell’UI
-  const e: any = ins.error;
+  const e = ins.error;
   setErr(e?.message || e?.hint || e?.details || JSON.stringify(e));
   return null;
 }
@@ -161,13 +176,34 @@ if (ins.error || !ins.data) {
   const a = fromIso <= toIso ? fromIso : toIso;
   const b = toIso >= fromIso ? toIso : fromIso;
 
+  if (territoryId) {
+    const selectedTerritory = terrList.find((territory) => territory.id === territoryId);
+    if (!selectedTerritory) {
+      setSaving(false);
+      setErr('Territorio selezionato non disponibile.');
+      return;
+    }
+
+    const daysToValidate = useRange ? Array.from(iterDays(a, b)) : [iso];
+    const invalidDay = daysToValidate.find((isoDay) =>
+      !isTerritoryValidOnDay(selectedTerritory, isoDay, todayIso)
+    );
+
+    if (invalidDay) {
+      setSaving(false);
+      setErr(`Il territorio ${selectedTerritory.name} non e valido per il ${invalidDay}.`);
+      return;
+    }
+  }
+
   let last: Assignment | null = null;
   for (const isoX of iterDays(a, b)) {
     const targetDayId = await ensureDay(isoX);
     if (!targetDayId) continue;
     const row = await createOne(targetDayId);
     if (!row) continue;
-(row as any).__iso = isoX;
+    const rowWithIso = row as Assignment & { __iso?: string };
+    rowWithIso.__iso = isoX;
     last = row;
     onCreated(row, false); // aggiorna la griglia, NON chiudere
   }

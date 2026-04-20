@@ -3,11 +3,13 @@
 import type * as Leaflet from 'leaflet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
+import { isTerritoryValidOnDay } from '@/lib/territories';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
+import type { Territory } from '@/types';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -58,7 +60,7 @@ export type MappaOperatorOption = {
 type Props = {
   rows: MappaStaffRow[];
   operatorOptions: MappaOperatorOption[];
-  territories: Array<{ id: string; name: string; lat: number | null; lng: number | null }>;
+  territories: Territory[];
   dateFrom: string;
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
@@ -689,6 +691,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [setupModalDate, setSetupModalDate] = useState(isoTomorrow());
   const [setupModalTerritory, setSetupModalTerritory] = useState('');
 
+  useEffect(() => {
+    if (setupDone || isEditMode || !setupModalTerritory) return;
+    const stillValid = territories.some((territory) =>
+      territory.id === setupModalTerritory &&
+      isTerritoryValidOnDay(territory, setupModalDate, todayIso)
+    );
+    if (!stillValid) {
+      setSetupModalTerritory('');
+    }
+  }, [isEditMode, setupDone, setupModalDate, setupModalTerritory, territories, todayIso]);
+
   // Inizializza modalità quando piano è riaperto dal registro
   useEffect(() => {
     if (!initialDistribution || initialDistribution.length === 0) return;
@@ -871,6 +884,26 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       a.displayName.localeCompare(b.displayName, 'it', { sensitivity: 'base' })
     );
   }, [operatorOptions]);
+
+  const todayIso = useMemo(
+    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
+    []
+  );
+
+  const planningTerritories = useMemo(() => {
+    const targetDate = !setupDone && !isEditMode ? setupModalDate : planningDate;
+    const available = territories.filter((territory) =>
+      isTerritoryValidOnDay(territory, targetDate, todayIso)
+    );
+
+    const preservedId = territoryFilter;
+    const preserved = territories.find((territory) => territory.id === preservedId);
+    if (preserved && !available.some((territory) => territory.id === preserved.id)) {
+      available.push(preserved);
+    }
+
+    return available.sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+  }, [isEditMode, planningDate, setupDone, setupModalDate, setupModalTerritory, territories, territoryFilter, todayIso]);
 
   const selectedPlanningTerritory = useMemo(() => {
     if (!territoryFilter) return null;
@@ -1882,15 +1915,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const headers = [
       'CO', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
       'Tipo OdL(CdL)/Servizio', 'Fascia Appuntamento/Blocco',
-      'PdR / Impianto', 'Tempo Esecuzione', 'Num Risorse',
+      'PdR / Impianto', 'Nominativo', 'Tempo Esecuzione', 'Num Risorse',
     ];
     const examples = [
-      ['FIRENZE', '10570366', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', '08:00-10:00', '00594202203925', '30', '1'],
-      ['FIRENZE', '10529574', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', '08:00-10:00', '00594201242775', '30', '1'],
-      ['ROMA', '20100001', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', '10:00-12:00', '00596100174001', '15', '2'],
+      ['FIRENZE', '10570366', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1'],
+      ['FIRENZE', '10529574', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1'],
+      ['ROMA', '20100001', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = [8, 10, 16, 30, 8, 20, 20, 22, 18, 8, 8].map((w) => ({ wch: w }));
+    ws['!cols'] = [8, 10, 16, 30, 8, 20, 20, 22, 18, 24, 8, 8].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Export Dati');
     XLSX.writeFile(wb, 'template_mappa_operatori.xlsx');
@@ -1930,7 +1963,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
                   >
                     <option value="" disabled>— Seleziona territorio —</option>
-                    {territories.map((t) => (
+                    {planningTerritories.map((t) => (
                       <option key={t.id} value={t.id}>
                         {t.name}
                       </option>

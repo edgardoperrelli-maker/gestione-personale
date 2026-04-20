@@ -1,11 +1,13 @@
 'use client';
 import { useState, useMemo, useEffect } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import { COST_CENTERS } from '@/constants/cost-centers';
 
 export default function EditAssignmentDialog({
   assignment,
+  iso,
   staffList,
   actList,
   terrList,
@@ -14,6 +16,7 @@ export default function EditAssignmentDialog({
   onDeleted,
 }: {
   assignment: Assignment;
+  iso: string;
   staffList: Staff[];
   actList: Activity[];
   terrList: Territory[];
@@ -52,10 +55,20 @@ export default function EditAssignmentDialog({
     () => [...(actList || [])].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
     [actList]
   );
-  const terrSorted = useMemo(
-    () => [...(terrList || [])].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
-    [terrList]
+  const todayIso = useMemo(
+    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
+    []
   );
+  const terrSorted = useMemo(() => {
+    const available = terrList.filter((territory) =>
+      isTerritoryValidOnDay(territory, iso, todayIso)
+    );
+    const selected = terrList.find((territory) => territory.id === terrId);
+    if (selected && !available.some((territory) => territory.id === terrId)) {
+      available.push(selected);
+    }
+    return available.sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
+  }, [iso, terrId, terrList, todayIso]);
 
   const canSave = !!staffId && !!costCenter && !saving;
 
@@ -64,6 +77,21 @@ export default function EditAssignmentDialog({
     if (!canSave) return;
     setSaving(true);
     setErr(undefined);
+
+    if (terrId) {
+      const selectedTerritory = terrList.find((territory) => territory.id === terrId);
+      if (!selectedTerritory) {
+        setErr('Territorio selezionato non disponibile.');
+        setSaving(false);
+        return;
+      }
+
+      if (!isTerritoryValidOnDay(selectedTerritory, iso, todayIso)) {
+        setErr(`Il territorio ${selectedTerritory.name} non e valido per il ${iso}.`);
+        setSaving(false);
+        return;
+      }
+    }
 
     const { data, error } = await sb
       .from('assignments')
