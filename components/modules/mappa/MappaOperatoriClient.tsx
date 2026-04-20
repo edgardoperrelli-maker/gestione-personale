@@ -872,6 +872,22 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     );
   }, [operatorOptions]);
 
+  const selectedPlanningTerritory = useMemo(() => {
+    if (!territoryFilter) return null;
+    return territories.find((territory) => territory.id === territoryFilter) ?? null;
+  }, [territories, territoryFilter]);
+
+  const scheduledStaffIdsForPlanning = useMemo(() => {
+    if (!territoryFilter) return new Set<string>();
+
+    return new Set(
+      rows
+        .filter((row) => row.day === planningDate && row.territoryId === territoryFilter)
+        .map((row) => row.staffId)
+        .filter(Boolean)
+    );
+  }, [planningDate, rows, territoryFilter]);
+
   const excelOperators = useMemo(() => {
     const names = new Set<string>();
     selectedOps.forEach((op) => {
@@ -881,40 +897,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return Array.from(names).sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
   }, [selectedOps]);
 
-  // Rileva territorio dalla prima attività Excel
-  const excelTerritory = useMemo(() => {
-    const first = excelTasks.find(t => t.cap && t.cap.trim().length >= 2);
-    return first ? detectTerritory(first.cap) : null;
-  }, [excelTasks]);
-
-  // Filtra operatori per territorio del cronoprogramma
+  // Filtra operatori sul territorio selezionato in mappa per il giorno corrente
   const territoryFilteredOperators = useMemo(() => {
-    if (!excelTerritory) return availableOperators;
-
-    // Filtra rows per il giorno di pianificazione
-    const rowsForDay = rows.filter(r => r.day === planningDate);
-
-    // Se non ci sono righe per quel giorno, usa tutte le righe disponibili
-    const rowsToCheck = rowsForDay.length > 0 ? rowsForDay : rows;
-
-    // Staff con territorio matching (confronto case-insensitive sul nome)
-    const staffIdsInTerritory = new Set(
-      rowsToCheck
-        .filter(r => {
-          if (!r.territoryName) return false;
-          const name = r.territoryName.toLowerCase();
-          if (excelTerritory === 'firenze') {
-            return name.includes('firenze') || name.includes('toscana');
-          }
-          // lazio
-          return name.includes('lazio') || name.includes('roma');
-        })
-        .map(r => r.staffId)
-    );
-
-    if (staffIdsInTerritory.size === 0) return availableOperators;
-    return availableOperators.filter(op => staffIdsInTerritory.has(op.id));
-  }, [availableOperators, excelTerritory, rows, planningDate]);
+    if (!territoryFilter) return availableOperators;
+    return availableOperators.filter((operator) => scheduledStaffIdsForPlanning.has(operator.id));
+  }, [availableOperators, scheduledStaffIdsForPlanning, territoryFilter]);
 
   const excelNeedsManualCount = useMemo(() => {
     return excelTasks.filter((task) => task.lat == null || task.lng == null).length;
@@ -930,13 +917,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Filtra appuntamenti per data pianificazione e territorio
   const filteredAppointmentTasks = useMemo(() => {
-    return (geocodedAppointmentTasks ?? []).filter(t => {
-      if (t.appointmentDate !== planningDate) return false;
-      if (!excelTerritory) return true;
-      if (!t.cap) return false;
-      return detectTerritory(t.cap) === excelTerritory;
-    });
-  }, [geocodedAppointmentTasks, planningDate, excelTerritory]);
+    return (geocodedAppointmentTasks ?? []).filter((task) => task.appointmentDate === planningDate);
+  }, [geocodedAppointmentTasks, planningDate]);
 
   // Merge Excel tasks con appointment tasks filtrati per distribuzione
   const allTasks = useMemo(() => {
@@ -1489,7 +1471,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           data: planningDate,
-          territorio: excelTerritory || 'Generale',
+          territorio: selectedPlanningTerritory?.name ?? null,
           note: '',
           stato: 'confermato',
           operatori,
@@ -1511,7 +1493,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [distribution, planningDate, selectedOps]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -2205,14 +2187,19 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             );
                           })}
                         </div>
-                        {excelTerritory !== null && territoryFilteredOperators.length < availableOperators.length && (
+                        {territoryFilter && territoryFilteredOperators.length < availableOperators.length && (
                           <p className="text-[10px] text-gray-400 mt-1">
-                            Filtro territorio attivo · {territoryFilteredOperators.length} operatori su {availableOperators.length}
+                            Cronoprogramma {planningDate} | {territoryFilteredOperators.length} operatori su {availableOperators.length}
+                            {selectedPlanningTerritory ? ` assegnati a ${selectedPlanningTerritory.name}` : ''}
                           </p>
                         )}
                       </>
                     ) : (
-                      <p className="text-xs text-gray-400">Nessun operatore valido nel cronoprogramma per questo periodo.</p>
+                      <p className="text-xs text-gray-400">
+                        Nessun operatore assegnato nel cronoprogramma
+                        {selectedPlanningTerritory ? ` a ${selectedPlanningTerritory.name}` : ''}
+                        {' '}per il {planningDate}.
+                      </p>
                     )}
                   </div>
                 )}
