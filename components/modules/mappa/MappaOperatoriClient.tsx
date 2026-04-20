@@ -690,6 +690,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [setupDone, setSetupDone] = useState(false);
   const [setupModalDate, setSetupModalDate] = useState(isoTomorrow());
   const [setupModalTerritory, setSetupModalTerritory] = useState('');
+  const todayIso = useMemo(
+    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
+    []
+  );
 
   useEffect(() => {
     if (setupDone || isEditMode || !setupModalTerritory) return;
@@ -884,11 +888,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       a.displayName.localeCompare(b.displayName, 'it', { sensitivity: 'base' })
     );
   }, [operatorOptions]);
-
-  const todayIso = useMemo(
-    () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
-    []
-  );
 
   const planningTerritories = useMemo(() => {
     const targetDate = !setupDone && !isEditMode ? setupModalDate : planningDate;
