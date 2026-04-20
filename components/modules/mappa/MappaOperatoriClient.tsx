@@ -1925,7 +1925,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     ws['!cols'] = [8, 10, 16, 30, 8, 20, 20, 22, 18, 24, 8, 8].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Export Dati');
-    XLSX.writeFile(wb, 'template_mappa_operatori.xlsx');
+    XLSX.writeFile(wb, 'template_mappa_operatori_con_nominativo.xlsx');
   }, []);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
