@@ -30,17 +30,27 @@ export function mapSopralluoghiErrorMessage(message: string): string {
     return 'Schema database Sopralluoghi non aggiornato. Applica la migration supabase/migrations/20260424050000_sopralluoghi_activity_scope.sql e poi ricarica la pagina.';
   }
 
+  if (isSchemaCacheError && normalized.includes('comune')) {
+    return 'Schema database Sopralluoghi non aggiornato. Applica la migration supabase/migrations/20260424070000_sopralluoghi_comune_scope.sql e poi ricarica la pagina.';
+  }
+
+  if (normalized.includes('sopralluoghi_dataset_caricati')) {
+    return 'Schema database Sopralluoghi non aggiornato. Applica la migration supabase/migrations/20260424080000_sopralluoghi_dataset_catalog.sql e poi ricarica la pagina.';
+  }
+
   if (normalized.includes('no unique or exclusion constraint matching the on conflict specification')) {
-    return 'Schema database Sopralluoghi non aggiornato. Applica la migration supabase/migrations/20260424050000_sopralluoghi_activity_scope.sql e poi ripeti l\'operazione.';
+    return 'Schema database Sopralluoghi non allineato alla nuova regola doppioni. Applica la migration supabase/migrations/20260424060000_sopralluoghi_scope_unique_address.sql e poi ripeti l\'operazione.';
   }
 
   const referencesSopralluoghiSchema = [
     "civici_napoli",
     "microaree_stats",
     "sopralluoghi_pdf_generati",
+    "sopralluoghi_dataset_caricati",
     "sopralluoghi",
     "territorio_id",
     "activity_id",
+    "comune",
     "excel_url",
   ].some((token) => normalized.includes(token));
 

@@ -19,7 +19,9 @@ type RegistrationDraft = {
 type RegistrationPayload = {
   territorio_id?: string | null;
   activity_id?: string | null;
+  comune?: string | null;
   microarea?: string | null;
+  microaree?: string[] | null;
   data_sopralluogo?: string | null;
   drafts?: RegistrationDraft[];
 };
@@ -34,6 +36,7 @@ type ExistingSopralluogo = {
 
 type CivicoRow = {
   id: number;
+  comune: string;
   odonimo: string;
   civico: string;
   microarea: string;
@@ -57,19 +60,30 @@ function parsePuntiGas(value: number | string | null | undefined): number | null
   return parsed;
 }
 
+function normalizeMicroaree(values: Array<string | null | undefined>): string[] {
+  return [...new Set(
+    values
+      .map((value) => String(value ?? '').trim())
+      .filter((value) => value.length > 0),
+  )].sort((left, right) => left.localeCompare(right, 'it'));
+}
+
 async function loadCiviciAndRegistrazioni(params: {
   territorioId: string;
   activityId: string;
-  microarea: string;
+  comune: string;
+  microaree: string[];
 }) {
-  const { territorioId, activityId, microarea } = params;
+  const { territorioId, activityId, comune, microaree } = params;
 
   const { data: civici, error: civiciError } = await supabaseAdmin
     .from('civici_napoli')
-    .select('id, odonimo, civico, microarea')
+    .select('id, comune, odonimo, civico, microarea')
     .eq('territorio_id', territorioId)
     .eq('activity_id', activityId)
-    .eq('microarea', microarea)
+    .eq('comune', comune)
+    .in('microarea', microaree)
+    .order('microarea', { ascending: true })
     .order('odonimo', { ascending: true })
     .order('civico', { ascending: true });
 
@@ -108,7 +122,11 @@ export async function GET(request: NextRequest) {
     const searchParams = new URL(request.url).searchParams;
     const territorioId = String(searchParams.get('territorio_id') ?? '').trim();
     const activityId = String(searchParams.get('activity_id') ?? '').trim();
-    const microarea = String(searchParams.get('microarea') ?? '').trim();
+    const comune = String(searchParams.get('comune') ?? '').trim().toUpperCase();
+    const microaree = normalizeMicroaree([
+      ...searchParams.getAll('microarea'),
+      searchParams.get('microarea'),
+    ]);
 
     if (!territorioId) {
       return NextResponse.json({ error: 'Territorio obbligatorio' }, { status: 400 });
@@ -120,14 +138,19 @@ export async function GET(request: NextRequest) {
 
     await requireSopralluoghiActivity(activityId);
 
-    if (!microarea) {
-      return NextResponse.json({ error: 'Microarea obbligatoria' }, { status: 400 });
+    if (microaree.length === 0) {
+      return NextResponse.json({ error: 'Seleziona almeno una microarea' }, { status: 400 });
+    }
+
+    if (!comune) {
+      return NextResponse.json({ error: 'Comune obbligatorio' }, { status: 400 });
     }
 
     const data = await loadCiviciAndRegistrazioni({
       territorioId,
       activityId,
-      microarea,
+      comune,
+      microaree,
     });
 
     return NextResponse.json(data);
@@ -147,7 +170,11 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as RegistrationPayload;
     const territorioId = String(body.territorio_id ?? '').trim();
     const activityId = String(body.activity_id ?? '').trim();
-    const microarea = String(body.microarea ?? '').trim();
+    const comune = String(body.comune ?? '').trim().toUpperCase();
+    const microaree = normalizeMicroaree([
+      ...(Array.isArray(body.microaree) ? body.microaree : []),
+      body.microarea,
+    ]);
     const drafts = Array.isArray(body.drafts) ? body.drafts : [];
 
     if (!territorioId) {
@@ -160,8 +187,12 @@ export async function POST(request: NextRequest) {
 
     await requireSopralluoghiActivity(activityId);
 
-    if (!microarea) {
-      return NextResponse.json({ error: 'Microarea obbligatoria' }, { status: 400 });
+    if (microaree.length === 0) {
+      return NextResponse.json({ error: 'Seleziona almeno una microarea' }, { status: 400 });
+    }
+
+    if (!comune) {
+      return NextResponse.json({ error: 'Comune obbligatorio' }, { status: 400 });
     }
 
     if (drafts.length === 0) {
@@ -171,11 +202,12 @@ export async function POST(request: NextRequest) {
     const { civici } = await loadCiviciAndRegistrazioni({
       territorioId,
       activityId,
-      microarea,
+      comune,
+      microaree,
     });
 
     if (civici.length === 0) {
-      return NextResponse.json({ error: 'Nessun civico trovato per territorio e microarea selezionati' }, { status: 404 });
+      return NextResponse.json({ error: 'Nessun civico trovato per territorio e microaree selezionate' }, { status: 404 });
     }
 
     const validCivicoIds = new Set(civici.map((civico) => civico.id));
@@ -257,7 +289,8 @@ export async function POST(request: NextRequest) {
         .update({ stato_registrazione: 'completato' })
         .eq('territorio_id', territorioId)
         .eq('activity_id', activityId)
-        .eq('microarea', microarea)
+        .eq('comune', comune)
+        .in('microarea', microaree)
         .neq('stato_registrazione', 'completato');
     }
 
@@ -271,9 +304,10 @@ export async function POST(request: NextRequest) {
       salvati: visitedDrafts.length,
       rimossi: toDeleteIds.length,
       punti_gas_totali: puntiGasTotali,
-      microarea,
+      microaree,
       territorio_id: territorioId,
       activity_id: activityId,
+      comune,
     });
   } catch (error: unknown) {
     const rawMessage = error instanceof Error ? error.message : String(error);

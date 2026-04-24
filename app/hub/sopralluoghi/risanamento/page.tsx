@@ -49,7 +49,7 @@ export default async function RisanamentoPage({
     role === 'admin'
       ? supabase
           .from('sopralluoghi_pdf_generati')
-          .select('id, microarea, territorio_id, activity_id, num_civici, data_generazione, stato_registrazione, pdf_url, excel_url')
+          .select('id, microarea, territorio_id, activity_id, comune, num_civici, data_generazione, stato_registrazione, pdf_url, excel_url')
           .order('data_generazione', { ascending: false })
       : Promise.resolve({ data: [] }),
   ]);

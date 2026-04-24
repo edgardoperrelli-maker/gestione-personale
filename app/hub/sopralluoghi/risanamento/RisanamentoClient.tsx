@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
+import MicroareaMultiSelect from '@/components/modules/sopralluoghi/MicroareaMultiSelect';
 import RegistrazioneInterventiPanel from '@/components/modules/sopralluoghi/RegistrazioneInterventiPanel';
 import type { Activity, Territory } from '@/types';
 
@@ -16,6 +17,7 @@ export type MicroareaStats = {
   territorio_id: string | null;
   activity_id: string | null;
   activity_name: string | null;
+  comune: string | null;
   microarea: string;
   totale_civici: number;
   visitati: number;
@@ -35,6 +37,7 @@ type PDFGenerato = {
   microarea: string;
   territorio_id: string | null;
   activity_id: string | null;
+  comune: string | null;
   num_civici: number;
   data_generazione: string;
   stato_registrazione: string;
@@ -83,20 +86,48 @@ export default function RisanamentoClient({
   const [activeTab, setActiveTab] = useState<Props['initialTab']>(initialTab);
   const [territorioSelezionato, setTerritorioSelezionato] = useState<string>('');
   const [attivitaSelezionata, setAttivitaSelezionata] = useState<string>('');
+  const [comuneSelezionato, setComuneSelezionato] = useState<string>('');
   const [filtroStato, setFiltroStato] = useState<'tutti' | 'da_visitare' | 'visitati' | 'programmati'>('tutti');
-  const [microareaSelezionata, setMicroareaSelezionata] = useState<string | null>(null);
+  const [microareeSelezionate, setMicroareeSelezionate] = useState<string[]>([]);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
 
   const territoryName = territories.find((territory) => territory.id === territorioSelezionato)?.name;
   const activityName = activities.find((activity) => activity.id === attivitaSelezionata)?.name;
 
-  const statsPerScope = useMemo(
+  const statsPerTerritorioAttivita = useMemo(
     () => microareeStats.filter((stats) => (
       stats.territorio_id === territorioSelezionato
       && stats.activity_id === attivitaSelezionata
     )),
     [attivitaSelezionata, microareeStats, territorioSelezionato],
+  );
+
+  const comuneOptions = useMemo(
+    () => Array.from(
+      new Set(
+        statsPerTerritorioAttivita
+          .map((stats) => stats.comune?.trim() ?? '')
+          .filter((comune) => comune.length > 0),
+      ),
+    ).sort((left, right) => left.localeCompare(right, 'it')),
+    [statsPerTerritorioAttivita],
+  );
+
+  useEffect(() => {
+    if (comuneOptions.length === 1 && !comuneSelezionato) {
+      setComuneSelezionato(comuneOptions[0]);
+      return;
+    }
+
+    if (comuneSelezionato && !comuneOptions.includes(comuneSelezionato)) {
+      setComuneSelezionato('');
+    }
+  }, [comuneOptions, comuneSelezionato]);
+
+  const statsPerScope = useMemo(
+    () => statsPerTerritorioAttivita.filter((stats) => stats.comune === comuneSelezionato),
+    [comuneSelezionato, statsPerTerritorioAttivita],
   );
 
   const statsFiltered = useMemo(
@@ -115,13 +146,10 @@ export default function RisanamentoClient({
   );
 
   useEffect(() => {
-    if (!microareaSelezionata) return;
-
-    const exists = statsPerScope.some((stats) => stats.microarea === microareaSelezionata);
-    if (!exists) {
-      setMicroareaSelezionata(null);
-    }
-  }, [microareaSelezionata, statsPerScope]);
+    setMicroareeSelezionate((prev) => prev.filter((microarea) => (
+      statsPerScope.some((stats) => stats.microarea === microarea)
+    )));
+  }, [statsPerScope]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -137,17 +165,30 @@ export default function RisanamentoClient({
   const totVisitati = statsPerScope.reduce((sum, stats) => sum + stats.visitati, 0);
   const totIdonei = statsPerScope.reduce((sum, stats) => sum + stats.idonei_risanamento, 0);
 
-  const microareaSelezionataStats = statsPerScope.find((stats) => stats.microarea === microareaSelezionata) ?? null;
-  const pdfMicroareaSelezionata = pdfGenerati.find((pdf) => (
+  const microareeStatsSelezionate = statsPerScope.filter((stats) => microareeSelezionate.includes(stats.microarea));
+  const selectionCount = microareeSelezionate.length;
+  const selectionCivici = microareeStatsSelezionate.reduce((sum, stats) => sum + stats.totale_civici, 0);
+  const selectionVisitati = microareeStatsSelezionate.reduce((sum, stats) => sum + stats.visitati, 0);
+  const selectionIdonei = microareeStatsSelezionate.reduce((sum, stats) => sum + stats.idonei_risanamento, 0);
+  const pdfMicroareeSelezionate = pdfGenerati.filter((pdf) => (
     pdf.territorio_id === territorioSelezionato
     && pdf.activity_id === attivitaSelezionata
-    && pdf.microarea === microareaSelezionata
+    && pdf.comune === comuneSelezionato
+    && microareeSelezionate.includes(pdf.microarea)
   ));
+
+  const toggleMicroareaSelection = (microarea: string) => {
+    setMicroareeSelezionate((prev) => (
+      prev.includes(microarea)
+        ? prev.filter((item) => item !== microarea)
+        : [...prev, microarea].sort((left, right) => left.localeCompare(right, 'it'))
+    ));
+  };
 
   const handleGeneraPDF = async () => {
     if (!canManage) return;
-    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
-      alert('Seleziona prima territorio, tipologia lavoro e microarea.');
+    if (!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato || microareeSelezionate.length === 0) {
+      alert('Seleziona prima territorio, tipologia lavoro, comune e almeno una microarea.');
       return;
     }
 
@@ -157,13 +198,20 @@ export default function RisanamentoClient({
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          microarea: microareaSelezionata,
+          microaree: microareeSelezionate,
           territorio_id: territorioSelezionato,
           activity_id: attivitaSelezionata,
+          comune: comuneSelezionato,
         }),
       });
 
-      const data = (await response.json()) as { pdf_url?: string; excel_url?: string; error?: string };
+      const data = (await response.json()) as {
+        pdf_url?: string;
+        excel_url?: string;
+        generated?: Array<{ microarea: string; pdf_url: string; excel_url: string }>;
+        message?: string;
+        error?: string;
+      };
       if (!response.ok) {
         throw new Error(data.error ?? 'Errore generazione PDF');
       }
@@ -174,6 +222,8 @@ export default function RisanamentoClient({
 
       if (data.excel_url) {
         triggerFileDownload(data.excel_url);
+      } else if (Array.isArray(data.generated) && data.generated.length > 1) {
+        alert(data.message ?? `Generati PDF ed Excel per ${data.generated.length} microaree.`);
       }
 
       router.refresh();
@@ -185,8 +235,8 @@ export default function RisanamentoClient({
   };
 
   const handleExportExcel = async () => {
-    if (!territorioSelezionato || !attivitaSelezionata) {
-      alert('Seleziona prima territorio e tipologia lavoro.');
+    if (!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato) {
+      alert('Seleziona prima territorio, tipologia lavoro e comune.');
       return;
     }
 
@@ -198,6 +248,7 @@ export default function RisanamentoClient({
         body: JSON.stringify({
           territorio_id: territorioSelezionato,
           activity_id: attivitaSelezionata,
+          comune: comuneSelezionato,
           solo_idonei: true,
           stato: 'visitato',
         }),
@@ -252,6 +303,20 @@ export default function RisanamentoClient({
               <option key={activity.id} value={activity.id}>
                 {activity.name}
               </option>
+              ))}
+            </select>
+          <div className="mt-3 text-sm text-[var(--text-secondary)]">Comune</div>
+          <select
+            value={comuneSelezionato}
+            onChange={(event) => setComuneSelezionato(event.target.value)}
+            disabled={statsPerTerritorioAttivita.length === 0}
+            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50"
+          >
+            <option value="">Seleziona un comune</option>
+            {comuneOptions.map((comune) => (
+              <option key={comune} value={comune}>
+                {comune}
+              </option>
             ))}
           </select>
         </div>
@@ -275,13 +340,13 @@ export default function RisanamentoClient({
         </div>
       </div>
 
-      {(!territorioSelezionato || !attivitaSelezionata) && (
+      {(!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato) && (
         <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
-          Seleziona territorio e tipologia lavoro per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
+          Seleziona territorio, tipologia lavoro e comune per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
         </div>
       )}
 
-      {territorioSelezionato && attivitaSelezionata && activeTab === 'pianificazione' && (
+      {territorioSelezionato && attivitaSelezionata && comuneSelezionato && activeTab === 'pianificazione' && (
         <>
           <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--border-subtle)] bg-white p-4">
             <div className="min-w-[200px] flex-1">
@@ -312,46 +377,54 @@ export default function RisanamentoClient({
             </div>
           </div>
 
+          <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+            <MicroareaMultiSelect
+              label="Microaree selezionate"
+              options={microareaOptions}
+              selected={microareeSelezionate}
+              onChange={setMicroareeSelezionate}
+              helperText="Puoi selezionare piu microaree anche cliccando direttamente sulla mappa."
+              emptyText="Nessuna microarea disponibile per il filtro corrente."
+            />
+          </div>
+
           {statsFiltered.length > 0 ? (
             <MappaRisanamento
               microareeStats={statsFiltered}
-              onMicroareaClick={setMicroareaSelezionata}
-              microareaSelezionata={microareaSelezionata}
+              onMicroareaClick={toggleMicroareaSelection}
+              microareeSelezionate={microareeSelezionate}
             />
           ) : (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
-              Nessuna microarea disponibile per territorio e tipologia lavoro selezionati.
+              Nessuna microarea disponibile per territorio, tipologia lavoro e comune selezionati.
             </div>
           )}
 
-          {microareaSelezionata && microareaSelezionataStats && (
+          {microareeSelezionate.length > 0 && (
             <div className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
                   <h3 className="font-medium text-[var(--text-primary)]">
-                    {microareaSelezionata}
+                    {selectionCount === 1
+                      ? microareeSelezionate[0]
+                      : `${selectionCount} microaree selezionate`}
                   </h3>
                   <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                    {territoryName ?? 'Territorio selezionato'} - {activityName ?? 'Tipologia selezionata'} - {microareaSelezionataStats.totale_civici.toLocaleString('it-IT')} civici - {microareaSelezionataStats.visitati} visitati - {microareaSelezionataStats.idonei_risanamento} idonei
+                    {territoryName ?? 'Territorio selezionato'} - {activityName ?? 'Tipologia selezionata'} - {comuneSelezionato} - {selectionCivici.toLocaleString('it-IT')} civici - {selectionVisitati} visitati - {selectionIdonei} idonei
                   </p>
-                  {pdfMicroareaSelezionata?.pdf_url && (
+                  {pdfMicroareeSelezionate.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-3">
-                      <a
-                        href={pdfMicroareaSelezionata.pdf_url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
-                      >
-                        Apri ultimo PDF generato
-                      </a>
-                      {pdfMicroareaSelezionata.excel_url && (
+                      {pdfMicroareeSelezionate.slice(0, 3).map((pdf) => (
                         <a
-                          href={pdfMicroareaSelezionata.excel_url}
+                          key={`pdf-selection-${pdf.id}`}
+                          href={pdf.pdf_url ?? pdf.excel_url ?? '#'}
+                          target={pdf.pdf_url ? '_blank' : undefined}
+                          rel={pdf.pdf_url ? 'noopener noreferrer' : undefined}
                           className="inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
                         >
-                          Scarica ultimo Excel generato
+                          {pdf.microarea} - {new Date(pdf.data_generazione).toLocaleDateString('it-IT')}
                         </a>
-                      )}
+                      ))}
                     </div>
                   )}
                 </div>
@@ -366,12 +439,16 @@ export default function RisanamentoClient({
                   </Button>
                   {canManage && (
                     <Button
-                      variant="primary"
-                      size="md"
-                      onClick={handleGeneraPDF}
-                      disabled={generandoPdf}
-                    >
-                      {generandoPdf ? 'Generando...' : 'Genera PDF + Excel sopralluogo'}
+                    variant="primary"
+                    size="md"
+                    onClick={handleGeneraPDF}
+                    disabled={generandoPdf}
+                  >
+                      {generandoPdf
+                        ? 'Generando...'
+                        : selectionCount > 1
+                          ? 'Genera PDF + Excel per le microaree selezionate'
+                          : 'Genera PDF + Excel sopralluogo'}
                     </Button>
                   )}
                 </div>
@@ -399,10 +476,11 @@ export default function RisanamentoClient({
             territoryName={territoryName}
             attivitaSelezionata={attivitaSelezionata}
             activityName={activityName}
-            microareaSelezionata={microareaSelezionata}
+            comuneSelezionato={comuneSelezionato}
+            microareeSelezionate={microareeSelezionate}
             microareaOptions={microareaOptions}
             pdfGenerati={pdfGenerati}
-            onMicroareaChange={setMicroareaSelezionata}
+            onMicroareeChange={setMicroareeSelezionate}
           />
         </div>
       )}

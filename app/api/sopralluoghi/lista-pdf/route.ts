@@ -17,6 +17,8 @@ export async function GET(request: NextRequest) {
 
     const { searchParams } = new URL(request.url);
     const territorioId = searchParams.get('territorio_id');
+    const activityId = searchParams.get('activity_id');
+    const comune = searchParams.get('comune');
     const statoRegistrazione = searchParams.get('stato');
 
     let query = supabase
@@ -26,6 +28,14 @@ export async function GET(request: NextRequest) {
 
     if (territorioId) {
       query = query.eq('territorio_id', territorioId);
+    }
+
+    if (activityId) {
+      query = query.eq('activity_id', activityId);
+    }
+
+    if (comune) {
+      query = query.eq('comune', comune.trim().toUpperCase());
     }
 
     if (statoRegistrazione) {

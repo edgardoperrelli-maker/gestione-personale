@@ -9,7 +9,7 @@ type LeafletModule = typeof import('leaflet');
 type Props = {
   microareeStats: MicroareaStats[];
   onMicroareaClick: (microarea: string) => void;
-  microareaSelezionata: string | null;
+  microareeSelezionate: string[];
 };
 
 function getColor(visitati: number, totale: number): string {
@@ -23,7 +23,7 @@ function getColor(visitati: number, totale: number): string {
 export default function MappaRisanamento({
   microareeStats,
   onMicroareaClick,
-  microareaSelezionata,
+  microareeSelezionate,
 }: Props) {
   const leafletRef = useRef<LeafletModule | null>(null);
   const mapRef = useRef<LeafletMap | null>(null);
@@ -92,7 +92,7 @@ export default function MappaRisanamento({
         [stats.lat_max, stats.lon_max],
       );
 
-      const isSelected = stats.microarea === microareaSelezionata;
+      const isSelected = microareeSelezionate.includes(stats.microarea);
       const rect = leaflet.rectangle(bounds, {
         color: isSelected ? '#7c3aed' : getColor(stats.visitati, stats.totale_civici),
         weight: isSelected ? 2 : 1,
@@ -100,19 +100,19 @@ export default function MappaRisanamento({
       }).addTo(map);
 
       rect.bindTooltip(
-        `<strong>${stats.microarea}</strong><br>Civici: ${stats.totale_civici}<br>Visitati: ${stats.visitati}`,
+        `<strong>${stats.microarea}</strong><br>Comune: ${stats.comune ?? '-'}<br>Civici: ${stats.totale_civici}<br>Visitati: ${stats.visitati}`,
         { sticky: true },
       );
 
       rect.on('click', () => onMicroareaClick(stats.microarea));
       layersRef.current.set(stats.microarea, rect);
     });
-  }, [mapReady, microareeStats, microareaSelezionata, onMicroareaClick]);
+  }, [mapReady, microareeStats, microareeSelezionate, onMicroareaClick]);
 
   useEffect(() => {
     const leaflet = leafletRef.current;
     const map = mapRef.current;
-    if (!mapReady || !leaflet || !map || microareaSelezionata || microareeStats.length === 0) return;
+    if (!mapReady || !leaflet || !map || microareeSelezionate.length > 0 || microareeStats.length === 0) return;
 
     const validBounds = microareeStats
       .filter((stats) => (
@@ -130,32 +130,43 @@ export default function MappaRisanamento({
 
     const allBounds = validBounds.reduce((current, bounds) => current.extend(bounds));
     map.fitBounds(allBounds, { padding: [30, 30] });
-  }, [mapReady, microareeStats, microareaSelezionata]);
+  }, [mapReady, microareeStats, microareeSelezionate]);
 
   useEffect(() => {
     const leaflet = leafletRef.current;
     const map = mapRef.current;
-    if (!mapReady || !leaflet || !map || !microareaSelezionata) return;
+    if (!mapReady || !leaflet || !map || microareeSelezionate.length === 0) return;
 
-    const stats = microareeStats.find((entry) => entry.microarea === microareaSelezionata);
-    if (
-      !stats
-      || stats.lat_min == null
-      || stats.lat_max == null
-      || stats.lon_min == null
-      || stats.lon_max == null
-    ) {
+    const selectedStats = microareeStats.filter((entry) => (
+      microareeSelezionate.includes(entry.microarea)
+      && entry.lat_min != null
+      && entry.lat_max != null
+      && entry.lon_min != null
+      && entry.lon_max != null
+    ));
+
+    if (selectedStats.length === 0) {
       return;
     }
 
-    map.fitBounds(
-      leaflet.latLngBounds(
+    const bounds = selectedStats.reduce((currentBounds, stats, index) => {
+      const entryBounds = leaflet.latLngBounds(
         [stats.lat_min, stats.lon_min],
         [stats.lat_max, stats.lon_max],
-      ),
-      { padding: [40, 40] },
-    );
-  }, [mapReady, microareaSelezionata, microareeStats]);
+      );
+
+      if (index === 0) {
+        return entryBounds;
+      }
+
+      return currentBounds.extend(entryBounds);
+    }, leaflet.latLngBounds(
+      [selectedStats[0].lat_min, selectedStats[0].lon_min],
+      [selectedStats[0].lat_max, selectedStats[0].lon_max],
+    ));
+
+    map.fitBounds(bounds, { padding: [40, 40] });
+  }, [mapReady, microareeSelezionate, microareeStats]);
 
   return (
     <div className="relative">

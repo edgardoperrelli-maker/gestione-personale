@@ -5,12 +5,14 @@ import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { Card, CardContent, CardHeader } from '@/components/Card';
 import Input from '@/components/Input';
+import MicroareaMultiSelect from './MicroareaMultiSelect';
 
 type PDFGenerato = {
   id: number;
   microarea: string;
   territorio_id: string | null;
   activity_id: string | null;
+  comune: string | null;
   num_civici: number;
   data_generazione: string;
   stato_registrazione: string;
@@ -57,10 +59,11 @@ type Props = {
   territoryName?: string;
   attivitaSelezionata: string;
   activityName?: string;
-  microareaSelezionata: string | null;
+  comuneSelezionato: string;
+  microareeSelezionate: string[];
   microareaOptions: string[];
   pdfGenerati: PDFGenerato[];
-  onMicroareaChange: (value: string | null) => void;
+  onMicroareeChange: (values: string[]) => void;
 };
 
 export default function RegistrazioneInterventiPanel({
@@ -69,10 +72,11 @@ export default function RegistrazioneInterventiPanel({
   territoryName,
   attivitaSelezionata,
   activityName,
-  microareaSelezionata,
+  comuneSelezionato,
+  microareeSelezionate,
   microareaOptions,
   pdfGenerati,
-  onMicroareaChange,
+  onMicroareeChange,
 }: Props) {
   const router = useRouter();
   const [civici, setCivici] = useState<CivicoRow[]>([]);
@@ -82,7 +86,7 @@ export default function RegistrazioneInterventiPanel({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
+    if (!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato || microareeSelezionate.length === 0) {
       setCivici([]);
       setDrafts(new Map());
       setMessage(null);
@@ -99,7 +103,10 @@ export default function RegistrazioneInterventiPanel({
         const searchParams = new URLSearchParams({
           territorio_id: territorioSelezionato,
           activity_id: attivitaSelezionata,
-          microarea: microareaSelezionata,
+          comune: comuneSelezionato,
+        });
+        microareeSelezionate.forEach((microarea) => {
+          searchParams.append('microarea', microarea);
         });
         const response = await fetch(`/api/sopralluoghi/registrazione?${searchParams.toString()}`, {
           method: 'GET',
@@ -160,15 +167,16 @@ export default function RegistrazioneInterventiPanel({
     return () => {
       active = false;
     };
-  }, [attivitaSelezionata, microareaSelezionata, territorioSelezionato]);
+  }, [attivitaSelezionata, comuneSelezionato, microareeSelezionate, territorioSelezionato]);
 
   const pdfDisponibili = useMemo(
     () => pdfGenerati.filter((pdf) => (
       pdf.territorio_id === territorioSelezionato
       && pdf.activity_id === attivitaSelezionata
-      && (!microareaSelezionata || pdf.microarea === microareaSelezionata)
+      && pdf.comune === comuneSelezionato
+      && (microareeSelezionate.length === 0 || microareeSelezionate.includes(pdf.microarea))
     )),
-    [attivitaSelezionata, microareaSelezionata, pdfGenerati, territorioSelezionato],
+    [attivitaSelezionata, comuneSelezionato, microareeSelezionate, pdfGenerati, territorioSelezionato],
   );
 
   const handleToggle = (civicoId: number, field: 'visitato' | 'idoneo') => {
@@ -234,8 +242,8 @@ export default function RegistrazioneInterventiPanel({
   };
 
   const handleSave = async () => {
-    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
-      setMessage({ type: 'error', text: 'Seleziona territorio, tipologia lavoro e microarea prima di salvare.' });
+    if (!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato || microareeSelezionate.length === 0) {
+      setMessage({ type: 'error', text: 'Seleziona territorio, tipologia lavoro, comune e almeno una microarea prima di salvare.' });
       return;
     }
 
@@ -249,7 +257,8 @@ export default function RegistrazioneInterventiPanel({
         body: JSON.stringify({
           territorio_id: territorioSelezionato,
           activity_id: attivitaSelezionata,
-          microarea: microareaSelezionata,
+          comune: comuneSelezionato,
+          microaree: microareeSelezionate,
           drafts: Array.from(drafts.values()),
         }),
       });
@@ -300,41 +309,36 @@ export default function RegistrazioneInterventiPanel({
               Registrazione Interventi
             </div>
             <div className="mt-1 text-sm text-[var(--brand-text-muted)]">
-              Registrazione manuale dei sopralluoghi sul territorio selezionato.
+              Registrazione manuale dei sopralluoghi sul territorio e sulle microaree selezionate.
             </div>
           </div>
 
-          <div className="w-full max-w-sm">
-            <label className="mb-1 block text-sm font-medium text-[var(--brand-text-muted)]">
-              Microarea
-            </label>
-            <select
-              value={microareaSelezionata ?? ''}
-              onChange={(event) => onMicroareaChange(event.target.value || null)}
-              disabled={!territorioSelezionato || !attivitaSelezionata || microareaOptions.length === 0}
-              className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
-            >
-              <option value="">Seleziona una microarea</option>
-              {microareaOptions.map((microarea) => (
-                <option key={microarea} value={microarea}>
-                  {microarea}
-                </option>
-              ))}
-            </select>
+          <div className="w-full max-w-3xl">
+            <MicroareaMultiSelect
+              label="Microaree"
+              options={microareaOptions}
+              selected={microareeSelezionate}
+              onChange={onMicroareeChange}
+              disabled={!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato || microareaOptions.length === 0}
+              helperText="Puoi registrare piu microaree nello stesso flusso."
+              emptyText="Nessuna microarea disponibile per lo scope selezionato."
+            />
           </div>
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {(!territorioSelezionato || !attivitaSelezionata) && (
+          {(!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato) && (
             <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] px-4 py-3 text-sm text-[var(--brand-text-muted)]">
-              Seleziona territorio e tipologia lavoro per caricare le microaree importate.
+              Seleziona territorio, tipologia lavoro e comune per caricare le microaree importate.
             </div>
           )}
 
-          {territorioSelezionato && attivitaSelezionata && (
+          {territorioSelezionato && attivitaSelezionata && comuneSelezionato && (
             <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-4 py-3 text-sm text-[var(--brand-text-main)]">
               Territorio attivo: <span className="font-semibold">{territoryName ?? 'Territorio selezionato'}</span>
               {' '}| Tipologia attiva: <span className="font-semibold">{activityName ?? 'Tipologia selezionata'}</span>
+              {' '}| Comune attivo: <span className="font-semibold">{comuneSelezionato}</span>
+              {' '}| Microaree selezionate: <span className="font-semibold">{microareeSelezionate.length}</span>
             </div>
           )}
 
@@ -380,7 +384,7 @@ export default function RegistrazioneInterventiPanel({
             </div>
           )}
 
-          {microareaSelezionata && (
+          {microareeSelezionate.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4">
               <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3">
                 <div className="text-xs text-[var(--brand-text-muted)]">Civici caricati</div>
@@ -414,6 +418,7 @@ export default function RegistrazioneInterventiPanel({
                   <thead className="bg-[var(--brand-bg)]">
                     <tr>
                       <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">#</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Microarea</th>
                       <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Indirizzo</th>
                       <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Civico</th>
                       <th className="px-4 py-3 text-center font-medium text-[var(--brand-text-muted)]">Visitato</th>
@@ -429,6 +434,7 @@ export default function RegistrazioneInterventiPanel({
                       return (
                         <tr key={civico.id} className="hover:bg-[var(--brand-bg)]/40">
                           <td className="px-4 py-3 text-[var(--brand-text-muted)]">{index + 1}</td>
+                          <td className="px-4 py-3 text-[var(--brand-text-main)]">{civico.microarea}</td>
                           <td className="px-4 py-3 text-[var(--brand-text-main)]">{civico.odonimo}</td>
                           <td className="px-4 py-3 font-medium text-[var(--brand-text-main)]">{civico.civico}</td>
                           <td className="px-4 py-3 text-center">
@@ -482,7 +488,7 @@ export default function RegistrazioneInterventiPanel({
                   variant="primary"
                   size="md"
                   onClick={handleSave}
-                  disabled={saving || !microareaSelezionata || drafts.size === 0}
+                  disabled={saving || microareeSelezionate.length === 0 || drafts.size === 0}
                 >
                   {saving ? 'Salvataggio...' : 'Salva registrazione'}
                 </Button>

@@ -10,6 +10,7 @@ import {
 export const dynamic = 'force-dynamic';
 
 type CivicoRow = {
+  comune: string;
   odonimo: string;
   civico: string;
   microarea: string;
@@ -25,6 +26,7 @@ type CivicoInsertRow = CivicoRow & {
 type CoordinateAxis = 'lat' | 'lon';
 
 type HeaderMap = {
+  comune: number | null;
   odonimo: number;
   civico: number;
   microarea: number;
@@ -45,6 +47,8 @@ type DeduplicateResult = {
 
 function normalizeHeader(value: unknown): string {
   return String(value ?? '')
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
     .replace(/[_-]+/g, ' ')
@@ -73,6 +77,7 @@ function resolveHeaderMap(headerRow: unknown[]): HeaderMap | null {
   }
 
   return {
+    comune: findColumn(headers, [/^comune$/, /^citta$/, /^localita$/]),
     odonimo,
     civico,
     microarea,
@@ -131,10 +136,23 @@ function parseAddressParts(indirizzoCompleto: string): Pick<CivicoRow, 'odonimo'
   };
 }
 
-function buildRowFromCells(cells: unknown[], headerMap: HeaderMap): CivicoRow | null {
+function normalizeComune(value: string): string {
+  return value.trim().replace(/\s+/g, ' ').toUpperCase();
+}
+
+function buildRowFromCells(
+  cells: unknown[],
+  headerMap: HeaderMap,
+  fallbackComune: string,
+): CivicoRow | null {
   const indirizzoCompleto = headerMap.indirizzoCompleto != null
     ? String(cells[headerMap.indirizzoCompleto] ?? '').trim()
     : '';
+  const comune = normalizeComune(
+    headerMap.comune != null
+      ? String(cells[headerMap.comune] ?? '').trim() || fallbackComune
+      : fallbackComune,
+  );
 
   let odonimo = String(cells[headerMap.odonimo] ?? '').trim();
   let civico = String(cells[headerMap.civico] ?? '').trim();
@@ -146,11 +164,12 @@ function buildRowFromCells(cells: unknown[], headerMap: HeaderMap): CivicoRow | 
     civico ||= derived.civico;
   }
 
-  if (!odonimo || !civico || !microarea) {
+  if (!comune || !odonimo || !civico || !microarea) {
     return null;
   }
 
   return {
+    comune,
     odonimo,
     civico,
     microarea,
@@ -172,7 +191,7 @@ function findHeaderRow(rows: unknown[][]): { headerRowIndex: number; headerMap: 
   return null;
 }
 
-function parseRows(rows: unknown[][], sourceName: string): ParsedRows {
+function parseRows(rows: unknown[][], sourceName: string, fallbackComune: string): ParsedRows {
   const headerMatch = findHeaderRow(rows);
   if (!headerMatch) {
     throw new Error(
@@ -183,7 +202,7 @@ function parseRows(rows: unknown[][], sourceName: string): ParsedRows {
   const parsedRows: CivicoRow[] = [];
 
   for (let rowIndex = headerMatch.headerRowIndex + 1; rowIndex < rows.length; rowIndex += 1) {
-    const row = buildRowFromCells(rows[rowIndex] ?? [], headerMatch.headerMap);
+    const row = buildRowFromCells(rows[rowIndex] ?? [], headerMatch.headerMap, fallbackComune);
     if (row) {
       parsedRows.push(row);
     }
@@ -207,7 +226,7 @@ function guessCsvDelimiter(text: string): ',' | ';' | '\t' {
   return bestDelimiter?.count ? bestDelimiter.delimiter : ';';
 }
 
-function parseCSV(text: string): ParsedRows {
+function parseCSV(text: string, fallbackComune: string): ParsedRows {
   const workbook = XLSX.read(text.replace(/^\uFEFF/, ''), {
     type: 'string',
     FS: guessCsvDelimiter(text),
@@ -226,7 +245,7 @@ function parseCSV(text: string): ParsedRows {
     blankrows: false,
   });
 
-  return parseRows(rows, 'CSV');
+  return parseRows(rows, 'CSV', fallbackComune);
 }
 
 function getSheetPriority(sheetName: string): number {
@@ -239,7 +258,7 @@ function getSheetPriority(sheetName: string): number {
   return 10;
 }
 
-async function parseExcel(file: File): Promise<ParsedRows> {
+async function parseExcel(file: File, fallbackComune: string): Promise<ParsedRows> {
   const buffer = await file.arrayBuffer();
   const workbook = XLSX.read(buffer, { type: 'array' });
   const orderedSheetNames = [...workbook.SheetNames].sort(
@@ -258,7 +277,7 @@ async function parseExcel(file: File): Promise<ParsedRows> {
     });
 
     try {
-      const parsed = parseRows(rows, sheetName);
+      const parsed = parseRows(rows, sheetName, fallbackComune);
       if (parsed.rows.length > 0) {
         return parsed;
       }
@@ -280,9 +299,9 @@ function buildConflictKey(row: CivicoInsertRow): string {
   return [
     row.territorio_id,
     row.activity_id,
+    normalizeKeyPart(row.comune),
     normalizeKeyPart(row.odonimo),
     normalizeKeyPart(row.civico),
-    normalizeKeyPart(row.microarea),
   ].join('|');
 }
 
@@ -328,6 +347,7 @@ export async function POST(request: NextRequest) {
     const file = formData.get('file');
     const territorioId = String(formData.get('territorio_id') ?? '').trim();
     const activityId = String(formData.get('activity_id') ?? '').trim();
+    const comune = normalizeComune(String(formData.get('comune') ?? '').trim());
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Nessun file caricato' }, { status: 400 });
@@ -339,6 +359,10 @@ export async function POST(request: NextRequest) {
 
     if (!activityId) {
       return NextResponse.json({ error: 'Seleziona una tipologia di lavoro' }, { status: 400 });
+    }
+
+    if (!comune) {
+      return NextResponse.json({ error: 'Seleziona o inserisci il comune di riferimento' }, { status: 400 });
     }
 
     const activity = await requireSopralluoghiActivity(activityId);
@@ -366,8 +390,8 @@ export async function POST(request: NextRequest) {
     }
 
     const parsed = filename.endsWith('.csv')
-      ? parseCSV(await file.text())
-      : await parseExcel(file);
+      ? parseCSV(await file.text(), comune)
+      : await parseExcel(file, comune);
     const rows = parsed.rows;
 
     if (rows.length === 0) {
@@ -378,6 +402,7 @@ export async function POST(request: NextRequest) {
       ...row,
       territorio_id: territorioId,
       activity_id: activity.id,
+      comune,
     }));
     const deduplicated = deduplicatePayload(payload);
 
@@ -391,7 +416,7 @@ export async function POST(request: NextRequest) {
       const { error } = await supabaseAdmin
         .from('civici_napoli')
         .upsert(batch, {
-          onConflict: 'territorio_id,activity_id,odonimo,civico,microarea',
+          onConflict: 'territorio_id,activity_id,comune,odonimo,civico',
           ignoreDuplicates: false,
         });
 
@@ -416,16 +441,17 @@ export async function POST(request: NextRequest) {
       inseriti: inserted,
       errori: errors,
       duplicati_scartati: deduplicated.duplicateRows,
-      microaree: [...new Set(rows.map((row) => row.microarea))].length,
+      microaree: [...new Set(deduplicated.rows.map((row) => row.microarea))].length,
       territorio_id: territory.id,
       territorio_nome: territory.name,
       activity_id: activity.id,
       activity_name: activity.name,
+      comune,
       sorgente: parsed.sourceName,
       warning: firstBatchError
         ? `Alcune righe non sono state salvate: ${firstBatchError}`
         : deduplicated.duplicateRows > 0
-          ? `${deduplicated.duplicateRows.toLocaleString('it-IT')} duplicati interni al file sono stati scartati prima del salvataggio`
+          ? `${deduplicated.duplicateRows.toLocaleString('it-IT')} duplicati interni al file sono stati scartati perche avevano la stessa combinazione territorio, attivita, comune e indirizzo`
           : null,
     });
   } catch (error: unknown) {

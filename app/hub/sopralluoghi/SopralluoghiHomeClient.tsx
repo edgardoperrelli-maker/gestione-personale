@@ -1,8 +1,9 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import Button from '@/components/Button';
+import Input from '@/components/Input';
 import type { Activity, Territory } from '@/types';
 
 type ImportResult = {
@@ -15,8 +16,22 @@ type ImportResult = {
   territorio_nome: string;
   activity_id: string;
   activity_name: string;
+  comune: string;
   sorgente?: string;
   warning?: string | null;
+};
+
+type DatasetCaricato = {
+  territorio_id: string | null;
+  territorio_name: string | null;
+  activity_id: string | null;
+  activity_name: string | null;
+  comune: string;
+  totale_civici: number;
+  totale_microaree: number;
+  primo_caricamento: string | null;
+  ultimo_caricamento: string | null;
+  pdf_generati: number;
 };
 
 type Props = {
@@ -24,6 +39,33 @@ type Props = {
   activities: Activity[];
   canManage: boolean;
 };
+
+function buildDatasetKey(dataset: Pick<DatasetCaricato, 'territorio_id' | 'activity_id' | 'comune'>): string {
+  return [
+    dataset.territorio_id ?? 'no-territory',
+    dataset.activity_id ?? 'no-activity',
+    dataset.comune.trim() || 'no-comune',
+  ].join('|');
+}
+
+function formatDateTime(value: string | null): string {
+  if (!value) return '-';
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+
+  return date.toLocaleString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+}
+
+function formatComuneLabel(value: string): string {
+  return value.trim() || 'Comune non specificato';
+}
 
 function ModuleCard(props: {
   href?: string;
@@ -80,10 +122,44 @@ function ModuleCard(props: {
 export default function SopralluoghiHomeClient({ territories, activities, canManage }: Props) {
   const [territorioSelezionato, setTerritorioSelezionato] = useState('');
   const [attivitaSelezionata, setAttivitaSelezionata] = useState('');
+  const [comuneSelezionato, setComuneSelezionato] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [loadingDatasets, setLoadingDatasets] = useState(false);
+  const [deletingDatasetKey, setDeletingDatasetKey] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [datasets, setDatasets] = useState<DatasetCaricato[]>([]);
+  const [datasetsError, setDatasetsError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const loadDatasets = useCallback(async () => {
+    if (!canManage) return;
+
+    setLoadingDatasets(true);
+    setDatasetsError(null);
+
+    try {
+      const response = await fetch('/api/sopralluoghi/dataset', {
+        method: 'GET',
+        cache: 'no-store',
+      });
+      const data = (await response.json()) as { datasets?: DatasetCaricato[]; error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Errore caricamento dataset');
+      }
+
+      setDatasets(data.datasets ?? []);
+    } catch (error: unknown) {
+      setDatasetsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setLoadingDatasets(false);
+    }
+  }, [canManage]);
+
+  useEffect(() => {
+    void loadDatasets();
+  }, [canManage, loadDatasets]);
 
   const handleUpload = async (event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -101,6 +177,12 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
       return;
     }
 
+    if (!comuneSelezionato.trim()) {
+      setErrorMsg('Inserisci prima il comune di riferimento.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setUploading(true);
     setResult(null);
     setErrorMsg(null);
@@ -110,6 +192,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
       formData.append('file', file);
       formData.append('territorio_id', territorioSelezionato);
       formData.append('activity_id', attivitaSelezionata);
+      formData.append('comune', comuneSelezionato);
 
       const response = await fetch('/api/sopralluoghi/import-civici', {
         method: 'POST',
@@ -122,11 +205,56 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
       }
 
       setResult(data as ImportResult);
+      await loadDatasets();
     } catch (error: unknown) {
       setErrorMsg(error instanceof Error ? error.message : String(error));
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteDataset = async (dataset: DatasetCaricato) => {
+    const datasetKey = buildDatasetKey(dataset);
+    const datasetLabel = [
+      dataset.territorio_name ?? 'Territorio sconosciuto',
+      dataset.activity_name ?? 'Tipologia sconosciuta',
+      formatComuneLabel(dataset.comune),
+    ].join(' - ');
+
+    const confirmed = window.confirm(
+      `Eliminare il dataset ${datasetLabel}?\n\nQuesta operazione rimuove civici, registrazioni manuali collegate e PDF/Excel generati per questo scope.`,
+    );
+
+    if (!confirmed) return;
+
+    setDeletingDatasetKey(datasetKey);
+    setDatasetsError(null);
+    setErrorMsg(null);
+    setResult(null);
+
+    try {
+      const response = await fetch('/api/sopralluoghi/dataset', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territorio_id: dataset.territorio_id,
+          activity_id: dataset.activity_id,
+          comune: dataset.comune,
+        }),
+      });
+      const data = (await response.json()) as { error?: string; message?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Errore eliminazione dataset');
+      }
+
+      setDatasets((prev) => prev.filter((item) => buildDatasetKey(item) !== datasetKey));
+      setResult(null);
+    } catch (error: unknown) {
+      setDatasetsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setDeletingDatasetKey(null);
     }
   };
 
@@ -180,7 +308,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
               Importa indirizzi per territorio
             </h3>
             <p className="text-sm text-[var(--text-secondary)]">
-              Gli indirizzi importati restano memorizzati sul territorio e sulla tipologia lavoro selezionati, e vengono riutilizzati in pianificazione e registrazione interventi.
+              Gli indirizzi importati restano memorizzati sul territorio, sulla tipologia lavoro e sul comune selezionati, e vengono riutilizzati in pianificazione e registrazione interventi.
             </p>
             {!canManage && (
               <p className="text-sm text-amber-700">
@@ -237,11 +365,27 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
             </div>
 
             <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+                Comune di riferimento
+              </label>
+              <Input
+                value={comuneSelezionato}
+                onChange={(event) => {
+                  setComuneSelezionato(event.target.value.toUpperCase());
+                  setResult(null);
+                  setErrorMsg(null);
+                }}
+                disabled={!canManage || uploading}
+                placeholder="Es. COLLEFERRO"
+              />
+            </div>
+
+            <div>
               <Button
                 variant="primary"
                 size="md"
                 className="w-full"
-                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata}
+                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata || !comuneSelezionato.trim()}
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploading ? 'Caricamento...' : 'Seleziona file CSV o Excel (.xls/.xlsx)'}
@@ -251,7 +395,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                 type="file"
                 accept=".csv,.xls,.xlsx"
                 className="hidden"
-                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata}
+                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata || !comuneSelezionato.trim()}
                 onChange={handleUpload}
               />
             </div>
@@ -261,7 +405,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         {result && (
           <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
             <div className="font-medium">
-              Import completato per {result.territorio_nome} - {result.activity_name}
+              Import completato per {result.territorio_nome} - {result.activity_name} - {result.comune}
             </div>
             {result.sorgente && (
               <div className="mt-1 text-xs text-green-700">
@@ -295,6 +439,111 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
           </div>
         )}
       </div>
+
+      {canManage && (
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6">
+          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+            <div className="space-y-2">
+              <h3 className="text-base font-medium text-[var(--text-primary)]">
+                Mappe caricate
+              </h3>
+              <p className="text-sm text-[var(--text-secondary)]">
+                Ogni riga rappresenta un dataset attualmente caricato nel modulo, raggruppato per territorio, tipologia lavoro e comune.
+              </p>
+              <p className="text-xs text-[var(--text-secondary)]">
+                La cancellazione rimuove anche registrazioni manuali e PDF/Excel generati collegati a quello scope.
+              </p>
+            </div>
+
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void loadDatasets()}
+              disabled={loadingDatasets}
+            >
+              {loadingDatasets ? 'Aggiornamento...' : 'Aggiorna lista'}
+            </Button>
+          </div>
+
+          {datasetsError && (
+            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+              {datasetsError}
+            </div>
+          )}
+
+          {loadingDatasets ? (
+            <div className="mt-4 rounded-md border border-[var(--brand-border)] bg-[var(--brand-bg)] px-4 py-6 text-sm text-[var(--brand-text-muted)]">
+              Caricamento dataset...
+            </div>
+          ) : datasets.length === 0 ? (
+            <div className="mt-4 rounded-md border border-[var(--brand-border)] bg-[var(--brand-bg)] px-4 py-6 text-sm text-[var(--brand-text-muted)]">
+              Nessuna mappa caricata al momento.
+            </div>
+          ) : (
+            <div className="mt-4 overflow-hidden rounded-2xl border border-[var(--brand-border)]">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[960px] text-sm">
+                  <thead className="bg-[var(--brand-bg)]">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Territorio</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Tipologia</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Comune</th>
+                      <th className="px-4 py-3 text-right font-medium text-[var(--brand-text-muted)]">Microaree</th>
+                      <th className="px-4 py-3 text-right font-medium text-[var(--brand-text-muted)]">Civici</th>
+                      <th className="px-4 py-3 text-right font-medium text-[var(--brand-text-muted)]">PDF</th>
+                      <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Ultimo caricamento</th>
+                      <th className="px-4 py-3 text-right font-medium text-[var(--brand-text-muted)]">Azioni</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-[var(--brand-border)] bg-white">
+                    {datasets.map((dataset) => {
+                      const datasetKey = buildDatasetKey(dataset);
+                      const deleting = deletingDatasetKey === datasetKey;
+
+                      return (
+                        <tr key={datasetKey} className="hover:bg-[var(--brand-bg)]/40">
+                          <td className="px-4 py-3 text-[var(--brand-text-main)]">
+                            {dataset.territorio_name ?? '-'}
+                          </td>
+                          <td className="px-4 py-3 text-[var(--brand-text-main)]">
+                            {dataset.activity_name ?? '-'}
+                          </td>
+                          <td className="px-4 py-3 font-medium text-[var(--brand-text-main)]">
+                            {formatComuneLabel(dataset.comune)}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                            {dataset.totale_microaree.toLocaleString('it-IT')}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                            {dataset.totale_civici.toLocaleString('it-IT')}
+                          </td>
+                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                            {dataset.pdf_generati.toLocaleString('it-IT')}
+                          </td>
+                          <td className="px-4 py-3 text-[var(--brand-text-muted)]">
+                            {formatDateTime(dataset.ultimo_caricamento)}
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="border-red-200 text-red-700 hover:bg-red-50"
+                              disabled={deleting}
+                              onClick={() => void handleDeleteDataset(dataset)}
+                            >
+                              {deleting ? 'Eliminazione...' : 'Elimina'}
+                            </Button>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

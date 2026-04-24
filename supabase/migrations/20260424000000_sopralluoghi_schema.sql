@@ -6,7 +6,8 @@
 CREATE TABLE IF NOT EXISTS public.civici_napoli (
   id BIGSERIAL PRIMARY KEY,
   territorio_id UUID REFERENCES public.territories(id) ON DELETE SET NULL,
-  activity_id UUID REFERENCES public.activities_renamed(id) ON DELETE SET NULL,
+  activity_id UUID,
+  comune TEXT NOT NULL DEFAULT '',
   odonimo TEXT NOT NULL,
   civico TEXT NOT NULL,
   microarea TEXT NOT NULL,
@@ -18,11 +19,12 @@ CREATE TABLE IF NOT EXISTS public.civici_napoli (
 -- Indici per performance
 CREATE INDEX idx_civici_territorio ON public.civici_napoli(territorio_id);
 CREATE INDEX idx_civici_activity ON public.civici_napoli(activity_id);
+CREATE INDEX idx_civici_comune ON public.civici_napoli(comune);
 CREATE INDEX idx_civici_microarea ON public.civici_napoli(microarea);
 CREATE INDEX idx_civici_odonimo ON public.civici_napoli(odonimo);
 CREATE INDEX idx_civici_geo ON public.civici_napoli(latitudine, longitudine);
 CREATE UNIQUE INDEX idx_civici_napoli_territorio_activity_unique
-  ON public.civici_napoli(territorio_id, activity_id, odonimo, civico, microarea);
+  ON public.civici_napoli(territorio_id, activity_id, comune, odonimo, civico);
 
 -- Tabella sopralluoghi (data entry manuale dopo PDF compilato)
 CREATE TABLE IF NOT EXISTS public.sopralluoghi (
@@ -66,7 +68,8 @@ CREATE TABLE IF NOT EXISTS public.sopralluoghi_pdf_generati (
   id BIGSERIAL PRIMARY KEY,
   microarea TEXT NOT NULL,
   territorio_id UUID REFERENCES public.territories(id) ON DELETE SET NULL,
-  activity_id UUID REFERENCES public.activities_renamed(id) ON DELETE SET NULL,
+  activity_id UUID,
+  comune TEXT NOT NULL DEFAULT '',
   num_civici INTEGER NOT NULL,
   data_generazione TIMESTAMPTZ DEFAULT NOW(),
   stato_registrazione TEXT CHECK (stato_registrazione IN ('generato', 'in_lavorazione', 'completato')) DEFAULT 'generato',
@@ -79,6 +82,7 @@ CREATE TABLE IF NOT EXISTS public.sopralluoghi_pdf_generati (
 CREATE INDEX idx_pdf_microarea ON public.sopralluoghi_pdf_generati(microarea);
 CREATE INDEX idx_pdf_stato ON public.sopralluoghi_pdf_generati(stato_registrazione);
 CREATE INDEX idx_pdf_activity ON public.sopralluoghi_pdf_generati(activity_id);
+CREATE INDEX idx_pdf_comune ON public.sopralluoghi_pdf_generati(comune);
 
 -- Vista aggregata per statistiche microaree
 CREATE OR REPLACE VIEW public.microaree_stats AS
@@ -86,6 +90,7 @@ SELECT
   c.territorio_id,
   c.activity_id,
   a.name AS activity_name,
+  c.comune,
   c.microarea,
   COUNT(DISTINCT c.id) as totale_civici,
   COUNT(DISTINCT s.id) FILTER (WHERE s.stato = 'visitato') as visitati,
@@ -101,7 +106,30 @@ SELECT
 FROM public.civici_napoli c
 LEFT JOIN public.activities_renamed a ON a.id = c.activity_id
 LEFT JOIN public.sopralluoghi s ON c.id = s.civico_id
-GROUP BY c.territorio_id, c.activity_id, a.name, c.microarea;
+GROUP BY c.territorio_id, c.activity_id, a.name, c.comune, c.microarea;
+
+CREATE OR REPLACE VIEW public.sopralluoghi_dataset_caricati AS
+SELECT
+  c.territorio_id,
+  t.name AS territorio_name,
+  c.activity_id,
+  a.name AS activity_name,
+  c.comune,
+  COUNT(*)::BIGINT AS totale_civici,
+  COUNT(DISTINCT c.microarea)::INTEGER AS totale_microaree,
+  MIN(c.created_at) AS primo_caricamento,
+  MAX(c.created_at) AS ultimo_caricamento,
+  COALESCE((
+    SELECT COUNT(*)::INTEGER
+    FROM public.sopralluoghi_pdf_generati pdf
+    WHERE pdf.territorio_id IS NOT DISTINCT FROM c.territorio_id
+      AND pdf.activity_id IS NOT DISTINCT FROM c.activity_id
+      AND pdf.comune = c.comune
+  ), 0) AS pdf_generati
+FROM public.civici_napoli c
+LEFT JOIN public.territories t ON t.id = c.territorio_id
+LEFT JOIN public.activities_renamed a ON a.id = c.activity_id
+GROUP BY c.territorio_id, t.name, c.activity_id, a.name, c.comune;
 
 -- RLS Policies
 ALTER TABLE public.civici_napoli ENABLE ROW LEVEL SECURITY;
@@ -148,6 +176,9 @@ CREATE POLICY "Admin gestiscono PDF generati"
 COMMENT ON TABLE public.civici_napoli IS 'Anagrafica civici Napoli da ANNCSU - 526 microaree, ~127k civici';
 COMMENT ON TABLE public.sopralluoghi IS 'Registro sopralluoghi risanamento colonne montanti';
 COMMENT ON TABLE public.sopralluoghi_pdf_generati IS 'Tracking PDF sopralluogo generati';
+COMMENT ON VIEW public.sopralluoghi_dataset_caricati IS 'Catalogo dataset Sopralluoghi attualmente caricati, raggruppati per territorio + attivita + comune';
 COMMENT ON COLUMN public.sopralluoghi.stato IS 'da_visitare | visitato | programmato';
 COMMENT ON COLUMN public.civici_napoli.activity_id IS 'Attivita del cronoprogramma a cui appartiene il dataset importato';
+COMMENT ON COLUMN public.civici_napoli.comune IS 'Comune operativo di riferimento per il dataset importato';
 COMMENT ON COLUMN public.sopralluoghi_pdf_generati.activity_id IS 'Attivita del cronoprogramma associata al PDF/Excel generato';
+COMMENT ON COLUMN public.sopralluoghi_pdf_generati.comune IS 'Comune operativo associato al PDF/Excel generato';

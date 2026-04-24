@@ -1,11 +1,9 @@
 -- =====================================================
--- MODULO SOPRALLUOGHI - SCOPE PER TIPOLOGIA LAVORO
+-- MODULO SOPRALLUOGHI - SCOPE PER COMUNE
 -- =====================================================
 
--- Gli indirizzi importati e i file generati vengono ora distinti
--- per territorio + attivita del cronoprogramma.
--- Nota: activities_renamed e una view, quindi activity_id resta
--- un UUID validato lato applicazione e non puo avere una FK SQL.
+-- Il comune entra nello scope operativo:
+-- territorio + attivita + comune.
 
 ALTER TABLE public.civici_napoli
   ADD COLUMN IF NOT EXISTS activity_id UUID;
@@ -27,22 +25,13 @@ UPDATE public.sopralluoghi_pdf_generati
 SET comune = ''
 WHERE comune IS NULL;
 
-CREATE INDEX IF NOT EXISTS idx_civici_activity
-  ON public.civici_napoli(activity_id);
-
 CREATE INDEX IF NOT EXISTS idx_civici_comune
   ON public.civici_napoli(comune);
-
-CREATE INDEX IF NOT EXISTS idx_civici_territorio_activity_microarea
-  ON public.civici_napoli(territorio_id, activity_id, microarea);
-
-CREATE INDEX IF NOT EXISTS idx_pdf_activity
-  ON public.sopralluoghi_pdf_generati(activity_id);
 
 CREATE INDEX IF NOT EXISTS idx_pdf_comune
   ON public.sopralluoghi_pdf_generati(comune);
 
-DROP INDEX IF EXISTS public.idx_civici_napoli_territorio_unique;
+DROP INDEX IF EXISTS public.idx_civici_napoli_territorio_activity_unique;
 
 CREATE UNIQUE INDEX IF NOT EXISTS idx_civici_napoli_territorio_activity_unique
   ON public.civici_napoli(territorio_id, activity_id, comune, odonimo, civico);
@@ -72,7 +61,5 @@ LEFT JOIN public.activities_renamed a ON a.id = c.activity_id
 LEFT JOIN public.sopralluoghi s ON c.id = s.civico_id
 GROUP BY c.territorio_id, c.activity_id, a.name, c.comune, c.microarea;
 
-COMMENT ON COLUMN public.civici_napoli.activity_id IS 'Attivita del cronoprogramma a cui appartiene il dataset importato';
 COMMENT ON COLUMN public.civici_napoli.comune IS 'Comune operativo di riferimento per il dataset importato';
-COMMENT ON COLUMN public.sopralluoghi_pdf_generati.activity_id IS 'Attivita del cronoprogramma associata al PDF/Excel generato';
 COMMENT ON COLUMN public.sopralluoghi_pdf_generati.comune IS 'Comune operativo associato al PDF/Excel generato';

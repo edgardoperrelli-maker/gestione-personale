@@ -9,6 +9,7 @@ export const dynamic = 'force-dynamic';
 type ExportFilters = {
   territorio_id?: string | null;
   activity_id?: string | null;
+  comune?: string | null;
   microarea?: string | null;
   solo_idonei?: boolean;
   stato?: 'visitato' | 'programmato' | null;
@@ -25,6 +26,7 @@ type ExportSopralluogoRow = {
 };
 
 type ExportCivicoRow = {
+  comune: string | null;
   microarea: string;
   odonimo: string;
   civico: string;
@@ -75,6 +77,10 @@ export async function POST(request: NextRequest) {
       query = query.eq('activity_id', filters.activity_id);
     }
 
+    if (filters.comune) {
+      query = query.eq('comune', String(filters.comune).trim().toUpperCase());
+    }
+
     if (filters.microarea) {
       query = query.eq('microarea', filters.microarea);
     }
@@ -106,6 +112,7 @@ export async function POST(request: NextRequest) {
 
     const worksheet = workbook.addWorksheet('Civici Programmati');
     worksheet.columns = [
+      { header: 'Comune', key: 'comune', width: 20 },
       { header: 'Microarea', key: 'microarea', width: 18 },
       { header: 'Indirizzo', key: 'odonimo', width: 40 },
       { header: 'Civico', key: 'civico', width: 12 },
@@ -131,6 +138,7 @@ export async function POST(request: NextRequest) {
       const sopralluogo = firstRelation(civico.sopralluoghi);
 
       worksheet.addRow({
+        comune: civico.comune ?? '',
         microarea: civico.microarea,
         odonimo: civico.odonimo,
         civico: civico.civico,
@@ -167,10 +175,10 @@ export async function POST(request: NextRequest) {
       (sum, civico) => sum + (firstRelation(civico.sopralluoghi)?.punti_gas ?? 0),
       0,
     );
-    statsRow.getCell(7).value = `${idoneiCount} idonei`;
-    statsRow.getCell(7).font = { bold: true, color: { argb: 'FF155724' } };
-    statsRow.getCell(8).value = `${puntiGasTotali} PG`;
-    statsRow.getCell(8).font = { bold: true, color: { argb: 'FF921B1B' } };
+    statsRow.getCell(8).value = `${idoneiCount} idonei`;
+    statsRow.getCell(8).font = { bold: true, color: { argb: 'FF155724' } };
+    statsRow.getCell(9).value = `${puntiGasTotali} PG`;
+    statsRow.getCell(9).font = { bold: true, color: { argb: 'FF921B1B' } };
 
     const buffer = await workbook.xlsx.writeBuffer();
     const timestamp = new Date().toISOString().split('T')[0];
