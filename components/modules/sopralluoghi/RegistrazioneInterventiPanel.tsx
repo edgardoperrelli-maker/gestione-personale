@@ -10,6 +10,7 @@ type PDFGenerato = {
   id: number;
   microarea: string;
   territorio_id: string | null;
+  activity_id: string | null;
   num_civici: number;
   data_generazione: string;
   stato_registrazione: string;
@@ -54,6 +55,8 @@ type Props = {
   canManage: boolean;
   territorioSelezionato: string;
   territoryName?: string;
+  attivitaSelezionata: string;
+  activityName?: string;
   microareaSelezionata: string | null;
   microareaOptions: string[];
   pdfGenerati: PDFGenerato[];
@@ -64,6 +67,8 @@ export default function RegistrazioneInterventiPanel({
   canManage,
   territorioSelezionato,
   territoryName,
+  attivitaSelezionata,
+  activityName,
   microareaSelezionata,
   microareaOptions,
   pdfGenerati,
@@ -77,7 +82,7 @@ export default function RegistrazioneInterventiPanel({
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   useEffect(() => {
-    if (!territorioSelezionato || !microareaSelezionata) {
+    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
       setCivici([]);
       setDrafts(new Map());
       setMessage(null);
@@ -93,6 +98,7 @@ export default function RegistrazioneInterventiPanel({
       try {
         const searchParams = new URLSearchParams({
           territorio_id: territorioSelezionato,
+          activity_id: attivitaSelezionata,
           microarea: microareaSelezionata,
         });
         const response = await fetch(`/api/sopralluoghi/registrazione?${searchParams.toString()}`, {
@@ -154,14 +160,15 @@ export default function RegistrazioneInterventiPanel({
     return () => {
       active = false;
     };
-  }, [microareaSelezionata, territorioSelezionato]);
+  }, [attivitaSelezionata, microareaSelezionata, territorioSelezionato]);
 
   const pdfDisponibili = useMemo(
     () => pdfGenerati.filter((pdf) => (
       pdf.territorio_id === territorioSelezionato
+      && pdf.activity_id === attivitaSelezionata
       && (!microareaSelezionata || pdf.microarea === microareaSelezionata)
     )),
-    [microareaSelezionata, pdfGenerati, territorioSelezionato],
+    [attivitaSelezionata, microareaSelezionata, pdfGenerati, territorioSelezionato],
   );
 
   const handleToggle = (civicoId: number, field: 'visitato' | 'idoneo') => {
@@ -227,8 +234,8 @@ export default function RegistrazioneInterventiPanel({
   };
 
   const handleSave = async () => {
-    if (!territorioSelezionato || !microareaSelezionata) {
-      setMessage({ type: 'error', text: 'Seleziona territorio e microarea prima di salvare.' });
+    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
+      setMessage({ type: 'error', text: 'Seleziona territorio, tipologia lavoro e microarea prima di salvare.' });
       return;
     }
 
@@ -241,6 +248,7 @@ export default function RegistrazioneInterventiPanel({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           territorio_id: territorioSelezionato,
+          activity_id: attivitaSelezionata,
           microarea: microareaSelezionata,
           drafts: Array.from(drafts.values()),
         }),
@@ -303,7 +311,7 @@ export default function RegistrazioneInterventiPanel({
             <select
               value={microareaSelezionata ?? ''}
               onChange={(event) => onMicroareaChange(event.target.value || null)}
-              disabled={!territorioSelezionato || microareaOptions.length === 0}
+              disabled={!territorioSelezionato || !attivitaSelezionata || microareaOptions.length === 0}
               className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
             >
               <option value="">Seleziona una microarea</option>
@@ -317,15 +325,16 @@ export default function RegistrazioneInterventiPanel({
         </CardHeader>
 
         <CardContent className="space-y-4">
-          {!territorioSelezionato && (
+          {(!territorioSelezionato || !attivitaSelezionata) && (
             <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] px-4 py-3 text-sm text-[var(--brand-text-muted)]">
-              Seleziona un territorio per caricare le microaree importate.
+              Seleziona territorio e tipologia lavoro per caricare le microaree importate.
             </div>
           )}
 
-          {territorioSelezionato && (
+          {territorioSelezionato && attivitaSelezionata && (
             <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-4 py-3 text-sm text-[var(--brand-text-main)]">
               Territorio attivo: <span className="font-semibold">{territoryName ?? 'Territorio selezionato'}</span>
+              {' '}| Tipologia attiva: <span className="font-semibold">{activityName ?? 'Tipologia selezionata'}</span>
             </div>
           )}
 

@@ -1,7 +1,8 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { resolveUserRole } from '@/lib/moduleAccess';
-import type { Territory } from '@/types';
+import { filterSopralluoghiActivities } from '@/lib/sopralluoghiActivities';
+import type { Activity, Territory } from '@/types';
 import SopralluoghiHomeClient from './SopralluoghiHomeClient';
 
 export const dynamic = 'force-dynamic';
@@ -15,7 +16,7 @@ export default async function SopralluoghiPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: territories }] = await Promise.all([
+  const [{ data: profile }, { data: territories }, { data: activities }] = await Promise.all([
     user
       ? supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -24,6 +25,10 @@ export default async function SopralluoghiPage() {
       .select('*')
       .eq('active', true)
       .order('name', { ascending: true }),
+    supabase
+      .from('activities_renamed')
+      .select('id, name')
+      .order('name', { ascending: true }),
   ]);
 
   const role = resolveUserRole(profile?.role, user?.app_metadata?.role);
@@ -31,6 +36,7 @@ export default async function SopralluoghiPage() {
   return (
     <SopralluoghiHomeClient
       territories={(territories ?? []) as Territory[]}
+      activities={filterSopralluoghiActivities((activities ?? []) as Activity[])}
       canManage={role === 'admin'}
     />
   );

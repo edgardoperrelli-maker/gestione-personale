@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import Button from '@/components/Button';
-import type { Territory } from '@/types';
+import type { Activity, Territory } from '@/types';
 
 type ImportResult = {
   totale: number;
@@ -13,12 +13,15 @@ type ImportResult = {
   microaree: number;
   territorio_id: string;
   territorio_nome: string;
+  activity_id: string;
+  activity_name: string;
   sorgente?: string;
   warning?: string | null;
 };
 
 type Props = {
   territories: Territory[];
+  activities: Activity[];
   canManage: boolean;
 };
 
@@ -74,8 +77,9 @@ function ModuleCard(props: {
   );
 }
 
-export default function SopralluoghiHomeClient({ territories, canManage }: Props) {
+export default function SopralluoghiHomeClient({ territories, activities, canManage }: Props) {
   const [territorioSelezionato, setTerritorioSelezionato] = useState('');
+  const [attivitaSelezionata, setAttivitaSelezionata] = useState('');
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -91,6 +95,12 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
       return;
     }
 
+    if (!attivitaSelezionata) {
+      setErrorMsg('Seleziona prima la tipologia di lavoro.');
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      return;
+    }
+
     setUploading(true);
     setResult(null);
     setErrorMsg(null);
@@ -99,6 +109,7 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
       const formData = new FormData();
       formData.append('file', file);
       formData.append('territorio_id', territorioSelezionato);
+      formData.append('activity_id', attivitaSelezionata);
 
       const response = await fetch('/api/sopralluoghi/import-civici', {
         method: 'POST',
@@ -169,7 +180,7 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
               Importa indirizzi per territorio
             </h3>
             <p className="text-sm text-[var(--text-secondary)]">
-              Gli indirizzi importati restano memorizzati sul territorio selezionato e vengono riutilizzati in pianificazione e registrazione interventi.
+              Gli indirizzi importati restano memorizzati sul territorio e sulla tipologia lavoro selezionati, e vengono riutilizzati in pianificazione e registrazione interventi.
             </p>
             {!canManage && (
               <p className="text-sm text-amber-700">
@@ -185,7 +196,11 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
               </label>
               <select
                 value={territorioSelezionato}
-                onChange={(event) => setTerritorioSelezionato(event.target.value)}
+                onChange={(event) => {
+                  setTerritorioSelezionato(event.target.value);
+                  setResult(null);
+                  setErrorMsg(null);
+                }}
                 disabled={!canManage || uploading}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
               >
@@ -199,11 +214,34 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
             </div>
 
             <div>
+              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+                Tipologia di lavoro
+              </label>
+              <select
+                value={attivitaSelezionata}
+                onChange={(event) => {
+                  setAttivitaSelezionata(event.target.value);
+                  setResult(null);
+                  setErrorMsg(null);
+                }}
+                disabled={!canManage || uploading}
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
+              >
+                <option value="">Seleziona una tipologia</option>
+                {activities.map((activity) => (
+                  <option key={activity.id} value={activity.id}>
+                    {activity.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
               <Button
                 variant="primary"
                 size="md"
                 className="w-full"
-                disabled={!canManage || uploading || !territorioSelezionato}
+                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata}
                 onClick={() => fileInputRef.current?.click()}
               >
                 {uploading ? 'Caricamento...' : 'Seleziona file CSV o Excel (.xls/.xlsx)'}
@@ -213,7 +251,7 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
                 type="file"
                 accept=".csv,.xls,.xlsx"
                 className="hidden"
-                disabled={!canManage || uploading || !territorioSelezionato}
+                disabled={!canManage || uploading || !territorioSelezionato || !attivitaSelezionata}
                 onChange={handleUpload}
               />
             </div>
@@ -223,7 +261,7 @@ export default function SopralluoghiHomeClient({ territories, canManage }: Props
         {result && (
           <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
             <div className="font-medium">
-              Import completato per {result.territorio_nome}
+              Import completato per {result.territorio_nome} - {result.activity_name}
             </div>
             {result.sorgente && (
               <div className="mt-1 text-xs text-green-700">

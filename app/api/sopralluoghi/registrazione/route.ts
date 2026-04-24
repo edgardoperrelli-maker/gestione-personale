@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { mapSopralluoghiErrorMessage, requireSopralluoghiAdmin } from '../_helpers';
+import {
+  mapSopralluoghiErrorMessage,
+  requireSopralluoghiActivity,
+  requireSopralluoghiAdmin,
+} from '../_helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +18,7 @@ type RegistrationDraft = {
 
 type RegistrationPayload = {
   territorio_id?: string | null;
+  activity_id?: string | null;
   microarea?: string | null;
   data_sopralluogo?: string | null;
   drafts?: RegistrationDraft[];
@@ -54,14 +59,16 @@ function parsePuntiGas(value: number | string | null | undefined): number | null
 
 async function loadCiviciAndRegistrazioni(params: {
   territorioId: string;
+  activityId: string;
   microarea: string;
 }) {
-  const { territorioId, microarea } = params;
+  const { territorioId, activityId, microarea } = params;
 
   const { data: civici, error: civiciError } = await supabaseAdmin
     .from('civici_napoli')
     .select('id, odonimo, civico, microarea')
     .eq('territorio_id', territorioId)
+    .eq('activity_id', activityId)
     .eq('microarea', microarea)
     .order('odonimo', { ascending: true })
     .order('civico', { ascending: true });
@@ -100,11 +107,18 @@ export async function GET(request: NextRequest) {
 
     const searchParams = new URL(request.url).searchParams;
     const territorioId = String(searchParams.get('territorio_id') ?? '').trim();
+    const activityId = String(searchParams.get('activity_id') ?? '').trim();
     const microarea = String(searchParams.get('microarea') ?? '').trim();
 
     if (!territorioId) {
       return NextResponse.json({ error: 'Territorio obbligatorio' }, { status: 400 });
     }
+
+    if (!activityId) {
+      return NextResponse.json({ error: 'Tipologia lavoro obbligatoria' }, { status: 400 });
+    }
+
+    await requireSopralluoghiActivity(activityId);
 
     if (!microarea) {
       return NextResponse.json({ error: 'Microarea obbligatoria' }, { status: 400 });
@@ -112,6 +126,7 @@ export async function GET(request: NextRequest) {
 
     const data = await loadCiviciAndRegistrazioni({
       territorioId,
+      activityId,
       microarea,
     });
 
@@ -131,12 +146,19 @@ export async function POST(request: NextRequest) {
 
     const body = (await request.json()) as RegistrationPayload;
     const territorioId = String(body.territorio_id ?? '').trim();
+    const activityId = String(body.activity_id ?? '').trim();
     const microarea = String(body.microarea ?? '').trim();
     const drafts = Array.isArray(body.drafts) ? body.drafts : [];
 
     if (!territorioId) {
       return NextResponse.json({ error: 'Territorio obbligatorio' }, { status: 400 });
     }
+
+    if (!activityId) {
+      return NextResponse.json({ error: 'Tipologia lavoro obbligatoria' }, { status: 400 });
+    }
+
+    await requireSopralluoghiActivity(activityId);
 
     if (!microarea) {
       return NextResponse.json({ error: 'Microarea obbligatoria' }, { status: 400 });
@@ -148,6 +170,7 @@ export async function POST(request: NextRequest) {
 
     const { civici } = await loadCiviciAndRegistrazioni({
       territorioId,
+      activityId,
       microarea,
     });
 
@@ -233,6 +256,7 @@ export async function POST(request: NextRequest) {
         .from('sopralluoghi_pdf_generati')
         .update({ stato_registrazione: 'completato' })
         .eq('territorio_id', territorioId)
+        .eq('activity_id', activityId)
         .eq('microarea', microarea)
         .neq('stato_registrazione', 'completato');
     }
@@ -249,6 +273,7 @@ export async function POST(request: NextRequest) {
       punti_gas_totali: puntiGasTotali,
       microarea,
       territorio_id: territorioId,
+      activity_id: activityId,
     });
   } catch (error: unknown) {
     const rawMessage = error instanceof Error ? error.message : String(error);

@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import RegistrazioneInterventiPanel from '@/components/modules/sopralluoghi/RegistrazioneInterventiPanel';
-import type { Territory } from '@/types';
+import type { Activity, Territory } from '@/types';
 
 const MappaRisanamento = dynamic(
   () => import('./MappaRisanamento'),
@@ -14,6 +14,8 @@ const MappaRisanamento = dynamic(
 
 export type MicroareaStats = {
   territorio_id: string | null;
+  activity_id: string | null;
+  activity_name: string | null;
   microarea: string;
   totale_civici: number;
   visitati: number;
@@ -32,6 +34,7 @@ type PDFGenerato = {
   id: number;
   microarea: string;
   territorio_id: string | null;
+  activity_id: string | null;
   num_civici: number;
   data_generazione: string;
   stato_registrazione: string;
@@ -41,6 +44,7 @@ type PDFGenerato = {
 
 type Props = {
   territories: Territory[];
+  activities: Activity[];
   microareeStats: MicroareaStats[];
   pdfGenerati: PDFGenerato[];
   canManage: boolean;
@@ -69,6 +73,7 @@ function triggerFileDownload(url: string) {
 
 export default function RisanamentoClient({
   territories,
+  activities,
   microareeStats,
   pdfGenerati,
   canManage,
@@ -77,41 +82,46 @@ export default function RisanamentoClient({
   const router = useRouter();
   const [activeTab, setActiveTab] = useState<Props['initialTab']>(initialTab);
   const [territorioSelezionato, setTerritorioSelezionato] = useState<string>('');
+  const [attivitaSelezionata, setAttivitaSelezionata] = useState<string>('');
   const [filtroStato, setFiltroStato] = useState<'tutti' | 'da_visitare' | 'visitati' | 'programmati'>('tutti');
   const [microareaSelezionata, setMicroareaSelezionata] = useState<string | null>(null);
   const [generandoPdf, setGenerandoPdf] = useState(false);
   const [exportingExcel, setExportingExcel] = useState(false);
 
   const territoryName = territories.find((territory) => territory.id === territorioSelezionato)?.name;
+  const activityName = activities.find((activity) => activity.id === attivitaSelezionata)?.name;
 
-  const statsPerTerritorio = useMemo(
-    () => microareeStats.filter((stats) => stats.territorio_id === territorioSelezionato),
-    [microareeStats, territorioSelezionato],
+  const statsPerScope = useMemo(
+    () => microareeStats.filter((stats) => (
+      stats.territorio_id === territorioSelezionato
+      && stats.activity_id === attivitaSelezionata
+    )),
+    [attivitaSelezionata, microareeStats, territorioSelezionato],
   );
 
   const statsFiltered = useMemo(
-    () => statsPerTerritorio.filter((stats) => {
+    () => statsPerScope.filter((stats) => {
       if (filtroStato === 'da_visitare') return stats.visitati === 0 && stats.programmati === 0;
       if (filtroStato === 'visitati') return stats.visitati > 0;
       if (filtroStato === 'programmati') return stats.programmati > 0;
       return true;
     }),
-    [filtroStato, statsPerTerritorio],
+    [filtroStato, statsPerScope],
   );
 
   const microareaOptions = useMemo(
-    () => Array.from(new Set(statsPerTerritorio.map((stats) => stats.microarea))).sort((left, right) => left.localeCompare(right)),
-    [statsPerTerritorio],
+    () => Array.from(new Set(statsPerScope.map((stats) => stats.microarea))).sort((left, right) => left.localeCompare(right)),
+    [statsPerScope],
   );
 
   useEffect(() => {
     if (!microareaSelezionata) return;
 
-    const exists = statsPerTerritorio.some((stats) => stats.microarea === microareaSelezionata);
+    const exists = statsPerScope.some((stats) => stats.microarea === microareaSelezionata);
     if (!exists) {
       setMicroareaSelezionata(null);
     }
-  }, [microareaSelezionata, statsPerTerritorio]);
+  }, [microareaSelezionata, statsPerScope]);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -123,19 +133,21 @@ export default function RisanamentoClient({
     window.history.replaceState(null, '', `${url.pathname}${url.search}`);
   }, [activeTab]);
 
-  const totCivici = statsPerTerritorio.reduce((sum, stats) => sum + stats.totale_civici, 0);
-  const totVisitati = statsPerTerritorio.reduce((sum, stats) => sum + stats.visitati, 0);
-  const totIdonei = statsPerTerritorio.reduce((sum, stats) => sum + stats.idonei_risanamento, 0);
+  const totCivici = statsPerScope.reduce((sum, stats) => sum + stats.totale_civici, 0);
+  const totVisitati = statsPerScope.reduce((sum, stats) => sum + stats.visitati, 0);
+  const totIdonei = statsPerScope.reduce((sum, stats) => sum + stats.idonei_risanamento, 0);
 
-  const microareaSelezionataStats = statsPerTerritorio.find((stats) => stats.microarea === microareaSelezionata) ?? null;
+  const microareaSelezionataStats = statsPerScope.find((stats) => stats.microarea === microareaSelezionata) ?? null;
   const pdfMicroareaSelezionata = pdfGenerati.find((pdf) => (
-    pdf.territorio_id === territorioSelezionato && pdf.microarea === microareaSelezionata
+    pdf.territorio_id === territorioSelezionato
+    && pdf.activity_id === attivitaSelezionata
+    && pdf.microarea === microareaSelezionata
   ));
 
   const handleGeneraPDF = async () => {
     if (!canManage) return;
-    if (!territorioSelezionato || !microareaSelezionata) {
-      alert('Seleziona prima territorio e microarea.');
+    if (!territorioSelezionato || !attivitaSelezionata || !microareaSelezionata) {
+      alert('Seleziona prima territorio, tipologia lavoro e microarea.');
       return;
     }
 
@@ -147,6 +159,7 @@ export default function RisanamentoClient({
         body: JSON.stringify({
           microarea: microareaSelezionata,
           territorio_id: territorioSelezionato,
+          activity_id: attivitaSelezionata,
         }),
       });
 
@@ -172,8 +185,8 @@ export default function RisanamentoClient({
   };
 
   const handleExportExcel = async () => {
-    if (!territorioSelezionato) {
-      alert('Seleziona prima un territorio.');
+    if (!territorioSelezionato || !attivitaSelezionata) {
+      alert('Seleziona prima territorio e tipologia lavoro.');
       return;
     }
 
@@ -184,6 +197,7 @@ export default function RisanamentoClient({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           territorio_id: territorioSelezionato,
+          activity_id: attivitaSelezionata,
           solo_idonei: true,
           stato: 'visitato',
         }),
@@ -227,6 +241,19 @@ export default function RisanamentoClient({
               </option>
             ))}
           </select>
+          <div className="mt-3 text-sm text-[var(--text-secondary)]">Tipologia lavoro</div>
+          <select
+            value={attivitaSelezionata}
+            onChange={(event) => setAttivitaSelezionata(event.target.value)}
+            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none"
+          >
+            <option value="">Seleziona una tipologia</option>
+            {activities.map((activity) => (
+              <option key={activity.id} value={activity.id}>
+                {activity.name}
+              </option>
+            ))}
+          </select>
         </div>
         <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
           <div className="text-sm text-[var(--text-secondary)]">Civici Totali</div>
@@ -248,13 +275,13 @@ export default function RisanamentoClient({
         </div>
       </div>
 
-      {!territorioSelezionato && (
+      {(!territorioSelezionato || !attivitaSelezionata) && (
         <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
-          Seleziona un territorio per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
+          Seleziona territorio e tipologia lavoro per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
         </div>
       )}
 
-      {territorioSelezionato && activeTab === 'pianificazione' && (
+      {territorioSelezionato && attivitaSelezionata && activeTab === 'pianificazione' && (
         <>
           <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--border-subtle)] bg-white p-4">
             <div className="min-w-[200px] flex-1">
@@ -278,7 +305,7 @@ export default function RisanamentoClient({
                 variant="outline"
                 size="md"
                 onClick={handleExportExcel}
-                disabled={exportingExcel || statsPerTerritorio.length === 0}
+                disabled={exportingExcel || statsPerScope.length === 0}
               >
                 {exportingExcel ? 'Esportando...' : 'Export Excel'}
               </Button>
@@ -293,7 +320,7 @@ export default function RisanamentoClient({
             />
           ) : (
             <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
-              Nessuna microarea disponibile per il territorio selezionato.
+              Nessuna microarea disponibile per territorio e tipologia lavoro selezionati.
             </div>
           )}
 
@@ -305,7 +332,7 @@ export default function RisanamentoClient({
                     {microareaSelezionata}
                   </h3>
                   <p className="mt-1 text-sm text-[var(--text-secondary)]">
-                    {microareaSelezionataStats.totale_civici.toLocaleString('it-IT')} civici - {microareaSelezionataStats.visitati} visitati - {microareaSelezionataStats.idonei_risanamento} idonei
+                    {territoryName ?? 'Territorio selezionato'} - {activityName ?? 'Tipologia selezionata'} - {microareaSelezionataStats.totale_civici.toLocaleString('it-IT')} civici - {microareaSelezionataStats.visitati} visitati - {microareaSelezionataStats.idonei_risanamento} idonei
                   </p>
                   {pdfMicroareaSelezionata?.pdf_url && (
                     <div className="mt-2 flex flex-wrap gap-3">
@@ -370,6 +397,8 @@ export default function RisanamentoClient({
             canManage={canManage}
             territorioSelezionato={territorioSelezionato}
             territoryName={territoryName}
+            attivitaSelezionata={attivitaSelezionata}
+            activityName={activityName}
             microareaSelezionata={microareaSelezionata}
             microareaOptions={microareaOptions}
             pdfGenerati={pdfGenerati}

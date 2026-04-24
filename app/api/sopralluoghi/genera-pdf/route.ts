@@ -5,13 +5,18 @@ import ExcelJS from 'exceljs';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { mapSopralluoghiErrorMessage, requireSopralluoghiAdmin } from '../_helpers';
+import {
+  mapSopralluoghiErrorMessage,
+  requireSopralluoghiActivity,
+  requireSopralluoghiAdmin,
+} from '../_helpers';
 
 export const dynamic = 'force-dynamic';
 
 type GeneraPDFRequest = {
   microarea?: string | null;
   territorio_id?: string | null;
+  activity_id?: string | null;
 };
 
 type CivicoPdfRow = {
@@ -35,12 +40,22 @@ function ensureDir(dirPath: string) {
   }
 }
 
+function sanitizeFilePart(value: string): string {
+  return value
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toLowerCase();
+}
+
 function buildPdfBuffer(params: {
   microarea: string;
   territorioName: string;
+  activityName: string;
   civici: CivicoPdfRow[];
 }) {
-  const { microarea, territorioName, civici } = params;
+  const { microarea, territorioName, activityName, civici } = params;
   const doc = new jsPDF({ unit: 'mm', format: 'a4' });
   const printedAt = new Date();
 
@@ -55,14 +70,15 @@ function buildPdfBuffer(params: {
   doc.setFontSize(10);
   doc.setFont('helvetica', 'normal');
   doc.text(`Territorio: ${territorioName}`, 14, 34);
-  doc.text(`Microarea: ${microarea}`, 14, 40);
-  doc.text(`Data stampa: ${formatDate(printedAt)}`, 14, 46);
-  doc.text(`Civici totali: ${civici.length}`, 14, 52);
+  doc.text(`Tipologia lavoro: ${activityName}`, 14, 40);
+  doc.text(`Microarea: ${microarea}`, 14, 46);
+  doc.text(`Data stampa: ${formatDate(printedAt)}`, 14, 52);
+  doc.text(`Civici totali: ${civici.length}`, 14, 58);
   doc.text('Operatore: ________________________________', 110, 34);
   doc.text('Firma: ____________________________________', 110, 40);
 
   autoTable(doc, {
-    startY: 60,
+    startY: 66,
     head: [['#', 'Indirizzo', 'Civico', 'Visitato', 'Idoneo', 'PG', 'Note']],
     body: civici.map((civico, index) => ([
       String(index + 1),
@@ -114,9 +130,10 @@ function buildPdfBuffer(params: {
 async function buildExcelBuffer(params: {
   microarea: string;
   territorioName: string;
+  activityName: string;
   civici: CivicoPdfRow[];
 }) {
-  const { microarea, territorioName, civici } = params;
+  const { microarea, territorioName, activityName, civici } = params;
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet('Sopralluogo');
   const printedAt = new Date();
@@ -138,18 +155,20 @@ async function buildExcelBuffer(params: {
 
   worksheet.getCell('A3').value = 'Territorio:';
   worksheet.getCell('B3').value = territorioName;
-  worksheet.getCell('A4').value = 'Microarea:';
-  worksheet.getCell('B4').value = microarea;
-  worksheet.getCell('A5').value = 'Data stampa:';
-  worksheet.getCell('B5').value = formatDate(printedAt);
-  worksheet.getCell('A6').value = 'Civici totali:';
-  worksheet.getCell('B6').value = civici.length;
+  worksheet.getCell('A4').value = 'Tipologia lavoro:';
+  worksheet.getCell('B4').value = activityName;
+  worksheet.getCell('A5').value = 'Microarea:';
+  worksheet.getCell('B5').value = microarea;
+  worksheet.getCell('A6').value = 'Data stampa:';
+  worksheet.getCell('B6').value = formatDate(printedAt);
+  worksheet.getCell('A7').value = 'Civici totali:';
+  worksheet.getCell('B7').value = civici.length;
   worksheet.getCell('D3').value = 'Operatore:';
   worksheet.getCell('E3').value = '________________';
   worksheet.getCell('D4').value = 'Firma:';
   worksheet.getCell('E4').value = '________________';
 
-  ['A3', 'A4', 'A5', 'A6', 'D3', 'D4'].forEach((address) => {
+  ['A3', 'A4', 'A5', 'A6', 'A7', 'D3', 'D4'].forEach((address) => {
     worksheet.getCell(address).font = { bold: true };
   });
 
@@ -163,7 +182,7 @@ async function buildExcelBuffer(params: {
     { key: 'note', width: 30 },
   ];
 
-  const headerRow = worksheet.getRow(8);
+  const headerRow = worksheet.getRow(9);
   headerRow.values = ['#', 'Indirizzo', 'Civico', 'Visitato', 'Idoneo', 'PG', 'Note'];
   headerRow.font = { bold: true, color: { argb: 'FFFFFFFF' } };
   headerRow.alignment = { horizontal: 'center', vertical: 'middle' };
@@ -204,7 +223,7 @@ async function buildExcelBuffer(params: {
     });
   });
 
-  worksheet.views = [{ state: 'frozen', ySplit: 8 }];
+  worksheet.views = [{ state: 'frozen', ySplit: 9 }];
 
   const buffer = await workbook.xlsx.writeBuffer();
   return Buffer.from(buffer);
@@ -218,10 +237,17 @@ export async function POST(request: NextRequest) {
     const body = (await request.json()) as GeneraPDFRequest;
     const microarea = String(body.microarea ?? '').trim();
     const territorioId = String(body.territorio_id ?? '').trim();
+    const activityId = String(body.activity_id ?? '').trim();
 
     if (!territorioId) {
       return NextResponse.json({ error: 'Seleziona un territorio prima di generare il PDF' }, { status: 400 });
     }
+
+    if (!activityId) {
+      return NextResponse.json({ error: 'Seleziona una tipologia di lavoro prima di generare il PDF' }, { status: 400 });
+    }
+
+    const activity = await requireSopralluoghiActivity(activityId);
 
     if (!microarea) {
       return NextResponse.json({ error: 'Parametro microarea mancante' }, { status: 400 });
@@ -245,6 +271,7 @@ export async function POST(request: NextRequest) {
       .from('civici_napoli')
       .select('id, odonimo, civico, microarea')
       .eq('territorio_id', territorioId)
+      .eq('activity_id', activity.id)
       .eq('microarea', microarea)
       .order('odonimo', { ascending: true })
       .order('civico', { ascending: true });
@@ -262,7 +289,7 @@ export async function POST(request: NextRequest) {
     ensureDir(pdfOutputDir);
     ensureDir(excelOutputDir);
 
-    const fileBaseName = `${microarea}_sopralluogo`;
+    const fileBaseName = `${sanitizeFilePart(territory.name)}_${sanitizeFilePart(activity.name)}_${sanitizeFilePart(microarea)}_sopralluogo`;
     const pdfFilename = `${fileBaseName}.pdf`;
     const excelFilename = `${fileBaseName}.xlsx`;
     const pdfDest = path.join(pdfOutputDir, pdfFilename);
@@ -272,11 +299,13 @@ export async function POST(request: NextRequest) {
     const pdfBuffer = buildPdfBuffer({
       microarea,
       territorioName: territory.name,
+      activityName: activity.name,
       civici: typedCivici,
     });
     const excelBuffer = await buildExcelBuffer({
       microarea,
       territorioName: territory.name,
+      activityName: activity.name,
       civici: typedCivici,
     });
 
@@ -291,6 +320,7 @@ export async function POST(request: NextRequest) {
       .insert({
         microarea,
         territorio_id: territorioId,
+        activity_id: activity.id,
         num_civici: civici.length,
         generato_da: guard.userId,
         pdf_url: pdfUrl,
@@ -308,6 +338,8 @@ export async function POST(request: NextRequest) {
       num_civici: civici.length,
       pdf_url: pdfUrl,
       excel_url: excelUrl,
+      activity_id: activity.id,
+      activity_name: activity.name,
       message: `PDF ed Excel generati con successo per ${microarea}`,
     });
   } catch (error: unknown) {

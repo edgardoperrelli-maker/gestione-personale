@@ -8,6 +8,7 @@ export const dynamic = 'force-dynamic';
 
 type ExportFilters = {
   territorio_id?: string | null;
+  activity_id?: string | null;
   microarea?: string | null;
   solo_idonei?: boolean;
   stato?: 'visitato' | 'programmato' | null;
@@ -30,6 +31,7 @@ type ExportCivicoRow = {
   latitudine: number | null;
   longitudine: number | null;
   territorio_id: string | null;
+  activity_id: string | null;
   sopralluoghi: ExportSopralluogoRow | ExportSopralluogoRow[] | null;
 };
 
@@ -67,6 +69,10 @@ export async function POST(request: NextRequest) {
     if (filters.territorio_id) {
       query = query.eq('territorio_id', filters.territorio_id);
       query = query.eq('sopralluoghi.territorio_id', filters.territorio_id);
+    }
+
+    if (filters.activity_id) {
+      query = query.eq('activity_id', filters.activity_id);
     }
 
     if (filters.microarea) {

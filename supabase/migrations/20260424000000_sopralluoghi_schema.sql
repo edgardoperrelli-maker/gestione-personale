@@ -6,20 +6,23 @@
 CREATE TABLE IF NOT EXISTS public.civici_napoli (
   id BIGSERIAL PRIMARY KEY,
   territorio_id UUID REFERENCES public.territories(id) ON DELETE SET NULL,
+  activity_id UUID REFERENCES public.activities_renamed(id) ON DELETE SET NULL,
   odonimo TEXT NOT NULL,
   civico TEXT NOT NULL,
   microarea TEXT NOT NULL,
   latitudine DECIMAL(9,7),
   longitudine DECIMAL(9,7),
-  created_at TIMESTAMPTZ DEFAULT NOW(),
-  UNIQUE(territorio_id, odonimo, civico, microarea)
+  created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
 -- Indici per performance
 CREATE INDEX idx_civici_territorio ON public.civici_napoli(territorio_id);
+CREATE INDEX idx_civici_activity ON public.civici_napoli(activity_id);
 CREATE INDEX idx_civici_microarea ON public.civici_napoli(microarea);
 CREATE INDEX idx_civici_odonimo ON public.civici_napoli(odonimo);
 CREATE INDEX idx_civici_geo ON public.civici_napoli(latitudine, longitudine);
+CREATE UNIQUE INDEX idx_civici_napoli_territorio_activity_unique
+  ON public.civici_napoli(territorio_id, activity_id, odonimo, civico, microarea);
 
 -- Tabella sopralluoghi (data entry manuale dopo PDF compilato)
 CREATE TABLE IF NOT EXISTS public.sopralluoghi (
@@ -63,6 +66,7 @@ CREATE TABLE IF NOT EXISTS public.sopralluoghi_pdf_generati (
   id BIGSERIAL PRIMARY KEY,
   microarea TEXT NOT NULL,
   territorio_id UUID REFERENCES public.territories(id) ON DELETE SET NULL,
+  activity_id UUID REFERENCES public.activities_renamed(id) ON DELETE SET NULL,
   num_civici INTEGER NOT NULL,
   data_generazione TIMESTAMPTZ DEFAULT NOW(),
   stato_registrazione TEXT CHECK (stato_registrazione IN ('generato', 'in_lavorazione', 'completato')) DEFAULT 'generato',
@@ -74,11 +78,14 @@ CREATE TABLE IF NOT EXISTS public.sopralluoghi_pdf_generati (
 
 CREATE INDEX idx_pdf_microarea ON public.sopralluoghi_pdf_generati(microarea);
 CREATE INDEX idx_pdf_stato ON public.sopralluoghi_pdf_generati(stato_registrazione);
+CREATE INDEX idx_pdf_activity ON public.sopralluoghi_pdf_generati(activity_id);
 
 -- Vista aggregata per statistiche microaree
 CREATE OR REPLACE VIEW public.microaree_stats AS
 SELECT
   c.territorio_id,
+  c.activity_id,
+  a.name AS activity_name,
   c.microarea,
   COUNT(DISTINCT c.id) as totale_civici,
   COUNT(DISTINCT s.id) FILTER (WHERE s.stato = 'visitato') as visitati,
@@ -92,8 +99,9 @@ SELECT
   AVG(c.latitudine) as lat_centro,
   AVG(c.longitudine) as lon_centro
 FROM public.civici_napoli c
+LEFT JOIN public.activities_renamed a ON a.id = c.activity_id
 LEFT JOIN public.sopralluoghi s ON c.id = s.civico_id
-GROUP BY c.territorio_id, c.microarea;
+GROUP BY c.territorio_id, c.activity_id, a.name, c.microarea;
 
 -- RLS Policies
 ALTER TABLE public.civici_napoli ENABLE ROW LEVEL SECURITY;
@@ -141,3 +149,5 @@ COMMENT ON TABLE public.civici_napoli IS 'Anagrafica civici Napoli da ANNCSU - 5
 COMMENT ON TABLE public.sopralluoghi IS 'Registro sopralluoghi risanamento colonne montanti';
 COMMENT ON TABLE public.sopralluoghi_pdf_generati IS 'Tracking PDF sopralluogo generati';
 COMMENT ON COLUMN public.sopralluoghi.stato IS 'da_visitare | visitato | programmato';
+COMMENT ON COLUMN public.civici_napoli.activity_id IS 'Attivita del cronoprogramma a cui appartiene il dataset importato';
+COMMENT ON COLUMN public.sopralluoghi_pdf_generati.activity_id IS 'Attivita del cronoprogramma associata al PDF/Excel generato';

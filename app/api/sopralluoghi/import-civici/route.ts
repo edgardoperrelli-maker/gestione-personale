@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { mapSopralluoghiErrorMessage, requireSopralluoghiAdmin } from '../_helpers';
+import {
+  mapSopralluoghiErrorMessage,
+  requireSopralluoghiActivity,
+  requireSopralluoghiAdmin,
+} from '../_helpers';
 
 export const dynamic = 'force-dynamic';
 
@@ -15,6 +19,7 @@ type CivicoRow = {
 
 type CivicoInsertRow = CivicoRow & {
   territorio_id: string;
+  activity_id: string;
 };
 
 type CoordinateAxis = 'lat' | 'lon';
@@ -274,6 +279,7 @@ function normalizeKeyPart(value: string): string {
 function buildConflictKey(row: CivicoInsertRow): string {
   return [
     row.territorio_id,
+    row.activity_id,
     normalizeKeyPart(row.odonimo),
     normalizeKeyPart(row.civico),
     normalizeKeyPart(row.microarea),
@@ -321,6 +327,7 @@ export async function POST(request: NextRequest) {
     const formData = await request.formData();
     const file = formData.get('file');
     const territorioId = String(formData.get('territorio_id') ?? '').trim();
+    const activityId = String(formData.get('activity_id') ?? '').trim();
 
     if (!(file instanceof File)) {
       return NextResponse.json({ error: 'Nessun file caricato' }, { status: 400 });
@@ -329,6 +336,12 @@ export async function POST(request: NextRequest) {
     if (!territorioId) {
       return NextResponse.json({ error: 'Seleziona un territorio di riferimento' }, { status: 400 });
     }
+
+    if (!activityId) {
+      return NextResponse.json({ error: 'Seleziona una tipologia di lavoro' }, { status: 400 });
+    }
+
+    const activity = await requireSopralluoghiActivity(activityId);
 
     const { data: territory, error: territoryError } = await supabaseAdmin
       .from('territories')
@@ -364,6 +377,7 @@ export async function POST(request: NextRequest) {
     const payload: CivicoInsertRow[] = rows.map((row) => ({
       ...row,
       territorio_id: territorioId,
+      activity_id: activity.id,
     }));
     const deduplicated = deduplicatePayload(payload);
 
@@ -377,7 +391,7 @@ export async function POST(request: NextRequest) {
       const { error } = await supabaseAdmin
         .from('civici_napoli')
         .upsert(batch, {
-          onConflict: 'territorio_id,odonimo,civico,microarea',
+          onConflict: 'territorio_id,activity_id,odonimo,civico,microarea',
           ignoreDuplicates: false,
         });
 
@@ -405,6 +419,8 @@ export async function POST(request: NextRequest) {
       microaree: [...new Set(rows.map((row) => row.microarea))].length,
       territorio_id: territory.id,
       territorio_nome: territory.name,
+      activity_id: activity.id,
+      activity_name: activity.name,
       sorgente: parsed.sourceName,
       warning: firstBatchError
         ? `Alcune righe non sono state salvate: ${firstBatchError}`

@@ -2,8 +2,9 @@ import 'leaflet/dist/leaflet.css';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { filterSopralluoghiActivities } from '@/lib/sopralluoghiActivities';
 import RisanamentoClient from './RisanamentoClient';
-import type { Territory } from '@/types';
+import type { Activity, Territory } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -31,11 +32,15 @@ export default async function RisanamentoPage({
 
   const role = resolveUserRole(profile?.role, user?.app_metadata?.role);
 
-  const [{ data: territories }, { data: microareeStats }, { data: pdfGenerati }] = await Promise.all([
+  const [{ data: territories }, { data: activities }, { data: microareeStats }, { data: pdfGenerati }] = await Promise.all([
     supabase
       .from('territories')
       .select('*')
       .eq('active', true)
+      .order('name', { ascending: true }),
+    supabase
+      .from('activities_renamed')
+      .select('id, name')
       .order('name', { ascending: true }),
     supabase
       .from('microaree_stats')
@@ -44,7 +49,7 @@ export default async function RisanamentoPage({
     role === 'admin'
       ? supabase
           .from('sopralluoghi_pdf_generati')
-          .select('id, microarea, territorio_id, num_civici, data_generazione, stato_registrazione, pdf_url, excel_url')
+          .select('id, microarea, territorio_id, activity_id, num_civici, data_generazione, stato_registrazione, pdf_url, excel_url')
           .order('data_generazione', { ascending: false })
       : Promise.resolve({ data: [] }),
   ]);
@@ -54,6 +59,7 @@ export default async function RisanamentoPage({
   return (
     <RisanamentoClient
       territories={(territories ?? []) as Territory[]}
+      activities={filterSopralluoghiActivities((activities ?? []) as Activity[])}
       microareeStats={microareeStats ?? []}
       pdfGenerati={pdfGenerati ?? []}
       canManage={role === 'admin'}
