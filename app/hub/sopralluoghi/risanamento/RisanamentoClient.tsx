@@ -1,0 +1,382 @@
+'use client';
+
+import { useEffect, useMemo, useState } from 'react';
+import dynamic from 'next/dynamic';
+import { useRouter } from 'next/navigation';
+import Button from '@/components/Button';
+import RegistrazioneInterventiPanel from '@/components/modules/sopralluoghi/RegistrazioneInterventiPanel';
+import type { Territory } from '@/types';
+
+const MappaRisanamento = dynamic(
+  () => import('./MappaRisanamento'),
+  { ssr: false, loading: () => <MappaLoading /> },
+);
+
+export type MicroareaStats = {
+  territorio_id: string | null;
+  microarea: string;
+  totale_civici: number;
+  visitati: number;
+  programmati: number;
+  da_visitare: number;
+  idonei_risanamento: number;
+  lat_min: number;
+  lat_max: number;
+  lon_min: number;
+  lon_max: number;
+  lat_centro: number;
+  lon_centro: number;
+};
+
+type PDFGenerato = {
+  id: number;
+  microarea: string;
+  territorio_id: string | null;
+  num_civici: number;
+  data_generazione: string;
+  stato_registrazione: string;
+  pdf_url: string | null;
+  excel_url: string | null;
+};
+
+type Props = {
+  territories: Territory[];
+  microareeStats: MicroareaStats[];
+  pdfGenerati: PDFGenerato[];
+  canManage: boolean;
+  initialTab: 'pianificazione' | 'registrazione';
+};
+
+function MappaLoading() {
+  return (
+    <div className="flex h-[600px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-gray-50">
+      <div className="text-center">
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-[var(--brand-primary)]" />
+        <p className="mt-4 text-sm text-[var(--text-secondary)]">Caricamento mappa...</p>
+      </div>
+    </div>
+  );
+}
+
+function triggerFileDownload(url: string) {
+  const anchor = document.createElement('a');
+  anchor.href = url;
+  anchor.download = '';
+  document.body.appendChild(anchor);
+  anchor.click();
+  document.body.removeChild(anchor);
+}
+
+export default function RisanamentoClient({
+  territories,
+  microareeStats,
+  pdfGenerati,
+  canManage,
+  initialTab,
+}: Props) {
+  const router = useRouter();
+  const [activeTab, setActiveTab] = useState<Props['initialTab']>(initialTab);
+  const [territorioSelezionato, setTerritorioSelezionato] = useState<string>('');
+  const [filtroStato, setFiltroStato] = useState<'tutti' | 'da_visitare' | 'visitati' | 'programmati'>('tutti');
+  const [microareaSelezionata, setMicroareaSelezionata] = useState<string | null>(null);
+  const [generandoPdf, setGenerandoPdf] = useState(false);
+  const [exportingExcel, setExportingExcel] = useState(false);
+
+  const territoryName = territories.find((territory) => territory.id === territorioSelezionato)?.name;
+
+  const statsPerTerritorio = useMemo(
+    () => microareeStats.filter((stats) => stats.territorio_id === territorioSelezionato),
+    [microareeStats, territorioSelezionato],
+  );
+
+  const statsFiltered = useMemo(
+    () => statsPerTerritorio.filter((stats) => {
+      if (filtroStato === 'da_visitare') return stats.visitati === 0 && stats.programmati === 0;
+      if (filtroStato === 'visitati') return stats.visitati > 0;
+      if (filtroStato === 'programmati') return stats.programmati > 0;
+      return true;
+    }),
+    [filtroStato, statsPerTerritorio],
+  );
+
+  const microareaOptions = useMemo(
+    () => Array.from(new Set(statsPerTerritorio.map((stats) => stats.microarea))).sort((left, right) => left.localeCompare(right)),
+    [statsPerTerritorio],
+  );
+
+  useEffect(() => {
+    if (!microareaSelezionata) return;
+
+    const exists = statsPerTerritorio.some((stats) => stats.microarea === microareaSelezionata);
+    if (!exists) {
+      setMicroareaSelezionata(null);
+    }
+  }, [microareaSelezionata, statsPerTerritorio]);
+
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    if (activeTab === 'registrazione') {
+      url.searchParams.set('tab', 'registrazione');
+    } else {
+      url.searchParams.delete('tab');
+    }
+    window.history.replaceState(null, '', `${url.pathname}${url.search}`);
+  }, [activeTab]);
+
+  const totCivici = statsPerTerritorio.reduce((sum, stats) => sum + stats.totale_civici, 0);
+  const totVisitati = statsPerTerritorio.reduce((sum, stats) => sum + stats.visitati, 0);
+  const totIdonei = statsPerTerritorio.reduce((sum, stats) => sum + stats.idonei_risanamento, 0);
+
+  const microareaSelezionataStats = statsPerTerritorio.find((stats) => stats.microarea === microareaSelezionata) ?? null;
+  const pdfMicroareaSelezionata = pdfGenerati.find((pdf) => (
+    pdf.territorio_id === territorioSelezionato && pdf.microarea === microareaSelezionata
+  ));
+
+  const handleGeneraPDF = async () => {
+    if (!canManage) return;
+    if (!territorioSelezionato || !microareaSelezionata) {
+      alert('Seleziona prima territorio e microarea.');
+      return;
+    }
+
+    setGenerandoPdf(true);
+    try {
+      const response = await fetch('/api/sopralluoghi/genera-pdf', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          microarea: microareaSelezionata,
+          territorio_id: territorioSelezionato,
+        }),
+      });
+
+      const data = (await response.json()) as { pdf_url?: string; excel_url?: string; error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Errore generazione PDF');
+      }
+
+      if (data.pdf_url) {
+        window.open(data.pdf_url, '_blank');
+      }
+
+      if (data.excel_url) {
+        triggerFileDownload(data.excel_url);
+      }
+
+      router.refresh();
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      setGenerandoPdf(false);
+    }
+  };
+
+  const handleExportExcel = async () => {
+    if (!territorioSelezionato) {
+      alert('Seleziona prima un territorio.');
+      return;
+    }
+
+    setExportingExcel(true);
+    try {
+      const response = await fetch('/api/sopralluoghi/export-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territorio_id: territorioSelezionato,
+          solo_idonei: true,
+          stato: 'visitato',
+        }),
+      });
+
+      if (!response.ok) {
+        const data = (await response.json()) as { error?: string };
+        throw new Error(data.error ?? 'Errore export');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const anchor = document.createElement('a');
+      anchor.href = url;
+      anchor.download = `Civici_Programmati_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      document.body.removeChild(anchor);
+      window.URL.revokeObjectURL(url);
+    } catch (error: unknown) {
+      alert(error instanceof Error ? error.message : String(error));
+    } finally {
+      setExportingExcel(false);
+    }
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="text-sm text-[var(--text-secondary)]">Territorio</div>
+          <select
+            value={territorioSelezionato}
+            onChange={(event) => setTerritorioSelezionato(event.target.value)}
+            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none"
+          >
+            <option value="">Seleziona un territorio</option>
+            {territories.map((territory) => (
+              <option key={territory.id} value={territory.id}>
+                {territory.name}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="text-sm text-[var(--text-secondary)]">Civici Totali</div>
+          <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">
+            {totCivici.toLocaleString('it-IT')}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="text-sm text-[var(--text-secondary)]">Visitati</div>
+          <div className="mt-1 text-2xl font-semibold text-green-600">
+            {totVisitati.toLocaleString('it-IT')}
+          </div>
+        </div>
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="text-sm text-[var(--text-secondary)]">Idonei</div>
+          <div className="mt-1 text-2xl font-semibold text-blue-600">
+            {totIdonei.toLocaleString('it-IT')}
+          </div>
+        </div>
+      </div>
+
+      {!territorioSelezionato && (
+        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
+          Seleziona un territorio per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
+        </div>
+      )}
+
+      {territorioSelezionato && activeTab === 'pianificazione' && (
+        <>
+          <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+            <div className="min-w-[200px] flex-1">
+              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+                Stato microarea
+              </label>
+              <select
+                value={filtroStato}
+                onChange={(event) => setFiltroStato(event.target.value as typeof filtroStato)}
+                className="w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+              >
+                <option value="tutti">Tutte le microaree</option>
+                <option value="da_visitare">Da visitare</option>
+                <option value="visitati">Con sopralluoghi</option>
+                <option value="programmati">Programmati</option>
+              </select>
+            </div>
+
+            <div className="flex items-end gap-2">
+              <Button
+                variant="outline"
+                size="md"
+                onClick={handleExportExcel}
+                disabled={exportingExcel || statsPerTerritorio.length === 0}
+              >
+                {exportingExcel ? 'Esportando...' : 'Export Excel'}
+              </Button>
+            </div>
+          </div>
+
+          {statsFiltered.length > 0 ? (
+            <MappaRisanamento
+              microareeStats={statsFiltered}
+              onMicroareaClick={setMicroareaSelezionata}
+              microareaSelezionata={microareaSelezionata}
+            />
+          ) : (
+            <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
+              Nessuna microarea disponibile per il territorio selezionato.
+            </div>
+          )}
+
+          {microareaSelezionata && microareaSelezionataStats && (
+            <div className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] p-4">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <h3 className="font-medium text-[var(--text-primary)]">
+                    {microareaSelezionata}
+                  </h3>
+                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                    {microareaSelezionataStats.totale_civici.toLocaleString('it-IT')} civici - {microareaSelezionataStats.visitati} visitati - {microareaSelezionataStats.idonei_risanamento} idonei
+                  </p>
+                  {pdfMicroareaSelezionata?.pdf_url && (
+                    <div className="mt-2 flex flex-wrap gap-3">
+                      <a
+                        href={pdfMicroareaSelezionata.pdf_url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                      >
+                        Apri ultimo PDF generato
+                      </a>
+                      {pdfMicroareaSelezionata.excel_url && (
+                        <a
+                          href={pdfMicroareaSelezionata.excel_url}
+                          className="inline-block text-sm font-medium text-[var(--brand-primary)] hover:underline"
+                        >
+                          Scarica ultimo Excel generato
+                        </a>
+                      )}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="md"
+                    onClick={() => setActiveTab('registrazione')}
+                  >
+                    Vai a registrazione
+                  </Button>
+                  {canManage && (
+                    <Button
+                      variant="primary"
+                      size="md"
+                      onClick={handleGeneraPDF}
+                      disabled={generandoPdf}
+                    >
+                      {generandoPdf ? 'Generando...' : 'Genera PDF + Excel sopralluogo'}
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
+
+      {activeTab === 'registrazione' && (
+        <div className="space-y-4">
+          <div className="flex justify-end">
+            <Button
+              variant="outline"
+              size="md"
+              onClick={() => setActiveTab('pianificazione')}
+            >
+              Torna alla pianificazione
+            </Button>
+          </div>
+
+          <RegistrazioneInterventiPanel
+            canManage={canManage}
+            territorioSelezionato={territorioSelezionato}
+            territoryName={territoryName}
+            microareaSelezionata={microareaSelezionata}
+            microareaOptions={microareaOptions}
+            pdfGenerati={pdfGenerati}
+            onMicroareaChange={setMicroareaSelezionata}
+          />
+        </div>
+      )}
+    </div>
+  );
+}

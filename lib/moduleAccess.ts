@@ -6,6 +6,7 @@ export type AppModuleKey =
   | 'smartracker'
   | 'rapportini'
   | 'mappa'
+  | 'sopralluoghi'
   | 'impostazioni';
 
 export type AppModuleDefinition = {
@@ -65,6 +66,14 @@ export const APP_MODULES: AppModuleDefinition[] = [
     matchPrefixes: ['/hub/mappa'],
   },
   {
+    key: 'sopralluoghi',
+    href: '/hub/sopralluoghi',
+    label: 'Sopralluoghi',
+    description: 'Gestione sopralluoghi territorio',
+    section: 'modules',
+    matchPrefixes: ['/hub/sopralluoghi'],
+  },
+  {
     key: 'impostazioni',
     href: '/impostazioni',
     label: 'Impostazioni',
@@ -108,10 +117,10 @@ export function normalizeAllowedModules(
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
   if (role === 'admin') {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'impostazioni']));
+    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni']));
   }
 
-  return allowed.filter((key) => key !== 'impostazioni');
+  return Array.from(new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni'), 'sopralluoghi']));
 }
 
 function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: unknown } | null {

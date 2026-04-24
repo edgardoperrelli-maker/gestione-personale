@@ -57,6 +57,18 @@ const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
       </svg>
     ),
   },
+  sopralluoghi: {
+    badge: 'Nuovo',
+    badgeStyle: 'bg-blue-100 text-blue-700',
+    icon: (
+      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
+        <rect x="9" y="3" width="6" height="4" rx="1" />
+        <path d="M9 12h6" />
+        <path d="M9 16h6" />
+      </svg>
+    ),
+  },
   impostazioni: {
     badge: 'Admin',
     badgeStyle: 'bg-amber-100 text-amber-700',
