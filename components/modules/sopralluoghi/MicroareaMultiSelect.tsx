@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import Button from '@/components/Button';
 
 type Props = {
@@ -10,6 +11,7 @@ type Props = {
   disabled?: boolean;
   helperText?: string;
   emptyText?: string;
+  defaultExpanded?: boolean;
 };
 
 function sortValues(values: string[]): string[] {
@@ -24,7 +26,10 @@ export default function MicroareaMultiSelect({
   disabled = false,
   helperText,
   emptyText = 'Nessuna microarea disponibile',
+  defaultExpanded = false,
 }: Props) {
+  const [isExpanded, setIsExpanded] = useState(defaultExpanded);
+
   const toggleValue = (value: string) => {
     if (disabled) return;
 
@@ -67,6 +72,15 @@ export default function MicroareaMultiSelect({
           <Button
             variant="outline"
             size="sm"
+            onClick={() => setIsExpanded((prev) => !prev)}
+            disabled={options.length === 0}
+            aria-expanded={isExpanded}
+          >
+            {isExpanded ? 'Comprimi' : 'Espandi'}
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
             onClick={handleSelectAll}
             disabled={disabled || options.length === 0}
           >
@@ -86,6 +100,35 @@ export default function MicroareaMultiSelect({
       {options.length === 0 ? (
         <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] px-4 py-4 text-sm text-[var(--brand-text-muted)]">
           {emptyText}
+        </div>
+      ) : !isExpanded ? (
+        <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-4">
+          {selected.length === 0 ? (
+            <div className="text-sm text-[var(--brand-text-muted)]">
+              Nessuna microarea selezionata. Premi <span className="font-medium text-[var(--brand-text-main)]">Espandi</span> per aprire la lista.
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <div className="text-sm text-[var(--brand-text-muted)]">
+                Microaree selezionate
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {selected.slice(0, 8).map((value) => (
+                  <span
+                    key={value}
+                    className="inline-flex items-center rounded-full bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-text-main)]"
+                  >
+                    {value}
+                  </span>
+                ))}
+                {selected.length > 8 && (
+                  <span className="inline-flex items-center rounded-full border border-[var(--brand-border)] px-3 py-1 text-xs text-[var(--brand-text-muted)]">
+                    +{selected.length - 8} altre
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       ) : (
         <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--brand-border)] bg-white p-3">
