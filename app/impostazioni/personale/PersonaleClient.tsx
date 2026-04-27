@@ -4,10 +4,12 @@ import { useMemo, useState } from 'react';
 import { geocodeTask } from '@/utils/routing';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffValidOnDay } from '@/lib/staff';
 import NewOperatorModal from './NewOperatorModal';
-import type { Staff } from '@/types';
+import StoricoTrasferte from './StoricoTrasferte';
+import type { Staff, Territory } from '@/types';
 
 type Props = {
   initialStaff: Staff[];
+  territories: Territory[];
 };
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
@@ -22,7 +24,7 @@ function validityLabel(staff: Staff, today: string) {
   return 'Fuori validita';
 }
 
-export default function PersonaleClient({ initialStaff }: Props) {
+export default function PersonaleClient({ initialStaff, territories }: Props) {
   const [rows, setRows] = useState<Staff[]>(initialStaff);
   const [query, setQuery] = useState('');
   const [validityFilter, setValidityFilter] = useState<'all' | 'valid' | 'invalid'>('all');
@@ -73,7 +75,11 @@ export default function PersonaleClient({ initialStaff }: Props) {
   const toggleExpand = (id: string) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
-      next.has(id) ? next.delete(id) : next.add(id);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
       return next;
     });
   };
@@ -141,6 +147,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
           homeCity: row.home_city ?? null,
           homeLat,
           homeLng,
+          homeTerritoryId: row.home_territory_id ?? null,
         }),
       });
       const json = await res.json() as { error?: string; staff?: Staff };
@@ -395,6 +402,27 @@ export default function PersonaleClient({ initialStaff }: Props) {
                     </div>
                   </div>
 
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                      Territorio di residenza operativa
+                    </label>
+                    <select
+                      value={row.home_territory_id ?? ''}
+                      onChange={(e) => updateRow(row.id, { home_territory_id: e.target.value || null })}
+                      className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                    >
+                      <option value="">Lazio (base principale)</option>
+                      {territories.filter((territory) => territory.active !== false).map((territory) => (
+                        <option key={territory.id} value={territory.id}>{territory.name}</option>
+                      ))}
+                    </select>
+                    <p className="mt-1 text-[11px] text-[var(--brand-text-muted)]">
+                      Lazio Centro, Lazio Est, ACEA e Aurelia sono considerati la stessa area Lazio per le trasferte.
+                    </p>
+                  </div>
+
+                  <StoricoTrasferte staffId={row.id} />
+
                   <div className="mt-3 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
                     <div>
                       <span className="font-semibold">Magazzino: </span>
@@ -428,6 +456,7 @@ export default function PersonaleClient({ initialStaff }: Props) {
         <NewOperatorModal
           onClose={() => setShowNewModal(false)}
           onCreated={handleOperatorCreated}
+          territories={territories}
         />
       )}
     </div>

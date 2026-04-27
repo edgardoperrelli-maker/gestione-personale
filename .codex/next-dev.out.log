@@ -1,0 +1,17 @@
+
+> gestione-personale@0.1.0 dev
+> next dev --turbopack
+
+   ▲ Next.js 15.5.9 (Turbopack)
+   - Local:        http://localhost:3000
+   - Network:      http://192.168.10.56:3000
+   - Environments: .env.local
+
+ ✓ Starting...
+Creating turbopack project {
+  dir: 'C:\\Users\\edgardo.perrelli\\Desktop\\gestione-personale',
+  testMode: true
+}
+ ✓ Compiled middleware in 219ms
+ ✓ Ready in 1670ms
+ ○ Compiling /dashboard ...

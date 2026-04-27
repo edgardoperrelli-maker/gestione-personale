@@ -6,13 +6,15 @@ const TABS = [
   { href: '/impostazioni/utenze',    label: 'Utenze' },
   { href: '/impostazioni/personale', label: 'Personale' },
   { href: '/impostazioni/territori', label: 'Territori' },
+  { href: '/impostazioni/gruppo-attivita', label: 'Attivita' },
+  { href: '/impostazioni/hotel',     label: 'Hotel' },
   { href: '/impostazioni/zone-ztl',  label: 'Zone ZTL' },
 ];
 
 export default function SettingsSubNav() {
   const pathname = usePathname();
   return (
-    <div className="mb-6 flex gap-2 border-b border-[var(--brand-border)] pb-4">
+    <div className="mb-6 flex flex-wrap gap-2 border-b border-[var(--brand-border)] pb-4">
       {TABS.map(({ href, label }) => {
         const active = pathname.startsWith(href);
         return (

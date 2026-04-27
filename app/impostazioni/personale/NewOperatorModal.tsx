@@ -2,11 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { geocodeTask } from '@/utils/routing';
-import type { Staff } from '@/types';
+import type { Staff, Territory } from '@/types';
 
 type Props = {
   onClose: () => void;
   onCreated: (newStaff: Staff) => void;
+  territories: Territory[];
 };
 
 function validateDisplayName(name: string): string | null {
@@ -23,10 +24,11 @@ function validateDateRange(from: string | null, to: string | null): string | nul
   return null;
 }
 
-export default function NewOperatorModal({ onClose, onCreated }: Props) {
+export default function NewOperatorModal({ onClose, onCreated, territories }: Props) {
   const [displayName, setDisplayName] = useState('');
   const [validFrom, setValidFrom] = useState<string | null>(null);
   const [validTo, setValidTo] = useState<string | null>(null);
+  const [homeTerritoryId, setHomeTerritoryId] = useState<string | null>(null);
   const [startAddress, setStartAddress] = useState<string | null>(null);
   const [startCap, setStartCap] = useState<string | null>(null);
   const [startCity, setStartCity] = useState<string | null>(null);
@@ -125,6 +127,7 @@ export default function NewOperatorModal({ onClose, onCreated }: Props) {
         homeCity,
         homeLat,
         homeLng,
+        homeTerritoryId: homeTerritoryId ?? null,
       };
 
       const res = await fetch('/api/admin/personale', {
@@ -208,6 +211,25 @@ export default function NewOperatorModal({ onClose, onCreated }: Props) {
                 className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
               />
             </div>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              Territorio di residenza operativa
+            </label>
+            <select
+              value={homeTerritoryId ?? ''}
+              onChange={(e) => setHomeTerritoryId(e.target.value || null)}
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+            >
+              <option value="">Lazio (base principale)</option>
+              {territories.filter((territory) => territory.active !== false).map((territory) => (
+                <option key={territory.id} value={territory.id}>{territory.name}</option>
+              ))}
+            </select>
+            <p className="mt-1 text-[11px] text-[var(--brand-text-muted)]">
+              Lazio Centro, Lazio Est, ACEA e Aurelia sono considerati la stessa area Lazio.
+            </p>
           </div>
 
           {/* Magazzino */}

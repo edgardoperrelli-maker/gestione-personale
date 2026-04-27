@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { StaggerGrid } from '@/components/layout/StaggerGrid';
+import TrasfertaAlert from '@/components/trasferta/TrasfertaAlert';
 import { APP_MODULES, getAllowedModulesForUser, type AppModuleKey } from '@/lib/moduleAccess';
 
 type ModuleCardConfig = {
@@ -128,6 +129,7 @@ export default async function HubPage() {
 
   return (
     <main className="mx-auto max-w-5xl space-y-6">
+      <TrasfertaAlert />
       <header className="space-y-2">
         <h1 className="text-3xl font-semibold tracking-tight">Hub Moduli</h1>
         <p className="text-sm text-[var(--brand-text-muted)]">

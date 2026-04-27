@@ -1,6 +1,9 @@
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
+  turbopack: {
+    root: process.cwd(),
+  },
   async headers() {
     return [
       {

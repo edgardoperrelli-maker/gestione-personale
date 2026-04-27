@@ -14,6 +14,8 @@ export type Staff = {
   home_city?: string | null;
   home_lat?: number | null;
   home_lng?: number | null;
+  /** NULL = Lazio. Se impostato, niente hotel per quel territorio. */
+  home_territory_id?: string | null;
 };
 export type Activity = { id:string; name:string; active?:boolean };
 export type Territory = {
@@ -25,6 +27,26 @@ export type Territory = {
   lat?: number | null;
   lng?: number | null;
   created_at?: string | null;
+};
+
+export type HotelRoomPrice = {
+  id: string;
+  hotel_id: string;
+  room_type: string;
+  price_per_night: number;
+  dinner_price_per_person?: number | null;
+  notes?: string | null;
+};
+
+export type Hotel = {
+  id: string;
+  name: string;
+  email?: string | null;
+  territory_id?: string | null;
+  territory?: Territory | null;
+  active: boolean;
+  stars?: number;
+  room_prices?: HotelRoomPrice[];
 };
 
 import type { CostCenter } from '@/constants/cost-centers';

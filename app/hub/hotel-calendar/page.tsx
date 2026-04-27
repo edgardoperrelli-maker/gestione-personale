@@ -1,81 +1,207 @@
 'use client';
+
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
-import { useMemo, useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import SendRequestModal from './SendRequestModal';
+import type { Hotel, Territory } from '@/types';
+
 const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
 
-/* ---------- Tipi ---------- */
 type Guest = { id: string; name: string; territory: string };
 type HotelBooking = {
   id: string;
-  date: string; // YYYY-MM-DD
+  date: string;
+  hotel_id?: string | null;
   hotelName: string;
   roomType: string;
   roomPrice: number;
   guests: Guest[];
   territory: string;
+  territory_id?: string | null;
   notes?: string;
-  dinner?: string;
   dinnerPrice?: number;
 };
 type ViewMode = 'month' | 'twoWeeks' | 'week';
 
-/* ---------- Util ---------- */
-function yyyyMmDd(d: Date) {
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  const day = String(d.getDate()).padStart(2, '0');
-  return `${y}-${m}-${day}`;
-}
-function ymdToDateLocal(ymd: string) {
-  const [y, m, d] = ymd.split('-').map(Number);
-  return new Date(y, (m ?? 1) - 1, d ?? 1); // crea data in locale
-}
-function startOfDay(d: Date) { const x = new Date(d); x.setHours(0,0,0,0); return x; }
-function addDays(d: Date, n: number) { const x = new Date(d); x.setDate(x.getDate() + n); return x; }
-function startOfWeekMonday(d: Date) { const x = startOfDay(d); const day = x.getDay(); const diff = day === 0 ? -6 : 1 - day; return addDays(x, diff); }
-function endOfWeekSunday(d: Date) { return addDays(startOfWeekMonday(d), 6); }
-function daysArray(from: Date, to: Date) { const res: Date[] = []; let cur = startOfDay(from); const end = startOfDay(to); while (cur <= end) { res.push(cur); cur = addDays(cur, 1);} return res; }
-function chunk<T>(arr: T[], size: number) { const out: T[][] = []; for (let i=0;i<arr.length;i+=size) out.push(arr.slice(i,i+size)); return out; }
+type RawHotelBooking = {
+  id: string;
+  date: string;
+  hotel_id?: string | null;
+  hotel_name?: string | null;
+  room_type?: string | null;
+  room_price?: number | string | null;
+  guests?: unknown;
+  territory?: string | null;
+  territory_id?: string | null;
+  notes?: string | null;
+  dinner_price?: number | string | null;
+};
 
-/* ---------- Mock ospiti (solo per selezione) ---------- */
-const MOCK_GUESTS: Guest[] = [
-  { id: '80b25f40-35a8-429e-b21c-0eb07c71683e', name: 'LIBERATORI ADRIANO', territory: '' },
-  { id: '824a4397-1d3d-4a74-932a-98be67194be3', name: 'DE SANTIS ALESSANDRO', territory: '' },
-  { id: '35f71f5b-a1e6-4de4-8f93-94bd5cd55155', name: 'MACCHIA ALESSIO', territory: '' },
-  { id: '8cf3e732-c615-4546-9f46-e6484933a636', name: 'SIKORA ARTUR', territory: '' },
-  { id: '3d24d108-8396-43b4-9d07-7c7de022fcbb', name: 'TREGU DANIEL', territory: '' },
-  { id: '15345c35-48b4-4374-aeea-2ba9d2c0576f', name: 'DIONISI CRISTIANO', territory: '' },
-  { id: 'b2330af0-0da9-41f2-9caa-6c7099f8a302', name: 'PICCININI FEDERICO', territory: '' },
-  { id: '87b22bd2-3fa9-4ee2-a738-33457063fcf2', name: 'FERRARA LUCA', territory: '' },
-  { id: '133f7437-3411-43e2-9f98-7e392c2c396c', name: 'PASTORELLI LUIGI', territory: '' },
-  { id: '1858c332-a60b-47ff-89df-f280f98b1c4c', name: 'PASSACANTILLI MASSIMILIANO', territory: '' },
-  { id: '387eca6d-1932-4e9a-9dca-781ea12de2c0', name: 'PRATESI MATTIA', territory: '' },
-  { id: '95b59ec2-e364-4e78-a045-b3ca460cd02f', name: 'CIARALLO SIMONE', territory: '' },
-  { id: '0eddc815-de7c-4c1c-a78c-ce7f387c00df', name: 'GIOSI VITTORIO', territory: '' },
+type BootstrapResponse = {
+  hotels?: Hotel[];
+  territories?: Territory[];
+  error?: string;
+};
 
-  
-];
+type PopulateResponse = {
+  guests?: Guest[];
+  error?: string;
+};
 
+type RoomOption = {
+  id: string;
+  room_type: string;
+  price_per_night: number;
+  dinner_price_per_person?: number | null;
+  configured: boolean;
+};
 
-/* ---------- UI territorio ---------- */
 const TERRITORY_UI: Record<string, { pill: string; card: string }> = {
   FIRENZE: { pill: 'bg-orange-50 text-orange-800 border-orange-200', card: 'bg-orange-50 border-orange-200' },
-  PADOVA:  { pill: 'bg-violet-50 text-violet-800 border-violet-200', card: 'bg-violet-50 border-violet-200' },
-  PERUGIA: { pill: 'bg-rose-50 text-rose-800 border-rose-200',     card: 'bg-rose-50 border-rose-200' },
-  NAPOLI:  { pill: 'bg-blue-50 text-blue-800 border-blue-200',      card: 'bg-blue-50 border-blue-200' },
+  PADOVA: { pill: 'bg-violet-50 text-violet-800 border-violet-200', card: 'bg-violet-50 border-violet-200' },
+  PERUGIA: { pill: 'bg-rose-50 text-rose-800 border-rose-200', card: 'bg-rose-50 border-rose-200' },
+  NAPOLI: { pill: 'bg-blue-50 text-blue-800 border-blue-200', card: 'bg-blue-50 border-blue-200' },
 };
-const TERRITORIES = Object.keys(TERRITORY_UI);
-function territoryPillClasses(t: string) { const key = (t || '').toUpperCase(); return TERRITORY_UI[key]?.pill ?? 'bg-neutral-50 text-neutral-700 border-neutral-200'; }
-function territoryCardClasses(t: string) { const key = (t || '').toUpperCase(); return TERRITORY_UI[key]?.card ?? 'bg-white border-neutral-200'; }
 
-/* ---------- Modal ---------- */
-function Modal({ open, title, onClose, children }:{
-  open: boolean; title: string; onClose: () => void; children: React.ReactNode;
+function yyyyMmDd(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function ymdToDateLocal(ymd: string) {
+  const [year, month, day] = ymd.split('-').map(Number);
+  return new Date(year, (month ?? 1) - 1, day ?? 1);
+}
+
+function startOfDay(date: Date) {
+  const result = new Date(date);
+  result.setHours(0, 0, 0, 0);
+  return result;
+}
+
+function addDays(date: Date, days: number) {
+  const result = new Date(date);
+  result.setDate(result.getDate() + days);
+  return result;
+}
+
+function startOfWeekMonday(date: Date) {
+  const result = startOfDay(date);
+  const day = result.getDay();
+  const diff = day === 0 ? -6 : 1 - day;
+  return addDays(result, diff);
+}
+
+function endOfWeekSunday(date: Date) {
+  return addDays(startOfWeekMonday(date), 6);
+}
+
+function daysArray(from: Date, to: Date) {
+  const result: Date[] = [];
+  let current = startOfDay(from);
+  const end = startOfDay(to);
+  while (current <= end) {
+    result.push(current);
+    current = addDays(current, 1);
+  }
+  return result;
+}
+
+function chunk<T>(items: T[], size: number) {
+  const result: T[][] = [];
+  for (let index = 0; index < items.length; index += size) result.push(items.slice(index, index + size));
+  return result;
+}
+
+function territoryPillClasses(territory: string) {
+  const key = (territory || '').toUpperCase();
+  return TERRITORY_UI[key]?.pill ?? 'bg-neutral-50 text-neutral-700 border-neutral-200';
+}
+
+function territoryCardClasses(territory: string) {
+  const key = (territory || '').toUpperCase();
+  return TERRITORY_UI[key]?.card ?? 'bg-white border-neutral-200';
+}
+
+function normalizeGuests(value: unknown): Guest[] {
+  if (!Array.isArray(value)) return [];
+  return value.flatMap((item) => {
+    if (!item || typeof item !== 'object') return [];
+    const candidate = item as { id?: unknown; name?: unknown; territory?: unknown };
+    const id = String(candidate.id ?? '').trim();
+    const name = String(candidate.name ?? '').trim();
+    if (!id || !name) return [];
+    return [{ id, name, territory: String(candidate.territory ?? '') }];
+  });
+}
+
+function bookingFromRow(row: RawHotelBooking): HotelBooking {
+  return {
+    id: row.id,
+    date: row.date,
+    hotel_id: row.hotel_id ?? null,
+    hotelName: row.hotel_name ?? '',
+    roomType: row.room_type ?? '',
+    roomPrice: Number(row.room_price ?? 0),
+    guests: normalizeGuests(row.guests),
+    territory: row.territory ?? '',
+    territory_id: row.territory_id ?? null,
+    notes: row.notes ?? '',
+    dinnerPrice: row.dinner_price != null ? Number(row.dinner_price) : undefined,
+  };
+}
+
+function money(value: number | undefined) {
+  if (value == null) return '-';
+  return `EUR ${value.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
+function normalizeLookup(value: string) {
+  return value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('it-IT');
+}
+
+function roomOptionsForHotel(hotel: Hotel | null): RoomOption[] {
+  const configured = hotel?.room_prices ?? [];
+  if (configured.length > 0) {
+    return configured.map((room) => ({
+      id: room.id,
+      room_type: room.room_type,
+      price_per_night: Number(room.price_per_night ?? 0),
+      dinner_price_per_person: room.dinner_price_per_person != null ? Number(room.dinner_price_per_person) : null,
+      configured: true,
+    }));
+  }
+
+  return ['Singola', 'Doppia', 'Tripla', 'Quadrupla'].map((roomType) => ({
+    id: `default-${roomType}`,
+    room_type: roomType,
+    price_per_night: 0,
+    dinner_price_per_person: 0,
+    configured: false,
+  }));
+}
+
+function territoryNameById(territories: Territory[], territoryId: string | null | undefined) {
+  if (!territoryId) return '';
+  return territories.find((territory) => territory.id === territoryId)?.name ?? '';
+}
+
+function Modal({
+  open,
+  title,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
 }) {
   if (!open) return null;
   return (
@@ -83,9 +209,9 @@ function Modal({ open, title, onClose, children }:{
       <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center p-4">
         <div className="w-full max-w-lg rounded-2xl border bg-white shadow-lg">
-          <div className="flex items-center justify-between p-3 border-b">
+          <div className="flex items-center justify-between border-b p-3">
             <div className="text-sm font-semibold">{title}</div>
-            <button className="text-xs px-2 py-1 rounded-lg border" onClick={onClose}>Chiudi</button>
+            <button type="button" className="rounded-lg border px-2 py-1 text-xs" onClick={onClose}>Chiudi</button>
           </div>
           <div className="p-4">{children}</div>
         </div>
@@ -94,147 +220,285 @@ function Modal({ open, title, onClose, children }:{
   );
 }
 
-/* ---------- Form ---------- */
 function BookingForm({
-  value, onChange, guestsAll, territories, rangeEnd, onRangeEndChange,
-}:{
+  value,
+  onChange,
+  hotels,
+  territories,
+  rangeEnd,
+  onRangeEndChange,
+}: {
   value: HotelBooking;
   onChange: (next: HotelBooking) => void;
-  guestsAll: Guest[];
-  territories: string[];
+  hotels: Hotel[];
+  territories: Territory[];
   rangeEnd: string | null;
-  onRangeEndChange: (v: string) => void;
+  onRangeEndChange: (value: string) => void;
 }) {
-  const guestsFiltered = guestsAll;
+  const [eligibleGuests, setEligibleGuests] = useState<Guest[]>([]);
+  const [loadingGuests, setLoadingGuests] = useState(false);
+  const selectedHotel = hotels.find((hotel) => hotel.id === value.hotel_id)
+    ?? hotels.find((hotel) => normalizeLookup(hotel.name) === normalizeLookup(value.hotelName))
+    ?? null;
+  const autoTerritoryId = selectedHotel?.territory_id ?? value.territory_id ?? null;
+  const autoTerritoryName = selectedHotel?.territory?.name
+    ?? territoryNameById(territories, autoTerritoryId)
+    ?? value.territory
+    ?? '';
+  const roomOptions = roomOptionsForHotel(selectedHotel);
+  const selectedRoomId = roomOptions.find((room) => room.room_type === value.roomType)?.id ?? '';
+
+  const loadCronoprogrammaGuests = async () => {
+    if (!autoTerritoryId) {
+      setEligibleGuests([]);
+      return [];
+    }
+    const from = value.date;
+    const to = rangeEnd ?? value.date;
+    setLoadingGuests(true);
+    try {
+      const response = await fetch('/api/hotel-calendar/populate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from,
+          to,
+          territoryId: autoTerritoryId,
+          territoryName: autoTerritoryName,
+        }),
+      });
+      const json = await response.json() as PopulateResponse;
+      const guests = response.ok ? json.guests ?? [] : [];
+      setEligibleGuests(guests);
+      return guests;
+    } finally {
+      setLoadingGuests(false);
+    }
+  };
+
+  useEffect(() => {
+    let alive = true;
+    if (!autoTerritoryId) {
+      setEligibleGuests([]);
+      return;
+    }
+    setLoadingGuests(true);
+    const from = value.date;
+    const to = rangeEnd ?? value.date;
+    fetch('/api/hotel-calendar/populate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        from,
+        to,
+        territoryId: autoTerritoryId,
+        territoryName: autoTerritoryName,
+      }),
+    }).then(async (response) => {
+      const json = await response.json() as PopulateResponse;
+      if (!alive) return;
+      setEligibleGuests(response.ok ? json.guests ?? [] : []);
+    }).finally(() => {
+      if (alive) setLoadingGuests(false);
+    });
+    return () => {
+      alive = false;
+    };
+  }, [autoTerritoryId, autoTerritoryName, rangeEnd, value.date]);
+
+  const populateFromCronoprogramma = async () => {
+    const guests = await loadCronoprogrammaGuests();
+    onChange({ ...value, guests });
+  };
 
   return (
-    <form className="space-y-3" onSubmit={(e) => e.preventDefault()}>
+    <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
       <div className="grid grid-cols-2 gap-3">
         <label className="text-xs">
           <div className="mb-1">Dal</div>
           <input
             type="date"
-            className="w-full border rounded-lg px-2 py-1 text-sm"
+            className="w-full rounded-lg border px-2 py-1 text-sm"
             value={value.date}
-            onChange={(e) => onChange({ ...value, date: e.target.value })}
+            onChange={(event) => onChange({ ...value, date: event.target.value })}
           />
         </label>
         <label className="text-xs">
           <div className="mb-1">Al</div>
           <input
             type="date"
-            className="w-full border rounded-lg px-2 py-1 text-sm"
+            className="w-full rounded-lg border px-2 py-1 text-sm"
             value={rangeEnd ?? value.date}
             min={value.date}
-            onChange={(e) => onRangeEndChange(e.target.value)}
+            onChange={(event) => onRangeEndChange(event.target.value)}
           />
         </label>
       </div>
-<label className="text-xs block">
-  <div className="mb-1">Territorio</div>
-  <select
-    className="w-full border rounded-lg px-2 py-1 text-sm"
-    value={(value.territory || '').toUpperCase()}
-    onChange={(e) => onChange({ ...value, territory: e.target.value })}
-  >
-    <option value="" disabled>Seleziona territorio</option>
-    {territories.map(t => (
-      <option key={t} value={t}>{t}</option>
-    ))}
-  </select>
-</label>
 
-      <div className="grid grid-cols-2 gap-3">
-        <label className="text-xs">
-          <div className="mb-1">Hotel</div>
-          <input className="w-full border rounded-lg px-2 py-1 text-sm"
-            value={value.hotelName} onChange={(e) => onChange({ ...value, hotelName: e.target.value })}/>
-        </label>
-        <label className="text-xs">
-          <div className="mb-1">Tipologia camera</div>
-          <input className="w-full border rounded-lg px-2 py-1 text-sm"
-            value={value.roomType} onChange={(e) => onChange({ ...value, roomType: e.target.value })}/>
-        </label>
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <label className="text-xs col-span-1">
-          <div className="mb-1">Prezzo camera</div>
-          <input type="number" className="w-full border rounded-lg px-2 py-1 text-sm"
-            value={value.roomPrice ?? 0} onChange={(e) => onChange({ ...value, roomPrice: Number(e.target.value) })}/>
-        </label>
-        <label className="text-xs col-span-1">
-          <div className="mb-1">Cena</div>
-          <input className="w-full border rounded-lg px-2 py-1 text-sm"
-            value={value.dinner ?? ''} onChange={(e) => onChange({ ...value, dinner: e.target.value })}/>
-        </label>
-        <label className="text-xs col-span-1">
-          <div className="mb-1">Prezzo cena</div>
-          <input type="number" className="w-full border rounded-lg px-2 py-1 text-sm"
-            value={value.dinnerPrice ?? 0} onChange={(e) => onChange({ ...value, dinnerPrice: Number(e.target.value) })}/>
-        </label>
-      </div>
-
-      <label className="text-xs block">
-        <div className="mb-1">Note</div>
-        <textarea className="w-full border rounded-lg px-2 py-1 text-sm" rows={3}
-          value={value.notes ?? ''} onChange={(e) => onChange({ ...value, notes: e.target.value })}/>
+      <label className="block text-xs">
+        <div className="mb-1">Hotel</div>
+        <select
+          className="w-full rounded-lg border px-2 py-1 text-sm"
+          value={value.hotel_id ?? ''}
+          onChange={(event) => {
+            const hotel = hotels.find((item) => item.id === event.target.value) ?? null;
+            onChange({
+              ...value,
+              hotel_id: hotel?.id ?? null,
+              hotelName: hotel?.name ?? '',
+              territory: (hotel?.territory?.name ?? territoryNameById(territories, hotel?.territory_id)).toUpperCase(),
+              territory_id: hotel?.territory_id ?? null,
+              roomType: '',
+              roomPrice: 0,
+              dinnerPrice: 0,
+              guests: [],
+            });
+          }}
+        >
+          <option value="">Seleziona hotel</option>
+          {hotels.filter((hotel) => hotel.active).map((hotel) => (
+            <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
+          ))}
+        </select>
       </label>
 
-      <label className="text-xs block">
+      <div>
+        <div className="mb-1 text-xs">Territorio</div>
+        <div className="inline-flex rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
+          {autoTerritoryName ? autoTerritoryName.toUpperCase() : 'Seleziona un hotel'}
+        </div>
+      </div>
+
+      <label className="block text-xs">
+        <div className="mb-1">Tipologia camera</div>
+        <select
+          className="w-full rounded-lg border px-2 py-1 text-sm"
+          value={selectedRoomId}
+          disabled={!selectedHotel}
+          onChange={(event) => {
+            const room = roomOptions.find((item) => item.id === event.target.value) ?? null;
+            onChange({
+              ...value,
+              roomType: room?.room_type ?? '',
+              roomPrice: room?.price_per_night ?? 0,
+              dinnerPrice: room?.dinner_price_per_person != null ? Number(room.dinner_price_per_person) : 0,
+            });
+          }}
+        >
+          <option value="">Seleziona tipologia</option>
+          {roomOptions.map((room) => (
+            <option key={room.id} value={room.id}>
+              {room.room_type} - {money(room.price_per_night)}/notte
+              {room.dinner_price_per_person != null ? ` + cena ${money(Number(room.dinner_price_per_person))}/pers.` : ''}
+            </option>
+          ))}
+        </select>
+        {selectedHotel && roomOptions.every((room) => !room.configured) && (
+          <div className="mt-1 text-[11px] text-amber-700">
+            Prezzi non configurati per questo hotel: puoi selezionare una tipologia base a EUR 0,00 o impostare i prezzi in Impostazioni - Hotel.
+          </div>
+        )}
+      </label>
+
+      <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs">
+        <div>
+          <div className="text-[var(--brand-text-muted)]">Prezzo camera</div>
+          <div className="font-semibold">{money(value.roomPrice)}</div>
+        </div>
+        <div>
+          <div className="text-[var(--brand-text-muted)]">Cena per persona</div>
+          <div className="font-semibold">{money(value.dinnerPrice)}</div>
+        </div>
+      </div>
+
+      <label className="block text-xs">
+        <div className="mb-1">Note</div>
+        <textarea
+          className="w-full rounded-lg border px-2 py-1 text-sm"
+          rows={3}
+          value={value.notes ?? ''}
+          onChange={(event) => onChange({ ...value, notes: event.target.value })}
+        />
+      </label>
+
+      {autoTerritoryId && (
+        <button
+          type="button"
+          className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-xs font-semibold"
+          onClick={() => void populateFromCronoprogramma()}
+        >
+          Aggiorna da cronoprogramma
+        </button>
+      )}
+
+      <label className="block text-xs">
         <div className="mb-1">Ospiti</div>
         <select
           multiple
-          className="w-full border rounded-lg px-2 py-1 text-sm h-28"
-          value={value.guests.map(g => g.id)}
-          onChange={(e) => {
-            const selectedIds = Array.from(e.currentTarget.selectedOptions).map(o => o.value);
-            const selected = guestsFiltered.filter(g => selectedIds.includes(g.id));
+          className="h-28 w-full rounded-lg border px-2 py-1 text-sm"
+          value={value.guests.map((guest) => guest.id)}
+          onChange={(event) => {
+            const selectedIds = Array.from(event.currentTarget.selectedOptions).map((option) => option.value);
+            const selected = eligibleGuests.filter((guest) => selectedIds.includes(guest.id));
             onChange({ ...value, guests: selected });
           }}
         >
-          {guestsFiltered.map(g => (
-            <option key={g.id} value={g.id}>{g.name}</option>
+          {eligibleGuests.map((guest) => (
+            <option key={guest.id} value={guest.id}>{guest.name}</option>
           ))}
         </select>
-        <div className="mt-1 text-[11px] text-neutral-500">Seleziona uno o più operatori</div>
+        <div className="mt-1 text-[11px] text-neutral-500">
+          {loadingGuests
+            ? 'Caricamento operatori dal cronoprogramma...'
+            : 'Sono mostrati solo gli operatori assegnati nel cronoprogramma a questo territorio; i residenti sono esclusi.'}
+        </div>
       </label>
     </form>
   );
 }
 
-/* ---------- Pagina ---------- */
 export default function Page() {
   const [mode, setMode] = useState<ViewMode>('month');
   const [pivot, setPivot] = useState<Date>(startOfDay(new Date()));
   const [newModal, setNewModal] = useState<{ open: boolean; date: string | null }>({ open: false, date: null });
   const [editModal, setEditModal] = useState<{ open: boolean; booking: HotelBooking | null }>({ open: false, booking: null });
-const [exportModal, setExportModal] = useState<{open:boolean; from:string; to:string}>({
-  open: false,
-  from: yyyyMmDd(startOfWeekMonday(pivot)),
-  to: yyyyMmDd(endOfWeekSunday(pivot)),
-});
-
+  const [exportModal, setExportModal] = useState<{ open: boolean; from: string; to: string }>({
+    open: false,
+    from: yyyyMmDd(startOfWeekMonday(pivot)),
+    to: yyyyMmDd(endOfWeekSunday(pivot)),
+  });
   const [bookings, setBookings] = useState<HotelBooking[]>([]);
   const [loaded, setLoaded] = useState(false);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [draft, setDraft] = useState<HotelBooking | null>(null);
-function goPrev() {
-  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() - 1, 1));
-  else setPivot(addDays(pivot, -7));
-}
-function goNext() {
-  if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() + 1, 1));
-  else setPivot(addDays(pivot, 7));
-}
-const isMonth = mode === 'month';
-const fmtIt = (d: Date) => d.toLocaleDateString('it-IT');
-const weekStart = startOfWeekMonday(pivot);
-const weekEnd = addDays(weekStart, 6);
-const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
+  const [hotels, setHotels] = useState<Hotel[]>([]);
+  const [territories, setTerritories] = useState<Territory[]>([]);
 
+  function goPrev() {
+    if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() - 1, 1));
+    else setPivot(addDays(pivot, -7));
+  }
 
-  // Load finestra
+  function goNext() {
+    if (mode === 'month') setPivot(new Date(pivot.getFullYear(), pivot.getMonth() + 1, 1));
+    else setPivot(addDays(pivot, 7));
+  }
+
+  const isMonth = mode === 'month';
+  const fmtIt = (date: Date) => date.toLocaleDateString('it-IT');
+  const weekStart = startOfWeekMonday(pivot);
+  const weekEnd = addDays(weekStart, 6);
+  const rangeLabel = `${fmtIt(weekStart)} - ${fmtIt(weekEnd)}`;
+
+  useEffect(() => {
+    fetch('/api/hotel-calendar/bootstrap', { cache: 'no-store' }).then(async (response) => {
+      const json = await response.json() as BootstrapResponse;
+      if (!response.ok) return;
+      setHotels(json.hotels ?? []);
+      setTerritories(json.territories ?? []);
+    });
+  }, []);
+
   useEffect(() => {
     (async () => {
       const { data, error } = await supabase
@@ -242,24 +506,11 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
         .select('*')
         .gte('date', yyyyMmDd(addDays(startOfWeekMonday(pivot), -35)))
         .lte('date', yyyyMmDd(addDays(endOfWeekSunday(pivot), 35)));
-      if (!error && data) {
-        setBookings(data.map((r: any) => ({
-          id: r.id,
-          date: r.date,
-          hotelName: r.hotel_name,
-          roomType: r.room_type,
-          roomPrice: Number(r.room_price),
-          guests: r.guests ?? [],
-          territory: r.territory,
-          notes: r.notes ?? '',
-          dinnerPrice: r.dinner_price != null ? Number(r.dinner_price) : undefined,
-        })));
-      }
+      if (!error && data) setBookings((data as RawHotelBooking[]).map(bookingFromRow));
       setLoaded(true);
     })();
   }, [pivot]);
 
-  // Realtime
   useEffect(() => {
     const channel = supabase
       .channel('hotel_bookings_changes')
@@ -269,50 +520,43 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
           .select('*')
           .gte('date', yyyyMmDd(addDays(startOfWeekMonday(pivot), -35)))
           .lte('date', yyyyMmDd(addDays(endOfWeekSunday(pivot), 35)));
-        if (data) {
-          setBookings(data.map((r: any) => ({
-            id: r.id,
-            date: r.date,
-            hotelName: r.hotel_name,
-            roomType: r.room_type,
-            roomPrice: Number(r.room_price),
-            guests: r.guests ?? [],
-            territory: r.territory,
-            notes: r.notes ?? '',
-            dinnerPrice: r.dinner_price != null ? Number(r.dinner_price) : undefined,
-          })));
-        }
+        if (data) setBookings((data as RawHotelBooking[]).map(bookingFromRow));
       })
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    return () => {
+      void supabase.removeChannel(channel);
+    };
   }, [pivot]);
 
-  // Edit modal event
   useEffect(() => {
-    const handler = (e: any) => openEdit(e.detail as HotelBooking);
-    window.addEventListener('hotel-edit', handler as any);
-    return () => window.removeEventListener('hotel-edit', handler as any);
+    const handler = (event: Event) => {
+      const custom = event as CustomEvent<HotelBooking>;
+      openEdit(custom.detail);
+    };
+    window.addEventListener('hotel-edit', handler);
+    return () => window.removeEventListener('hotel-edit', handler);
   }, []);
 
   async function deleteBooking(id: string) {
-    if (!confirm('Eliminare questa prenotazione?')) return;
-    const prev = bookings;
-    setBookings(prev.filter(b => b.id !== id));
+    if (!window.confirm('Eliminare questa prenotazione?')) return;
+    const previous = bookings;
+    setBookings(previous.filter((booking) => booking.id !== id));
     const { error } = await supabase.from('hotel_bookings').delete().eq('id', id);
-    if (error) setBookings(prev);
+    if (error) setBookings(previous);
   }
 
   function openNew(dateStr: string) {
     const empty: HotelBooking = {
       id: `tmp-${Date.now()}`,
       date: dateStr,
+      hotel_id: null,
       hotelName: '',
       roomType: '',
       roomPrice: 0,
       guests: [],
       territory: '',
+      territory_id: null,
       notes: '',
-      dinner: '',
       dinnerPrice: 0,
     };
     setDraft(empty);
@@ -320,214 +564,186 @@ const rangeLabel = `${fmtIt(weekStart)} — ${fmtIt(weekEnd)}`;
     setNewModal({ open: true, date: dateStr });
   }
 
-  function openEdit(b: HotelBooking) { setDraft({ ...b }); setEditModal({ open: true, booking: b }); }
-  function closeModals() { setNewModal({ open: false, date: null }); setEditModal({ open: false, booking: null }); setDraft(null); setRangeEnd(null); }
+  function openEdit(booking: HotelBooking) {
+    setDraft({ ...booking });
+    setRangeEnd(booking.date);
+    setEditModal({ open: true, booking });
+  }
+
+  function closeModals() {
+    setNewModal({ open: false, date: null });
+    setEditModal({ open: false, booking: null });
+    setDraft(null);
+    setRangeEnd(null);
+  }
+
+  function draftPayload(booking: HotelBooking, date: string) {
+    return {
+      date,
+      hotel_id: booking.hotel_id ?? null,
+      hotel_name: booking.hotelName,
+      room_type: booking.roomType,
+      room_price: booking.roomPrice,
+      guests: booking.guests,
+      territory: booking.territory,
+      territory_id: booking.territory_id ?? null,
+      notes: booking.notes ?? null,
+      dinner_price: booking.dinnerPrice ?? null,
+      updated_at: new Date().toISOString(),
+    };
+  }
 
   async function saveDraft() {
     if (!draft) return;
 
     if (draft.id.startsWith('tmp-')) {
-      // insert multiplo giorno
       const from = ymdToDateLocal(draft.date);
-      const to   = ymdToDateLocal(rangeEnd ?? draft.date);
-      to.setHours(0,0,0,0);
+      const to = ymdToDateLocal(rangeEnd ?? draft.date);
+      to.setHours(0, 0, 0, 0);
 
       const payloads = [];
-      for (let d = new Date(from); d <= to; d = addDays(d, 1)) {
-        payloads.push({
-          date: yyyyMmDd(d),
-          hotel_name: draft.hotelName,
-          room_type: draft.roomType,
-          room_price: draft.roomPrice,
-          guests: draft.guests,
-          territory: draft.territory,
-          notes: draft.notes ?? null,
-          dinner_price: draft.dinnerPrice ?? null,
-          updated_at: new Date().toISOString(),
-        });
+      for (let date = new Date(from); date <= to; date = addDays(date, 1)) {
+        payloads.push(draftPayload(draft, yyyyMmDd(date)));
       }
 
       const { data, error } = await supabase.from('hotel_bookings').insert(payloads).select();
       if (!error && data) {
-        setBookings(prev => [
-          ...prev,
-          ...data.map((r: any) => ({ ...draft, id: r.id, date: r.date })),
-        ]);
+        setBookings((prev) => [...prev, ...(data as RawHotelBooking[]).map(bookingFromRow)]);
       }
     } else {
-      // update singolo giorno
       const { error } = await supabase
         .from('hotel_bookings')
-        .update({
-          date: draft.date,
-          hotel_name: draft.hotelName,
-          room_type: draft.roomType,
-          room_price: draft.roomPrice,
-          guests: draft.guests,
-          territory: draft.territory,
-          notes: draft.notes ?? null,
-          dinner_price: draft.dinnerPrice ?? null,
-          updated_at: new Date().toISOString(),
-        })
+        .update(draftPayload(draft, draft.date))
         .eq('id', draft.id);
 
       if (!error) {
-        setBookings(prev => {
-          const i = prev.findIndex(x => x.id === draft.id);
-          const next = [...prev]; next[i] = draft; return next;
-        });
+        setBookings((prev) => prev.map((booking) => (booking.id === draft.id ? draft : booking)));
       }
     }
 
     closeModals();
   }
-async function exportXlsx() {
-  const { from, to } = exportModal;
-  if (!from || !to) return;
 
-  const fromD = ymdToDateLocal(from);
-  const toD   = ymdToDateLocal(to);
+  async function exportXlsx() {
+    const { from, to } = exportModal;
+    if (!from || !to) return;
 
-  const inRange = (dStr: string) => {
-    const d = ymdToDateLocal(dStr);
-    return d >= fromD && d <= toD;
-  };
+    const fromDate = ymdToDateLocal(from);
+    const toDate = ymdToDateLocal(to);
+    const rows = bookings
+      .filter((booking) => {
+        const date = ymdToDateLocal(booking.date);
+        return date >= fromDate && date <= toDate;
+      })
+      .sort((a, b) => a.date.localeCompare(b.date))
+      .map((booking) => ({
+        Data: booking.date,
+        Hotel: booking.hotelName,
+        Territorio: booking.territory,
+        Camera: booking.roomType,
+        'Prezzo camera': booking.roomPrice,
+        'Prezzo cena totale': (booking.dinnerPrice ?? 0) * (booking.guests?.length ?? 0),
+        Note: booking.notes ?? '',
+        Ospiti: (booking.guests ?? []).map((guest) => guest.name).join(', '),
+      }));
 
-  const rows = bookings
-    .filter(b => inRange(b.date))
-    .sort((a,b) => a.date.localeCompare(b.date))
-    .map(b => ({
-      Data: b.date,
-      Hotel: b.hotelName,
-      Territorio: b.territory,
-      Camera: b.roomType,
-      'Prezzo camera': b.roomPrice,
-      'Prezzo cena totale': (b.dinnerPrice ?? 0) * (b.guests?.length ?? 0),
-      Note: b.notes ?? '',
-      Ospiti: (b.guests ?? []).map(g => g.name).join(', '),
-    }));
+    const XLSX = await import('xlsx');
+    const worksheet = XLSX.utils.json_to_sheet(rows);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Prenotazioni');
+    XLSX.writeFile(workbook, `prenotazioni_${from}_${to}.xlsx`);
+    setExportModal((modal) => ({ ...modal, open: false }));
+  }
 
-  const XLSX = await import('xlsx');
-  const ws = XLSX.utils.json_to_sheet(rows);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, 'Prenotazioni');
-  XLSX.writeFile(wb, `prenotazioni_${from}_${to}.xlsx`);
-
-  setExportModal(m => ({ ...m, open: false }));
-}
-
-  /* ---------- Derivati ---------- */
   const range = useMemo(() => {
     const monthStart = new Date(pivot.getFullYear(), pivot.getMonth(), 1);
     const monthEnd = new Date(pivot.getFullYear(), pivot.getMonth() + 1, 0);
     const twoWeeksEnd = addDays(pivot, 13);
-    const weekStart = startOfWeekMonday(pivot);
-    const weekEnd = endOfWeekSunday(pivot);
+    const weekRangeStart = startOfWeekMonday(pivot);
+    const weekRangeEnd = endOfWeekSunday(pivot);
     if (mode === 'month') return { from: startOfWeekMonday(monthStart), to: endOfWeekSunday(monthEnd) };
     if (mode === 'twoWeeks') return { from: startOfWeekMonday(pivot), to: endOfWeekSunday(twoWeeksEnd) };
-    return { from: weekStart, to: weekEnd };
+    return { from: weekRangeStart, to: weekRangeEnd };
   }, [mode, pivot]);
 
   const days = useMemo(() => daysArray(range.from, range.to), [range]);
   const weeks = useMemo(() => chunk(days, 7), [days]);
   const today = yyyyMmDd(new Date());
-
   const bookingsByDay = useMemo(() => {
     const map: Record<string, HotelBooking[]> = {};
-    for (const b of bookings) { if (!map[b.date]) map[b.date] = []; map[b.date].push(b); }
+    for (const booking of bookings) {
+      if (!map[booking.date]) map[booking.date] = [];
+      map[booking.date].push(booking);
+    }
     return map;
   }, [bookings]);
 
-  function fmtDay(d: Date) { return d.getDate(); }
-  function fmtKey(d: Date) { return yyyyMmDd(d); }
-  function weekdayName(i: number) { return ['Lun','Mar','Mer','Gio','Ven','Sab','Dom'][i]; }
-  
-  if (!loaded) return <div className="p-4 text-sm text-neutral-500">Caricamento…</div>;
+  if (!loaded) return <div className="p-4 text-sm text-neutral-500">Caricamento...</div>;
 
-  /* ---------- Render ---------- */
   return (
-    <div className="p-4 space-y-4">
-      {/* Toolbar */}
+    <div className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-2">
-        {/* Sinistra: ← range → + pulsanti vista */}
         <div className="flex items-center gap-2">
-  <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={goPrev}>←</button>
-
-  {isMonth ? (
-    <div className="text-lg font-semibold">
-      {pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}
-    </div>
-  ) : (
-    <div className="text-lg font-semibold">{rangeLabel}</div>
-  )}
-
-  <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={goNext}>→</button>
-
-  {/* pulsanti vista e Oggi restano uguali subito dopo */}
-
+          <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goPrev}>Prev</button>
+          {isMonth ? (
+            <div className="text-lg font-semibold">{pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</div>
+          ) : (
+            <div className="text-lg font-semibold">{rangeLabel}</div>
+          )}
+          <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
 
           <div className="ml-2 flex items-center gap-1">
-            <button onClick={() => setMode('week')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'week' ? 'bg-black text-white border-black' : ''}`}>Settimana</button>
-            <button onClick={() => setMode('twoWeeks')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'twoWeeks' ? 'bg-black text-white border-black' : ''}`}>2 settimane</button>
-            <button onClick={() => setMode('month')} className={`px-3 py-2 rounded-xl shadow border text-sm ${mode === 'month' ? 'bg-black text-white border-black' : ''}`}>Mese</button>
-            <button className="px-3 py-2 rounded-xl shadow border text-sm" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
+            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-black text-white' : ''}`}>Settimana</button>
+            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-black text-white' : ''}`}>2 settimane</button>
+            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-black text-white' : ''}`}>Mese</button>
+            <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
+            <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
             <button
-  className="px-3 py-2 rounded-xl shadow border text-sm"
-  onClick={() => openNew(yyyyMmDd(pivot))}
->
-  Nuova prenotazione
-</button>
-<button
-  className="px-3 py-2 rounded-xl shadow border text-sm"
-  onClick={() => setExportModal({
-    open: true,
-    from: yyyyMmDd(startOfWeekMonday(pivot)),
-    to: yyyyMmDd(endOfWeekSunday(pivot)),
-  })}
->
-  Esporta XLSX
-</button>
-{/* Invia richiesta */}
-<SendRequestModal />
+              type="button"
+              className="rounded-xl border px-3 py-2 text-sm shadow"
+              onClick={() => setExportModal({
+                open: true,
+                from: yyyyMmDd(startOfWeekMonday(pivot)),
+                to: yyyyMmDd(endOfWeekSunday(pivot)),
+              })}
+            >
+              Esporta XLSX
+            </button>
+            <SendRequestModal hotels={hotels} />
           </div>
         </div>
 
-        {/* Destra: Hub */}
-        <Link href="/hub" className="px-3 py-2 rounded-xl shadow border text-sm">Hub</Link>
+        <Link href="/hub" className="rounded-xl border px-3 py-2 text-sm shadow">Hub</Link>
       </div>
 
-      {/* Header giorni */}
       <div className="grid grid-cols-7 gap-2">
-        {Array.from({ length: 7 }).map((_, i) => (
-          <div key={i} className="text-xs font-medium px-2 py-1">{weekdayName(i)}</div>
+        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((day) => (
+          <div key={day} className="px-2 py-1 text-xs font-medium">{day}</div>
         ))}
       </div>
 
-      {/* Griglia calendario */}
       <div className="grid grid-cols-7 gap-2">
-        {weeks.map((w, wi) => (
-          <div key={wi} className="contents">
-            {w.map((d, di) => {
-              const key = fmtKey(d);
+        {weeks.map((week, weekIndex) => (
+          <div key={weekIndex} className="contents">
+            {week.map((day, dayIndex) => {
+              const key = yyyyMmDd(day);
               const dayBookings = bookingsByDay[key] ?? [];
               const isToday = key === today;
-              const inMonth = d.getMonth() === pivot.getMonth();
+              const inMonth = day.getMonth() === pivot.getMonth();
 
               return (
                 <div
-                  key={di}
-                  className={`border rounded-2xl p-2 min-h-[220px] flex flex-col gap-2 bg-white ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-black' : ''}`}
+                  key={`${weekIndex}-${dayIndex}`}
+                  className={`flex min-h-[220px] flex-col gap-2 rounded-2xl border bg-white p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-black' : ''}`}
                 >
                   <div className="flex items-center justify-between">
-  <div className="text-sm font-semibold">{fmtDay(d)}</div>
-</div>
-
-
-                  <div className="flex-1 overflow-auto space-y-2">
-                    {dayBookings.map((b) => (
-                      <HotelCard key={b.id} booking={b} onDelete={() => deleteBooking(b.id)} />
+                    <div className="text-sm font-semibold">{day.getDate()}</div>
+                  </div>
+                  <div className="flex-1 space-y-2 overflow-auto">
+                    {dayBookings.map((booking) => (
+                      <HotelCard key={booking.id} booking={booking} onDelete={() => void deleteBooking(booking.id)} />
                     ))}
-                    {dayBookings.length === 0 && (<div className="text-xs text-neutral-500">Nessuna prenotazione</div>)}
+                    {dayBookings.length === 0 && <div className="text-xs text-neutral-500">Nessuna prenotazione</div>}
                   </div>
                 </div>
               );
@@ -536,21 +752,20 @@ async function exportXlsx() {
         ))}
       </div>
 
-      {/* Modali */}
       <Modal open={newModal.open && !!draft} title="Nuova prenotazione hotel" onClose={closeModals}>
         {draft && (
           <>
             <BookingForm
               value={draft}
               onChange={setDraft}
-              guestsAll={MOCK_GUESTS}
-              territories={TERRITORIES}
+              hotels={hotels}
+              territories={territories}
               rangeEnd={rangeEnd}
               onRangeEndChange={setRangeEnd}
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button className="px-3 py-2 rounded-lg border" onClick={closeModals}>Annulla</button>
-              <button className="px-3 py-2 rounded-lg border shadow" onClick={saveDraft}>Salva</button>
+              <button type="button" className="rounded-lg border px-3 py-2" onClick={closeModals}>Annulla</button>
+              <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void saveDraft()}>Salva</button>
             </div>
           </>
         )}
@@ -562,106 +777,83 @@ async function exportXlsx() {
             <BookingForm
               value={draft}
               onChange={setDraft}
-              guestsAll={MOCK_GUESTS}
-              territories={TERRITORIES}
+              hotels={hotels}
+              territories={territories}
               rangeEnd={draft.date}
-              onRangeEndChange={() => {}}
+              onRangeEndChange={() => undefined}
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button className="px-3 py-2 rounded-lg border" onClick={closeModals}>Annulla</button>
-              <button className="px-3 py-2 rounded-lg border shadow" onClick={saveDraft}>Salva</button>
+              <button type="button" className="rounded-lg border px-3 py-2" onClick={closeModals}>Annulla</button>
+              <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void saveDraft()}>Salva</button>
             </div>
           </>
         )}
       </Modal>
 
-      <Modal
-  open={exportModal.open}
-  title="Esporta prenotazioni"
-  onClose={() => setExportModal(m => ({ ...m, open: false }))}>
-  <div className="space-y-3">
-    <div className="grid grid-cols-2 gap-3">
-      <label className="text-xs">
-        <div className="mb-1">Dal</div>
-        <input
-          type="date"
-          className="w-full border rounded-lg px-2 py-1 text-sm"
-          value={exportModal.from}
-          onChange={(e) => setExportModal(m => ({ ...m, from: e.target.value }))}
-        />
-      </label>
-      <label className="text-xs">
-        <div className="mb-1">Al</div>
-        <input
-          type="date"
-          className="w-full border rounded-lg px-2 py-1 text-sm"
-          min={exportModal.from}
-          value={exportModal.to}
-          onChange={(e) => setExportModal(m => ({ ...m, to: e.target.value }))}
-        />
-      </label>
-    </div>
-    <div className="flex justify-end gap-2">
-      <button className="px-3 py-2 rounded-lg border" onClick={() => setExportModal(m => ({ ...m, open: false }))}>Annulla</button>
-      <button className="px-3 py-2 rounded-lg border shadow" onClick={exportXlsx}>Esporta</button>
-    </div>
-  </div>
-</Modal>
-
+      <Modal open={exportModal.open} title="Esporta prenotazioni" onClose={() => setExportModal((modal) => ({ ...modal, open: false }))}>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <label className="text-xs">
+              <div className="mb-1">Dal</div>
+              <input type="date" className="w-full rounded-lg border px-2 py-1 text-sm" value={exportModal.from} onChange={(event) => setExportModal((modal) => ({ ...modal, from: event.target.value }))} />
+            </label>
+            <label className="text-xs">
+              <div className="mb-1">Al</div>
+              <input type="date" className="w-full rounded-lg border px-2 py-1 text-sm" min={exportModal.from} value={exportModal.to} onChange={(event) => setExportModal((modal) => ({ ...modal, to: event.target.value }))} />
+            </label>
+          </div>
+          <div className="flex justify-end gap-2">
+            <button type="button" className="rounded-lg border px-3 py-2" onClick={() => setExportModal((modal) => ({ ...modal, open: false }))}>Annulla</button>
+            <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void exportXlsx()}>Esporta</button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
 
-/* ---------- Util UI ---------- */
-function Euro({ value }: { value: number | undefined }) {
-  if (value == null) return <span>—</span>;
-  return <span>€ {value.toLocaleString('it-IT', { minimumFractionDigits: 0 })}</span>;
-}
-
 function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () => void }) {
   return (
-    <div className={`border rounded-xl p-2 shadow-sm ${territoryCardClasses(booking.territory)}`}>
+    <div className={`rounded-xl border p-2 shadow-sm ${territoryCardClasses(booking.territory)}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold">{booking.hotelName}</div>
-          <span className={`text-[10px] px-2 py-0.5 rounded-full border ${territoryPillClasses(booking.territory)}`} title={booking.territory}>
+          <span className={`rounded-full border px-2 py-0.5 text-[10px] ${territoryPillClasses(booking.territory)}`} title={booking.territory}>
             {booking.territory}
           </span>
         </div>
-        <div className="flex items-center gap-2" />
       </div>
 
       <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
         <div className="font-medium">Camera</div>
         <div>{booking.roomType}</div>
-
         <div className="font-medium">Prezzo camera</div>
-        <div><Euro value={booking.roomPrice} /></div>
-
-        <div className="font-medium">Prezzo cena totale</div>
-        <div>{booking.dinnerPrice ? <Euro value={booking.dinnerPrice * (booking.guests?.length ?? 0)} /> : '—'}</div>
-
+        <div>{money(booking.roomPrice)}</div>
+        <div className="font-medium">Cena totale</div>
+        <div>{booking.dinnerPrice ? money(booking.dinnerPrice * (booking.guests?.length ?? 0)) : '-'}</div>
         <div className="font-medium">Note</div>
-        <div className="truncate" title={booking.notes || ''}>{booking.notes || '—'}</div>
+        <div className="truncate" title={booking.notes || ''}>{booking.notes || '-'}</div>
       </div>
 
       <div className="mt-2">
-        <div className="text-xs font-medium mb-1">Ospiti</div>
+        <div className="mb-1 text-xs font-medium">Ospiti</div>
         <div className="flex flex-nowrap gap-1 overflow-x-auto">
-          {booking.guests.map((g) => (
-            <span key={g.id} className="whitespace-nowrap text-[10px] px-2 py-1 rounded-full border" title={g.name}>{g.name}</span>
+          {booking.guests.map((guest) => (
+            <span key={guest.id} className="whitespace-nowrap rounded-full border px-2 py-1 text-[10px]" title={guest.name}>{guest.name}</span>
           ))}
         </div>
         <div className="mt-2 flex gap-2">
           <button
-            className="text-xs px-2 py-1 rounded-lg border shadow"
+            type="button"
+            className="rounded-lg border px-2 py-1 text-xs shadow"
             onClick={() => window.dispatchEvent(new CustomEvent('hotel-edit', { detail: booking }))}
             aria-label={`Modifica prenotazione ${booking.id}`}
           >
             Modifica
           </button>
           <button
-            className="text-xs px-2 py-1 rounded-lg border shadow text-red-700"
+            type="button"
+            className="rounded-lg border px-2 py-1 text-xs text-red-700 shadow"
             onClick={onDelete}
             aria-label={`Elimina prenotazione ${booking.id}`}
           >

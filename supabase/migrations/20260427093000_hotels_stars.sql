@@ -1,0 +1,8 @@
+ALTER TABLE hotels
+  ADD COLUMN IF NOT EXISTS stars SMALLINT NOT NULL DEFAULT 3;
+
+ALTER TABLE hotels
+  DROP CONSTRAINT IF EXISTS hotels_stars_range;
+
+ALTER TABLE hotels
+  ADD CONSTRAINT hotels_stars_range CHECK (stars BETWEEN 1 AND 5);

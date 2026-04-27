@@ -21,10 +21,22 @@ const MODULES = [
     icon: 'T',
   },
   {
+    href: '/impostazioni/gruppo-attivita',
+    title: 'Gruppo Attivita',
+    description: 'Gestisci elenco attivita condiviso da cronoprogramma, mappa e sopralluoghi.',
+    icon: 'A',
+  },
+  {
     href: '/impostazioni/zone-ztl',
     title: 'Zone ZTL',
     description: 'Definisci zone a traffico limitato, CAP e operatori autorizzati.',
     icon: 'Z',
+  },
+  {
+    href: '/impostazioni/hotel',
+    title: 'Hotel',
+    description: 'Strutture ricettive per le trasferte: territorio di riferimento, email e prezzi correnti per tipologia camera.',
+    icon: 'H',
   },
   {
     href: '/impostazioni/codici-allegato10',

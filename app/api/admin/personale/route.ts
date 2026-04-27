@@ -57,6 +57,7 @@ export async function PATCH(req: NextRequest) {
     homeCity?: string | null;
     homeLat?: number | null;
     homeLng?: number | null;
+    homeTerritoryId?: string | null;
   };
 
   const id = String(body.id ?? '').trim();
@@ -101,13 +102,14 @@ export async function PATCH(req: NextRequest) {
     home_city: normalizeNullableString(body.homeCity),
     home_lat: homeLat,
     home_lng: homeLng,
+    home_territory_id: body.homeTerritoryId !== undefined ? (body.homeTerritoryId ?? null) : undefined,
   };
 
   const { data, error } = await supabaseAdmin
     .from('staff')
     .update(patch)
     .eq('id', id)
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id')
     .single();
 
   if (error) {
@@ -135,6 +137,7 @@ export async function POST(req: NextRequest) {
     homeCity?: string | null;
     homeLat?: number | null;
     homeLng?: number | null;
+    homeTerritoryId?: string | null;
   };
 
   // Validazione displayName
@@ -186,8 +189,9 @@ export async function POST(req: NextRequest) {
       home_city: normalizeNullableString(body.homeCity),
       home_lat: homeLat,
       home_lng: homeLng,
+      home_territory_id: body.homeTerritoryId ?? null,
     })
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id')
     .single();
 
   if (error) {

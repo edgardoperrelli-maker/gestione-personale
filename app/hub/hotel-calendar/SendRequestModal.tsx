@@ -1,20 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import type { Hotel } from '@/types';
 
-type Hotel = { name: string; email: string };
-
-const HOTELS: Hotel[] = [
-  { name: 'Hotel Alex',       email: 'info@hotelalexfirenze.com' },
-  { name: 'Hotel Gate',       email: 'info@thegatehotel.it' },
-  { name: 'Hotel Mirage',     email: 'info@hotelmirage.it' },
-  { name: 'Fantastic Hotel',  email: 'info@fantastic-garden.com' }, // come richiesto
-  { name: 'Hotel Florentia',  email: 'info@florentialivingstates.com' },
-  { name: 'Test Hotel',       email: 'edgardo.perrelli@plenzich.it' },
-];
 const ROOM_OPTIONS = ['Singola', 'Doppia', 'Tripla', 'Quadrupla'] as const;
 
-export default function SendRequestModal() {
+export default function SendRequestModal({ hotels }: { hotels: Hotel[] }) {
 const [open, setOpen] = useState(false);
 const [selectedHotels, setSelectedHotels] = useState<string[]>([]);
 const [periodStart, setPeriodStart] = useState<string>('');
@@ -83,8 +74,8 @@ setPeriodEnd('');
 setRooms([{ type: 'Singola' }]);
 setNote('');
 
-  } catch (err: any) {
-    alert(err?.message || 'Errore invio email');
+  } catch (err) {
+    alert(err instanceof Error ? err.message : 'Errore invio email');
   } finally {
     setSending(false);
   }
@@ -199,16 +190,21 @@ setNote('');
                 <label className="block text-sm font-medium mb-2">
                   Seleziona hotel destinatari
                 </label>
+{hotels.filter((hotel) => hotel.active && hotel.email).length === 0 && (
+  <p className="text-sm text-neutral-500">Nessun hotel con email. Aggiungili in Impostazioni - Hotel.</p>
+)}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
- {HOTELS.map(h => (
-  <label key={`${h.name}|${h.email}`} className="flex items-center gap-2 rounded-lg border px-3 py-2 text-sm">
-
+ {hotels.filter((hotel) => hotel.active && hotel.email).map(h => (
+  <label key={h.id} className="flex cursor-pointer items-center gap-2 rounded-lg border px-3 py-2 text-sm">
       <input
         type="checkbox"
-        checked={selectedHotels.includes(h.email)}
-        onChange={() => toggleHotel(h.email)}
+        checked={selectedHotels.includes(h.email!)}
+        onChange={() => toggleHotel(h.email!)}
       />
-      <span className="font-medium">{h.name}</span>
+      <div>
+        <div className="font-medium">{h.name}</div>
+        {h.territory && <div className="text-[11px] text-neutral-500">{h.territory.name}</div>}
+      </div>
     </label>
   ))}
 </div>
