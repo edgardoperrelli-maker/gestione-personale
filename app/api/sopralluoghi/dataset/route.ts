@@ -29,6 +29,14 @@ type DeleteDatasetPayload = {
   comune?: string | null;
 };
 
+type PatchDatasetPayload = {
+  territorio_id?: string | null;
+  activity_id?: string | null;
+  comune?: string | null;
+  new_activity_id?: string | null;
+  new_comune?: string | null;
+};
+
 type GeneratedAssetRow = {
   id: number;
   pdf_url: string | null;
@@ -135,6 +143,95 @@ export async function GET() {
     return NextResponse.json({
       datasets: (data ?? []) as DatasetSummaryRow[],
     });
+  } catch (error: unknown) {
+    const rawMessage = error instanceof Error ? error.message : String(error);
+    return NextResponse.json({ error: mapSopralluoghiErrorMessage(rawMessage) }, { status: 500 });
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const guard = await requireSopralluoghiAdmin();
+    if (guard instanceof NextResponse) return guard;
+
+    const body = (await request.json()) as PatchDatasetPayload;
+    const territorioId = String(body.territorio_id ?? '').trim();
+    const rawActivityId = body.activity_id != null ? String(body.activity_id).trim() : null;
+    const comune = String(body.comune ?? '').trim().toUpperCase();
+    const newActivityId = String(body.new_activity_id ?? '').trim();
+    const newComune = String(body.new_comune ?? '').trim().toUpperCase();
+
+    if (!territorioId) return NextResponse.json({ error: 'Territorio obbligatorio' }, { status: 400 });
+    if (!newActivityId) return NextResponse.json({ error: 'Nuova tipologia lavoro obbligatoria' }, { status: 400 });
+    if (!newComune) return NextResponse.json({ error: 'Nuovo comune obbligatorio' }, { status: 400 });
+
+    const newActivity = await requireSopralluoghiActivity(newActivityId);
+
+    const oldActivityNull = !rawActivityId;
+    const BATCH = 1000;
+
+    // Fetch IDs da aggiornare in pagine per evitare statement timeout
+    let offset = 0;
+    for (;;) {
+      let selectQuery = supabaseAdmin
+        .from('civici_napoli')
+        .select('id')
+        .eq('territorio_id', territorioId)
+        .range(offset, offset + BATCH - 1);
+
+      if (oldActivityNull) {
+        selectQuery = selectQuery.is('activity_id', null);
+      } else {
+        selectQuery = selectQuery.eq('activity_id', rawActivityId!);
+      }
+
+      if (comune === '') {
+        selectQuery = selectQuery.or('comune.is.null,comune.eq.');
+      } else {
+        selectQuery = selectQuery.eq('comune', comune);
+      }
+
+      const { data: rows, error: selectError } = await selectQuery;
+      if (selectError) {
+        return NextResponse.json({ error: mapSopralluoghiErrorMessage(selectError.message) }, { status: 500 });
+      }
+      if (!rows || rows.length === 0) break;
+
+      const ids = rows.map((r: { id: number }) => r.id);
+      const { error: updateError } = await supabaseAdmin
+        .from('civici_napoli')
+        .update({ activity_id: newActivity.id, comune: newComune })
+        .in('id', ids);
+
+      if (updateError) {
+        return NextResponse.json({ error: mapSopralluoghiErrorMessage(updateError.message) }, { status: 500 });
+      }
+
+      if (rows.length < BATCH) break;
+      offset += BATCH;
+    }
+
+    // Aggiorna anche i PDF generati (pochi record, nessun rischio timeout)
+    let pdfUpdateQuery = supabaseAdmin
+      .from('sopralluoghi_pdf_generati')
+      .update({ activity_id: newActivity.id, comune: newComune })
+      .eq('territorio_id', territorioId);
+
+    if (oldActivityNull) {
+      pdfUpdateQuery = pdfUpdateQuery.is('activity_id', null);
+    } else {
+      pdfUpdateQuery = pdfUpdateQuery.eq('activity_id', rawActivityId!);
+    }
+
+    if (comune === '') {
+      pdfUpdateQuery = pdfUpdateQuery.or('comune.is.null,comune.eq.');
+    } else {
+      pdfUpdateQuery = pdfUpdateQuery.eq('comune', comune);
+    }
+
+    await pdfUpdateQuery;
+
+    return NextResponse.json({ success: true });
   } catch (error: unknown) {
     const rawMessage = error instanceof Error ? error.message : String(error);
     return NextResponse.json({ error: mapSopralluoghiErrorMessage(rawMessage) }, { status: 500 });

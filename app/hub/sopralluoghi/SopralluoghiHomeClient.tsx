@@ -1,5 +1,6 @@
 'use client';
 
+import React from 'react';
 import Link from 'next/link';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent, type ReactNode } from 'react';
 import Button from '@/components/Button';
@@ -126,6 +127,10 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
   const [uploading, setUploading] = useState(false);
   const [loadingDatasets, setLoadingDatasets] = useState(false);
   const [deletingDatasetKey, setDeletingDatasetKey] = useState<string | null>(null);
+  const [editingDatasetKey, setEditingDatasetKey] = useState<string | null>(null);
+  const [editActivityId, setEditActivityId] = useState('');
+  const [editComune, setEditComune] = useState('');
+  const [savingDatasetKey, setSavingDatasetKey] = useState<string | null>(null);
   const [result, setResult] = useState<ImportResult | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [datasets, setDatasets] = useState<DatasetCaricato[]>([]);
@@ -255,6 +260,50 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
       setDatasetsError(error instanceof Error ? error.message : String(error));
     } finally {
       setDeletingDatasetKey(null);
+    }
+  };
+
+  const handleStartEdit = (dataset: DatasetCaricato) => {
+    const key = buildDatasetKey(dataset);
+    setEditingDatasetKey(key);
+    setEditActivityId(dataset.activity_id ?? '');
+    setEditComune(dataset.comune.trim());
+    setDatasetsError(null);
+  };
+
+  const handleCancelEdit = () => {
+    setEditingDatasetKey(null);
+    setEditActivityId('');
+    setEditComune('');
+  };
+
+  const handleSaveDataset = async (dataset: DatasetCaricato) => {
+    const datasetKey = buildDatasetKey(dataset);
+    setSavingDatasetKey(datasetKey);
+    setDatasetsError(null);
+
+    try {
+      const response = await fetch('/api/sopralluoghi/dataset', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          territorio_id: dataset.territorio_id,
+          activity_id: dataset.activity_id,
+          comune: dataset.comune,
+          new_activity_id: editActivityId,
+          new_comune: editComune.trim().toUpperCase(),
+        }),
+      });
+      const data = (await response.json()) as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Errore aggiornamento dataset');
+      }
+      setEditingDatasetKey(null);
+      await loadDatasets();
+    } catch (error: unknown) {
+      setDatasetsError(error instanceof Error ? error.message : String(error));
+    } finally {
+      setSavingDatasetKey(null);
     }
   };
 
@@ -499,42 +548,107 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                     {datasets.map((dataset) => {
                       const datasetKey = buildDatasetKey(dataset);
                       const deleting = deletingDatasetKey === datasetKey;
+                      const editing = editingDatasetKey === datasetKey;
+                      const saving = savingDatasetKey === datasetKey;
 
                       return (
-                        <tr key={datasetKey} className="hover:bg-[var(--brand-bg)]/40">
-                          <td className="px-4 py-3 text-[var(--brand-text-main)]">
-                            {dataset.territorio_name ?? '-'}
-                          </td>
-                          <td className="px-4 py-3 text-[var(--brand-text-main)]">
-                            {dataset.activity_name ?? '-'}
-                          </td>
-                          <td className="px-4 py-3 font-medium text-[var(--brand-text-main)]">
-                            {formatComuneLabel(dataset.comune)}
-                          </td>
-                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
-                            {dataset.totale_microaree.toLocaleString('it-IT')}
-                          </td>
-                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
-                            {dataset.totale_civici.toLocaleString('it-IT')}
-                          </td>
-                          <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
-                            {dataset.pdf_generati.toLocaleString('it-IT')}
-                          </td>
-                          <td className="px-4 py-3 text-[var(--brand-text-muted)]">
-                            {formatDateTime(dataset.ultimo_caricamento)}
-                          </td>
-                          <td className="px-4 py-3 text-right">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              className="border-red-200 text-red-700 hover:bg-red-50"
-                              disabled={deleting}
-                              onClick={() => void handleDeleteDataset(dataset)}
-                            >
-                              {deleting ? 'Eliminazione...' : 'Elimina'}
-                            </Button>
-                          </td>
-                        </tr>
+                        <React.Fragment key={datasetKey}>
+                          <tr className="hover:bg-[var(--brand-bg)]/40">
+                            <td className="px-4 py-3 text-[var(--brand-text-main)]">
+                              {dataset.territorio_name ?? '-'}
+                            </td>
+                            <td className="px-4 py-3 text-[var(--brand-text-main)]">
+                              {dataset.activity_name ?? '-'}
+                            </td>
+                            <td className="px-4 py-3 font-medium text-[var(--brand-text-main)]">
+                              {formatComuneLabel(dataset.comune)}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                              {dataset.totale_microaree.toLocaleString('it-IT')}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                              {dataset.totale_civici.toLocaleString('it-IT')}
+                            </td>
+                            <td className="px-4 py-3 text-right text-[var(--brand-text-main)]">
+                              {dataset.pdf_generati.toLocaleString('it-IT')}
+                            </td>
+                            <td className="px-4 py-3 text-[var(--brand-text-muted)]">
+                              {formatDateTime(dataset.ultimo_caricamento)}
+                            </td>
+                            <td className="px-4 py-3 text-right">
+                              <div className="flex items-center justify-end gap-2">
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  disabled={deleting || editing}
+                                  onClick={() => handleStartEdit(dataset)}
+                                >
+                                  Modifica
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
+                                  className="border-red-200 text-red-700 hover:bg-red-50"
+                                  disabled={deleting || editing}
+                                  onClick={() => void handleDeleteDataset(dataset)}
+                                >
+                                  {deleting ? 'Eliminazione...' : 'Elimina'}
+                                </Button>
+                              </div>
+                            </td>
+                          </tr>
+                          {editing && (
+                            <tr className="bg-blue-50">
+                              <td colSpan={8} className="px-4 py-4">
+                                <div className="flex flex-wrap items-end gap-3">
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">
+                                      Nuova tipologia
+                                    </label>
+                                    <select
+                                      value={editActivityId}
+                                      onChange={(e) => setEditActivityId(e.target.value)}
+                                      disabled={saving}
+                                      className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                                    >
+                                      <option value="">Seleziona</option>
+                                      {activities.map((a) => (
+                                        <option key={a.id} value={a.id}>{a.name}</option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                  <div>
+                                    <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">
+                                      Nuovo comune
+                                    </label>
+                                    <Input
+                                      value={editComune}
+                                      onChange={(e) => setEditComune(e.target.value.toUpperCase())}
+                                      disabled={saving}
+                                      placeholder="Es. NAPOLI"
+                                    />
+                                  </div>
+                                  <Button
+                                    variant="primary"
+                                    size="sm"
+                                    disabled={saving || !editActivityId || !editComune.trim()}
+                                    onClick={() => void handleSaveDataset(dataset)}
+                                  >
+                                    {saving ? 'Salvataggio...' : 'Salva'}
+                                  </Button>
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    disabled={saving}
+                                    onClick={handleCancelEdit}
+                                  >
+                                    Annulla
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                   </tbody>
