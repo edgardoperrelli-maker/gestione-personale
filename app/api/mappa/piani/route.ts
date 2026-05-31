@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { parseRegole, buildRuleRows, buildLockRows } from './rulePayload';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -39,6 +40,15 @@ export async function GET(req: Request) {
 
     if (eOp) throw new Error(eOp.message);
 
+    const { data: regoleRows } = await supabaseAdmin
+      .from('mappa_assegnazioni_manuali')
+      .select('id, piano_id, staff_id, staff_name, filtro_ods, filtro_indirizzo, filtro_cap, filtro_attivita, max_interventi, ordine')
+      .in('piano_id', pianoIds);
+    const { data: lockRows } = await supabaseAdmin
+      .from('mappa_piani_lucchetti')
+      .select('piano_id, staff_id, aperto')
+      .in('piano_id', pianoIds);
+
     // Raccogli tutti gli uuid autori (created_by e updated_by)
     const userIds = [
       ...new Set(
@@ -60,6 +70,8 @@ export async function GET(req: Request) {
     const result = piani.map((p: any) => ({
       ...p,
       operatori: (operatori ?? []).filter((o: any) => o.piano_id === p.id),
+      regole: (regoleRows ?? []).filter((r: any) => r.piano_id === p.id),
+      lucchetti: (lockRows ?? []).filter((l: any) => l.piano_id === p.id),
       created_by_name: p.created_by ? (profileMap[p.created_by] ?? 'Sconosciuto') : null,
       updated_by_name: p.updated_by ? (profileMap[p.updated_by] ?? 'Sconosciuto') : null,
     }));
@@ -74,7 +86,7 @@ export async function GET(req: Request) {
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-    const { data: isoData, territorio, note, stato = 'bozza', operatori } = body;
+    const { data: isoData, territorio, note, stato = 'bozza', operatori, regole, lucchetti } = body;
 
     if (!isoData) {
       return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
@@ -125,6 +137,18 @@ export async function POST(req: Request) {
       .insert(opRows);
 
     if (eOp) throw new Error(eOp.message);
+
+    // Regole di assegnazione manuale + lucchetti per-operatore
+    const ruleRows = buildRuleRows(pianoId, parseRegole(regole));
+    if (ruleRows.length > 0) {
+      const { error: eRules } = await supabaseAdmin.from('mappa_assegnazioni_manuali').insert(ruleRows);
+      if (eRules) console.error('[POST /api/mappa/piani] regole:', eRules.message);
+    }
+    const lockRows = buildLockRows(pianoId, lucchetti);
+    if (lockRows.length > 0) {
+      const { error: eLocks } = await supabaseAdmin.from('mappa_piani_lucchetti').insert(lockRows);
+      if (eLocks) console.error('[POST /api/mappa/piani] lucchetti:', eLocks.message);
+    }
 
     // Aggiorna contatori nel cronoprogramma
     const distribuzioniRows = operatori.map((op: any) => ({
