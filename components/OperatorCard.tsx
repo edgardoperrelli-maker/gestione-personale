@@ -33,7 +33,7 @@ export default function OperatorCard({
           {a.reperibile && (
             <span
               className="mt-0.5 shrink-0 rounded px-1 py-px text-[9px] font-bold leading-none"
-              style={{ backgroundColor: '#FEE2E2', color: '#991B1B' }}
+              style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
             >
               REP
             </span>
@@ -52,7 +52,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onEdit(a);
             }}
-            className="rounded border border-white/60 bg-white/70 px-1.5 py-px text-[9px] font-medium"
+            className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium"
             title="Modifica"
           >
             M
@@ -62,7 +62,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="rounded border border-white/60 bg-white/70 px-1.5 py-px text-[9px] font-medium text-rose-700"
+            className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium text-[var(--danger)]"
             title="Elimina"
           >
             X

@@ -150,7 +150,7 @@ export default function RegistroPianificazioni() {
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
-        <div className="text-sm text-gray-500">Caricamento pianificazioni...</div>
+        <div className="text-sm text-[var(--brand-text-muted)]">Caricamento pianificazioni...</div>
       </div>
     );
   }
@@ -190,29 +190,29 @@ export default function RegistroPianificazioni() {
       )}
 
       {piani.length === 0 ? (
-        <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-12 text-center">
-          <p className="text-sm text-gray-500">Nessuna pianificazione salvata</p>
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-6 py-12 text-center">
+          <p className="text-sm text-[var(--brand-text-muted)]">Nessuna pianificazione salvata</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-lg border border-gray-200 shadow-sm">
+        <div className="overflow-x-auto rounded-lg border border-[var(--brand-border)] shadow-sm">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-4 py-3 text-left font-semibold text-gray-900">Data</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-900">Territorio</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-900">Operatori</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-900">Note</th>
-                <th className="px-4 py-3 text-left font-semibold text-gray-900">Stato</th>
-                <th className="px-3 py-2 text-left text-xs font-semibold text-gray-900">
+              <tr className="border-b border-[var(--brand-border)] bg-[var(--brand-surface-muted)]">
+                <th className="px-4 py-3 text-left font-semibold text-[var(--brand-text-main)]">Data</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--brand-text-main)]">Territorio</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--brand-text-main)]">Operatori</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--brand-text-main)]">Note</th>
+                <th className="px-4 py-3 text-left font-semibold text-[var(--brand-text-main)]">Stato</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold text-[var(--brand-text-main)]">
                   Autore
                 </th>
-                <th className="px-4 py-3 text-right font-semibold text-gray-900">Azioni</th>
+                <th className="px-4 py-3 text-right font-semibold text-[var(--brand-text-main)]">Azioni</th>
               </tr>
             </thead>
             <tbody>
               {piani.map((piano) => (
-                <tr key={piano.id} className="border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-4 py-3 font-medium text-gray-900">
+                <tr key={piano.id} className="border-b border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]">
+                  <td className="px-4 py-3 font-medium text-[var(--brand-text-main)]">
                     {new Date(piano.data).toLocaleDateString('it-IT', {
                       weekday: 'short',
                       day: '2-digit',
@@ -220,29 +220,29 @@ export default function RegistroPianificazioni() {
                       year: 'numeric',
                     })}
                   </td>
-                  <td className="px-4 py-3 text-gray-700">{piano.territorio}</td>
-                  <td className="px-4 py-3 text-gray-700">
+                  <td className="px-4 py-3 text-[var(--brand-text-main)]">{piano.territorio}</td>
+                  <td className="px-4 py-3 text-[var(--brand-text-main)]">
                     {piano.operatori.length}
                   </td>
-                  <td className="px-4 py-3 truncate text-gray-500">
+                  <td className="px-4 py-3 truncate text-[var(--brand-text-muted)]">
                     {piano.note ? (
                       <span title={piano.note}>{piano.note}</span>
                     ) : (
-                      <span className="text-gray-300">-</span>
+                      <span className="text-[var(--brand-text-subtle)]">-</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
                     <span
                       className={`inline-block rounded-full px-2 py-1 text-xs font-semibold ${
                         piano.stato === 'confermato'
-                          ? 'bg-green-100 text-green-800'
-                          : 'bg-yellow-100 text-yellow-800'
+                          ? 'bg-[var(--success-soft)] text-[var(--success)]'
+                          : 'bg-[var(--warning-soft)] text-[var(--warning)]'
                       }`}
                     >
                       {piano.stato === 'confermato' ? 'Confermato' : 'Bozza'}
                     </span>
                   </td>
-                  <td className="px-3 py-2 text-sm text-gray-700">
+                  <td className="px-3 py-2 text-sm text-[var(--brand-text-main)]">
                     <div className="text-xs">
                       {piano.updated_by_name
                         ? (
@@ -259,7 +259,7 @@ export default function RegistroPianificazioni() {
                   <td className="px-4 py-3 text-right">
                     <button
                       onClick={() => handleReopen(piano.id)}
-                      className="mr-2 rounded border border-blue-300 bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+                      className="mr-2 rounded border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-primary-border)] disabled:opacity-50"
                       disabled={deletingId === piano.id || confirmId === piano.id}
                     >
                       Riapri
@@ -275,17 +275,17 @@ export default function RegistroPianificazioni() {
 
                     {confirmId === piano.id ? (
                       <div className="inline-flex items-center gap-1">
-                        <span className="text-xs font-medium text-red-600">Elimina?</span>
+                        <span className="text-xs font-medium text-[var(--danger)]">Elimina?</span>
                         <button
                           onClick={() => handleDelete(piano.id)}
                           disabled={deletingId === piano.id}
-                          className="rounded border border-red-300 bg-red-50 px-2 py-0.5 text-xs font-semibold text-red-700 hover:bg-red-100 disabled:opacity-50"
+                          className="rounded border border-[var(--danger)] bg-[var(--danger-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--danger)] hover:opacity-80 disabled:opacity-50"
                         >
                           {deletingId === piano.id ? '...' : 'Sì'}
                         </button>
                         <button
                           onClick={() => setConfirmId(null)}
-                          className="rounded border border-gray-200 px-2 py-0.5 text-xs text-gray-500 hover:bg-gray-50"
+                          className="rounded border border-[var(--brand-border)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                         >
                           No
                         </button>
@@ -293,7 +293,7 @@ export default function RegistroPianificazioni() {
                     ) : (
                       <button
                         onClick={() => setConfirmId(piano.id)}
-                        className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:border-red-300 hover:text-red-600"
+                        className="rounded border border-[var(--brand-border)] px-3 py-1 text-xs text-[var(--brand-text-muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
                       >
                         Elimina
                       </button>
@@ -319,12 +319,12 @@ export default function RegistroPianificazioni() {
 
 function statoBadge(stato: RapportinoStato['statoCalcolato']) {
   if (stato === 'inviato') {
-    return { label: 'Inviato', className: 'bg-green-100 text-green-800' };
+    return { label: 'Inviato', className: 'bg-[var(--success-soft)] text-[var(--success)]' };
   }
   if (stato === 'scaduto') {
-    return { label: 'Scaduto', className: 'bg-red-100 text-red-800' };
+    return { label: 'Scaduto', className: 'bg-[var(--danger-soft)] text-[var(--danger)]' };
   }
-  return { label: 'In corso', className: 'bg-yellow-100 text-yellow-800' };
+  return { label: 'In corso', className: 'bg-[var(--warning-soft)] text-[var(--warning)]' };
 }
 
 function RapportiniModal({
@@ -431,7 +431,7 @@ function RapportiniModal({
       onClick={onClose}
     >
       <div
-        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-xl"
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-start justify-between border-b border-[var(--brand-border)] px-6 py-4">
@@ -536,7 +536,7 @@ function RapportiniModal({
                         href={whatsappHref(r)}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="rounded border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+                        className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success)] hover:opacity-80"
                       >
                         WhatsApp
                       </a>

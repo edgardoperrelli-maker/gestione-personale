@@ -231,7 +231,7 @@ async function MappaPageContent({
       initialDistribution = (opRows as SavedPianoOperatorRow[]).map((op) => ({
         op: (op.staff_name ?? op.staff_id ?? 'Operatore').trim(),
         staffId: op.staff_id ?? '',
-        color: op.colore ?? '#2563EB',
+        color: op.colore ?? '#22D3EE',
         tasks: Array.isArray(op.tasks) ? op.tasks : [],
         km: Number(op.km ?? 0),
         polyline: Array.isArray(op.polyline) ? op.polyline : [],
@@ -274,8 +274,8 @@ export default async function MappaPage({
           <a
             href="/hub/mappa?vista=pianifica"
             className="group rounded-2xl border border-[var(--brand-border)]
-                       bg-white p-5 shadow-sm transition
-                       hover:border-blue-200 hover:shadow"
+                       bg-[var(--brand-surface)] p-5 shadow-sm transition
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
           >
             <div className="flex h-11 w-11 items-center justify-center
                             rounded-xl bg-[var(--brand-primary-soft)]
@@ -302,8 +302,8 @@ export default async function MappaPage({
           <a
             href="/hub/mappa?vista=registro"
             className="group rounded-2xl border border-[var(--brand-border)]
-                       bg-white p-5 shadow-sm transition
-                       hover:border-blue-200 hover:shadow"
+                       bg-[var(--brand-surface)] p-5 shadow-sm transition
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
           >
             <div className="flex h-11 w-11 items-center justify-center
                             rounded-xl bg-[var(--brand-primary-soft)]
@@ -336,7 +336,7 @@ export default async function MappaPage({
           <Suspense
             fallback={
               <div className="rounded-2xl border border-[var(--brand-border)]
-                              bg-white p-8 text-center text-sm
+                              bg-[var(--brand-surface)] p-8 text-center text-sm
                               text-[var(--brand-text-muted)]">
                 Caricamento mappa...
               </div>

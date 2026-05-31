@@ -87,15 +87,16 @@ type CapacityDistributionResult = { groups: Task[][]; unassigned: Task[] };
 
 // ─── Palette colori operatori ────────────────────────────────────────────────
 
+// Palette neon brillante e distinguibile su sfondo navy (tema Aurea dark)
 const OP_COLORS = [
-  '#2563EB', // blue
-  '#16A34A', // green
-  '#DC2626', // red
-  '#7C3AED', // purple
-  '#EA580C', // orange
-  '#0891B2', // cyan
-  '#BE185D', // pink
-  '#854D0E', // brown
+  '#22D3EE', // cyan
+  '#A3E635', // lime
+  '#F472B6', // magenta
+  '#A78BFA', // viola
+  '#FBBF24', // ambra
+  '#38BDF8', // sky
+  '#FB7185', // rosa
+  '#FB923C', // arancio
 ];
 
 // ─── Helper: distanza in metri ───────────────────────────────────────────────
@@ -1073,15 +1074,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const style = getTerritoryStyle(row.territoryName);
       const marker = leaflet.circleMarker([row.lat, row.lng], {
         radius: row.reperibile ? 9 : 7,
-        color: row.reperibile ? '#DC2626' : style.band,
+        color: row.reperibile ? '#FB7185' : style.band,
         weight: 2,
-        fillColor: style.bg,
-        fillOpacity: 0.9,
+        fillColor: style.band,
+        fillOpacity: 0.35,
       });
       marker.bindPopup(`
         <div style="font-size:12px;line-height:1.4">
           <div style="font-weight:600">${row.displayName}</div>
-          ${row.reperibile ? '<span style="color:#DC2626;font-weight:700">REP</span>' : ''}
+          ${row.reperibile ? '<span style="color:#FB7185;font-weight:700">REP</span>' : ''}
           <div>Territorio: ${row.territoryName ?? '-'}</div>
           <div>Attivita: ${row.activityName ?? '-'}</div>
           <div>CdC: ${row.costCenter ?? '-'}</div>
@@ -1132,7 +1133,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           bounds.push([t.lat, t.lng]);
           const icon = leaflet.divIcon({
             className: '',
-            html: `<div style="background:${color};color:#fff;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
+            html: `<div style="background:${color};color:#0b1220;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
             iconSize: [22, 22],
             iconAnchor: [11, 11],
           });
@@ -1162,10 +1163,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         if (t.lat == null || t.lng == null) return;
         const marker = leaflet.circleMarker([t.lat, t.lng], {
           radius: 7,
-          color: '#D97706',
+          color: '#FBBF24',
           weight: 2,
-          fillColor: '#FEF3C7',
-          fillOpacity: 0.95,
+          fillColor: '#FBBF24',
+          fillOpacity: 0.45,
         });
         excelMarkersRef.current.set(t.id, marker);
         marker.on('click', () => {
@@ -1173,7 +1174,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         });
         marker.bindPopup(`
           <div style="font-size:12px;line-height:1.5">
-            <div style="font-weight:600;color:#D97706">Non assegnata</div>
+            <div style="font-weight:600;color:#B45309">Non assegnata</div>
             <div>${t.indirizzo}</div>
             <div>${t.cap} ${t.citta}</div>
             ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
@@ -1196,10 +1197,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const isAppt = t.isAppointment;
         const marker = leaflet.circleMarker([t.lat, t.lng], {
           radius: isAppt ? 10 : 7,
-          color: isAppt ? '#5B21B6' : '#D97706',
+          color: isAppt ? '#A78BFA' : '#FBBF24',
           weight: isAppt ? 2 : 2,
-          fillColor: isAppt ? '#7C3AED' : '#FEF3C7',
-          fillOpacity: 0.95,
+          fillColor: isAppt ? '#A78BFA' : '#FBBF24',
+          fillOpacity: isAppt ? 0.55 : 0.45,
         });
         excelMarkersRef.current.set(t.id, marker);
         marker.on('click', () => {
@@ -1233,12 +1234,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const coords = routeResult.polyline.map((p) => [p.lat, p.lng] as [number, number]);
     if (coords.length < 2) return;
 
-    leaflet.polyline(coords, { color: '#2563EB', weight: 3, opacity: 0.75, dashArray: '6 4' }).addTo(rLayer);
+    leaflet.polyline(coords, { color: '#22D3EE', weight: 3, opacity: 0.85, dashArray: '6 4' }).addTo(rLayer);
     routeResult.orderedTasks.forEach((task, idx) => {
       if (task.lat == null || task.lng == null) return;
       const icon = leaflet.divIcon({
         className: '',
-        html: `<div style="background:#2563EB;color:#fff;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
+        html: `<div style="background:#22D3EE;color:#0b1220;border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
         iconSize: [20, 20],
         iconAnchor: [10, 10],
       });
@@ -1968,28 +1969,28 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         return (
           <div className="absolute inset-0 z-50 flex items-center justify-center bg-black/50 rounded-2xl"
                style={{ minHeight: '300px' }}>
-            <div className="rounded-lg border border-gray-200 bg-white p-6 shadow-lg max-w-md w-full mx-4">
+            <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 shadow-lg max-w-md w-full mx-4">
               <h2 className="text-lg font-semibold mb-6">Configura pianificazione</h2>
               <div className="space-y-4">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-[var(--brand-text-main)] mb-2">
                     Data pianificazione
                   </label>
                   <input
                     type="date"
                     value={setupModalDate}
                     onChange={(e) => setSetupModalDate(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
                   />
                 </div>
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-[var(--brand-text-main)] mb-2">
                     Territorio
                   </label>
                   <select
                     value={setupModalTerritory}
                     onChange={(e) => setSetupModalTerritory(e.target.value)}
-                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
                   >
                     <option value="" disabled>— Seleziona territorio —</option>
                     {planningTerritories.map((t) => (
@@ -2007,10 +2008,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     setTerritoryFilter(setupModalTerritory);
                     setSetupDone(true);
                   }}
-                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold text-white transition ${
+                  className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     isDateValid && isTerritoryValid
-                      ? 'bg-blue-600 hover:bg-blue-700'
-                      : 'bg-gray-300 cursor-not-allowed'
+                      ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
+                      : 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-subtle)] cursor-not-allowed'
                   }`}
                 >
                   Conferma
@@ -2021,7 +2022,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         );
       })()}
       {/* Header + filtri */}
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
           <div className="flex flex-wrap items-center gap-4">
             <div className="text-xl font-semibold">Pianifica indirizzi</div>
@@ -2041,12 +2042,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     setDistribution(null);
                   }
                 }}
-                className={`rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-sm ${
+                className={`rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-sm ${
                   isEditMode || setupDone ? 'opacity-50 cursor-not-allowed' : ''
                 }`}
               />
               {isEditMode && (
-                <span className="rounded-full border border-amber-300 bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700">
+                <span className="rounded-full border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--warning)]">
                   Pianificazione in modifica
                 </span>
               )}
@@ -2055,7 +2056,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   (t) => t.id === territoryFilter
                 )?.name ?? '';
                 return (
-                  <span className="text-sm font-medium text-gray-700">
+                  <span className="text-sm font-medium text-[var(--brand-text-main)]">
                     Territorio: {selectedTerritoryName}
                   </span>
                 );
@@ -2064,7 +2065,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 const count = filteredAppointmentTasks.length;
                 if (count === 0) return null;
                 return (
-                  <span className="rounded-full bg-violet-100 px-2 py-0.5 text-xs font-semibold text-violet-700">
+                  <span className="rounded-full bg-[var(--brand-violet-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--brand-violet)]">
                     {count} APT
                   </span>
                 );
@@ -2076,7 +2077,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             <button
               type="button"
               onClick={handleNuovaPianificazione}
-              className="rounded-lg border border-red-400 bg-red-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-red-600"
+              className="rounded-lg border border-[var(--danger)]/50 bg-[var(--danger)] px-3 py-1.5 text-sm font-medium text-[oklch(0.16_0.06_350)] hover:opacity-90"
             >
               Nuova pianificazione
             </button>
@@ -2085,7 +2086,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <button
                 type="button"
                 onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
-                className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm"
+                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm"
               >
                 Azzera
               </button>
@@ -2098,7 +2099,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <button
                 type="button"
                 onClick={downloadTemplate}
-                className="rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-sm text-gray-600 hover:bg-gray-50"
+                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                 title="Scarica il template Excel da compilare"
               >
                 Scarica Template
@@ -2109,7 +2110,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="rounded-lg border border-amber-400 bg-amber-50 px-3 py-1.5 text-sm font-medium text-amber-800 hover:bg-amber-100"
+                className="rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-1.5 text-sm font-medium text-[var(--warning)] hover:opacity-90"
               >
                 Carica Excel
               </button>
@@ -2117,7 +2118,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <button
                 type="button"
                 onClick={clearExcel}
-                className="rounded-lg border border-amber-400 bg-amber-500 px-3 py-1.5 text-sm font-medium text-white hover:bg-amber-600"
+                className="rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)] px-3 py-1.5 text-sm font-medium text-[oklch(0.18_0.05_95)] hover:opacity-90"
               >
                 Chiudi Excel
               </button>
@@ -2133,8 +2134,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   disabled={!canRoute}
                   className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
                     routeMode
-                      ? 'border-blue-600 bg-blue-600 text-white'
-                      : 'border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-blue-50'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                      : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
                   } disabled:opacity-40`}
                 >
                   Percorso ottimale
@@ -2155,7 +2156,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           if (!showAlert) return null;
 
           return (
-            <div className="flex items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-4 py-2 text-sm text-amber-800">
+            <div className="flex items-center gap-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
               <span>⚠️</span>
               <span>
                 {filteredAppointmentTasks.length} appuntament
@@ -2171,25 +2172,25 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         {excelMode && (
           <div className="mt-3 space-y-2">
             {/* Riga geocodifica */}
-            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <div className="rounded-xl border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-3 py-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm">
-                  <span className="font-semibold text-amber-900">{excelTasks.length}</span>
-                  <span className="text-amber-700"> attività da Excel</span>
+                  <span className="font-semibold text-[var(--warning)]">{excelTasks.length}</span>
+                  <span className="text-[var(--warning)]"> attività da Excel</span>
                   {excelGeocoded > 0 && (
-                    <span className="ml-2 text-amber-600">· {excelGeocoded} geocodificate</span>
+                    <span className="ml-2 text-[var(--brand-text-muted)]">· {excelGeocoded} geocodificate</span>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
                   {isGeocoding ? (
                     <>
-                      <span className="text-xs text-amber-700">
+                      <span className="text-xs text-[var(--warning)]">
                         {geocodingProgress!.done}/{geocodingProgress!.total}
                       </span>
                       <button
                         type="button"
                         onClick={() => { geocodingActiveRef.current = false; setGeocodingProgress(null); }}
-                        className="rounded-lg border border-amber-300 bg-white px-2 py-1 text-xs text-amber-800"
+                        className="rounded-lg border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--warning)]"
                       >
                         Interrompi
                       </button>
@@ -2199,7 +2200,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       type="button"
                       onClick={startGeocoding}
                       disabled={excelTasks.length === 0}
-                      className="rounded-lg bg-amber-500 px-3 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-40"
+                      className="rounded-lg bg-[var(--warning)] px-3 py-1 text-xs font-medium text-[oklch(0.18_0.05_95)] hover:opacity-90 disabled:opacity-40"
                     >
                       {excelGeocoded > 0 ? 'Riprendi geocodifica' : 'Geocodifica e mostra'}
                     </button>
@@ -2207,9 +2208,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 </div>
               </div>
               {isGeocoding && (
-                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-amber-200">
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-[var(--warning)]/20">
                   <div
-                    className="h-full rounded-full bg-amber-500 transition-all"
+                    className="h-full rounded-full bg-[var(--warning)] transition-all"
                     style={{ width: `${(geocodingProgress!.done / geocodingProgress!.total) * 100}%` }}
                   />
                 </div>
@@ -2218,14 +2219,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
             {/* Pannello distribuzione operatori */}
             {excelGeocoded >= 2 && !isGeocoding && (
-              <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5">
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2.5">
                 {/* Intestazione + toggle */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-700">Distribuisci tra operatori</span>
+                  <span className="text-xs font-semibold text-[var(--brand-text-main)]">Distribuisci tra operatori</span>
                   <button
                     type="button"
                     onClick={() => setShowOpPicker((v) => !v)}
-                    className="rounded border border-gray-300 bg-white px-2 py-0.5 text-xs text-gray-600 hover:bg-gray-100"
+                    className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                   >
                     {showOpPicker ? 'Chiudi -' : 'Seleziona +'}
                   </button>
@@ -2241,23 +2242,23 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
                             const checked = selIdx !== -1;
                             return (
-                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-white">
-                                <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-blue-600" />
-                                <span className="truncate text-xs text-gray-800">{operator.displayName}</span>
+                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)]">
+                                <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-[var(--brand-primary)]" />
+                                <span className="truncate text-xs text-[var(--brand-text-main)]">{operator.displayName}</span>
                                 {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
                               </label>
                             );
                           })}
                         </div>
                         {territoryFilter && territoryFilteredOperators.length < availableOperators.length && (
-                          <p className="text-[10px] text-gray-400 mt-1">
+                          <p className="text-[10px] text-[var(--brand-text-subtle)] mt-1">
                             Cronoprogramma {planningDate} | {territoryFilteredOperators.length} operatori su {availableOperators.length}
                             {selectedPlanningTerritory ? ` assegnati a ${selectedPlanningTerritory.name}` : ''}
                           </p>
                         )}
                       </>
                     ) : (
-                      <p className="text-xs text-gray-400">
+                      <p className="text-xs text-[var(--brand-text-subtle)]">
                         Nessun operatore assegnato nel cronoprogramma
                         {selectedPlanningTerritory ? ` a ${selectedPlanningTerritory.name}` : ''}
                         {' '}per il {planningDate}.
@@ -2270,17 +2271,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 {selectedOps.length > 0 && (
                   <div className="mt-2 space-y-1">
                     <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operatore</span>
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-gray-400 text-right">N. interventi</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Operatore</span>
+                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)] text-right">N. interventi</span>
                       <span />
                       {selectedOps.map((op, i) => (
                         <React.Fragment key={op.id}>
                           <div key={op.id + '-name'} className="flex min-w-0 items-center gap-1.5">
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[i % OP_COLORS.length] }} />
                             <div className="min-w-0">
-                              <div className="truncate text-xs font-medium text-gray-800">{op.name}</div>
+                              <div className="truncate text-xs font-medium text-[var(--brand-text-main)]">{op.name}</div>
                               {op.startAddress && (
-                                <div className="truncate text-[10px] text-gray-400">{op.startAddress}</div>
+                                <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">{op.startAddress}</div>
                               )}
                             </div>
                           </div>
@@ -2291,31 +2292,31 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             value={op.qty || ''}
                             onChange={(e) => changeOpQty(op.id, parseInt(e.target.value, 10) || 0)}
                             placeholder="auto"
-                            className="w-16 rounded border border-gray-200 bg-white px-1.5 py-0.5 text-xs text-right"
+                            className="w-16 rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs text-right"
                           />
                           <button
                             key={op.id + '-rm'}
                             type="button"
                             onClick={() => setSelectedOps((prev) => prev.filter((o) => o.id !== op.id))}
-                            className="text-xs text-gray-400 hover:text-red-500"
+                            className="text-xs text-[var(--brand-text-subtle)] hover:text-[var(--danger)]"
                           >
                             ×
                           </button>
                         </React.Fragment>
                       ))}
                     </div>
-                    <p className="text-[10px] text-gray-400">Lascia vuoto per distribuzione automatica uguale.</p>
+                    <p className="text-[10px] text-[var(--brand-text-subtle)]">Lascia vuoto per distribuzione automatica uguale.</p>
                     <div className="flex items-center gap-2 pt-1">
                       <button type="button" onClick={() => setAssignModalOpen(true)}
-                        className="rounded-xl border px-4 py-2 text-sm font-medium">
+                        className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
                         📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
                       </button>
-                      <button type="button" onClick={distributeToOps} className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700">
+                      <button type="button" onClick={distributeToOps} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]">
                         {selectedOps.length === 1 ? 'Assegna' : 'Distribuisci'}
                       </button>
                       {distribution && (
                         <>
-                          <button type="button" onClick={exportDistribution} className="rounded-lg bg-green-600 px-3 py-1 text-xs font-semibold text-white hover:bg-green-700">
+                          <button type="button" onClick={exportDistribution} className="rounded-lg bg-[var(--success)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.05_145)] hover:opacity-90">
                             Esporta Excel
                           </button>
                           <button
@@ -2329,7 +2330,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 window.history.replaceState({}, '', '/hub/mappa?vista=pianifica');
                               }
                             }}
-                            className="rounded-lg border border-gray-300 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                           >
                             Azzera
                           </button>
@@ -2337,7 +2338,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             <button
                               type="button"
                               onClick={() => fileTemplateInputRef.current?.click()}
-                              className="rounded-lg border border-violet-400 bg-violet-50 px-3 py-1 text-xs font-medium text-violet-800 hover:bg-violet-100"
+                              className="rounded-lg border border-[var(--brand-violet)]/40 bg-[var(--brand-violet-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-violet)] hover:opacity-90"
                             >
                               + Aggiungi attività da template
                             </button>
@@ -2348,8 +2349,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             disabled={savingDistribution}
                             className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                               savedDistribution
-                                ? 'bg-green-100 text-green-700 border border-green-300'
-                                : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                                ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
+                                : 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
                             } disabled:opacity-50`}
                           >
                             {savingDistribution
@@ -2366,7 +2367,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
                 {distribution !== null && excelMode && (
                   <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-gray-600">
+                    <span className="text-xs text-[var(--brand-text-muted)]">
                       Completamento: {geocodificati} / {totalQtyRichiesta}
                     </span>
                   </div>
@@ -2374,13 +2375,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
                 {templateGeocoding && (
                   <div className="mt-2">
-                    <div className="flex items-center justify-between text-xs text-gray-600 mb-1">
+                    <div className="flex items-center justify-between text-xs text-[var(--brand-text-muted)] mb-1">
                       <span>Geocodifica template</span>
                       <span>{templateGeocoding.done} / {templateGeocoding.total}</span>
                     </div>
-                    <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                    <div className="h-1 bg-[var(--brand-border)] rounded-full overflow-hidden">
                       <div
-                        className="h-full bg-violet-500 transition-all"
+                        className="h-full bg-[var(--brand-violet)] transition-all"
                         style={{
                           width: `${templateGeocoding.total > 0 ? (templateGeocoding.done / templateGeocoding.total) * 100 : 0}%`
                         }}
@@ -2396,25 +2397,25 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       {/* Banner conflitti ZTL */}
       {ztlConflicts.length > 0 && (
-        <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3">
+        <div className="rounded-xl border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-3">
           <div className="mb-2 flex items-center gap-2">
-            <span className="text-sm font-semibold text-amber-900">
+            <span className="text-sm font-semibold text-[var(--warning)]">
               ⚠ {ztlConflicts.length} conflitt{ztlConflicts.length === 1 ? 'o' : 'i'} ZTL
             </span>
             <button
               type="button"
               onClick={() => setZtlConflicts([])}
-              className="ml-auto text-xs text-amber-600 hover:text-amber-800"
+              className="ml-auto text-xs text-[var(--warning)] hover:opacity-80"
             >
               Chiudi
             </button>
           </div>
           <ul className="space-y-1">
             {ztlConflicts.map((c, i) => (
-              <li key={i} className="text-xs text-amber-800">• {c}</li>
+              <li key={i} className="text-xs text-[var(--warning)]">• {c}</li>
             ))}
           </ul>
-          <p className="mt-2 text-xs text-amber-700">
+          <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
             Usa &quot;Sposta&quot; per riassegnare le attività ZTL agli operatori autorizzati.
           </p>
         </div>
@@ -2422,11 +2423,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       {/* Mappa + pannello laterale */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
           <div ref={mapRef} className="h-[520px] w-full rounded-2xl" />
         </div>
 
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm overflow-y-auto max-h-[540px]">
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm overflow-y-auto max-h-[540px]">
           {/* ── Distribuzione operatori ── */}
           {excelMode && distribution ? (
             <>
@@ -2440,8 +2441,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     className="shrink-0 rounded-lg px-2.5 py-1 text-xs font-semibold transition"
                     style={
                       activeOpIdx === i
-                        ? { backgroundColor: d.color, color: '#fff' }
-                        : { backgroundColor: '#f3f4f6', color: '#374151' }
+                        ? { backgroundColor: d.color, color: '#0b1220' }
+                        : { backgroundColor: 'var(--brand-surface-muted)', color: 'var(--brand-text-muted)' }
                     }
                   >
                     {(d.op ?? d.staffId ?? '?').split(' ')[0]} <span className="opacity-80">({d.tasks.length})</span>
@@ -2457,11 +2458,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       <div className="min-w-0">
                         <span className="text-sm font-semibold">{op ?? 'Operatore'}</span>
                         {startAddress && (
-                          <div className="truncate text-[10px] text-gray-400">Partenza: {startAddress}</div>
+                          <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">Partenza: {startAddress}</div>
                         )}
                       </div>
                       <span
-                        className="rounded-full px-2 py-0.5 text-xs font-bold text-white"
+                        className="rounded-full px-2 py-0.5 text-xs font-bold text-[#0b1220]"
                         style={{ backgroundColor: color }}
                       >
                         {km} km
@@ -2476,30 +2477,30 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               key={t.id}
                               ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
                               className={`rounded-lg border px-2 py-1.5 transition ${
-                                isSelected ? 'border-amber-300 bg-amber-50 shadow-sm' : 'border-gray-100'
+                                isSelected ? 'border-[var(--warning)]/40 bg-[var(--warning-soft)] shadow-sm' : 'border-[var(--brand-border)]'
                               }`}
                             >
                               <div className="flex items-start gap-2">
-                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white" style={{ backgroundColor: color }}>
+                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#0b1220]" style={{ backgroundColor: color }}>
                                 {idx + 1}
                               </span>
                               <div className="min-w-0 flex-1 text-xs">
                                 <div className="truncate font-medium">{t.odl || `#${idx + 1}`}</div>
-                                <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? `, ${t.citta}` : ''}</div>
-                                {t.fascia_oraria && <div className="text-gray-400">{t.fascia_oraria}</div>}
+                                <div className="truncate text-[var(--brand-text-muted)]">{t.indirizzo}{t.citta ? `, ${t.citta}` : ''}</div>
+                                {t.fascia_oraria && <div className="text-[var(--brand-text-subtle)]">{t.fascia_oraria}</div>}
                               </div>
                               <button
                                 type="button"
                                 onClick={() => setMovingTaskId(isMoving ? null : t.id)}
-                                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${isMoving ? 'border-blue-400 bg-blue-100 text-blue-700' : 'border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600'}`}
+                                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${isMoving ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'}`}
                               >
                                 Sposta
                               </button>
                             </div>
                             {/* Selettore operatore destinazione */}
                             {isMoving && (
-                              <div className="mt-1.5 flex flex-wrap gap-1 border-t border-gray-100 pt-1.5">
-                                <span className="text-[10px] text-gray-400 w-full">Sposta a:</span>
+                              <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
+                                <span className="text-[10px] text-[var(--brand-text-subtle)] w-full">Sposta a:</span>
                                 {distribution!.map((d, di) => {
                                   if (di === activeOpIdx) return null;
                                   const ztl = getTaskZtl(t.cap, ztlZones);
@@ -2520,7 +2521,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                             ? `${d.op ?? 'Operatore'} ha già raggiunto il limite di ${targetCap} attività`
                                             : undefined
                                       }
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
                                       style={{ backgroundColor: d.color }}
                                     >
                                       {d.op ?? 'Operatore'} ({d.tasks.length}) {blocked ? '🔒' : ''}
@@ -2534,8 +2535,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       })}
                     </div>
                     {unassignedTasks.length > 0 && (
-                      <div className="mt-4 border-t border-amber-200 pt-3">
-                        <div className="mb-2 text-sm font-semibold text-amber-800">
+                      <div className="mt-4 border-t border-[var(--warning)]/30 pt-3">
+                        <div className="mb-2 text-sm font-semibold text-[var(--warning)]">
                           Non assegnate ({unassignedTasks.length})
                         </div>
                         <div className="space-y-1.5">
@@ -2548,25 +2549,25 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
                                 className={`rounded-lg border px-2 py-1.5 text-xs ${
                                   isSelected
-                                    ? 'border-amber-400 bg-amber-100 shadow-sm'
-                                    : 'border-amber-200 bg-amber-50'
+                                    ? 'border-[var(--warning)]/50 bg-[var(--warning-soft)] shadow-sm'
+                                    : 'border-[var(--warning)]/25 bg-[var(--warning-soft)]'
                                 }`}
                               >
                                 <div
                                   className="flex cursor-pointer items-start gap-1.5"
                                   onClick={() => focusExcelTask(t.id)}
                                 >
-                                  <span className="mt-0.5 shrink-0 text-[9px] font-bold text-amber-600">{idx + 1}</span>
+                                  <span className="mt-0.5 shrink-0 text-[9px] font-bold text-[var(--warning)]">{idx + 1}</span>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1">
                                       <span className="truncate font-medium">{t.odl || `Task ${idx + 1}`}</span>
                                       {isSelected && (
-                                        <span className="shrink-0 rounded-full border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                        <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)]">
                                           Selezionato
                                         </span>
                                       )}
                                     </div>
-                                    <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
+                                    <div className="truncate text-[var(--brand-text-muted)]">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
                                   </div>
                                   <div className="flex shrink-0 items-center gap-1">
                                     <button
@@ -2577,8 +2578,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                       }}
                                       className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
                                         isMoving
-                                          ? 'border-blue-400 bg-blue-100 text-blue-700'
-                                          : 'border-gray-200 text-gray-400 hover:border-blue-300 hover:text-blue-600'
+                                          ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+                                          : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'
                                       }`}
                                     >
                                       Sposta
@@ -2589,7 +2590,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                         e.stopPropagation();
                                         openEdit(t);
                                       }}
-                                      className="rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
                                       title="Correggi indirizzo e rigenera coordinate"
                                     >
                                       Correggi
@@ -2597,8 +2598,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                   </div>
                                 </div>
                                 {isMoving && (
-                                  <div className="mt-1.5 flex flex-wrap gap-1 border-t border-amber-200 pt-1.5">
-                                    <span className="w-full text-[10px] text-amber-700">Sposta a:</span>
+                                  <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--warning)]/30 pt-1.5">
+                                    <span className="w-full text-[10px] text-[var(--warning)]">Sposta a:</span>
                                     {distribution!.map((d, di) => {
                                       const ztl = getTaskZtl(t.cap, ztlZones);
                                       const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(d.staffId);
@@ -2613,7 +2614,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                               ? `${d.op ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}`
                                               : undefined
                                           }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-white transition ${
+                                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition ${
                                             blocked ? 'cursor-not-allowed opacity-30' : 'hover:opacity-80'
                                           }`}
                                           style={{ backgroundColor: d.color }}
@@ -2639,7 +2640,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             <>
               <div className="mb-3 flex items-center justify-between">
                 <span className="text-sm font-semibold">Percorso ottimale</span>
-                <span className="rounded-full bg-blue-100 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                <span className="rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--brand-primary)]">
                   {routeResult.totalDistanceKm} km
                 </span>
               </div>
@@ -2649,7 +2650,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   const op = (task as Task & { _operatore?: string })._operatore;
                   return (
                     <div key={task.id} className="flex items-start gap-2 rounded-xl border border-[var(--brand-border)] p-2">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-blue-600 text-[10px] font-bold text-white">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[10px] font-bold text-[oklch(0.16_0.06_245)]">
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
@@ -2666,7 +2667,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           <div className="mt-0.5 flex items-center gap-2 text-xs">
                             <span>{row.day}</span>
                             {row.reperibile && (
-                              <span className="rounded border border-red-200 bg-red-100 px-1 text-[10px] font-bold text-red-700">REP</span>
+                              <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[10px] font-bold text-[var(--danger)]">REP</span>
                             )}
                           </div>
                         )}
@@ -2679,10 +2680,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           ) : excelMode ? (
             /* ── Lista attività Excel (con edit per non geocodificate) ── */
             <>
-              <div className="sticky top-0 z-10 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-white pb-3">
+              <div className="sticky top-0 z-10 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] pb-3">
                 <div className="flex items-center justify-between gap-2">
-                  <div className="text-sm font-semibold text-amber-800">Attivita da Excel</div>
-                  <span className="text-[10px] font-medium text-gray-400">
+                  <div className="text-sm font-semibold text-[var(--warning)]">Attivita da Excel</div>
+                  <span className="text-[10px] font-medium text-[var(--brand-text-subtle)]">
                     {filteredExcelTasks.length}/{excelTasks.length}
                   </span>
                 </div>
@@ -2692,8 +2693,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     onClick={() => setExcelOnlyManualAction((value) => !value)}
                     className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
                       excelOnlyManualAction
-                        ? 'border-amber-300 bg-amber-100 text-amber-800'
-                        : 'border-gray-200 bg-white text-gray-500 hover:border-amber-200 hover:text-amber-700'
+                        ? 'border-[var(--warning)]/40 bg-[var(--warning-soft)] text-[var(--warning)]'
+                        : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/30 hover:text-[var(--warning)]'
                     }`}
                   >
                     Solo da correggere ({excelNeedsManualCount})
@@ -2702,20 +2703,20 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     <button
                       type="button"
                       onClick={() => setExcelOnlyManualAction(false)}
-                      className="rounded-full border border-gray-200 bg-white px-2 py-0.5 text-[10px] font-semibold text-gray-500 transition hover:border-gray-300 hover:text-gray-700"
+                      className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-border-strong)] hover:text-[var(--brand-text-main)]"
                     >
                       Reset filtri
                     </button>
                   )}
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-gray-400">Operatori coinvolti</div>
+                  <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Operatori coinvolti</div>
                   {excelOperators.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {excelOperators.map((name) => (
                         <span
                           key={name}
-                          className="max-w-full truncate rounded-full border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-semibold text-blue-700"
+                          className="max-w-full truncate rounded-full border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]"
                           title={name}
                         >
                           {name}
@@ -2723,7 +2724,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       ))}
                     </div>
                   ) : (
-                    <div className="text-[10px] text-gray-400">Nessun operatore selezionato.</div>
+                    <div className="text-[10px] text-[var(--brand-text-subtle)]">Nessun operatore selezionato.</div>
                   )}
                 </div>
               </div>
@@ -2741,22 +2742,22 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
                       className={`rounded-lg border px-2 py-1.5 text-xs ${
                         isSelected
-                          ? 'border-amber-400 bg-amber-100 shadow-sm'
+                          ? 'border-[var(--warning)]/50 bg-[var(--warning-soft)] shadow-sm'
                           : hasCoords
-                            ? 'border-amber-200 bg-amber-50'
-                            : 'border-gray-200 bg-gray-50'
+                            ? 'border-[var(--warning)]/25 bg-[var(--warning-soft)]'
+                            : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)]'
                       }`}
                     >
                       {isEditing ? (
                         /* Form modifica indirizzo */
                         <div className="space-y-1.5">
-                          <div className="text-[10px] font-semibold text-gray-500 uppercase tracking-wide">Modifica indirizzo</div>
+                          <div className="text-[10px] font-semibold text-[var(--brand-text-muted)] uppercase tracking-wide">Modifica indirizzo</div>
                           <input
                             type="text"
                             value={editDraft.indirizzo}
                             onChange={(e) => setEditDraft((d) => ({ ...d, indirizzo: e.target.value }))}
                             placeholder="Indirizzo..."
-                            className="w-full rounded border border-gray-300 px-1.5 py-1 text-xs"
+                            className="w-full rounded border border-[var(--brand-border)] px-1.5 py-1 text-xs"
                           />
                           <div className="flex gap-1">
                             <input
@@ -2764,14 +2765,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               value={editDraft.cap}
                               onChange={(e) => setEditDraft((d) => ({ ...d, cap: e.target.value }))}
                               placeholder="CAP"
-                              className="w-20 rounded border border-gray-300 px-1.5 py-1 text-xs"
+                              className="w-20 rounded border border-[var(--brand-border)] px-1.5 py-1 text-xs"
                             />
                             <input
                               type="text"
                               value={editDraft.citta}
                               onChange={(e) => setEditDraft((d) => ({ ...d, citta: e.target.value }))}
                               placeholder="Città..."
-                              className="min-w-0 flex-1 rounded border border-gray-300 px-1.5 py-1 text-xs"
+                              className="min-w-0 flex-1 rounded border border-[var(--brand-border)] px-1.5 py-1 text-xs"
                             />
                           </div>
                           <div className="flex gap-1 pt-0.5">
@@ -2782,7 +2783,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 e.stopPropagation();
                                 void saveAndGeocode(t.id);
                               }}
-                              className="flex-1 rounded bg-amber-500 py-1 text-xs font-medium text-white hover:bg-amber-600 disabled:opacity-50"
+                              className="flex-1 rounded bg-[var(--warning)] py-1 text-xs font-medium text-[oklch(0.18_0.05_95)] hover:opacity-90 disabled:opacity-50"
                             >
                               {isSaving ? 'Geocodifica...' : 'Salva e geocodifica'}
                             </button>
@@ -2792,7 +2793,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 e.stopPropagation();
                                 setEditingTaskId(null);
                               }}
-                              className="rounded border border-gray-200 px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+                              className="rounded border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                             >
                               Annulla
                             </button>
@@ -2804,33 +2805,33 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           className="flex cursor-pointer items-start gap-1.5"
                           onClick={() => focusExcelTask(t.id)}
                         >
-                          <span className="mt-0.5 shrink-0 text-[9px] font-bold text-amber-600">{idx + 1}</span>
+                          <span className="mt-0.5 shrink-0 text-[9px] font-bold text-[var(--warning)]">{idx + 1}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1">
                               <span className="truncate font-medium">{op || t.odl || `Task ${idx + 1}`}</span>
                               {isSelected && (
-                                <span className="shrink-0 rounded-full border border-amber-300 bg-white px-1.5 py-0.5 text-[9px] font-bold text-amber-700">
+                                <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)]">
                                   Selezionato
                                 </span>
                               )}
                               {hasCoords && (
-                                <span className="shrink-0 text-[9px] text-green-600">✓</span>
+                                <span className="shrink-0 text-[9px] text-[var(--success)]">✓</span>
                               )}
                               {(() => {
                                 const ztl = getTaskZtl(t.cap, ztlZones);
                                 return ztl ? (
-                                  <span className="shrink-0 rounded-full bg-amber-100 border border-amber-300 px-1.5 py-0.5 text-[9px] font-bold text-amber-800 uppercase tracking-wide">
+                                  <span className="shrink-0 rounded-full bg-[var(--warning-soft)] border border-[var(--warning)]/40 px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)] uppercase tracking-wide">
                                     ZTL · {ztl.name}
                                   </span>
                                 ) : null;
                               })()}
                               {t.isAppointment && (
-                                <span className="shrink-0 rounded-full bg-violet-100 border border-violet-300 px-1.5 py-0.5 text-[9px] font-bold text-violet-700 uppercase tracking-wide">
+                                <span className="shrink-0 rounded-full bg-[var(--brand-violet-soft)] border border-[var(--brand-violet)]/40 px-1.5 py-0.5 text-[9px] font-bold text-[var(--brand-violet)] uppercase tracking-wide">
                                   APT
                                 </span>
                               )}
                             </div>
-                            <div className="truncate text-gray-500">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
+                            <div className="truncate text-[var(--brand-text-muted)]">{t.indirizzo}{t.citta ? ` · ${t.citta}` : ''}</div>
                           </div>
                           <button
                             type="button"
@@ -2838,7 +2839,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               e.stopPropagation();
                               openEdit(t);
                             }}
-                            className="shrink-0 rounded border border-gray-200 px-1.5 py-0.5 text-[10px] text-gray-500 hover:border-amber-300 hover:bg-amber-50 hover:text-amber-700"
+                            className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
                             title={hasCoords ? 'Correggi indirizzo e rigenera coordinate' : 'Modifica indirizzo e riprova'}
                           >
                             {hasCoords ? 'Correggi' : 'Modifica'}
@@ -2849,7 +2850,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   );
                 })}
                 {filteredExcelTasks.length === 0 && (
-                  <div className="rounded-xl border border-dashed border-gray-200 px-3 py-4 text-center text-xs text-gray-400">
+                  <div className="rounded-xl border border-dashed border-[var(--brand-border)] px-3 py-4 text-center text-xs text-[var(--brand-text-subtle)]">
                     Nessun indirizzo corrisponde ai filtri correnti.
                   </div>
                 )}
@@ -2868,7 +2869,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       <div className="mt-1 flex items-center gap-2 text-xs">
                         <span>{row.day}</span>
                         {row.reperibile && (
-                          <span className="rounded border border-red-200 bg-red-100 px-1 text-[10px] font-bold text-red-700">REP</span>
+                          <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[10px] font-bold text-[var(--danger)]">REP</span>
                         )}
                       </div>
                     </div>
@@ -2881,21 +2882,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           ) : filteredAppointmentTasks.length > 0 ? (
             /* ── Lista appuntamenti del giorno ── */
             <div className="space-y-2">
-              <div className="mb-3 text-sm font-semibold text-violet-800">
+              <div className="mb-3 text-sm font-semibold text-[var(--brand-violet)]">
                 Appuntamenti · {planningDate}
               </div>
               {filteredAppointmentTasks
                 .map(t => (
                   <div
                     key={t.id}
-                    className="rounded-xl border border-violet-200 bg-violet-50 px-3 py-2.5 text-xs cursor-pointer hover:bg-violet-100"
+                    className="rounded-xl border border-[var(--brand-violet)]/30 bg-[var(--brand-violet-soft)] px-3 py-2.5 text-xs cursor-pointer hover:bg-[var(--brand-violet-soft)]"
                     onClick={() => setSelectedExcelTaskId(t.id)}
                   >
-                    <div className="font-semibold text-violet-900">{(t as Task & { pdr?: string }).pdr ?? t.id}</div>
-                    <div className="mt-0.5 text-violet-700">{t.indirizzo}</div>
-                    <div className="text-violet-500">{t.cap} {t.citta}</div>
-                    {t.fascia_oraria && <div className="mt-0.5 text-violet-400">{t.fascia_oraria}</div>}
-                    {t.lat == null && <div className="mt-1 text-[10px] text-amber-500">⚠ Geocodifica in corso...</div>}
+                    <div className="font-semibold text-[var(--brand-text-main)]">{(t as Task & { pdr?: string }).pdr ?? t.id}</div>
+                    <div className="mt-0.5 text-[var(--brand-text-main)]">{t.indirizzo}</div>
+                    <div className="text-[var(--brand-text-muted)]">{t.cap} {t.citta}</div>
+                    {t.fascia_oraria && <div className="mt-0.5 text-[var(--brand-text-subtle)]">{t.fascia_oraria}</div>}
+                    {t.lat == null && <div className="mt-1 text-[10px] text-[var(--warning)]">⚠ Geocodifica in corso...</div>}
                   </div>
                 ))
               }

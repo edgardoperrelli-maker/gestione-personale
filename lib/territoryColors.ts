@@ -5,20 +5,22 @@ export type TerritoryStyle = {
   band: string;
 };
 
+// Versione dark-card: bg = colore translucido scuro su navy, text/band = versione
+// brillante e leggibile, border = colore con alpha ridotta. Territori distinguibili.
 export const TERRITORY_COLORS: Record<string, TerritoryStyle> = {
-  FIRENZE: { bg: '#FFF7ED', border: '#FED7AA', text: '#9A3412', band: '#FB923C' },
-  AURELIA: { bg: '#F0FDF4', border: '#BBF7D0', text: '#14532D', band: '#22C55E' },
-  'LAZIO EST': { bg: '#EFF6FF', border: '#BFDBFE', text: '#1E3A8A', band: '#3B82F6' },
-  PADOVA: { bg: '#F5F3FF', border: '#DDD6FE', text: '#4C1D95', band: '#8B5CF6' },
-  PERUGIA: { bg: '#FFF1F2', border: '#FECDD3', text: '#881337', band: '#F43F5E' },
-  'LAZIO CENTRO': { bg: '#F8FAFC', border: '#E2E8F0', text: '#1E293B', band: '#94A3B8' },
-  NAPOLI: { bg: '#EFF6FF', border: '#BAE6FD', text: '#0C4A6E', band: '#0EA5E9' },
+  FIRENZE:        { bg: 'rgba(251,146,60,0.16)',  border: 'rgba(251,146,60,0.40)',  text: '#FDBA74', band: '#FB923C' },
+  AURELIA:        { bg: 'rgba(74,222,128,0.16)',  border: 'rgba(74,222,128,0.40)',  text: '#86EFAC', band: '#4ADE80' },
+  'LAZIO EST':    { bg: 'rgba(56,189,248,0.16)',  border: 'rgba(56,189,248,0.40)',  text: '#7DD3FC', band: '#38BDF8' },
+  PADOVA:         { bg: 'rgba(167,139,250,0.16)', border: 'rgba(167,139,250,0.40)', text: '#C4B5FD', band: '#A78BFA' },
+  PERUGIA:        { bg: 'rgba(251,113,133,0.16)', border: 'rgba(251,113,133,0.40)', text: '#FDA4AF', band: '#FB7185' },
+  'LAZIO CENTRO': { bg: 'rgba(148,163,184,0.16)', border: 'rgba(148,163,184,0.40)', text: '#CBD5E1', band: '#94A3B8' },
+  NAPOLI:         { bg: 'rgba(34,211,238,0.16)',  border: 'rgba(34,211,238,0.40)',  text: '#67E8F9', band: '#22D3EE' },
 };
 
 export const TERRITORY_FALLBACK: TerritoryStyle = {
-  bg: '#F8FAFC',
-  border: '#E2E8F0',
-  text: '#334155',
+  bg: 'rgba(148,163,184,0.14)',
+  border: 'rgba(148,163,184,0.38)',
+  text: '#CBD5E1',
   band: '#94A3B8',
 };
 
