@@ -48,7 +48,7 @@ export default function RapportiniHubPage() {
             <Link
               key={mod.href}
               href={mod.href}
-              className="group relative flex flex-col rounded-2xl border bg-white p-5 shadow-sm transition hover:shadow-md"
+              className="group relative flex flex-col rounded-2xl border bg-[var(--brand-surface)] p-5 shadow-sm transition hover:shadow-md"
               style={{ borderColor: 'var(--brand-border)' }}
             >
               {/* Banda superiore colorata */}

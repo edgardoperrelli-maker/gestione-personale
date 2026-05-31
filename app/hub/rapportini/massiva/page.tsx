@@ -910,7 +910,7 @@ ws.pageSetup.fitToHeight = 0;
   return (
     <AuthGate>
       <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
-        <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+        <section className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
           <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
             <div className="space-y-3">
               <span
@@ -950,7 +950,7 @@ ws.pageSetup.fitToHeight = 0;
 
         <div className="grid gap-6 xl:grid-cols-[1.2fr_0.8fr]">
           <section className="space-y-6">
-            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+            <div className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
               <div className="flex flex-col gap-5">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>1. File sorgente</h2>
@@ -983,7 +983,7 @@ ws.pageSetup.fitToHeight = 0;
                       />
                       <label
                         htmlFor="massiva-file-input"
-                        className="inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-white transition"
+                        className="inline-flex cursor-pointer items-center justify-center rounded-2xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition"
                         style={{ backgroundColor: 'var(--brand-primary)' }}
                       >
                         {file ? 'Sostituisci file' : 'Carica file'}
@@ -991,7 +991,7 @@ ws.pageSetup.fitToHeight = 0;
                       {file && (
                         <button
                           type="button"
-                          className="rounded-2xl border px-4 py-2 text-sm font-medium transition hover:bg-black/5"
+                          className="rounded-2xl border px-4 py-2 text-sm font-medium transition hover:bg-[var(--brand-surface-muted)]"
                           style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
                           onClick={() => { setFile(null); setFileName('Nessun file MASSIVA'); setRawRows([]); setErr(null); setMsg(null); }}
                         >
@@ -1005,7 +1005,7 @@ ws.pageSetup.fitToHeight = 0;
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
-              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>2. Data di lavoro</h2>
@@ -1029,7 +1029,7 @@ ws.pageSetup.fitToHeight = 0;
                 </div>
               </div>
 
-              <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+              <div className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
                 <div className="space-y-4">
                   <div className="space-y-1">
                     <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>3. Modalita output</h2>
@@ -1042,7 +1042,7 @@ ws.pageSetup.fitToHeight = 0;
                     className="flex items-start gap-3 rounded-2xl border p-4 transition"
                     style={{
                       borderColor: useCombined ? 'var(--brand-primary)' : 'var(--brand-border)',
-                      backgroundColor: useCombined ? 'var(--brand-primary-soft)' : 'white',
+                      backgroundColor: useCombined ? 'var(--brand-primary-soft)' : 'var(--brand-surface-muted)',
                     }}
                   >
                     <input
@@ -1076,7 +1076,7 @@ ws.pageSetup.fitToHeight = 0;
           </section>
 
           <aside className="space-y-6">
-            <div className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+            <div className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
               <div className="space-y-4">
                 <div className="space-y-1">
                   <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>5. Riepilogo operativo</h2>
@@ -1109,12 +1109,12 @@ ws.pageSetup.fitToHeight = 0;
                 </div>
 
                 {msg && (
-                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }}>
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--success)', backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}>
                     {msg}
                   </div>
                 )}
                 {err && (
-                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }}>
+                  <div className="rounded-2xl border px-4 py-3 text-sm" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                     {err}
                   </div>
                 )}
@@ -1122,7 +1122,7 @@ ws.pageSetup.fitToHeight = 0;
                 <button
                   disabled={!canGenerate}
                   onClick={onGenerate}
-                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                  className="w-full rounded-2xl px-4 py-3 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:cursor-not-allowed disabled:opacity-50"
                   style={{ backgroundColor: 'var(--brand-primary)' }}
                 >
                   {busy ? 'Elaborazione in corso...' : 'Download'}
@@ -1157,7 +1157,7 @@ function OperatorPicker({
   const [value, setValue] = useState('');
 
   return (
-    <section className="rounded-[28px] border bg-white p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+    <section className="rounded-[28px] border bg-[var(--brand-surface)] p-6 shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
       <div className="space-y-5">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="space-y-1">
@@ -1178,7 +1178,7 @@ function OperatorPicker({
             </span>
             <span
               className="inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold"
-              style={{ backgroundColor: selectedOps.length ? '#ECFDF3' : '#F8FAFC', color: selectedOps.length ? '#166534' : 'var(--brand-text-muted)' }}
+              style={{ backgroundColor: selectedOps.length ? 'var(--success-soft)' : 'var(--brand-surface-muted)', color: selectedOps.length ? 'var(--success)' : 'var(--brand-text-muted)' }}
             >
               Selezionati: {selectedOps.length}
             </span>
@@ -1197,7 +1197,7 @@ function OperatorPicker({
           <div className="flex flex-wrap gap-3">
             <button
               type="button"
-              className="rounded-2xl px-4 py-3 text-sm font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-2xl px-4 py-3 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:cursor-not-allowed disabled:opacity-50"
               style={{ backgroundColor: 'var(--brand-primary)' }}
               onClick={() => { if (!disabled) { onAdd(value); setValue(''); } }}
               disabled={disabled}
@@ -1231,7 +1231,7 @@ function OperatorPicker({
                   className="rounded-2xl border p-4 transition"
                   style={{
                     borderColor: active ? 'var(--brand-primary)' : 'var(--brand-border)',
-                    backgroundColor: active ? 'var(--brand-primary-soft)' : 'white',
+                    backgroundColor: active ? 'var(--brand-primary-soft)' : 'var(--brand-surface-muted)',
                   }}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -1260,7 +1260,7 @@ function OperatorPicker({
                     <button
                       type="button"
                       className="text-xs font-semibold transition hover:opacity-80 disabled:opacity-40"
-                      style={{ color: '#B91C1C' }}
+                      style={{ color: 'var(--danger)' }}
                       onClick={() => onRemove(op)}
                       disabled={disabled}
                     >

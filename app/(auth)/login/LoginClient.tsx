@@ -79,7 +79,7 @@ export default function LoginClient() {
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 shadow-sm">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-[var(--brand-text-main)]">Accesso</h2>
           <p className="text-sm text-[var(--brand-text-muted)]">Inserisci le credenziali aziendali.</p>
@@ -104,7 +104,7 @@ export default function LoginClient() {
               onChange={(e) => setP(e.target.value)}
             />
           </div>
-          {err && <p className="text-sm text-rose-600">{err}</p>}
+          {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
           <Button type="submit" className="w-full" variant="primary" disabled={loading}>
             {loading ? 'Accesso...' : 'Entra'}
           </Button>

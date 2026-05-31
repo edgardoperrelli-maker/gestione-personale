@@ -41,15 +41,15 @@ function SignInInner() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6">
-      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 border rounded-2xl p-6">
-        <h1 className="text-xl font-semibold text-center">Accesso</h1>
+    <div className="min-h-screen flex items-center justify-center p-6 bg-[var(--brand-bg)]">
+      <form onSubmit={onSubmit} className="w-full max-w-sm space-y-4 border border-[var(--brand-border)] rounded-2xl bg-[var(--brand-surface)] p-6 shadow-sm">
+        <h1 className="text-xl font-semibold text-center text-[var(--brand-text-main)]">Accesso</h1>
 
         <label className="block text-sm">
-          <span className="text-gray-600">Nome utente</span>
+          <span className="text-[var(--brand-text-muted)]">Nome utente</span>
           <input
             type="text"
-            className="mt-1 w-full border rounded-lg px-3 py-2"
+            className="mt-1 w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
             value={username}
             onChange={(e) => setUsername(e.target.value)}
             autoComplete="username"
@@ -58,10 +58,10 @@ function SignInInner() {
         </label>
 
         <label className="block text-sm">
-          <span className="text-gray-600">Password</span>
+          <span className="text-[var(--brand-text-muted)]">Password</span>
           <input
             type="password"
-            className="mt-1 w-full border rounded-lg px-3 py-2"
+            className="mt-1 w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
@@ -69,9 +69,13 @@ function SignInInner() {
           />
         </label>
 
-        {err && <p className="text-sm text-red-600">{err}</p>}
+        {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
 
-        <button type="submit" className="w-full rounded-xl px-4 py-2 border" disabled={loading}>
+        <button
+          type="submit"
+          className="w-full rounded-xl px-4 py-2 bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] font-semibold transition hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          disabled={loading}
+        >
           {loading ? 'Accesso…' : 'Entra'}
         </button>
       </form>

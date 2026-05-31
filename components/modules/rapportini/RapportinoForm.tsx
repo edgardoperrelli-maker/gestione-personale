@@ -234,7 +234,7 @@ export default function RapportinoForm({
   return (
     <div className="space-y-5">
       {/* Header */}
-      <header className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+      <header className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
         <div className="flex items-start justify-between gap-3">
           <div>
             <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
@@ -266,7 +266,7 @@ export default function RapportinoForm({
 
       {/* Voci */}
       {voci.length === 0 ? (
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 text-center text-sm text-[var(--brand-text-muted)]">
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-center text-sm text-[var(--brand-text-muted)]">
           Nessuna voce in questo rapportino.
         </div>
       ) : (
@@ -292,7 +292,7 @@ export default function RapportinoForm({
             type="button"
             onClick={handleInvia}
             disabled={disabilitato || inviando}
-            className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-white shadow-sm transition hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[oklch(0.16_0.06_245)] shadow-sm transition hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           >
             {inviando ? 'Invio in corso…' : 'Invia rapportino'}
           </button>
@@ -338,7 +338,7 @@ function VoceCard({
   const titolo = voce.nominativo?.trim() || voce.pdr?.trim() || `Voce ${indice}`;
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
+    <section className="overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
       {/* Intestazione voce */}
       <div className="flex items-center justify-between gap-3 border-b border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
@@ -411,7 +411,7 @@ function CampoInput({
         className={`flex items-center gap-3 rounded-xl border p-3 transition ${
           checked
             ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
-            : 'border-[var(--brand-border)] bg-white'
+            : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)]'
         } ${disabilitato ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
       >
         <input
