@@ -147,7 +147,7 @@ export default function TopNav({
 
             {dropdownOpen && (
               <div
-                className="absolute left-0 top-full mt-1 w-64 max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-white py-2 shadow-lg"
+                className="absolute left-0 top-full mt-1 w-64 max-w-[calc(100vw-1.5rem)] rounded-2xl border bg-[var(--brand-surface)] py-2 shadow-lg"
                 style={{ borderColor: 'var(--brand-border)' }}
               >
                 {moduleItems.map((item) => (
@@ -159,7 +159,7 @@ export default function TopNav({
                       setDropdownOpen(false);
                     }}
                     className={`block px-4 py-2 text-sm transition hover:bg-[var(--brand-primary-soft)] ${
-                      item.active ? 'font-semibold' : ''
+                      item.active ? 'bg-[var(--brand-nav-active-bg)] font-semibold' : ''
                     }`}
                     style={{ color: item.active ? 'var(--brand-primary)' : 'var(--brand-text-main)' }}
                   >
@@ -180,7 +180,7 @@ export default function TopNav({
                       setDropdownOpen(false);
                     }}
                     className={`block px-4 py-2 text-sm transition hover:bg-[var(--brand-primary-soft)] ${
-                      item.active ? 'font-semibold' : ''
+                      item.active ? 'bg-[var(--brand-nav-active-bg)] font-semibold' : ''
                     }`}
                     style={{ color: item.active ? 'var(--brand-primary)' : 'var(--brand-text-main)' }}
                   >
@@ -195,7 +195,7 @@ export default function TopNav({
                     setDropdownOpen(false);
                   }}
                   className={`block px-4 py-2 text-sm transition hover:bg-[var(--brand-primary-soft)] ${
-                    accountItem.active ? 'font-semibold' : ''
+                    accountItem.active ? 'bg-[var(--brand-nav-active-bg)] font-semibold' : ''
                   }`}
                   style={{ color: accountItem.active ? 'var(--brand-primary)' : 'var(--brand-text-main)' }}
                 >
