@@ -102,7 +102,7 @@ export default function MicroareaMultiSelect({
           {emptyText}
         </div>
       ) : !isExpanded ? (
-        <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-4">
+        <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-4">
           {selected.length === 0 ? (
             <div className="text-sm text-[var(--brand-text-muted)]">
               Nessuna microarea selezionata. Premi <span className="font-medium text-[var(--brand-text-main)]">Espandi</span> per aprire la lista.
@@ -131,7 +131,7 @@ export default function MicroareaMultiSelect({
           )}
         </div>
       ) : (
-        <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--brand-border)] bg-white p-3">
+        <div className="max-h-56 overflow-y-auto rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
           <div className="grid gap-2 md:grid-cols-2">
             {options.map((option) => {
               const checked = selected.includes(option);
@@ -142,7 +142,7 @@ export default function MicroareaMultiSelect({
                   className={`flex items-center gap-3 rounded-lg border px-3 py-2 text-sm transition ${
                     checked
                       ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]/60 text-[var(--brand-text-main)]'
-                      : 'border-[var(--brand-border)] bg-white text-[var(--brand-text-main)]'
+                      : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)]'
                   } ${disabled ? 'cursor-not-allowed opacity-60' : 'cursor-pointer hover:bg-[var(--brand-bg)]/50'}`}
                 >
                   <input
@@ -150,7 +150,7 @@ export default function MicroareaMultiSelect({
                     checked={checked}
                     onChange={() => toggleValue(option)}
                     disabled={disabled}
-                    className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                    className="h-4 w-4 rounded border-[var(--brand-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                   />
                   <span className="truncate">{option}</span>
                 </label>

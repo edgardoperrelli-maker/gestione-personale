@@ -56,10 +56,10 @@ type Props = {
 
 function MappaLoading() {
   return (
-    <div className="flex h-[600px] items-center justify-center rounded-lg border border-[var(--border-subtle)] bg-gray-50">
+    <div className="flex h-[600px] items-center justify-center rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]">
       <div className="text-center">
-        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-gray-300 border-t-[var(--brand-primary)]" />
-        <p className="mt-4 text-sm text-[var(--text-secondary)]">Caricamento mappa...</p>
+        <div className="mx-auto h-12 w-12 animate-spin rounded-full border-4 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
+        <p className="mt-4 text-sm text-[var(--brand-text-muted)]">Caricamento mappa...</p>
       </div>
     </div>
   );
@@ -278,12 +278,12 @@ export default function RisanamentoClient({
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
-          <div className="text-sm text-[var(--text-secondary)]">Territorio</div>
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <div className="text-sm text-[var(--brand-text-muted)]">Territorio</div>
           <select
             value={territorioSelezionato}
             onChange={(event) => setTerritorioSelezionato(event.target.value)}
-            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none"
+            className="mt-2 w-full rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-medium text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
           >
             <option value="">Seleziona un territorio</option>
             {territories.map((territory) => (
@@ -292,11 +292,11 @@ export default function RisanamentoClient({
               </option>
             ))}
           </select>
-          <div className="mt-3 text-sm text-[var(--text-secondary)]">Tipologia lavoro</div>
+          <div className="mt-3 text-sm text-[var(--brand-text-muted)]">Tipologia lavoro</div>
           <select
             value={attivitaSelezionata}
             onChange={(event) => setAttivitaSelezionata(event.target.value)}
-            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none"
+            className="mt-2 w-full rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-medium text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
           >
             <option value="">Seleziona una tipologia</option>
             {activities.map((activity) => (
@@ -305,12 +305,12 @@ export default function RisanamentoClient({
               </option>
               ))}
             </select>
-          <div className="mt-3 text-sm text-[var(--text-secondary)]">Comune</div>
+          <div className="mt-3 text-sm text-[var(--brand-text-muted)]">Comune</div>
           <select
             value={comuneSelezionato}
             onChange={(event) => setComuneSelezionato(event.target.value)}
             disabled={statsPerTerritorioAttivita.length === 0}
-            className="mt-2 w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm font-medium text-[var(--text-primary)] focus:border-[var(--brand-primary)] focus:outline-none disabled:cursor-not-allowed disabled:bg-gray-50"
+            className="mt-2 w-full rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-medium text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none disabled:cursor-not-allowed disabled:bg-[var(--brand-surface-muted)]"
           >
             <option value="">Seleziona un comune</option>
             {comuneOptions.map((comune) => (
@@ -320,43 +320,43 @@ export default function RisanamentoClient({
             ))}
           </select>
         </div>
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
-          <div className="text-sm text-[var(--text-secondary)]">Civici Totali</div>
-          <div className="mt-1 text-2xl font-semibold text-[var(--text-primary)]">
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <div className="text-sm text-[var(--brand-text-muted)]">Civici Totali</div>
+          <div className="mt-1 text-2xl font-semibold text-[var(--brand-text-main)]">
             {totCivici.toLocaleString('it-IT')}
           </div>
         </div>
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
-          <div className="text-sm text-[var(--text-secondary)]">Visitati</div>
-          <div className="mt-1 text-2xl font-semibold text-green-600">
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <div className="text-sm text-[var(--brand-text-muted)]">Visitati</div>
+          <div className="mt-1 text-2xl font-semibold text-[var(--success)]">
             {totVisitati.toLocaleString('it-IT')}
           </div>
         </div>
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
-          <div className="text-sm text-[var(--text-secondary)]">Idonei</div>
-          <div className="mt-1 text-2xl font-semibold text-blue-600">
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+          <div className="text-sm text-[var(--brand-text-muted)]">Idonei</div>
+          <div className="mt-1 text-2xl font-semibold text-[var(--info)]">
             {totIdonei.toLocaleString('it-IT')}
           </div>
         </div>
       </div>
 
       {(!territorioSelezionato || !attivitaSelezionata || !comuneSelezionato) && (
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-sm text-[var(--brand-text-muted)]">
           Seleziona territorio, tipologia lavoro e comune per caricare microaree, PDF e registrazione manuale collegati agli import effettuati.
         </div>
       )}
 
       {territorioSelezionato && attivitaSelezionata && comuneSelezionato && activeTab === 'pianificazione' && (
         <>
-          <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
             <div className="min-w-[200px] flex-1">
-              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+              <label className="mb-1 block text-sm font-medium text-[var(--brand-text-muted)]">
                 Stato microarea
               </label>
               <select
                 value={filtroStato}
                 onChange={(event) => setFiltroStato(event.target.value as typeof filtroStato)}
-                className="w-full rounded-md border border-[var(--border-subtle)] px-3 py-2 text-sm focus:border-[var(--brand-primary)] focus:outline-none"
+                className="w-full rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
               >
                 <option value="tutti">Tutte le microaree</option>
                 <option value="da_visitare">Da visitare</option>
@@ -377,7 +377,7 @@ export default function RisanamentoClient({
             </div>
           </div>
 
-          <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-4">
+          <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
             <MicroareaMultiSelect
               label="Microaree selezionate"
               options={microareaOptions}
@@ -395,7 +395,7 @@ export default function RisanamentoClient({
               microareeSelezionate={microareeSelezionate}
             />
           ) : (
-            <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6 text-sm text-[var(--text-secondary)]">
+            <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-sm text-[var(--brand-text-muted)]">
               Nessuna microarea disponibile per territorio, tipologia lavoro e comune selezionati.
             </div>
           )}
@@ -404,12 +404,12 @@ export default function RisanamentoClient({
             <div className="rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] p-4">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div>
-                  <h3 className="font-medium text-[var(--text-primary)]">
+                  <h3 className="font-medium text-[var(--brand-text-main)]">
                     {selectionCount === 1
                       ? microareeSelezionate[0]
                       : `${selectionCount} microaree selezionate`}
                   </h3>
-                  <p className="mt-1 text-sm text-[var(--text-secondary)]">
+                  <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
                     {territoryName ?? 'Territorio selezionato'} - {activityName ?? 'Tipologia selezionata'} - {comuneSelezionato} - {selectionCivici.toLocaleString('it-IT')} civici - {selectionVisitati} visitati - {selectionIdonei} idonei
                   </p>
                   {pdfMicroareeSelezionate.length > 0 && (

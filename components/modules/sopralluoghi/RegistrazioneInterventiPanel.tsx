@@ -343,7 +343,7 @@ export default function RegistrazioneInterventiPanel({
           )}
 
           {pdfDisponibili.length > 0 && (
-            <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3 text-sm">
+            <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 text-sm">
               <div className="font-medium text-[var(--brand-text-main)]">PDF disponibili per consultazione</div>
               <div className="mt-2 flex flex-wrap gap-3">
                 {pdfDisponibili.slice(0, 3).map((pdf) => (
@@ -376,8 +376,8 @@ export default function RegistrazioneInterventiPanel({
             <div
               className={`rounded-xl border px-4 py-3 text-sm ${
                 message.type === 'success'
-                  ? 'border-green-200 bg-green-50 text-green-800'
-                  : 'border-red-200 bg-red-50 text-red-800'
+                  ? 'border-[var(--success-soft)] bg-[var(--success-soft)] text-[var(--success)]'
+                  : 'border-[var(--danger-soft)] bg-[var(--danger-soft)] text-[var(--danger)]'
               }`}
             >
               {message.text}
@@ -386,19 +386,19 @@ export default function RegistrazioneInterventiPanel({
 
           {microareeSelezionate.length > 0 && (
             <div className="grid gap-4 md:grid-cols-4">
-              <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3">
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3">
                 <div className="text-xs text-[var(--brand-text-muted)]">Civici caricati</div>
                 <div className="mt-1 text-2xl font-semibold text-[var(--brand-text-main)]">{civici.length}</div>
               </div>
-              <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3">
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3">
                 <div className="text-xs text-[var(--brand-text-muted)]">Visitati</div>
-                <div className="mt-1 text-2xl font-semibold text-blue-600">{visitatiCount}</div>
+                <div className="mt-1 text-2xl font-semibold text-[var(--info)]">{visitatiCount}</div>
               </div>
-              <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3">
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3">
                 <div className="text-xs text-[var(--brand-text-muted)]">Idonei</div>
-                <div className="mt-1 text-2xl font-semibold text-green-600">{idoneiCount}</div>
+                <div className="mt-1 text-2xl font-semibold text-[var(--success)]">{idoneiCount}</div>
               </div>
-              <div className="rounded-xl border border-[var(--brand-border)] bg-white px-4 py-3">
+              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3">
                 <div className="text-xs text-[var(--brand-text-muted)]">PG</div>
                 <div className="mt-1 text-2xl font-semibold text-[var(--brand-primary)]">{puntiGasTotali}</div>
               </div>
@@ -427,7 +427,7 @@ export default function RegistrazioneInterventiPanel({
                       <th className="px-4 py-3 text-left font-medium text-[var(--brand-text-muted)]">Note</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--brand-border)] bg-white">
+                  <tbody className="divide-y divide-[var(--brand-border)] bg-[var(--brand-surface)]">
                     {civici.map((civico, index) => {
                       const draft = drafts.get(civico.id);
 
@@ -442,7 +442,7 @@ export default function RegistrazioneInterventiPanel({
                               type="checkbox"
                               checked={draft?.visitato ?? false}
                               onChange={() => handleToggle(civico.id, 'visitato')}
-                              className="h-4 w-4 rounded border-gray-300 text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
+                              className="h-4 w-4 rounded border-[var(--brand-border)] text-[var(--brand-primary)] focus:ring-[var(--brand-primary)]"
                             />
                           </td>
                           <td className="px-4 py-3 text-center">
@@ -451,7 +451,7 @@ export default function RegistrazioneInterventiPanel({
                               checked={draft?.idoneo ?? false}
                               onChange={() => handleToggle(civico.id, 'idoneo')}
                               disabled={!draft?.visitato}
-                              className="h-4 w-4 rounded border-gray-300 text-green-600 focus:ring-green-500 disabled:opacity-30"
+                              className="h-4 w-4 rounded border-[var(--brand-border)] text-[var(--success)] focus:ring-[var(--success)] disabled:opacity-30"
                             />
                           </td>
                           <td className="px-4 py-3">
@@ -463,7 +463,7 @@ export default function RegistrazioneInterventiPanel({
                               onChange={(event) => handlePuntiGasChange(civico.id, event.target.value)}
                               placeholder="0"
                               disabled={!draft?.visitato || !draft?.idoneo}
-                              className="mx-auto w-24 text-center disabled:bg-gray-50"
+                              className="mx-auto w-24 text-center disabled:bg-[var(--brand-surface-muted)]"
                             />
                           </td>
                           <td className="px-4 py-3">

@@ -172,10 +172,10 @@ export default function MappaRisanamento({
     <div className="relative">
       <div
         ref={containerRef}
-        className="h-[600px] w-full rounded-lg border border-[var(--border-subtle)]"
+        className="h-[600px] w-full rounded-lg border border-[var(--brand-border)]"
       />
-      <div className="absolute bottom-6 right-3 z-[1000] rounded-lg border border-[var(--border-subtle)] bg-white p-3 text-xs shadow-md">
-        <div className="mb-1 font-medium text-[var(--text-primary)]">Avanzamento</div>
+      <div className="absolute bottom-6 right-3 z-[1000] rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-xs shadow-md">
+        <div className="mb-1 font-medium text-[var(--brand-text-main)]">Avanzamento</div>
         <div className="mb-1 flex items-center gap-2">
           <span className="inline-block h-3 w-4 rounded-sm bg-[#3b82f6] opacity-60" />
           Da visitare

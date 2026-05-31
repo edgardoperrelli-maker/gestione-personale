@@ -89,10 +89,10 @@ function ModuleCard(props: {
         {props.icon}
       </div>
 
-      <h3 className="text-lg font-medium text-[var(--text-primary)] transition-colors group-hover:text-[var(--brand-primary)]">
+      <h3 className="text-lg font-medium text-[var(--brand-text-main)] transition-colors group-hover:text-[var(--brand-primary)]">
         {props.title}
       </h3>
-      <p className="mt-2 text-sm text-[var(--text-secondary)]">{props.description}</p>
+      <p className="mt-2 text-sm text-[var(--brand-text-muted)]">{props.description}</p>
 
       <div className="mt-4 flex items-center text-sm font-medium text-[var(--brand-primary)]">
         {props.disabled ? 'Disponibile per admin' : 'Apri modulo'}
@@ -105,7 +105,7 @@ function ModuleCard(props: {
     </>
   );
 
-  const className = `group relative overflow-hidden rounded-lg border border-[var(--border-subtle)] bg-white p-6 transition-all hover:border-[var(--brand-primary)] hover:shadow-lg ${
+  const className = `group relative overflow-hidden rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 transition-all hover:border-[var(--brand-primary)] hover:shadow-lg ${
     props.disabled ? 'cursor-default opacity-75' : ''
   }`;
 
@@ -309,11 +309,11 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
 
   return (
     <div className="space-y-6">
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6">
-        <h2 className="text-lg font-medium text-[var(--text-primary)]">
+      <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+        <h2 className="text-lg font-medium text-[var(--brand-text-main)]">
           Moduli sopralluogo
         </h2>
-        <p className="mt-2 text-sm text-[var(--text-secondary)]">
+        <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
           La pianificazione e la registrazione manuale degli interventi confluiscono ora nel modulo Risanamento Colonne Montanti.
         </p>
       </div>
@@ -322,7 +322,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         <ModuleCard
           href="/hub/sopralluoghi/risanamento"
           badge="Attivo"
-          badgeClassName="bg-green-100 text-green-700"
+          badgeClassName="bg-[var(--success-soft)] text-[var(--success)]"
           title="Risanamento Colonne Montanti"
           description="Mappa, generazione PDF, statistiche e registrazione manuale degli interventi nello stesso flusso."
           icon={(
@@ -336,7 +336,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         <ModuleCard
           href={canManage ? '/hub/sopralluoghi/risanamento?tab=registrazione' : undefined}
           badge={canManage ? 'Interno' : 'Admin'}
-          badgeClassName={canManage ? 'bg-blue-100 text-blue-700' : 'bg-amber-100 text-amber-700'}
+          badgeClassName={canManage ? 'bg-[var(--info-soft)] text-[var(--info)]' : 'bg-[var(--warning-soft)] text-[var(--warning)]'}
           title="Registrazione Interventi"
           description="Accesso diretto alla registrazione manuale, ora integrata nel modulo Risanamento senza percorso separato."
           disabled={!canManage}
@@ -350,17 +350,17 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         />
       </div>
 
-      <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6">
+      <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
         <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
           <div className="space-y-2">
-            <h3 className="text-base font-medium text-[var(--text-primary)]">
+            <h3 className="text-base font-medium text-[var(--brand-text-main)]">
               Importa indirizzi per territorio
             </h3>
-            <p className="text-sm text-[var(--text-secondary)]">
+            <p className="text-sm text-[var(--brand-text-muted)]">
               Gli indirizzi importati restano memorizzati sul territorio, sulla tipologia lavoro e sul comune selezionati, e vengono riutilizzati in pianificazione e registrazione interventi.
             </p>
             {!canManage && (
-              <p className="text-sm text-amber-700">
+              <p className="text-sm text-[var(--warning)]">
                 Import e registrazione sono disponibili solo per utenze admin.
               </p>
             )}
@@ -368,7 +368,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
 
           <div className="w-full max-w-md space-y-3">
             <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+              <label className="mb-1 block text-sm font-medium text-[var(--brand-text-muted)]">
                 Territorio di riferimento
               </label>
               <select
@@ -379,7 +379,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                   setErrorMsg(null);
                 }}
                 disabled={!canManage || uploading}
-                className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[var(--brand-surface-muted)]"
               >
                 <option value="">Seleziona un territorio</option>
                 {territories.map((territory) => (
@@ -391,7 +391,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+              <label className="mb-1 block text-sm font-medium text-[var(--brand-text-muted)]">
                 Tipologia di lavoro
               </label>
               <select
@@ -402,7 +402,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                   setErrorMsg(null);
                 }}
                 disabled={!canManage || uploading}
-                className="w-full rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-gray-50"
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:bg-[var(--brand-surface-muted)]"
               >
                 <option value="">Seleziona una tipologia</option>
                 {activities.map((activity) => (
@@ -414,7 +414,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
             </div>
 
             <div>
-              <label className="mb-1 block text-sm font-medium text-[var(--text-secondary)]">
+              <label className="mb-1 block text-sm font-medium text-[var(--brand-text-muted)]">
                 Comune di riferimento
               </label>
               <Input
@@ -452,12 +452,12 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         </div>
 
         {result && (
-          <div className="mt-4 rounded-md border border-green-200 bg-green-50 p-4 text-sm text-green-800">
+          <div className="mt-4 rounded-md border border-[var(--success-soft)] bg-[var(--success-soft)] p-4 text-sm text-[var(--success)]">
             <div className="font-medium">
               Import completato per {result.territorio_nome} - {result.activity_name} - {result.comune}
             </div>
             {result.sorgente && (
-              <div className="mt-1 text-xs text-green-700">
+              <div className="mt-1 text-xs text-[var(--success)]">
                 Foglio letto: {result.sorgente}
               </div>
             )}
@@ -466,16 +466,16 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
               <div><span className="font-semibold">{result.inseriti.toLocaleString('it-IT')}</span> righe salvate</div>
               <div><span className="font-semibold">{result.microaree}</span> microaree</div>
               {result.errori > 0 && (
-                <div className="text-amber-700"><span className="font-semibold">{result.errori}</span> errori</div>
+                <div className="text-[var(--warning)]"><span className="font-semibold">{result.errori}</span> errori</div>
               )}
             </div>
             {typeof result.duplicati_scartati === 'number' && result.duplicati_scartati > 0 && (
-              <div className="mt-2 text-amber-800">
+              <div className="mt-2 text-[var(--warning)]">
                 <span className="font-semibold">{result.duplicati_scartati.toLocaleString('it-IT')}</span> duplicati interni scartati
               </div>
             )}
             {result.warning && (
-              <div className="mt-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-amber-800">
+              <div className="mt-3 rounded-md border border-[var(--warning-soft)] bg-[var(--warning-soft)] px-3 py-2 text-[var(--warning)]">
                 {result.warning}
               </div>
             )}
@@ -483,23 +483,23 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
         )}
 
         {errorMsg && (
-          <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+          <div className="mt-4 rounded-md border border-[var(--danger-soft)] bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)]">
             {errorMsg}
           </div>
         )}
       </div>
 
       {canManage && (
-        <div className="rounded-lg border border-[var(--border-subtle)] bg-white p-6">
+        <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
             <div className="space-y-2">
-              <h3 className="text-base font-medium text-[var(--text-primary)]">
+              <h3 className="text-base font-medium text-[var(--brand-text-main)]">
                 Mappe caricate
               </h3>
-              <p className="text-sm text-[var(--text-secondary)]">
+              <p className="text-sm text-[var(--brand-text-muted)]">
                 Ogni riga rappresenta un dataset attualmente caricato nel modulo, raggruppato per territorio, tipologia lavoro e comune.
               </p>
-              <p className="text-xs text-[var(--text-secondary)]">
+              <p className="text-xs text-[var(--brand-text-muted)]">
                 La cancellazione rimuove anche registrazioni manuali e PDF/Excel generati collegati a quello scope.
               </p>
             </div>
@@ -515,7 +515,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
           </div>
 
           {datasetsError && (
-            <div className="mt-4 rounded-md border border-red-200 bg-red-50 p-4 text-sm text-red-800">
+            <div className="mt-4 rounded-md border border-[var(--danger-soft)] bg-[var(--danger-soft)] p-4 text-sm text-[var(--danger)]">
               {datasetsError}
             </div>
           )}
@@ -544,7 +544,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                       <th className="px-4 py-3 text-right font-medium text-[var(--brand-text-muted)]">Azioni</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-[var(--brand-border)] bg-white">
+                  <tbody className="divide-y divide-[var(--brand-border)] bg-[var(--brand-surface)]">
                     {datasets.map((dataset) => {
                       const datasetKey = buildDatasetKey(dataset);
                       const deleting = deletingDatasetKey === datasetKey;
@@ -588,7 +588,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                                 <Button
                                   variant="outline"
                                   size="sm"
-                                  className="border-red-200 text-red-700 hover:bg-red-50"
+                                  className="border-[var(--danger-soft)] text-[var(--danger)] hover:bg-[var(--danger-soft)]"
                                   disabled={deleting || editing}
                                   onClick={() => void handleDeleteDataset(dataset)}
                                 >
@@ -598,18 +598,18 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                             </td>
                           </tr>
                           {editing && (
-                            <tr className="bg-blue-50">
+                            <tr className="bg-[var(--info-soft)]">
                               <td colSpan={8} className="px-4 py-4">
                                 <div className="flex flex-wrap items-end gap-3">
                                   <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">
+                                    <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
                                       Nuova tipologia
                                     </label>
                                     <select
                                       value={editActivityId}
                                       onChange={(e) => setEditActivityId(e.target.value)}
                                       disabled={saving}
-                                      className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                                      className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
                                     >
                                       <option value="">Seleziona</option>
                                       {activities.map((a) => (
@@ -618,7 +618,7 @@ export default function SopralluoghiHomeClient({ territories, activities, canMan
                                     </select>
                                   </div>
                                   <div>
-                                    <label className="mb-1 block text-xs font-medium text-[var(--text-secondary)]">
+                                    <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
                                       Nuovo comune
                                     </label>
                                     <Input
