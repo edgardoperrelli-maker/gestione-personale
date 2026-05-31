@@ -31,14 +31,6 @@ const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
       </svg>
     ),
   },
-  smartracker: {
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M4 12a8 8 0 1 0 16 0" />
-        <path d="M12 4v8l4 2" />
-      </svg>
-    ),
-  },
   rapportini: {
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">

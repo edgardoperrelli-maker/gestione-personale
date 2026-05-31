@@ -1,5 +1,1 @@
-{
-  "crons": [
-    { "path": "/api/attrezzature/scadenze", "schedule": "0 6 * * *" }
-  ]
-}
+{}
