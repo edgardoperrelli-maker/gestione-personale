@@ -14,7 +14,7 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-[var(--brand-primary)] text-white hover:bg-[var(--brand-primary-hover)]',
+  primary: 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] shadow-[0_0_16px_oklch(0.80_0.16_215/0.45)] hover:bg-[var(--brand-primary-hover)] hover:shadow-[0_0_22px_oklch(0.80_0.16_215/0.6)]',
   outline: 'border border-[var(--brand-border)] bg-white hover:bg-[var(--brand-nav-active-bg)]',
   ghost: 'hover:bg-[var(--brand-nav-active-bg)]',
   soft: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)] hover:bg-[var(--brand-primary-border)]',

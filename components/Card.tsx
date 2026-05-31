@@ -10,7 +10,7 @@ type CardProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Card({ className = '', interactive = false, animated = true, ...props }: CardProps) {
-  const classes = `rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm ${className}`;
+  const classes = `rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm transition hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)] ${className}`;
 
   if (!animated) {
     return <div className={classes} {...props} />;

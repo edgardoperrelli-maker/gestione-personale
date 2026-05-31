@@ -132,29 +132,41 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 
 ### CSS Variables (da globals.css)
 ```css
---brand-primary:       #921B1B   /* rosso Plenzich */
---brand-primary-hover: #741515
---brand-primary-soft:  #F8ECEC
---brand-bg:            #F6F2F2
---brand-surface:       #ffffff
---brand-border:        #E5D8D8
---brand-text-main:     #1A0A0A
---brand-text-muted:    #7A6060
---brand-nav-active-bg: #F3E8E8
+--brand-primary:        oklch(0.80 0.16 215)   /* cyan Aurea */
+--brand-primary-hover:  oklch(0.74 0.18 215)
+--brand-primary-soft:   oklch(0.20 0.05 215)
+--brand-primary-border: oklch(0.45 0.12 215)
+--brand-bg:             oklch(0.14 0.04 245)   /* navy dark */
+--brand-surface:        oklch(0.18 0.05 245)
+--brand-border:         oklch(0.30 0.03 245)
+--brand-text-main:      oklch(0.94 0.015 220)
+--brand-text-muted:     oklch(0.65 0.03 230)
+--brand-nav-active-bg:  oklch(0.22 0.06 215)
 
---sidebar-bg-from:     #1A0808   /* sidebar scura */
---sidebar-bg-to:       #2C1010
---sidebar-text:        #e8dada
---sidebar-muted:       #b89898
+/* neon accents */
+--brand-magenta:        oklch(0.72 0.22 330)
+--brand-green:          oklch(0.78 0.18 155)
+--brand-violet:         oklch(0.68 0.20 285)
+--brand-gold:           oklch(0.82 0.16 85)
+
+/* sidebar */
+--sidebar-bg-from:      oklch(0.12 0.04 245)   /* sidebar navy */
+--sidebar-bg-to:        oklch(0.16 0.05 245)
+--sidebar-text:         oklch(0.92 0.02 220)
+--sidebar-muted:        oklch(0.60 0.03 230)
+--sidebar-border:       oklch(0.25 0.03 245)
+
+/* shadow */
+--shadow-hover:         0 0 20px oklch(0.80 0.16 215 / 0.35)
 ```
 
 ### Font
-- **Inter** (400, 500, 600, 700) — body e UI
-- Caricato via Google Fonts in globals.css
+- **Geist** (variabile `--font-geist`) — body e UI
+- Caricato via `next/font/google` in layout.tsx
 
 ### Pattern card standard
 ```tsx
-<div className="rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
+<div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
   <div className="text-xl font-semibold">Titolo</div>
   <div className="text-sm text-[var(--brand-text-muted)]">Sottotitolo</div>
 </div>
@@ -170,15 +182,15 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 
 ### Bottone primario
 ```tsx
-<button className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)]">
+<button className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] shadow-[0_0_16px_oklch(0.80_0.16_215/0.45)] hover:bg-[var(--brand-primary-hover)]">
   Azione
 </button>
 ```
 
 ### Select / Input
 ```tsx
-<select className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1.5 text-sm">
-<input className="rounded-lg border border-[var(--brand-border)] bg-white px-3 py-2 text-sm w-full" />
+<select className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-sm">
+<input className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm w-full" />
 ```
 
 ---
