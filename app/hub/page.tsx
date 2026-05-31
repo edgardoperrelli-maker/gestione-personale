@@ -50,7 +50,7 @@ const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
   },
   mappa: {
     badge: 'Nuovo',
-    badgeStyle: 'bg-green-100 text-green-700',
+    badgeStyle: 'bg-[var(--success-soft)] text-[var(--success)]',
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
@@ -60,7 +60,7 @@ const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
   },
   sopralluoghi: {
     badge: 'Nuovo',
-    badgeStyle: 'bg-blue-100 text-blue-700',
+    badgeStyle: 'bg-[var(--info-soft)] text-[var(--info)]',
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
@@ -72,7 +72,7 @@ const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
   },
   impostazioni: {
     badge: 'Admin',
-    badgeStyle: 'bg-amber-100 text-amber-700',
+    badgeStyle: 'bg-[var(--warning-soft)] text-[var(--warning)]',
     icon: (
       <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
         <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />
@@ -99,29 +99,29 @@ export default async function HubPage() {
   const cardThemes = [
     {
       card: 'bg-[var(--kpi-rosso-bg)] text-[var(--kpi-rosso-text)]',
-      icon: 'bg-white/70 text-[var(--kpi-rosso-icon)]',
-      badge: 'bg-white/75 text-[var(--kpi-rosso-text)]',
+      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-rosso-icon)]',
+      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-rosso-text)]',
       link: 'text-[var(--kpi-rosso-text)]',
       border: 'border-[var(--brand-primary-border)]',
     },
     {
       card: 'bg-[var(--kpi-giallo-bg)] text-[var(--kpi-giallo-text)]',
-      icon: 'bg-white/70 text-[var(--kpi-giallo-icon)]',
-      badge: 'bg-white/75 text-[var(--kpi-giallo-text)]',
+      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-giallo-icon)]',
+      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-giallo-text)]',
       link: 'text-[var(--kpi-giallo-text)]',
       border: 'border-[var(--brand-primary-border)]',
     },
     {
       card: 'bg-[var(--kpi-terracotta-bg)] text-[var(--kpi-terracotta-text)]',
-      icon: 'bg-white/70 text-[var(--kpi-terracotta-icon)]',
-      badge: 'bg-white/75 text-[var(--kpi-terracotta-text)]',
+      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-terracotta-icon)]',
+      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-terracotta-text)]',
       link: 'text-[var(--kpi-terracotta-text)]',
       border: 'border-[var(--brand-primary-border)]',
     },
     {
       card: 'bg-[var(--kpi-grafite-bg)] text-[var(--kpi-grafite-text)]',
-      icon: 'bg-white/70 text-[var(--kpi-grafite-icon)]',
-      badge: 'bg-white/75 text-[var(--kpi-grafite-text)]',
+      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-grafite-icon)]',
+      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-grafite-text)]',
       link: 'text-[var(--kpi-grafite-text)]',
       border: 'border-[var(--brand-border-strong)]',
     },

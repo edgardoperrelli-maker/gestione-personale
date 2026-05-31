@@ -375,7 +375,7 @@ export default function UtenzeClient() {
               type="button"
               onClick={handleCreate}
               disabled={creating}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+              className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
               style={{ backgroundColor: 'var(--brand-primary)' }}
             >
               {creating ? 'Creazione...' : 'Crea utenza'}
@@ -590,7 +590,7 @@ export default function UtenzeClient() {
                       type="button"
                       onClick={() => void handleSave(user)}
                       disabled={saving === user.userId}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-60"
+                      className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
                       style={{ backgroundColor: 'var(--brand-primary)' }}
                     >
                       {saving === user.userId ? 'Salvo...' : 'Salva modifiche'}

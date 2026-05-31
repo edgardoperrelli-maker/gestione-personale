@@ -218,12 +218,12 @@ if (ins.error || !ins.data) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-black/30"
+        className="absolute inset-0 bg-[oklch(0_0_0/0.6)]"
         onClick={() => { if (!saving) onClose(); }}
       />
-      <div className="relative w-full max-w-lg rounded-2xl border bg-white shadow-xl">
-        <div className="px-4 py-3 border-b flex items-center justify-between">
-          <div className="text-sm text-gray-500">Nuova assegnazione</div>
+      <div className="relative w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl">
+        <div className="px-4 py-3 border-b border-[var(--brand-border)] flex items-center justify-between">
+          <div className="text-sm text-[var(--brand-text-muted)]">Nuova assegnazione</div>
           <div className="text-base font-semibold">{iso}</div>
         </div>
 
@@ -233,9 +233,9 @@ if (ins.error || !ins.data) {
         >
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 <label className="text-sm">
-  <span className="block text-gray-600 mb-1">Operatore *</span>
+  <span className="block text-[var(--brand-text-muted)] mb-1">Operatore *</span>
   <select
-    className="w-full border rounded-lg px-3 py-2 bg-white"
+    className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
     value={staffId}
     onChange={(e)=>setStaffId(e.target.value)}
     disabled={saving}
@@ -249,9 +249,9 @@ if (ins.error || !ins.data) {
 </label>
 
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Attività</span>
+              <span className="block text-[var(--brand-text-muted)] mb-1">Attività</span>
               <select
-                className="w-full border rounded-lg px-3 py-2 bg-white"
+                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                 value={activityId}
                 onChange={(e)=>setActivityId(e.target.value)}
                 disabled={saving}
@@ -263,9 +263,9 @@ if (ins.error || !ins.data) {
               </select>
             </label>
 <label className="text-sm">
-  <span className="block text-gray-600 mb-1">Centro di costo *</span>
+  <span className="block text-[var(--brand-text-muted)] mb-1">Centro di costo *</span>
   <select
-    className="w-full border rounded-lg px-3 py-2 bg-white"
+    className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
     value={costCenter}
     onChange={(e)=>setCostCenter(e.target.value as CostCenter)}
     disabled={saving}
@@ -279,9 +279,9 @@ if (ins.error || !ins.data) {
 </label>
 
             <label className="text-sm">
-              <span className="block text-gray-600 mb-1">Territorio</span>
+              <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
               <select
-                className="w-full border rounded-lg px-3 py-2 bg-white"
+                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                 value={territoryId}
                 onChange={(e)=>setTerritoryId(e.target.value)}
                 disabled={saving}
@@ -306,9 +306,9 @@ if (ins.error || !ins.data) {
           </div>
 
           <label className="text-sm block">
-            <span className="block text-gray-600 mb-1">Note</span>
+            <span className="block text-[var(--brand-text-muted)] mb-1">Note</span>
             <input
-              className="w-full border rounded-lg px-3 py-2 bg-white"
+              className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)]"
               value={notes}
               onChange={(e)=>setNotes(e.target.value)}
               placeholder="Opzionale"
@@ -316,10 +316,10 @@ if (ins.error || !ins.data) {
             />
           </label>
 
-          {err && <div className="text-sm text-red-600">{err}</div>}
+          {err && <div className="text-sm text-[var(--danger)]">{err}</div>}
 
 {/* --- NUOVO: più giorni (da/a) --- */}
-<div className="mt-2 rounded-lg border p-3 bg-white space-y-2">
+<div className="mt-2 rounded-lg border border-[var(--brand-border)] p-3 bg-[var(--brand-surface-muted)] space-y-2">
   <label className="flex items-center gap-2 text-sm">
     <input type="checkbox" checked={useRange} onChange={e=>setUseRange(e.target.checked)} />
     <span>Inserisci su più giorni (da / a)</span>
@@ -327,20 +327,20 @@ if (ins.error || !ins.data) {
 
   <div className="grid grid-cols-2 gap-3">
     <label className="text-sm">
-      <span className="block text-gray-600 mb-1">Dal</span>
+      <span className="block text-[var(--brand-text-muted)] mb-1">Dal</span>
       <input
         type="date"
-        className="w-full border rounded-lg px-3 py-2 bg-white"
+        className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
         value={fromIso}
         onChange={e=>setFromIso(e.target.value)}
         disabled={!useRange}
       />
     </label>
     <label className="text-sm">
-      <span className="block text-gray-600 mb-1">Al</span>
+      <span className="block text-[var(--brand-text-muted)] mb-1">Al</span>
       <input
         type="date"
-        className="w-full border rounded-lg px-3 py-2 bg-white"
+        className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
         value={toIso}
         onChange={e=>setToIso(e.target.value)}
         disabled={!useRange}
@@ -349,12 +349,12 @@ if (ins.error || !ins.data) {
   </div>
 </div>
 
-<div className="px-0 pt-3 border-t flex items-center justify-end gap-2">
+<div className="px-0 pt-3 border-t border-[var(--brand-border)] flex items-center justify-end gap-2">
 
             <button
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg border bg-white hover:bg-gray-50"
+              className="px-3 py-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]"
               disabled={saving}
             >
               Annulla
@@ -362,7 +362,7 @@ if (ins.error || !ins.data) {
             <button
               type="submit"
               disabled={!canSave}
-              className={`px-4 py-1.5 rounded-lg text-white ${canSave ? 'bg-gray-900 hover:bg-black' : 'bg-gray-400 cursor-not-allowed'}`}
+              className={`px-4 py-1.5 rounded-lg text-[oklch(0.16_0.06_245)] ${canSave ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
             >
               {saving ? 'Salvo…' : 'Salva'}
             </button>

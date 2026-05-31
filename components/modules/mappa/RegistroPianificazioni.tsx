@@ -161,7 +161,7 @@ export default function RegistroPianificazioni() {
         <h2 className="text-base font-semibold">Registro pianificazioni</h2>
         <Link
           href="/hub/mappa?vista=pianifica"
-          className="rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-semibold text-white hover:opacity-90"
+          className="rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:opacity-90"
         >
           + Nuova pianificazione
         </Link>
@@ -475,7 +475,7 @@ function RapportiniModal({
             <button
               onClick={handleGenera}
               disabled={generating || !templateId}
-              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:opacity-90 disabled:opacity-50"
             >
               {generating ? 'Genero...' : stato.length > 0 ? 'Rigenera' : 'Genera'}
             </button>

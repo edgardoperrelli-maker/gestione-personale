@@ -26,8 +26,8 @@ export default function Tabs({ value, onValueChange, items, className = '' }: Ta
             onClick={() => onValueChange(item.value)}
             className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
               active
-                ? 'bg-[var(--brand-primary)] text-white shadow-sm'
-                : 'text-[var(--brand-text-muted)] hover:bg-white hover:text-[var(--brand-text-main)]'
+                ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] shadow-sm'
+                : 'text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]'
             }`}
           >
             {item.label}

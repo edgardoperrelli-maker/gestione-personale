@@ -143,19 +143,19 @@ export default function InsertReperibileDialog({
   // UI
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" onClick={() => !saving && onClose()} />
+      <div className="absolute inset-0 bg-[oklch(0_0_0/0.6)]" onClick={() => !saving && onClose()} />
       <div className="absolute inset-x-0 top-10 mx-auto w-[95%] max-w-xl">
-        <div className="bg-white rounded-2xl shadow-xl">
-          <div className="px-4 py-3 border-b">
+        <div className="bg-[var(--brand-surface)] rounded-2xl shadow-xl border border-[var(--brand-border)]">
+          <div className="px-4 py-3 border-b border-[var(--brand-border)]">
             <h2 className="text-lg font-semibold">Inserisci Reperibile</h2>
           </div>
 
           <div className="p-4 space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm">
-                <span className="block text-gray-600 mb-1">Operatore *</span>
+                <span className="block text-[var(--brand-text-muted)] mb-1">Operatore *</span>
                 <select
-                  className="w-full border rounded-lg px-3 py-2 bg-white"
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                   value={staffId}
                   onChange={(e)=>setStaffId(e.target.value)}
                 >
@@ -167,9 +167,9 @@ export default function InsertReperibileDialog({
               </label>
 
               <label className="text-sm">
-                <span className="block text-gray-600 mb-1">Territorio *</span>
+                <span className="block text-[var(--brand-text-muted)] mb-1">Territorio *</span>
                 <select
-                  className="w-full border rounded-lg px-3 py-2 bg-white"
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                   value={terrId}
                   onChange={(e)=>setTerrId(e.target.value)}
                 >
@@ -183,41 +183,41 @@ export default function InsertReperibileDialog({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <label className="text-sm">
-                <span className="block text-gray-600 mb-1">Inizio *</span>
+                <span className="block text-[var(--brand-text-muted)] mb-1">Inizio *</span>
                 <input
                   type="date"
-                  className="w-full border rounded-lg px-3 py-2 bg-white"
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                   value={startIso}
                   onChange={(e)=>setStartIso(e.target.value)}
                 />
-                <span className="text-xs text-gray-500">Selettore mostra calendario mensile con settimane.</span>
+                <span className="text-xs text-[var(--brand-text-subtle)]">Selettore mostra calendario mensile con settimane.</span>
               </label>
 
               <label className="text-sm">
-                <span className="block text-gray-600 mb-1">Fine *</span>
+                <span className="block text-[var(--brand-text-muted)] mb-1">Fine *</span>
                 <input
                   type="date"
-                  className="w-full border rounded-lg px-3 py-2 bg-white"
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
                   value={endIso}
                   onChange={(e)=>setEndIso(e.target.value)}
                 />
-                <span className="text-xs text-gray-500">Selettore mostra calendario mensile con settimane.</span>
+                <span className="text-xs text-[var(--brand-text-subtle)]">Selettore mostra calendario mensile con settimane.</span>
               </label>
             </div>
 
-            {err && <div className="text-sm text-red-600">{err}</div>}
+            {err && <div className="text-sm text-[var(--danger)]">{err}</div>}
           </div>
 
-          <div className="px-4 py-3 border-t flex items-center justify-end gap-2">
+          <div className="px-4 py-3 border-t border-[var(--brand-border)] flex items-center justify-end gap-2">
             <button
-              className="px-3 py-2 rounded-lg border"
+              className="px-3 py-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]"
               onClick={()=>!saving && onClose()}
               disabled={saving}
             >
               Annulla
             </button>
             <button
-              className="px-3 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
+              className="px-3 py-2 rounded-lg bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
               onClick={save}
               disabled={saving}
             >

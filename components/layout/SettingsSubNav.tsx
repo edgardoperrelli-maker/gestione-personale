@@ -23,7 +23,7 @@ export default function SettingsSubNav() {
             href={href}
             className={`rounded-xl px-4 py-2 text-sm font-semibold transition ${
               active
-                ? 'bg-[var(--brand-primary)] text-white'
+                ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
                 : 'text-[var(--brand-text-muted)] hover:bg-[var(--brand-primary-soft)] hover:text-[var(--brand-primary)]'
             }`}
           >
