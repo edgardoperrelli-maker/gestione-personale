@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -211,7 +211,7 @@ export default function GruppoAttivitaClient() {
         </div>
       </div>
 
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-[var(--brand-text-main)]">Nuova attivita</h2>
         <div className="flex flex-wrap gap-2">
           <input
@@ -221,13 +221,13 @@ export default function GruppoAttivitaClient() {
               if (event.key === 'Enter') void handleCreate();
             }}
             placeholder="Nome attivita"
-            className="min-w-[240px] flex-1 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+            className="min-w-[240px] flex-1 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
           />
           <button
             type="button"
             onClick={() => void handleCreate()}
             disabled={!newName.trim() || creating}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
           >
             {creating ? 'Aggiunta...' : 'Aggiungi'}
           </button>
@@ -244,7 +244,7 @@ export default function GruppoAttivitaClient() {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Nome attivita..."
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             />
           </div>
 
@@ -254,8 +254,8 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Tutte
@@ -265,8 +265,8 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('active')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'active'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Attive
@@ -276,8 +276,8 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('inactive')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'inactive'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Disattive
@@ -300,7 +300,7 @@ export default function GruppoAttivitaClient() {
 
       <div className="grid gap-4">
         {loading && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
             Caricamento attivita...
           </div>
         )}
@@ -313,7 +313,7 @@ export default function GruppoAttivitaClient() {
           return (
             <div
               key={row.id}
-              className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm"
+              className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm"
             >
               <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_160px_260px]">
                 <div>
@@ -323,11 +323,11 @@ export default function GruppoAttivitaClient() {
                   <input
                     value={row.name}
                     onChange={(event) => updateRow(row.id, { name: event.target.value })}
-                    className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                    className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                   />
                 </div>
 
-                <label className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm">
+                <label className="mt-6 inline-flex h-10 items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm">
                   <input
                     type="checkbox"
                     checked={row.active !== false}
@@ -350,7 +350,7 @@ export default function GruppoAttivitaClient() {
                     type="button"
                     disabled={saving || deleting}
                     onClick={() => void handleSave(row)}
-                    className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                   >
                     {saving ? 'Salvataggio...' : 'Salva'}
                   </button>
@@ -361,16 +361,16 @@ export default function GruppoAttivitaClient() {
                 <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-2 py-0.5 text-[var(--brand-primary)]">
                   {activityStatus(row)}
                 </span>
-                <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
+                <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
                   {usageLabel(row.usage)}
                 </span>
-                <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
+                <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
                   Cronoprogramma: {row.usage.assignments.toLocaleString('it-IT')}
                 </span>
-                <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
+                <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
                   Sopralluoghi dati: {row.usage.sopralluoghiDataset.toLocaleString('it-IT')}
                 </span>
-                <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-[var(--brand-text-muted)]">
+                <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[var(--brand-text-muted)]">
                   PDF: {row.usage.sopralluoghiPdf.toLocaleString('it-IT')}
                 </span>
               </div>
@@ -379,7 +379,7 @@ export default function GruppoAttivitaClient() {
         })}
 
         {!loading && filteredRows.length === 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
             Nessuna attivita trovata.
           </div>
         )}
@@ -387,3 +387,4 @@ export default function GruppoAttivitaClient() {
     </div>
   );
 }
+

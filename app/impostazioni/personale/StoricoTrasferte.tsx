@@ -56,7 +56,7 @@ export default function StoricoTrasferte({ staffId }: { staffId: string }) {
       ) : (
         <div className="max-h-48 space-y-1.5 overflow-y-auto">
           {bookings.map((booking) => (
-            <div key={booking.id} className="flex items-center gap-3 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-xs">
+            <div key={booking.id} className="flex items-center gap-3 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-xs">
               <span className="w-20 flex-shrink-0 font-semibold">
                 {new Date(`${booking.date}T00:00:00`).toLocaleDateString('it-IT')}
               </span>

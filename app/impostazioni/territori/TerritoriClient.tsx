@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { isTerritoryValidOnDay } from '@/lib/territories';
@@ -195,7 +195,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
         <button
           type="button"
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-800 shadow-sm transition hover:border-green-300 hover:bg-green-100"
+          className="flex items-center gap-2 rounded-2xl border border-[var(--success)] bg-[var(--success-soft)] px-5 py-3 text-sm font-semibold text-[var(--success)] shadow-sm transition hover:border-[var(--success)] hover:bg-[var(--success-soft)]"
         >
           <span className="text-lg leading-none">+</span>
           Nuovo Territorio
@@ -231,7 +231,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               value={query}
               onChange={(event) => setQuery(event.target.value)}
               placeholder="Nome territorio..."
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             />
           </div>
 
@@ -240,8 +240,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setValidityFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Tutti
@@ -250,8 +250,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setValidityFilter('valid')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'valid'
-                  ? 'bg-green-600 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-green-50'
+                  ? 'bg-[var(--success)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--success-soft)]'
               }`}
             >
               Validi
@@ -260,8 +260,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setValidityFilter('invalid')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'invalid'
-                  ? 'bg-amber-600 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-amber-50'
+                  ? 'bg-[var(--warning)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--warning-soft)]'
               }`}
             >
               Fuori validita
@@ -273,8 +273,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setActivityFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 activityFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Tutti gli stati
@@ -283,8 +283,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setActivityFilter('active')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 activityFilter === 'active'
-                  ? 'bg-blue-600 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-blue-50'
+                  ? 'bg-[var(--info)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--info-soft)]'
               }`}
             >
               Attivi
@@ -293,8 +293,8 @@ export default function TerritoriClient({ initialTerritories }: Props) {
               onClick={() => setActivityFilter('inactive')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 activityFilter === 'inactive'
-                  ? 'bg-neutral-700 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-neutral-50'
+                  ? 'bg-[var(--brand-text-muted)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]'
               }`}
             >
               Disattivi
@@ -305,12 +305,11 @@ export default function TerritoriClient({ initialTerritories }: Props) {
 
       {feedback && (
         <div
-          className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
-          style={
+          className={`rounded-2xl border px-4 py-3 text-sm shadow-sm ${
             feedback.type === 'success'
-              ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }
-              : { borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }
-          }
+              ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]'
+              : 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
+          }`}
         >
           {feedback.text}
         </div>
@@ -327,7 +326,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
           return (
             <div
               key={row.id}
-              className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm"
+              className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm"
             >
               <button
                 type="button"
@@ -341,10 +340,10 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                   <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs text-[var(--brand-primary)]">
                     {status}
                   </span>
-                  <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                  <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
                     {row.active === false ? 'Disattivo' : 'Attivo'}
                   </span>
-                  <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                  <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
                     {hasCoords ? 'Mappa OK' : 'Senza coords'}
                   </span>
                 </div>
@@ -360,7 +359,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                       type="button"
                       disabled={deleting || saving}
                       onClick={() => void handleDelete(row)}
-                      className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50 disabled:opacity-50"
+                      className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50"
                     >
                       {deleting ? 'Eliminazione...' : 'Elimina'}
                     </button>
@@ -368,7 +367,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                       type="button"
                       disabled={saving || deleting}
                       onClick={() => void handleSave(row)}
-                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                     >
                       {saving ? 'Salvataggio...' : 'Salva'}
                     </button>
@@ -383,7 +382,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                         value={row.name}
                         onChange={(event) => updateRow(row.id, { name: event.target.value })}
                         placeholder="Nome territorio"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -395,7 +394,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                         type="date"
                         value={row.valid_from ?? ''}
                         onChange={(event) => updateRow(row.id, { valid_from: event.target.value || null })}
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -407,7 +406,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                         type="date"
                         value={row.valid_to ?? ''}
                         onChange={(event) => updateRow(row.id, { valid_to: event.target.value || null })}
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
@@ -426,7 +425,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                           updateRow(row.id, { lat: value === '' ? null : Number(value) });
                         }}
                         placeholder="Es. 43.1107"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -443,11 +442,11 @@ export default function TerritoriClient({ initialTerritories }: Props) {
                           updateRow(row.id, { lng: value === '' ? null : Number(value) });
                         }}
                         placeholder="Es. 12.3908"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
-                    <label className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm">
+                    <label className="mt-6 inline-flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm">
                       <input
                         type="checkbox"
                         checked={row.active !== false}
@@ -481,7 +480,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
         })}
 
         {filteredRows.length === 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
             Nessun territorio trovato.
           </div>
         )}
@@ -496,3 +495,4 @@ export default function TerritoriClient({ initialTerritories }: Props) {
     </div>
   );
 }
+

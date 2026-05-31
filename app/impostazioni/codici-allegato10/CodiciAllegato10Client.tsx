@@ -97,19 +97,18 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
 
       {feedback && (
         <div
-          className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
-          style={
+          className={`rounded-2xl border px-4 py-3 text-sm shadow-sm ${
             feedback.type === 'success'
-              ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }
-              : { borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }
-          }
+              ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]'
+              : 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
+          }`}
         >
           {feedback.text}
         </div>
       )}
 
       {/* Aggiungi manualmente */}
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-[var(--brand-text-main)]">Aggiungi codice manualmente</h2>
         <div className="flex gap-2">
           <input
@@ -123,7 +122,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
             type="button"
             onClick={addCode}
             disabled={!newCode.trim() || busy === '__new__'}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
           >
             {busy === '__new__' ? 'Aggiunta...' : 'Aggiungi'}
           </button>
@@ -131,7 +130,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
       </div>
 
       {/* Codici ATTIVI */}
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
         <h2 className="mb-3 text-sm font-semibold text-[var(--brand-text-main)]">
           Allegato 10 attivo ({active.length} codici)
         </h2>
@@ -142,12 +141,12 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
             {active.map(c => (
               <div
                 key={c.codice}
-                className="flex items-center justify-between rounded-xl border border-green-200 bg-green-50 px-4 py-2.5"
+                className="flex items-center justify-between rounded-xl border border-[var(--success)] bg-[var(--success-soft)] px-4 py-2.5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="inline-block h-2 w-2 rounded-full bg-green-500" />
-                  <span className="font-mono text-sm font-semibold text-green-900">{c.codice}</span>
-                  <span className="text-xs text-green-700">
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--success)]" />
+                  <span className="font-mono text-sm font-semibold text-[var(--success)]">{c.codice}</span>
+                  <span className="text-xs text-[var(--success)]">
                     visto il {new Date(c.last_seen_at).toLocaleDateString('it-IT')}
                   </span>
                 </div>
@@ -156,7 +155,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
                     type="button"
                     disabled={busy === c.codice}
                     onClick={() => toggle(c.codice, c.genera_allegato)}
-                    className="rounded-lg border border-green-300 bg-white px-3 py-1 text-xs font-medium text-green-700 hover:bg-green-100 disabled:opacity-50"
+                    className="rounded-lg border border-[var(--success)] bg-[var(--brand-surface)] px-3 py-1 text-xs font-medium text-[var(--success)] hover:bg-[var(--success-soft)] disabled:opacity-50"
                   >
                     Disattiva
                   </button>
@@ -164,7 +163,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
                     type="button"
                     disabled={busy === c.codice}
                     onClick={() => remove(c.codice)}
-                    className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-lg border border-[var(--danger)] px-3 py-1 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
                   >
                     ✕
                   </button>
@@ -177,7 +176,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
 
       {/* Codici RILEVATI ma non attivi */}
       {inactive.length > 0 && (
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
           <h2 className="mb-3 text-sm font-semibold text-[var(--brand-text-main)]">
             Codici rilevati — Allegato 10 non attivo ({inactive.length})
           </h2>
@@ -185,10 +184,10 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
             {inactive.map(c => (
               <div
                 key={c.codice}
-                className="flex items-center justify-between rounded-xl border border-[var(--brand-border)] bg-gray-50 px-4 py-2.5"
+                className="flex items-center justify-between rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-4 py-2.5"
               >
                 <div className="flex items-center gap-3">
-                  <span className="inline-block h-2 w-2 rounded-full bg-gray-300" />
+                  <span className="inline-block h-2 w-2 rounded-full bg-[var(--brand-text-subtle)]" />
                   <span className="font-mono text-sm text-[var(--brand-text-main)]">{c.codice}</span>
                   <span className="text-xs text-[var(--brand-text-muted)]">
                     visto il {new Date(c.last_seen_at).toLocaleDateString('it-IT')}
@@ -199,7 +198,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
                     type="button"
                     disabled={busy === c.codice}
                     onClick={() => toggle(c.codice, c.genera_allegato)}
-                    className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                   >
                     Attiva
                   </button>
@@ -207,7 +206,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
                     type="button"
                     disabled={busy === c.codice}
                     onClick={() => remove(c.codice)}
-                    className="rounded-lg border border-red-200 px-3 py-1 text-xs font-medium text-red-500 hover:bg-red-50 disabled:opacity-50"
+                    className="rounded-lg border border-[var(--danger)] px-3 py-1 text-xs font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)] disabled:opacity-50"
                   >
                     ✕
                   </button>
@@ -219,7 +218,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
       )}
 
       {codici.length === 0 && (
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)]">
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)]">
           Nessun codice rilevato ancora. Carica un file Excel in Mappa o Rapportini per popolare automaticamente la lista.
         </div>
       )}

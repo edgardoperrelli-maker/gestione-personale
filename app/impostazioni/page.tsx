@@ -67,7 +67,7 @@ export default function ImpostazioniPage() {
           <Link
             key={module.href}
             href={module.href}
-            className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 shadow-sm transition hover:shadow-md"
+            className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 shadow-sm transition hover:shadow-md"
           >
             <div className="mb-4 inline-flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--brand-primary-soft)] text-2xl font-bold text-[var(--brand-primary)]">
               {module.icon}

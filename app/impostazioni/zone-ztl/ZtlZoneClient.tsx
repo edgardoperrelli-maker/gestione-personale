@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useCallback, useState, useEffect } from 'react';
 import { createClientComponentClient } from '@supabase/auth-helpers-nextjs';
 
@@ -233,14 +233,14 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
             type="button"
             onClick={createNewZone}
             disabled={isCreatingZone}
-            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
           >
             + Nuova
           </button>
         </div>
 
         {zones.length === 0 ? (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 text-center text-sm text-[var(--brand-text-muted)]">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-center text-sm text-[var(--brand-text-muted)]">
             Nessuna zona ZTL ancora. Creane una.
           </div>
         ) : (
@@ -252,7 +252,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
                 className={`cursor-pointer rounded-2xl border p-4 transition ${
                   selectedZoneId === zone.id
                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
-                    : 'border-[var(--brand-border)] bg-white hover:border-[var(--brand-primary)]'
+                    : 'border-[var(--brand-border)] bg-[var(--brand-surface)] hover:border-[var(--brand-primary)]'
                 }`}
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
@@ -279,7 +279,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
       {/* ─── COLONNA DESTRA: Pannello dettaglio ────────────────────────────────── */}
       <div className="flex-1 space-y-4">
         {!selectedZone ? (
-          <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-white">
+          <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
             <div className="text-center">
               <div className="mb-3 text-4xl">🗺️</div>
               <p className="text-sm text-[var(--brand-text-muted)]">
@@ -290,7 +290,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
         ) : (
           <>
             {/* ─── SEZIONE 1: Info zona ────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6">
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Informazioni zona</h3>
               <div className="space-y-4">
                 <div>
@@ -318,14 +318,14 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
                 <button
                   type="button"
                   onClick={saveZoneInfo}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
                 >
                   Salva modifiche
                 </button>
                 <button
                   type="button"
                   onClick={deleteZone}
-                  className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                  className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
                 >
                   Elimina zona
                 </button>
@@ -333,7 +333,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
             </div>
 
             {/* ─── SEZIONE 2: CAP ──────────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6">
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">CAP inclusi nella ZTL</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Inserisci i CAP separati da virgola o premi Invio dopo ogni CAP
@@ -371,14 +371,14 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
               <button
                 type="button"
                 onClick={saveCapList}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
               >
                 Salva CAP
               </button>
             </div>
 
             {/* ─── SEZIONE 3: Operatori ──────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6">
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Operatori con permesso ZTL</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Solo gli operatori selezionati potranno ricevere attività in questa zona
@@ -392,7 +392,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
                       className="flex items-center gap-3 rounded-xl border p-3 cursor-pointer transition hover:bg-[var(--brand-primary-soft)]"
                       style={{
                         borderColor: authorized ? 'var(--brand-primary)' : 'var(--brand-border)',
-                        backgroundColor: authorized ? 'var(--brand-primary-soft)' : 'white',
+                        backgroundColor: authorized ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
                       }}
                     >
                       <input
@@ -422,7 +422,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
               <button
                 type="button"
                 onClick={saveOperators}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90"
+                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
               >
                 Salva operatori
               </button>
@@ -434,10 +434,10 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
       {/* ─── FEEDBACK TOAST ───────────────────────────────────────────────────────── */}
       {feedback && (
         <div
-          className={`fixed bottom-4 right-4 rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
+          className={`fixed bottom-4 right-4 rounded-lg px-4 py-3 text-sm font-semibold transition ${
             feedback.type === 'success'
-              ? 'bg-green-600'
-              : 'bg-red-600'
+              ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]'
+              : 'bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger)]'
           }`}
         >
           {feedback.type === 'success' ? '✓ ' : '✗ '}{feedback.message}
@@ -446,3 +446,4 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
     </div>
   );
 }
+

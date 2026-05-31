@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useEffect, useState } from 'react';
 import type { Territory } from '@/types';
@@ -105,13 +105,13 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
-      <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between border-b px-5 py-4">
-          <h2 className="text-base font-semibold">Nuovo Territorio</h2>
+      <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[var(--brand-surface)] shadow-xl">
+        <div className="flex items-center justify-between border-b border-[var(--brand-border)] px-5 py-4">
+          <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Nuovo Territorio</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-neutral-600 hover:text-black"
+            className="text-sm text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]"
             aria-label="Chiudi"
           >
             x
@@ -128,7 +128,7 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
               value={name}
               onChange={(event) => setName(event.target.value)}
               placeholder="Es. Perugia"
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               autoFocus
             />
           </div>
@@ -142,7 +142,7 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
                 type="date"
                 value={validFrom ?? ''}
                 onChange={(event) => setValidFrom(event.target.value || null)}
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
             <div>
@@ -153,7 +153,7 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
                 type="date"
                 value={validTo ?? ''}
                 onChange={(event) => setValidTo(event.target.value || null)}
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -169,7 +169,7 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
                 value={lat}
                 onChange={(event) => setLat(event.target.value)}
                 placeholder="Es. 43.1107"
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
             <div>
@@ -182,12 +182,12 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
                 value={lng}
                 onChange={(event) => setLng(event.target.value)}
                 placeholder="Es. 12.3908"
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
           </div>
 
-          <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm">
+          <label className="inline-flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm">
             <input
               type="checkbox"
               checked={active}
@@ -218,7 +218,7 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
             >
               {loading ? 'Creazione...' : 'Crea'}
             </button>
@@ -228,3 +228,4 @@ export default function NewTerritoryModal({ onClose, onCreated }: Props) {
     </div>
   );
 }
+

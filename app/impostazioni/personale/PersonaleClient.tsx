@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useMemo, useState } from 'react';
 import { geocodeTask } from '@/utils/routing';
@@ -179,7 +179,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
         <button
           type="button"
           onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 rounded-2xl border border-green-200 bg-green-50 px-5 py-3 text-sm font-semibold text-green-800 shadow-sm transition hover:bg-green-100 hover:border-green-300"
+          className="flex items-center gap-2 rounded-2xl border border-[var(--success)] bg-[var(--success-soft)] px-5 py-3 text-sm font-semibold text-[var(--success)] shadow-sm transition hover:bg-[var(--success-soft)] hover:border-[var(--success)]"
         >
           <span className="text-lg leading-none">+</span>
           Nuovo Operatore
@@ -196,7 +196,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Nome operatore..."
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             />
           </div>
 
@@ -205,8 +205,8 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
               onClick={() => setValidityFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
+                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
               Tutti
@@ -215,8 +215,8 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
               onClick={() => setValidityFilter('valid')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'valid'
-                  ? 'bg-green-600 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-green-50'
+                  ? 'bg-[var(--success)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--success-soft)]'
               }`}
             >
               ✓ Validi
@@ -225,8 +225,8 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
               onClick={() => setValidityFilter('invalid')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'invalid'
-                  ? 'bg-amber-600 text-white'
-                  : 'border border-[var(--brand-border)] bg-white text-[var(--brand-text-main)] hover:bg-amber-50'
+                  ? 'bg-[var(--warning)] text-[var(--brand-bg)]'
+                  : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--warning-soft)]'
               }`}
             >
               ⚠ Fuori validità
@@ -237,12 +237,11 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
 
       {feedback && (
         <div
-          className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
-          style={
+          className={`rounded-2xl border px-4 py-3 text-sm shadow-sm ${
             feedback.type === 'success'
-              ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#166534' }
-              : { borderColor: '#FECACA', backgroundColor: '#FEF2F2', color: '#B91C1C' }
-          }
+              ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]'
+              : 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
+          }`}
         >
           {feedback.text}
         </div>
@@ -260,7 +259,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
           return (
             <div
               key={row.id}
-              className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm"
+              className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm"
             >
               {/* HEADER CARD — sempre visibile */}
               <button
@@ -275,11 +274,11 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                   <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs text-[var(--brand-primary)]">
                     {status}
                   </span>
-                  <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                  <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
                     {hasCoords ? '🏭 Magazzino OK' : '🏭 Senza coords'}
                   </span>
                   {(row.home_address || row.home_cap || row.home_city) && (
-                    <span className="rounded-full border border-[var(--brand-border)] bg-white px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
+                    <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
                       {hasHomeCoords ? '🏠 Casa OK' : '🏠 Casa senza coords'}
                     </span>
                   )}
@@ -297,7 +296,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                       type="button"
                       disabled={saving}
                       onClick={() => void handleSave(row)}
-                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                     >
                       {saving ? 'Salvataggio...' : 'Salva'}
                     </button>
@@ -312,7 +311,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         type="date"
                         value={row.valid_from ?? ''}
                         onChange={(e) => updateRow(row.id, { valid_from: e.target.value || null })}
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -324,7 +323,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         type="date"
                         value={row.valid_to ?? ''}
                         onChange={(e) => updateRow(row.id, { valid_to: e.target.value || null })}
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -336,7 +335,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.start_address ?? ''}
                         onChange={(e) => updateRow(row.id, { start_address: e.target.value })}
                         placeholder="Via, piazza, civico..."
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -348,7 +347,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.start_cap ?? ''}
                         onChange={(e) => updateRow(row.id, { start_cap: e.target.value })}
                         placeholder="00000"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
 
@@ -360,7 +359,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.start_city ?? ''}
                         onChange={(e) => updateRow(row.id, { start_city: e.target.value })}
                         placeholder="Citta"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
@@ -375,7 +374,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.home_address ?? ''}
                         onChange={(e) => updateRow(row.id, { home_address: e.target.value })}
                         placeholder="Via, piazza, civico..."
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -386,7 +385,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.home_cap ?? ''}
                         onChange={(e) => updateRow(row.id, { home_cap: e.target.value })}
                         placeholder="00000"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                     <div>
@@ -397,7 +396,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                         value={row.home_city ?? ''}
                         onChange={(e) => updateRow(row.id, { home_city: e.target.value })}
                         placeholder="Città"
-                        className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                        className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                       />
                     </div>
                   </div>
@@ -409,7 +408,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                     <select
                       value={row.home_territory_id ?? ''}
                       onChange={(e) => updateRow(row.id, { home_territory_id: e.target.value || null })}
-                      className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                      className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                     >
                       <option value="">Lazio (base principale)</option>
                       {territories.filter((territory) => territory.active !== false).map((territory) => (
@@ -446,7 +445,7 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
         })}
 
         {filteredRows.length === 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)] shadow-sm">
             Nessun operatore trovato.
           </div>
         )}
@@ -462,3 +461,4 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
     </div>
   );
 }
+

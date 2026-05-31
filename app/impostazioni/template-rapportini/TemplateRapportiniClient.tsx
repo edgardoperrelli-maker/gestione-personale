@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 import { useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -179,14 +179,14 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           <button
             type="button"
             onClick={startNew}
-            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-white transition hover:opacity-90"
+            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
           >
             + Nuovo
           </button>
         </div>
 
         {templates.length === 0 && !isNew ? (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 text-center text-sm text-[var(--brand-text-muted)]">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-center text-sm text-[var(--brand-text-muted)]">
             Nessun template. Creane uno.
           </div>
         ) : (
@@ -203,13 +203,13 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 className={`cursor-pointer rounded-2xl border p-4 transition ${
                   selectedId === tpl.id && !isNew
                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
-                    : 'border-[var(--brand-border)] bg-white hover:border-[var(--brand-primary)]'
+                    : 'border-[var(--brand-border)] bg-[var(--brand-surface)] hover:border-[var(--brand-primary)]'
                 }`}
               >
                 <div className="mb-1 flex items-center gap-2">
                   <span className="font-semibold text-[var(--brand-text-main)]">{tpl.nome}</span>
                   {tpl.is_default && (
-                    <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-xs font-bold text-white">
+                    <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-xs font-bold text-[oklch(0.16_0.06_245)]">
                       default
                     </span>
                   )}
@@ -231,7 +231,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       {/* ─── COLONNA DESTRA: Editor ──────────────────────────────────────────── */}
       <div className="flex-1 space-y-4">
         {!isEditing ? (
-          <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-white">
+          <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
             <div className="text-center">
               <div className="mb-3 text-4xl">📋</div>
               <p className="text-sm text-[var(--brand-text-muted)]">
@@ -242,7 +242,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         ) : (
           <>
             {/* ── Nome template ─────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6">
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Nome template</h3>
               <input
                 type="text"
@@ -254,7 +254,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             </div>
 
             {/* ── Campi ─────────────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6">
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Campi</h3>
 
               {campi.length === 0 && (
@@ -265,7 +265,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 {campi.map((campo, idx) => (
                   <div
                     key={idx}
-                    className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg-soft,#f8fafc)] p-4"
+                    className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4"
                   >
                     {/* Row 1: etichetta + tipo */}
                     <div className="mb-3 flex gap-3">
@@ -344,7 +344,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                       <button
                         type="button"
                         onClick={() => removeCampo(idx)}
-                        className="rounded-lg border border-red-200 px-2 py-1 text-xs text-red-500 transition hover:bg-red-50"
+                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
                       >
                         Rimuovi
                       </button>
@@ -368,7 +368,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 type="button"
                 onClick={handleSave}
                 disabled={saving}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white transition hover:opacity-90 disabled:opacity-50"
+                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
               >
                 {saving ? 'Salvataggio…' : isNew ? 'Crea template' : 'Salva modifiche'}
               </button>
@@ -376,7 +376,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <button
                   type="button"
                   onClick={handleDelete}
-                  className="rounded-lg border border-red-300 px-4 py-2 text-sm font-semibold text-red-600 transition hover:bg-red-50"
+                  className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
                 >
                   Elimina template
                 </button>
@@ -389,8 +389,10 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       {/* ─── FEEDBACK TOAST ──────────────────────────────────────────────────── */}
       {feedback && (
         <div
-          className={`fixed bottom-4 right-4 rounded-lg px-4 py-3 text-sm font-semibold text-white transition ${
-            feedback.type === 'success' ? 'bg-green-600' : 'bg-red-600'
+          className={`fixed bottom-4 right-4 rounded-lg px-4 py-3 text-sm font-semibold transition ${
+            feedback.type === 'success'
+              ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]'
+              : 'bg-[var(--danger-soft)] text-[var(--danger)] border border-[var(--danger)]'
           }`}
         >
           {feedback.type === 'success' ? '✓ ' : '✗ '}{feedback.message}
@@ -399,3 +401,4 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     </div>
   );
 }
+

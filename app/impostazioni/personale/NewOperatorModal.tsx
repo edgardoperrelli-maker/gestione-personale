@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState, useEffect } from 'react';
 import { geocodeTask } from '@/utils/routing';
@@ -159,13 +159,13 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
       <div className="absolute inset-0 bg-black/40" onClick={onClose} />
 
       {/* modal */}
-      <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h2 className="text-base font-semibold">Nuovo Operatore</h2>
+      <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[var(--brand-surface)] shadow-xl">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-[var(--brand-border)]">
+          <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Nuovo Operatore</h2>
           <button
             type="button"
             onClick={onClose}
-            className="text-sm text-neutral-600 hover:text-black"
+            className="text-sm text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]"
             aria-label="Chiudi"
           >
             ✕
@@ -183,7 +183,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
               value={displayName}
               onChange={(e) => setDisplayName(e.target.value)}
               placeholder="Nome operatore..."
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             />
           </div>
 
@@ -197,7 +197,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                 type="date"
                 value={validFrom ?? ''}
                 onChange={(e) => setValidFrom(e.target.value || null)}
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
             <div>
@@ -208,7 +208,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                 type="date"
                 value={validTo ?? ''}
                 onChange={(e) => setValidTo(e.target.value || null)}
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
               />
             </div>
           </div>
@@ -220,7 +220,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
             <select
               value={homeTerritoryId ?? ''}
               onChange={(e) => setHomeTerritoryId(e.target.value || null)}
-              className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             >
               <option value="">Lazio (base principale)</option>
               {territories.filter((territory) => territory.active !== false).map((territory) => (
@@ -244,7 +244,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={startAddress ?? ''}
                   onChange={(e) => setStartAddress(e.target.value || null)}
                   placeholder="Via, piazza, civico..."
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -253,7 +253,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={startCap ?? ''}
                   onChange={(e) => setStartCap(e.target.value || null)}
                   placeholder="CAP"
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -262,7 +262,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={startCity ?? ''}
                   onChange={(e) => setStartCity(e.target.value || null)}
                   placeholder="Città"
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
             </div>
@@ -280,7 +280,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={homeAddress ?? ''}
                   onChange={(e) => setHomeAddress(e.target.value || null)}
                   placeholder="Via, piazza, civico..."
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -289,7 +289,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={homeCap ?? ''}
                   onChange={(e) => setHomeCap(e.target.value || null)}
                   placeholder="CAP"
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
               <div>
@@ -298,7 +298,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
                   value={homeCity ?? ''}
                   onChange={(e) => setHomeCity(e.target.value || null)}
                   placeholder="Città"
-                  className="w-full rounded-xl border border-[var(--brand-border)] bg-white px-3 py-2 text-sm"
+                  className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
                 />
               </div>
             </div>
@@ -323,7 +323,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
             <button
               type="submit"
               disabled={loading}
-              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
             >
               {loading ? 'Creazione...' : 'Crea'}
             </button>
@@ -333,3 +333,4 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
     </div>
   );
 }
+

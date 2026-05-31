@@ -31,8 +31,8 @@ type EditRow = UserRow & { newPassword: string };
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 
 const ROLE_COLORS: Record<ValidRole, string> = {
-  admin: '#921B1B',
-  operatore: '#1E6B2E',
+  admin: 'var(--danger)',
+  operatore: 'var(--success)',
 };
 
 const inputCls =
@@ -84,7 +84,7 @@ function ModuleSelector({
             }`}
             style={{
               borderColor: checked ? 'var(--brand-primary)' : 'var(--brand-border)',
-              backgroundColor: checked ? 'var(--brand-primary-soft)' : '#fff',
+              backgroundColor: checked ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
             }}
           >
             <input
@@ -307,22 +307,21 @@ export default function UtenzeClient() {
 
       {feedback && (
         <div
-          className="rounded-xl border px-4 py-3 text-sm font-medium"
-          style={
+          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
             feedback.type === 'success'
-              ? { borderColor: '#BBF7D0', backgroundColor: '#F0FDF4', color: '#14532D' }
-              : { borderColor: '#FECDD3', backgroundColor: '#FFF1F2', color: '#881337' }
-          }
+              ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]'
+              : 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
+          }`}
         >
           {feedback.text}
         </div>
       )}
 
-      <section className="rounded-3xl border bg-white shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      <section className="rounded-3xl border bg-[var(--brand-surface)] shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
         <div className="border-b px-5 py-4" style={{ borderColor: 'var(--brand-border)' }}>
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Nuova utenza</h2>
           <p className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-            L&apos;accesso viene creato nel formato <code className="rounded bg-gray-100 px-1">u_username@local.it</code>.
+            L&apos;accesso viene creato nel formato <code className="rounded bg-[var(--brand-surface-muted)] px-1">u_username@local.it</code>.
           </p>
         </div>
 
@@ -392,7 +391,7 @@ export default function UtenzeClient() {
         </div>
       </section>
 
-      <section className="rounded-3xl border bg-white shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      <section className="rounded-3xl border bg-[var(--brand-surface)] shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
         <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--brand-border)' }}>
           <div>
             <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Utenze configurate</h2>
@@ -415,7 +414,7 @@ export default function UtenzeClient() {
               <article
                 key={user.userId}
                 className="rounded-2xl border p-4"
-                style={{ borderColor: 'var(--brand-border)', backgroundColor: '#fff' }}
+                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
               >
                 <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="flex items-center gap-3">
@@ -453,7 +452,7 @@ export default function UtenzeClient() {
                       <button
                         type="button"
                         onClick={() => { setResetId(user.userId); setNewPwd(''); }}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-blue-300 hover:text-blue-600"
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
                         style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
                       >
                         Reset password
@@ -465,8 +464,7 @@ export default function UtenzeClient() {
                           type="button"
                           onClick={() => void handleDelete(user.userId, user.username)}
                           disabled={deleting === user.userId}
-                          className="rounded-xl border px-3 py-1.5 text-xs font-semibold transition"
-                          style={{ borderColor: '#FECDD3', backgroundColor: '#FFF1F2', color: '#881337' }}
+                          className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)] px-3 py-1.5 text-xs font-semibold transition"
                         >
                           {deleting === user.userId ? 'Elimino...' : 'Conferma eliminazione'}
                         </button>
@@ -483,7 +481,7 @@ export default function UtenzeClient() {
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(user.userId)}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-rose-300 hover:text-rose-700"
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
                         style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
                       >
                         Elimina
@@ -493,13 +491,13 @@ export default function UtenzeClient() {
                 </div>
 
                 {resetId === user.userId && (
-                  <div className="mt-3 flex items-center gap-1 rounded-lg border border-blue-200 bg-blue-50 p-3">
+                  <div className="mt-3 flex items-center gap-1 rounded-lg border border-[var(--info)] bg-[var(--info-soft)] p-3">
                     <input
                       type="password"
                       value={newPwd}
                       onChange={(e) => setNewPwd(e.target.value)}
                       placeholder="Nuova password (min. 6 car.)"
-                      className="rounded border border-gray-300 px-2 py-1 text-xs flex-1 max-w-xs"
+                      className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] px-2 py-1 text-xs flex-1 max-w-xs"
                       autoFocus
                     />
                     <button
@@ -527,13 +525,13 @@ export default function UtenzeClient() {
                         }
                       }}
                       disabled={resetting || newPwd.length < 6}
-                      className="rounded bg-blue-600 px-3 py-1 text-xs text-white font-medium disabled:opacity-50 transition"
+                      className="rounded bg-[var(--brand-primary)] px-3 py-1 text-xs text-[oklch(0.16_0.06_245)] font-medium disabled:opacity-50 transition"
                     >
                       {resetting ? '...' : 'Salva'}
                     </button>
                     <button
                       onClick={() => { setResetId(null); setNewPwd(''); }}
-                      className="rounded border border-gray-200 px-3 py-1 text-xs text-gray-500 hover:bg-white transition"
+                      className="rounded border border-[var(--brand-border)] px-3 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface)] transition"
                     >
                       Annulla
                     </button>

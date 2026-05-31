@@ -1,4 +1,4 @@
-'use client';
+﻿'use client';
 
 import { useState } from 'react';
 import SettingsSubNav from '@/components/layout/SettingsSubNav';
@@ -182,7 +182,7 @@ export default function HotelClient({
         <button
           type="button"
           onClick={() => setShowNewForm((value) => !value)}
-          className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)]"
+          className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]"
         >
           {showNewForm ? 'Annulla' : '+ Nuovo hotel'}
         </button>
@@ -199,7 +199,7 @@ export default function HotelClient({
       )}
 
       {showNewForm && (
-        <div className="space-y-3 rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-sm">
+        <div className="space-y-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm">
           <p className="text-sm font-semibold">Nuovo hotel</p>
           <div className="grid gap-3 sm:grid-cols-4">
             <div>
@@ -252,7 +252,7 @@ export default function HotelClient({
               type="button"
               disabled={busy}
               onClick={() => void createHotel()}
-              className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
+              className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
             >
               Salva hotel
             </button>
@@ -278,7 +278,7 @@ export default function HotelClient({
           />
         ))}
         {hotels.length === 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-8 text-center text-sm text-[var(--brand-text-muted)]">
+          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center text-sm text-[var(--brand-text-muted)]">
             Nessun hotel. Aggiungine uno con il pulsante in alto.
           </div>
         )}
@@ -335,10 +335,10 @@ function HotelRow({
   };
 
   return (
-    <div className={`rounded-2xl border bg-white shadow-sm ${hotel.active ? 'border-[var(--brand-border)]' : 'border-neutral-200 opacity-60'}`}>
+    <div className={`rounded-2xl border bg-[var(--brand-surface)] shadow-sm ${hotel.active ? 'border-[var(--brand-border)]' : 'border-[var(--brand-border)] opacity-60'}`}>
       <div className="flex items-center justify-between px-5 py-4">
         <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-3 text-left">
-          <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${hotel.active ? 'bg-green-500' : 'bg-neutral-300'}`} />
+          <span className={`h-2.5 w-2.5 flex-shrink-0 rounded-full ${hotel.active ? 'bg-[var(--success)]' : 'bg-[var(--brand-text-subtle)]'}`} />
           <div>
             <div className="flex flex-wrap items-center gap-2 font-semibold">
               <span>{hotel.name}</span>
@@ -398,7 +398,7 @@ function HotelRow({
                 </select>
               </div>
               <div className="flex justify-end sm:col-span-4">
-                <button type="button" onClick={saveHotel} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white">
+                <button type="button" onClick={saveHotel} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)]">
                   Salva
                 </button>
               </div>
@@ -428,7 +428,7 @@ function HotelRow({
                   <input value={newDinner} onChange={(event) => setNewDinner(event.target.value)} type="number" min="0" step="0.01" className="w-full rounded-xl border border-[var(--brand-border)] px-3 py-2 text-sm" />
                 </div>
                 <div className="flex justify-end sm:col-span-4">
-                  <button type="button" onClick={saveRoomPrice} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white">
+                  <button type="button" onClick={saveRoomPrice} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)]">
                     Aggiungi
                   </button>
                 </div>
@@ -510,7 +510,7 @@ function RoomPriceRow({
   }
 
   return (
-    <tr className="border-b last:border-0 hover:bg-neutral-50">
+    <tr className="border-b last:border-0 hover:bg-[var(--brand-surface-muted)]">
       <td className="py-2 font-medium">{roomPrice.room_type}</td>
       <td className="py-2 text-right">{formatMoney(roomPrice.price_per_night)}</td>
       <td className="py-2 text-right">{formatMoney(roomPrice.dinner_price_per_person)}</td>
@@ -522,3 +522,4 @@ function RoomPriceRow({
     </tr>
   );
 }
+
