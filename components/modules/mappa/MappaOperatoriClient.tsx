@@ -10,6 +10,8 @@ import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import type { Territory } from '@/types';
+import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
+import ManualAssignmentsModal from './ManualAssignmentsModal';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -654,6 +656,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Distribuzione operatori
   const [showOpPicker, setShowOpPicker] = useState(false);
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
+  const [manualRules, setManualRules] = useState<ManualRule[]>([]);
+  const [operatorLocks, setOperatorLocks] = useState<Record<string, boolean>>({});
+  const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [distribution, setDistribution] = useState<DistEntry[] | null>(
     initialDistribution ?? null
   );
@@ -1507,6 +1512,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           note: '',
           stato: 'confermato',
           operatori,
+          regole: manualRules,
+          lucchetti: operatorLocks,
         }),
       });
 
@@ -1525,7 +1532,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -1548,28 +1555,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
     if (!geocoded.length) return;
 
-    // ── Fase 1: pre-assegna i task ZTL agli operatori autorizzati più vicini ──
-    // Mappa opIdx → task pre-assegnati
+    // ── Fase 0: assegnazioni manuali (regole CAP/attività/ODS+indirizzo) ──
+    const opsForAssign = selectedOps.map((op) => ({ id: op.id, qty: op.qty }));
+    const manual = applyManualAssignments(geocoded, manualRules, opsForAssign, operatorLocks);
+    if (manual.warnings.length) {
+      setZtlConflicts((prev) => [...prev, ...manual.warnings.map((w) => w.message)]);
+    }
+    const closedSet = new Set(manual.closedStaffIds);
+    const idxByStaff = new Map<string, number>();
+    selectedOps.forEach((op, i) => idxByStaff.set(op.id, i));
+    const manualPre: Map<number, Task[]> = new Map(selectedOps.map((_, i) => [i, []]));
+    for (const [staffId, tks] of Object.entries(manual.assignedByStaff)) {
+      const i = idxByStaff.get(staffId);
+      if (i != null) manualPre.set(i, tks);
+    }
+    const manualAssignedIds = new Set<string>(
+      Object.values(manual.assignedByStaff).flat().map((t) => t.id)
+    );
+    const afterManual = geocoded.filter((t) => !manualAssignedIds.has(t.id));
+
+    // ── Fase 1: pre-assegna i task ZTL agli operatori autorizzati più vicini (esclusi i 🔒 chiusi) ──
     const preAssigned: Map<number, Task[]> = new Map(
       selectedOps.map((_, i) => [i, []])
     );
     const ztlAssignedIds = new Set<string>();
 
-    for (const task of geocoded) {
+    for (const task of afterManual) {
       const ztl = getTaskZtl(task.cap, ztlZones);
-      if (!ztl) continue; // task non ZTL — gestito dall'algoritmo normale
+      if (!ztl) continue;
 
-      // Trova gli operatori autorizzati presenti in selectedOps
       const authorizedIdxs = selectedOps
         .map((op, i) => ({ i, op }))
-        .filter(({ op }) => ztl.authorized_staff_ids.includes(op.id));
+        .filter(({ op }) => ztl.authorized_staff_ids.includes(op.id) && !closedSet.has(op.id));
 
-      if (!authorizedIdxs.length) {
-        // Nessun operatore autorizzato disponibile — lascia all'algoritmo normale
-        continue;
-      }
+      if (!authorizedIdxs.length) continue;
 
-      // Scegli il più vicino al task tra gli autorizzati
       const nearest = authorizedIdxs.reduce((best, curr) => {
         const currBase = selectedOps[curr.i].base;
         const bestBase = selectedOps[best.i].base;
@@ -1584,20 +1604,30 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       ztlAssignedIds.add(task.id);
     }
 
-    // ── Fase 2: distribuisci i task non-ZTL con l'algoritmo normale ──
-    const nonZtlTasks = geocoded.filter((t) => !ztlAssignedIds.has(t.id));
-
-    // Calcola le quantità rimanenti per ogni operatore (qty - pre-assegnati ZTL)
-    const adjustedOps: OpConfig[] = selectedOps.map((op, i) => ({
-      ...op,
-      qty: Math.max(0, op.qty - (preAssigned.get(i)?.length ?? 0)),
-    }));
+    // ── Fase 2: distribuzione automatica (task non-manuali e non-ZTL; operatori non chiusi) ──
+    const nonZtlTasks = afterManual.filter((t) => !ztlAssignedIds.has(t.id));
+    const adjustedOps: OpConfig[] = selectedOps
+      .filter((op) => !closedSet.has(op.id))
+      .map((op) => {
+        const i = idxByStaff.get(op.id)!;
+        const pinned = (manualPre.get(i)?.length ?? 0) + (preAssigned.get(i)?.length ?? 0);
+        return { ...op, qty: Math.max(0, op.qty - pinned) };
+      });
 
     const { groups, unassigned } = capacityDistributeWithUnassigned(nonZtlTasks, adjustedOps);
+    const autoByIdx: Map<number, Task[]> = new Map(selectedOps.map((_, i) => [i, []]));
+    adjustedOps.forEach((op, k) => {
+      const i = idxByStaff.get(op.id);
+      if (i != null) autoByIdx.set(i, groups[k] ?? []);
+    });
 
-    // ── Fase 3: unisci pre-assegnati ZTL con distribuzione normale ──
+    // ── Fase 3: unisci manuali + ZTL + automatici ──
     const result: DistEntry[] = selectedOps.map((op, i) => {
-      const grp = [...(preAssigned.get(i) ?? []), ...(groups[i] ?? [])];
+      const grp = [
+        ...(manualPre.get(i) ?? []),
+        ...(preAssigned.get(i) ?? []),
+        ...(autoByIdx.get(i) ?? []),
+      ];
       const routeRes =
         grp.length >= 1
           ? optimizeRouteByFascia(grp, op.base ?? undefined)
@@ -1643,8 +1673,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         }
       });
     });
-    setZtlConflicts(conflicts);
-  }, [selectedOps, allTasks, ztlZones]);
+    setZtlConflicts([...manual.warnings.map((w) => w.message), ...conflicts]);
+  }, [selectedOps, allTasks, ztlZones, manualRules, operatorLocks]);
 
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
@@ -2276,6 +2306,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     </div>
                     <p className="text-[10px] text-gray-400">Lascia vuoto per distribuzione automatica uguale.</p>
                     <div className="flex items-center gap-2 pt-1">
+                      <button type="button" onClick={() => setAssignModalOpen(true)}
+                        className="rounded-xl border px-4 py-2 text-sm font-medium">
+                        📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
+                      </button>
                       <button type="button" onClick={distributeToOps} className="rounded-lg bg-blue-600 px-3 py-1 text-xs font-semibold text-white hover:bg-blue-700">
                         {selectedOps.length === 1 ? 'Assegna' : 'Distribuisci'}
                       </button>
@@ -2873,6 +2907,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           )}
         </div>
       </div>
+
+      <ManualAssignmentsModal
+        open={assignModalOpen}
+        onClose={() => setAssignModalOpen(false)}
+        operators={selectedOps.map((o) => ({ id: o.id, name: o.name }))}
+        tasks={excelTasks}
+        rules={manualRules}
+        locks={operatorLocks}
+        onChangeRules={setManualRules}
+        onChangeLocks={setOperatorLocks}
+        onDistribute={() => { setAssignModalOpen(false); distributeToOps(); }}
+      />
     </div>
   );
 }
