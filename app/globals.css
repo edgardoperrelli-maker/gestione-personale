@@ -1,79 +1,75 @@
-@import url("https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap");
 @import "tailwindcss";
 
 :root {
-  /* ── Sidebar (scura con nero caldo + rosso Plenzich) ── */
-  --sidebar-bg-from: #1C0A0C;
-  --sidebar-bg-to:   #2A1012;
-  --sidebar-border:  rgba(255, 220, 220, 0.08);
-  --sidebar-text:    #F0E2E4;
-  --sidebar-muted:   #B59C9E;
+  --sidebar-bg-from: oklch(0.12 0.04 245);
+  --sidebar-bg-to:   oklch(0.10 0.04 250);
+  --sidebar-border:  oklch(0.30 0.03 245 / 0.6);
+  --sidebar-text:    oklch(0.94 0.015 220);
+  --sidebar-muted:   oklch(0.62 0.03 245);
 
-  /* ── Brand (rosso Plenzich dal logo) ── */
-  --brand-bg:             #F7F3F3;
-  --brand-surface:        #FFFFFF;
-  --brand-surface-muted:  #FBF6F6;
+  --brand-bg:             oklch(0.14 0.04 245);
+  --brand-surface:        oklch(0.18 0.05 245);
+  --brand-surface-muted:  oklch(0.16 0.045 245);
 
-  --brand-primary:        #DB2128;
-  --brand-primary-hover:  #B8181E;
-  --brand-primary-soft:   #FCE8EA;
-  --brand-primary-border: #F5BFC3;
-  --brand-nav-active-bg:  #FCE8EA;
+  --brand-primary:        oklch(0.80 0.16 215);
+  --brand-primary-hover:  oklch(0.72 0.16 215);
+  --brand-primary-soft:   oklch(0.80 0.16 215 / 0.15);
+  --brand-primary-border: oklch(0.80 0.16 215 / 0.40);
+  --brand-nav-active-bg:  oklch(0.80 0.16 215 / 0.14);
 
-  --brand-gold:           #F6E325;
-  --brand-gold-soft:      #FEF9D5;
+  --brand-gold:           oklch(0.84 0.18 95);
+  --brand-gold-soft:      oklch(0.84 0.18 95 / 0.16);
 
-  --brand-border:         #EBE0E0;
-  --brand-border-strong:  #D8C6C6;
+  --brand-magenta:        oklch(0.70 0.25 350);
+  --brand-magenta-soft:   oklch(0.70 0.25 350 / 0.16);
+  --brand-green:          oklch(0.74 0.21 145);
+  --brand-green-soft:     oklch(0.74 0.21 145 / 0.16);
+  --brand-violet:         oklch(0.62 0.22 295);
+  --brand-violet-soft:    oklch(0.62 0.22 295 / 0.16);
 
-  --brand-text-main:      #201D1D;
-  --brand-text-muted:     #7A6060;
-  --brand-text-subtle:    #BFA7A7;
+  --brand-border:         oklch(0.30 0.03 245);
+  --brand-border-strong:  oklch(0.38 0.04 245);
 
-  /* ── KPI variants (derivati dal logo) ── */
-  --kpi-rosso-bg:         #FCE8EA;
-  --kpi-rosso-text:       #A61820;
-  --kpi-rosso-icon:       #DB2128;
+  --brand-text-main:      oklch(0.94 0.015 220);
+  --brand-text-muted:     oklch(0.70 0.03 245);
+  --brand-text-subtle:    oklch(0.55 0.03 245);
 
-  --kpi-giallo-bg:        #FEF9D5;
-  --kpi-giallo-text:      #7A6A08;
-  --kpi-giallo-icon:      #D4C41A;
+  --kpi-rosso-bg:        oklch(0.80 0.16 215 / 0.16);
+  --kpi-rosso-text:      oklch(0.86 0.12 215);
+  --kpi-rosso-icon:      oklch(0.80 0.16 215);
+  --kpi-giallo-bg:       oklch(0.84 0.18 95 / 0.16);
+  --kpi-giallo-text:     oklch(0.88 0.13 95);
+  --kpi-giallo-icon:     oklch(0.84 0.18 95);
+  --kpi-terracotta-bg:   oklch(0.70 0.25 350 / 0.16);
+  --kpi-terracotta-text: oklch(0.82 0.16 350);
+  --kpi-terracotta-icon: oklch(0.70 0.25 350);
+  --kpi-grafite-bg:      oklch(0.74 0.21 145 / 0.16);
+  --kpi-grafite-text:    oklch(0.84 0.16 145);
+  --kpi-grafite-icon:    oklch(0.74 0.21 145);
 
-  --kpi-terracotta-bg:    #FDEBDC;
-  --kpi-terracotta-text:  #A14A0E;
-  --kpi-terracotta-icon:  #DC6B14;
+  --success:      oklch(0.74 0.21 145);
+  --success-soft: oklch(0.74 0.21 145 / 0.16);
+  --warning:      oklch(0.84 0.18 95);
+  --warning-soft: oklch(0.84 0.18 95 / 0.16);
+  --danger:       oklch(0.70 0.25 350);
+  --danger-soft:  oklch(0.70 0.25 350 / 0.16);
+  --info:         oklch(0.80 0.16 215);
+  --info-soft:    oklch(0.80 0.16 215 / 0.16);
 
-  --kpi-grafite-bg:       #EEE9E9;
-  --kpi-grafite-text:     #3A3434;
-  --kpi-grafite-icon:     #5A4F4F;
+  --app-bg:     oklch(0.14 0.04 245);
+  --card-bg:    oklch(0.18 0.05 245);
+  --card-bd:    oklch(0.30 0.03 245);
+  --we-bg:      oklch(0.16 0.045 245);
+  --hol-bg:     oklch(0.70 0.25 350 / 0.12);
+  --today-ring: oklch(0.80 0.16 215);
 
-  /* ── Semantici ── */
-  --success:      #2E7D4E;
-  --success-soft: #DFF0E4;
-  --warning:      #DC6B14;
-  --warning-soft: #FDEBDC;
-  --danger:       #C41E24;
-  --danger-soft:  #FCE0E2;
-  --info:         #1E5A8A;
-  --info-soft:    #E3EDF7;
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.40);
+  --shadow-md:    0 2px 10px rgba(0,0,0,0.45);
+  --shadow-lg:    0 10px 30px rgba(0,0,0,0.50);
+  --shadow-hover: 0 0 18px oklch(0.80 0.16 215 / 0.45);
 
-  /* ── Calendario ── */
-  --app-bg:     #F7F3F3;
-  --card-bg:    #FFFFFF;
-  --card-bd:    #EBE0E0;
-  --we-bg:      #F9F3F3;
-  --hol-bg:     #FFEEEF;
-  --today-ring: #DB2128;
-
-  /* ── Shadows calde ── */
-  --shadow-sm:    0 1px 2px rgba(32, 29, 29, 0.04);
-  --shadow-md:    0 2px 8px rgba(32, 29, 29, 0.06);
-  --shadow-lg:    0 8px 24px rgba(32, 29, 29, 0.08);
-  --shadow-hover: 0 4px 16px rgba(32, 29, 29, 0.10);
-
-  /* ── Legacy (retrocompatibilità con nomi vecchi) ── */
-  --text-gold-soft: #7A6060;
-  --border-light:   #EBE0E0;
+  --text-gold-soft: oklch(0.70 0.03 245);
+  --border-light:   oklch(0.30 0.03 245);
 }
 
 @theme inline {
@@ -121,17 +117,21 @@
 }
 
 body {
-  background-color: var(--brand-bg);
+  background:
+    radial-gradient(circle at top left, oklch(0.78 0.13 215 / 0.16), transparent 38%),
+    radial-gradient(circle at top right, oklch(0.66 0.22 350 / 0.10), transparent 42%),
+    linear-gradient(180deg, oklch(0.14 0.04 245) 0%, oklch(0.10 0.04 245) 100%);
+  background-attachment: fixed;
   color: var(--brand-text-main);
-  font-family: "Inter", system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-geist), "Geist", system-ui, -apple-system, sans-serif;
   line-height: 1.35;
 }
 
 html, body { height: 100%; margin: 0; }
 
 input, select, textarea {
-  background-color: #ffffff;
-  color: #0f172a;
+  background-color: var(--brand-surface);
+  color: var(--brand-text-main);
   border: 1px solid var(--brand-border);
 }
 input:focus, select:focus, textarea:focus {
@@ -139,16 +139,17 @@ input:focus, select:focus, textarea:focus {
   border-color: var(--brand-primary);
   box-shadow: 0 0 0 1px var(--brand-primary);
 }
-label { color: #0f172a; }
-table { color: #0f172a; background-color: #ffffff; }
+input::placeholder, textarea::placeholder { color: var(--brand-text-subtle); }
+label { color: var(--brand-text-main); }
+table { color: var(--brand-text-main); background-color: var(--brand-surface); }
 th, td { border-color: var(--brand-border); }
 button { background-color: transparent; color: inherit; border: none; }
 
-* { scrollbar-width: thin; scrollbar-color: var(--brand-border) #f8fafc; }
+* { scrollbar-width: thin; scrollbar-color: var(--brand-border) transparent; }
 *::-webkit-scrollbar { width: 8px; height: 8px; }
-*::-webkit-scrollbar-track { background: #f8fafc; }
-*::-webkit-scrollbar-thumb { background-color: #cbd5e1; border: 2px solid #f8fafc; border-radius: 999px; }
-*::-webkit-scrollbar-thumb:hover { background-color: #94a3b8; }
+*::-webkit-scrollbar-track { background: transparent; }
+*::-webkit-scrollbar-thumb { background-color: var(--brand-border-strong); border: 2px solid transparent; border-radius: 999px; }
+*::-webkit-scrollbar-thumb:hover { background-color: var(--brand-primary); }
 
 .sidebar-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(59,130,246,0.25) transparent; }
 .sidebar-scrollbar::-webkit-scrollbar { width: 6px; }

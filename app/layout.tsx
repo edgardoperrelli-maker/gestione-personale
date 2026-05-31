@@ -1,9 +1,9 @@
 import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
+import { Geist } from 'next/font/google';
 import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
 import './globals.css';
 
-const inter = Inter({ variable: '--font-inter', subsets: ['latin'] });
+const geist = Geist({ variable: '--font-geist', subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Gestione Personale',
@@ -13,7 +13,7 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it">
-      <body className={`${inter.variable} antialiased bg-[var(--brand-bg)] text-[var(--brand-text-main)]`}>
+      <body className={`${geist.variable} antialiased bg-[var(--brand-bg)] text-[var(--brand-text-main)]`}>
         <PageTransitionWrapper>{children}</PageTransitionWrapper>
       </body>
     </html>
