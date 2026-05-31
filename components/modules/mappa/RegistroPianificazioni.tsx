@@ -527,6 +527,12 @@ function RapportiniModal({
                         {copiedToken === r.token ? 'Copiato!' : 'Copia link'}
                       </button>
                       <a
+                        href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
+                        className="rounded border border-[var(--brand-border)] px-2.5 py-1 text-xs font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                      >
+                        Esporta Excel
+                      </a>
+                      <a
                         href={whatsappHref(r)}
                         target="_blank"
                         rel="noopener noreferrer"
