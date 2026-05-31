@@ -56,7 +56,7 @@ export default function CronoGridView({
   const gridTemplate = `88px repeat(${columns.length}, minmax(0, 1fr))`;
 
   return (
-    <div className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm overflow-hidden">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm overflow-hidden">
       {/* Header colonne territorio */}
       <div
         className="grid border-b border-[var(--card-bd)] bg-[var(--brand-bg)] text-[10px] font-semibold uppercase tracking-widest text-[var(--brand-text-muted)]"
@@ -83,9 +83,9 @@ export default function CronoGridView({
 
         /* colore di sfondo dell'intera riga — priorità: oggi > festività > weekend > default */
         const rowBg = isToday
-          ? '#EFF6FF'          /* blue-50 */
+          ? 'var(--info-soft)'
           : isHol
-          ? '#FFF0F2'          /* red-50 */
+          ? 'var(--hol-bg)'
           : isWe
           ? 'var(--we-bg)'
           : undefined;
@@ -106,7 +106,7 @@ export default function CronoGridView({
                 borderLeft: isToday
                   ? '3px solid var(--brand-primary)'
                   : isHol
-                  ? '3px solid #F43F5E'
+                  ? '3px solid var(--danger)'
                   : '3px solid transparent',
               }}
               onDragOver={(e) => {
@@ -124,14 +124,14 @@ export default function CronoGridView({
             >
               <div
                 className="text-[10px] uppercase tracking-wide font-medium"
-                style={{ color: isHol ? '#BE123C' : 'var(--brand-text-muted)' }}
+                style={{ color: isHol ? 'var(--danger)' : 'var(--brand-text-muted)' }}
               >
                 {d.toLocaleDateString('it-IT', { weekday: 'short' })}
               </div>
               <div
                 draggable
                 className={`inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-full text-sm font-bold active:cursor-grabbing ${
-                  isToday ? 'text-white' : isHol ? 'text-rose-700' : 'text-[var(--brand-text-main)]'
+                  isToday ? 'text-[oklch(0.16_0.06_245)]' : isHol ? 'text-[var(--danger)]' : 'text-[var(--brand-text-main)]'
                 }`}
                 style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
                 title="Trascina per spostare l'intero giorno"
@@ -143,7 +143,7 @@ export default function CronoGridView({
                 {d.getDate()}
               </div>
               {isHol && (
-                <div className="mt-0.5 text-[9px] font-semibold text-rose-500 uppercase tracking-wide">
+                <div className="mt-0.5 text-[9px] font-semibold text-[var(--danger)] uppercase tracking-wide">
                   Festivo
                 </div>
               )}
@@ -176,9 +176,9 @@ export default function CronoGridView({
                   className="group relative border-l border-[var(--card-bd)] px-1.5 py-1.5"
                   style={{
                     backgroundColor: isToday
-                      ? 'rgba(59,130,246,0.04)'
+                      ? 'var(--info-soft)'
                       : isHol
-                      ? 'rgba(244,63,94,0.03)'
+                      ? 'var(--hol-bg)'
                       : undefined,
                   }}
                   onClick={() => !sorted.length && onAdd(d)}

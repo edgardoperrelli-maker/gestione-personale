@@ -18,14 +18,14 @@ export default function CronoTableView({
 }) {
   if (!rows.length) {
     return (
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-white p-6 text-sm text-[var(--brand-text-muted)] shadow-sm">
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-sm text-[var(--brand-text-muted)] shadow-sm">
         Nessuna assegnazione nel range selezionato.
       </div>
     );
   }
 
   return (
-    <div className="rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm">
+    <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
       <div className="overflow-x-auto">
         <table className="min-w-full text-sm">
           <thead className="bg-[var(--brand-primary-soft)]/50 text-left text-xs uppercase text-[var(--brand-text-muted)]">
@@ -53,14 +53,14 @@ export default function CronoTableView({
                     <button
                       type="button"
                       onClick={() => onEdit(row.assignment)}
-                      className="rounded-md border px-2 py-1 text-xs hover:bg-gray-50"
+                      className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
                     >
                       Modifica
                     </button>
                     <button
                       type="button"
                       onClick={() => onDelete(row.assignment)}
-                      className="rounded-md border px-2 py-1 text-xs text-rose-600 hover:bg-rose-50"
+                      className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--danger)] hover:bg-[var(--danger-soft)]"
                     >
                       Elimina
                     </button>

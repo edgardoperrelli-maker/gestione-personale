@@ -20,7 +20,7 @@ import {
 } from './utils';
 
 const dayBgClass = (d: Date) => {
-  if (isItalyHoliday(d)) return 'bg-rose-50';
+  if (isItalyHoliday(d)) return 'bg-[var(--hol-bg)]';
   if (isWeekend(d)) return 'bg-[var(--we-bg)]';
   return 'bg-[var(--card-bg)]';
 };
@@ -193,9 +193,9 @@ function DayCell(props: {
             draggable
             className={`inline-flex h-7 w-7 cursor-grab items-center justify-center rounded-full font-bold active:cursor-grabbing ${
               isToday
-                ? 'bg-[var(--brand-primary)] text-white ring-2 ring-[var(--brand-primary)] ring-offset-1'
+                ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] ring-2 ring-[var(--brand-primary)] ring-offset-1'
                 : isItalyHoliday(d)
-                ? 'text-rose-700'
+                ? 'text-[var(--danger)]'
                 : ''
             }`}
             title="Trascina per spostare l'intero giorno"
@@ -207,7 +207,7 @@ function DayCell(props: {
             {d.getDate()}
           </span>
           {isItalyHoliday(d) && (
-            <span className="text-[10px] font-semibold text-rose-500 uppercase tracking-wide">
+            <span className="text-[10px] font-semibold text-[var(--danger)] uppercase tracking-wide">
               Festivo
             </span>
           )}
@@ -223,7 +223,7 @@ function DayCell(props: {
             return (
               <span
                 title={`${unassigned} operator${unassigned === 1 ? 'e' : 'i'} senza assegnazione`}
-                className="inline-flex items-center gap-0.5 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-700"
+                className="inline-flex items-center gap-0.5 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
               >
                 ⚠ {unassigned}
               </span>
@@ -232,7 +232,7 @@ function DayCell(props: {
           {sortMode !== 'AZ' && (
             <button
               onClick={() => props.setSortMode('AZ')}
-              className="rounded-full border bg-white px-2 py-0.5 text-[10px] hover:bg-gray-50"
+              className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[10px] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
               title="Ordina A - Z"
             >
               A-Z
@@ -242,7 +242,7 @@ function DayCell(props: {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onAdd(d)}
-            className="rounded-lg border border-[var(--brand-border)] bg-white px-2 py-1 text-xs text-gray-900 hover:bg-gray-50"
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
           >
             Nuovo
           </button>

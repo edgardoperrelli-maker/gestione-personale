@@ -113,7 +113,7 @@ function WeekCell({
         <div
           draggable
           className={`inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-full text-sm font-bold active:cursor-grabbing ${
-            isToday ? 'text-white' : 'text-[var(--brand-text-main)]'
+            isToday ? 'text-[oklch(0.16_0.06_245)]' : 'text-[var(--brand-text-main)]'
           }`}
           style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
           title="Trascina per spostare l'intero giorno"
@@ -294,7 +294,7 @@ export default function CronoSplitView({
 
   return (
     <div
-      className="flex rounded-2xl border border-[var(--brand-border)] bg-white shadow-sm overflow-hidden"
+      className="flex rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm overflow-hidden"
       style={{ minHeight: 480 }}
     >
       <aside
@@ -332,7 +332,7 @@ export default function CronoSplitView({
                     className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                     style={
                       isActive
-                        ? { backgroundColor: s.band, color: '#fff' }
+                        ? { backgroundColor: s.band, color: 'oklch(0.16 0.06 245)' }
                         : { backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }
                     }
                   >

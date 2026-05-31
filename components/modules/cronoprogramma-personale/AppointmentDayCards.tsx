@@ -49,7 +49,7 @@ export default function AppointmentDayCards({
         return (
           <div
             key={dayStr}
-            className="flex h-[140px] flex-col rounded-xl border border-[var(--brand-border)] bg-white shadow-sm"
+            className="flex h-[140px] flex-col rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm"
             onDragOver={(e) => {
               if (e.dataTransfer.types.includes('application/x-appointment-id')) {
                 e.preventDefault();

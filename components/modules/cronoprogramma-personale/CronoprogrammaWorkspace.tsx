@@ -1099,7 +1099,7 @@ export default function CronoprogrammaWorkspace() {
 
       {dropChoiceDialog && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-white p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
             <div className="text-lg font-semibold text-[var(--brand-text-main)]">Operazione sulla card</div>
             <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
               Scegli se vuoi spostare o copiare la card trascinata.

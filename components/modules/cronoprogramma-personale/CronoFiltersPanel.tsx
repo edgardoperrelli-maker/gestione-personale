@@ -23,13 +23,13 @@ export default function CronoFiltersPanel({
   if (!open) return null;
 
   return (
-    <div className="mt-3 rounded-2xl border border-[var(--brand-border)] bg-white p-4 shadow-sm">
+    <div className="mt-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <div className="flex items-center justify-between">
         <div className="text-sm font-semibold">Filtri</div>
         <button
           type="button"
           onClick={onClear}
-          className="rounded-md border bg-white px-2 py-1 text-xs hover:bg-gray-50"
+          className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
         >
           Azzera
         </button>

@@ -94,7 +94,7 @@ function ViewMode({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-white shadow-xl"
+        className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Banda colorata sinistra */}
@@ -336,7 +336,7 @@ function CreateMode({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-white shadow-xl"
+        className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
