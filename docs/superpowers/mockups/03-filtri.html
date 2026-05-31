@@ -1,0 +1,79 @@
+<!doctype html><html lang="it"><head><meta charset="utf-8">
+<title>Wizard — Filtri</title><link rel="stylesheet" href="style.css"></head>
+<body><div class="overlay"><div class="modal">
+
+  <div class="modal-header">
+    <div>
+      <div class="modal-title"><span class="pin">📌</span> Nuova regola · Mario Rossi</div>
+      <div class="modal-sub">Piano · 31 maggio 2026 · LAZIO EST</div>
+    </div>
+    <button class="x">✕</button>
+  </div>
+
+  <div class="modal-body">
+    <div class="steps">
+      <div class="step done"><span class="num">✓</span> Operatore</div><span class="bar"></span>
+      <div class="step active"><span class="num">2</span> Filtri</div><span class="bar"></span>
+      <div class="step"><span class="num">3</span> Limite</div><span class="bar"></span>
+      <div class="step"><span class="num">4</span> Conferma</div>
+    </div>
+
+    <div class="section-title">Step 2 — Definisci i filtri</div>
+    <div class="section-hint">Combinati in <b>AND</b>: l'intervento deve soddisfare tutti i filtri valorizzati. Almeno uno obbligatorio.</div>
+
+    <!-- ODS -->
+    <div class="field">
+      <label>🎯 ODS <span style="font-weight:500;color:var(--muted)">— ordine di servizio (intervento specifico)</span></label>
+      <div class="chipbox">
+        <span class="chip">ODS-10231 <span class="rm">✕</span></span>
+        <span class="chip">ODS-10244 <span class="rm">✕</span></span>
+        <span class="chip chip-warn">ODS-99999 ⚠ non trovato <span class="rm">✕</span></span>
+        <span class="ph">＋ aggiungi ODS…</span>
+      </div>
+      <div class="fallback">
+        <div class="ttl">⚠ ODS-99999 non presente nel dataset → assegna per 🏠 indirizzo</div>
+        <div class="addr">
+          <input value="Via Roma 12, Frascati">
+          <button class="btn btn-outline" style="padding:9px 14px">Cerca</button>
+        </div>
+        <div class="ok">✓ 1 intervento trovato a questo indirizzo</div>
+      </div>
+    </div>
+
+    <!-- CAP -->
+    <div class="field">
+      <label>📍 CAP <span style="font-weight:500;color:var(--muted)">— area geografica</span></label>
+      <div class="chipbox">
+        <span class="chip chip-cap">00044 <span class="rm">✕</span></span>
+        <span class="chip chip-cap">00045 <span class="rm">✕</span></span>
+        <span class="ph">＋ aggiungi CAP…</span>
+      </div>
+      <div class="hint">Suggeriti dal dataset: 00040 · 00041 · 00043 · 00044 · 00045 · 00046</div>
+    </div>
+
+    <!-- Attività -->
+    <div class="field">
+      <label>🔧 Attività / servizio <span style="font-weight:500;color:var(--muted)">— tipo di lavoro</span></label>
+      <div class="chipbox">
+        <span class="chip chip-att">S-AI-051 <span class="rm">✕</span></span>
+        <span class="ph">＋ aggiungi attività…</span>
+      </div>
+      <div class="hint">Valori presenti nel dataset: S-AI-051 · S-AI-022 · S-PR-007 · S-PR-077</div>
+    </div>
+
+    <div class="preview">
+      <div class="ic">✓</div>
+      <div class="tx">La regola corrisponde a 23 interventi nel dataset
+        <small>Fase di priorità: 🎯 ODS (filtro più forte presente) · cascata ODS → CAP → Attività → Automatico</small></div>
+    </div>
+  </div>
+
+  <div class="modal-footer">
+    <div class="foot-info">Filtri attivi: <b>🎯 2 ODS + 🏠 1 indirizzo · 📍 2 CAP · 🔧 1 attività</b></div>
+    <div class="row-gap">
+      <button class="btn btn-outline">← Indietro</button>
+      <button class="btn btn-primary">Avanti →</button>
+    </div>
+  </div>
+
+</div></div></body></html>
