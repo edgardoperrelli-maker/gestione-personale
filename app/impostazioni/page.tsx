@@ -44,6 +44,12 @@ const MODULES = [
     description: 'Seleziona i codici servizio per i quali viene generato automaticamente il verbale Word.',
     icon: 'W',
   },
+  {
+    href: '/impostazioni/template-rapportini',
+    title: 'Template rapportini',
+    description: 'Configura i campi dei rapportini compilabili dai tecnici.',
+    icon: 'R',
+  },
 ];
 
 export default function ImpostazioniPage() {
