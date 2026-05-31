@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
+import { nonConsegnati } from '@/utils/rapportini/nonConsegnati';
 
 interface Piano {
   id: string;
@@ -18,11 +19,36 @@ interface Piano {
   }>;
 }
 
+interface Template {
+  id: string;
+  nome: string;
+  is_default?: boolean;
+  active?: boolean;
+}
+
+interface RapportinoStato {
+  id: string;
+  staff_id: string;
+  staff_name: string | null;
+  token: string;
+  stato: string;
+  data: string;
+  expires_at: string;
+  submitted_at: string | null;
+  url: string;
+  statoCalcolato: 'valido' | 'scaduto' | 'inviato';
+  nVoci: number;
+}
+
 export default function RegistroPianificazioni() {
   const [piani, setPiani] = useState<Piano[]>([]);
   const [loading, setLoading] = useState(true);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [confirmId, setConfirmId] = useState<string | null>(null);
+
+  // Rapportini: pannello/modal per piano
+  const [rapPiano, setRapPiano] = useState<Piano | null>(null);
+  const [alerts, setAlerts] = useState<{ staff_name?: string; data: string }[]>([]);
 
   useEffect(() => {
     const fetchPiani = async () => {
@@ -58,6 +84,44 @@ export default function RegistroPianificazioni() {
 
     fetchPiani();
   }, []);
+
+  // Alert "non consegnato": aggrega i rapportini di tutti i piani e usa nonConsegnati()
+  const caricaAlert = async (lista: Piano[]) => {
+    if (lista.length === 0) {
+      setAlerts([]);
+      return;
+    }
+    try {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const liste = await Promise.all(
+        lista.map(async (p) => {
+          try {
+            const res = await fetch(`/api/mappa/rapportini?pianoId=${p.id}`);
+            if (!res.ok) return [] as RapportinoStato[];
+            const data = await res.json();
+            return (Array.isArray(data) ? data : []) as RapportinoStato[];
+          } catch {
+            return [] as RapportinoStato[];
+          }
+        }),
+      );
+      const tutti = liste.flat().map((r) => ({
+        data: r.data,
+        stato: r.stato,
+        staff_name: r.staff_name ?? undefined,
+      }));
+      setAlerts(nonConsegnati(tutti, todayIso));
+    } catch (error) {
+      console.error('Error loading rapportini alerts:', error);
+    }
+  };
+
+  useEffect(() => {
+    caricaAlert(piani);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piani]);
+
+  const refreshAlerts = () => caricaAlert(piani);
 
   const handleDelete = async (pianoId: string) => {
     setDeletingId(pianoId);
@@ -102,6 +166,28 @@ export default function RegistroPianificazioni() {
           + Nuova pianificazione
         </Link>
       </div>
+
+      {alerts.length > 0 && (
+        <div className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-4 py-3">
+          <div className="mb-1 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
+            <span aria-hidden>⚠</span>
+            Rapportini non consegnati ({alerts.length})
+          </div>
+          <ul className="space-y-0.5">
+            {alerts.map((a, i) => (
+              <li key={`${a.staff_name ?? 'op'}-${a.data}-${i}`} className="text-xs text-[var(--brand-primary-hover)]">
+                {a.staff_name ?? 'Operatore'} · piano{' '}
+                {new Date(a.data).toLocaleDateString('it-IT', {
+                  day: '2-digit',
+                  month: '2-digit',
+                  year: 'numeric',
+                })}{' '}
+                non consegnato, richiede intervento
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {piani.length === 0 ? (
         <div className="rounded-lg border border-gray-200 bg-gray-50 px-6 py-12 text-center">
@@ -179,6 +265,14 @@ export default function RegistroPianificazioni() {
                       Riapri
                     </button>
 
+                    <button
+                      onClick={() => setRapPiano(piano)}
+                      className="mr-2 rounded border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-primary-border)] disabled:opacity-50"
+                      disabled={deletingId === piano.id || confirmId === piano.id}
+                    >
+                      Rapportini
+                    </button>
+
                     {confirmId === piano.id ? (
                       <div className="inline-flex items-center gap-1">
                         <span className="text-xs font-medium text-red-600">Elimina?</span>
@@ -211,6 +305,243 @@ export default function RegistroPianificazioni() {
           </table>
         </div>
       )}
+
+      {rapPiano && (
+        <RapportiniModal
+          piano={rapPiano}
+          onClose={() => setRapPiano(null)}
+          onRefreshAlerts={refreshAlerts}
+        />
+      )}
+    </div>
+  );
+}
+
+function statoBadge(stato: RapportinoStato['statoCalcolato']) {
+  if (stato === 'inviato') {
+    return { label: 'Inviato', className: 'bg-green-100 text-green-800' };
+  }
+  if (stato === 'scaduto') {
+    return { label: 'Scaduto', className: 'bg-red-100 text-red-800' };
+  }
+  return { label: 'In corso', className: 'bg-yellow-100 text-yellow-800' };
+}
+
+function RapportiniModal({
+  piano,
+  onClose,
+  onRefreshAlerts,
+}: {
+  piano: Piano;
+  onClose: () => void;
+  onRefreshAlerts: () => void;
+}) {
+  const [templates, setTemplates] = useState<Template[]>([]);
+  const [templateId, setTemplateId] = useState('');
+  const [stato, setStato] = useState<RapportinoStato[]>([]);
+  const [loadingStato, setLoadingStato] = useState(true);
+  const [generating, setGenerating] = useState(false);
+  const [errore, setErrore] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
+
+  const dataLabel = new Date(piano.data).toLocaleDateString('it-IT', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+
+  const caricaStato = async () => {
+    setLoadingStato(true);
+    try {
+      const res = await fetch(`/api/mappa/rapportini?pianoId=${piano.id}`);
+      const data = await res.json();
+      setStato(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error loading stato rapportini:', error);
+      setStato([]);
+    } finally {
+      setLoadingStato(false);
+    }
+  };
+
+  useEffect(() => {
+    const caricaTemplates = async () => {
+      try {
+        const res = await fetch('/api/admin/rapportino-template');
+        const data = await res.json();
+        const list: Template[] = Array.isArray(data) ? data : [];
+        setTemplates(list);
+        const def = list.find((t) => t.is_default) ?? list[0];
+        if (def) setTemplateId(def.id);
+      } catch (error) {
+        console.error('Error loading templates:', error);
+      }
+    };
+    caricaTemplates();
+    caricaStato();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [piano.id]);
+
+  const handleGenera = async () => {
+    if (!templateId) {
+      setErrore('Seleziona un modello.');
+      return;
+    }
+    setGenerating(true);
+    setErrore(null);
+    try {
+      const res = await fetch('/api/mappa/rapportini/genera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pianoId: piano.id, templateId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setErrore(data?.error ?? 'Errore durante la generazione.');
+        return;
+      }
+      await caricaStato();
+      onRefreshAlerts();
+    } catch (error) {
+      console.error('Error generating rapportini:', error);
+      setErrore('Errore durante la generazione.');
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleCopy = async (r: RapportinoStato) => {
+    try {
+      await navigator.clipboard.writeText(r.url);
+      setCopiedToken(r.token);
+      setTimeout(() => setCopiedToken((t) => (t === r.token ? null : t)), 1800);
+    } catch (error) {
+      console.error('Error copying link:', error);
+    }
+  };
+
+  const whatsappHref = (r: RapportinoStato) => {
+    const testo = `Ciao ${r.staff_name ?? ''}, ecco il link per il rapportino del ${dataLabel}:`;
+    return `https://wa.me/?text=${encodeURIComponent(`${testo} ${r.url}`)}`;
+  };
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4"
+      onClick={onClose}
+    >
+      <div
+        className="flex max-h-[90vh] w-full max-w-2xl flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-white shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="flex items-start justify-between border-b border-[var(--brand-border)] px-6 py-4">
+          <div>
+            <h3 className="text-base font-semibold text-[var(--brand-text-main)]">
+              Rapportini · {piano.territorio}
+            </h3>
+            <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+              Piano del {dataLabel} · {piano.operatori.length} operatori
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
+            aria-label="Chiudi"
+          >
+            ✕
+          </button>
+        </div>
+
+        <div className="flex-1 overflow-auto px-6 py-4">
+          <div className="mb-4 flex flex-wrap items-end gap-2">
+            <label className="flex-1">
+              <span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">
+                Modello rapportino
+              </span>
+              <select
+                value={templateId}
+                onChange={(e) => setTemplateId(e.target.value)}
+                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
+              >
+                {templates.length === 0 && <option value="">Nessun modello</option>}
+                {templates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome}
+                    {t.is_default ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              onClick={handleGenera}
+              disabled={generating || !templateId}
+              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {generating ? 'Genero...' : stato.length > 0 ? 'Rigenera' : 'Genera'}
+            </button>
+          </div>
+
+          {errore && (
+            <div className="mb-3 rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-2 text-xs text-[var(--brand-primary)]">
+              {errore}
+            </div>
+          )}
+
+          {loadingStato ? (
+            <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">
+              Caricamento stato...
+            </div>
+          ) : stato.length === 0 ? (
+            <div className="rounded-lg border border-dashed border-[var(--brand-border)] px-4 py-8 text-center text-sm text-[var(--brand-text-muted)]">
+              Nessun rapportino generato. Seleziona un modello e premi “Genera”.
+            </div>
+          ) : (
+            <ul className="space-y-2">
+              {stato.map((r) => {
+                const badge = statoBadge(r.statoCalcolato);
+                return (
+                  <li
+                    key={r.id}
+                    className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] px-3 py-2.5"
+                  >
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="truncate text-sm font-semibold text-[var(--brand-text-main)]">
+                          {r.staff_name ?? 'Operatore'}
+                        </span>
+                        <span
+                          className={`inline-block rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}
+                        >
+                          {badge.label}
+                        </span>
+                      </div>
+                      <div className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                        {r.nVoci} {r.nVoci === 1 ? 'intervento' : 'interventi'}
+                      </div>
+                    </div>
+                    <div className="flex shrink-0 items-center gap-1.5">
+                      <button
+                        onClick={() => handleCopy(r)}
+                        className="rounded border border-[var(--brand-border)] px-2.5 py-1 text-xs font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                      >
+                        {copiedToken === r.token ? 'Copiato!' : 'Copia link'}
+                      </button>
+                      <a
+                        href={whatsappHref(r)}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="rounded border border-green-300 bg-green-50 px-2.5 py-1 text-xs font-medium text-green-700 hover:bg-green-100"
+                      >
+                        WhatsApp
+                      </a>
+                    </div>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
