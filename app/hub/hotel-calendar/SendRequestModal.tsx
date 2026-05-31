@@ -85,7 +85,7 @@ setNote('');
   return (
     <>
       <button
-        className="px-3 py-2 rounded-xl bg-black text-white text-sm"
+        className="px-3 py-2 rounded-xl bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] text-sm"
         onClick={() => setOpen(true)}
       >
         Invia richiesta
@@ -95,15 +95,15 @@ setNote('');
         <div className="fixed inset-0 z-50">
           {/* overlay */}
           <div
-            className="absolute inset-0 bg-black/40"
+            className="absolute inset-0 bg-[oklch(0_0_0/0.6)]"
             onClick={() => setOpen(false)}
           />
           {/* modal */}
-          <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-white shadow-xl">
+          <div className="absolute left-1/2 top-1/2 w-[min(680px,92vw)] -translate-x-1/2 -translate-y-1/2 rounded-2xl bg-[var(--brand-surface)] border border-[var(--brand-border)] shadow-xl">
             <div className="flex items-center justify-between px-5 py-4 border-b">
               <h2 className="text-base font-semibold">Invia richiesta prenotazione</h2>
               <button
-                className="text-sm text-neutral-600 hover:text-black"
+                className="text-sm text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]"
                 onClick={() => setOpen(false)}
                 aria-label="Chiudi"
               >
@@ -153,7 +153,7 @@ setNote('');
     >
       Aggiungi camera
     </button>
-    <span className="ml-2 text-xs text-neutral-500">Max 4 camere</span>
+    <span className="ml-2 text-xs text-[var(--brand-text-subtle)]">Max 4 camere</span>
   </div>
 </div>
 
@@ -191,7 +191,7 @@ setNote('');
                   Seleziona hotel destinatari
                 </label>
 {hotels.filter((hotel) => hotel.active && hotel.email).length === 0 && (
-  <p className="text-sm text-neutral-500">Nessun hotel con email. Aggiungili in Impostazioni - Hotel.</p>
+  <p className="text-sm text-[var(--brand-text-subtle)]">Nessun hotel con email. Aggiungili in Impostazioni - Hotel.</p>
 )}
 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
  {hotels.filter((hotel) => hotel.active && hotel.email).map(h => (
@@ -203,7 +203,7 @@ setNote('');
       />
       <div>
         <div className="font-medium">{h.name}</div>
-        {h.territory && <div className="text-[11px] text-neutral-500">{h.territory.name}</div>}
+        {h.territory && <div className="text-[11px] text-[var(--brand-text-subtle)]">{h.territory.name}</div>}
       </div>
     </label>
   ))}
@@ -225,7 +225,7 @@ setNote('');
               </div>
 
               {/* CC fisso */}
-              <div className="text-xs text-neutral-600">
+              <div className="text-xs text-[var(--brand-text-muted)]">
                 CC fisso: <span className="font-medium">{ccFixed}</span>
               </div>
 
@@ -241,7 +241,7 @@ setNote('');
 <button
   type="submit"
   disabled={sending || !canSend}
-  className="px-3 py-2 rounded-lg bg-black text-white text-sm disabled:opacity-60"
+  className="px-3 py-2 rounded-lg bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] text-sm disabled:opacity-60"
 >
   {sending ? 'Invio…' : 'Invia richiesta'}
 </button>

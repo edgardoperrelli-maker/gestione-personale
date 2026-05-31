@@ -61,10 +61,10 @@ type RoomOption = {
 };
 
 const TERRITORY_UI: Record<string, { pill: string; card: string }> = {
-  FIRENZE: { pill: 'bg-orange-50 text-orange-800 border-orange-200', card: 'bg-orange-50 border-orange-200' },
-  PADOVA: { pill: 'bg-violet-50 text-violet-800 border-violet-200', card: 'bg-violet-50 border-violet-200' },
-  PERUGIA: { pill: 'bg-rose-50 text-rose-800 border-rose-200', card: 'bg-rose-50 border-rose-200' },
-  NAPOLI: { pill: 'bg-blue-50 text-blue-800 border-blue-200', card: 'bg-blue-50 border-blue-200' },
+  FIRENZE: { pill: 'bg-[var(--warning-soft)] text-[var(--warning)] border-[var(--brand-border)]', card: 'bg-[var(--warning-soft)] border-[var(--brand-border)]' },
+  PADOVA: { pill: 'bg-[var(--brand-violet-soft)] text-[var(--brand-violet)] border-[var(--brand-border)]', card: 'bg-[var(--brand-violet-soft)] border-[var(--brand-border)]' },
+  PERUGIA: { pill: 'bg-[var(--danger-soft)] text-[var(--danger)] border-[var(--brand-border)]', card: 'bg-[var(--danger-soft)] border-[var(--brand-border)]' },
+  NAPOLI: { pill: 'bg-[var(--info-soft)] text-[var(--info)] border-[var(--brand-border)]', card: 'bg-[var(--info-soft)] border-[var(--brand-border)]' },
 };
 
 function yyyyMmDd(date: Date) {
@@ -121,12 +121,12 @@ function chunk<T>(items: T[], size: number) {
 
 function territoryPillClasses(territory: string) {
   const key = (territory || '').toUpperCase();
-  return TERRITORY_UI[key]?.pill ?? 'bg-neutral-50 text-neutral-700 border-neutral-200';
+  return TERRITORY_UI[key]?.pill ?? 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)] border-[var(--brand-border)]';
 }
 
 function territoryCardClasses(territory: string) {
   const key = (territory || '').toUpperCase();
-  return TERRITORY_UI[key]?.card ?? 'bg-white border-neutral-200';
+  return TERRITORY_UI[key]?.card ?? 'bg-[var(--brand-surface)] border-[var(--brand-border)]';
 }
 
 function normalizeGuests(value: unknown): Guest[] {
@@ -206,9 +206,9 @@ function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-black/40" aria-hidden="true" onClick={onClose} />
+      <div className="absolute inset-0 bg-[oklch(0_0_0/0.6)]" aria-hidden="true" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg rounded-2xl border bg-white shadow-lg">
+        <div className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-lg">
           <div className="flex items-center justify-between border-b p-3">
             <div className="text-sm font-semibold">{title}</div>
             <button type="button" className="rounded-lg border px-2 py-1 text-xs" onClick={onClose}>Chiudi</button>
@@ -394,7 +394,7 @@ function BookingForm({
           ))}
         </select>
         {selectedHotel && roomOptions.every((room) => !room.configured) && (
-          <div className="mt-1 text-[11px] text-amber-700">
+          <div className="mt-1 text-[11px] text-[var(--warning)]">
             Prezzi non configurati per questo hotel: puoi selezionare una tipologia base a EUR 0,00 o impostare i prezzi in Impostazioni - Hotel.
           </div>
         )}
@@ -447,7 +447,7 @@ function BookingForm({
             <option key={guest.id} value={guest.id}>{guest.name}</option>
           ))}
         </select>
-        <div className="mt-1 text-[11px] text-neutral-500">
+        <div className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
           {loadingGuests
             ? 'Caricamento operatori dal cronoprogramma...'
             : 'Sono mostrati solo gli operatori assegnati nel cronoprogramma a questo territorio; i residenti sono esclusi.'}
@@ -678,7 +678,7 @@ export default function Page() {
     return map;
   }, [bookings]);
 
-  if (!loaded) return <div className="p-4 text-sm text-neutral-500">Caricamento...</div>;
+  if (!loaded) return <div className="p-4 text-sm text-[var(--brand-text-subtle)]">Caricamento...</div>;
 
   return (
     <div className="space-y-4 p-4">
@@ -693,9 +693,9 @@ export default function Page() {
           <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
 
           <div className="ml-2 flex items-center gap-1">
-            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-black text-white' : ''}`}>Settimana</button>
-            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-black text-white' : ''}`}>2 settimane</button>
-            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-black text-white' : ''}`}>Mese</button>
+            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
+            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
+            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
             <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
             <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
             <button
@@ -734,7 +734,7 @@ export default function Page() {
               return (
                 <div
                   key={`${weekIndex}-${dayIndex}`}
-                  className={`flex min-h-[220px] flex-col gap-2 rounded-2xl border bg-white p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-black' : ''}`}
+                  className={`flex min-h-[220px] flex-col gap-2 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-[var(--brand-primary)]' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">{day.getDate()}</div>
@@ -743,7 +743,7 @@ export default function Page() {
                     {dayBookings.map((booking) => (
                       <HotelCard key={booking.id} booking={booking} onDelete={() => void deleteBooking(booking.id)} />
                     ))}
-                    {dayBookings.length === 0 && <div className="text-xs text-neutral-500">Nessuna prenotazione</div>}
+                    {dayBookings.length === 0 && <div className="text-xs text-[var(--brand-text-subtle)]">Nessuna prenotazione</div>}
                   </div>
                 </div>
               );
@@ -853,7 +853,7 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
           </button>
           <button
             type="button"
-            className="rounded-lg border px-2 py-1 text-xs text-red-700 shadow"
+            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--danger)] shadow"
             onClick={onDelete}
             aria-label={`Elimina prenotazione ${booking.id}`}
           >
