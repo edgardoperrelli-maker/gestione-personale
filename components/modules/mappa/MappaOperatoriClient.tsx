@@ -12,6 +12,7 @@ import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import type { Territory } from '@/types';
 import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
 import ManualAssignmentsModal from './ManualAssignmentsModal';
+import ManualTaskModal, { type ManualTaskData } from '@/components/modules/mappa/ManualTaskModal';
 import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
 
 export type MappaStaffRow = {
@@ -661,6 +662,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [manualRules, setManualRules] = useState<ManualRule[]>([]);
   const [operatorLocks, setOperatorLocks] = useState<Record<string, boolean>>({});
   const [assignModalOpen, setAssignModalOpen] = useState(false);
+  const [manualModalOpen, setManualModalOpen] = useState(false);
   const [distribution, setDistribution] = useState<DistEntry[] | null>(
     initialDistribution ?? null
   );
@@ -1808,6 +1810,43 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setZtlConflicts([...manual.warnings.map((w) => w.message), ...conflicts]);
   }, [selectedOps, allTasks, ztlZones, manualRules, operatorLocks, esecutorePins]);
 
+  const addManualTask = useCallback(async (data: ManualTaskData) => {
+    const operator = data.staffId ? operatorOptions.find((o) => o.id === data.staffId) : undefined;
+    const task: Task & { _operatore?: string } = {
+      id: `manual-${Date.now()}`,
+      indirizzo: data.indirizzo.trim(),
+      cap: data.cap.trim(),
+      citta: data.citta.trim(),
+      odl: '',
+      priorita: 0,
+      odsin: data.odsin.trim() || undefined,
+      pdr: data.pdr.trim() || undefined,
+      attivita: data.attivita.trim() || undefined,
+      fascia_oraria: data.fascia_oraria.trim(),
+      nominativo: data.nominativo.trim() || undefined,
+      _operatore: operator?.displayName,
+    };
+    const geocoded = await geocodeTask(task);
+    setExcelTasks((prev) => [...prev, geocoded]);
+    setExcelMode(true);
+    if (operator) {
+      setEsecutorePins((prev) => ({ ...prev, [task.id]: operator.id }));
+      setSelectedOps((prev) => {
+        if (prev.some((o) => o.id === operator.id)) return prev;
+        const isRepOnDay = operator.reperibileDates.includes(planningDate);
+        const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
+        const base = usesHome
+          ? { lat: operator.homeLat!, lng: operator.homeLng! }
+          : operator.startLat != null && operator.startLng != null
+            ? { lat: operator.startLat, lng: operator.startLng }
+            : null;
+        const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
+        return [...prev, { id: operator.id, name: operator.displayName, qty: 0, base, startAddress }];
+      });
+    }
+    if (distribution) distributeToOps();
+  }, [operatorOptions, planningDate, distribution, distributeToOps]);
+
   // Auto-distribuzione dopo la geocodifica per i file con colonna Esecutore
   useEffect(() => {
     const total = geocodingProgress?.total ?? 0;
@@ -2530,6 +2569,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               + Aggiungi attività da template
                             </button>
                           )}
+                          {excelMode && (
+                            <button
+                              type="button"
+                              onClick={() => setManualModalOpen(true)}
+                              className="rounded-lg border border-[var(--brand-violet)]/40 bg-[var(--brand-violet-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-violet)] hover:opacity-90"
+                            >
+                              + Aggiungi manuale
+                            </button>
+                          )}
                           <button
                             type="button"
                             onClick={saveDistribution}
@@ -3140,6 +3188,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         onChangeLocks={setOperatorLocks}
         onDistribute={() => { setAssignModalOpen(false); distributeToOps(); }}
       />
+      {manualModalOpen && (
+        <ManualTaskModal
+          operators={operatorOptions.map((o) => ({ id: o.id, displayName: o.displayName }))}
+          onClose={() => setManualModalOpen(false)}
+          onAdd={addManualTask}
+        />
+      )}
     </div>
   );
 }
