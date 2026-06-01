@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { nonConsegnati } from '@/utils/rapportini/nonConsegnati';
 import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
@@ -37,40 +37,27 @@ export default function RegistroPianificazioni() {
   const [rapPiano, setRapPiano] = useState<Piano | null>(null);
   const [alerts, setAlerts] = useState<{ staff_name?: string; data: string }[]>([]);
 
-  useEffect(() => {
-    const fetchPiani = async () => {
-      try {
-        const response = await fetch('/api/mappa/piani');
-
-        if (!response.ok) {
-          console.error('API error:', response.status, response.statusText);
-          setPiani([]);
-          setLoading(false);
-          return;
-        }
-
-        const data = await response.json();
-
-        // Assicurati che data sia un array
-        if (Array.isArray(data)) {
-          setPiani(data);
-        } else if (data?.error) {
-          console.error('API error:', data.error);
-          setPiani([]);
-        } else {
-          console.error('Expected array, got:', typeof data, data);
-          setPiani([]);
-        }
-      } catch (error) {
-        console.error('Error fetching piani:', error);
+  const loadPiani = useCallback(async () => {
+    try {
+      const response = await fetch('/api/mappa/piani');
+      if (!response.ok) {
+        console.error('API error:', response.status, response.statusText);
         setPiani([]);
-      } finally {
-        setLoading(false);
+        return;
       }
-    };
-
-    fetchPiani();
+      const data = await response.json();
+      setPiani(Array.isArray(data) ? data : []);
+    } catch (error) {
+      console.error('Error fetching piani:', error);
+      setPiani([]);
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    loadPiani();
+  }, [loadPiani]);
 
   // Alert "non consegnato": aggrega i rapportini di tutti i piani e usa nonConsegnati()
   const caricaAlert = async (lista: Piano[]) => {
@@ -298,6 +285,7 @@ export default function RegistroPianificazioni() {
           piano={rapPiano}
           onClose={() => setRapPiano(null)}
           onRefreshAlerts={refreshAlerts}
+          onChanged={loadPiani}
         />
       )}
     </div>
@@ -308,10 +296,12 @@ function RapportiniModal({
   piano,
   onClose,
   onRefreshAlerts,
+  onChanged,
 }: {
   piano: Piano;
   onClose: () => void;
   onRefreshAlerts: () => void;
+  onChanged: () => void;
 }) {
   const [templates, setTemplates] = useState<Template[]>([]);
   const [templateId, setTemplateId] = useState('');
@@ -320,6 +310,8 @@ function RapportiniModal({
   const [generating, setGenerating] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [rimuoviStaffId, setRimuoviStaffId] = useState<string | null>(null);
+  const [rimuovendo, setRimuovendo] = useState<string | null>(null);
 
   const dataLabel = new Date(piano.data).toLocaleDateString('it-IT', {
     day: '2-digit',
@@ -394,6 +386,34 @@ function RapportiniModal({
       setTimeout(() => setCopiedToken((t) => (t === r.token ? null : t)), 1800);
     } catch (error) {
       console.error('Error copying link:', error);
+    }
+  };
+
+  const handleRimuovi = async (r: RapportinoStato) => {
+    setRimuovendo(r.staff_id);
+    setErrore(null);
+    try {
+      const res = await fetch(
+        `/api/mappa/piani/operatore?pianoId=${piano.id}&staffId=${encodeURIComponent(r.staff_id)}`,
+        { method: 'DELETE' },
+      );
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setErrore(data?.error ?? 'Errore durante la rimozione.');
+        return;
+      }
+      onChanged();
+      onRefreshAlerts();
+      if (data.pianoDeleted) {
+        onClose();
+        return;
+      }
+      await caricaStato();
+    } catch {
+      setErrore('Errore durante la rimozione.');
+    } finally {
+      setRimuovendo(null);
+      setRimuoviStaffId(null);
     }
   };
 
@@ -512,6 +532,30 @@ function RapportiniModal({
                       >
                         WhatsApp
                       </a>
+                      {rimuoviStaffId === r.staff_id ? (
+                        <span className="inline-flex items-center gap-1">
+                          <button
+                            onClick={() => handleRimuovi(r)}
+                            disabled={rimuovendo === r.staff_id}
+                            className="rounded border border-[var(--danger)] bg-[var(--danger-soft)] px-2 py-1 text-xs font-semibold text-[var(--danger)] hover:opacity-80 disabled:opacity-50"
+                          >
+                            {rimuovendo === r.staff_id ? '...' : 'Rimuovi?'}
+                          </button>
+                          <button
+                            onClick={() => setRimuoviStaffId(null)}
+                            className="rounded border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
+                          >
+                            No
+                          </button>
+                        </span>
+                      ) : (
+                        <button
+                          onClick={() => setRimuoviStaffId(r.staff_id)}
+                          className="rounded border border-[var(--brand-border)] px-2.5 py-1 text-xs font-medium text-[var(--brand-text-muted)] hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                        >
+                          Rimuovi
+                        </button>
+                      )}
                     </div>
                   </li>
                 );
