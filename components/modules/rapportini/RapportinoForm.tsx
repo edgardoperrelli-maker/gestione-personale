@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { voceEsitoColore } from '@/utils/rapportini/voceColore';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -344,9 +345,16 @@ function VoceCard({
   ].filter((r) => r.value != null && String(r.value).trim() !== '');
 
   const titolo = voce.nominativo?.trim() || voce.pdr?.trim() || `Voce ${indice}`;
+  const colore = voceEsitoColore(voce.risposte, campi);
+  const cardCls =
+    colore === 'verde'
+      ? 'border-[var(--success)] bg-[var(--success-soft)]'
+      : colore === 'rossa'
+        ? 'border-[var(--danger)] bg-[var(--danger-soft)]'
+        : 'border-[var(--brand-border)] bg-[var(--brand-surface)]';
 
   return (
-    <section className="overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
+    <section className={`overflow-hidden rounded-2xl border shadow-sm transition-colors ${cardCls}`}>
       {/* Intestazione voce */}
       <div className="flex items-center justify-between gap-3 border-b border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-4 py-3">
         <div className="flex items-center gap-2 min-w-0">
