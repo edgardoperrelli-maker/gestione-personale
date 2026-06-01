@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
+import { orphanRapportini } from '@/utils/rapportini/orphans';
 
 export const runtime = 'nodejs';
 
@@ -16,6 +17,19 @@ export async function POST(req: Request) {
     if (!tpl) return NextResponse.json({ error: 'Template non trovato' }, { status: 404 });
     const { data: ops } = await supabaseAdmin.from('mappa_piani_operatori')
       .select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
+
+    // Pulizia rapportini orfani: operatori non più nel piano → rimuovi rapportino (+ voci a cascata)
+    const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
+    if (currentStaffIds.length > 0) {
+      const { data: existingRaps } = await supabaseAdmin
+        .from('rapportini')
+        .select('id, staff_id')
+        .eq('piano_id', pianoId);
+      const toRemove = orphanRapportini((existingRaps as { id: string; staff_id: string }[]) ?? [], currentStaffIds);
+      if (toRemove.length > 0) {
+        await supabaseAdmin.from('rapportini').delete().in('id', toRemove);
+      }
+    }
 
     const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
     const out: { staff_id: string; staff_name: string | null; token: string; url: string }[] = [];
