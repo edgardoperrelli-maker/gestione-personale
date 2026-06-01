@@ -701,6 +701,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
   const [rapTemplateId, setRapTemplateId] = useState('');
+  const [rapTemplates, setRapTemplates] = useState<{ id: string; nome: string; is_default?: boolean }[]>([]);
   const [rapGenerating, setRapGenerating] = useState(false);
   const [rapError, setRapError] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
@@ -1591,7 +1592,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       try {
         const res = await fetch('/api/admin/rapportino-template');
         const list = await res.json();
-        const arr: Array<{ id: string; is_default?: boolean }> = Array.isArray(list) ? list : [];
+        const arr: Array<{ id: string; nome: string; is_default?: boolean }> = Array.isArray(list) ? list : [];
+        setRapTemplates(arr);
         const def = arr.find((t) => t.is_default) ?? arr[0];
         if (def) setRapTemplateId(def.id);
       } catch {
@@ -2545,19 +2547,34 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 : 'Salva distribuzione'}
                           </button>
                           {savedDistribution && currentPianoId && (
-                            <button
-                              type="button"
-                              onClick={generaRapportini}
-                              disabled={rapGenerating || !rapTemplateId}
-                              title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
-                              className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
-                            >
-                              {rapGenerating
-                                ? 'Genero…'
-                                : rapStato.length > 0
-                                  ? '↻ Rigenera rapportini'
-                                  : '📋 Genera rapportini'}
-                            </button>
+                            <>
+                              <select
+                                value={rapTemplateId}
+                                onChange={(e) => setRapTemplateId(e.target.value)}
+                                title="Modello rapportino"
+                                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
+                              >
+                                {rapTemplates.length === 0 && <option value="">Nessun modello</option>}
+                                {rapTemplates.map((t) => (
+                                  <option key={t.id} value={t.id}>
+                                    {t.nome}{t.is_default ? ' (default)' : ''}
+                                  </option>
+                                ))}
+                              </select>
+                              <button
+                                type="button"
+                                onClick={generaRapportini}
+                                disabled={rapGenerating || !rapTemplateId}
+                                title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
+                                className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
+                              >
+                                {rapGenerating
+                                  ? 'Genero…'
+                                  : rapStato.length > 0
+                                    ? '↻ Rigenera rapportini'
+                                    : '📋 Genera rapportini'}
+                              </button>
+                            </>
                           )}
                         </>
                       )}
