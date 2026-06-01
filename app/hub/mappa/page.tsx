@@ -9,6 +9,7 @@ import MappaOperatoriClient, {
   type ZtlZoneInfo,
 } from '@/components/modules/mappa/MappaOperatoriClient';
 import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
+import RiepilogoRapportini from '@/components/modules/mappa/RiepilogoRapportini';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Task } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
@@ -327,6 +328,29 @@ export default async function MappaPage({
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </div>
           </a>
+
+          <a
+            href="/hub/mappa?vista=riepilogo"
+            className="group rounded-2xl border border-[var(--brand-border)]
+                       bg-[var(--brand-surface)] p-5 shadow-sm transition
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
+          >
+            <div className="flex h-11 w-11 items-center justify-center
+                            rounded-xl bg-[var(--brand-primary-soft)]
+                            text-[var(--brand-primary)]">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M9 11l3 3 8-8" /><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+              </svg>
+            </div>
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold">Riepilogo rapportini</h2>
+              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">Stati per giorno e operatore</p>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
+              <span>Apri</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
         </div>
       )}
 
@@ -350,6 +374,10 @@ export default async function MappaPage({
       {/* Modulo registro — a schermo pieno, no card */}
       {vista === 'registro' && (
         <RegistroPianificazioni />
+      )}
+
+      {vista === 'riepilogo' && (
+        <RiepilogoRapportini />
       )}
 
     </div>
