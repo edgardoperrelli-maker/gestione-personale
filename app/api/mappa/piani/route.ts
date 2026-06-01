@@ -210,3 +210,79 @@ export async function DELETE(req: Request) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
+
+export async function PUT(req: Request) {
+  try {
+    const body = await req.json();
+    const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti } = body;
+
+    if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
+    if (!isoData) return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
+    if (!operatori || !Array.isArray(operatori) || operatori.length === 0) {
+      return NextResponse.json({ error: 'Campo operatori obbligatorio' }, { status: 400 });
+    }
+
+    const cookieStore = await cookies();
+    const supabaseBrowser = createRouteHandlerClient({ cookies: () => cookieStore as any });
+    const { data: { user } } = await supabaseBrowser.auth.getUser();
+    const userId = user?.id ?? null;
+
+    const { data: existing, error: eFind } = await supabaseAdmin
+      .from('mappa_piani').select('id').eq('id', id).maybeSingle();
+    if (eFind) throw new Error(eFind.message);
+    if (!existing) return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
+
+    // Aggiorna la testata mantenendo lo stesso piano_id (i rapportini collegati restano validi)
+    const { error: eUpd } = await supabaseAdmin
+      .from('mappa_piani')
+      .update({ data: isoData, territorio: territorio ?? null, note: note ?? null, stato, updated_by: userId })
+      .eq('id', id);
+    if (eUpd) throw new Error(eUpd.message);
+
+    // Rigenera gli operatori del piano
+    await supabaseAdmin.from('mappa_piani_operatori').delete().eq('piano_id', id);
+    const opRows = operatori.map((op: any) => ({
+      piano_id: id,
+      staff_id: String(op.staff_id),
+      staff_name: String(op.staff_name),
+      colore: String(op.colore ?? '#2563EB'),
+      km: Number(op.km ?? 0),
+      task_count: Number(op.task_count ?? 0),
+      start_address: op.start_address ?? null,
+      tasks: op.tasks ?? [],
+      polyline: op.polyline ?? [],
+    }));
+    const { error: eOp } = await supabaseAdmin.from('mappa_piani_operatori').insert(opRows);
+    if (eOp) throw new Error(eOp.message);
+
+    // Rigenera regole e lucchetti
+    await supabaseAdmin.from('mappa_assegnazioni_manuali').delete().eq('piano_id', id);
+    const ruleRows = buildRuleRows(id, parseRegole(regole));
+    if (ruleRows.length > 0) {
+      const { error: eRules } = await supabaseAdmin.from('mappa_assegnazioni_manuali').insert(ruleRows);
+      if (eRules) console.error('[PUT /api/mappa/piani] regole:', eRules.message);
+    }
+    await supabaseAdmin.from('mappa_piani_lucchetti').delete().eq('piano_id', id);
+    const lockRows = buildLockRows(id, lucchetti);
+    if (lockRows.length > 0) {
+      const { error: eLocks } = await supabaseAdmin.from('mappa_piani_lucchetti').insert(lockRows);
+      if (eLocks) console.error('[PUT /api/mappa/piani] lucchetti:', eLocks.message);
+    }
+
+    // Aggiorna i contatori nel cronoprogramma
+    const distribuzioniRows = operatori.map((op: any) => ({
+      staff_id: String(op.staff_id),
+      data: isoData,
+      task_count: Number(op.task_count ?? 0),
+      updated_at: new Date().toISOString(),
+    }));
+    const { error: eDist } = await supabaseAdmin
+      .from('mappa_distribuzioni').upsert(distribuzioniRows, { onConflict: 'staff_id,data' });
+    if (eDist) console.error('[PUT /api/mappa/piani] upsert distribuzioni:', eDist.message);
+
+    return NextResponse.json({ ok: true, id });
+  } catch (err: any) {
+    console.error('[PUT /api/mappa/piani]', err.message);
+    return NextResponse.json({ error: err.message }, { status: 500 });
+  }
+}
