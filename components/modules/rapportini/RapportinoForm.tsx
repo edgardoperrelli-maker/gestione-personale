@@ -367,7 +367,7 @@ function VoceCard({
                 <dt className="text-[11px] font-medium uppercase tracking-wide text-[var(--brand-text-subtle)]">
                   {r.label}
                 </dt>
-                <dd className="truncate text-sm text-[var(--brand-text-main)]" title={r.value}>
+                <dd className="text-sm text-[var(--brand-text-main)] break-words">
                   {r.value}
                 </dd>
               </div>
