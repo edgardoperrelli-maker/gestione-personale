@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { nonConsegnati } from '@/utils/rapportini/nonConsegnati';
+import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
 
 interface Piano {
   id: string;
@@ -24,20 +25,6 @@ interface Template {
   nome: string;
   is_default?: boolean;
   active?: boolean;
-}
-
-interface RapportinoStato {
-  id: string;
-  staff_id: string;
-  staff_name: string | null;
-  token: string;
-  stato: string;
-  data: string;
-  expires_at: string;
-  submitted_at: string | null;
-  url: string;
-  statoCalcolato: 'valido' | 'scaduto' | 'inviato';
-  nVoci: number;
 }
 
 export default function RegistroPianificazioni() {
@@ -317,16 +304,6 @@ export default function RegistroPianificazioni() {
   );
 }
 
-function statoBadge(stato: RapportinoStato['statoCalcolato']) {
-  if (stato === 'inviato') {
-    return { label: 'Inviato', className: 'bg-[var(--success-soft)] text-[var(--success)]' };
-  }
-  if (stato === 'scaduto') {
-    return { label: 'Scaduto', className: 'bg-[var(--danger-soft)] text-[var(--danger)]' };
-  }
-  return { label: 'In corso', className: 'bg-[var(--warning-soft)] text-[var(--warning)]' };
-}
-
 function RapportiniModal({
   piano,
   onClose,
@@ -418,11 +395,6 @@ function RapportiniModal({
     } catch (error) {
       console.error('Error copying link:', error);
     }
-  };
-
-  const whatsappHref = (r: RapportinoStato) => {
-    const testo = `Ciao ${r.staff_name ?? ''}, ecco il link per il rapportino del ${dataLabel}:`;
-    return `https://wa.me/?text=${encodeURIComponent(`${testo} ${r.url}`)}`;
   };
 
   return (
@@ -533,7 +505,7 @@ function RapportiniModal({
                         Esporta Excel
                       </a>
                       <a
-                        href={whatsappHref(r)}
+                        href={whatsappHref(r.staff_name, dataLabel, r.url)}
                         target="_blank"
                         rel="noopener noreferrer"
                         className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2.5 py-1 text-xs font-medium text-[var(--success)] hover:opacity-80"
