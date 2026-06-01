@@ -12,6 +12,7 @@ import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import type { Territory } from '@/types';
 import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
 import ManualAssignmentsModal from './ManualAssignmentsModal';
+import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -691,6 +692,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Distribution save states
   const [savingDistribution, setSavingDistribution] = useState(false);
   const [savedDistribution, setSavedDistribution] = useState(false);
+
+  // Rapportini inline (editor)
+  const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
+  const [rapTemplateId, setRapTemplateId] = useState('');
+  const [rapGenerating, setRapGenerating] = useState(false);
+  const [rapError, setRapError] = useState<string | null>(null);
+  const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Setup modale per data e territorio all'apertura
   const [setupDone, setSetupDone] = useState(false);
@@ -1537,6 +1545,86 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSavedDistribution(false);
   }, [distribution]);
 
+  // ── Rapportini inline ──────────────────────────────────────────────────────
+  const caricaRapportini = useCallback(async (pid: string) => {
+    try {
+      const res = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
+      const data = await res.json();
+      setRapStato(Array.isArray(data) ? data : []);
+    } catch {
+      setRapStato([]);
+    }
+  }, []);
+
+  // Template di default (una volta)
+  useEffect(() => {
+    (async () => {
+      try {
+        const res = await fetch('/api/admin/rapportino-template');
+        const list = await res.json();
+        const arr: Array<{ id: string; is_default?: boolean }> = Array.isArray(list) ? list : [];
+        const def = arr.find((t) => t.is_default) ?? arr[0];
+        if (def) setRapTemplateId(def.id);
+      } catch {
+        /* nessun template attivo */
+      }
+    })();
+  }, []);
+
+  // Carica lo stato rapportini quando il piano è salvato (incluso edit mode)
+  useEffect(() => {
+    if (savedDistribution && currentPianoId) caricaRapportini(currentPianoId);
+    else setRapStato([]);
+  }, [savedDistribution, currentPianoId, caricaRapportini]);
+
+  const generaRapportini = useCallback(async () => {
+    if (!currentPianoId) return;
+    if (!rapTemplateId) {
+      setRapError('Nessun modello attivo. Crea un template in Impostazioni → Template rapportini.');
+      return;
+    }
+    setRapGenerating(true);
+    setRapError(null);
+    try {
+      const res = await fetch('/api/mappa/rapportini/genera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId }),
+      });
+      const data = await res.json();
+      if (!res.ok || data?.error) {
+        setRapError(data?.error ?? 'Errore durante la generazione.');
+        return;
+      }
+      await caricaRapportini(currentPianoId);
+    } catch {
+      setRapError('Errore durante la generazione.');
+    } finally {
+      setRapGenerating(false);
+    }
+  }, [currentPianoId, rapTemplateId, caricaRapportini]);
+
+  const rapByStaff = useMemo(() => {
+    const m = new Map<string, RapportinoStato>();
+    rapStato.forEach((r) => m.set(r.staff_id, r));
+    return m;
+  }, [rapStato]);
+
+  const rapDataLabel = useMemo(
+    () => new Date(planningDate).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }),
+    [planningDate],
+  );
+
+  const handleCopyLink = useCallback(async (r: RapportinoStato) => {
+    try {
+      await navigator.clipboard.writeText(r.url);
+      setCopiedToken(r.token);
+      setTimeout(() => setCopiedToken((t) => (t === r.token ? null : t)), 1800);
+    } catch {
+      /* clipboard non disponibile */
+    }
+  }, []);
+
   // Distribuisce i task geocodificati tra gli operatori rispettando le quantità
   const distributeToOps = useCallback(() => {
     if (!selectedOps.length) return;
@@ -2280,6 +2368,39 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               {op.startAddress && (
                                 <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">{op.startAddress}</div>
                               )}
+                              {(() => {
+                                const r = rapByStaff.get(op.id);
+                                if (!r) return null;
+                                const badge = statoBadge(r.statoCalcolato);
+                                return (
+                                  <div className="mt-1 flex flex-wrap items-center gap-1">
+                                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>
+                                      {badge.label}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => handleCopyLink(r)}
+                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                                    >
+                                      {copiedToken === r.token ? 'Copiato!' : 'Copia link'}
+                                    </button>
+                                    <a
+                                      href={whatsappHref(r.staff_name, rapDataLabel, r.url)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--success)] hover:opacity-80"
+                                    >
+                                      WhatsApp
+                                    </a>
+                                    <a
+                                      href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
+                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                                    >
+                                      Excel
+                                    </a>
+                                  </div>
+                                );
+                              })()}
                             </div>
                           </div>
                           <input
@@ -2356,9 +2477,27 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 ? '✓ Salvata'
                                 : 'Salva distribuzione'}
                           </button>
+                          {savedDistribution && currentPianoId && (
+                            <button
+                              type="button"
+                              onClick={generaRapportini}
+                              disabled={rapGenerating || !rapTemplateId}
+                              title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
+                              className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
+                            >
+                              {rapGenerating
+                                ? 'Genero…'
+                                : rapStato.length > 0
+                                  ? '↻ Rigenera rapportini'
+                                  : '📋 Genera rapportini'}
+                            </button>
+                          )}
                         </>
                       )}
                     </div>
+                    {rapError && (
+                      <p className="text-[10px] text-[var(--danger)]">{rapError}</p>
+                    )}
                   </div>
                 )}
 
