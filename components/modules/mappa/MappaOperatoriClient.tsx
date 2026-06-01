@@ -1574,7 +1574,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Carica lo stato rapportini quando il piano è salvato (incluso edit mode)
   useEffect(() => {
     if (savedDistribution && currentPianoId) caricaRapportini(currentPianoId);
-    else setRapStato([]);
+    else {
+      setRapStato([]);
+      setRapError(null);
+    }
   }, [savedDistribution, currentPianoId, caricaRapportini]);
 
   const generaRapportini = useCallback(async () => {
