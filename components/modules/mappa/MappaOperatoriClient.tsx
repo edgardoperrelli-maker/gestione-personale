@@ -1806,6 +1806,23 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setZtlConflicts([...manual.warnings.map((w) => w.message), ...conflicts]);
   }, [selectedOps, allTasks, ztlZones, manualRules, operatorLocks, esecutorePins]);
 
+  // Auto-distribuzione dopo la geocodifica per i file con colonna Esecutore
+  useEffect(() => {
+    const total = geocodingProgress?.total ?? 0;
+    const done = geocodingProgress?.done ?? 0;
+    if (
+      total > 0 &&
+      done === total &&
+      Object.keys(esecutorePins).length > 0 &&
+      selectedOps.length > 0 &&
+      !distribution &&
+      !esecutoreAutoDistributedRef.current
+    ) {
+      esecutoreAutoDistributedRef.current = true;
+      distributeToOps();
+    }
+  }, [geocodingProgress, esecutorePins, selectedOps, distribution, distributeToOps]);
+
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
     if (!distribution) return;
