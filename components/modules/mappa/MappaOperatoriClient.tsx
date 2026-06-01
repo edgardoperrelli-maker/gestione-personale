@@ -7,7 +7,7 @@ import { isTerritoryValidOnDay } from '@/lib/territories';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks } from '@/utils/routing';
+import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import type { Territory } from '@/types';
 import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
@@ -693,6 +693,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [savingDistribution, setSavingDistribution] = useState(false);
   const [savedDistribution, setSavedDistribution] = useState(false);
 
+  // Auto-assegnazione da colonna Esecutore
+  const [esecutorePins, setEsecutorePins] = useState<Record<string, string>>({});
+  const [esecutoreWarnings, setEsecutoreWarnings] = useState<string[]>([]);
+  const esecutoreAutoDistributedRef = useRef(false);
+
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
   const [rapTemplateId, setRapTemplateId] = useState('');
@@ -1291,10 +1296,34 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setGeocodingProgress(null);
     setDistribution(null);
     setUnassignedTasks([]);
-    setSelectedOps([]);
     setSelectedExcelTaskId(null);
     setEditingTaskId(null);
-  }, []);
+
+    // ── Auto-assegnazione da colonna Esecutore ──
+    esecutoreAutoDistributedRef.current = false;
+    const { pins, operatoriDaSelezionare, nonAbbinati } = buildEsecutorePins(filtered, operatorOptions);
+    setEsecutorePins(pins);
+    setEsecutoreWarnings(nonAbbinati);
+    if (operatoriDaSelezionare.length > 0) {
+      const counts: Record<string, number> = {};
+      for (const sid of Object.values(pins)) counts[sid] = (counts[sid] ?? 0) + 1;
+      const autoOps: OpConfig[] = operatoriDaSelezionare.map((staffId) => {
+        const operator = operatorOptions.find((o) => o.id === staffId)!;
+        const isRepOnDay = operator.reperibileDates.includes(planningDate);
+        const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
+        const base = usesHome
+          ? { lat: operator.homeLat!, lng: operator.homeLng! }
+          : operator.startLat != null && operator.startLng != null
+            ? { lat: operator.startLat, lng: operator.startLng }
+            : null;
+        const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
+        return { id: staffId, name: operator.displayName, qty: counts[staffId] ?? 0, base, startAddress };
+      });
+      setSelectedOps(autoOps);
+    } else {
+      setSelectedOps([]);
+    }
+  }, [operatorOptions, planningDate]);
 
   const startGeocoding = useCallback(async () => {
     geocodingActiveRef.current = true;
