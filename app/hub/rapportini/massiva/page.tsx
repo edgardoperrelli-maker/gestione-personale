@@ -250,29 +250,6 @@ function buildAllegato10Fields(r: any[], dateStr: string): Allegato10Fields {
   };
 }
 
-/** Combina più documenti docx in uno solo tramite API endpoint */
-async function mergeMultipleDocx(documents: Uint8Array[]): Promise<Uint8Array> {
-  if (documents.length === 0) return new Uint8Array();
-  if (documents.length === 1) return documents[0];
-
-  // Converti i documenti in base64 per l'API
-  const docsBase64 = documents.map(doc => Buffer.from(doc).toString('base64'));
-
-  const res = await fetch('/api/merge-docx', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ documents: docsBase64 }),
-  });
-
-  if (!res.ok) {
-    const error = await res.json();
-    throw new Error(error?.error || 'Errore durante il merge dei documenti');
-  }
-
-  const { document: mergedBase64 } = await res.json();
-  return new Uint8Array(Buffer.from(mergedBase64, 'base64'));
-}
-
 export const dynamic = 'force-dynamic';
 // Rileva la colonna data cercando lâ€™header "DATA" o la colonna con piÃ¹ valori validi
 function countMatches(rows: any[][], col: number, want: string, scan = 300): number {

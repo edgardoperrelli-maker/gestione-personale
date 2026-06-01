@@ -9,6 +9,7 @@ import {
   type RapportinoRow,
   type RapportinoVoce,
 } from '@/lib/rapportini/exportStandard';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -57,6 +58,8 @@ async function loadVoci(rapportinoId: string): Promise<RapportinoVoce[]> {
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const url = new URL(req.url);
     const rapportinoId = url.searchParams.get('rapportinoId');
     const pianoId = url.searchParams.get('pianoId');

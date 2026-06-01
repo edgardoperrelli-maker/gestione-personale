@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { requireUser } from '@/lib/apiAuth';
 
 export async function POST(req: Request) {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const { history_id } = await req.json();
   if (!history_id) return NextResponse.json({ error: 'history_id required' }, { status: 400 });
 

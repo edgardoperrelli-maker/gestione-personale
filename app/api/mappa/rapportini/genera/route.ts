@@ -3,11 +3,14 @@ import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
 import { orphanRapportini } from '@/utils/rapportini/orphans';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const { pianoId, templateId } = await req.json();
     if (!pianoId || !templateId) return NextResponse.json({ error: 'pianoId e templateId obbligatori' }, { status: 400 });
 

@@ -1,10 +1,13 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const { searchParams } = new URL(req.url);
   const now = new Date();
   const from = searchParams.get('from') ?? new Date(now.getTime() - 30 * 24 * 3600 * 1000).toISOString().slice(0, 10);

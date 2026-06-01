@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser } from '@/lib/apiAuth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -8,6 +9,8 @@ const supabaseAdmin = createClient(
 
 export async function POST(req: NextRequest) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const body = await req.json();
     const { data, distribuzioni } = body;
 
@@ -50,6 +53,8 @@ export async function POST(req: NextRequest) {
 
 export async function GET(req: NextRequest) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const searchParams = req.nextUrl.searchParams;
     const from = searchParams.get('from');
     const to = searchParams.get('to');
