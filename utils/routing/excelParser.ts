@@ -148,7 +148,7 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
     odl,
     odsin,
     fascia: findCol(headers, [/^fascia/, /^slot/, /^orario/]),
-    operatore: findCol(headers, [/^operatore$/, /^risorsa$/, /^tecnico$/, /^nome (operatore|tecnico|risorsa)$/]),
+    operatore: findCol(headers, [/^operatore$/, /^risorsa$/, /^tecnico$/, /^esecutore$/, /^addetto$/, /^nome (operatore|tecnico|risorsa)$/]),
     nominativo: findCol(headers, [/^nominativo$/, /^nominativo cliente$/, /^cliente$/]),
     matricola: null,
     recapito: null,
