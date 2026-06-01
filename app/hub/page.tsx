@@ -1,168 +1,105 @@
-import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { StaggerGrid } from '@/components/layout/StaggerGrid';
 import TrasfertaAlert from '@/components/trasferta/TrasfertaAlert';
-import { APP_MODULES, getAllowedModulesForUser, type AppModuleKey } from '@/lib/moduleAccess';
-
-type ModuleCardConfig = {
-  icon: React.ReactNode;
-  badge?: string;
-  badgeStyle?: string;
-};
-
-const moduleCards: Record<AppModuleKey, ModuleCardConfig> = {
-  dashboard: {
-    badge: 'Core',
-    badgeStyle: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M3 12h7v9H3z" />
-        <path d="M14 3h7v18h-7z" />
-      </svg>
-    ),
-  },
-  'hotel-calendar': {
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <rect x="3" y="4" width="18" height="16" rx="2" />
-        <path d="M3 9h18" />
-        <path d="M8 2v4M16 2v4" />
-      </svg>
-    ),
-  },
-  rapportini: {
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M6 2h9l5 5v15H6z" />
-        <path d="M15 2v5h5" />
-        <path d="M9 13h6M9 17h6" />
-      </svg>
-    ),
-  },
-  mappa: {
-    badge: 'Nuovo',
-    badgeStyle: 'bg-[var(--success-soft)] text-[var(--success)]',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
-        <circle cx="12" cy="10" r="2.5" />
-      </svg>
-    ),
-  },
-  sopralluoghi: {
-    badge: 'Nuovo',
-    badgeStyle: 'bg-[var(--info-soft)] text-[var(--info)]',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-        <rect x="9" y="3" width="6" height="4" rx="1" />
-        <path d="M9 12h6" />
-        <path d="M9 16h6" />
-      </svg>
-    ),
-  },
-  impostazioni: {
-    badge: 'Admin',
-    badgeStyle: 'bg-[var(--warning-soft)] text-[var(--warning)]',
-    icon: (
-      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-        <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />
-        <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.04A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.06 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.88V9c0 .67.4 1.28 1.03 1.56H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.35 15Z" />
-      </svg>
-    ),
-  },
-};
+import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
+import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
+import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
+import { canViewPremialita, resolveAssignableRole } from '@/lib/moduleAccess';
+import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
+import { isStaffValidOnDay } from '@/lib/staff';
+import type { Staff } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
-export default async function HubPage() {
+function fmtDay(d: Date) {
+  return d.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
+}
+
+function firstRelation<T>(value: T | T[] | null): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
+type RawAssignmentRow = {
+  day_id: string;
+  staff: { id: string; display_name: string } | Array<{ id: string; display_name: string }> | null;
+  territory:
+    | { id: string; name: string; lat: number | null; lng: number | null }
+    | Array<{ id: string; name: string; lat: number | null; lng: number | null }>
+    | null;
+};
+
+async function loadTodayOperators(
+  supabase: ReturnType<typeof createServerComponentClient>,
+  todayIso: string,
+): Promise<TodayAssignmentRow[]> {
+  const [{ data: calendarDays }, { data: staffRaw }] = await Promise.all([
+    supabase.from('calendar_days').select('id, day').eq('day', todayIso),
+    supabase.from('staff').select('id, display_name, valid_from, valid_to'),
+  ]);
+
+  const dayIds = (calendarDays ?? []).map((d: { id: string }) => d.id);
+  if (dayIds.length === 0) return [];
+
+  const staffById = new Map<string, Staff>();
+  ((staffRaw ?? []) as Staff[]).forEach((s) => staffById.set(s.id, s));
+
+  const { data } = await supabase
+    .from('assignments')
+    .select(`
+      day_id,
+      staff:staff_id ( id, display_name ),
+      territory:territory_id ( id, name, lat, lng )
+    `)
+    .in('day_id', dayIds);
+
+  return ((data ?? []) as RawAssignmentRow[])
+    .map((row) => ({ staff: firstRelation(row.staff), territory: firstRelation(row.territory) }))
+    .filter((a) => isStaffValidOnDay(a.staff ? staffById.get(a.staff.id) : null, todayIso, todayIso))
+    .map((a) => ({
+      staffId: a.staff?.id ?? '',
+      displayName: a.staff?.display_name ?? '-',
+      territoryName: a.territory?.name ?? null,
+      lat: a.territory?.lat ?? null,
+      lng: a.territory?.lng ?? null,
+    }));
+}
+
+export default async function DashboardPage() {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
-  const { data: { user } } = await supabase.auth.getUser();
 
+  const { data: { user } } = await supabase.auth.getUser();
   const { data: profile } = user
     ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
     : { data: null };
 
-  const allowedModules = user ? getAllowedModulesForUser(user.app_metadata, profile?.role) : [];
-  const modules = APP_MODULES.filter((module) => allowedModules.includes(module.key));
-  const cardThemes = [
-    {
-      card: 'bg-[var(--kpi-rosso-bg)] text-[var(--kpi-rosso-text)]',
-      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-rosso-icon)]',
-      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-rosso-text)]',
-      link: 'text-[var(--kpi-rosso-text)]',
-      border: 'border-[var(--brand-primary-border)]',
-    },
-    {
-      card: 'bg-[var(--kpi-giallo-bg)] text-[var(--kpi-giallo-text)]',
-      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-giallo-icon)]',
-      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-giallo-text)]',
-      link: 'text-[var(--kpi-giallo-text)]',
-      border: 'border-[var(--brand-primary-border)]',
-    },
-    {
-      card: 'bg-[var(--kpi-terracotta-bg)] text-[var(--kpi-terracotta-text)]',
-      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-terracotta-icon)]',
-      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-terracotta-text)]',
-      link: 'text-[var(--kpi-terracotta-text)]',
-      border: 'border-[var(--brand-primary-border)]',
-    },
-    {
-      card: 'bg-[var(--kpi-grafite-bg)] text-[var(--kpi-grafite-text)]',
-      icon: 'bg-[oklch(1_0_0/0.12)] text-[var(--kpi-grafite-icon)]',
-      badge: 'bg-[oklch(1_0_0/0.15)] text-[var(--kpi-grafite-text)]',
-      link: 'text-[var(--kpi-grafite-text)]',
-      border: 'border-[var(--brand-border-strong)]',
-    },
-  ] as const;
+  const role = resolveAssignableRole(profile?.role, user?.app_metadata?.role);
+  const showPremialita = canViewPremialita(role);
+
+  const todayIso = fmtDay(new Date());
+  const todayRows = await loadTodayOperators(supabase, todayIso);
+  const operators = selectTodayOperators(todayRows);
 
   return (
-    <main className="mx-auto max-w-5xl space-y-6">
+    <main className="mx-auto max-w-6xl space-y-6">
       <TrasfertaAlert />
-      <header className="space-y-2">
-        <h1 className="text-3xl font-semibold tracking-tight">Hub Moduli</h1>
+
+      <header className="space-y-1">
+        <h1 className="text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">Dashboard</h1>
         <p className="text-sm text-[var(--brand-text-muted)]">
-          Accedi rapidamente ai moduli operativi disponibili per questa utenza.
+          Stato dei rapportini e operatori sul territorio per oggi.
         </p>
       </header>
 
-      <StaggerGrid className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {modules.map((module, index) => {
-          const card = moduleCards[module.key];
-          const theme = cardThemes[index % cardThemes.length];
-          return (
-            <Link
-              key={module.key}
-              href={module.href}
-              className={`group flex h-full flex-col rounded-2xl border p-5 shadow-sm transition hover:-translate-y-0.5 hover:shadow-[var(--shadow-hover)] ${theme.card} ${theme.border}`}
-            >
-              <div className="flex items-start justify-between">
-                <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${theme.icon}`}>
-                  {card.icon}
-                </div>
-                {card.badge && (
-                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${card.badgeStyle ?? theme.badge}`}>
-                    {card.badge}
-                  </span>
-                )}
-              </div>
-
-              <div className="mt-4">
-                <h2 className="text-lg font-semibold">{module.label}</h2>
-                <p className="mt-1 text-sm text-current/75">{module.description}</p>
-              </div>
-
-              <div className={`mt-auto pt-4 flex items-center gap-2 text-sm font-semibold ${theme.link}`}>
-                <span>Apri</span>
-                <span className="transition-transform group-hover:translate-x-1">-&gt;</span>
-              </div>
-            </Link>
-          );
-        })}
-      </StaggerGrid>
+      <div className="grid gap-6 lg:grid-cols-2">
+        <div className="space-y-6">
+          <RapportiniKpi />
+          {showPremialita && <PremialitaPanel />}
+        </div>
+        <DashboardTodayMap operators={operators} />
+      </div>
     </main>
   );
 }

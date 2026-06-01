@@ -4,9 +4,10 @@ import { useEffect, useState } from 'react';
 import {
   DEFAULT_ALLOWED_MODULES,
   normalizeAllowedModules,
-  ROLE_LABELS,
+  ASSIGNABLE_ROLE_LABELS,
+  isAdminAssignableRole,
   type AppModuleKey,
-  type ValidRole,
+  type AssignableRole,
 } from '@/lib/moduleAccess';
 
 type ModuleOption = {
@@ -20,7 +21,7 @@ type UserRow = {
   userId: string;
   email: string;
   username: string;
-  role: ValidRole;
+  role: AssignableRole;
   roleLabel: string;
   allowedModules: AppModuleKey[];
   createdAt: string;
@@ -30,7 +31,8 @@ type EditRow = UserRow & { newPassword: string };
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 
-const ROLE_COLORS: Record<ValidRole, string> = {
+const ROLE_COLORS: Record<AssignableRole, string> = {
+  admin_plus: 'var(--brand-gold)',
   admin: 'var(--danger)',
   operatore: 'var(--success)',
 };
@@ -55,7 +57,7 @@ function formatDate(value: string) {
   return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function applyModules(role: ValidRole, modules: AppModuleKey[]) {
+function applyModules(role: AssignableRole, modules: AppModuleKey[]) {
   return normalizeAllowedModules(modules, role);
 }
 
@@ -66,7 +68,7 @@ function ModuleSelector({
   onToggle,
 }: {
   selected: AppModuleKey[];
-  role: ValidRole;
+  role: AssignableRole;
   modules: ModuleOption[];
   onToggle: (moduleKey: AppModuleKey) => void;
 }) {
@@ -74,7 +76,7 @@ function ModuleSelector({
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {modules.map((module) => {
         const checked = selected.includes(module.key);
-        const disabled = module.adminOnly && role !== 'admin';
+        const disabled = module.adminOnly && !isAdminAssignableRole(role);
 
         return (
           <label
@@ -124,7 +126,7 @@ export default function UtenzeClient() {
   const [form, setForm] = useState<{
     username: string;
     password: string;
-    role: ValidRole;
+    role: AssignableRole;
     allowedModules: AppModuleKey[];
   }>({
     username: '',
@@ -202,7 +204,7 @@ export default function UtenzeClient() {
     updateRow(user.userId, { allowedModules: applyModules(user.role, nextModules) });
   };
 
-  const handleCreateRoleChange = (role: ValidRole) => {
+  const handleCreateRoleChange = (role: AssignableRole) => {
     setForm((prev) => ({
       ...prev,
       role,
@@ -352,11 +354,11 @@ export default function UtenzeClient() {
             <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
             <select
               value={form.role}
-              onChange={(e) => handleCreateRoleChange(e.target.value as ValidRole)}
+              onChange={(e) => handleCreateRoleChange(e.target.value as AssignableRole)}
               className={inputCls}
               style={inputStyle}
             >
-              {Object.entries(ROLE_LABELS).map(([value, label]) => (
+              {Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => (
                 <option key={value} value={value}>{label}</option>
               ))}
             </select>
@@ -437,7 +439,7 @@ export default function UtenzeClient() {
                       className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold text-white"
                       style={{ backgroundColor: ROLE_COLORS[user.role] }}
                     >
-                      {ROLE_LABELS[user.role]}
+                      {ASSIGNABLE_ROLE_LABELS[user.role]}
                     </span>
                     {resetId === user.userId ? (
                       <button
@@ -565,13 +567,13 @@ export default function UtenzeClient() {
                     <select
                       value={user.role}
                       onChange={(e) => updateRow(user.userId, {
-                        role: e.target.value as ValidRole,
-                        allowedModules: applyModules(e.target.value as ValidRole, user.allowedModules),
+                        role: e.target.value as AssignableRole,
+                        allowedModules: applyModules(e.target.value as AssignableRole, user.allowedModules),
                       })}
                       className={inputCls}
                       style={inputStyle}
                     >
-                      {Object.entries(ROLE_LABELS).map(([value, label]) => (
+                      {Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => (
                         <option key={value} value={value}>{label}</option>
                       ))}
                     </select>

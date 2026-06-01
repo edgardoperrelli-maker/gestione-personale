@@ -6,12 +6,13 @@ import {
   APP_MODULES,
   getAllowedModulesForUser,
   normalizeAllowedModules,
-  ROLE_LABELS,
+  ASSIGNABLE_ROLE_LABELS,
   resolveUserRole,
+  resolveAssignableRole,
   toStoredProfileRole,
-  isValidRole,
+  isAssignableRole,
   type AppModuleKey,
-  type ValidRole,
+  type AssignableRole,
 } from '@/lib/moduleAccess';
 
 const LOCAL_DOMAIN = '@local.it';
@@ -70,13 +71,13 @@ export async function GET() {
 
   const users = (authRes.data?.users ?? []).map((u) => {
     const profile = profileMap.get(u.id);
-    const role = resolveUserRole(profile?.role, u.app_metadata?.role);
+    const role = resolveAssignableRole(profile?.role, u.app_metadata?.role);
     return {
       userId: u.id,
       email: u.email ?? '',
       username: profile?.username ?? toUsername(u.email ?? ''),
       role,
-      roleLabel: ROLE_LABELS[role],
+      roleLabel: ASSIGNABLE_ROLE_LABELS[role],
       allowedModules: getAllowedModulesForUser(u.app_metadata, role),
       createdAt: u.created_at,
     };
@@ -107,7 +108,7 @@ export async function POST(req: NextRequest) {
 
   const username = normalizeUsername(body.username ?? '');
   const password = (body.password ?? '').trim();
-  const role: ValidRole = isValidRole(body.role) ? body.role : 'operatore';
+  const role: AssignableRole = isAssignableRole(body.role) ? body.role : 'operatore';
   const allowedModules = normalizeAllowedModules(body.allowedModules, role);
 
   if (!username) return NextResponse.json({ error: 'Username richiesto.' }, { status: 400 });
@@ -145,7 +146,7 @@ export async function POST(req: NextRequest) {
       email,
       username,
       role,
-      roleLabel: ROLE_LABELS[role],
+      roleLabel: ASSIGNABLE_ROLE_LABELS[role],
       allowedModules,
       createdAt: authData.user.created_at,
     },
@@ -169,7 +170,7 @@ export async function PATCH(req: NextRequest) {
   if (!userId) return NextResponse.json({ error: 'userId richiesto.' }, { status: 400 });
 
   const updates: Record<string, unknown> = {};
-  const role = isValidRole(body.role) ? body.role : undefined;
+  const role = isAssignableRole(body.role) ? body.role : undefined;
   if (body.password && body.password.trim().length >= 6) {
     updates.password = body.password.trim();
   } else if (body.password && body.password.trim().length > 0) {
