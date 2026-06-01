@@ -118,7 +118,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         campi: campi.map((c, i) => ({
           ...c,
           ordine: i + 1,
-          opzioni: c.tipo === 'select' ? (c.opzioni ?? []) : undefined,
+          opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
         })),
         active: true,
         ...(isNew ? {} : { id: selectedId }),
@@ -303,18 +303,16 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                     {campo.tipo === 'select' && (
                       <div className="mb-3">
                         <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
-                          Opzioni (separate da virgola)
+                          Opzioni (una per riga)
                         </label>
-                        <input
-                          type="text"
-                          value={(campo.opzioni ?? []).join(', ')}
+                        <textarea
+                          rows={3}
+                          value={(campo.opzioni ?? []).join('\n')}
                           onChange={(e) =>
-                            updateCampo(idx, {
-                              opzioni: e.target.value.split(',').map((s) => s.trim()).filter(Boolean),
-                            })
+                            updateCampo(idx, { opzioni: e.target.value.split('\n') })
                           }
                           className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
-                          placeholder="es. Sì, No, N/A"
+                          placeholder={'SI\nNO'}
                         />
                       </div>
                     )}
