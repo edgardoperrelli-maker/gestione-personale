@@ -1482,14 +1482,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
-      // Se esiste già un piano salvato, eliminalo prima di crearne uno nuovo
-      if (currentPianoId) {
-        await fetch(`/api/mappa/piani?id=${currentPianoId}`, {
-          method: 'DELETE',
-        });
-        setCurrentPianoId(undefined);
-      }
-
       const operatori = selectedOps.map((op, idx) => {
         const dist = distribution[idx];
         return {
@@ -1504,30 +1496,35 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         };
       });
 
-      const res = await fetch('/api/mappa/piani', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          data: planningDate,
-          territorio: selectedPlanningTerritory?.name ?? null,
-          note: '',
-          stato: 'confermato',
-          operatori,
-          regole: manualRules,
-          lucchetti: operatorLocks,
-        }),
-      });
+      const payload = {
+        data: planningDate,
+        territorio: selectedPlanningTerritory?.name ?? null,
+        note: '',
+        stato: 'confermato',
+        operatori,
+        regole: manualRules,
+        lucchetti: operatorLocks,
+      };
+
+      // Update in-place se il piano esiste già: mantiene piano_id → i link rapportini restano validi
+      const res = currentPianoId
+        ? await fetch('/api/mappa/piani', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ id: currentPianoId, ...payload }),
+          })
+        : await fetch('/api/mappa/piani', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+          });
 
       if (res.ok) {
         const json = await res.json();
         setSavedDistribution(true);
         if (json.id) {
           setCurrentPianoId(json.id);
-          window.history.replaceState(
-            {},
-            '',
-            `/hub/mappa?vista=pianifica&pianoId=${json.id}`
-          );
+          window.history.replaceState({}, '', `/hub/mappa?vista=pianifica&pianoId=${json.id}`);
         }
       }
     } finally {
