@@ -150,7 +150,6 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   async function handleDelete() {
     if (!selectedId) return;
     const tpl = templates.find((t) => t.id === selectedId);
-    if (tpl?.is_default) { showFeedback('error', 'Il template di default non è eliminabile'); return; }
     if (!confirm(`Confermi di eliminare il template "${tpl?.nome}"?`)) return;
 
     const res = await fetch(`/api/admin/rapportino-template?id=${selectedId}`, { method: 'DELETE' });
@@ -372,7 +371,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               >
                 {saving ? 'Salvataggio…' : isNew ? 'Crea template' : 'Salva modifiche'}
               </button>
-              {!isNew && selectedTpl && !selectedTpl.is_default && (
+              {!isNew && selectedTpl && (
                 <button
                   type="button"
                   onClick={handleDelete}

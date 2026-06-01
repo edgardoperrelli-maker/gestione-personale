@@ -63,8 +63,12 @@ export async function DELETE(req: Request) {
   const guard = await requireAdmin(); if (guard instanceof NextResponse) return guard;
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
-  const { data: tpl } = await supabaseAdmin.from('rapportino_template').select('is_default').eq('id', id).maybeSingle();
-  if (tpl?.is_default) return NextResponse.json({ error: 'Il template di default non è eliminabile' }, { status: 409 });
+  const { count } = await supabaseAdmin
+    .from('rapportino_template')
+    .select('id', { count: 'exact', head: true });
+  if ((count ?? 0) <= 1) {
+    return NextResponse.json({ error: 'Non puoi eliminare l\'ultimo template rimasto' }, { status: 409 });
+  }
   const { error } = await supabaseAdmin.from('rapportino_template').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
