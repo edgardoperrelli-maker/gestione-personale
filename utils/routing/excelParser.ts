@@ -153,7 +153,7 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
     matricola: null,
     recapito: null,
     accessibilita: null,
-    attivita: null,
+    attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
     codice: null,
   };
 }
@@ -245,7 +245,8 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
     const odsin =
       (colMap.odsin != null ? extractOdsin(row[colMap.odsin]) : undefined) ??
       extractOdsin(odl) ??
-      (colMap.pdR != null ? extractOdsin(row[colMap.pdR]) : undefined);
+      (colMap.pdR != null ? extractOdsin(row[colMap.pdR]) : undefined) ??
+      (colMap.odsin != null ? (str(row[colMap.odsin]) || undefined) : undefined);
 
     const task: Task & { _operatore?: string } = {
       id: `row-${i}`,
