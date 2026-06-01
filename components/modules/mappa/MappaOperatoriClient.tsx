@@ -1690,6 +1690,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const manualAssignedIds = new Set<string>(
       Object.values(manual.assignedByStaff).flat().map((t) => t.id)
     );
+    // ── Pin esecutore: forza i task al loro operatore (come le assegnazioni manuali) ──
+    if (Object.keys(esecutorePins).length > 0) {
+      for (const t of geocoded) {
+        const staffId = esecutorePins[t.id];
+        if (!staffId) continue;
+        if (manualAssignedIds.has(t.id)) continue; // già preso da una regola manuale
+        const i = idxByStaff.get(staffId);
+        if (i == null) continue; // operatore non selezionato → lascia al flusso normale
+        manualPre.get(i)!.push(t);
+        manualAssignedIds.add(t.id);
+      }
+    }
     const afterManual = geocoded.filter((t) => !manualAssignedIds.has(t.id));
 
     // ── Fase 1: pre-assegna i task ZTL agli operatori autorizzati più vicini (esclusi i 🔒 chiusi) ──
@@ -1792,7 +1804,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       });
     });
     setZtlConflicts([...manual.warnings.map((w) => w.message), ...conflicts]);
-  }, [selectedOps, allTasks, ztlZones, manualRules, operatorLocks]);
+  }, [selectedOps, allTasks, ztlZones, manualRules, operatorLocks, esecutorePins]);
 
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
