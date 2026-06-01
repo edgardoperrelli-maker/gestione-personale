@@ -18,8 +18,8 @@ type Props = {
 };
 
 const C = {
-  primary: 'oklch(0.78 0.155 215)', magenta: 'oklch(0.6 0.25 350)',
-  navy: 'oklch(0.21 0.07 250)', border: 'oklch(0.91 0.018 245)',
+  primary: 'var(--brand-primary)', magenta: 'var(--brand-magenta)',
+  navy: 'oklch(0.21 0.07 250)', border: 'var(--brand-border)',
 };
 
 export default function ManualAssignmentsModal(p: Props) {
@@ -39,16 +39,16 @@ export default function ManualAssignmentsModal(p: Props) {
   const pinnedStaffIds = new Set(p.rules.map((r) => r.staffId));
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center"
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center"
       style={{ background: 'linear-gradient(rgba(8,16,32,.42),rgba(8,16,32,.42)), radial-gradient(circle at top left, oklch(0.78 0.13 215/.30), transparent 42%), radial-gradient(circle at top right, oklch(0.66 0.22 350/.22), transparent 44%), linear-gradient(180deg, oklch(0.22 0.06 250), oklch(0.13 0.05 250))' }}>
-      <div className="flex h-[min(840px,93vh)] w-[min(1280px,95vw)] flex-col overflow-hidden rounded-[28px] bg-white"
-        style={{ border: `1px solid color-mix(in oklch, ${C.primary} 35%, transparent)`, boxShadow: '0 28px 90px -36px rgba(6,18,40,.7)', fontFamily: 'Geist, Inter, system-ui, sans-serif' }}>
+      <div className="flex h-[min(840px,93vh)] w-[min(1280px,95vw)] flex-col overflow-hidden rounded-[28px] bg-[var(--brand-surface)]"
+        style={{ color: 'var(--brand-text-main)', border: `1px solid color-mix(in oklch, ${C.primary} 35%, transparent)`, boxShadow: '0 28px 90px -36px rgba(6,18,40,.7)', fontFamily: 'Geist, Inter, system-ui, sans-serif' }}>
         <div className="flex items-center justify-between border-b px-7 py-5" style={{ borderColor: C.border }}>
           <div>
             <div className="flex items-center gap-2 text-[19px] font-semibold">
               <span style={{ color: C.primary }}>📌</span> Assegnazioni manuali
             </div>
-            <div className="mt-0.5 text-[12.5px]" style={{ color: 'oklch(0.5 0.04 245)' }}>
+            <div className="mt-0.5 text-[12.5px]" style={{ color: 'var(--brand-text-muted)' }}>
               {p.rules.length} regole · {pinnedStaffIds.size} operatori pinnati
             </div>
           </div>
@@ -118,10 +118,10 @@ export default function ManualAssignmentsModal(p: Props) {
           )}
         </div>
 
-        <div className="flex items-center justify-between border-t px-7 py-4" style={{ borderColor: C.border, background: 'oklch(0.96 0.012 245)' }}>
-          <span className="text-[12.5px]" style={{ color: 'oklch(0.5 0.04 245)' }}>{p.rules.length} regole attive</span>
+        <div className="flex items-center justify-between border-t px-7 py-4" style={{ borderColor: C.border, background: 'var(--brand-surface-muted)' }}>
+          <span className="text-[12.5px]" style={{ color: 'var(--brand-text-muted)' }}>{p.rules.length} regole attive</span>
           <div className="flex gap-2.5">
-            <button onClick={p.onClose} className="rounded-2xl px-5 py-2.5 text-sm font-semibold" style={{ color: 'oklch(0.5 0.04 245)' }}>Chiudi</button>
+            <button onClick={p.onClose} className="rounded-2xl px-5 py-2.5 text-sm font-semibold" style={{ color: 'var(--brand-text-muted)' }}>Chiudi</button>
             <button onClick={p.onDistribute} className="rounded-2xl px-5 py-2.5 text-sm font-semibold"
               style={{ background: C.primary, color: 'oklch(0.16 0.06 245)', boxShadow: '0 0 16px oklch(0.78 0.13 215/.45)' }}>⚙ Distribuisci</button>
           </div>
@@ -153,8 +153,8 @@ function RuleWizard(props: {
   const valid = staffId && (rule.filtroOds.length || rule.filtroIndirizzo.length || rule.filtroCap.length || rule.filtroAttivita.length);
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/40 p-6">
-      <div className="w-[min(720px,94vw)] rounded-[24px] bg-white p-6" style={{ fontFamily: 'Geist, Inter, sans-serif' }}>
+    <div className="fixed inset-0 z-[2001] flex items-center justify-center bg-black/40 p-6">
+      <div className="w-[min(720px,94vw)] rounded-[24px] bg-[var(--brand-surface)] p-6" style={{ color: 'var(--brand-text-main)', fontFamily: 'Geist, Inter, sans-serif' }}>
         <h3 className="mb-4 text-[16px] font-semibold">Nuova regola</h3>
         <label className="mb-1 block text-[13px] font-semibold">Operatore</label>
         <select value={staffId} onChange={(e) => setStaffId(e.target.value)} className="mb-3 w-full rounded-xl border px-3 py-2 text-sm">
@@ -167,10 +167,10 @@ function RuleWizard(props: {
         <input value={indirizzo} onChange={(e) => setIndirizzo(e.target.value)} className="mb-3 w-full rounded-xl border px-3 py-2 text-sm" placeholder="Via Roma 12, Frascati" />
         <label className="mb-1 block text-[13px] font-semibold">📍 CAP</label>
         <input value={cap} onChange={(e) => setCap(e.target.value)} className="mb-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="00044, 00045" />
-        <div className="mb-3 text-[11px] text-neutral-500">Dal dataset: {props.capValues.slice(0, 8).join(' · ') || '—'}</div>
+        <div className="mb-3 text-[11px] text-[var(--brand-text-muted)]">Dal dataset: {props.capValues.slice(0, 8).join(' · ') || '—'}</div>
         <label className="mb-1 block text-[13px] font-semibold">🔧 Attività</label>
         <input value={att} onChange={(e) => setAtt(e.target.value)} className="mb-1 w-full rounded-xl border px-3 py-2 text-sm" placeholder="S-AI-051" />
-        <div className="mb-3 text-[11px] text-neutral-500">Dal dataset: {props.attValues.slice(0, 8).join(' · ') || '—'}</div>
+        <div className="mb-3 text-[11px] text-[var(--brand-text-muted)]">Dal dataset: {props.attValues.slice(0, 8).join(' · ') || '—'}</div>
         <label className="mb-1 block text-[13px] font-semibold">Tetto X (max interventi, opzionale)</label>
         <input value={maxX} onChange={(e) => setMaxX(e.target.value)} type="number" min={1} className="mb-4 w-40 rounded-xl border px-3 py-2 text-sm" placeholder="30" />
         <div className="flex justify-end gap-2">
