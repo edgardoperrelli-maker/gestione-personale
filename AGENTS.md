@@ -33,7 +33,6 @@ app/
     mappa/               → Mappa Operatori
     rapportini/          → Rapportini
     hotel-calendar/      → Calendario Hotel
-    smartracker/         → SmarTracker
   dashboard/             → Cronoprogramma (admin)
   impostazioni/          → Utenze (admin only)
   api/                   → Route handlers server-side
@@ -240,7 +239,7 @@ Import CSS Leaflet: `import 'leaflet/dist/leaflet.css';` — solo nelle page.tsx
 type ValidRole = 'admin' | 'operatore';
 
 type AppModuleKey =
-  | 'dashboard' | 'hotel-calendar' | 'smartracker'
+  | 'dashboard' | 'hotel-calendar'
   | 'rapportini' | 'mappa' | 'impostazioni';
 ```
 

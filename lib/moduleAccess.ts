@@ -3,7 +3,6 @@ export type ValidRole = 'admin' | 'operatore';
 export type AppModuleKey =
   | 'dashboard'
   | 'hotel-calendar'
-  | 'smartracker'
   | 'rapportini'
   | 'mappa'
   | 'sopralluoghi'
@@ -40,14 +39,6 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Prenotazioni e occupazione',
     section: 'modules',
     matchPrefixes: ['/hub/hotel-calendar'],
-  },
-  {
-    key: 'smartracker',
-    href: '/hub/smartracker',
-    label: 'SmarTracker',
-    description: 'Monitoraggio e tracciamento',
-    section: 'modules',
-    matchPrefixes: ['/hub/smartracker'],
   },
   {
     key: 'rapportini',
