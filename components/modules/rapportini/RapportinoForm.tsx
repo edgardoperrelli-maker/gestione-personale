@@ -9,11 +9,15 @@ export type Voce = {
   id: string;
   ordine: number;
   nominativo?: string;
+  matricola?: string;
   pdr?: string;
+  odsin?: string;
   via?: string;
   comune?: string;
   cap?: string;
+  recapito?: string;
   attivita?: string;
+  accessibilita?: string;
   fascia_oraria?: string;
   risposte: Record<string, unknown>;
 };
@@ -327,11 +331,15 @@ function VoceCard({
 }) {
   const anagrafica: { label: string; value?: string }[] = [
     { label: 'Nominativo', value: voce.nominativo },
+    { label: 'Matricola', value: voce.matricola },
     { label: 'PDR', value: voce.pdr },
+    { label: 'ODSIN', value: voce.odsin },
     { label: 'Via', value: voce.via },
     { label: 'Comune', value: voce.comune },
     { label: 'CAP', value: voce.cap },
+    { label: 'Recapito', value: voce.recapito },
     { label: 'Attività', value: voce.attivita },
+    { label: 'Accessibilità', value: voce.accessibilita },
     { label: 'Fascia oraria', value: voce.fascia_oraria },
   ].filter((r) => r.value != null && String(r.value).trim() !== '');
 

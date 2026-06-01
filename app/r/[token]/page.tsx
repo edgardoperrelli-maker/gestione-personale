@@ -12,11 +12,15 @@ type VoceRow = {
   id: string;
   ordine: number;
   nominativo: string | null;
+  matricola: string | null;
   pdr: string | null;
+  odsin: string | null;
   via: string | null;
   comune: string | null;
   cap: string | null;
+  recapito: string | null;
   attivita: string | null;
+  accessibilita: string | null;
   fascia_oraria: string | null;
   risposte: Record<string, unknown> | null;
 };
@@ -103,7 +107,7 @@ export default async function RapportinoPublicPage({
 
   const { data: vociRows } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, pdr, via, comune, cap, attivita, fascia_oraria, risposte')
+    .select('id, ordine, nominativo, matricola, pdr, odsin, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
     .eq('rapportino_id', rap.id)
     .order('ordine');
 
@@ -111,11 +115,15 @@ export default async function RapportinoPublicPage({
     id: v.id,
     ordine: v.ordine,
     nominativo: v.nominativo ?? undefined,
+    matricola: v.matricola ?? undefined,
     pdr: v.pdr ?? undefined,
+    odsin: v.odsin ?? undefined,
     via: v.via ?? undefined,
     comune: v.comune ?? undefined,
     cap: v.cap ?? undefined,
+    recapito: v.recapito ?? undefined,
     attivita: v.attivita ?? undefined,
+    accessibilita: v.accessibilita ?? undefined,
     fascia_oraria: v.fascia_oraria ?? undefined,
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
   }));
