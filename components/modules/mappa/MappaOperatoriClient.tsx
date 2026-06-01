@@ -2378,6 +2378,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   </button>
                 </div>
 
+                {esecutoreWarnings.length > 0 && (
+                  <div className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2.5 py-1.5 text-[10px] text-[var(--warning)]">
+                    ⚠ Esecutori non riconosciuti (distribuiti automaticamente): {esecutoreWarnings.join(', ')}
+                  </div>
+                )}
+
                 {/* Pannello selezione — inline, nessun absolute */}
                 {showOpPicker && (
                   <div className="mt-2 space-y-2">
@@ -2441,9 +2447,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                     <button
                                       type="button"
                                       onClick={() => handleCopyLink(r)}
-                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                                      className="rounded bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]"
                                     >
-                                      {copiedToken === r.token ? 'Copiato!' : 'Copia link'}
+                                      {copiedToken === r.token ? '✓ Copiato!' : '🔗 Copia link'}
                                     </button>
                                     <a
                                       href={whatsappHref(r.staff_name, rapDataLabel, r.url)}
