@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import { formatImportSummary, type ImportInterventiResult } from '@/lib/interventi/importSummary';
+import GeocodePanel from '@/components/modules/interventi/GeocodePanel';
 
 const COMMITTENTI = [
   { value: 'italgas', label: 'Italgas' },
@@ -248,6 +249,8 @@ function ImportInterventiForm() {
           {busy ? 'Import in corso…' : 'Importa'}
         </button>
       </form>
+
+      {result && <GeocodePanel batchId={result.batchId} />}
     </main>
   );
 }
