@@ -129,8 +129,9 @@ export default function InterventiAssegnabili({
           </button>
           <button
             type="button"
+            disabled={busy}
             onClick={() => setSelected(new Set())}
-            className="rounded-2xl border px-4 py-2 text-sm font-medium transition"
+            className="rounded-2xl border px-4 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50"
             style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
           >
             Annulla selezione
@@ -197,7 +198,11 @@ export default function InterventiAssegnabili({
                       <select
                         aria-label={`Operatore per ${r.odl ?? r.id}`}
                         value={r.staff_id ?? ''}
-                        onChange={(e) => assegna([r.id], e.target.value === '' ? null : e.target.value)}
+                        onChange={(e) => {
+                          const next = e.target.value === '' ? null : e.target.value;
+                          if (next === (r.staff_id ?? null)) return;
+                          void assegna([r.id], next);
+                        }}
                         disabled={busy}
                         className="rounded-xl border px-2 py-1 text-sm outline-none"
                         style={fieldStyle}
