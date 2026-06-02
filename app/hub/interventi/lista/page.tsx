@@ -3,8 +3,10 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
 import InterventiFilters from '@/components/modules/interventi/InterventiFilters';
-import InterventiTable, { type InterventoRow } from '@/components/modules/interventi/InterventiTable';
-import { parseInterventiFilters } from '@/lib/interventi/interventiView';
+import InterventiAssegnabili from '@/components/modules/interventi/InterventiAssegnabili';
+import { parseInterventiFilters, type InterventoRow } from '@/lib/interventi/interventiView';
+import { isStaffValidOnDay } from '@/lib/staff';
+import type { Staff } from '@/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,7 +29,7 @@ export default async function ListaInterventiPage({
 
   let q = supabase
     .from('interventi')
-    .select('id, odl, indirizzo, comune, committente, stato, geocode_status, nominativo, fascia_oraria')
+    .select('id, odl, indirizzo, comune, committente, stato, geocode_status, nominativo, fascia_oraria, staff_id')
     .eq('data', filters.data)
     .order('comune', { ascending: true })
     .order('indirizzo', { ascending: true })
@@ -38,6 +40,11 @@ export default async function ListaInterventiPage({
 
   const { data: rows, error } = await q;
   const interventi = (rows ?? []) as InterventoRow[];
+
+  const { data: staffRows } = await supabase.from('staff').select('id, display_name, valid_from, valid_to');
+  const operatori = ((staffRows ?? []) as Staff[])
+    .filter((s) => isStaffValidOnDay(s, filters.data))
+    .map((s) => ({ id: s.id, display_name: s.display_name }));
 
   const conteggi = {
     totale: interventi.length,
@@ -97,7 +104,7 @@ export default async function ListaInterventiPage({
             ))}
           </div>
 
-          <InterventiTable rows={interventi} />
+          <InterventiAssegnabili rows={interventi} operators={operatori} />
         </>
       )}
     </main>
