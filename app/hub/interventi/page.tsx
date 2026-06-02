@@ -37,6 +37,7 @@ function ImportInterventiForm() {
 
   function onPick(e: React.ChangeEvent<HTMLInputElement>) {
     setError(null);
+    setResult(null);
     const f = e.target.files?.[0] ?? null;
     setFile(f);
     setFileName(f ? f.name : 'Nessun file selezionato');
@@ -105,12 +106,12 @@ function ImportInterventiForm() {
         style={{ borderColor: 'var(--brand-border)' }}
       >
         <div className="space-y-2">
-          <label
+          <div
             className="block text-xs font-semibold uppercase tracking-[0.14em]"
             style={{ color: 'var(--brand-text-muted)' }}
           >
             File Excel
-          </label>
+          </div>
           <div
             className="flex flex-col gap-4 rounded-[24px] border border-dashed p-5 md:flex-row md:items-center md:justify-between"
             style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)' }}
@@ -139,6 +140,7 @@ function ImportInterventiForm() {
                   onClick={() => {
                     setFile(null);
                     setFileName('Nessun file selezionato');
+                    setResult(null);
                   }}
                   className="rounded-2xl border px-4 py-2 text-sm font-medium transition"
                   style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
@@ -153,12 +155,14 @@ function ImportInterventiForm() {
         <div className="grid gap-4 sm:grid-cols-3">
           <div className="space-y-2">
             <label
+              htmlFor="committente-select"
               className="block text-xs font-semibold uppercase tracking-[0.14em]"
               style={{ color: 'var(--brand-text-muted)' }}
             >
               Committente
             </label>
             <select
+              id="committente-select"
               value={committente}
               onChange={(e) => setCommittente(e.target.value as Committente)}
               className="w-full rounded-2xl border px-4 py-3 text-base outline-none transition"
@@ -174,12 +178,14 @@ function ImportInterventiForm() {
 
           <div className="space-y-2">
             <label
+              htmlFor="data-input"
               className="block text-xs font-semibold uppercase tracking-[0.14em]"
               style={{ color: 'var(--brand-text-muted)' }}
             >
               Data di lavoro
             </label>
             <input
+              id="data-input"
               type="date"
               value={data}
               onChange={(e) => setData(e.target.value)}
@@ -190,12 +196,14 @@ function ImportInterventiForm() {
 
           <div className="space-y-2">
             <label
+              htmlFor="lotto-select"
               className="block text-xs font-semibold uppercase tracking-[0.14em]"
               style={{ color: 'var(--brand-text-muted)' }}
             >
               Lotto (Acea)
             </label>
             <select
+              id="lotto-select"
               value={lotto}
               onChange={(e) => setLotto(e.target.value)}
               className="w-full rounded-2xl border px-4 py-3 text-base outline-none transition"
