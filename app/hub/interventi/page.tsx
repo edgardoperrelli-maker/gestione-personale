@@ -125,6 +125,11 @@ function ImportInterventiForm() {
                 type="file"
                 accept=".xlsx,.xls"
                 onChange={onPick}
+                onClick={(e) => {
+                  // Azzera il valore prima di riaprire il picker: così ri-selezionare
+                  // lo stesso file fa comunque scattare onChange (ri-import dello stesso file).
+                  (e.target as HTMLInputElement).value = '';
+                }}
                 className="hidden"
               />
               <label
