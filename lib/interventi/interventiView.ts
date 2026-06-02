@@ -54,3 +54,16 @@ export function badgeGeocode(status: string | null | undefined): GeocodeBadge {
   if (status === 'failed') return { label: 'Da correggere', tone: 'danger' };
   return { label: 'In attesa', tone: 'muted' };
 }
+
+export type InterventoRow = {
+  id: string;
+  odl: string | null;
+  indirizzo: string | null;
+  comune: string | null;
+  committente: string | null;
+  stato: string | null;
+  geocode_status: string | null;
+  nominativo: string | null;
+  fascia_oraria: string | null;
+  staff_id: string | null;
+};
