@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser } from '@/lib/apiAuth';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -9,6 +10,8 @@ const supabaseAdmin = createClient(
 export const runtime = 'nodejs';
 
 export async function GET() {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const { data, error } = await supabaseAdmin
     .from('mappa_assegnazioni_preset')
     .select('id, nome, staff_id, filtro_cap, filtro_attivita, max_interventi')
@@ -19,6 +22,8 @@ export async function GET() {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const b = await req.json();
     if (!b?.nome) return NextResponse.json({ error: 'nome obbligatorio' }, { status: 400 });
     const { data, error } = await supabaseAdmin
@@ -40,6 +45,8 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });

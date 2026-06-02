@@ -1,5 +1,14 @@
 export type ValidRole = 'admin' | 'operatore';
 
+/**
+ * Ruolo assegnabile dall'area Utenze. `admin_plus` è un super-admin che, oltre
+ * ai privilegi admin, vede il cruscotto premialità. A livello di AUTORIZZAZIONE
+ * resta "admin" (vedi resolveUserRole + toStoredProfileRole), così tutti i guard
+ * e le policy RLS basate su role='admin' continuano a valere senza modifiche.
+ * La distinzione "plus" è trasportata in app_metadata.role = 'admin_plus'.
+ */
+export type AssignableRole = ValidRole | 'admin_plus';
+
 export type AppModuleKey =
   | 'dashboard'
   | 'hotel-calendar'
@@ -19,6 +28,12 @@ export type AppModuleDefinition = {
 };
 
 export const ROLE_LABELS: Record<ValidRole, string> = {
+  admin: 'Admin',
+  operatore: 'Operatore',
+};
+
+export const ASSIGNABLE_ROLE_LABELS: Record<AssignableRole, string> = {
+  admin_plus: 'Admin Plus',
   admin: 'Admin',
   operatore: 'Operatore',
 };
@@ -85,6 +100,32 @@ export function isValidRole(value: unknown): value is ValidRole {
   return value === 'admin' || value === 'operatore';
 }
 
+export function isAssignableRole(value: unknown): value is AssignableRole {
+  return value === 'admin' || value === 'operatore' || value === 'admin_plus';
+}
+
+/**
+ * Ruolo "assegnabile" risolto per la UI Utenze: conserva la distinzione
+ * `admin_plus` (presente in app_metadata.role), altrimenti ricade su admin/operatore.
+ */
+export function resolveAssignableRole(
+  profileRole?: string | null,
+  metadataRole?: unknown,
+): AssignableRole {
+  if (profileRole === 'admin_plus' || metadataRole === 'admin_plus') return 'admin_plus';
+  return resolveUserRole(profileRole, metadataRole);
+}
+
+/** Solo `admin_plus` vede il cruscotto premialità (dati economici riservati). */
+export function canViewPremialita(role: AssignableRole | null | undefined): boolean {
+  return role === 'admin_plus';
+}
+
+/** True per i ruoli con privilegi amministrativi (admin e admin_plus). */
+export function isAdminAssignableRole(role: AssignableRole | null | undefined): boolean {
+  return role === 'admin' || role === 'admin_plus';
+}
+
 export function resolveUserRole(
   profileRole?: string | null,
   metadataRole?: unknown,
@@ -96,18 +137,19 @@ export function resolveUserRole(
   return 'operatore';
 }
 
-export function toStoredProfileRole(role: ValidRole): 'admin' | 'viewer' {
-  return role === 'admin' ? 'admin' : 'viewer';
+export function toStoredProfileRole(role: AssignableRole): 'admin' | 'viewer' {
+  // admin_plus è admin a livello di profilo/RLS: la tier "plus" vive in app_metadata.
+  return isAdminAssignableRole(role) ? 'admin' : 'viewer';
 }
 
 export function normalizeAllowedModules(
   input: unknown,
-  role?: ValidRole | null,
+  role?: AssignableRole | null,
 ): AppModuleKey[] {
   const raw = Array.isArray(input) ? input : DEFAULT_ALLOWED_MODULES;
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
-  if (role === 'admin') {
+  if (isAdminAssignableRole(role)) {
     return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni']));
   }
 
@@ -119,9 +161,9 @@ function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: 
   return value as { allowedModules?: unknown; role?: unknown };
 }
 
-export function getAllowedModulesForUser(appMetadata: unknown, role?: ValidRole | null): AppModuleKey[] {
+export function getAllowedModulesForUser(appMetadata: unknown, role?: AssignableRole | null): AppModuleKey[] {
   const metadata = extractAppMetadata(appMetadata);
-  const metadataRole = isValidRole(metadata?.role) ? metadata.role : null;
+  const metadataRole = isAssignableRole(metadata?.role) ? metadata.role : null;
   const effectiveRole = role ?? metadataRole;
   return normalizeAllowedModules(metadata?.allowedModules, effectiveRole);
 }

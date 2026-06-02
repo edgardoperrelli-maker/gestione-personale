@@ -1,7 +1,10 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin as sb } from '@/lib/supabaseAdmin';
+import { requireUser } from '@/lib/apiAuth';
 
 export async function GET(req: Request) {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const { searchParams } = new URL(req.url);
   const id = searchParams.get('id'); // calendar_day_id
   if (!id) return NextResponse.json({ error: 'id required' }, { status: 400 });

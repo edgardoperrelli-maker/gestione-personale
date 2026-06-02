@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
@@ -10,6 +11,8 @@ const supabaseAdmin = createClient(
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
     const { searchParams } = new URL(req.url);
     const date = searchParams.get('date');
     const territory_id = searchParams.get('territory_id');

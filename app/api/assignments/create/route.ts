@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireUser } from '@/lib/apiAuth';
 
 export async function POST(req: NextRequest) {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
   const body = await req.json();
   // body: { day_id, staff_id, territory_id?, activity_id?, reperibile?, notes? }
   const { data, error } = await supabaseAdmin

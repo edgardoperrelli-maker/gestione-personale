@@ -207,9 +207,7 @@ export async function geocodeTask(task: Task): Promise<Task> {
       format: 'jsonv2',
       limit: '1',
     });
-    console.log('[geocodeTask] calling Nominatim structured:', nominatimStructuredParams.toString());
     const nominatimStructured = await fetchNominatim(nominatimStructuredParams);
-    console.log('[geocodeTask] Nominatim structured response:', nominatimStructured);
 
     if (nominatimStructured) {
       saveInMemoryCoords(rawKey, normalizedKey, nominatimStructured);

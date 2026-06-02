@@ -811,7 +811,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Geocodifica appuntamenti appena caricati
   useEffect(() => {
-    console.log('[geocoding] useEffect fired, tasks:', geocodedAppointmentTasks.length);
     let alive = true;
 
     (async () => {
@@ -820,14 +819,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const task = updated[i];
         if (task.lat != null && task.lng != null) continue;
         if (!alive) return;
-        console.log(`[geocoding] Before geocoding task ${i}:`, { id: task.id, indirizzo: task.indirizzo });
         const result = await geocodeTask(updated[i]);
-        console.log('[geocoding] result for', updated[i].indirizzo, ':', result.lat, result.lng);
         updated[i] = result;
-        console.log(`[geocoding] After geocoding task ${i}:`, { id: updated[i].id, lat: updated[i].lat, lng: updated[i].lng });
         if (alive) setGeocodedAppointmentTasks([...updated]);
       }
-      console.log('[geocoding] Final state:', updated);
     })();
     return () => { alive = false; };
   }, [geocodedAppointmentTasks.length > 0 ? geocodedAppointmentTasks[0]?.id : null]);
@@ -1113,7 +1108,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Marker Excel + route distribuzione (effetto unificato)
   useEffect(() => {
-    console.log('[markers] useEffect fired, geocodedAppointmentTasks:', geocodedAppointmentTasks.length);
     if (!leaflet || !excelLayerRef.current || !routeLayerRef.current || !mapInstanceRef.current) return;
     const exLayer = excelLayerRef.current;
     const rLayer = routeLayerRef.current;
