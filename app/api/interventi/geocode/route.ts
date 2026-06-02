@@ -100,7 +100,8 @@ export async function POST(req: Request) {
       .not('indirizzo', 'is', null);
     if (batchId) rq = rq.eq('import_batch_id', batchId);
     if (data) rq = rq.eq('data', data);
-    const { count } = await rq;
+    const { count, error: countError } = await rq;
+    if (countError) throw new Error(countError.message);
 
     return NextResponse.json({
       processati: (rows ?? []).length,

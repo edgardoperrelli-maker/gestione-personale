@@ -70,7 +70,8 @@ export default function GeocodePanel({ batchId }: { batchId: string }) {
           Geocodifica
         </h2>
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          {running ? 'Geocodifica in corso…' : done ? 'Geocodifica completata.' : 'In avvio…'} {formatGeocodeProgress(progress)}
+          {running ? 'Geocodifica in corso…' : done ? 'Geocodifica completata.' : 'In avvio…'}
+          {running || done ? ` · ${formatGeocodeProgress(progress)}` : ''}
         </p>
       </div>
 
@@ -83,7 +84,7 @@ export default function GeocodePanel({ batchId }: { batchId: string }) {
         </div>
       )}
 
-      {!running && (
+      {!running && (done || !!error) && (
         <button
           type="button"
           onClick={() => void runLoop()}
@@ -157,6 +158,7 @@ function FailedRow({ item, onResolved }: { item: FailedItem; onResolved: () => v
           value={indirizzo}
           onChange={(e) => setIndirizzo(e.target.value)}
           placeholder="Indirizzo"
+          aria-label="Indirizzo"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
           style={inputStyle}
         />
@@ -164,6 +166,7 @@ function FailedRow({ item, onResolved }: { item: FailedItem; onResolved: () => v
           value={comune}
           onChange={(e) => setComune(e.target.value)}
           placeholder="Comune"
+          aria-label="Comune"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
           style={inputStyle}
         />
@@ -171,6 +174,7 @@ function FailedRow({ item, onResolved }: { item: FailedItem; onResolved: () => v
           value={cap}
           onChange={(e) => setCap(e.target.value)}
           placeholder="CAP"
+          aria-label="CAP"
           className="w-full rounded-xl border px-3 py-2 text-sm outline-none"
           style={inputStyle}
         />
