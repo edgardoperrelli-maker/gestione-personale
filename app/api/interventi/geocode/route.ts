@@ -5,6 +5,9 @@ import { geocodeIndirizzoServer } from '@/lib/interventi/geocodeServer';
 import { statoDaRisultatoGeocode } from '@/lib/interventi/geocodeStatus';
 
 export const runtime = 'nodejs';
+// Geocoder a 1 req/sec: con limit basso ogni chiamata resta sotto i limiti serverless;
+// maxDuration alza il tetto dove il piano lo consente (es. Vercel Pro).
+export const maxDuration = 60;
 
 function nrm(v: unknown): string | null {
   if (v == null) return null;
@@ -21,7 +24,8 @@ type PendingRow = {
 };
 
 /**
- * POST /api/interventi/geocode — geocodifica un blocco di interventi `pending`.
+ * POST /api/interventi/geocode — geocodifica un blocco di interventi non ancora
+ * geocodificati (lat null, geocode_status diverso da 'failed').
  * Body JSON: { batchId?, data?, limit? }. Almeno uno tra batchId e data.
  */
 export async function POST(req: Request) {
@@ -35,7 +39,7 @@ export async function POST(req: Request) {
     const limit =
       typeof body.limit === 'number' && Number.isInteger(body.limit) && body.limit > 0 && body.limit <= 100
         ? body.limit
-        : 25;
+        : 10;
 
     if (!batchId && !data) {
       return NextResponse.json({ error: 'Specificare batchId o data.' }, { status: 400 });
@@ -64,7 +68,7 @@ export async function POST(req: Request) {
       const attempts = (r.geocode_attempts ?? 0) + 1;
 
       if (stato === 'ok' && coords) {
-        await supabaseAdmin
+        const { error: ue } = await supabaseAdmin
           .from('interventi')
           .update({
             lat: coords.lat,
@@ -74,17 +78,20 @@ export async function POST(req: Request) {
             geocode_attempts: attempts,
           })
           .eq('id', r.id);
+        if (ue) throw new Error(`Update intervento ${r.id} fallito: ${ue.message}`);
         ok += 1;
       } else {
-        await supabaseAdmin
+        const { error: ue } = await supabaseAdmin
           .from('interventi')
           .update({ geocode_status: 'failed', geocode_attempts: attempts })
           .eq('id', r.id);
+        if (ue) throw new Error(`Update intervento ${r.id} fallito: ${ue.message}`);
         falliti += 1;
         fallitiList.push({ id: r.id, indirizzo: r.indirizzo, comune: r.comune, cap: r.cap });
       }
     }
 
+    // Stesso filtro della query a blocchi qui sopra, replicato per il conteggio dei restanti.
     let rq = supabaseAdmin
       .from('interventi')
       .select('id', { count: 'exact', head: true })
