@@ -1,3 +1,4 @@
+import { Suspense } from 'react';
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
@@ -65,7 +66,9 @@ export default async function ListaInterventiPage({
         </Link>
       </header>
 
-      <InterventiFilters filters={filters} />
+      <Suspense fallback={null}>
+        <InterventiFilters filters={filters} />
+      </Suspense>
 
       {error ? (
         <div
