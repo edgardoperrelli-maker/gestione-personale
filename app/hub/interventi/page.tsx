@@ -4,6 +4,7 @@ import { useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import { formatImportSummary, type ImportInterventiResult } from '@/lib/interventi/importSummary';
 import GeocodePanel from '@/components/modules/interventi/GeocodePanel';
+import Link from 'next/link';
 
 const COMMITTENTI = [
   { value: 'italgas', label: 'Italgas' },
@@ -99,6 +100,13 @@ function ImportInterventiForm() {
           Carica un Excel del committente: le righe vengono salvate come interventi. Un ri-import dello stesso
           giorno aggiorna le righe esistenti (dedup per committente, ODL e data) invece di duplicarle.
         </p>
+        <Link
+          href="/hub/interventi/lista"
+          className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
+          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+        >
+          Vedi lista interventi
+        </Link>
       </header>
 
       <form
