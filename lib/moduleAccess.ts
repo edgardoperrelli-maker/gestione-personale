@@ -14,6 +14,7 @@ export type AppModuleKey =
   | 'hotel-calendar'
   | 'rapportini'
   | 'mappa'
+  | 'interventi'
   | 'sopralluoghi'
   | 'impostazioni';
 
@@ -70,6 +71,14 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Distribuzione territoriale',
     section: 'modules',
     matchPrefixes: ['/hub/mappa'],
+  },
+  {
+    key: 'interventi',
+    href: '/hub/interventi',
+    label: 'Interventi',
+    description: 'Import e gestione interventi',
+    section: 'modules',
+    matchPrefixes: ['/hub/interventi'],
   },
   {
     key: 'sopralluoghi',
