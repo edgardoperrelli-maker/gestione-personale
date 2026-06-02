@@ -10,6 +10,10 @@ export type Coordinates = { lat: number; lng: number };
 type NominatimResult = { lat: string; lon: string };
 type PhotonResponse = { features?: Array<{ geometry?: { coordinates?: number[] } }> };
 
+// Coda seriale GLOBALE per processo: tutte le geocodifiche (client o server) passano
+// di qui a 1 req/sec. È intenzionale — rispetta la usage policy di Nominatim (≤1 req/sec
+// per IP). Lato server (route/worker) significa throughput max 1 indirizzo/sec per processo:
+// per questo la rotta lavora a blocchi e l'avanzamento è persistito (vedi spec geocoding §5).
 let queue: Promise<void> = Promise.resolve();
 
 function delay(ms: number): Promise<void> {
