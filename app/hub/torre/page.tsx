@@ -13,7 +13,8 @@ function oggiRoma(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
 }
 
-export default async function TorrePage() {
+export default async function TorrePage({ searchParams }: { searchParams: Promise<{ data?: string }> }) {
+  const sp = await searchParams;
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
@@ -27,7 +28,7 @@ export default async function TorrePage() {
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
   if (role !== 'admin') redirect('/hub');
 
-  const data = oggiRoma();
+  const data = /^\d{4}-\d{2}-\d{2}$/.test(sp.data ?? '') ? (sp.data as string) : oggiRoma();
 
   const { data: rows } = await supabase
     .from('interventi')

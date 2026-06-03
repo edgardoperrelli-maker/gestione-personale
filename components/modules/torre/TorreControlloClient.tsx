@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { coloreStato, raggruppaPerOperatore, type TonoTorre } from '@/lib/interventi/torreView';
@@ -48,6 +49,7 @@ export default function TorreControlloClient({
   const [live, setLive] = useState(false);
   const [selStaff, setSelStaff] = useState<string | null>(null);
   const [selTerr, setSelTerr] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -107,16 +109,25 @@ export default function TorreControlloClient({
             {data} · {items.length} interventi · ✅ {totali.fatti} · ❌ {totali.nonFatti} · ⏳ {totali.daFare}
           </p>
         </div>
-        <span
-          className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-          style={{
-            backgroundColor: live ? 'var(--success-soft)' : 'var(--brand-surface-muted)',
-            color: live ? 'var(--success)' : 'var(--brand-text-muted)',
-          }}
-        >
-          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
-          {live ? 'Live' : 'Non connesso'}
-        </span>
+        <div className="flex items-center gap-2">
+          <input
+            type="date"
+            value={data}
+            onChange={(e) => e.target.value && router.push(`/hub/torre?data=${e.target.value}`)}
+            className="rounded-xl border px-3 py-1.5 text-sm outline-none"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+          />
+          <span
+            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+            style={{
+              backgroundColor: live ? 'var(--success-soft)' : 'var(--brand-surface-muted)',
+              color: live ? 'var(--success)' : 'var(--brand-text-muted)',
+            }}
+          >
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
+            {live ? 'Live' : 'Non connesso'}
+          </span>
+        </div>
       </header>
 
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
