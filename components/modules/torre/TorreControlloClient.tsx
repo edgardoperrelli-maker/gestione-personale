@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { coloreStato, raggruppaPerOperatore, type TonoTorre } from '@/lib/interventi/torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
 
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
@@ -81,7 +81,7 @@ export default function TorreControlloClient({
     };
   }, [data]);
 
-  const itemsTerr = selTerr ? items.filter((i) => i.territorio_id === selTerr) : items;
+  const itemsTerr = filtraInterventi(items, selTerr, null);
   const gruppi = raggruppaPerOperatore(itemsTerr, operatori);
   const totali = items.reduce(
     (acc, it) => {
@@ -95,8 +95,10 @@ export default function TorreControlloClient({
   );
 
   // La mappa mostra gli interventi dell'operatore selezionato (filtro), o tutti.
-  const itemsMappa = selStaff ? itemsTerr.filter((i) => i.staff_id === selStaff) : itemsTerr;
-  const nomeSel = selStaff ? gruppi.find((g) => g.operatore.id === selStaff)?.operatore.display_name : null;
+  const itemsMappa = filtraInterventi(items, selTerr, selStaff);
+  const nomeSel = selStaff
+    ? gruppi.find((g) => (g.operatore.id ?? SENTINELLA_NON_ASSEGNATI) === selStaff)?.operatore.display_name
+    : null;
 
   return (
     <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
@@ -150,12 +152,13 @@ export default function TorreControlloClient({
             </select>
           )}
           {gruppi.map((g) => {
-            const sel = selStaff === g.operatore.id;
+            const opKey = g.operatore.id ?? SENTINELLA_NON_ASSEGNATI;
+            const sel = selStaff === opKey;
             return (
               <button
-                key={g.operatore.id ?? 'na'}
+                key={opKey}
                 type="button"
-                onClick={() => setSelStaff((p) => (p === g.operatore.id ? null : g.operatore.id))}
+                onClick={() => setSelStaff((p) => (p === opKey ? null : opKey))}
                 className="w-full rounded-2xl border p-3 text-left transition hover:border-[var(--brand-primary)]"
                 style={{
                   borderColor: sel ? 'var(--brand-primary)' : 'var(--brand-border)',
