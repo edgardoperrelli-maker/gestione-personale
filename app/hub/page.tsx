@@ -4,7 +4,9 @@ import TrasfertaAlert from '@/components/trasferta/TrasfertaAlert';
 import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
 import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
 import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
-import { canViewPremialita, resolveAssignableRole } from '@/lib/moduleAccess';
+import Link from 'next/link';
+import { canViewPremialita, resolveAssignableRole, isAdminAssignableRole } from '@/lib/moduleAccess';
+import { MODULE_ICONS } from '@/components/layout/moduleIcons';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
@@ -127,6 +129,7 @@ export default async function DashboardPage() {
 
   const role = resolveAssignableRole(profile?.role, user?.app_metadata?.role);
   const showPremialita = canViewPremialita(role);
+  const isAdmin = isAdminAssignableRole(role);
 
   const todayIso = fmtDay(new Date());
   const todayRows = await loadTodayOperators(supabase, todayIso);
@@ -143,6 +146,34 @@ export default async function DashboardPage() {
           Stato dei rapportini e operatori sul territorio per oggi.
         </p>
       </header>
+
+      {isAdmin && (
+        <Link
+          href="/hub/torre"
+          className="flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)]"
+          style={{ borderColor: 'var(--brand-primary-border)', backgroundColor: 'var(--brand-surface)' }}
+        >
+          <div className="flex items-center gap-3">
+            <span
+              className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)]"
+              style={{ color: 'var(--brand-primary)' }}
+            >
+              {MODULE_ICONS.torre}
+            </span>
+            <div>
+              <div className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                Torre di controllo
+              </div>
+              <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+                Stato avanzamento interventi in tempo reale · mappa colorata e board per operatore
+              </div>
+            </div>
+          </div>
+          <span className="text-sm font-medium" style={{ color: 'var(--brand-primary)' }}>
+            Apri →
+          </span>
+        </Link>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">

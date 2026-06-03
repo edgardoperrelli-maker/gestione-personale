@@ -46,6 +46,14 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="M9 16h6" />
     </svg>
   ),
+  torre: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M12 2v20" />
+      <path d="M6 8l6-4 6 4" />
+      <circle cx="12" cy="12" r="2.5" />
+      <path d="M5 20a8 8 0 0 1 14 0" />
+    </svg>
+  ),
   impostazioni: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />

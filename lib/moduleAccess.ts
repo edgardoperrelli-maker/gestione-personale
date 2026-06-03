@@ -16,6 +16,7 @@ export type AppModuleKey =
   | 'mappa'
   | 'interventi'
   | 'sopralluoghi'
+  | 'torre'
   | 'impostazioni';
 
 export type AppModuleDefinition = {
@@ -87,6 +88,15 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Gestione sopralluoghi territorio',
     section: 'modules',
     matchPrefixes: ['/hub/sopralluoghi'],
+  },
+  {
+    key: 'torre',
+    href: '/hub/torre',
+    label: 'Torre di controllo',
+    description: 'Stato avanzamento interventi in tempo reale',
+    section: 'modules',
+    matchPrefixes: ['/hub/torre'],
+    adminOnly: true,
   },
   {
     key: 'impostazioni',
@@ -163,10 +173,12 @@ export function normalizeAllowedModules(
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
   if (isAdminAssignableRole(role)) {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni']));
+    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre']));
   }
 
-  return Array.from(new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni'), 'sopralluoghi']));
+  return Array.from(
+    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'torre'), 'sopralluoghi']),
+  );
 }
 
 function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: unknown } | null {
