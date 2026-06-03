@@ -3,6 +3,7 @@ import { randomBytes } from 'crypto';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
 import { orphanRapportini } from '@/utils/rapportini/orphans';
+import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
@@ -36,7 +37,7 @@ export async function POST(req: Request) {
 
     const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
     const out: { staff_id: string; staff_name: string | null; token: string; url: string }[] = [];
-    const expires = new Date(Date.now() + 48 * 3600 * 1000).toISOString();
+    const expires = scadenzaIso(piano.data);
 
     for (const op of ops ?? []) {
       const { data: existing } = await supabaseAdmin.from('rapportini')
