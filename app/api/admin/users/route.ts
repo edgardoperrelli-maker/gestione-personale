@@ -6,6 +6,7 @@ import {
   APP_MODULES,
   getAllowedModulesForUser,
   normalizeAllowedModules,
+  buildAppMetadataUpdate,
   ASSIGNABLE_ROLE_LABELS,
   resolveUserRole,
   resolveAssignableRole,
@@ -181,10 +182,15 @@ export async function PATCH(req: NextRequest) {
   }
 
   if (role || Array.isArray(body.allowedModules)) {
-    updates.app_metadata = {
-      role,
-      allowedModules: normalizeAllowedModules(body.allowedModules, role ?? null),
-    };
+    // Se il ruolo non cambia, recuperalo dall'utente per non declassarlo
+    // aggiornando i soli moduli (e per normalizzare i moduli sul ruolo reale).
+    let currentMetadataRole: unknown;
+    if (!role) {
+      const { data: current, error: getErr } = await supabaseAdmin.auth.admin.getUserById(userId);
+      if (getErr) return NextResponse.json({ error: getErr.message }, { status: 400 });
+      currentMetadataRole = current?.user?.app_metadata?.role;
+    }
+    updates.app_metadata = buildAppMetadataUpdate(currentMetadataRole, role, body.allowedModules);
   }
 
   if (Object.keys(updates).length > 0) {

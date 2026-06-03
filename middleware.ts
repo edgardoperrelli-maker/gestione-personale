@@ -1,7 +1,7 @@
 // middleware.ts
 import { NextRequest, NextResponse } from 'next/server'
 import { createMiddlewareClient } from '@supabase/auth-helpers-nextjs'
-import { canAccessPath, getAllowedModulesForUser, isValidRole } from '@/lib/moduleAccess'
+import { canAccessPathFromMetadata } from '@/lib/moduleAccess'
 
 export async function middleware(req: NextRequest) {
   const res = NextResponse.next()
@@ -24,10 +24,7 @@ export async function middleware(req: NextRequest) {
   }
 
   if (user && isProtected) {
-    const metadataRole = isValidRole(user.app_metadata?.role) ? user.app_metadata.role : null
-    const allowedModules = getAllowedModulesForUser(user.app_metadata, metadataRole)
-
-    if (!canAccessPath(req.nextUrl.pathname, allowedModules, metadataRole)) {
+    if (!canAccessPathFromMetadata(req.nextUrl.pathname, user.app_metadata)) {
       const url = req.nextUrl.clone()
       url.pathname = '/hub'
       return NextResponse.redirect(url)

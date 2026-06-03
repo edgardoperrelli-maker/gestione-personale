@@ -139,6 +139,10 @@ export function resolveUserRole(
   profileRole?: string | null,
   metadataRole?: unknown,
 ): ValidRole {
+  // admin_plus è un super-admin: a livello di AUTORIZZAZIONE equivale ad admin.
+  // Va riconosciuto anche quando arriva dal solo app_metadata (es. nel middleware,
+  // che non legge profiles), altrimenti i super-admin vengono trattati da operatori.
+  if (profileRole === 'admin_plus' || metadataRole === 'admin_plus') return 'admin';
   if (isValidRole(profileRole)) return profileRole;
   if (profileRole === 'editor' || profileRole === 'viewer') return 'operatore';
   if (isValidRole(metadataRole)) return metadataRole;
@@ -189,4 +193,36 @@ export function canAccessPath(pathname: string, allowedModules: AppModuleKey[], 
   if (!matchedModule) return true;
   if (matchedModule.adminOnly && role !== 'admin') return false;
   return allowedModules.includes(matchedModule.key);
+}
+
+/**
+ * Decisione di accesso usata dal middleware, basata SOLO su `app_metadata`
+ * (il middleware non interroga il profilo nel DB). Centralizza la logica così
+ * che resti coerente con i guard server-side: in particolare `admin_plus` viene
+ * trattato come `admin` (vedi resolveUserRole), evitando il redirect erroneo
+ * dei super-admin fuori dalle aree adminOnly come /impostazioni.
+ */
+export function canAccessPathFromMetadata(pathname: string, appMetadata: unknown): boolean {
+  const metadataRole = extractAppMetadata(appMetadata)?.role;
+  const role = resolveUserRole(null, metadataRole);
+  const allowedModules = getAllowedModulesForUser(appMetadata, role);
+  return canAccessPath(pathname, allowedModules, role);
+}
+
+/**
+ * Costruisce l'app_metadata da salvare in un aggiornamento utente (PATCH Utenze).
+ * Quando il ruolo non viene cambiato (`requestedRole` assente) usa il ruolo
+ * CORRENTE dell'utente, così aggiornare i soli moduli non lo declassa e i moduli
+ * vengono normalizzati sul ruolo reale (non come non-admin).
+ */
+export function buildAppMetadataUpdate(
+  currentMetadataRole: unknown,
+  requestedRole: AssignableRole | undefined,
+  requestedModules: unknown,
+): { role: AssignableRole; allowedModules: AppModuleKey[] } {
+  const effectiveRole = requestedRole ?? resolveAssignableRole(undefined, currentMetadataRole);
+  return {
+    role: effectiveRole,
+    allowedModules: normalizeAllowedModules(requestedModules, effectiveRole),
+  };
 }
