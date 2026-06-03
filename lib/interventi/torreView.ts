@@ -37,6 +37,25 @@ function conta<T extends ConInterventoBase>(items: T[]): ConteggiTorre {
   return { totale: items.length, assegnati, fatti, nonFatti };
 }
 
+/** Valore di selezione per il gruppo "Non assegnati" (distinto da null = nessuna selezione). */
+export const SENTINELLA_NON_ASSEGNATI = '__na__';
+
+/**
+ * Applica i filtri della torre: territorio e operatore.
+ * - selTerr: id territorio o null (nessun filtro territorio)
+ * - selStaff: id operatore, oppure SENTINELLA_NON_ASSEGNATI per i non assegnati, oppure null
+ */
+export function filtraInterventi<T extends { staff_id: string | null; territorio_id: string | null }>(
+  items: T[],
+  selTerr: string | null,
+  selStaff: string | null,
+): T[] {
+  let out = selTerr ? items.filter((i) => i.territorio_id === selTerr) : items;
+  if (selStaff === SENTINELLA_NON_ASSEGNATI) out = out.filter((i) => i.staff_id == null);
+  else if (selStaff) out = out.filter((i) => i.staff_id === selStaff);
+  return out;
+}
+
 /**
  * Raggruppa gli interventi per operatore. Include TUTTI gli operatori passati
  * (anche con zero interventi) e, in coda, un gruppo "Non assegnati" (staff_id

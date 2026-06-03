@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coloreStato, raggruppaPerOperatore } from './torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, SENTINELLA_NON_ASSEGNATI } from './torreView';
 
 describe('coloreStato', () => {
   it('completato + eseguito_positivo → ok', () => {
@@ -60,5 +60,29 @@ describe('raggruppaPerOperatore', () => {
       operatori,
     );
     expect(g.some((x) => x.operatore.id === null)).toBe(false);
+  });
+});
+
+describe('filtraInterventi', () => {
+  const items = [
+    { id: 'a', staff_id: 's1', territorio_id: 't1' },
+    { id: 'b', staff_id: 's2', territorio_id: 't1' },
+    { id: 'c', staff_id: null, territorio_id: 't2' },
+  ];
+
+  it('nessun filtro → tutti', () => {
+    expect(filtraInterventi(items, null, null)).toHaveLength(3);
+  });
+  it('filtro territorio', () => {
+    expect(filtraInterventi(items, 't1', null).map((i) => i.id)).toEqual(['a', 'b']);
+  });
+  it('filtro operatore', () => {
+    expect(filtraInterventi(items, null, 's1').map((i) => i.id)).toEqual(['a']);
+  });
+  it('filtro "non assegnati" via sentinella', () => {
+    expect(filtraInterventi(items, null, SENTINELLA_NON_ASSEGNATI).map((i) => i.id)).toEqual(['c']);
+  });
+  it('combina territorio + operatore', () => {
+    expect(filtraInterventi(items, 't1', 's2').map((i) => i.id)).toEqual(['b']);
   });
 });
