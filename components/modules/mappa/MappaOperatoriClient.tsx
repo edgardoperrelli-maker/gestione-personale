@@ -954,6 +954,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return availableOperators.filter((operator) => scheduledStaffIdsForPlanning.has(operator.id));
   }, [availableOperators, scheduledStaffIdsForPlanning, territoryFilter]);
 
+  // Operatori NON schedulati nel cronoprogramma di quel territorio/giorno: vanno
+  // comunque resi selezionabili (per ridistribuire le righe senza esecutore).
+  const altriOperatori = useMemo(() => {
+    if (!territoryFilter) return [];
+    const sched = new Set(territoryFilteredOperators.map((o) => o.id));
+    return availableOperators.filter((o) => !sched.has(o.id));
+  }, [availableOperators, territoryFilteredOperators, territoryFilter]);
+
   const excelNeedsManualCount = useMemo(() => {
     return excelTasks.filter((task) => task.lat == null || task.lng == null).length;
   }, [excelTasks]);
@@ -1843,22 +1851,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (distribution) distributeToOps();
   }, [operatorOptions, planningDate, distribution, distributeToOps]);
 
-  // Auto-distribuzione dopo la geocodifica per i file con colonna Esecutore
-  useEffect(() => {
-    const total = geocodingProgress?.total ?? 0;
-    const done = geocodingProgress?.done ?? 0;
-    if (
-      total > 0 &&
-      done === total &&
-      Object.keys(esecutorePins).length > 0 &&
-      selectedOps.length > 0 &&
-      !distribution &&
-      !esecutoreAutoDistributedRef.current
-    ) {
-      esecutoreAutoDistributedRef.current = true;
-      distributeToOps();
-    }
-  }, [geocodingProgress, esecutorePins, selectedOps, distribution, distributeToOps]);
+  // Nessuna auto-distribuzione: gli esecutori indicati nel file restano come
+  // PROPOSTA (pin + operatori auto-selezionati), ma la distribuzione parte solo
+  // quando l'utente conferma con "Distribuisci". Così può aggiungere altri
+  // operatori e impostare le quantità per le righe SENZA esecutore prima di
+  // distribuire. Le righe con esecutore restano comunque vincolate al loro operatore.
 
   // Sposta un task da un operatore a un altro e ricalcola le route
   const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
@@ -2432,6 +2429,26 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         {selectedPlanningTerritory ? ` a ${selectedPlanningTerritory.name}` : ''}
                         {' '}per il {planningDate}.
                       </p>
+                    )}
+                    {territoryFilter && altriOperatori.length > 0 && (
+                      <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--brand-border)' }}>
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
+                          Altri operatori (fuori dal cronoprogramma del territorio)
+                        </p>
+                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                          {altriOperatori.map((operator) => {
+                            const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
+                            const checked = selIdx !== -1;
+                            return (
+                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)]">
+                                <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-[var(--brand-primary)]" />
+                                <span className="truncate text-xs text-[var(--brand-text-main)]">{operator.displayName}</span>
+                                {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </div>
                     )}
                   </div>
                 )}
