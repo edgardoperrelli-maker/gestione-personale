@@ -69,7 +69,15 @@ export default function RiepilogoRapportini() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-base font-semibold">Riepilogo rapportini</h2>
+      <div className="flex items-center justify-between gap-2">
+        <h2 className="text-base font-semibold">Riepilogo rapportini</h2>
+        <a
+          href="/hub/rapportini/eseguiti"
+          className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90"
+        >
+          📋 Tutti gli interventi eseguiti
+        </a>
+      </div>
 
       {gruppi.length === 0 ? (
         <div className="rounded-lg border border-dashed border-[var(--brand-border)] px-6 py-12 text-center text-sm text-[var(--brand-text-muted)]">
