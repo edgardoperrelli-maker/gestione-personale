@@ -3,7 +3,6 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
-import { PENALE_MISURATORE } from '@/lib/interventi/riconsegnaLogic';
 
 export const runtime = 'nodejs';
 
@@ -22,54 +21,50 @@ async function requireAdmin(): Promise<NextResponse | null> {
   return null;
 }
 
-/** Data odierna Europe/Rome (YYYY-MM-DD). */
 function oggiRoma(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
 }
 
 /**
- * POST /api/interventi/riconsegna/consegna — registra la consegna della cesta.
- * Body: { consegnatiIds: string[], firma?: boolean }.
- * I misuratori in custodia selezionati → 'consegnato'; gli altri → 'mancante'.
+ * POST /api/interventi/riconsegna/consegna — controllo scarico magazzino del giorno.
+ * Body: { giorno: 'YYYY-MM-DD', consegnatiIds: string[] }.
+ * Sui misuratori rimossi in quel giorno: selezionati → 'consegnato', gli altri → 'mancante'.
  */
 export async function POST(req: Request) {
   const guard = await requireAdmin();
   if (guard) return guard;
 
-  const body = (await req.json().catch(() => ({}))) as { consegnatiIds?: unknown; firma?: unknown };
+  const body = (await req.json().catch(() => ({}))) as { giorno?: unknown; consegnatiIds?: unknown };
+  const giorno = typeof body.giorno === 'string' && body.giorno.trim() !== '' ? body.giorno : null;
   const consegnatiIds = Array.isArray(body.consegnatiIds)
     ? body.consegnatiIds.filter((x): x is string => typeof x === 'string')
     : [];
-  const firma = body.firma === true;
+  if (!giorno) return NextResponse.json({ error: 'Giorno mancante.' }, { status: 400 });
 
-  const { data: cesta } = await supabaseAdmin
+  const { data: delGiorno, error } = await supabaseAdmin
     .from('misuratori_riconsegna')
     .select('id')
-    .in('stato', ['in_custodia', 'in_riepilogo']);
-  const cestaIds = ((cesta ?? []) as Array<{ id: string }>).map((m) => m.id);
+    .eq('data_rimozione', giorno);
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const consegnati = consegnatiIds.filter((id) => cestaIds.includes(id));
-  const consegnatiSet = new Set(consegnati);
-  const mancantiIds = cestaIds.filter((id) => !consegnatiSet.has(id));
+  const ids = ((delGiorno ?? []) as Array<{ id: string }>).map((m) => m.id);
+  const consegnatiSet = new Set(consegnatiIds.filter((id) => ids.includes(id)));
+  const mancantiIds = ids.filter((id) => !consegnatiSet.has(id));
 
-  if (consegnati.length > 0) {
-    const { error } = await supabaseAdmin
+  if (consegnatiSet.size > 0) {
+    const { error: e } = await supabaseAdmin
       .from('misuratori_riconsegna')
-      .update({ stato: 'consegnato', data_consegna: oggiRoma(), riepilogo_firmato: firma })
-      .in('id', consegnati);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      .update({ stato: 'consegnato', data_consegna: oggiRoma() })
+      .in('id', Array.from(consegnatiSet));
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 });
   }
   if (mancantiIds.length > 0) {
-    const { error } = await supabaseAdmin
+    const { error: e } = await supabaseAdmin
       .from('misuratori_riconsegna')
-      .update({ stato: 'mancante' })
+      .update({ stato: 'mancante', data_consegna: null })
       .in('id', mancantiIds);
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (e) return NextResponse.json({ error: e.message }, { status: 500 });
   }
 
-  return NextResponse.json({
-    consegnati: consegnati.length,
-    mancanti: mancantiIds.length,
-    penale: mancantiIds.length * PENALE_MISURATORE,
-  });
+  return NextResponse.json({ consegnati: consegnatiSet.size, mancanti: mancantiIds.length });
 }

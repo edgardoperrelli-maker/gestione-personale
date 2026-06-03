@@ -1,28 +1,32 @@
 import { describe, it, expect } from 'vitest';
-import { PENALE_MISURATORE, calcolaPenale, riepilogoCesta } from './riconsegnaLogic';
+import { riepilogoScarico, tuttiConsegnati } from './riconsegnaLogic';
 
-describe('calcolaPenale', () => {
-  it('€1.000 per ogni misuratore mancante', () => {
-    expect(PENALE_MISURATORE).toBe(1000);
-    expect(calcolaPenale([{ stato: 'mancante' }, { stato: 'consegnato' }, { stato: 'mancante' }])).toBe(2000);
-  });
-  it('nessun mancante → penale 0', () => {
-    expect(calcolaPenale([{ stato: 'consegnato' }, { stato: 'in_custodia' }])).toBe(0);
-  });
-});
-
-describe('riepilogoCesta', () => {
-  it('conta per stato e calcola la penale', () => {
-    const r = riepilogoCesta([
+describe('riepilogoScarico', () => {
+  it('conta per stato (consegnati / mancanti / da controllare)', () => {
+    const r = riepilogoScarico([
       { stato: 'consegnato' },
       { stato: 'consegnato' },
       { stato: 'mancante' },
       { stato: 'in_custodia' },
       { stato: 'in_riepilogo' },
     ]);
-    expect(r).toEqual({ totale: 5, consegnati: 2, mancanti: 1, daConsegnare: 2, penale: 1000 });
+    expect(r).toEqual({ totale: 5, consegnati: 2, mancanti: 1, daControllare: 2 });
   });
+
   it('cesta vuota', () => {
-    expect(riepilogoCesta([])).toEqual({ totale: 0, consegnati: 0, mancanti: 0, daConsegnare: 0, penale: 0 });
+    expect(riepilogoScarico([])).toEqual({ totale: 0, consegnati: 0, mancanti: 0, daControllare: 0 });
+  });
+});
+
+describe('tuttiConsegnati', () => {
+  it('true solo se tutti i misuratori risultano consegnati', () => {
+    expect(tuttiConsegnati([{ stato: 'consegnato' }, { stato: 'consegnato' }])).toBe(true);
+  });
+  it('false se ne manca anche uno', () => {
+    expect(tuttiConsegnati([{ stato: 'consegnato' }, { stato: 'mancante' }])).toBe(false);
+    expect(tuttiConsegnati([{ stato: 'consegnato' }, { stato: 'in_custodia' }])).toBe(false);
+  });
+  it('false su lista vuota (niente da confermare)', () => {
+    expect(tuttiConsegnati([])).toBe(false);
   });
 });
