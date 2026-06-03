@@ -2,9 +2,7 @@ import { NextResponse } from 'next/server';
 import JSZip from 'jszip';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
-  buildRapportinoStandardXlsx,
-  buildRapportinoGenericXlsx,
-  isStandardSnapshot,
+  buildRapportinoXlsx,
   toDDMMYYYY,
   type RapportinoRow,
   type RapportinoVoce,
@@ -19,7 +17,7 @@ const XLSX_MIME =
 
 const VOCI_COLS =
   'ordine, nominativo, matricola, pdr, odsin, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte';
-const RAP_COLS = 'id, staff_name, data, campi_snapshot, template_id';
+const RAP_COLS = 'id, staff_name, data, campi_snapshot, info_snapshot, template_id';
 
 /** Slug ASCII-safe per nomi file / fogli (rimuove caratteri non validi). */
 function slug(s: string): string {
@@ -35,15 +33,6 @@ function fileNameFor(rap: RapportinoRow): string {
   const staff = slug(rap.staff_name ?? '');
   const data = toDDMMYYYY(rap.data).replaceAll('/', '-') || 'data';
   return `RAPPORTINO_${staff}_${data}.xlsx`;
-}
-
-async function buildXlsxFor(
-  rap: RapportinoRow,
-  voci: RapportinoVoce[],
-): Promise<Buffer> {
-  return isStandardSnapshot(rap.campi_snapshot)
-    ? buildRapportinoStandardXlsx(rap, voci)
-    : buildRapportinoGenericXlsx(rap, voci);
 }
 
 async function loadVoci(rapportinoId: string): Promise<RapportinoVoce[]> {
@@ -82,7 +71,7 @@ export async function GET(req: Request) {
       if (!rap) return NextResponse.json({ error: 'Rapportino non trovato.' }, { status: 404 });
 
       const voci = await loadVoci(rapportinoId);
-      const buf = await buildXlsxFor(rap as RapportinoRow, voci);
+      const buf = await buildRapportinoXlsx(rap as RapportinoRow, voci);
       const filename = fileNameFor(rap as RapportinoRow);
 
       return new NextResponse(buf as unknown as BodyInit, {
@@ -110,7 +99,7 @@ export async function GET(req: Request) {
     const usedNames = new Set<string>();
     for (const rap of raps as RapportinoRow[] & { id: string }[]) {
       const voci = await loadVoci((rap as { id: string }).id);
-      const buf = await buildXlsxFor(rap, voci);
+      const buf = await buildRapportinoXlsx(rap, voci);
       // evita collisioni di nome (es. operatori omonimi)
       let name = fileNameFor(rap);
       let n = 2;
