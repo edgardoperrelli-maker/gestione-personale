@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, SENTINELLA_NON_ASSEGNATI } from './torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, SENTINELLA_NON_ASSEGNATI } from './torreView';
 
 describe('coloreStato', () => {
   it('completato + eseguito_positivo → ok', () => {
@@ -107,5 +107,27 @@ describe('operatoriVisibili', () => {
 
   it('con territorio e nessun lavoro → vuoto', () => {
     expect(operatoriVisibili([mk('s2', 0)], 't1')).toEqual([]);
+  });
+});
+
+describe('rigaDettaglio', () => {
+  const base = { nominativo: null, odl: null, indirizzo: null, comune: null, cap: null, pdr: null, matricola_contatore: null, intervento_tipo: null, fascia_oraria: null };
+
+  it('dati completi: primario=nominativo, secondario con tutti i campi', () => {
+    const r = rigaDettaglio({ ...base, nominativo: 'Mario Rossi', odl: 'A1', indirizzo: 'Via X 1', comune: 'Roma', cap: '00100', pdr: 'P1', matricola_contatore: 'M1', intervento_tipo: 'Rimozione', fascia_oraria: '8-12' });
+    expect(r.primario).toBe('Mario Rossi');
+    expect(r.secondario).toBe('Via X 1, Roma 00100 · ODL A1 · PDR P1 · matr. M1 · Rimozione · 8-12');
+  });
+
+  it('nominativo vuoto → primario=ODL e ODL non ripetuto nel secondario', () => {
+    const r = rigaDettaglio({ ...base, nominativo: '', odl: 'A1', indirizzo: 'Via Y', comune: 'Zagarolo' });
+    expect(r.primario).toBe('A1');
+    expect(r.secondario).toBe('Via Y, Zagarolo');
+  });
+
+  it('senza nominativo né ODL → primario=Intervento', () => {
+    const r = rigaDettaglio({ ...base, comune: 'Zagarolo' });
+    expect(r.primario).toBe('Intervento');
+    expect(r.secondario).toBe('Zagarolo');
   });
 });

@@ -104,3 +104,36 @@ export function operatoriVisibili<T>(
 ): GruppoOperatore<T>[] {
   return selTerr ? gruppi.filter((g) => g.interventi.length > 0) : gruppi;
 }
+
+/**
+ * Costruisce le due righe del dettaglio lavoro (stile rapportino).
+ * primario = nominativo || ODL || "Intervento" (usa || così la stringa vuota ripiega);
+ * secondario = indirizzo, comune CAP · ODL · PDR · matr. · attività · fascia (solo presenti,
+ * ODL omesso se è già il primario).
+ */
+export function rigaDettaglio(it: {
+  nominativo: string | null;
+  odl: string | null;
+  indirizzo: string | null;
+  comune: string | null;
+  cap: string | null;
+  pdr: string | null;
+  matricola_contatore: string | null;
+  intervento_tipo: string | null;
+  fascia_oraria: string | null;
+}): { primario: string; secondario: string } {
+  const t = (s: string | null | undefined) => (s ?? '').trim();
+  const odl = t(it.odl);
+  const primario = t(it.nominativo) || odl || 'Intervento';
+  const luogo = [t(it.indirizzo), t(it.comune)].filter(Boolean).join(', ');
+  const luogoCap = [luogo, t(it.cap)].filter(Boolean).join(' ');
+  const parti = [
+    luogoCap || null,
+    odl && primario !== odl ? `ODL ${odl}` : null,
+    t(it.pdr) ? `PDR ${t(it.pdr)}` : null,
+    t(it.matricola_contatore) ? `matr. ${t(it.matricola_contatore)}` : null,
+    t(it.intervento_tipo) || null,
+    t(it.fascia_oraria) || null,
+  ].filter(Boolean);
+  return { primario, secondario: parti.join(' · ') };
+}
