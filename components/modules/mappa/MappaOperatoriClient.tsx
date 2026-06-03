@@ -14,6 +14,8 @@ import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualA
 import ManualAssignmentsModal from './ManualAssignmentsModal';
 import ManualTaskModal, { type ManualTaskData } from '@/components/modules/mappa/ManualTaskModal';
 import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
+import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
+import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -703,7 +705,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
   const [rapTemplateId, setRapTemplateId] = useState('');
-  const [rapTemplates, setRapTemplates] = useState<{ id: string; nome: string; is_default?: boolean }[]>([]);
+  const [rapTemplates, setRapTemplates] = useState<Array<{ id: string; nome: string; is_default?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }>>([]);
   const [rapGenerating, setRapGenerating] = useState(false);
   const [rapError, setRapError] = useState<string | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
@@ -1588,7 +1590,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       try {
         const res = await fetch('/api/admin/rapportino-template');
         const list = await res.json();
-        const arr: Array<{ id: string; nome: string; is_default?: boolean }> = Array.isArray(list) ? list : [];
+        const arr: Array<{ id: string; nome: string; is_default?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }> = Array.isArray(list) ? list : [];
         setRapTemplates(arr);
         const def = arr.find((t) => t.is_default) ?? arr[0];
         if (def) setRapTemplateId(def.id);
@@ -1925,6 +1927,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const dateStr = isoToDisplay(planningDate);
 
       // 2. Un foglio per operatore (clonato dal template)
+      const tplSel = rapTemplates.find((t) => t.id === rapTemplateId);
+      const infoCols = resolveInfoCampi(tplSel?.info_campi ?? null);
+      const campiCols = [...(tplSel?.campi ?? [])].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+
       for (const { op, tasks, staffId } of distribution) {
         const opName = op ?? staffId ?? 'Operatore';
         const sheetName = sanitizeSheetName(opName).slice(0, 31);
@@ -1934,30 +1940,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = opName;
 
-        // Riga 6 — intestazioni colonne (16 colonne):
-        // A=NOMINATIVO, B=MATRICOLA, C=PDR, D=VIA, E=COMUNE, F=CAP,
-        // G=RECAPITO, H=ATTIVITA', I=ACCESSIBILITA', J=FASCIA ORARIA, K=ORDINE,
-        // L=ATT/CESS, M=CAMBIO, N=MINI BAG, O=RG STOP, P=ASSENTE
+        // Riga 6 — intestazioni colonne (dinamiche da template)
         const hrow = ws.getRow(6);
-        [
-          'NOMINATIVO',
-          'MATRICOLA',
-          'PDR',
-          'ODSIN',
-          'VIA',
-          'COMUNE',
-          'CAP',
-          'RECAPITO',
-          "ATTIVITA'",
-          "ACCESSIBILITA'",
-          'FASCIA ORARIA',
-          'ORDINE',
-          'ATT/CESS',
-          'CAMBIO',
-          'MINI BAG',
-          'RG STOP',
-          'ASSENTE',
-        ].forEach((t, i) => { hrow.getCell(i + 1).value = t; });
+        const headerLabels = [...infoCols.map((c) => c.etichetta), 'ORDINE', ...campiCols.map((c) => c.etichetta)];
+        headerLabels.forEach((t, i) => { hrow.getCell(i + 1).value = t; });
+        for (let c = headerLabels.length + 1; c <= 26; c++) hrow.getCell(c).value = null;
         hrow.commit();
 
         // 3. Righe dati — ordinate per fascia oraria
@@ -1978,30 +1965,25 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
         sorted.forEach((t, idx) => {
           const rr = ws.getRow(7 + idx);
-          const pdrRaw = t.pdr || '';
-          rr.getCell(1).value = t.nominativo ?? '';
-          rr.getCell(2).value = t.matricola ?? '';
-          rr.getCell(3).value = pdrRaw;
-          rr.getCell(4).value = t.odsin ?? '';
-          rr.getCell(5).value = t.indirizzo;
-          rr.getCell(6).value = t.citta;
-          rr.getCell(7).value = t.cap;
-          rr.getCell(8).value = t.recapito ?? '';
-          rr.getCell(9).value = t.attivita ?? '';
-          rr.getCell(10).value = t.accessibilita ?? '';
-          rr.getCell(11).value = extractReportTime(t.fascia_oraria || '');
-          rr.getCell(11).numFmt = '@';
-          rr.getCell(12).value = idx + 1; // ORDINE: numero progressivo
-          rr.getCell(13).value = ''; // ATT/CESS
-          rr.getCell(14).value = ''; // CAMBIO
-          rr.getCell(15).value = ''; // MINI BAG
-          rr.getCell(16).value = ''; // RG STOP
-          rr.getCell(17).value = ''; // ASSENTE
+          const vi = taskToVoce(t, idx + 1) as VoceInfo;
+          let col = 1;
+          for (const c of infoCols) {
+            if (c.chiave === 'fascia_oraria') {
+              rr.getCell(col).value = extractReportTime(t.fascia_oraria || '');
+              rr.getCell(col).numFmt = '@';
+            } else {
+              rr.getCell(col).value = valoreInfo(vi, c.chiave);
+            }
+            col++;
+          }
+          rr.getCell(col).value = idx + 1; col++;
+          for (let k = 0; k < campiCols.length; k++) { rr.getCell(col).value = ''; col++; }
           rr.commit();
         });
 
-        // Auto-larghezza colonne dati (17 colonne)
-        for (let c = 1; c <= 17; c++) {
+        // Auto-larghezza colonne dati (dinamica)
+        const totalCols = infoCols.length + 1 + campiCols.length;
+        for (let c = 1; c <= totalCols; c++) {
           let maxLen = 8;
           for (let r = 6; r < 7 + sorted.length; r++) {
             const v = ws.getRow(r).getCell(c).value as any;
@@ -2124,17 +2106,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   const downloadTemplate = useCallback(() => {
     const headers = [
-      'CO', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
+      'CO', 'MATRICOLA', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
       'Tipo OdL(CdL)/Servizio', 'Fascia Appuntamento/Blocco',
       'PdR / Impianto', 'Nominativo', 'Tempo Esecuzione', 'Num Risorse',
     ];
     const examples = [
-      ['FIRENZE', '10570366', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1'],
-      ['FIRENZE', '10529574', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1'],
-      ['ROMA', '20100001', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2'],
+      ['FIRENZE', 'MAT00012345', '10570366', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1'],
+      ['FIRENZE', 'MAT00067890', '10529574', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1'],
+      ['ROMA', 'MAT00099999', '20100001', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = [8, 10, 16, 30, 8, 20, 20, 22, 18, 24, 8, 8].map((w) => ({ wch: w }));
+    ws['!cols'] = [8, 14, 10, 16, 30, 8, 20, 20, 22, 18, 24, 8, 8].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Export Dati');
     XLSX.writeFile(wb, 'template_mappa_operatori_con_nominativo.xlsx');
