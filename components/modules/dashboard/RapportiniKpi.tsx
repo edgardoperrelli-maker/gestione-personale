@@ -3,22 +3,31 @@
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { aggregateRapportiniKpi, type RapportiniKpi, type RapportinoKpiRow } from '@/lib/dashboard/rapportiniKpi';
+import { addDaysIso } from '@/lib/dashboard/addDaysIso';
 
 function todayRomeIso(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
 }
 
+function formatGiorno(iso: string): string {
+  return new Date(`${iso}T00:00:00`).toLocaleDateString('it-IT', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  });
+}
+
 type Tile = { label: string; value: number; className: string };
 
 export default function RapportiniKpi() {
+  const [giorno, setGiorno] = useState<string>(todayRomeIso());
   const [kpi, setKpi] = useState<RapportiniKpi | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     let active = true;
+    setLoading(true);
     (async () => {
       try {
-        const res = await fetch('/api/mappa/rapportini/riepilogo');
+        const res = await fetch(`/api/mappa/rapportini/riepilogo?from=${giorno}&to=${giorno}`);
         const data = await res.json();
         const rows = (Array.isArray(data) ? data : []) as RapportinoKpiRow[];
         if (active) setKpi(aggregateRapportiniKpi(rows, todayRomeIso()));
@@ -29,7 +38,7 @@ export default function RapportiniKpi() {
       }
     })();
     return () => { active = false; };
-  }, []);
+  }, [giorno]);
 
   const tiles: Tile[] = kpi
     ? [
@@ -39,6 +48,8 @@ export default function RapportiniKpi() {
         { label: 'Non consegnati', value: kpi.nonConsegnati, className: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' },
       ]
     : [];
+
+  const isOggi = giorno === todayRomeIso();
 
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
@@ -50,6 +61,38 @@ export default function RapportiniKpi() {
         >
           Riepilogo completo →
         </Link>
+      </div>
+
+      {/* Navigatore giorno */}
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <button
+          type="button"
+          onClick={() => setGiorno((g) => addDaysIso(g, -1))}
+          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)]"
+          aria-label="Giorno precedente"
+        >
+          ◀
+        </button>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-medium capitalize text-[var(--brand-text-main)]">{formatGiorno(giorno)}</span>
+          {!isOggi && (
+            <button
+              type="button"
+              onClick={() => setGiorno(todayRomeIso())}
+              className="rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--brand-primary)]"
+            >
+              Oggi
+            </button>
+          )}
+        </div>
+        <button
+          type="button"
+          onClick={() => setGiorno((g) => addDaysIso(g, 1))}
+          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)]"
+          aria-label="Giorno successivo"
+        >
+          ▶
+        </button>
       </div>
 
       {loading ? (
@@ -64,8 +107,8 @@ export default function RapportiniKpi() {
               </div>
             ))}
           </div>
-          <p className="mt-3 text-xs text-[var(--brand-text-muted)]">
-            {kpi?.total ?? 0} rapportini negli ultimi 30 / prossimi 14 giorni.
+          <p className="mt-3 text-xs capitalize text-[var(--brand-text-muted)]">
+            {kpi?.total ?? 0} rapportini per {formatGiorno(giorno)}.
             {kpi && kpi.nonConsegnati > 0 && (
               <span className="font-semibold text-[var(--brand-primary)]"> {kpi.nonConsegnati} da sollecitare.</span>
             )}
