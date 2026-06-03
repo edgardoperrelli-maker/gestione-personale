@@ -28,8 +28,12 @@ describe('transizioneValida', () => {
 
   it('rifiuta salti e auto-transizioni', () => {
     expect(transizioneValida('da_assegnare', 'in_esecuzione')).toBe(false);
-    expect(transizioneValida('assegnato', 'completato')).toBe(false);
+    expect(transizioneValida('da_assegnare', 'completato')).toBe(false);
     expect(transizioneValida('sul_posto', 'sul_posto')).toBe(false);
+  });
+
+  it('consente la chiusura diretta dell’operatore (assegnato → completato)', () => {
+    expect(transizioneValida('assegnato', 'completato')).toBe(true);
   });
 
   it('rifiuta qualsiasi uscita dagli stati terminali', () => {

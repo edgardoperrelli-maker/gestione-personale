@@ -21,7 +21,8 @@ export type EsitoIntervento =
 // Transizioni ammesse del ciclo di vita. `completato` e `annullato` sono terminali.
 const TRANSIZIONI: Record<StatoIntervento, StatoIntervento[]> = {
   da_assegnare: ['assegnato', 'annullato'],
-  assegnato: ['in_viaggio', 'da_assegnare', 'annullato'], // riassegnazione: torna a da_assegnare
+  // 'completato' diretto = chiusura dall'agenda operatore (Fatto/Non fatto), senza stati intermedi.
+  assegnato: ['in_viaggio', 'completato', 'da_assegnare', 'annullato'], // riassegnazione: torna a da_assegnare
   in_viaggio: ['sul_posto', 'annullato'],
   sul_posto: ['in_esecuzione', 'annullato'],
   in_esecuzione: ['completato', 'annullato'],
