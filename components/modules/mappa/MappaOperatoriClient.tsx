@@ -1573,11 +1573,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         }
         // Unificazione: genera/aggiorna i record `interventi` del piano (alimenta torre/agenda)
         if (pid) {
-          void fetch('/api/mappa/piani/interventi', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ pianoId: pid }),
-          }).catch(() => {});
+          try {
+            const ri = await fetch('/api/mappa/piani/interventi', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pianoId: pid }),
+            });
+            const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; error?: string };
+            if (!ri.ok) {
+              alert(`Torre: creazione interventi NON riuscita — ${rj.error ?? ri.status}.\nHai applicato la migration 20260603030000?`);
+            } else {
+              alert(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).`);
+            }
+          } catch {
+            alert('Torre: errore di rete nella creazione interventi.');
+          }
         }
       }
     } finally {
