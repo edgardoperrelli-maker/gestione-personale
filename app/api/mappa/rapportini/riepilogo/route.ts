@@ -44,7 +44,7 @@ export async function GET(req: Request) {
     ...r,
     territorio: territoriById[r.piano_id] ?? null,
     url: `${base}/r/${r.token}`,
-    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; expires_at: string }, nowIso),
+    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, nowIso),
     nVoci: vociCount[r.id] ?? 0,
   }));
   return NextResponse.json(out);

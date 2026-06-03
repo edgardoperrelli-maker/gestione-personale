@@ -94,7 +94,7 @@ export default async function RapportinoPublicPage({
     );
   }
 
-  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; expires_at: string }, new Date().toISOString());
+  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, new Date().toISOString());
 
   if (stato === 'scaduto') {
     return (

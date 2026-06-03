@@ -236,6 +236,7 @@ git commit -m "refactor(rapportini): tokenStatus calcola lo stato dal giorno lav
 
 **Files:**
 - Modify: `app/api/mappa/rapportini/riepilogo/route.ts:47`
+- Modify: `app/r/[token]/page.tsx:97` (stesso cast — pagina pubblica che mostra "Link scaduto"; quarto chiamante emerso dal typecheck, non solo i route handler)
 - Verify (nessuna modifica attesa): `app/api/mappa/rapportini/route.ts`, `app/api/r/[token]/route.ts`
 
 - [ ] **Step 1: Aggiorna il cast nel riepilogo**
@@ -255,6 +256,11 @@ A:
 ```
 
 (`data` è già nel `select` alla riga 18, quindi il valore è presente a runtime.)
+
+Applica la **stessa modifica** in `app/r/[token]/page.tsx` (riga ~97): cambia il cast
+`rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; expires_at: string }` →
+`rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }`. Il `select` alla riga 84
+include già `data`. È la pagina che l'operatore apre: decide se mostrare "Link scaduto".
 
 - [ ] **Step 2: Typecheck dell'intero progetto**
 
