@@ -4,6 +4,9 @@ import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { coloreStato, raggruppaPerOperatore, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
+import dynamic from 'next/dynamic';
+
+const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
 
 export type TorreIntervento = {
   id: string;
@@ -108,6 +111,8 @@ export default function TorreControlloClient({
           {live ? 'Live' : 'Non connesso'}
         </span>
       </header>
+
+      <TorreMappa interventi={items} />
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         {gruppi.map((g) => (
