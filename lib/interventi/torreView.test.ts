@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, SENTINELLA_NON_ASSEGNATI } from './torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, SENTINELLA_NON_ASSEGNATI } from './torreView';
 
 describe('coloreStato', () => {
   it('completato + eseguito_positivo → ok', () => {
@@ -84,5 +84,28 @@ describe('filtraInterventi', () => {
   });
   it('combina territorio + operatore', () => {
     expect(filtraInterventi(items, 't1', 's2').map((i) => i.id)).toEqual(['b']);
+  });
+});
+
+describe('operatoriVisibili', () => {
+  const conteggi = { totale: 0, assegnati: 0, fatti: 0, nonFatti: 0 };
+  const mk = (id: string | null, n: number) => ({
+    operatore: { id, display_name: id ?? 'Non assegnati' },
+    conteggi: { ...conteggi, totale: n },
+    interventi: Array.from({ length: n }, (_, i) => ({ id: `${id}-${i}` })),
+  });
+  const gruppi = [mk('s1', 2), mk('s2', 0), mk(null, 1)];
+
+  it('senza territorio → tutti i gruppi', () => {
+    expect(operatoriVisibili(gruppi, null)).toHaveLength(3);
+  });
+
+  it('con territorio → solo i gruppi con lavori', () => {
+    const r = operatoriVisibili(gruppi, 't1');
+    expect(r.map((g) => g.operatore.id)).toEqual(['s1', null]);
+  });
+
+  it('con territorio e nessun lavoro → vuoto', () => {
+    expect(operatoriVisibili([mk('s2', 0)], 't1')).toEqual([]);
   });
 });

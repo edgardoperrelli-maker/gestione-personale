@@ -92,3 +92,15 @@ export function raggruppaPerOperatore<T extends ConInterventoBase>(
 
   return gruppi;
 }
+
+/**
+ * Filtra i gruppi da mostrare in colonna: con un territorio selezionato mostra
+ * solo gli operatori che hanno lavori (interventi.length > 0); senza territorio,
+ * tutti. `gruppi` è già calcolato sugli interventi filtrati per territorio.
+ */
+export function operatoriVisibili<T>(
+  gruppi: GruppoOperatore<T>[],
+  selTerr: string | null,
+): GruppoOperatore<T>[] {
+  return selTerr ? gruppi.filter((g) => g.interventi.length > 0) : gruppi;
+}
