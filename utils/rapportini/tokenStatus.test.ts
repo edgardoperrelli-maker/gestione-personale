@@ -1,8 +1,21 @@
 import { describe, it, expect } from 'vitest';
 import { tokenStatus } from './tokenStatus';
-const base = { stato: 'in_corso' as const, expires_at: '2026-06-01T12:00:00Z' };
+
+// Giorno lavori = lunedì 2026-06-08; "adesso" variabile.
 describe('tokenStatus', () => {
-  it('inviato vince', () => { expect(tokenStatus({ ...base, stato: 'inviato' }, '2026-05-31T10:00:00Z')).toBe('inviato'); });
-  it('scaduto', () => { expect(tokenStatus(base, '2026-06-01T12:00:01Z')).toBe('scaduto'); });
-  it('valido', () => { expect(tokenStatus(base, '2026-05-31T10:00:00Z')).toBe('valido'); });
+  it('inviato vince anche se la data è passata', () => {
+    expect(tokenStatus({ stato: 'inviato', data: '2026-01-01' }, '2026-06-10T08:00:00Z')).toBe('inviato');
+  });
+  it('valido il giorno dei lavori', () => {
+    expect(tokenStatus({ stato: 'in_corso', data: '2026-06-08' }, '2026-06-08T08:00:00Z')).toBe('valido');
+  });
+  it('valido il giorno dopo', () => {
+    expect(tokenStatus({ stato: 'in_corso', data: '2026-06-08' }, '2026-06-09T08:00:00Z')).toBe('valido');
+  });
+  it('scaduto due giorni dopo', () => {
+    expect(tokenStatus({ stato: 'in_corso', data: '2026-06-08' }, '2026-06-10T08:00:00Z')).toBe('scaduto');
+  });
+  it('valido se generato in anticipo (la data dei lavori è futura)', () => {
+    expect(tokenStatus({ stato: 'in_corso', data: '2026-06-08' }, '2026-06-05T08:00:00Z')).toBe('valido');
+  });
 });
