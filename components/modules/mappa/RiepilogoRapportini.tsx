@@ -126,6 +126,8 @@ export default function RiepilogoRapportini() {
                           </button>
                           <a href={whatsappHref(r.staff_name, fmtData(r.data), r.url)} target="_blank" rel="noopener noreferrer"
                             className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--success)] hover:opacity-80">WhatsApp</a>
+                          <a href={`/hub/rapportini/contenuto/${r.id}`}
+                            className="rounded border border-[var(--brand-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">Vedi</a>
                           <a href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
                             className="rounded border border-[var(--brand-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">Excel</a>
                           {confirmOp === r.id ? (
