@@ -1,0 +1,64 @@
+import { describe, it, expect } from 'vitest';
+import { coloreStato, raggruppaPerOperatore } from './torreView';
+
+describe('coloreStato', () => {
+  it('completato + eseguito_positivo → ok', () => {
+    expect(coloreStato('completato', 'eseguito_positivo')).toBe('ok');
+  });
+  it('completato + causale KO → ko', () => {
+    expect(coloreStato('completato', 'accesso_negato')).toBe('ko');
+    expect(coloreStato('completato', 'accesso_a_vuoto')).toBe('ko');
+  });
+  it('assegnato → attesa', () => {
+    expect(coloreStato('assegnato', null)).toBe('attesa');
+  });
+  it('stati intermedi → corso', () => {
+    expect(coloreStato('in_viaggio', null)).toBe('corso');
+    expect(coloreStato('in_esecuzione', null)).toBe('corso');
+  });
+  it('da_assegnare e annullato', () => {
+    expect(coloreStato('da_assegnare', null)).toBe('da_assegnare');
+    expect(coloreStato('annullato', null)).toBe('annullato');
+  });
+});
+
+describe('raggruppaPerOperatore', () => {
+  const operatori = [
+    { id: 's1', display_name: 'Mario' },
+    { id: 's2', display_name: 'Luigi' },
+  ];
+  const interventi = [
+    { id: 'a', staff_id: 's1', stato: 'completato', esito: 'eseguito_positivo' },
+    { id: 'b', staff_id: 's1', stato: 'completato', esito: 'accesso_negato' },
+    { id: 'c', staff_id: 's1', stato: 'assegnato', esito: null },
+    { id: 'd', staff_id: null, stato: 'da_assegnare', esito: null },
+  ];
+
+  it('conteggi corretti per operatore', () => {
+    const g = raggruppaPerOperatore(interventi, operatori);
+    const s1 = g.find((x) => x.operatore.id === 's1')!;
+    expect(s1.conteggi).toEqual({ totale: 3, assegnati: 1, fatti: 1, nonFatti: 1 });
+    expect(s1.operatore.display_name).toBe('Mario');
+  });
+
+  it('include operatori senza interventi a zero', () => {
+    const g = raggruppaPerOperatore(interventi, operatori);
+    const s2 = g.find((x) => x.operatore.id === 's2')!;
+    expect(s2.conteggi.totale).toBe(0);
+    expect(s2.interventi).toHaveLength(0);
+  });
+
+  it('crea il gruppo "non assegnati" per staff_id null', () => {
+    const g = raggruppaPerOperatore(interventi, operatori);
+    const na = g.find((x) => x.operatore.id === null)!;
+    expect(na.interventi.map((i) => i.id)).toEqual(['d']);
+  });
+
+  it('nessun gruppo non assegnati se tutti hanno operatore', () => {
+    const g = raggruppaPerOperatore(
+      [{ id: 'a', staff_id: 's1', stato: 'assegnato', esito: null }],
+      operatori,
+    );
+    expect(g.some((x) => x.operatore.id === null)).toBe(false);
+  });
+});
