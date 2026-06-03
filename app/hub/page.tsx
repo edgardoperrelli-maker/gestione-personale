@@ -8,6 +8,9 @@ import { canViewPremialita, resolveAssignableRole } from '@/lib/moduleAccess';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
+import { getPeriodoBimestrale } from '@/lib/interventi/periodoKpi';
+import { aggregaConteggiKpi } from '@/lib/interventi/kpiAggregation';
+import { valutaKpi, SOGLIA_MINIMA, type KpiResult } from '@/lib/premialita/acea';
 
 export const dynamic = 'force-dynamic';
 
@@ -65,6 +68,53 @@ async function loadTodayOperators(
     }));
 }
 
+/**
+ * Calcola i KPI premialità Acea del bimestre corrente dagli interventi reali.
+ * Finestra per DATA DI ASSEGNAZIONE (`assegnato_at`); denominatore = interventi
+ * non annullati (inclusi gli aperti). Efficienza dichiarata in gara: da
+ * `kpi_contratto` se presente, altrimenti soglia minima (banda prezzo neutra).
+ */
+async function loadKpiPremialita(
+  supabase: ReturnType<typeof createServerComponentClient>,
+  todayIso: string,
+): Promise<KpiResult[]> {
+  const periodo = getPeriodoBimestrale(todayIso);
+
+  const { data: rows } = await supabase
+    .from('interventi')
+    .select('voce, esito, stato')
+    .eq('committente', 'acea')
+    .in('voce', [10, 11, 12, 6])
+    .gte('assegnato_at', `${periodo.inizio}T00:00:00`)
+    .lte('assegnato_at', `${periodo.fine}T23:59:59`);
+
+  const conteggi = aggregaConteggiKpi(
+    (rows ?? []) as Array<{ voce: number | null; esito: string | null; stato: string }>,
+  );
+  const totaleDovuti = conteggi.reduce((s, c) => s + c.assegnatiDovuti, 0);
+  if (totaleDovuti === 0) return [];
+
+  const { data: contratti } = await supabase
+    .from('kpi_contratto')
+    .select('kpi, efficienza_dichiarata')
+    .eq('committente', 'acea')
+    .eq('periodo_inizio', periodo.inizio);
+  const dichiarataByKpi = new Map<string, number>(
+    ((contratti ?? []) as Array<{ kpi: string; efficienza_dichiarata: number | null }>)
+      .filter((c) => c.efficienza_dichiarata != null)
+      .map((c) => [c.kpi, c.efficienza_dichiarata as number]),
+  );
+
+  return conteggi.map((c) =>
+    valutaKpi({
+      code: c.code,
+      eseguitiPositivi: c.eseguitiPositivi,
+      assegnatiDovuti: c.assegnatiDovuti,
+      efficienzaDichiarata: dichiarataByKpi.get(c.code) ?? SOGLIA_MINIMA,
+    }),
+  );
+}
+
 export default async function DashboardPage() {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
@@ -81,6 +131,7 @@ export default async function DashboardPage() {
   const todayIso = fmtDay(new Date());
   const todayRows = await loadTodayOperators(supabase, todayIso);
   const operators = selectTodayOperators(todayRows);
+  const kpis = showPremialita ? await loadKpiPremialita(supabase, todayIso) : undefined;
 
   return (
     <main className="mx-auto max-w-6xl space-y-6">
@@ -96,7 +147,7 @@ export default async function DashboardPage() {
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
           <RapportiniKpi />
-          {showPremialita && <PremialitaPanel />}
+          {showPremialita && <PremialitaPanel kpis={kpis} />}
         </div>
         <DashboardTodayMap operators={operators} />
       </div>

@@ -8,10 +8,13 @@
 //   12 = ERC (Rimozione contatore)
 //    6 = ERA (Rimozione abusi)
 //
-// ASSUNZIONE da validare lato business: `assegnatiDovuti` (denominatore
-// dell'efficienza) = tutti gli interventi del KPI nella finestra NON annullati
-// (eseguiti, accessi a vuoto, altri KO e ancora aperti). Gli annullati non sono
-// "dovuti". Gli accessi a vuoto restano nel denominatore ma non nel numeratore.
+// REGOLA business (confermata dall'utente 2026-06-03):
+// - `assegnatiDovuti` (denominatore) = interventi del KPI NON annullati, INCLUSI
+//   quelli ancora aperti/non chiusi: così l'arretrato che si accumula penalizza
+//   l'efficienza. Gli annullati non sono "dovuti".
+// - Gli accessi a vuoto restano nel denominatore ma non nel numeratore (premio ES≥80%).
+// - FINESTRA temporale: un intervento appartiene al bimestre per la sua DATA DI
+//   ASSEGNAZIONE (`assegnato_at`), applicata dalla query chiamante (non in questo modulo).
 
 import type { KpiCode } from '@/lib/premialita/acea';
 
