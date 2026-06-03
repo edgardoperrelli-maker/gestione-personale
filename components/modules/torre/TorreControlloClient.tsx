@@ -1,10 +1,10 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { coloreStato, raggruppaPerOperatore, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
-import dynamic from 'next/dynamic';
 
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
 
@@ -43,6 +43,7 @@ export default function TorreControlloClient({
 }) {
   const [items, setItems] = useState<TorreIntervento[]>(interventi);
   const [live, setLive] = useState(false);
+  const [selStaff, setSelStaff] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -86,8 +87,12 @@ export default function TorreControlloClient({
     { fatti: 0, nonFatti: 0, daFare: 0 },
   );
 
+  // La mappa mostra gli interventi dell'operatore selezionato (filtro), o tutti.
+  const itemsMappa = selStaff ? items.filter((i) => i.staff_id === selStaff) : items;
+  const nomeSel = selStaff ? gruppi.find((g) => g.operatore.id === selStaff)?.operatore.display_name : null;
+
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-6 py-8">
+    <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
@@ -104,56 +109,76 @@ export default function TorreControlloClient({
             color: live ? 'var(--success)' : 'var(--brand-text-muted)',
           }}
         >
-          <span
-            className="h-2 w-2 rounded-full"
-            style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }}
-          />
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
           {live ? 'Live' : 'Non connesso'}
         </span>
       </header>
 
-      <TorreMappa interventi={items} />
+      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+        {/* Colonna sinistra: operatori come filtri, scrollabile */}
+        <div className="space-y-2.5 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
+          {gruppi.map((g) => {
+            const sel = selStaff === g.operatore.id;
+            return (
+              <button
+                key={g.operatore.id ?? 'na'}
+                type="button"
+                onClick={() => setSelStaff((p) => (p === g.operatore.id ? null : g.operatore.id))}
+                className="w-full rounded-2xl border p-3 text-left transition hover:border-[var(--brand-primary)]"
+                style={{
+                  borderColor: sel ? 'var(--brand-primary)' : 'var(--brand-border)',
+                  backgroundColor: sel ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
+                  boxShadow: sel ? '0 0 0 1px var(--brand-primary)' : undefined,
+                }}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <h2 className="truncate font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                    {g.operatore.display_name}
+                  </h2>
+                  <div className="shrink-0 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                    {g.conteggi.assegnati}⏳ · {g.conteggi.fatti}✅ · {g.conteggi.nonFatti}❌
+                  </div>
+                </div>
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {gruppi.map((g) => (
-          <section
-            key={g.operatore.id ?? 'na'}
-            className="rounded-2xl border p-4"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
-          >
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                {g.operatore.display_name}
-              </h2>
-              <div className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                {g.conteggi.assegnati}⏳ · {g.conteggi.fatti}✅ · {g.conteggi.nonFatti}❌
-              </div>
+                {g.interventi.length > 0 && (
+                  <ul className="mt-2 space-y-1">
+                    {g.interventi.map((it) => {
+                      const tono = TONO[coloreStato(it.stato, it.esito)];
+                      return (
+                        <li key={it.id} className="flex items-center gap-2 text-sm">
+                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tono.dot }} />
+                          <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--brand-text-main)' }}>
+                            {it.nominativo ?? it.odl ?? 'Intervento'}
+                            {it.comune ? ` · ${it.comune}` : ''}
+                          </span>
+                          <span className="shrink-0 text-xs" style={{ color: tono.fg }}>
+                            {it.stato === 'completato' ? tono.label : labelStato(it.stato)}
+                          </span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                )}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Colonna destra: mappa filtrata, resta visibile mentre scorri */}
+        <div className="space-y-2 lg:sticky lg:top-4 lg:h-fit">
+          {selStaff && (
+            <div
+              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-1.5 text-xs"
+              style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
+            >
+              <span className="font-semibold">Filtro mappa: {nomeSel}</span>
+              <button type="button" onClick={() => setSelStaff(null)} className="font-medium underline">
+                Mostra tutti
+              </button>
             </div>
-
-            <ul className="mt-3 space-y-1.5">
-              {g.interventi.length === 0 && (
-                <li className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                  Nessun intervento.
-                </li>
-              )}
-              {g.interventi.map((it) => {
-                const tono = TONO[coloreStato(it.stato, it.esito)];
-                return (
-                  <li key={it.id} className="flex items-center gap-2 text-sm">
-                    <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tono.dot }} />
-                    <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--brand-text-main)' }}>
-                      {it.nominativo ?? it.odl ?? 'Intervento'}
-                      {it.comune ? ` · ${it.comune}` : ''}
-                    </span>
-                    <span className="shrink-0 text-xs" style={{ color: tono.fg }}>
-                      {it.stato === 'completato' ? tono.label : labelStato(it.stato)}
-                    </span>
-                  </li>
-                );
-              })}
-            </ul>
-          </section>
-        ))}
+          )}
+          <TorreMappa interventi={itemsMappa} />
+        </div>
       </div>
     </main>
   );
