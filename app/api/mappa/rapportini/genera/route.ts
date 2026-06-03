@@ -5,6 +5,7 @@ import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
 import { orphanRapportini } from '@/utils/rapportini/orphans';
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { requireUser } from '@/lib/apiAuth';
+import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 
 export const runtime = 'nodejs';
 
@@ -39,7 +40,18 @@ export async function POST(req: Request) {
     const out: { staff_id: string; staff_name: string | null; token: string; url: string }[] = [];
     const expires = scadenzaIso(piano.data);
 
-    // Interventi del piano (creati al salvataggio distribuzione) per collegare ogni voce.
+    // Unificazione: garantisci gli interventi del piano PRIMA di collegare le voci.
+    // Best-effort: se fallisce, logga ma prosegui con la generazione rapportini.
+    let interventiWarning: string | undefined;
+    try {
+      const ens = await ensureInterventiForPiano(supabaseAdmin, pianoId);
+      if (ens.error) interventiWarning = ens.error;
+    } catch (e) {
+      interventiWarning = (e instanceof Error ? e.message : String(e)) || 'errore ensure interventi';
+    }
+    if (interventiWarning) console.error('genera: ensureInterventiForPiano:', interventiWarning);
+
+    // Interventi del piano per collegare ogni voce.
     const { data: intRows } = await supabaseAdmin
       .from('interventi')
       .select('id, staff_id, odl')
@@ -88,7 +100,7 @@ export async function POST(req: Request) {
       }
       out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${base}/r/${token}` });
     }
-    return NextResponse.json({ ok: true, rapportini: out });
+    return NextResponse.json({ ok: true, rapportini: out, interventiWarning });
   } catch (err: any) {
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
