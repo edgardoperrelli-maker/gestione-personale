@@ -16,7 +16,7 @@ export async function POST(req: Request) {
 
     const { data: piano } = await supabaseAdmin.from('mappa_piani').select('id, data').eq('id', pianoId).single();
     if (!piano) return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
-    const { data: tpl } = await supabaseAdmin.from('rapportino_template').select('id, campi').eq('id', templateId).single();
+    const { data: tpl } = await supabaseAdmin.from('rapportino_template').select('id, campi, info_campi').eq('id', templateId).single();
     if (!tpl) return NextResponse.json({ error: 'Template non trovato' }, { status: 404 });
     const { data: ops } = await supabaseAdmin.from('mappa_piani_operatori')
       .select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
@@ -47,13 +47,13 @@ export async function POST(req: Request) {
         token = randomBytes(24).toString('base64url');
         const { data: ins, error: eIns } = await supabaseAdmin.from('rapportini').insert({
           piano_id: pianoId, staff_id: op.staff_id, staff_name: op.staff_name, data: piano.data,
-          template_id: templateId, campi_snapshot: tpl.campi, token, stato: 'in_corso', expires_at: expires,
+          template_id: templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], token, stato: 'in_corso', expires_at: expires,
         }).select('id').single();
         if (eIns) throw new Error(eIns.message);
         rapId = ins!.id;
       } else {
         await supabaseAdmin.from('rapportini')
-          .update({ template_id: templateId, campi_snapshot: tpl.campi, expires_at: expires }).eq('id', rapId);
+          .update({ template_id: templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], expires_at: expires }).eq('id', rapId);
       }
 
       const { data: existingVoci } = await supabaseAdmin.from('rapportino_voci')
