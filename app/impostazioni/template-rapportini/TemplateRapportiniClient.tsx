@@ -1,5 +1,5 @@
 ﻿'use client';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import {
   INFO_CAMPI_DISPONIBILI,
@@ -48,6 +48,10 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
+  // Stato auto-save per i template esistenti (i nuovi si creano con "Crea template").
+  const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
+  // Salta l'auto-save sul primo render dopo un load/startNew (non è una modifica utente).
+  const skipAutosave = useRef(true);
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -57,6 +61,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   }
 
   function loadTemplate(tpl: Template) {
+    skipAutosave.current = true;
+    setAutoState('idle');
     setIsNew(false);
     setSelectedId(tpl.id);
     setNome(tpl.nome);
@@ -65,6 +71,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   }
 
   function startNew() {
+    skipAutosave.current = true;
+    setAutoState('idle');
     setIsNew(true);
     setSelectedId(null);
     setNome('');
@@ -175,6 +183,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       await reloadTemplates();
 
       if (isNew && json.id) {
+        // Passaggio nuovo → esistente: non far scattare un auto-save immediato.
+        skipAutosave.current = true;
         setIsNew(false);
         setSelectedId(json.id);
       }
@@ -201,6 +211,49 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome('');
     setCampi([]);
   }
+
+  // ── Auto-save (template esistenti, con debounce) ─────────────────────────────
+  useEffect(() => {
+    // Salta il run dovuto a load/startNew/mount: non è una modifica dell'utente.
+    if (skipAutosave.current) { skipAutosave.current = false; return; }
+    if (isNew || !selectedId) return; // i nuovi si salvano con "Crea template"
+    const valido =
+      nome.trim() !== '' && campi.length > 0 && campi.every((c) => c.etichetta.trim() !== '');
+    if (!valido) { setAutoState('idle'); return; }
+
+    setAutoState('saving');
+    const id = selectedId;
+    const timer = setTimeout(async () => {
+      try {
+        const payload = {
+          id,
+          nome: nome.trim(),
+          campi: campi.map((c, i) => ({
+            ...c,
+            ordine: i + 1,
+            opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
+          })),
+          info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
+          active: true,
+        };
+        const res = await fetch('/api/admin/rapportino-template', {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        setAutoState(res.ok ? 'saved' : 'error');
+      } catch {
+        setAutoState('error');
+      }
+    }, 800);
+    return () => clearTimeout(timer);
+  }, [nome, campi, infoCampi, isNew, selectedId]);
+
+  // All'apertura carica il primo template (evita un form vuoto con un template già selezionato).
+  useEffect(() => {
+    if (initial.length > 0) loadTemplate(initial[0]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
@@ -436,15 +489,39 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             </div>
 
             {/* ── Azioni ────────────────────────────────────────────────────── */}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={handleSave}
-                disabled={saving}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
-              >
-                {saving ? 'Salvataggio…' : isNew ? 'Crea template' : 'Salva modifiche'}
-              </button>
+            <div className="flex items-center gap-3">
+              {isNew ? (
+                <button
+                  type="button"
+                  onClick={handleSave}
+                  disabled={saving}
+                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  {saving ? 'Creazione…' : 'Crea template'}
+                </button>
+              ) : (
+                <span
+                  aria-live="polite"
+                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                    autoState === 'saved'
+                      ? 'border-transparent bg-[var(--success-soft)] text-[var(--success)]'
+                      : autoState === 'error'
+                        ? 'border-transparent bg-[var(--danger-soft)] text-[var(--danger)]'
+                        : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'
+                  }`}
+                >
+                  {autoState === 'saving' && (
+                    <span className="h-2 w-2 animate-pulse rounded-full bg-current" aria-hidden />
+                  )}
+                  {autoState === 'saving'
+                    ? 'Salvataggio…'
+                    : autoState === 'saved'
+                      ? 'Salvato ✓'
+                      : autoState === 'error'
+                        ? 'Non salvato — riprova'
+                        : 'Le modifiche si salvano da sole'}
+                </span>
+              )}
               {!isNew && selectedTpl && (
                 <button
                   type="button"
