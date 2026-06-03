@@ -60,3 +60,18 @@ describe('scadenzaIso', () => {
     expect(isScaduto('2026-06-08', new Date(Date.parse(iso) - 1000).toISOString())).toBe(false);
   });
 });
+
+describe('isScaduto: robustezza (chiamante che non fornisce `data`)', () => {
+  // Regressione: gli endpoint voce/invia passavano un oggetto senza `data`.
+  // Una data assente/non valida NON deve mandare in crash (RangeError → HTTP 500):
+  // fail-safe → trattata come scaduta.
+  it('data undefined → scaduto, senza crash', () => {
+    expect(isScaduto(undefined as unknown as string, '2026-06-08T08:00:00Z')).toBe(true);
+  });
+  it('data vuota → scaduto, senza crash', () => {
+    expect(isScaduto('', '2026-06-08T08:00:00Z')).toBe(true);
+  });
+  it('data non valida → scaduto, senza crash', () => {
+    expect(isScaduto('not-a-date', '2026-06-08T08:00:00Z')).toBe(true);
+  });
+});

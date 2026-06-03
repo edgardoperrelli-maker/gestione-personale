@@ -8,7 +8,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   const { data: rap } = await supabaseAdmin.from('rapportini')
     .select('id, staff_name, data, stato, expires_at, campi_snapshot').eq('token', token).maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  const stato = tokenStatus(rap as any, new Date().toISOString());
+  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, new Date().toISOString());
   const { data: voci } = await supabaseAdmin.from('rapportino_voci')
     .select('id, ordine, nominativo, pdr, via, comune, cap, attivita, fascia_oraria, risposte')
     .eq('rapportino_id', rap.id).order('ordine');

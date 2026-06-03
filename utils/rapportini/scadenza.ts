@@ -23,6 +23,10 @@ export function mezzanotteRomaIso(ymd: string): string {
 
 /** true se, all'istante `nowIso`, il link per il giorno lavori `data` è scaduto. */
 export function isScaduto(data: string, nowIso: string): boolean {
+  // Difesa: una `data` assente/non valida (es. chiamante che non l'ha selezionata)
+  // non deve mandare in crash addGiorni().toISOString() (RangeError → HTTP 500).
+  // Fail-safe → trattata come scaduta.
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return true;
   const ultimoValido = addGiorni(data, GIORNI_VALIDITA - 1); // data + 1
   return dataInRoma(nowIso) > ultimoValido;                  // confronto lessicografico YYYY-MM-DD
 }
