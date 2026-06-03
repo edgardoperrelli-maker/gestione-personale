@@ -35,12 +35,16 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
     .eq('created_from_mappa', true);
   const esistenti = (existing ?? []) as InterventoEsistente[];
 
-  // odl già presenti su ALTRI piani della stessa data (rispetta interventi_dedup_idx)
+  // odl già presenti su ALTRE righe della stessa data (rispetta interventi_dedup_idx,
+  // che è globale: (committente, odl, data)). Include sia gli altri piani sia gli import
+  // standalone con piano_id NULL (es. /api/interventi/import) — `neq` da solo li escluderebbe
+  // perché in SQL `piano_id <> x` è NULL per le righe con piano_id NULL.
   const { data: altri } = await db
     .from('interventi')
     .select('odl')
+    .eq('committente', 'acea')
     .eq('data', piano.data)
-    .neq('piano_id', pianoId)
+    .or(`piano_id.is.null,piano_id.neq.${pianoId}`)
     .not('odl', 'is', null);
   const odlGiaPresenti = new Set(
     ((altri ?? []) as Array<{ odl: string | null }>).map((r) => r.odl).filter((x): x is string => !!x),
