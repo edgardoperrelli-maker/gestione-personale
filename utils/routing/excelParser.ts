@@ -69,7 +69,7 @@ type ColMap = {
   codice: number | null;
 };
 
-function detectFormat(headerRow: unknown[]): ColMap | null {
+export function detectFormat(headerRow: unknown[]): ColMap | null {
   const headers = headerRow.map(normalizeHeader);
   const ncols = headers.length;
   const odl = findCol(headers, [/^codice[_\s]*odl$/, /^odl$/]);
@@ -150,7 +150,7 @@ function detectFormat(headerRow: unknown[]): ColMap | null {
     fascia: findCol(headers, [/^fascia/, /^slot/, /^orario/]),
     operatore: findCol(headers, [/^operatore$/, /^risorsa$/, /^tecnico$/, /^esecutore$/, /^addetto$/, /^nome (operatore|tecnico|risorsa)$/]),
     nominativo: findCol(headers, [/^nominativo$/, /^nominativo cliente$/, /^cliente$/]),
-    matricola: null,
+    matricola: findCol(headers, [/^matricola$/, /matricola/]),
     recapito: null,
     accessibilita: null,
     attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
