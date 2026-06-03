@@ -2080,7 +2080,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } catch (err: any) {
       alert(err?.message || 'Errore durante la generazione del rapportino.');
     }
-  }, [distribution]);
+  }, [distribution, rapTemplates, rapTemplateId]);
 
   const handleNuovaPianificazione = useCallback(() => {
     geocodingActiveRef.current = false;
