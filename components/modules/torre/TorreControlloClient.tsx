@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
 
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
@@ -15,6 +15,10 @@ export type TorreIntervento = {
   nominativo: string | null;
   indirizzo: string | null;
   comune: string | null;
+  cap: string | null;
+  pdr: string | null;
+  matricola_contatore: string | null;
+  intervento_tipo: string | null;
   lat: number | null;
   lng: number | null;
   staff_id: string | null;
@@ -211,19 +215,20 @@ export default function TorreControlloClient({
                 itemsMappa.map((it) => {
                   const tono = TONO[coloreStato(it.stato, it.esito)];
                   const ko = it.stato === 'completato' && it.esito !== 'eseguito_positivo';
+                  const riga = rigaDettaglio(it);
                   return (
                     <li key={it.id} className="flex items-center gap-2 px-3 py-2 text-sm" style={{ backgroundColor: tono.bg }}>
-                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tono.dot }} />
+                      <span className="mt-1 h-2.5 w-2.5 shrink-0 self-start rounded-full" style={{ backgroundColor: tono.dot }} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate" style={{ color: 'var(--brand-text-main)' }}>
-                          {it.nominativo ?? it.odl ?? 'Intervento'}
-                          {it.comune ? ` · ${it.comune}` : ''}
-                        </div>
+                        <div className="truncate font-medium" style={{ color: 'var(--brand-text-main)' }}>{riga.primario}</div>
+                        {riga.secondario && (
+                          <div className="truncate text-xs" style={{ color: 'var(--brand-text-muted)' }}>{riga.secondario}</div>
+                        )}
                         {ko && it.esito_motivo && (
                           <div className="truncate text-xs" style={{ color: tono.fg }}>{it.esito_motivo}</div>
                         )}
                       </div>
-                      <span className="shrink-0 text-xs font-medium" style={{ color: tono.fg }}>
+                      <span className="shrink-0 self-start text-xs font-medium" style={{ color: tono.fg }}>
                         {it.stato === 'completato' ? tono.label : labelStato(it.stato)}
                       </span>
                     </li>

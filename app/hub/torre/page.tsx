@@ -32,7 +32,7 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
 
   const { data: rows } = await supabase
     .from('interventi')
-    .select('id, odl, nominativo, indirizzo, comune, lat, lng, staff_id, stato, esito, esito_motivo, fascia_oraria, territorio_id')
+    .select('id, odl, nominativo, indirizzo, comune, cap, pdr, matricola_contatore, intervento_tipo, lat, lng, staff_id, stato, esito, esito_motivo, fascia_oraria, territorio_id')
     .eq('data', data)
     .order('comune', { ascending: true })
     .order('indirizzo', { ascending: true });
