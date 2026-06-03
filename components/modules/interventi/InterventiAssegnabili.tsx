@@ -20,13 +20,18 @@ const fieldStyle = { borderColor: 'var(--brand-border)', color: 'var(--brand-tex
 export default function InterventiAssegnabili({
   rows,
   operators,
+  templates,
 }: {
   rows: InterventoRow[];
   operators: Operatore[];
+  templates: { id: string; nome: string; is_default?: boolean }[];
 }) {
   const router = useRouter();
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [bulkStaff, setBulkStaff] = useState('');
+  const [bulkTemplate, setBulkTemplate] = useState(
+    () => templates.find((t) => t.is_default)?.id ?? templates[0]?.id ?? '',
+  );
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [avviso, setAvviso] = useState<string | null>(null);
@@ -46,7 +51,7 @@ export default function InterventiAssegnabili({
     setSelected(tuttiSelezionati ? new Set() : new Set(assegnabili.map((r) => r.id)));
   }
 
-  async function assegna(ids: string[], staffId: string | null) {
+  async function assegna(ids: string[], staffId: string | null, templateId?: string | null) {
     if (ids.length === 0) return;
     setBusy(true);
     setError(null);
@@ -55,7 +60,7 @@ export default function InterventiAssegnabili({
       const res = await fetch('/api/interventi/assegna', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids, staffId }),
+        body: JSON.stringify({ ids, staffId, templateId: templateId ?? null }),
       });
       const json = await res.json();
       if (!res.ok) {
@@ -118,10 +123,23 @@ export default function InterventiAssegnabili({
               <option key={o.id} value={o.id}>{o.display_name}</option>
             ))}
           </select>
+          {templates.length > 0 && (
+            <select
+              aria-label="Template rapportino"
+              value={bulkTemplate}
+              onChange={(e) => setBulkTemplate(e.target.value)}
+              className="rounded-2xl border px-3 py-2 text-sm outline-none"
+              style={fieldStyle}
+            >
+              {templates.map((t) => (
+                <option key={t.id} value={t.id}>{t.nome}</option>
+              ))}
+            </select>
+          )}
           <button
             type="button"
             disabled={busy || bulkStaff === ''}
-            onClick={() => assegna([...selected], bulkStaff)}
+            onClick={() => assegna([...selected], bulkStaff, bulkTemplate || null)}
             className="rounded-2xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundColor: 'var(--brand-primary)' }}
           >
@@ -201,7 +219,7 @@ export default function InterventiAssegnabili({
                         onChange={(e) => {
                           const next = e.target.value === '' ? null : e.target.value;
                           if (next === (r.staff_id ?? null)) return;
-                          void assegna([r.id], next);
+                          void assegna([r.id], next, bulkTemplate || null);
                         }}
                         disabled={busy}
                         className="rounded-xl border px-2 py-1 text-sm outline-none"

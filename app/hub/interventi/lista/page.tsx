@@ -46,6 +46,14 @@ export default async function ListaInterventiPage({
     .filter((s) => isStaffValidOnDay(s, filters.data))
     .map((s) => ({ id: s.id, display_name: s.display_name }));
 
+  const { data: templateRows } = await supabase
+    .from('rapportino_template')
+    .select('id, nome, is_default')
+    .eq('active', true)
+    .order('is_default', { ascending: false })
+    .order('nome', { ascending: true });
+  const templates = (templateRows ?? []) as { id: string; nome: string; is_default?: boolean }[];
+
   const conteggi = {
     totale: interventi.length,
     ok: interventi.filter((r) => r.geocode_status === 'ok').length,
@@ -104,7 +112,7 @@ export default async function ListaInterventiPage({
             ))}
           </div>
 
-          <InterventiAssegnabili rows={interventi} operators={operatori} />
+          <InterventiAssegnabili rows={interventi} operators={operatori} templates={templates} />
         </>
       )}
     </main>
