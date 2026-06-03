@@ -1566,9 +1566,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       if (res.ok) {
         const json = await res.json();
         setSavedDistribution(true);
+        const pid = json.id ?? currentPianoId;
         if (json.id) {
           setCurrentPianoId(json.id);
           window.history.replaceState({}, '', `/hub/mappa?vista=pianifica&pianoId=${json.id}`);
+        }
+        // Unificazione: genera/aggiorna i record `interventi` del piano (alimenta torre/agenda)
+        if (pid) {
+          void fetch('/api/mappa/piani/interventi', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ pianoId: pid }),
+          }).catch(() => {});
         }
       }
     } finally {
