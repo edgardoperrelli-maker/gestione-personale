@@ -39,6 +39,16 @@ export async function POST(req: Request) {
     const out: { staff_id: string; staff_name: string | null; token: string; url: string }[] = [];
     const expires = scadenzaIso(piano.data);
 
+    // Interventi del piano (creati al salvataggio distribuzione) per collegare ogni voce.
+    const { data: intRows } = await supabaseAdmin
+      .from('interventi')
+      .select('id, staff_id, odl')
+      .eq('piano_id', pianoId);
+    const intByKey = new Map<string, string>();
+    for (const it of (intRows ?? []) as Array<{ id: string; staff_id: string | null; odl: string | null }>) {
+      if (it.odl) intByKey.set(`${it.staff_id}|${it.odl}`, it.id);
+    }
+
     for (const op of ops ?? []) {
       const { data: existing } = await supabaseAdmin.from('rapportini')
         .select('id, token').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
@@ -68,7 +78,12 @@ export async function POST(req: Request) {
       await supabaseAdmin.from('rapportino_voci').delete().eq('rapportino_id', rapId);
       if (merged.length) {
         const { error: eVoci } = await supabaseAdmin.from('rapportino_voci')
-          .insert(merged.map((v) => ({ rapportino_id: rapId, ...v })));
+          .insert(merged.map((v) => {
+            const raw = (v.raw_json ?? {}) as { odl?: string; odsin?: string };
+            const odl = raw.odl || raw.odsin || v.odsin || null;
+            const intervento_id = odl ? intByKey.get(`${op.staff_id}|${odl}`) ?? null : null;
+            return { rapportino_id: rapId, intervento_id, ...v };
+          }));
         if (eVoci) throw new Error(eVoci.message);
       }
       out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${base}/r/${token}` });
