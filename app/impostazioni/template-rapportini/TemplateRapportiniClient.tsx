@@ -1,11 +1,19 @@
 ﻿'use client';
 import { useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import {
+  INFO_CAMPI_DISPONIBILI,
+  infoCampiDefault,
+  resolveInfoCampi,
+  type InfoChiave,
+  type TemplateInfoCampo,
+} from '@/utils/rapportini/infoCampi';
 
 type Template = {
   id: string;
   nome: string;
   campi: TemplateCampo[];
+  info_campi?: TemplateInfoCampo[];
   is_default: boolean;
   active: boolean;
 };
@@ -37,6 +45,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
+  const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
 
@@ -52,6 +61,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(tpl.id);
     setNome(tpl.nome);
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
+    setInfoCampi(resolveInfoCampi(tpl.info_campi));
   }
 
   function startNew() {
@@ -59,6 +69,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(null);
     setNome('');
     setCampi([newCampo(1)]);
+    setInfoCampi(infoCampiDefault());
   }
 
   async function reloadTemplates() {
@@ -102,6 +113,32 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     });
   }
 
+  // ── Info helpers ───────────────────────────────────────────────────────────
+
+  function toggleInfo(chiave: InfoChiave) {
+    setInfoCampi((prev) => {
+      if (prev.some((c) => c.chiave === chiave)) {
+        return prev.filter((c) => c.chiave !== chiave).map((c, i) => ({ ...c, ordine: i + 1 }));
+      }
+      const def = INFO_CAMPI_DISPONIBILI.find((c) => c.chiave === chiave)!;
+      return [...prev, { chiave, etichetta: def.etichettaDefault, ordine: prev.length + 1 }];
+    });
+  }
+
+  function updateInfoEtichetta(chiave: InfoChiave, etichetta: string) {
+    setInfoCampi((prev) => prev.map((c) => (c.chiave === chiave ? { ...c, etichetta } : c)));
+  }
+
+  function moveInfo(idx: number, dir: -1 | 1) {
+    const next = idx + dir;
+    setInfoCampi((prev) => {
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr.map((c, i) => ({ ...c, ordine: i + 1 }));
+    });
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -120,6 +157,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           ordine: i + 1,
           opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
         })),
+        info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
         active: true,
         ...(isNew ? {} : { id: selectedId }),
       };
@@ -250,6 +288,44 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
                 placeholder="es. Rapportino standard"
               />
+            </div>
+
+            {/* ── Informazioni da mostrare ──────────────────────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Informazioni da mostrare</h3>
+              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+                Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
+                Nessuna selezione = mostra tutti gli 11 campi di default.
+              </p>
+
+              <div className="space-y-2">
+                {infoCampi.map((c, idx) => (
+                  <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                    <input
+                      type="text"
+                      value={c.etichetta}
+                      onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
+                      className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    />
+                    <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{c.chiave}</span>
+                    <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                    <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                    <button type="button" onClick={() => toggleInfo(c.chiave)}
+                      className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
+                  </div>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {INFO_CAMPI_DISPONIBILI.filter((d) => !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
+                  <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
+                    className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                    ＋ {d.etichettaDefault}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* ── Campi ─────────────────────────────────────────────────────── */}
