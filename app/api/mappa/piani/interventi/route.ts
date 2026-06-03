@@ -20,11 +20,22 @@ export async function POST(req: Request) {
 
   const { data: pianoRow } = await supabaseAdmin
     .from('mappa_piani')
-    .select('id, data')
+    .select('id, data, territorio')
     .eq('id', pianoId)
     .maybeSingle();
-  const piano = pianoRow as { id: string; data: string } | null;
+  const piano = pianoRow as { id: string; data: string; territorio: string | null } | null;
   if (!piano) return NextResponse.json({ error: 'Piano non trovato.' }, { status: 404 });
+
+  // territorio del piano (salvato come nome) → territory_id, per il filtro torre
+  let territorioId: string | null = null;
+  if (piano.territorio) {
+    const { data: terr } = await supabaseAdmin
+      .from('territories')
+      .select('id')
+      .eq('name', piano.territorio)
+      .maybeSingle();
+    territorioId = (terr as { id: string } | null)?.id ?? null;
+  }
 
   const { data: opRows } = await supabaseAdmin
     .from('mappa_piani_operatori')
@@ -56,7 +67,7 @@ export async function POST(req: Request) {
         data: piano.data,
         staffId: op.staff_id,
         pianoId,
-        territorioId: null,
+        territorioId,
       });
       if (rec.odl && odlTerminali.has(rec.odl)) continue; // già chiuso → non duplicare
       rows.push(rec);

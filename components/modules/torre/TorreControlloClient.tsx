@@ -21,6 +21,7 @@ export type TorreIntervento = {
   esito: string | null;
   esito_motivo: string | null;
   fascia_oraria: string | null;
+  territorio_id: string | null;
 };
 
 const TONO: Record<TonoTorre, { fg: string; dot: string; label: string }> = {
@@ -36,14 +37,17 @@ export default function TorreControlloClient({
   data,
   interventi,
   operatori,
+  territori,
 }: {
   data: string;
   interventi: TorreIntervento[];
   operatori: { id: string; display_name: string }[];
+  territori: { id: string; name: string }[];
 }) {
   const [items, setItems] = useState<TorreIntervento[]>(interventi);
   const [live, setLive] = useState(false);
   const [selStaff, setSelStaff] = useState<string | null>(null);
+  const [selTerr, setSelTerr] = useState<string | null>(null);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -75,7 +79,8 @@ export default function TorreControlloClient({
     };
   }, [data]);
 
-  const gruppi = raggruppaPerOperatore(items, operatori);
+  const itemsTerr = selTerr ? items.filter((i) => i.territorio_id === selTerr) : items;
+  const gruppi = raggruppaPerOperatore(itemsTerr, operatori);
   const totali = items.reduce(
     (acc, it) => {
       const t = coloreStato(it.stato, it.esito);
@@ -88,7 +93,7 @@ export default function TorreControlloClient({
   );
 
   // La mappa mostra gli interventi dell'operatore selezionato (filtro), o tutti.
-  const itemsMappa = selStaff ? items.filter((i) => i.staff_id === selStaff) : items;
+  const itemsMappa = selStaff ? itemsTerr.filter((i) => i.staff_id === selStaff) : itemsTerr;
   const nomeSel = selStaff ? gruppi.find((g) => g.operatore.id === selStaff)?.operatore.display_name : null;
 
   return (
@@ -117,6 +122,22 @@ export default function TorreControlloClient({
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
         {/* Colonna sinistra: operatori come filtri, scrollabile */}
         <div className="space-y-2.5 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
+          {territori.length > 0 && (
+            <select
+              value={selTerr ?? ''}
+              onChange={(e) => {
+                setSelTerr(e.target.value || null);
+                setSelStaff(null);
+              }}
+              className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
+              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            >
+              <option value="">Tutti i territori</option>
+              {territori.map((t) => (
+                <option key={t.id} value={t.id}>{t.name}</option>
+              ))}
+            </select>
+          )}
           {gruppi.map((g) => {
             const sel = selStaff === g.operatore.id;
             return (

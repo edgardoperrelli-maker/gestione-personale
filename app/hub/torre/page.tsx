@@ -31,10 +31,13 @@ export default async function TorrePage() {
 
   const { data: rows } = await supabase
     .from('interventi')
-    .select('id, odl, nominativo, indirizzo, comune, lat, lng, staff_id, stato, esito, esito_motivo, fascia_oraria')
+    .select('id, odl, nominativo, indirizzo, comune, lat, lng, staff_id, stato, esito, esito_motivo, fascia_oraria, territorio_id')
     .eq('data', data)
     .order('comune', { ascending: true })
     .order('indirizzo', { ascending: true });
+
+  const { data: territoriRows } = await supabase.from('territories').select('id, name').order('name', { ascending: true });
+  const territori = (territoriRows ?? []) as Array<{ id: string; name: string }>;
 
   const { data: staffRows } = await supabase.from('staff').select('id, display_name, valid_from, valid_to');
   const operatori = ((staffRows ?? []) as Staff[])
@@ -42,6 +45,6 @@ export default async function TorrePage() {
     .map((s) => ({ id: s.id, display_name: s.display_name }));
 
   return (
-    <TorreControlloClient data={data} interventi={(rows ?? []) as TorreIntervento[]} operatori={operatori} />
+    <TorreControlloClient data={data} interventi={(rows ?? []) as TorreIntervento[]} operatori={operatori} territori={territori} />
   );
 }
