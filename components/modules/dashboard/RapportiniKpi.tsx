@@ -10,8 +10,10 @@ function todayRomeIso(): string {
 }
 
 function formatGiorno(iso: string): string {
-  return new Date(`${iso}T00:00:00`).toLocaleDateString('it-IT', {
-    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+  // Parse e formatta in UTC: l'etichetta coincide sempre con la data ISO,
+  // a prescindere dal fuso del browser (coerente con addDaysIso, UTC-safe).
+  return new Date(`${iso}T00:00:00Z`).toLocaleDateString('it-IT', {
+    weekday: 'short', day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC',
   });
 }
 
