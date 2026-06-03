@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
 
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
@@ -25,13 +25,13 @@ export type TorreIntervento = {
   territorio_id: string | null;
 };
 
-const TONO: Record<TonoTorre, { fg: string; dot: string; label: string }> = {
-  ok: { fg: 'var(--success)', dot: '#22c55e', label: 'Fatto' },
-  ko: { fg: 'var(--danger)', dot: '#ef4444', label: 'Non fatto' },
-  attesa: { fg: 'var(--brand-text-main)', dot: '#fbbf24', label: 'Da fare' },
-  corso: { fg: 'var(--brand-text-main)', dot: '#38bdf8', label: 'In corso' },
-  annullato: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Annullato' },
-  da_assegnare: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Da assegnare' },
+const TONO: Record<TonoTorre, { fg: string; dot: string; label: string; bg: string }> = {
+  ok: { fg: 'var(--success)', dot: '#22c55e', label: 'Fatto', bg: 'var(--success-soft)' },
+  ko: { fg: 'var(--danger)', dot: '#ef4444', label: 'Non fatto', bg: 'var(--danger-soft)' },
+  attesa: { fg: 'var(--brand-text-main)', dot: '#fbbf24', label: 'Da fare', bg: 'var(--warning-soft)' },
+  corso: { fg: 'var(--brand-text-main)', dot: '#38bdf8', label: 'In corso', bg: 'rgba(56,189,248,0.12)' },
+  annullato: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Annullato', bg: 'var(--brand-surface-muted)' },
+  da_assegnare: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Da assegnare', bg: 'var(--brand-surface-muted)' },
 };
 
 export default function TorreControlloClient({
@@ -83,6 +83,7 @@ export default function TorreControlloClient({
 
   const itemsTerr = filtraInterventi(items, selTerr, null);
   const gruppi = raggruppaPerOperatore(itemsTerr, operatori);
+  const gruppiVisibili = operatoriVisibili(gruppi, selTerr);
   const totali = items.reduce(
     (acc, it) => {
       const t = coloreStato(it.stato, it.esito);
@@ -151,7 +152,7 @@ export default function TorreControlloClient({
               ))}
             </select>
           )}
-          {gruppi.map((g) => {
+          {gruppiVisibili.map((g) => {
             const opKey = g.operatore.id ?? SENTINELLA_NON_ASSEGNATI;
             const sel = selStaff === opKey;
             return (
@@ -174,26 +175,6 @@ export default function TorreControlloClient({
                     {g.conteggi.assegnati}⏳ · {g.conteggi.fatti}✅ · {g.conteggi.nonFatti}❌
                   </div>
                 </div>
-
-                {g.interventi.length > 0 && (
-                  <ul className="mt-2 space-y-1">
-                    {g.interventi.map((it) => {
-                      const tono = TONO[coloreStato(it.stato, it.esito)];
-                      return (
-                        <li key={it.id} className="flex items-center gap-2 text-sm">
-                          <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tono.dot }} />
-                          <span className="min-w-0 flex-1 truncate" style={{ color: 'var(--brand-text-main)' }}>
-                            {it.nominativo ?? it.odl ?? 'Intervento'}
-                            {it.comune ? ` · ${it.comune}` : ''}
-                          </span>
-                          <span className="shrink-0 text-xs" style={{ color: tono.fg }}>
-                            {it.stato === 'completato' ? tono.label : labelStato(it.stato)}
-                          </span>
-                        </li>
-                      );
-                    })}
-                  </ul>
-                )}
               </button>
             );
           })}
@@ -213,6 +194,44 @@ export default function TorreControlloClient({
             </div>
           )}
           <TorreMappa interventi={itemsMappa} />
+
+          {/* Dettaglio lavori (operatore selezionato o tutti): righe colorate, live. */}
+          <section className="rounded-2xl border" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}>
+            <header
+              className="flex items-center justify-between gap-2 border-b px-3 py-2 text-sm font-semibold"
+              style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+            >
+              <span className="truncate">{nomeSel ? `Dettaglio lavori — ${nomeSel}` : 'Tutti i lavori'}</span>
+              <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>{itemsMappa.length}</span>
+            </header>
+            <ul className="max-h-[360px] divide-y divide-[var(--brand-border)] overflow-y-auto">
+              {itemsMappa.length === 0 ? (
+                <li className="px-3 py-4 text-center text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessun lavoro.</li>
+              ) : (
+                itemsMappa.map((it) => {
+                  const tono = TONO[coloreStato(it.stato, it.esito)];
+                  const ko = it.stato === 'completato' && it.esito !== 'eseguito_positivo';
+                  return (
+                    <li key={it.id} className="flex items-center gap-2 px-3 py-2 text-sm" style={{ backgroundColor: tono.bg }}>
+                      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: tono.dot }} />
+                      <div className="min-w-0 flex-1">
+                        <div className="truncate" style={{ color: 'var(--brand-text-main)' }}>
+                          {it.nominativo ?? it.odl ?? 'Intervento'}
+                          {it.comune ? ` · ${it.comune}` : ''}
+                        </div>
+                        {ko && it.esito_motivo && (
+                          <div className="truncate text-xs" style={{ color: tono.fg }}>{it.esito_motivo}</div>
+                        )}
+                      </div>
+                      <span className="shrink-0 text-xs font-medium" style={{ color: tono.fg }}>
+                        {it.stato === 'completato' ? tono.label : labelStato(it.stato)}
+                      </span>
+                    </li>
+                  );
+                })
+              )}
+            </ul>
+          </section>
         </div>
       </div>
     </main>
