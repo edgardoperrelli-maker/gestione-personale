@@ -1,6 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
@@ -80,7 +81,7 @@ export default async function RapportinoPublicPage({
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, staff_name, data, stato, expires_at, campi_snapshot')
+    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot')
     .eq('token', token)
     .maybeSingle();
 
@@ -139,6 +140,7 @@ export default async function RapportinoPublicPage({
         rapportino={{ staff_name: rap.staff_name, data: rap.data }}
         voci={voci}
         campiSnapshot={campiSnapshot}
+        infoCampi={(rap.info_snapshot ?? []) as TemplateInfoCampo[]}
         readOnly={stato === 'inviato'}
       />
     </Shell>

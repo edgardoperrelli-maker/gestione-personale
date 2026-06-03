@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import { voceEsitoColore } from '@/utils/rapportini/voceColore';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
@@ -28,6 +29,7 @@ type Props = {
   rapportino: { staff_name: string; data: string };
   voci: Voce[];
   campiSnapshot: TemplateCampo[];
+  infoCampi: TemplateInfoCampo[];
   readOnly: boolean;
 };
 
@@ -95,6 +97,7 @@ export default function RapportinoForm({
   rapportino,
   voci: vociIniziali,
   campiSnapshot,
+  infoCampi,
   readOnly: readOnlyIniziale,
 }: Props) {
   const campi = useMemo(
@@ -282,6 +285,7 @@ export default function RapportinoForm({
               voce={voce}
               indice={idx + 1}
               campi={campi}
+              infoCampi={infoCampi}
               disabilitato={disabilitato}
               saveState={saveStates[voce.id] ?? 'idle'}
               onChange={(chiave, valore) => setRisposta(voce.id, chiave, valore)}
@@ -319,6 +323,7 @@ function VoceCard({
   voce,
   indice,
   campi,
+  infoCampi,
   disabilitato,
   saveState,
   onChange,
@@ -326,23 +331,14 @@ function VoceCard({
   voce: Voce;
   indice: number;
   campi: TemplateCampo[];
+  infoCampi: TemplateInfoCampo[];
   disabilitato: boolean;
   saveState: SaveState;
   onChange: (chiave: string, valore: unknown) => void;
 }) {
-  const anagrafica: { label: string; value?: string }[] = [
-    { label: 'Nominativo', value: voce.nominativo },
-    { label: 'Matricola', value: voce.matricola },
-    { label: 'PDR', value: voce.pdr },
-    { label: 'ODSIN', value: voce.odsin },
-    { label: 'Via', value: voce.via },
-    { label: 'Comune', value: voce.comune },
-    { label: 'CAP', value: voce.cap },
-    { label: 'Recapito', value: voce.recapito },
-    { label: 'Attività', value: voce.attivita },
-    { label: 'Accessibilità', value: voce.accessibilita },
-    { label: 'Fascia oraria', value: voce.fascia_oraria },
-  ].filter((r) => r.value != null && String(r.value).trim() !== '');
+  const anagrafica = resolveInfoCampi(infoCampi)
+    .map((c) => ({ label: c.etichetta, value: valoreInfo(voce as VoceInfo, c.chiave) }))
+    .filter((r) => r.value !== '');
 
   const titolo = voce.nominativo?.trim() || voce.pdr?.trim() || `Voce ${indice}`;
   const colore = voceEsitoColore(voce.risposte, campi);
