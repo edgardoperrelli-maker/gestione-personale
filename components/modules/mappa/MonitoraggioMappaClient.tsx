@@ -117,6 +117,7 @@ export default function MonitoraggioMappaClient() {
         <div className="flex items-center gap-2">
           <input
             type="date"
+            aria-label="Seleziona data"
             value={data}
             onChange={(e) => e.target.value && setData(e.target.value)}
             className="rounded-xl border px-3 py-1.5 text-sm outline-none"
@@ -138,7 +139,7 @@ export default function MonitoraggioMappaClient() {
               color: live ? 'var(--success)' : 'var(--brand-text-muted)',
             }}
           >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
+            <span aria-hidden="true" className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
             {live ? 'Live' : 'Non connesso'}
           </span>
           {lastUpdate && (
@@ -160,7 +161,7 @@ export default function MonitoraggioMappaClient() {
           <div className="flex flex-wrap items-center gap-3 px-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
             {LEGENDA.map((l) => (
               <span key={l.label} className="inline-flex items-center gap-1.5">
-                <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.dot }} />
+                <span aria-hidden="true" className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: l.dot }} />
                 {l.label}
               </span>
             ))}
