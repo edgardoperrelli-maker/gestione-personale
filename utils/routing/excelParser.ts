@@ -261,12 +261,10 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
     const odsAltRaw = colMap.odsin != null ? str(row[colMap.odsin]) : '';
     const pdrRaw = colMap.pdR != null ? str(row[colMap.pdR]) : '';
     const odl = resolveOdl(odlRaw, odsAltRaw, pdrRaw);
-    const odsin = odl || undefined; // compat: rimosso del tutto nel Task 6
 
     const task: Task & { _operatore?: string } = {
       id: `row-${i}`,
       odl,
-      odsin,
       pdr: colMap.pdR != null ? str(row[colMap.pdR]) : undefined,
       indirizzo,
       cap,

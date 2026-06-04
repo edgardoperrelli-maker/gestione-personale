@@ -1,7 +1,6 @@
 export interface Task {
   id: string;
   odl: string;
-  odsin?: string;
   pdr?: string;
   indirizzo: string;
   cap: string;
