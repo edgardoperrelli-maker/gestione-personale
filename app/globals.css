@@ -246,3 +246,10 @@ html { font-size: 16px; }
   html { font-size: 18px; }
   input, select, textarea, button { min-height: 46px; }
 }
+
+/* Scrollbar a tema Aurea per i contenitori scrollabili del rapportino pubblico (/r). */
+.rapp-scroll { scrollbar-width: thin; scrollbar-color: oklch(0.80 0.16 215 / 0.55) transparent; }
+.rapp-scroll::-webkit-scrollbar { width: 8px; }
+.rapp-scroll::-webkit-scrollbar-track { background: transparent; }
+.rapp-scroll::-webkit-scrollbar-thumb { background: oklch(0.80 0.16 215 / 0.55); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
+.rapp-scroll::-webkit-scrollbar-thumb:hover { background: var(--brand-primary); }
