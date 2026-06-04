@@ -73,7 +73,7 @@ type ColMap = {
 export function detectFormat(headerRow: unknown[]): ColMap | null {
   const headers = headerRow.map(normalizeHeader);
   const ncols = headers.length;
-  const odl = findCol(headers, [/^codice[_\s]*odl$/, /^odl$/]);
+  const odl = findCol(headers, [/^codice[_\s]*odl$/, /^odl$/, /^ods$/, /^ods\s*\/\s*odl$/]);
   const odsin = findCol(headers, [/^odsin$/, /^codice$/, /^codice\s+odsin$/, /^id$/]);
 
   // ── Formato ATTGIORN: presenza "risorsa" in col B (indice 1) ──────────────
@@ -193,6 +193,17 @@ function extractOdsin(v: unknown): string | undefined {
   return match?.[0];
 }
 
+/**
+ * Identificativo ODS/ODL unico (ODL = ODS = ODSIN sono la stessa cosa).
+ * Priorità: colonna ODL grezza → colonna ODS/ODSIN (numero 200xxxxxxxx estratto, altrimenti grezzo)
+ * → estrazione/valore dal PDR. `extractOdsin` resta come normalizzatore quando il campo ha testo extra.
+ */
+export function resolveOdl(odlRaw: string, odsAltRaw: string, pdrRaw: string): string {
+  if (odlRaw) return odlRaw;
+  if (odsAltRaw) return extractOdsin(odsAltRaw) || odsAltRaw;
+  return extractOdsin(pdrRaw) || pdrRaw || '';
+}
+
 // ─── Export pubblico ─────────────────────────────────────────────────────────
 
 /**
@@ -246,12 +257,11 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
 
     const operatore = colMap.operatore != null ? str(row[colMap.operatore]) : '';
 
-    const odl = colMap.odl != null ? str(row[colMap.odl]) : (colMap.pdR != null ? str(row[colMap.pdR]) : '');
-    const odsin =
-      (colMap.odsin != null ? extractOdsin(row[colMap.odsin]) : undefined) ??
-      extractOdsin(odl) ??
-      (colMap.pdR != null ? extractOdsin(row[colMap.pdR]) : undefined) ??
-      (colMap.odsin != null ? (str(row[colMap.odsin]) || undefined) : undefined);
+    const odlRaw = colMap.odl != null ? str(row[colMap.odl]) : '';
+    const odsAltRaw = colMap.odsin != null ? str(row[colMap.odsin]) : '';
+    const pdrRaw = colMap.pdR != null ? str(row[colMap.pdR]) : '';
+    const odl = resolveOdl(odlRaw, odsAltRaw, pdrRaw);
+    const odsin = odl || undefined; // compat: rimosso del tutto nel Task 6
 
     const task: Task & { _operatore?: string } = {
       id: `row-${i}`,

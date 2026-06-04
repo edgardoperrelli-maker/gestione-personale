@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { detectFormat } from './excelParser';
+import { detectFormat, resolveOdl } from './excelParser';
 
 const HEADER = [
   'CO', 'MATRICOLA', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
@@ -37,5 +37,32 @@ describe('detectFormat · durata', () => {
     const cm = detectFormat(header);
     expect(cm).not.toBeNull();
     expect(cm!.durata).toBeNull();
+  });
+});
+
+describe('resolveOdl — identificativo ODS/ODL unico', () => {
+  it('preferisce la colonna ODL grezza', () => {
+    expect(resolveOdl('ODL123', '20043151148', 'PDR9')).toBe('ODL123');
+  });
+  it('senza ODL usa la colonna ODS/ODSIN (numero pulito)', () => {
+    expect(resolveOdl('', '20043151148', '')).toBe('20043151148');
+  });
+  it('estrae il 200xxxxxxxx quando il campo ODS ha testo extra', () => {
+    expect(resolveOdl('', 'ABC 20012345678 XY', '')).toBe('20012345678');
+  });
+  it('fallback al PDR se non c\'è altro', () => {
+    expect(resolveOdl('', '', 'PDR-9')).toBe('PDR-9');
+  });
+  it('tutto vuoto → stringa vuota', () => {
+    expect(resolveOdl('', '', '')).toBe('');
+  });
+});
+
+describe('detectFormat — header "ODS"', () => {
+  it('riconosce una colonna intitolata "ODS" come odl', () => {
+    const cm = detectFormat(['ODS', 'Indirizzo', 'CAP', 'Comune']);
+    expect(cm).not.toBeNull();
+    expect(cm!.odl).toBe(0);
+    expect(cm!.via).toBe(1);
   });
 });
