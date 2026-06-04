@@ -147,6 +147,7 @@ function centroid(tasks: Task[]): { lat: number; lng: number } | null {
  *   3. Ottimizza geograficamente l'interno di ogni bucket con nearestNeighbor + twoOpt
  *   4. Il punto di partenza del bucket N+1 = ultimo task con coordinate del bucket N
  *   5. Calcola distanza totale e polyline dell'intero percorso
+ *   6. Calcola lo schedule (ETA per tappa) con computeSchedule del motore tempi
  */
 export function optimizeRouteByFascia(tasks: Task[], base?: OperatorBase, opts?: ScheduleOpts): RouteResult {
   if (!tasks.length) {

@@ -21,7 +21,7 @@ describe('optimizeRouteByFascia · schedule', () => {
 
   it('lista vuota → schedule vuoto', () => {
     const res = optimizeRouteByFascia([]);
-    expect(res.schedule ?? []).toEqual([]);
+    expect(res.schedule).toEqual([]);
   });
 
   it('raggruppa le ore intere (8-12) come fascia mattutina, non in fondo', () => {
