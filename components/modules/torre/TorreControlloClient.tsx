@@ -1,33 +1,15 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
+import { useInterventiFeed, type TorreIntervento } from '@/lib/interventi/useInterventiFeed';
+
+export type { TorreIntervento };
 
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
-
-export type TorreIntervento = {
-  id: string;
-  odl: string | null;
-  nominativo: string | null;
-  indirizzo: string | null;
-  comune: string | null;
-  cap: string | null;
-  pdr: string | null;
-  matricola_contatore: string | null;
-  intervento_tipo: string | null;
-  lat: number | null;
-  lng: number | null;
-  staff_id: string | null;
-  stato: string;
-  esito: string | null;
-  esito_motivo: string | null;
-  fascia_oraria: string | null;
-  territorio_id: string | null;
-};
 
 const TONO: Record<TonoTorre, { fg: string; dot: string; label: string; bg: string }> = {
   ok: { fg: 'var(--success)', dot: '#22c55e', label: 'Fatto', bg: 'var(--success-soft)' },
@@ -49,68 +31,13 @@ export default function TorreControlloClient({
   operatori: { id: string; display_name: string }[];
   territori: { id: string; name: string }[];
 }) {
-  const [items, setItems] = useState<TorreIntervento[]>(interventi);
-  const [live, setLive] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
+  const { items, live, lastUpdate, refresh } = useInterventiFeed(data, {
+    channelPrefix: 'torre',
+    initialItems: interventi,
+  });
   const [selStaff, setSelStaff] = useState<string | null>(null);
   const [selTerr, setSelTerr] = useState<string | null>(null);
   const router = useRouter();
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/interventi/giorno?data=${data}`, { cache: 'no-store' });
-      if (!res.ok) return;
-      const json = (await res.json()) as { interventi?: TorreIntervento[] };
-      setItems(json.interventi ?? []);
-      setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
-    } catch {
-      /* errore di rete: ritenta al prossimo giro di polling */
-    }
-  }, [data]);
-
-  useEffect(() => {
-    const supabase = supabaseBrowser();
-    const channel = supabase
-      .channel('torre-interventi')
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'interventi', filter: `data=eq.${data}` },
-        (payload) => {
-          setItems((prev) => {
-            if (payload.eventType === 'DELETE') {
-              const oldId = (payload.old as { id?: string } | null)?.id;
-              return oldId ? prev.filter((x) => x.id !== oldId) : prev;
-            }
-            const next = payload.new as TorreIntervento;
-            if (!next?.id) return prev;
-            const idx = prev.findIndex((x) => x.id === next.id);
-            if (idx === -1) return [...prev, next];
-            const copy = prev.slice();
-            copy[idx] = next;
-            return copy;
-          });
-        },
-      )
-      .subscribe((status) => setLive(status === 'SUBSCRIBED'));
-
-    return () => {
-      void supabase.removeChannel(channel);
-    };
-  }, [data]);
-
-  useEffect(() => {
-    const INTERVAL = 5 * 60 * 1000;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => { if (!timer) timer = setInterval(() => void refresh(), INTERVAL); };
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const onVis = () => {
-      if (document.hidden) stop();
-      else { void refresh(); start(); }
-    };
-    if (!document.hidden) { void refresh(); start(); }
-    document.addEventListener('visibilitychange', onVis);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
-  }, [refresh]);
 
   const itemsTerr = filtraInterventi(items, selTerr, null);
   const gruppi = raggruppaPerOperatore(itemsTerr, operatori);

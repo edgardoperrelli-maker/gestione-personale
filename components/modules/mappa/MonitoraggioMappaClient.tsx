@@ -1,19 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useState } from 'react';
 import dynamic from 'next/dynamic';
-import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { coloreStato } from '@/lib/interventi/torreView';
-import type { TorreIntervento } from '@/components/modules/torre/TorreControlloClient';
+import { useInterventiFeed } from '@/lib/interventi/useInterventiFeed';
 
 const TorreMappa = dynamic(() => import('@/components/modules/torre/TorreMappa'), { ssr: false });
 
 function oggiRoma(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
-}
-
-function oraIt(): string {
-  return new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
 const LEGENDA: Array<{ dot: string; label: string }> = [
@@ -26,71 +21,8 @@ const LEGENDA: Array<{ dot: string; label: string }> = [
 
 export default function MonitoraggioMappaClient() {
   const [data, setData] = useState(oggiRoma());
-  const [items, setItems] = useState<TorreIntervento[]>([]);
-  const [live, setLive] = useState(false);
-  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
-  const [errore, setErrore] = useState<string | null>(null);
-
-  const refresh = useCallback(async () => {
-    try {
-      const res = await fetch(`/api/interventi/giorno?data=${data}`, { cache: 'no-store' });
-      if (res.status === 403) { setErrore('Accesso riservato agli admin.'); setItems([]); return; }
-      if (!res.ok) return;
-      const json = (await res.json()) as { interventi?: TorreIntervento[] };
-      setItems(json.interventi ?? []);
-      setErrore(null);
-      setLastUpdate(oraIt());
-    } catch {
-      /* errore di rete: ritenta al prossimo giro */
-    }
-  }, [data]);
-
-  // Fetch iniziale + a ogni cambio data
-  useEffect(() => { void refresh(); }, [refresh]);
-
-  // Realtime su interventi del giorno (stesso pattern della torre)
-  useEffect(() => {
-    const supabase = supabaseBrowser();
-    const channel = supabase
-      .channel(`monitoraggio-${data}`)
-      .on(
-        'postgres_changes',
-        { event: '*', schema: 'public', table: 'interventi', filter: `data=eq.${data}` },
-        (payload) => {
-          setItems((prev) => {
-            if (payload.eventType === 'DELETE') {
-              const oldId = (payload.old as { id?: string } | null)?.id;
-              return oldId ? prev.filter((x) => x.id !== oldId) : prev;
-            }
-            const next = payload.new as TorreIntervento;
-            if (!next?.id) return prev;
-            const idx = prev.findIndex((x) => x.id === next.id);
-            if (idx === -1) return [...prev, next];
-            const copy = prev.slice();
-            copy[idx] = next;
-            return copy;
-          });
-          setLastUpdate(oraIt());
-        },
-      )
-      .subscribe((status) => setLive(status === 'SUBSCRIBED'));
-    return () => { void supabase.removeChannel(channel); };
-  }, [data]);
-
-  // Polling 5 min, in pausa quando la scheda è in background
-  useEffect(() => {
-    const INTERVAL = 5 * 60 * 1000;
-    let timer: ReturnType<typeof setInterval> | null = null;
-    const start = () => { if (!timer) timer = setInterval(() => void refresh(), INTERVAL); };
-    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
-    const onVis = () => {
-      if (document.hidden) stop();
-      else { void refresh(); start(); }
-    };
-    if (!document.hidden) start();
-    document.addEventListener('visibilitychange', onVis);
-    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
-  }, [refresh]);
+  const { items, live, lastUpdate, error, refresh } = useInterventiFeed(data, { channelPrefix: 'monitoraggio' });
+  const errore = error === 403 ? 'Accesso riservato agli admin.' : null;
 
   const totali = items.reduce(
     (acc, it) => {
