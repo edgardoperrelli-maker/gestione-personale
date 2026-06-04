@@ -5,6 +5,7 @@ import {
   valoreInfo,
   INFO_CAMPI_DISPONIBILI,
   partitionInfoCampi,
+  titoloVoce,
 } from './infoCampi';
 
 describe('resolveInfoCampi', () => {
@@ -87,5 +88,20 @@ describe('partitionInfoCampi', () => {
       { chiave: 'pdr', etichetta: 'PDR', ordine: 1 },
     ]);
     expect(dettaglio.map((c) => c.chiave)).toEqual(['pdr', 'cap']);
+  });
+});
+
+describe('titoloVoce', () => {
+  it('titoloCampi vuoto → nominativo, poi pdr, poi "Voce N"', () => {
+    expect(titoloVoce({ nominativo: 'ROSSI MARIO' }, [], 0)).toBe('ROSSI MARIO');
+    expect(titoloVoce({ pdr: 'PDR1' }, [], 0)).toBe('PDR1');
+    expect(titoloVoce({}, [], 4)).toBe('Voce 5');
+  });
+  it('usa il primo campo NON vuoto della lista di priorità', () => {
+    expect(titoloVoce({ odl: 'ODL9', via: 'Via Roma' }, ['odl', 'via'], 0)).toBe('ODL9');
+    expect(titoloVoce({ via: 'Via Roma' }, ['odl', 'via'], 0)).toBe('Via Roma');
+  });
+  it('lista configurata con tutti i campi vuoti → "Voce N" (niente fallback a nominativo)', () => {
+    expect(titoloVoce({ nominativo: 'IGNORATO' }, ['odl', 'via'], 2)).toBe('Voce 3');
   });
 });

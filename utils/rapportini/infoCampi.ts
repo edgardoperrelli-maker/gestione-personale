@@ -86,3 +86,20 @@ export function partitionInfoCampi(
   const dettaglio = risolti.filter((c) => !INFO_PRIMARI.includes(c.chiave));
   return { primari, dettaglio };
 }
+
+/**
+ * Titolo della voce: valore del primo campo non vuoto tra `titoloCampi` (lista di priorità).
+ * Se `titoloCampi` è vuoto → comportamento storico (nominativo → pdr). Ultimo fallback: "Voce N".
+ */
+export function titoloVoce(
+  voce: VoceInfo,
+  titoloCampi: InfoChiave[],
+  indice: number,
+): string {
+  const chiavi = titoloCampi.length > 0 ? titoloCampi : (['nominativo', 'pdr'] as InfoChiave[]);
+  for (const c of chiavi) {
+    const v = valoreInfo(voce, c);
+    if (v) return v;
+  }
+  return `Voce ${indice + 1}`;
+}
