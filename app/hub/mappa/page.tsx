@@ -10,6 +10,7 @@ import MappaOperatoriClient, {
 } from '@/components/modules/mappa/MappaOperatoriClient';
 import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import RiepilogoRapportini from '@/components/modules/mappa/RiepilogoRapportini';
+import MonitoraggioMappaClient from '@/components/modules/mappa/MonitoraggioMappaClient';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Task } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
@@ -351,6 +352,30 @@ export default async function MappaPage({
               <span className="transition-transform group-hover:translate-x-1">→</span>
             </div>
           </a>
+
+          <a
+            href="/hub/mappa?vista=monitoraggio"
+            className="group rounded-2xl border border-[var(--brand-border)]
+                       bg-[var(--brand-surface)] p-5 shadow-sm transition
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
+          >
+            <div className="flex h-11 w-11 items-center justify-center
+                            rounded-xl bg-[var(--brand-primary-soft)]
+                            text-[var(--brand-primary)]">
+              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+                <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
+                <circle cx="12" cy="10" r="2.5" />
+              </svg>
+            </div>
+            <div className="mt-4">
+              <h2 className="text-lg font-semibold">Monitoraggio oggi</h2>
+              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">Interventi del giorno live sulla mappa</p>
+            </div>
+            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
+              <span>Apri</span>
+              <span className="transition-transform group-hover:translate-x-1">→</span>
+            </div>
+          </a>
         </div>
       )}
 
@@ -378,6 +403,10 @@ export default async function MappaPage({
 
       {vista === 'riepilogo' && (
         <RiepilogoRapportini />
+      )}
+
+      {vista === 'monitoraggio' && (
+        <MonitoraggioMappaClient />
       )}
 
     </div>
