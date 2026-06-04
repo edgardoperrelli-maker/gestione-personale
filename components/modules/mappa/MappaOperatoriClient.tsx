@@ -9,6 +9,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
+import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
 import type { Territory } from '@/types';
 import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
 import ManualAssignmentsModal from './ManualAssignmentsModal';
@@ -650,6 +651,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [excelTasks, setExcelTasks] = useState<Task[]>([]);
   const [geocodingProgress, setGeocodingProgress] = useState<{ done: number; total: number } | null>(null);
   const [excelMode, setExcelMode] = useState(false);
+  const [sorgente, setSorgente] = useState<'excel' | 'interventi'>('excel');
   const [excelOnlyManualAction, setExcelOnlyManualAction] = useState(false);
 
   // Modifica task non geocodificati
@@ -1297,6 +1299,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
 
     setExcelMode(true);
+    setSorgente('excel');
     setExcelOnlyManualAction(false);
     setRouteMode(false);
     setRouteResult(null);
@@ -1353,6 +1356,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     geocodingActiveRef.current = false;
     setExcelTasks([]);
     setExcelMode(false);
+    setSorgente('excel');
     setExcelOnlyManualAction(false);
     setGeocodingProgress(null);
     setRouteMode(false);
@@ -1365,6 +1369,40 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setShowOpPicker(false);
     setZtlConflicts([]);
   }, []);
+
+  const caricaInterventiDelGiorno = useCallback(async () => {
+    try {
+      const res = await fetch(
+        `/api/interventi/da-pianificare?data=${planningDate}&committente=acea`,
+      );
+      const json = (await res.json().catch(() => ({}))) as { interventi?: Task[]; error?: string };
+      if (!res.ok) {
+        alert(`Caricamento interventi non riuscito — ${json.error ?? res.status}.`);
+        return;
+      }
+      const interventi = json.interventi ?? [];
+      if (interventi.length === 0) {
+        alert(`Nessun intervento da pianificare per il ${planningDate}.`);
+        return;
+      }
+      setExcelTasks(interventi);
+      setExcelMode(true);
+      setSorgente('interventi');
+      setExcelOnlyManualAction(false);
+      setRouteMode(false);
+      setRouteResult(null);
+      setGeocodingProgress(null);
+      setDistribution(null);
+      setUnassignedTasks([]);
+      setSelectedExcelTaskId(null);
+      setEditingTaskId(null);
+      setEsecutorePins({});
+      setEsecutoreWarnings([]);
+      setSelectedOps([]);
+    } catch {
+      alert('Errore di rete nel caricamento degli interventi.');
+    }
+  }, [planningDate]);
 
   const handleTemplateFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1523,6 +1561,35 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Salva distribuzione su Supabase
   const saveDistribution = useCallback(async () => {
     if (!distribution || !selectedOps.length) return;
+
+    if (sorgente === 'interventi') {
+      setSavingDistribution(true);
+      setSavedDistribution(false);
+      try {
+        const assegnazioni = buildDistribuzionePayload(distribution);
+        const res = await fetch('/api/interventi/distribuzione', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: planningDate, assegnazioni }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          assegnati?: number;
+          scartati?: Array<{ id: string; errore: string }>;
+          error?: string;
+        };
+        if (!res.ok) {
+          alert(`Distribuzione non riuscita — ${json.error ?? res.status}.`);
+        } else {
+          setSavedDistribution(true);
+          const nScartati = json.scartati?.length ?? 0;
+          alert(`${json.assegnati ?? 0} interventi assegnati${nScartati ? `, ${nScartati} scartati` : ''}.`);
+        }
+      } finally {
+        setSavingDistribution(false);
+      }
+      return;
+    }
+
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
@@ -1593,7 +1660,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -2286,13 +2353,23 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             )}
 
             {!excelMode ? (
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
-                className="rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-1.5 text-sm font-medium text-[var(--warning)] hover:opacity-90"
-              >
-                Carica Excel
-              </button>
+              <>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-1.5 text-sm font-medium text-[var(--warning)] hover:opacity-90"
+                >
+                  Carica Excel
+                </button>
+                <button
+                  type="button"
+                  onClick={caricaInterventiDelGiorno}
+                  className="rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-surface)] px-3 py-1.5 text-sm font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-surface-muted)]"
+                  title="Carica gli interventi geocodificati del giorno dal database"
+                >
+                  Carica interventi del giorno
+                </button>
+              </>
             ) : (
               <button
                 type="button"
