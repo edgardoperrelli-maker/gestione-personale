@@ -15,29 +15,36 @@ const COLONNE =
  * (polling/tasto) e dalla mappa di monitoraggio.
  */
 export async function GET(req: Request) {
-  const auth = await requireAdmin();
-  if (auth instanceof NextResponse) return auth;
+  try {
+    const auth = await requireAdmin();
+    if (auth instanceof NextResponse) return auth;
 
-  const { searchParams } = new URL(req.url);
-  const data = searchParams.get('data') ?? '';
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+    const { searchParams } = new URL(req.url);
+    const data = searchParams.get('data') ?? '';
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) {
+      return NextResponse.json(
+        { error: 'Parametro data mancante o non valido (atteso YYYY-MM-DD).' },
+        { status: 400 },
+      );
+    }
+
+    const cookieStore = await cookies();
+    const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+    const supabase = createRouteHandlerClient({ cookies: cookieMethods });
+
+    const { data: rows, error } = await supabase
+      .from('interventi')
+      .select(COLONNE)
+      .eq('data', data)
+      .order('comune', { ascending: true })
+      .order('indirizzo', { ascending: true });
+    if (error) throw error;
+
+    return NextResponse.json({ interventi: rows ?? [] });
+  } catch (e) {
     return NextResponse.json(
-      { error: 'Parametro data mancante o non valido (atteso YYYY-MM-DD).' },
-      { status: 400 },
+      { error: e instanceof Error ? e.message : 'Errore caricamento interventi.' },
+      { status: 500 },
     );
   }
-
-  const cookieStore = await cookies();
-  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
-  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
-
-  const { data: rows, error } = await supabase
-    .from('interventi')
-    .select(COLONNE)
-    .eq('data', data)
-    .order('comune', { ascending: true })
-    .order('indirizzo', { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-
-  return NextResponse.json({ interventi: rows ?? [] });
 }
