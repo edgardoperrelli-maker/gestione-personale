@@ -363,8 +363,9 @@ export default async function MappaPage({
                             rounded-xl bg-[var(--brand-primary-soft)]
                             text-[var(--brand-primary)]">
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
-                <circle cx="12" cy="10" r="2.5" />
+                <circle cx="12" cy="12" r="3" />
+                <circle cx="12" cy="12" r="7" strokeOpacity=".4" />
+                <circle cx="12" cy="12" r="11" strokeOpacity=".15" />
               </svg>
             </div>
             <div className="mt-4">
