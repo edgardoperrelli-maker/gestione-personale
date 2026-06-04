@@ -31,7 +31,7 @@ describe('buildRapportinoXlsx', () => {
     const rap = { staff_name: 'X', data: '2026-06-03', info_snapshot: [], campi_snapshot: [] };
     const rows = await readBack(await buildRapportinoXlsx(rap as never, [] as never));
     expect((rows[5] as unknown[]).slice(0, 12)).toEqual([
-      'NOMINATIVO', 'MATRICOLA', 'PDR', 'ODSIN', 'VIA', 'COMUNE', 'CAP', 'RECAPITO', 'ATTIVITA', 'ACCESSIBILITA', 'FASCIA ORARIA', 'ORDINE',
+      'NOMINATIVO', 'MATRICOLA', 'PDR', 'ODS/ODL', 'VIA', 'COMUNE', 'CAP', 'RECAPITO', 'ATTIVITA', 'ACCESSIBILITA', 'FASCIA ORARIA', 'ORDINE',
     ]);
   });
 });

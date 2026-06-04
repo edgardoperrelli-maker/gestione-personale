@@ -42,6 +42,13 @@ describe('resolveInfoCampi', () => {
     const r = resolveInfoCampi([{ chiave: 'cap', etichetta: '  ', ordine: 1 }]);
     expect(r[0].etichetta).toBe('CAP');
   });
+
+  it('alias legacy: chiave "odsin" viene normalizzata a "odl"', () => {
+    const r = resolveInfoCampi([{ chiave: 'odsin' as never, etichetta: 'ODSIN', ordine: 1 }]);
+    expect(r).toHaveLength(1);
+    expect(r[0].chiave).toBe('odl');
+    expect(r[0].etichetta).toBe('ODSIN'); // l'etichetta salvata viene conservata
+  });
 });
 
 describe('infoCampiDefault', () => {
@@ -64,7 +71,7 @@ describe('partitionInfoCampi', () => {
   it('separa primari e dettaglio dallo snapshot di default', () => {
     const { primari, dettaglio } = partitionInfoCampi([]);
     expect(primari.map((c) => c.chiave)).toEqual(['nominativo', 'via', 'comune', 'fascia_oraria']);
-    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odsin', 'cap', 'recapito', 'attivita', 'accessibilita']);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odl', 'cap', 'recapito', 'attivita', 'accessibilita']);
   });
   it('rispetta i campi mancanti nello snapshot', () => {
     const { primari, dettaglio } = partitionInfoCampi([

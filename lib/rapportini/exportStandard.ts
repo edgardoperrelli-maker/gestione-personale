@@ -24,7 +24,7 @@ export interface RapportinoVoce {
   nominativo?: string | null;
   matricola?: string | null;
   pdr?: string | null;
-  odsin?: string | null;
+  odl?: string | null;
   via?: string | null;
   comune?: string | null;
   cap?: string | null;

@@ -1,5 +1,5 @@
 export type InfoChiave =
-  | 'nominativo' | 'matricola' | 'pdr' | 'odsin' | 'via'
+  | 'nominativo' | 'matricola' | 'pdr' | 'odl' | 'via'
   | 'comune' | 'cap' | 'recapito' | 'attivita' | 'accessibilita' | 'fascia_oraria';
 
 export interface TemplateInfoCampo {
@@ -13,7 +13,7 @@ export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: str
   { chiave: 'nominativo', etichettaDefault: 'NOMINATIVO' },
   { chiave: 'matricola', etichettaDefault: 'MATRICOLA' },
   { chiave: 'pdr', etichettaDefault: 'PDR' },
-  { chiave: 'odsin', etichettaDefault: 'ODSIN' },
+  { chiave: 'odl', etichettaDefault: 'ODS/ODL' },
   { chiave: 'via', etichettaDefault: 'VIA' },
   { chiave: 'comune', etichettaDefault: 'COMUNE' },
   { chiave: 'cap', etichettaDefault: 'CAP' },
@@ -48,7 +48,11 @@ export function resolveInfoCampi(
   snapshot: TemplateInfoCampo[] | null | undefined,
 ): TemplateInfoCampo[] {
   if (!Array.isArray(snapshot) || snapshot.length === 0) return infoCampiDefault();
+  const CHIAVE_ALIAS: Record<string, InfoChiave> = { odsin: 'odl' };
   return snapshot
+    .map((c) => (c && CHIAVE_ALIAS[c.chiave as string]
+      ? { ...c, chiave: CHIAVE_ALIAS[c.chiave as string] }
+      : c))
     .filter((c) => c && CHIAVI_NOTE.has(c.chiave))
     .map((c) => ({
       chiave: c.chiave,
