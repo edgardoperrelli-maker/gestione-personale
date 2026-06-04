@@ -1,5 +1,6 @@
 import { haversine } from './distance';
 import type { OperatorBase, RouteResult, Task } from './types';
+import { computeSchedule, parseFasciaWindow, type ScheduleOpts } from './timeEngine';
 
 /**
  * Distanza Haversine tra due punti geografici.
@@ -138,17 +139,6 @@ function centroid(tasks: Task[]): { lat: number; lng: number } | null {
 }
 
 /**
- * Estrae i minuti dall'inizio della giornata da una stringa fascia_oraria.
- * Stringa vuota o non parsabile → Infinity (gruppo va in fondo).
- */
-function fasciaToMin(s: string | undefined | null): number {
-  if (!s) return Infinity;
-  const m = /(\d{1,2}):(\d{2})/.exec(s);
-  if (!m) return Infinity;
-  return parseInt(m[1], 10) * 60 + parseInt(m[2], 10);
-}
-
-/**
  * Ottimizza il percorso rispettando i gruppi di fascia oraria.
  *
  * Flusso:
@@ -158,15 +148,15 @@ function fasciaToMin(s: string | undefined | null): number {
  *   4. Il punto di partenza del bucket N+1 = ultimo task con coordinate del bucket N
  *   5. Calcola distanza totale e polyline dell'intero percorso
  */
-export function optimizeRouteByFascia(tasks: Task[], base?: OperatorBase): RouteResult {
+export function optimizeRouteByFascia(tasks: Task[], base?: OperatorBase, opts?: ScheduleOpts): RouteResult {
   if (!tasks.length) {
-    return { orderedTasks: [], totalDistanceKm: 0, polyline: [] };
+    return { orderedTasks: [], totalDistanceKm: 0, polyline: [], schedule: [] };
   }
 
   // 1. Raggruppa per fascia
   const groupMap = new Map<number, Task[]>();
   for (const t of tasks) {
-    const key = fasciaToMin(t.fascia_oraria);
+    const key = parseFasciaWindow(t.fascia_oraria)?.startMin ?? Infinity;
     if (!groupMap.has(key)) groupMap.set(key, []);
     groupMap.get(key)!.push(t);
   }
@@ -211,7 +201,9 @@ export function optimizeRouteByFascia(tasks: Task[], base?: OperatorBase): Route
     if (t.lat != null && t.lng != null) polyline.push({ lat: t.lat, lng: t.lng });
   }
 
-  return { orderedTasks: allOrdered, totalDistanceKm, polyline };
+  const schedule = computeSchedule(allOrdered, base ?? null, opts);
+
+  return { orderedTasks: allOrdered, totalDistanceKm, polyline, schedule };
 }
 
 /**
