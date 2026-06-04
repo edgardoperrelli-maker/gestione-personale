@@ -3,7 +3,7 @@
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; stato: StatoVoce };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -82,10 +82,19 @@ export function RapportinoLista({
               >
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-[15px] font-bold text-[var(--brand-text-main)]">{r.titolo}</span>
-                  <span className="mt-0.5 block truncate text-[12.5px] text-[var(--brand-text-muted)]">{r.sub}</span>
+                  <span className="flex min-w-0 items-baseline gap-1.5">
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)]">{r.titolo}</span>
+                    {(r.attivita || r.fascia) && (
+                      <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">
+                        {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-2">
+                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--brand-text-muted)]">{r.sub}</span>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
+                  </span>
                 </span>
-                <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11.5px] font-bold ${chip.cls}`}>{chip.label}</span>
                 <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
               </button>
             );

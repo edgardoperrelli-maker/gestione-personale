@@ -98,8 +98,11 @@
   .row[data-stato="fatto"] .num{ background:var(--success-soft); color:var(--success); }
   .row[data-stato="nonfatto"] .num{ background:var(--danger-soft); color:var(--danger); }
   .rowmid{ flex:1 1 auto; min-width:0; }
-  .rowname{ font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
-  .rowsub{ font-size:12.5px; color:var(--brand-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; margin-top:2px; }
+  .rownameline{ display:flex; min-width:0; align-items:baseline; gap:6px; }
+  .rowname{ min-width:0; flex:1 1 auto; font-size:15px; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .rowmeta{ flex:0 0 auto; white-space:nowrap; font-size:11.5px; font-weight:500; color:var(--brand-text-muted); }
+  .rowsubline{ display:flex; align-items:center; gap:8px; margin-top:2px; }
+  .rowsub{ flex:1 1 auto; min-width:0; font-size:12.5px; color:var(--brand-text-muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
   .rowsub .dot{ opacity:.5; margin:0 5px; }
   .chip{ flex:0 0 auto; display:inline-flex; align-items:center; gap:5px; font-size:11.5px; font-weight:700; padding:5px 10px; border-radius:999px; }
   .chip.fatto{ background:var(--success-soft); color:var(--success); }
@@ -203,9 +206,9 @@
 
 <script>
 const VOCI = [
-  {nome:'BIANCHI MARIO', via:'Via Roma 12', comune:'FIRENZE', cap:'50100', fascia:'08:00', matricola:'MIT0032010111001', pdr:'00594201700001', odsin:'20043820001', recapito:'3331112221', attivita:'S-PR-053 A', access:'NO', stato:'fatto', lav:{'CAMBIO':true}},
+  {nome:'BIANCHI MARIO', via:'Via Roma 12', comune:'FIRENZE', cap:'50100', fascia:'05/06/2026 08:00', matricola:'MIT0032010111001', pdr:'00594201700001', odsin:'20043820001', recapito:'3331112221', attivita:'S-PR-053 A', access:'NO', stato:'fatto', lav:{'CAMBIO':true}},
   {nome:'ROMANELLI ROSANNA', via:'Via Pier Luigi da Palestrina 17', comune:'FIRENZE', cap:'50144', fascia:'08:00', matricola:'MIT0032010228254', pdr:'00594201753235', odsin:'20043824268', recapito:'3313652495', attivita:'S-PR-053 A', access:'NO', stato:'fatto', lav:{'CAMBIO':true,'MINI BAG':true}},
-  {nome:'CONTI GIULIA', via:'Viale Europa 88', comune:'FIRENZE', cap:'50126', fascia:'08:30', matricola:'MIT0032010332170', pdr:'00594201766012', odsin:'20043829910', recapito:'3402233445', attivita:'S-PR-061 B', access:'SÌ', stato:'nonfatto', lav:{}},
+  {nome:'GARCIA FIGUEROA CINDY TATIANA', via:'Viale Europa 88', comune:'FIRENZE', cap:'50126', fascia:'05/06/2026 08:30', matricola:'MIT0032010332170', pdr:'00594201766012', odsin:'20043829910', recapito:'3402233445', attivita:'S-PR-061 B', access:'SÌ', stato:'nonfatto', lav:{}},
   {nome:'ESPOSITO LUCA', via:'Via Senese 4', comune:'FIRENZE', cap:'50124', fascia:'09:00', matricola:'MIT0032010440099', pdr:'00594201788123', odsin:'20043831200', recapito:'3489001122', attivita:'S-PR-053 A', access:'NO', stato:'fatto', lav:{'RG STOP':true}},
   {nome:'FERRARI ANNA', via:'Via dei Mille 23', comune:'FIRENZE', cap:'50132', fascia:'09:30', matricola:'MIT0032010551234', pdr:'00594201790234', odsin:'20043833445', recapito:'3471234567', attivita:'S-PR-061 B', access:'NO', stato:'dafare', lav:{}},
   {nome:'GALLO MARCO', via:'Via Aretina 210', comune:'FIRENZE', cap:'50136', fascia:'10:00', matricola:'MIT0032010662345', pdr:'00594201712345', odsin:'20043835678', recapito:'3386677889', attivita:'S-PR-053 A', access:'SÌ', stato:'dafare', lav:{}},
@@ -243,6 +246,8 @@ function renderHeader(){
   $('#pfill').style.width = Math.round(done/tot*100)+'%';
 }
 
+function fasciaBreve(s){ if(!s) return ''; const t=String(s).replace(/^\d{2}\/\d{2}\/\d{4}\s*/,'').trim(); return t||String(s).trim(); }
+
 function renderList(){
   renderHeader();
   const rows = $('#rows'); rows.innerHTML='';
@@ -254,10 +259,15 @@ function renderList(){
     b.innerHTML = `
       <span class="num">${i+1}</span>
       <span class="rowmid">
-        <span class="rowname">${v.nome}</span>
-        <span class="rowsub">${v.via}<span class="dot">·</span>${v.comune}<span class="dot">·</span>${v.fascia}</span>
+        <span class="rownameline">
+          <span class="rowname">${v.nome}</span>
+          ${(v.attivita||v.fascia)?`<span class="rowmeta">${[v.attivita, fasciaBreve(v.fascia)].filter(Boolean).join(' · ')}</span>`:''}
+        </span>
+        <span class="rowsubline">
+          <span class="rowsub">${v.via}<span class="dot">·</span>${v.comune}</span>
+          <span class="chip ${v.stato}">${v.stato==='fatto'?'✓ ':''}${statoLabel[v.stato]}</span>
+        </span>
       </span>
-      <span class="chip ${v.stato}">${v.stato==='fatto'?'✓ ':''}${statoLabel[v.stato]}</span>
       <span class="chev"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 6l6 6-6 6"/></svg></span>`;
     rows.appendChild(b);
   });

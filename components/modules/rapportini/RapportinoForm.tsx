@@ -45,6 +45,12 @@ function formatData(raw: string): string {
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
+/** Fascia compatta per la riga: se il valore è "GG/MM/AAAA HH:MM" mostra solo l'orario. */
+function fasciaBreve(raw: string): string {
+  const t = raw.replace(/^\d{2}\/\d{2}\/\d{4}\s*/, '').trim();
+  return t || raw.trim();
+}
+
 /* ── Componente principale ─────────────────────────────────────────────────── */
 
 export default function RapportinoForm({
@@ -172,8 +178,10 @@ export default function RapportinoForm({
     () =>
       voci.map((v, idx) => {
         const titolo = valoreInfo(v, 'nominativo') || valoreInfo(v, 'pdr') || `Voce ${idx + 1}`;
-        const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune'), valoreInfo(v, 'fascia_oraria')].filter(Boolean).join(' · ');
-        return { index: idx, titolo, sub, stato: statoVoce(v.risposte, campi) };
+        const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
+        const attivita = valoreInfo(v, 'attivita');
+        const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
+        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi) };
       }),
     [voci, campi],
   );
