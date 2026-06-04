@@ -6,6 +6,7 @@ import { orphanRapportini } from '@/utils/rapportini/orphans';
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { requireUser } from '@/lib/apiAuth';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
+import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 
 export const runtime = 'nodejs';
 
@@ -51,15 +52,12 @@ export async function POST(req: Request) {
     }
     if (interventiWarning) console.error('genera: ensureInterventiForPiano:', interventiWarning);
 
-    // Interventi del piano per collegare ogni voce.
+    // Interventi del piano per collegare ogni voce (aggancio robusto: ODL/matricola/PDR).
     const { data: intRows } = await supabaseAdmin
       .from('interventi')
-      .select('id, staff_id, odl')
+      .select('id, staff_id, odl, matricola_contatore, pdr')
       .eq('piano_id', pianoId);
-    const intByKey = new Map<string, string>();
-    for (const it of (intRows ?? []) as Array<{ id: string; staff_id: string | null; odl: string | null }>) {
-      if (it.odl) intByKey.set(`${it.staff_id}|${it.odl}`, it.id);
-    }
+    const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
 
     for (const op of ops ?? []) {
       const { data: existing } = await supabaseAdmin.from('rapportini')
@@ -81,8 +79,8 @@ export async function POST(req: Request) {
 
       const { data: existingVoci } = await supabaseAdmin.from('rapportino_voci')
         .select('task_id, risposte').eq('rapportino_id', rapId);
-      const fromTasks = ((op.tasks as any[]) ?? []).map((t, i) => taskToVoce(t, i + 1));
-      const existingAsVoci: Voce[] = ((existingVoci as any[]) ?? []).map((v) => ({
+      const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, i + 1));
+      const existingAsVoci: Voce[] = ((existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null }>) ?? []).map((v) => ({
         task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {},
       }));
       const merged = mergeVoci(fromTasks, existingAsVoci);
@@ -91,9 +89,14 @@ export async function POST(req: Request) {
       if (merged.length) {
         const { error: eVoci } = await supabaseAdmin.from('rapportino_voci')
           .insert(merged.map((v) => {
-            const raw = (v.raw_json ?? {}) as { odl?: string; odsin?: string };
-            const odl = raw.odl || raw.odsin || v.odsin || null;
-            const intervento_id = odl ? intByKey.get(`${op.staff_id}|${odl}`) ?? null : null;
+            const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+            const intervento_id = resolveIntervento({
+              staff_id: op.staff_id,
+              odl: raw.odl as string | null | undefined,
+              odsin: (raw.odsin as string | null | undefined) ?? v.odsin,
+              matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
+              pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+            });
             return { rapportino_id: rapId, intervento_id, ...v };
           }));
         if (eVoci) throw new Error(eVoci.message);
@@ -101,7 +104,7 @@ export async function POST(req: Request) {
       out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${base}/r/${token}` });
     }
     return NextResponse.json({ ok: true, rapportini: out, interventiWarning });
-  } catch (err: any) {
-    return NextResponse.json({ error: err.message }, { status: 500 });
+  } catch (err) {
+    return NextResponse.json({ error: err instanceof Error ? err.message : 'Errore generazione rapportini.' }, { status: 500 });
   }
 }

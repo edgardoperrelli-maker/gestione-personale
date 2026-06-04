@@ -38,6 +38,18 @@ export default function TorreControlloClient({
   const [selStaff, setSelStaff] = useState<string | null>(null);
   const [selTerr, setSelTerr] = useState<string | null>(null);
   const router = useRouter();
+  const [syncing, setSyncing] = useState(false);
+  const risincronizza = async () => {
+    setSyncing(true);
+    try {
+      const res = await fetch(`/api/interventi/risincronizza?data=${data}`, { method: 'POST' });
+      if (res.ok) await refresh();
+    } catch {
+      /* ignora: l'utente può ritentare */
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const itemsTerr = filtraInterventi(items, selTerr, null);
   const gruppi = raggruppaPerOperatore(itemsTerr, operatori);
@@ -86,6 +98,16 @@ export default function TorreControlloClient({
             title="Ricarica subito gli interventi del giorno"
           >
             Aggiorna ora
+          </button>
+          <button
+            type="button"
+            onClick={() => void risincronizza()}
+            disabled={syncing}
+            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)] disabled:opacity-60"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            title="Ri-aggancia le voci e riapplica gli esiti dei rapportini già compilati"
+          >
+            {syncing ? 'Sincronizzo…' : 'Risincronizza esiti'}
           </button>
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
