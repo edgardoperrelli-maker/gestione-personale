@@ -32,16 +32,21 @@ const InfoCampoSchema = z.object({
   etichetta: z.string().min(1),
   ordine: z.number().int(),
 });
+const TitoloCampiSchema = z.array(z.enum([
+  'nominativo', 'matricola', 'pdr', 'odl', 'via',
+  'comune', 'cap', 'recapito', 'attivita', 'accessibilita', 'fascia_oraria',
+])).default([]);
 const TemplateSchema = z.object({
   nome: z.string().min(1),
   campi: z.array(CampoSchema).min(1),
   info_campi: z.array(InfoCampoSchema).default([]),
+  titolo_campi: TitoloCampiSchema,
   active: z.boolean().optional().default(true),
 });
 
 export async function GET() {
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .select('id, nome, campi, info_campi, is_default, active, created_at, updated_at')
+    .select('id, nome, campi, info_campi, titolo_campi, is_default, active, created_at, updated_at')
     .order('is_default', { ascending: false }).order('nome');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
@@ -52,7 +57,7 @@ export async function POST(req: Request) {
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: parsed.data.nome, campi: parsed.data.campi, info_campi: parsed.data.info_campi, active: parsed.data.active }).select('id').single();
+    .insert({ nome: parsed.data.nome, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, active: parsed.data.active }).select('id').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
 }
@@ -64,7 +69,7 @@ export async function PATCH(req: Request) {
   const parsed = TemplateSchema.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
-  for (const k of ['nome', 'campi', 'info_campi', 'active'] as const) if (k in parsed.data) patch[k] = (parsed.data as any)[k];
+  for (const k of ['nome', 'campi', 'info_campi', 'titolo_campi', 'active'] as const) if (k in parsed.data) patch[k] = (parsed.data as any)[k];
   const { error } = await supabaseAdmin.from('rapportino_template').update(patch).eq('id', body.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
