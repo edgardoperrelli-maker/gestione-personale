@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import { partitionInfoCampi, valoreInfo, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
+import { partitionInfoCampi, titoloVoce, valoreInfo, type InfoChiave, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { statoVoce, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
 import type { SaveState } from './SaveBadge';
 import { RapportinoLista, type RigaVoce, type Filtro } from './RapportinoLista';
@@ -33,6 +33,7 @@ type Props = {
   voci: Voce[];
   campiSnapshot: TemplateCampo[];
   infoCampi: TemplateInfoCampo[];
+  titoloCampi?: InfoChiave[];
   readOnly: boolean;
 };
 
@@ -59,6 +60,7 @@ export default function RapportinoForm({
   voci: vociIniziali,
   campiSnapshot,
   infoCampi,
+  titoloCampi = [],
   readOnly: readOnlyIniziale,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
@@ -177,13 +179,13 @@ export default function RapportinoForm({
   const righe: RigaVoce[] = useMemo(
     () =>
       voci.map((v, idx) => {
-        const titolo = valoreInfo(v, 'nominativo') || valoreInfo(v, 'pdr') || `Voce ${idx + 1}`;
+        const titolo = titoloVoce(v, titoloCampi, idx);
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
         return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi) };
       }),
-    [voci, campi],
+    [voci, campi, titoloCampi],
   );
 
   /* ── Navigazione ──────────────────────────────────────────────────────────── */
@@ -246,6 +248,7 @@ export default function RapportinoForm({
           totale={voci.length}
           campi={campi}
           dettaglio={dettaglio}
+          titoloCampi={titoloCampi}
           disabilitato={disabilitato}
           stato={statoVoce(voci[indiceCorrente].risposte, campi)}
           saveState={saveStates[voci[indiceCorrente].id] ?? 'idle'}

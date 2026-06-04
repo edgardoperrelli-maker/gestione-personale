@@ -1,6 +1,6 @@
 'use client';
 
-import { valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
+import { titoloVoce, valoreInfo, type InfoChiave, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { StatoVoce } from '@/utils/rapportini/riepilogo';
 import { CampoInput } from './CampoInput';
@@ -14,6 +14,7 @@ export function VoceFocus({
   totale,
   campi,
   dettaglio,
+  titoloCampi,
   disabilitato,
   stato,
   saveState,
@@ -27,6 +28,7 @@ export function VoceFocus({
   totale: number;
   campi: TemplateCampo[];
   dettaglio: TemplateInfoCampo[];
+  titoloCampi: InfoChiave[];
   disabilitato: boolean;
   stato: StatoVoce;
   saveState: SaveState;
@@ -35,7 +37,7 @@ export function VoceFocus({
   onNext: () => void;
   onClose: () => void;
 }) {
-  const titolo = valoreInfo(voce, 'nominativo') || valoreInfo(voce, 'pdr') || `Voce ${indice + 1}`;
+  const titolo = titoloVoce(voce, titoloCampi, indice);
   const indirizzo = [valoreInfo(voce, 'via'), valoreInfo(voce, 'comune')].filter(Boolean).join(', ');
   const fascia = valoreInfo(voce, 'fascia_oraria');
   const dett = dettaglio
