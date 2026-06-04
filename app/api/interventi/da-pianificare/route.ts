@@ -8,7 +8,7 @@ export const runtime = 'nodejs';
 
 const COMMITTENTI_VALIDI = ['acea', 'italgas', 'altro'];
 const COLONNE =
-  'id, odl, indirizzo, comune, committente, stato, geocode_status, nominativo, fascia_oraria, staff_id, lat, lng, cap, pdr, matricola_contatore, intervento_tipo, codice_servizio, richiede_due_operatori, data';
+  'id, odl, indirizzo, comune, committente, stato, geocode_status, nominativo, fascia_oraria, staff_id, lat, lng, cap, pdr, matricola_contatore, intervento_tipo, codice_servizio, richiede_due_operatori, data, durata_stimata_min';
 
 /**
  * GET /api/interventi/da-pianificare?data=YYYY-MM-DD&committente=acea

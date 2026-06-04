@@ -21,6 +21,7 @@ function row(overrides: Partial<InterventoGeoRow> = {}): InterventoGeoRow {
     intervento_tipo: 'Sostituzione',
     codice_servizio: 'S-AI-001',
     richiede_due_operatori: true,
+    durata_stimata_min: 45,
     data: '2026-06-04',
     ...overrides,
   };
@@ -45,6 +46,7 @@ describe('mapInterventoToTask', () => {
       matricola: 'M123',
       attivita: 'Sostituzione',
       codice: 'S-AI-001',
+      durata_min: 45,
     });
   });
 
@@ -61,6 +63,7 @@ describe('mapInterventoToTask', () => {
       odl: null, indirizzo: null, cap: null, comune: null, fascia_oraria: null,
       pdr: null, lat: null, lng: null, richiede_due_operatori: null,
       nominativo: null, matricola_contatore: null, intervento_tipo: null, codice_servizio: null,
+      durata_stimata_min: null,
     }));
     expect(t.odl).toBe('');
     expect(t.indirizzo).toBe('');
@@ -76,6 +79,7 @@ describe('mapInterventoToTask', () => {
     expect(t.matricola).toBeUndefined();
     expect(t.attivita).toBeUndefined();
     expect(t.codice).toBeUndefined();
+    expect(t.durata_min).toBeUndefined();
   });
 });
 

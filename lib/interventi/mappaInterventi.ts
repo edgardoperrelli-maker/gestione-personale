@@ -15,6 +15,7 @@ export type InterventoGeoRow = InterventoRow & {
   intervento_tipo: string | null;
   codice_servizio: string | null;
   richiede_due_operatori: boolean | null;
+  durata_stimata_min: number | null;
   data: string;
 };
 
@@ -41,6 +42,7 @@ export function mapInterventoToTask(row: InterventoGeoRow): Task {
     matricola: row.matricola_contatore ?? undefined,
     attivita: row.intervento_tipo ?? undefined,
     codice: row.codice_servizio ?? undefined,
+    durata_min: row.durata_stimata_min ?? undefined,
   };
 }
 
