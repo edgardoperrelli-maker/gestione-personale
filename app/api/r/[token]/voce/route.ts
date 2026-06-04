@@ -33,16 +33,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (interventoId) {
     const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
     const patch = patchInterventoLiveDaVoce((risposte ?? {}) as Record<string, unknown>, campi);
-    const nowIso = new Date().toISOString();
+    // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
+    // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
+    // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
     const interventoPatch =
       patch.azione === 'completa'
-        ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: nowIso }
+        ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }
         : { stato: 'assegnato', esito: null, esito_motivo: null, chiuso_at: null };
-    const { error: errInt } = await supabaseAdmin
-      .from('interventi')
-      .update(interventoPatch)
-      .eq('id', interventoId)
-      .neq('stato', 'annullato');
+    const query = supabaseAdmin.from('interventi').update(interventoPatch).eq('id', interventoId);
+    const { error: errInt } = await (patch.azione === 'completa'
+      ? query.neq('stato', 'annullato')
+      : query.eq('stato', 'completato'));
     if (errInt) console.error('[r/voce] propagazione intervento fallita:', errInt.message);
   }
 
