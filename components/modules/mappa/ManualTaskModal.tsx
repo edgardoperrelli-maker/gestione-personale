@@ -55,7 +55,7 @@ export default function ManualTaskModal({
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Indirizzo *</span><input className={inputCls} value={d.indirizzo} onChange={set('indirizzo')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">CAP</span><input className={inputCls} value={d.cap} onChange={set('cap')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Comune *</span><input className={inputCls} value={d.citta} onChange={set('citta')} /></label>
-          <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODSIN</span><input className={inputCls} value={d.odl} onChange={set('odl')} /></label>
+          <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODS/ODL</span><input className={inputCls} value={d.odl} onChange={set('odl')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">PDR</span><input className={inputCls} value={d.pdr} onChange={set('pdr')} /></label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Attività</span><input className={inputCls} value={d.attivita} onChange={set('attivita')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Fascia oraria</span><input className={inputCls} value={d.fascia_oraria} onChange={set('fascia_oraria')} /></label>
