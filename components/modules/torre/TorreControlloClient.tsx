@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
@@ -51,9 +51,22 @@ export default function TorreControlloClient({
 }) {
   const [items, setItems] = useState<TorreIntervento[]>(interventi);
   const [live, setLive] = useState(false);
+  const [lastUpdate, setLastUpdate] = useState<string | null>(null);
   const [selStaff, setSelStaff] = useState<string | null>(null);
   const [selTerr, setSelTerr] = useState<string | null>(null);
   const router = useRouter();
+
+  const refresh = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/interventi/giorno?data=${data}`, { cache: 'no-store' });
+      if (!res.ok) return;
+      const json = (await res.json()) as { interventi?: TorreIntervento[] };
+      setItems(json.interventi ?? []);
+      setLastUpdate(new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' }));
+    } catch {
+      /* errore di rete: ritenta al prossimo giro di polling */
+    }
+  }, [data]);
 
   useEffect(() => {
     const supabase = supabaseBrowser();
@@ -84,6 +97,20 @@ export default function TorreControlloClient({
       void supabase.removeChannel(channel);
     };
   }, [data]);
+
+  useEffect(() => {
+    const INTERVAL = 5 * 60 * 1000;
+    let timer: ReturnType<typeof setInterval> | null = null;
+    const start = () => { if (!timer) timer = setInterval(() => void refresh(), INTERVAL); };
+    const stop = () => { if (timer) { clearInterval(timer); timer = null; } };
+    const onVis = () => {
+      if (document.hidden) stop();
+      else { void refresh(); start(); }
+    };
+    if (!document.hidden) start();
+    document.addEventListener('visibilitychange', onVis);
+    return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
+  }, [refresh]);
 
   const itemsTerr = filtraInterventi(items, selTerr, null);
   const gruppi = raggruppaPerOperatore(itemsTerr, operatori);
@@ -124,6 +151,15 @@ export default function TorreControlloClient({
             className="rounded-xl border px-3 py-1.5 text-sm outline-none"
             style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
           />
+          <button
+            type="button"
+            onClick={() => void refresh()}
+            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)]"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            title="Ricarica subito gli interventi del giorno"
+          >
+            Aggiorna ora
+          </button>
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
             style={{
@@ -134,6 +170,11 @@ export default function TorreControlloClient({
             <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
             {live ? 'Live' : 'Non connesso'}
           </span>
+          {lastUpdate && (
+            <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+              agg. {lastUpdate}
+            </span>
+          )}
         </div>
       </header>
 
