@@ -10,6 +10,8 @@ import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
+import { formatEtaMin } from '@/utils/routing/timeEngine';
+import type { ScheduleEntry } from '@/utils/routing';
 import type { Territory } from '@/types';
 import { applyManualAssignments, type ManualRule } from '@/utils/routing/manualAssignments';
 import ManualAssignmentsModal from './ManualAssignmentsModal';
@@ -85,6 +87,7 @@ type DistEntry = {
   polyline: Array<{ lat: number; lng: number }>;
   base: OperatorBase | null;
   startAddress: string | null;
+  schedule?: ScheduleEntry[];
 };
 type OpConfig = { id: string; name: string; qty: number; base: OperatorBase | null; startAddress: string | null };
 type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
@@ -1857,7 +1860,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const routeRes =
         grp.length >= 1
           ? optimizeRouteByFascia(grp, op.base ?? undefined)
-          : { orderedTasks: grp, totalDistanceKm: 0, polyline: [] };
+          : { orderedTasks: grp, totalDistanceKm: 0, polyline: [], schedule: [] };
       return {
         op: op.name ?? op.id ?? 'Operatore',
         staffId: op.id,
@@ -1867,6 +1870,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         polyline: routeRes.polyline,
         base: op.base,
         startAddress: op.startAddress,
+        schedule: routeRes.schedule,
       };
     });
 
@@ -1959,7 +1963,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const grp = newDist[i].tasks;
       if (grp.length >= 1) {
         const res = optimizeRouteByFascia(grp, newDist[i].base ?? undefined);
-        newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
+        newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
       } else {
         newDist[i] = { ...newDist[i], km: 0, polyline: [] };
       }
@@ -1980,7 +1984,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const grp = newDist[toIdx].tasks;
     if (grp.length >= 1) {
       const res = optimizeRouteByFascia(grp, newDist[toIdx].base ?? undefined);
-      newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline };
+      newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
     } else {
       newDist[toIdx] = { ...newDist[toIdx], km: 0, polyline: [] };
     }
@@ -2810,7 +2814,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               </div>
 
               {distribution[activeOpIdx] && (() => {
-                const { op, color, tasks, km, startAddress } = distribution[activeOpIdx];
+                const { op, color, tasks, km, startAddress, schedule } = distribution[activeOpIdx];
                 return (
                   <>
                     <div className="mb-2 flex items-center justify-between">
@@ -2847,6 +2851,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 <div className="truncate font-medium">{t.odl || `#${idx + 1}`}</div>
                                 <div className="truncate text-[var(--brand-text-muted)]">{t.indirizzo}{t.citta ? `, ${t.citta}` : ''}</div>
                                 {t.fascia_oraria && <div className="text-[var(--brand-text-subtle)]">{t.fascia_oraria}</div>}
+                                {(() => {
+                                  const sched = schedule?.find((s) => s.taskId === t.id);
+                                  if (!sched) return null;
+                                  return (
+                                    <div className={sched.inRitardo ? 'font-medium text-[var(--warning)]' : 'text-[var(--brand-text-subtle)]'}>
+                                      ETA {formatEtaMin(sched.etaMin)}{sched.inRitardo ? ' · in ritardo' : ''}
+                                    </div>
+                                  );
+                                })()}
                               </div>
                               <button
                                 type="button"
