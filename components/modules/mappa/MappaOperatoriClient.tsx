@@ -1399,6 +1399,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       setEsecutorePins({});
       setEsecutoreWarnings([]);
       setSelectedOps([]);
+      setShowOpPicker(false);
+      setZtlConflicts([]);
     } catch {
       alert('Errore di rete nel caricamento degli interventi.');
     }
