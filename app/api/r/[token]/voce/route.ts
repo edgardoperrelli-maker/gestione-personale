@@ -18,7 +18,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id')
+    .select('id, intervento_id, raw_json')
     .eq('id', voceId)
     .eq('rapportino_id', rap.id)
     .maybeSingle();
@@ -29,10 +29,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Propagazione live: l'intervento collegato riflette SUBITO lo stato della voce.
   // Un errore qui NON deve far fallire l'autosave (la voce è la fonte di verità;
   // l'invio finale riapplica comunque gli esiti).
-  const interventoId = (voce as { intervento_id: string | null }).intervento_id;
+  const vAny = voce as { intervento_id: string | null; raw_json: unknown };
+  const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
+  const patch = patchInterventoLiveDaVoce((risposte ?? {}) as Record<string, unknown>, campi);
+
+  // DIAGNOSTICA TEMPORANEA (da rimuovere dopo l'analisi): stato al confine autosave→interventi.
+  const rawV = (vAny.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+  console.log('[r/voce diag]', JSON.stringify({
+    voceId,
+    interventoId: vAny.intervento_id,
+    vOdl: rawV.odl ?? null,
+    vOdsin: rawV.odsin ?? null,
+    vMatricola: rawV.matricola ?? null,
+    vPdr: rawV.pdr ?? null,
+    campiTipi: campi.map((c) => c.tipo),
+    risposteKeys: Object.keys((risposte ?? {}) as Record<string, unknown>),
+    azione: patch.azione,
+    esito: patch.azione === 'completa' ? patch.esito : null,
+  }));
+
+  const interventoId = vAny.intervento_id;
   if (interventoId) {
-    const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
-    const patch = patchInterventoLiveDaVoce((risposte ?? {}) as Record<string, unknown>, campi);
     // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
     // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
     // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
