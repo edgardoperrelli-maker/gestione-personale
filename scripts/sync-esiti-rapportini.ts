@@ -36,7 +36,7 @@ async function main() {
 
   for (const r of (raps ?? []) as Array<{ id: string; staff_id: string; staff_name: string | null; campi_snapshot: unknown }>) {
     const campi = (r.campi_snapshot ?? []) as Parameters<typeof esitoInterventoDaVoce>[1];
-    const { data: voci } = await db.from('rapportino_voci').select('id, odsin, risposte, intervento_id').eq('rapportino_id', r.id);
+    const { data: voci } = await db.from('rapportino_voci').select('id, odl, risposte, intervento_id').eq('rapportino_id', r.id);
     const { data: ints } = await db.from('interventi').select('id, odl, stato').eq('data', data).eq('staff_id', r.staff_id);
     const byOdl = new Map<string, { id: string; stato: string }>();
     for (const i of (ints ?? []) as Array<{ id: string; odl: string | null; stato: string }>) {
@@ -44,8 +44,8 @@ async function main() {
       if (k) byOdl.set(k, { id: i.id, stato: i.stato });
     }
     let linkati = 0, fatti = 0, nonFatti = 0, neutri = 0, nomatch = 0;
-    for (const v of (voci ?? []) as Array<{ id: string; odsin: string | null; risposte: Record<string, unknown> | null; intervento_id: string | null }>) {
-      const k = (v.odsin ?? '').trim();
+    for (const v of (voci ?? []) as Array<{ id: string; odl: string | null; risposte: Record<string, unknown> | null; intervento_id: string | null }>) {
+      const k = (v.odl ?? '').trim();
       const it = k ? byOdl.get(k) : undefined;
       if (!it) { nomatch++; continue; }
       if (v.intervento_id !== it.id) {

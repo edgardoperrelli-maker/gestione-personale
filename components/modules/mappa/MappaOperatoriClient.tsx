@@ -607,7 +607,7 @@ function buildAllegato10FieldsFromTask(t: Task, operatorName: string, dateStr: s
   return {
     NOME_UTENTE:   String(t.nominativo ?? '').trim(),
     STRADA:        String(t.indirizzo ?? '').trim(),
-    ODS:           String(t.odsin ?? '').trim(),
+    ODS:           String(t.odl ?? '').trim(),
     NOME_LOCALITA: String(t.citta ?? '').trim(),
     PDR:           String(t.pdr ?? '').trim(),
     NUMERO_SERIE:  String(t.matricola ?? '').trim(),
@@ -1913,9 +1913,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       indirizzo: data.indirizzo.trim(),
       cap: data.cap.trim(),
       citta: data.citta.trim(),
-      odl: '',
+      odl: data.odl.trim(),
       priorita: 0,
-      odsin: data.odsin.trim() || undefined,
       pdr: data.pdr.trim() || undefined,
       attivita: data.attivita.trim() || undefined,
       fascia_oraria: data.fascia_oraria.trim(),
@@ -2195,7 +2194,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   const downloadTemplate = useCallback(() => {
     const headers = [
-      'CO', 'MATRICOLA', 'Id', 'ODSIN', 'Indirizzo', 'CAP', 'COMUNE',
+      'CO', 'MATRICOLA', 'Id', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
       'Tipo OdL(CdL)/Servizio', 'Fascia Appuntamento/Blocco',
       'PdR / Impianto', 'Nominativo', 'Tempo Esecuzione', 'Num Risorse',
     ];

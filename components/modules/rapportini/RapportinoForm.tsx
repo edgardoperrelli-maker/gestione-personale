@@ -16,7 +16,7 @@ export type Voce = {
   nominativo?: string;
   matricola?: string;
   pdr?: string;
-  odsin?: string;
+  odl?: string;
   via?: string;
   comune?: string;
   cap?: string;

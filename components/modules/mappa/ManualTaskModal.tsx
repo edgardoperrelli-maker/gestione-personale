@@ -6,7 +6,7 @@ export type ManualTaskData = {
   indirizzo: string;
   cap: string;
   citta: string;
-  odsin: string;
+  odl: string;
   pdr: string;
   attivita: string;
   fascia_oraria: string;
@@ -24,7 +24,7 @@ export default function ManualTaskModal({
   onAdd: (data: ManualTaskData) => Promise<void> | void;
 }) {
   const [d, setD] = useState<ManualTaskData>({
-    indirizzo: '', cap: '', citta: '', odsin: '', pdr: '', attivita: '', fascia_oraria: '', nominativo: '', staffId: '',
+    indirizzo: '', cap: '', citta: '', odl: '', pdr: '', attivita: '', fascia_oraria: '', nominativo: '', staffId: '',
   });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof ManualTaskData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -55,7 +55,7 @@ export default function ManualTaskModal({
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Indirizzo *</span><input className={inputCls} value={d.indirizzo} onChange={set('indirizzo')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">CAP</span><input className={inputCls} value={d.cap} onChange={set('cap')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Comune *</span><input className={inputCls} value={d.citta} onChange={set('citta')} /></label>
-          <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODSIN</span><input className={inputCls} value={d.odsin} onChange={set('odsin')} /></label>
+          <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODSIN</span><input className={inputCls} value={d.odl} onChange={set('odl')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">PDR</span><input className={inputCls} value={d.pdr} onChange={set('pdr')} /></label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Attività</span><input className={inputCls} value={d.attivita} onChange={set('attivita')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Fascia oraria</span><input className={inputCls} value={d.fascia_oraria} onChange={set('fascia_oraria')} /></label>

@@ -50,7 +50,7 @@ export default async function EseguitiPage({ searchParams }: { searchParams: Pro
   const { data: vociRows } = rapIds.length
     ? await supabase
         .from('rapportino_voci')
-        .select('id, rapportino_id, ordine, nominativo, matricola, pdr, odsin, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
+        .select('id, rapportino_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
         .in('rapportino_id', rapIds)
         .order('ordine', { ascending: true })
     : { data: [] };

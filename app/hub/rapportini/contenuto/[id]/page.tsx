@@ -59,7 +59,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
 
   const { data: vociRows } = await supabase
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odsin, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
+    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
     .eq('rapportino_id', id)
     .order('ordine', { ascending: true });
 

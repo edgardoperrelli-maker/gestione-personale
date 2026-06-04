@@ -184,7 +184,7 @@ export default function RapportinoClientelaPage() {
        // INTESTAZIONI RIGA 6 (A–Q) — allineato al template Rapportino.xlsx
 const hrow = ws.getRow(6);
 [
-  'NOMINATIVO','MATRICOLA','PDR','ODSIN','VIA','COMUNE','CAP',
+  'NOMINATIVO','MATRICOLA','PDR','ODS/ODL','VIA','COMUNE','CAP',
   'RECAPITO','ATTIVITA','ACCESSIBILITA','FASCIA ORARIA','ORDINE',
   'ATT/CESS','CAMBIO','MINI BAG','RG STOP','ASSENTE'
 ].forEach((t, i) => { hrow.getCell(i+1).value = t; });
@@ -212,7 +212,7 @@ for (const r of sorted) {
   rr.getCell(1).value  = nominativo;
   rr.getCell(2).value  = matricola;
   rr.getCell(3).value  = pdrRaw;
-  rr.getCell(4).value  = '';            // ODSIN — non disponibile in clientela
+  rr.getCell(4).value  = '';            // ODS/ODL — non disponibile in clientela
   rr.getCell(5).value  = via;
   rr.getCell(6).value  = comune;
   rr.getCell(7).value  = cap;

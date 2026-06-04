@@ -679,7 +679,7 @@ ws.getCell('B4').value = useCombined ? '' : opName;
 
 // Header riga 6 (A..Q) — allineato al template Rapportino.xlsx
 const hdr = [
-  'NOMINATIVO','MATRICOLA','PDR','ODSIN','VIA','COMUNE','CAP',
+  'NOMINATIVO','MATRICOLA','PDR','ODS/ODL','VIA','COMUNE','CAP',
   'RECAPITO','ATTIVITA','ACCESSIBILITA','FASCIA ORARIA','ORDINE',
   'ATT/CESS','CAMBIO','MINI BAG','RG STOP','ASSENTE'
 ];
@@ -716,7 +716,7 @@ for (const r of rowsDeduped) {
   ws.getCell(`A${rowIdx}`).value = nominativo;
   ws.getCell(`B${rowIdx}`).value = matricola;
   ws.getCell(`C${rowIdx}`).value = pdr;
-  ws.getCell(`D${rowIdx}`).value = ods;          // ODSIN
+  ws.getCell(`D${rowIdx}`).value = ods;          // ODS/ODL
   ws.getCell(`E${rowIdx}`).value = via;
   ws.getCell(`F${rowIdx}`).value = comune;
   ws.getCell(`G${rowIdx}`).value = cap;

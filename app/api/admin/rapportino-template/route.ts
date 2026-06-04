@@ -26,7 +26,7 @@ const CampoSchema = z.object({
 });
 const InfoCampoSchema = z.object({
   chiave: z.enum([
-    'nominativo', 'matricola', 'pdr', 'odsin', 'via',
+    'nominativo', 'matricola', 'pdr', 'odl', 'via',
     'comune', 'cap', 'recapito', 'attivita', 'accessibilita', 'fascia_oraria',
   ]),
   etichetta: z.string().min(1),
