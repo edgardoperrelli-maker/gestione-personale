@@ -8,6 +8,7 @@ export interface Task {
   citta: string;
   priorita: number;
   fascia_oraria: string;
+  durata_min?: number;
   lat?: number;
   lng?: number;
   requiresTwoOperators?: boolean;
@@ -28,6 +29,15 @@ export interface OperatorBase {
   lng: number;
 }
 
+export type ScheduleEntry = {
+  /** id del Task a cui si riferisce (allineato a orderedTasks). */
+  taskId: string;
+  /** Orario stimato di arrivo, in minuti da mezzanotte (es. 480 = 08:00). */
+  etaMin: number;
+  /** true se l'arrivo supera la fine della finestra oraria del task. */
+  inRitardo: boolean;
+};
+
 export interface RouteResult {
   /** Sequenza ottimizzata, oggetti Task completi */
   orderedTasks: Task[];
@@ -35,4 +45,6 @@ export interface RouteResult {
   totalDistanceKm: number;
   /** Coordinate per Leaflet/MapLibre — include il punto base se fornito */
   polyline: Array<{ lat: number; lng: number }>;
+  /** ETA per tappa (presente solo nei percorsi col motore tempi). */
+  schedule?: ScheduleEntry[];
 }
