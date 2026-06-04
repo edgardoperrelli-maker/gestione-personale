@@ -1,7 +1,7 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
+import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
@@ -81,7 +81,7 @@ export default async function RapportinoPublicPage({
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot')
+    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot, template_id')
     .eq('token', token)
     .maybeSingle();
 
@@ -133,6 +133,27 @@ export default async function RapportinoPublicPage({
     .slice()
     .sort((a, b) => a.ordine - b.ordine);
 
+  // Config di visualizzazione letta LIVE dal template collegato → vale anche sui rapportini già
+  // generati. Non fatale: se il template è stato cancellato o la colonna non esiste ancora
+  // (migrazione non applicata → select in errore), si resta sullo snapshot congelato + titolo storico.
+  let infoCampiLive = (rap.info_snapshot ?? []) as TemplateInfoCampo[];
+  let titoloCampi: InfoChiave[] = [];
+  if (rap.template_id) {
+    const { data: tpl } = await supabaseAdmin
+      .from('rapportino_template')
+      .select('titolo_campi, info_campi')
+      .eq('id', rap.template_id)
+      .maybeSingle();
+    if (tpl) {
+      if (Array.isArray(tpl.info_campi) && tpl.info_campi.length > 0) {
+        infoCampiLive = tpl.info_campi as TemplateInfoCampo[];
+      }
+      if (Array.isArray(tpl.titolo_campi)) {
+        titoloCampi = tpl.titolo_campi as InfoChiave[];
+      }
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
       <RapportinoForm
@@ -140,7 +161,8 @@ export default async function RapportinoPublicPage({
         rapportino={{ staff_name: rap.staff_name, data: rap.data }}
         voci={voci}
         campiSnapshot={campiSnapshot}
-        infoCampi={(rap.info_snapshot ?? []) as TemplateInfoCampo[]}
+        infoCampi={infoCampiLive}
+        titoloCampi={titoloCampi}
         readOnly={stato === 'inviato'}
       />
     </main>
