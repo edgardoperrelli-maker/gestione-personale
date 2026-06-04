@@ -1965,7 +1965,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const res = optimizeRouteByFascia(grp, newDist[i].base ?? undefined);
         newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
       } else {
-        newDist[i] = { ...newDist[i], km: 0, polyline: [] };
+        newDist[i] = { ...newDist[i], km: 0, polyline: [], schedule: [] };
       }
     });
 
@@ -1986,7 +1986,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const res = optimizeRouteByFascia(grp, newDist[toIdx].base ?? undefined);
       newDist[toIdx] = { ...newDist[toIdx], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
     } else {
-      newDist[toIdx] = { ...newDist[toIdx], km: 0, polyline: [] };
+      newDist[toIdx] = { ...newDist[toIdx], km: 0, polyline: [], schedule: [] };
     }
 
     setDistribution(newDist);
