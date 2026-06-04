@@ -23,16 +23,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
   const { data: voci } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('intervento_id, risposte')
+    .select('intervento_id, risposte, updated_at')
     .eq('rapportino_id', rap.id);
-  const nowIso = new Date().toISOString();
-  for (const v of (voci ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
+  for (const v of (voci ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null; updated_at: string }>) {
     if (!v.intervento_id) continue;
     const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
     if (!patch) continue;
+    // chiuso_at = ora di compilazione della voce (updated_at), non l'ora di invio.
     await supabaseAdmin
       .from('interventi')
-      .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: nowIso })
+      .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at })
       .eq('id', v.intervento_id)
       .neq('stato', 'annullato');
   }
