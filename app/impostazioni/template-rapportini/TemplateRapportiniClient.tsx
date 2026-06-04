@@ -14,6 +14,7 @@ type Template = {
   nome: string;
   campi: TemplateCampo[];
   info_campi?: TemplateInfoCampo[];
+  titolo_campi?: InfoChiave[];
   is_default: boolean;
   active: boolean;
 };
@@ -46,6 +47,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [nome, setNome] = useState('');
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
+  const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // Stato auto-save per i template esistenti (i nuovi si creano con "Crea template").
@@ -68,6 +70,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome(tpl.nome);
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
+    setTitoloCampi(tpl.titolo_campi ?? []);
   }
 
   function startNew() {
@@ -78,6 +81,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome('');
     setCampi([newCampo(1)]);
     setInfoCampi(infoCampiDefault());
+    setTitoloCampi([]);
   }
 
   async function reloadTemplates() {
@@ -147,6 +151,20 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     });
   }
 
+  function toggleTitolo(chiave: InfoChiave) {
+    setTitoloCampi((prev) => (prev.includes(chiave) ? prev.filter((c) => c !== chiave) : [...prev, chiave]));
+  }
+
+  function moveTitolo(idx: number, dir: -1 | 1) {
+    const next = idx + dir;
+    setTitoloCampi((prev) => {
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -166,6 +184,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
         })),
         info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
+        titolo_campi: titoloCampi,
         active: true,
         ...(isNew ? {} : { id: selectedId }),
       };
@@ -234,6 +253,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
           })),
           info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
+          titolo_campi: titoloCampi,
           active: true,
         };
         const res = await fetch('/api/admin/rapportino-template', {
@@ -247,7 +267,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, campi, infoCampi, isNew, selectedId]);
+  }, [nome, campi, infoCampi, titoloCampi, isNew, selectedId]);
 
   // All'apertura carica il primo template (evita un form vuoto con un template già selezionato).
   useEffect(() => {
@@ -341,6 +361,45 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
                 placeholder="es. Rapportino standard"
               />
+            </div>
+
+            {/* ── Intestazione della card ──────────────────────────────────────── */}
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Intestazione della card</h3>
+              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+                Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
+                Se tutti vuoti → &quot;Voce N&quot;. Lista vuota = comportamento storico (Nominativo, poi PDR).
+              </p>
+
+              <div className="space-y-2">
+                {titoloCampi.length === 0 && (
+                  <p className="text-xs text-[var(--brand-text-muted)]">Nessun campo selezionato: titolo storico (Nominativo → PDR → &quot;Voce N&quot;).</p>
+                )}
+                {titoloCampi.map((chiave, idx) => {
+                  const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
+                  return (
+                    <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                      <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
+                      <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{chiave}</span>
+                      <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
+                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                      <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
+                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                      <button type="button" onClick={() => toggleTitolo(chiave)}
+                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2">
+                {INFO_CAMPI_DISPONIBILI.filter((d) => !titoloCampi.includes(d.chiave)).map((d) => (
+                  <button key={d.chiave} type="button" onClick={() => toggleTitolo(d.chiave)}
+                    className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                    ＋ {d.etichettaDefault}
+                  </button>
+                ))}
+              </div>
             </div>
 
             {/* ── Informazioni da mostrare ──────────────────────────────────────────────────────────── */}
