@@ -30,6 +30,11 @@ describe('patchInterventoLiveDaVoce', () => {
       azione: 'completa', esito: null, esito_motivo: 'Assente',
     });
   });
+  it('rossa (NO) senza nota → completa con esito null e motivo null', () => {
+    expect(patchInterventoLiveDaVoce({ eseguito: 'NO' }, campi)).toEqual({
+      azione: 'completa', esito: null, esito_motivo: null,
+    });
+  });
   it('neutro (vuoto) → riapri', () => {
     expect(patchInterventoLiveDaVoce({}, campi)).toEqual({ azione: 'riapri' });
   });
