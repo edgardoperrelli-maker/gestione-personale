@@ -92,8 +92,7 @@ export async function POST(req: Request) {
             const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
             const intervento_id = resolveIntervento({
               staff_id: op.staff_id,
-              odl: raw.odl as string | null | undefined,
-              odsin: (raw.odsin as string | null | undefined) ?? v.odsin,
+              odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
               matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
               pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
             });

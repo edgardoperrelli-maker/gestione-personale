@@ -47,8 +47,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       const resolve = buildVoceInterventoLinker((cand ?? []) as InterventoLinkRow[]);
       const found = resolve({
         staff_id: rapAny.staff_id,
-        odl: raw.odl as string | null | undefined,
-        odsin: raw.odsin as string | null | undefined,
+        odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined),
         matricola: raw.matricola as string | null | undefined,
         pdr: raw.pdr as string | null | undefined,
       });

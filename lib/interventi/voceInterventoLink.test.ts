@@ -11,10 +11,9 @@ describe('buildVoceInterventoLinker', () => {
     expect(link({ staff_id: 's1', matricola: 'M123' })).toBe('iA');
   });
 
-  it('aggancia per ODL (voce.odl o voce.odsin)', () => {
+  it('aggancia per ODL (voce.odl)', () => {
     const link = buildVoceInterventoLinker([it_({ id: 'iO', odl: 'ODL-9' })]);
     expect(link({ staff_id: 's1', odl: 'ODL-9' })).toBe('iO');
-    expect(link({ staff_id: 's1', odsin: 'ODL-9' })).toBe('iO');
   });
 
   it('normalizza spazi e maiuscole', () => {

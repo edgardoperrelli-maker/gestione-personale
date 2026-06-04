@@ -15,7 +15,6 @@ export type InterventoLinkRow = {
 export type VoceLinkKey = {
   staff_id: string | null;
   odl?: string | null;
-  odsin?: string | null;
   matricola?: string | null;
   pdr?: string | null;
 };
@@ -62,7 +61,7 @@ export function buildVoceInterventoLinker(
   return (voce) => {
     const s = voce.staff_id ?? null;
     return (
-      get(byOdl, s, voce.odl, voce.odsin) ??
+      get(byOdl, s, voce.odl) ??
       get(byMatr, s, voce.matricola) ??
       get(byPdr, s, voce.pdr) ??
       null

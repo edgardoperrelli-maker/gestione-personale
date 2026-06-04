@@ -2,9 +2,9 @@ import { describe, it, expect } from 'vitest';
 import { taskToVoce, mergeVoci, type Voce } from './buildVoci';
 describe('taskToVoce', () => {
   it('snapshot dei campi', () => {
-    const t = { id: 'x1', odsin: 'O1', pdr: 'P1', indirizzo: 'Via A 1', citta: 'Roma', cap: '00100', nominativo: 'Mario', matricola: 'M1', recapito: '333', accessibilita: 'OK', attivita: 'S-AI-051', fascia_oraria: '8-12' };
+    const t = { id: 'x1', odl: 'O1', pdr: 'P1', indirizzo: 'Via A 1', citta: 'Roma', cap: '00100', nominativo: 'Mario', matricola: 'M1', recapito: '333', accessibilita: 'OK', attivita: 'S-AI-051', fascia_oraria: '8-12' };
     const v = taskToVoce(t, 3);
-    expect(v).toMatchObject({ task_id: 'x1', ordine: 3, odsin: 'O1', pdr: 'P1', via: 'Via A 1', comune: 'Roma', cap: '00100', nominativo: 'Mario', attivita: 'S-AI-051', fascia_oraria: '8-12' });
+    expect(v).toMatchObject({ task_id: 'x1', ordine: 3, odl: 'O1', pdr: 'P1', via: 'Via A 1', comune: 'Roma', cap: '00100', nominativo: 'Mario', attivita: 'S-AI-051', fascia_oraria: '8-12' });
     expect(v.raw_json).toEqual(t);
   });
 });
