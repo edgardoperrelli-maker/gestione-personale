@@ -20,6 +20,11 @@ const TONO: Record<TonoTorre, { fg: string; dot: string; label: string; bg: stri
   da_assegnare: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Da assegnare', bg: 'var(--brand-surface-muted)' },
 };
 
+/** Ora locale italiana HH:MM dell'inserimento esito (chiuso_at). */
+function oraEsito(iso: string): string {
+  return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
+}
+
 export default function TorreControlloClient({
   data,
   interventi,
@@ -37,6 +42,7 @@ export default function TorreControlloClient({
   });
   const [selStaff, setSelStaff] = useState<string | null>(null);
   const [selTerr, setSelTerr] = useState<string | null>(null);
+  const [filtroStato, setFiltroStato] = useState<'tutti' | 'ok' | 'ko' | 'attesa'>('tutti');
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
   const risincronizza = async () => {
@@ -71,6 +77,19 @@ export default function TorreControlloClient({
     ? gruppi.find((g) => (g.operatore.id ?? SENTINELLA_NON_ASSEGNATI) === selStaff)?.operatore.display_name
     : null;
 
+  const contaLista = itemsMappa.reduce(
+    (acc, it) => {
+      const t = coloreStato(it.stato, it.esito);
+      if (t === 'ok') acc.ok += 1;
+      else if (t === 'ko') acc.ko += 1;
+      else if (t === 'attesa') acc.attesa += 1;
+      return acc;
+    },
+    { ok: 0, ko: 0, attesa: 0 },
+  );
+  const itemsLista =
+    filtroStato === 'tutti' ? itemsMappa : itemsMappa.filter((it) => coloreStato(it.stato, it.esito) === filtroStato);
+
   return (
     <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
       <header className="flex flex-wrap items-end justify-between gap-3">
@@ -90,15 +109,6 @@ export default function TorreControlloClient({
             className="rounded-xl border px-3 py-1.5 text-sm outline-none"
             style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
           />
-          <button
-            type="button"
-            onClick={() => void refresh()}
-            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)]"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            title="Ricarica subito gli interventi del giorno"
-          >
-            Aggiorna ora
-          </button>
           <button
             type="button"
             onClick={() => void risincronizza()}
@@ -198,11 +208,36 @@ export default function TorreControlloClient({
               <span className="truncate">{nomeSel ? `Dettaglio lavori — ${nomeSel}` : 'Tutti i lavori'}</span>
               <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>{itemsMappa.length}</span>
             </header>
+            <div className="flex flex-wrap gap-1.5 border-b px-3 py-2" style={{ borderColor: 'var(--brand-border)' }}>
+              {([
+                { key: 'tutti', label: 'Tutti', n: itemsMappa.length },
+                { key: 'ok', label: 'Fatti', n: contaLista.ok },
+                { key: 'ko', label: 'Non fatti', n: contaLista.ko },
+                { key: 'attesa', label: 'Da fare', n: contaLista.attesa },
+              ] as const).map((c) => {
+                const active = filtroStato === c.key;
+                return (
+                  <button
+                    key={c.key}
+                    type="button"
+                    onClick={() => setFiltroStato(c.key)}
+                    className="rounded-full border px-2.5 py-1 text-xs font-medium transition"
+                    style={{
+                      borderColor: active ? 'var(--brand-primary)' : 'var(--brand-border)',
+                      backgroundColor: active ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
+                      color: active ? 'var(--brand-primary)' : 'var(--brand-text-muted)',
+                    }}
+                  >
+                    {c.label} {c.n}
+                  </button>
+                );
+              })}
+            </div>
             <ul className="max-h-[360px] divide-y divide-[var(--brand-border)] overflow-y-auto">
-              {itemsMappa.length === 0 ? (
+              {itemsLista.length === 0 ? (
                 <li className="px-3 py-4 text-center text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessun lavoro.</li>
               ) : (
-                itemsMappa.map((it) => {
+                itemsLista.map((it) => {
                   const tono = TONO[coloreStato(it.stato, it.esito)];
                   const ko = it.stato === 'completato' && it.esito !== 'eseguito_positivo';
                   const riga = rigaDettaglio(it);
@@ -210,7 +245,12 @@ export default function TorreControlloClient({
                     <li key={it.id} className="flex items-center gap-2 px-3 py-2 text-sm" style={{ backgroundColor: tono.bg }}>
                       <span className="mt-1 h-2.5 w-2.5 shrink-0 self-start rounded-full" style={{ backgroundColor: tono.dot }} />
                       <div className="min-w-0 flex-1">
-                        <div className="truncate font-medium" style={{ color: 'var(--brand-text-main)' }}>{riga.primario}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="truncate font-medium" style={{ color: 'var(--brand-text-main)' }}>{riga.primario}</span>
+                          {it.chiuso_at && (
+                            <span className="shrink-0 text-xs font-normal" style={{ color: 'var(--brand-text-muted)' }}>{oraEsito(it.chiuso_at)}</span>
+                          )}
+                        </div>
                         {riga.secondario && (
                           <div className="truncate text-xs" style={{ color: 'var(--brand-text-muted)' }}>{riga.secondario}</div>
                         )}

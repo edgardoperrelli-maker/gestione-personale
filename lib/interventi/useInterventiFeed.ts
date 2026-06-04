@@ -21,6 +21,7 @@ export type TorreIntervento = {
   stato: string;
   esito: string | null;
   esito_motivo: string | null;
+  chiuso_at: string | null;
   fascia_oraria: string | null;
   territorio_id: string | null;
 };

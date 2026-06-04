@@ -6,7 +6,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 export const runtime = 'nodejs';
 
 const COLONNE =
-  'id, odl, nominativo, indirizzo, comune, cap, pdr, matricola_contatore, intervento_tipo, lat, lng, staff_id, stato, esito, esito_motivo, fascia_oraria, territorio_id';
+  'id, odl, nominativo, indirizzo, comune, cap, pdr, matricola_contatore, intervento_tipo, lat, lng, staff_id, stato, esito, esito_motivo, chiuso_at, fascia_oraria, territorio_id';
 
 /**
  * GET /api/interventi/giorno?data=YYYY-MM-DD
