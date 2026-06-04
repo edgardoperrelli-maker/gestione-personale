@@ -81,9 +81,9 @@ export function patchInterventoLiveDaVoce(
 dopo l'`update` su `rapportino_voci.risposte` (invariato), in aggiunta:
 - estendere le `select` per recuperare `rapportino_voci.intervento_id` e `rapportini.campi_snapshot`;
 - calcolare `patchInterventoLiveDaVoce(risposte, campi_snapshot)`;
-- se `intervento_id` presente, applicare su `interventi` (con `supabaseAdmin`, `.eq('id', intervento_id).neq('stato','annullato')`):
-  - **completa** → `{ stato:'completato', esito, esito_motivo, chiuso_at: now }`
-  - **riapri** → `{ stato:'assegnato', esito:null, esito_motivo:null, chiuso_at:null }`
+- se `intervento_id` presente, applicare su `interventi` (con `supabaseAdmin`, `.eq('id', intervento_id)` + filtro per ramo):
+  - **completa** → `{ stato:'completato', esito, esito_motivo, chiuso_at: now }`, filtro `.neq('stato','annullato')` (chiude qualsiasi stato tranne annullato);
+  - **riapri** → `{ stato:'assegnato', esito:null, esito_motivo:null, chiuso_at:null }`, filtro `.eq('stato','completato')` (annulla solo una *nostra* precedente chiusura, senza declassare stati intermedi gestiti da altri flussi);
 - l'aggiornamento di `interventi` **non deve far fallire** l'autosave della voce: in caso di errore
   sulla propagazione, loggare e rispondere comunque `ok` al salvataggio voce (la voce è la fonte di verità,
   la propagazione è derivata e verrà comunque riapplicata all'invio finale).
