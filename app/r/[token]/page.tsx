@@ -134,7 +134,7 @@ export default async function RapportinoPublicPage({
     .sort((a, b) => a.ordine - b.ordine);
 
   return (
-    <Shell>
+    <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
       <RapportinoForm
         token={token}
         rapportino={{ staff_name: rap.staff_name, data: rap.data }}
@@ -143,6 +143,6 @@ export default async function RapportinoPublicPage({
         infoCampi={(rap.info_snapshot ?? []) as TemplateInfoCampo[]}
         readOnly={stato === 'inviato'}
       />
-    </Shell>
+    </main>
   );
 }
