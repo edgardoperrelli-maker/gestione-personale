@@ -107,7 +107,7 @@ export default function TorreControlloClient({
       if (document.hidden) stop();
       else { void refresh(); start(); }
     };
-    if (!document.hidden) start();
+    if (!document.hidden) { void refresh(); start(); }
     document.addEventListener('visibilitychange', onVis);
     return () => { stop(); document.removeEventListener('visibilitychange', onVis); };
   }, [refresh]);
