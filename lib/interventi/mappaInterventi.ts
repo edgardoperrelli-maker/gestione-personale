@@ -1,4 +1,4 @@
-import type { Task } from '@/utils/routing';
+import type { Task } from '@/utils/routing/types';
 import type { InterventoRow } from '@/lib/interventi/interventiView';
 
 /**
