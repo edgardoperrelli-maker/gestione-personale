@@ -4,6 +4,7 @@ import {
   infoCampiDefault,
   valoreInfo,
   INFO_CAMPI_DISPONIBILI,
+  partitionInfoCampi,
 } from './infoCampi';
 
 describe('resolveInfoCampi', () => {
@@ -56,5 +57,28 @@ describe('valoreInfo', () => {
     expect(valoreInfo({ matricola: ' M1 ' }, 'matricola')).toBe('M1');
     expect(valoreInfo({ matricola: null }, 'matricola')).toBe('');
     expect(valoreInfo({}, 'pdr')).toBe('');
+  });
+});
+
+describe('partitionInfoCampi', () => {
+  it('separa primari e dettaglio dallo snapshot di default', () => {
+    const { primari, dettaglio } = partitionInfoCampi([]);
+    expect(primari.map((c) => c.chiave)).toEqual(['nominativo', 'via', 'comune', 'fascia_oraria']);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odsin', 'cap', 'recapito', 'attivita', 'accessibilita']);
+  });
+  it('rispetta i campi mancanti nello snapshot', () => {
+    const { primari, dettaglio } = partitionInfoCampi([
+      { chiave: 'nominativo', etichetta: 'N', ordine: 1 },
+      { chiave: 'pdr', etichetta: 'P', ordine: 2 },
+    ]);
+    expect(primari.map((c) => c.chiave)).toEqual(['nominativo']);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['pdr']);
+  });
+  it('ordina il dettaglio per ordine', () => {
+    const { dettaglio } = partitionInfoCampi([
+      { chiave: 'cap', etichetta: 'CAP', ordine: 2 },
+      { chiave: 'pdr', etichetta: 'PDR', ordine: 1 },
+    ]);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['pdr', 'cap']);
   });
 });

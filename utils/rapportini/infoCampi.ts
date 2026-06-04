@@ -66,3 +66,19 @@ export function valoreInfo(voce: VoceInfo, chiave: InfoChiave): string {
   const v = voce[chiave];
   return v == null ? '' : String(v).trim();
 }
+
+/** Le 4 chiavi mostrate sempre nel sommario; tutte le altre vanno in "Dettagli". */
+export const INFO_PRIMARI: InfoChiave[] = ['nominativo', 'via', 'comune', 'fascia_oraria'];
+
+/**
+ * Partiziona i campi info risolti in `primari` (sommario) e `dettaglio` (menu a tendina).
+ * Riusa `resolveInfoCampi` quindi rispetta snapshot/ordine/etichette e i fallback.
+ */
+export function partitionInfoCampi(
+  snapshot: TemplateInfoCampo[] | null | undefined,
+): { primari: TemplateInfoCampo[]; dettaglio: TemplateInfoCampo[] } {
+  const risolti = resolveInfoCampi(snapshot);
+  const primari = risolti.filter((c) => INFO_PRIMARI.includes(c.chiave));
+  const dettaglio = risolti.filter((c) => !INFO_PRIMARI.includes(c.chiave));
+  return { primari, dettaglio };
+}
