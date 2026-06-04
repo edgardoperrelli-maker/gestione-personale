@@ -15,7 +15,7 @@ function isAssegnazione(a: unknown): a is Assegnazione {
   return (
     typeof r.intervento_id === 'string' && r.intervento_id.trim() !== '' &&
     typeof r.staff_id === 'string' && r.staff_id.trim() !== '' &&
-    typeof r.ordine === 'number'
+    typeof r.ordine === 'number' && Number.isInteger(r.ordine) && r.ordine > 0
   );
 }
 
