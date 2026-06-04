@@ -23,3 +23,19 @@ describe('detectFormat — Export Dati', () => {
     expect(cols!.via).toBe(3);
   });
 });
+
+describe('detectFormat · durata', () => {
+  it('mappa la colonna "Tempo Esecuzione" nel formato Export Dati', () => {
+    const header = ['Indirizzo', 'CAP', 'Comune', 'Fascia', 'Tempo Esecuzione'];
+    const cm = detectFormat(header);
+    expect(cm).not.toBeNull();
+    expect(cm!.durata).toBe(4);
+  });
+
+  it('durata = null se la colonna non esiste', () => {
+    const header = ['Indirizzo', 'CAP', 'Comune'];
+    const cm = detectFormat(header);
+    expect(cm).not.toBeNull();
+    expect(cm!.durata).toBeNull();
+  });
+});

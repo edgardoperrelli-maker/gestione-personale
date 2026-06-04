@@ -67,6 +67,7 @@ type ColMap = {
   accessibilita: number | null;
   attivita: number | null;
   codice: number | null;
+  durata: number | null;
 };
 
 export function detectFormat(headerRow: unknown[]): ColMap | null {
@@ -93,6 +94,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       accessibilita: ATTGIORN_COL.ACCESSIBILITA,
       attivita: ATTGIORN_COL.ATTIVITA,
       codice: ATTGIORN_COL.CODICE,
+      durata: null,
     };
   }
 
@@ -115,6 +117,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
         accessibilita: null,
         attivita: null,
         codice: null,
+        durata: null,
       };
     }
     // anche senza header corrispondente usiamo gli indici fissi se ncols > 80
@@ -133,6 +136,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       accessibilita: null,
       attivita: null,
       codice: null,
+      durata: null,
     };
   }
 
@@ -155,6 +159,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     accessibilita: null,
     attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
     codice: null,
+    durata: findCol(headers, [/tempo.*esec/, /^durata$/, /^tempo$/, /minut/]),
   };
 }
 
@@ -264,6 +269,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       accessibilita: colMap.accessibilita != null ? str(row[colMap.accessibilita]) : undefined,
       attivita: colMap.attivita != null ? str(row[colMap.attivita]) : undefined,
       codice: colMap.codice != null ? str(row[colMap.codice]) : undefined,
+      durata_min: colMap.durata != null ? (Number.parseInt(str(row[colMap.durata]), 10) || undefined) : undefined,
     };
     if (operatore) task._operatore = operatore;
     tasks.push(task);
