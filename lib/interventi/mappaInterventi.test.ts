@@ -89,6 +89,7 @@ describe('mapInterventoToTask', () => {
     expect(t.attivita).toBeUndefined();
     expect(t.codice).toBeUndefined();
     expect(t.durata_min).toBeUndefined();
+    expect(t.esito).toBeNull();
   });
 });
 

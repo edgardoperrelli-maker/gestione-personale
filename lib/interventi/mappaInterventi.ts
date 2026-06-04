@@ -45,7 +45,8 @@ export function mapInterventoToTask(row: InterventoGeoRow): Task {
     codice: row.codice_servizio ?? undefined,
     durata_min: row.durata_stimata_min ?? undefined,
     stato: row.stato ?? undefined,
-    esito: row.esito ?? null,
+    // esito passa invariato (string | null): null = esito non ancora registrato
+    esito: row.esito,
   };
 }
 
