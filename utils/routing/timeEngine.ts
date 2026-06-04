@@ -17,7 +17,7 @@ export type ScheduleOpts = { startMin?: number; speedKmh?: number; durataDefault
  */
 export function parseFasciaWindow(s: string | null | undefined): FasciaWindow | null {
   if (!s) return null;
-  const matches = Array.from(String(s).matchAll(/(\d{1,2})(?::(\d{2}))?/g));
+  const matches = Array.from(String(s).matchAll(/(\d{1,2})(?:[:.](\d{2}))?/g));
   if (!matches.length) return null;
   const toMin = (m: RegExpMatchArray): number => {
     const h = parseInt(m[1], 10);

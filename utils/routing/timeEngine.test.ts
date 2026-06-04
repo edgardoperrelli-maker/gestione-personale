@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parseFasciaWindow, computeSchedule, formatEtaMin } from './timeEngine';
+import { parseFasciaWindow, computeSchedule, formatEtaMin, ORARIO_INIZIO_MIN, VELOCITA_MEDIA_KMH } from './timeEngine';
+import { haversine } from './distance';
 import type { Task } from './types';
 
 function task(id: string, over: Partial<Task> = {}): Task {
@@ -18,6 +19,12 @@ describe('parseFasciaWindow', () => {
   });
   it('ore e minuti singola', () => {
     expect(parseFasciaWindow('9:30')).toEqual({ startMin: 570, endMin: null });
+  });
+  it('accetta il punto come separatore ore-minuti (formato IT)', () => {
+    expect(parseFasciaWindow('08.00-12.00')).toEqual({ startMin: 480, endMin: 720 });
+  });
+  it('accetta l\'en-dash come separatore di intervallo', () => {
+    expect(parseFasciaWindow('08:00–12:00')).toEqual({ startMin: 480, endMin: 720 });
   });
   it('vuoto / null / non parsabile → null', () => {
     expect(parseFasciaWindow('')).toBeNull();
@@ -68,8 +75,15 @@ describe('computeSchedule', () => {
     const base = { lat: 41, lng: 12 };
     const tasks = [task('a', { lat: 42, lng: 12 })];
     const s = computeSchedule(tasks, base);
-    expect(s[0].etaMin).toBeGreaterThan(740);
-    expect(s[0].etaMin).toBeLessThan(760);
+    const expected = ORARIO_INIZIO_MIN + (haversine(41, 12, 42, 12) / VELOCITA_MEDIA_KMH) * 60;
+    expect(s[0].etaMin).toBe(Math.round(expected));
+  });
+
+  it('task senza coordinate con base valida → nessun NaN, viaggio 0', () => {
+    const base = { lat: 41, lng: 12 };
+    const s = computeSchedule([task('a'), task('b')], base);
+    expect(s.map((e) => e.etaMin)).toEqual([480, 510]);
+    expect(s.every((e) => Number.isFinite(e.etaMin))).toBe(true);
   });
 
   it('rispetta opts (startMin, durataDefaultMin)', () => {
