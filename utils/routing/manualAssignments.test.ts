@@ -29,7 +29,7 @@ describe('matchesRule', () => {
     expect(matchesRule(task({ cap: '00044' }), rule({ filtroCap: ['00044'] }))).toBe(true);
     expect(matchesRule(task({ cap: '00045' }), rule({ filtroCap: ['00044'] }))).toBe(false);
   });
-  it('ODS su odsin', () => { expect(matchesRule(task({ odsin: 'ods-1' }), rule({ filtroOds: ['ODS-1'] }))).toBe(true); });
+  it('ODS su odl', () => { expect(matchesRule(task({ odl: 'ods-1' }), rule({ filtroOds: ['ODS-1'] }))).toBe(true); });
   it('indirizzo: match "contiene" normalizzato', () => {
     expect(matchesRule(task({ indirizzo: 'Via Roma 12, Frascati' }), rule({ filtroIndirizzo: ['via roma 12'] }))).toBe(true);
   });
@@ -55,7 +55,7 @@ describe('phaseOfRule', () => {
 
 describe('applyManualAssignments', () => {
   it('cascata: ODS vince su CAP per lo stesso intervento', () => {
-    const tasks = [task({ id: 'a', odsin: 'O1', cap: '00044' })];
+    const tasks = [task({ id: 'a', odl: 'O1', cap: '00044' })];
     const rules = [
       rule({ id: 'rOds', staffId: 'mario', filtroOds: ['O1'], ordine: 0 }),
       rule({ id: 'rCap', staffId: 'anna', filtroCap: ['00044'], ordine: 0 }),
@@ -91,7 +91,7 @@ describe('applyManualAssignments', () => {
     expect(res.warnings.some((w) => w.type === 'regola_vuota')).toBe(true);
   });
   it('ODS doppio → primo per ordine vince, warning ods_doppio', () => {
-    const tasks = [task({ id: 'a', odsin: 'O1' })];
+    const tasks = [task({ id: 'a', odl: 'O1' })];
     const rules = [
       rule({ id: 'r1', staffId: 'mario', filtroOds: ['O1'], ordine: 0 }),
       rule({ id: 'r2', staffId: 'anna', filtroOds: ['O1'], ordine: 1 }),
@@ -105,7 +105,7 @@ describe('applyManualAssignments', () => {
     expect(res.warnings.some((w) => w.type === 'chiuso_vuoto' && w.staffId === 'mario')).toBe(true);
   });
   it('fallback indirizzo quando ODS assente nel dato', () => {
-    const tasks = [task({ id: 'a', indirizzo: 'Via Roma 12, Frascati', odsin: undefined })];
+    const tasks = [task({ id: 'a', indirizzo: 'Via Roma 12, Frascati', odl: undefined })];
     const rules = [rule({ id: 'r', staffId: 'mario', filtroIndirizzo: ['via roma 12'] })];
     const res = applyManualAssignments(tasks, rules, ops, {});
     expect(res.assignedByStaff['mario']?.map((t) => t.id)).toEqual(['a']);

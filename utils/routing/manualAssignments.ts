@@ -34,7 +34,7 @@ export function normAddr(v: string | undefined | null): string {
 }
 
 export function matchesRule(task: Task, rule: ManualRule): boolean {
-  const ods = normValue(task.odsin);
+  const ods = normValue(task.odl);
   const cap = normValue(task.cap);
   const att = normValue(task.attivita);
   const addr = normAddr(task.indirizzo);

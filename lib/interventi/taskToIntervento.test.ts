@@ -5,7 +5,6 @@ import type { Task } from '@/utils/routing/types';
 const task: Task = {
   id: 't1',
   odl: 'ODL123',
-  odsin: '',
   pdr: 'PDR9',
   indirizzo: 'Via Roma 1',
   cap: '00100',
@@ -45,8 +44,8 @@ describe('taskToIntervento', () => {
     });
   });
 
-  it('usa odsin come fallback quando odl è vuoto', () => {
-    expect(taskToIntervento({ ...task, odl: '', odsin: 'ODS77' }, ctx).odl).toBe('ODS77');
+  it('odl vuoto → null', () => {
+    expect(taskToIntervento({ ...task, odl: '' }, ctx).odl).toBeNull();
   });
 
   it('stato sempre "assegnato" e created_from_mappa true', () => {

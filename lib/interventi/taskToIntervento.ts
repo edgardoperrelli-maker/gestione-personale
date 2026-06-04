@@ -36,7 +36,7 @@ export type InterventoDaMappa = {
 export function taskToIntervento(task: Task, ctx: InterventoContext): InterventoDaMappa {
   return {
     committente: ctx.committente,
-    odl: (task.odl && task.odl.trim()) || (task.odsin && task.odsin.trim()) || null,
+    odl: (task.odl && task.odl.trim()) || null,
     pdr: task.pdr ?? null,
     nominativo: task.nominativo ?? null,
     indirizzo: task.indirizzo ?? null,
