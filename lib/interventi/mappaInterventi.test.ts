@@ -23,6 +23,7 @@ function row(overrides: Partial<InterventoGeoRow> = {}): InterventoGeoRow {
     richiede_due_operatori: true,
     durata_stimata_min: 45,
     data: '2026-06-04',
+    esito: null,
     ...overrides,
   };
 }
@@ -47,6 +48,8 @@ describe('mapInterventoToTask', () => {
       attivita: 'Sostituzione',
       codice: 'S-AI-001',
       durata_min: 45,
+      stato: 'da_assegnare',
+      esito: null,
     });
   });
 
@@ -56,6 +59,12 @@ describe('mapInterventoToTask', () => {
     expect(t.matricola).toBe('X9');
     expect(t.attivita).toBe('Verifica');
     expect(t.codice).toBe('C-1');
+  });
+
+  it('propaga stato/esito di un intervento completato', () => {
+    const t = mapInterventoToTask(row({ stato: 'completato', esito: 'eseguito_positivo' }));
+    expect(t.stato).toBe('completato');
+    expect(t.esito).toBe('eseguito_positivo');
   });
 
   it('applica i default sui campi null (priorita 0, stringhe vuote, undefined)', () => {

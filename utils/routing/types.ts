@@ -22,6 +22,9 @@ export interface Task {
   isAppointment?: boolean;
   appointmentId?: string;
   appointmentDate?: string;
+  // Stato operativo (popolato solo quando il Task viene da un intervento del giorno)
+  stato?: string;
+  esito?: string | null;
 }
 
 export interface OperatorBase {

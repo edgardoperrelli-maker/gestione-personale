@@ -17,6 +17,7 @@ export type InterventoGeoRow = InterventoRow & {
   richiede_due_operatori: boolean | null;
   durata_stimata_min: number | null;
   data: string;
+  esito: string | null;
 };
 
 /**
@@ -43,6 +44,8 @@ export function mapInterventoToTask(row: InterventoGeoRow): Task {
     attivita: row.intervento_tipo ?? undefined,
     codice: row.codice_servizio ?? undefined,
     durata_min: row.durata_stimata_min ?? undefined,
+    stato: row.stato ?? undefined,
+    esito: row.esito ?? null,
   };
 }
 
