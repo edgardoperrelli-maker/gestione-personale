@@ -127,13 +127,13 @@ export async function generaRiepilogoPdfBlob(dati: DatiRiepilogoPdf): Promise<Bl
       columnStyles: { 0: { cellWidth: 10, halign: 'center', textColor: MUTED, fontStyle: 'bold' } },
       margin: { left: ML, right: MR },
     });
-    return (doc as unknown as { lastAutoTable: { finalY: number } }).lastAutoTable.finalY;
+    return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y0;
   };
 
   if (dati.eseguiti.length > 0) {
     y = drawSezione(
       `Eseguiti (${dati.stats.eseguiti})`, GREEN,
-      ['#', 'Cliente', 'PDR', 'Indirizzo', 'Attivita'],
+      ['#', 'Cliente', 'PDR', 'Indirizzo', 'Attività'],
       dati.eseguiti.map((r) => [String(r.n), r.nominativo, r.pdr, r.indirizzo, r.attivita]),
       y,
     ) + 8;
