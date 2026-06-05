@@ -1,7 +1,10 @@
 'use client';
 
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
+import { CondividiPdfButton } from './CondividiPdfButton';
 
 export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
@@ -17,6 +20,9 @@ const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], [
 export function RapportinoLista({
   staffName,
   dataLabel,
+  dataIso,
+  voci,
+  campi,
   riepilogo,
   righe,
   filtro,
@@ -30,6 +36,9 @@ export function RapportinoLista({
 }: {
   staffName: string;
   dataLabel: string;
+  dataIso: string;
+  voci: VoceRiepilogo[];
+  campi: TemplateCampo[];
   riepilogo: RiepilogoRapportino;
   righe: RigaVoce[];
   filtro: Filtro;
@@ -105,7 +114,16 @@ export function RapportinoLista({
       <div className="fixed inset-x-0 bottom-0 z-10">
         <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {inviato ? (
-            <p className="rounded-xl border border-[var(--success)] bg-[var(--success-soft)] py-3 text-center text-sm font-semibold text-[var(--success)]">Rapportino inviato ✓</p>
+            <>
+              <p className="rounded-xl border border-[var(--success)] bg-[var(--success-soft)] py-3 text-center text-sm font-semibold text-[var(--success)]">Rapportino inviato ✓</p>
+              <CondividiPdfButton
+                staffName={staffName}
+                dataLabel={dataLabel}
+                dataIso={dataIso}
+                voci={voci}
+                campi={campi}
+              />
+            </>
           ) : (
             <>
               {!readOnly && (inviabile ? (

@@ -258,6 +258,9 @@ export default function RapportinoForm({
         <RapportinoLista
           staffName={rapportino.staff_name}
           dataLabel={dataLabel}
+          dataIso={rapportino.data}
+          voci={voci}
+          campi={campi}
           riepilogo={riepilogo}
           righe={righe}
           filtro={filtro}
