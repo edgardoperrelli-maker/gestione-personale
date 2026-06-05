@@ -4,7 +4,7 @@ import { readFile } from 'fs/promises';
 import ExcelJS from 'exceljs';
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import { colonneVisibili } from '@/utils/rapportini/colonneVisibili';
+import { colonneVisibili, type VoceColonne } from '@/utils/rapportini/colonneVisibili';
 
 /**
  * Export Excel dinamico dei rapportini compilati (lato server).
@@ -87,7 +87,7 @@ export async function buildRapportinoXlsx(
   const campi = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
   const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   const { info: infoVis, campi: campiVis } = voci.length > 0
-    ? colonneVisibili(info, campiOrd, voci as never[])
+    ? colonneVisibili(info, campiOrd, voci as unknown as VoceColonne[])
     : { info, campi: campiOrd };
 
   ws.getCell('B2').value = toDDMMYYYY(rapportino.data);
