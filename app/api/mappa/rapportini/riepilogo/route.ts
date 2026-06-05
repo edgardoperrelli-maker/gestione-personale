@@ -15,13 +15,13 @@ export async function GET(req: Request) {
 
   const { data: raps } = await supabaseAdmin
     .from('rapportini')
-    .select('id, piano_id, staff_id, staff_name, data, stato, token, expires_at, submitted_at')
+    .select('id, piano_id, staff_id, staff_name, data, stato, token, expires_at, submitted_at, riaperto_at')
     .gte('data', from)
     .lte('data', to)
     .order('data', { ascending: false });
   const list = (raps ?? []) as Array<{
     id: string; piano_id: string; staff_id: string; staff_name: string | null;
-    data: string; stato: string; token: string; expires_at: string; submitted_at: string | null;
+    data: string; stato: string; token: string; expires_at: string; submitted_at: string | null; riaperto_at: string | null;
   }>;
 
   const pianoIds = [...new Set(list.map((r) => r.piano_id))];
@@ -47,7 +47,7 @@ export async function GET(req: Request) {
     territorio: pianoInfoById[r.piano_id]?.territorio ?? null,
     piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
     url: `${base}/r/${r.token}`,
-    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, nowIso),
+    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
     nVoci: vociCount[r.id] ?? 0,
   }));
   return NextResponse.json(out);

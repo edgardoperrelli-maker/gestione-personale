@@ -11,11 +11,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { voceId, risposte } = await req.json();
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, stato, data, campi_snapshot, staff_id')
+    .select('id, stato, data, campi_snapshot, staff_id, riaperto_at')
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  if (tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, new Date().toISOString()) !== 'valido')
+  if (tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString()) !== 'valido')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')

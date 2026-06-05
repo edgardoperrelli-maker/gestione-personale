@@ -82,7 +82,7 @@ export default async function RapportinoPublicPage({
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot, template_id')
+    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot, template_id, riaperto_at')
     .eq('token', token)
     .maybeSingle();
 
@@ -95,7 +95,7 @@ export default async function RapportinoPublicPage({
     );
   }
 
-  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, new Date().toISOString());
+  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString());
 
   if (stato === 'scaduto') {
     return (

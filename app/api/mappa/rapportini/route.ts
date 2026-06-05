@@ -10,11 +10,11 @@ export async function GET(req: Request) {
   const pianoId = new URL(req.url).searchParams.get('pianoId');
   if (!pianoId) return NextResponse.json({ error: 'pianoId mancante' }, { status: 400 });
   const { data: raps } = await supabaseAdmin.from('rapportini')
-    .select('id, staff_id, staff_name, token, stato, expires_at, submitted_at, data, template_id').eq('piano_id', pianoId);
+    .select('id, staff_id, staff_name, token, stato, expires_at, submitted_at, data, template_id, riaperto_at').eq('piano_id', pianoId);
   const list = (raps ?? []) as Array<{
     id: string; staff_id: string; staff_name: string | null; token: string;
     stato: 'in_corso' | 'inviato' | 'scaduto'; expires_at: string;
-    submitted_at: string | null; data: string; template_id: string | null;
+    submitted_at: string | null; data: string; template_id: string | null; riaperto_at: string | null;
   }>;
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const now = new Date().toISOString();
