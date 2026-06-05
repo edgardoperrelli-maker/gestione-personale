@@ -30,6 +30,7 @@ Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri p
 | Cosa carica l'operatore | Tutto in una modale: committente → template auto, **anagrafica + lavorazioni/esiti + foto obbligatorie** + note. |
 | Committente → template | Scelta Italgas/Acea/Altro → carica il template del committente. **Template diversi per committente** (fallback a "Standard" finché non esistono i template specifici). |
 | Foto obbligatorie | **Solo interventi manuali.** Il template definisce **N slot foto** (etichetta + flag obbligatoria); scatto da fotocamera o scelta da libreria. File rinominato `etichettaSlot + identificativo` (vedi §8). |
+| Export foto | Nel **riepilogo rapportini**, icona per **scaricare le foto** di un rapportino in **ZIP** con i file rinominati (vedi §8). |
 | Destinazione approvato | **Intervento canonico** (`origine='manuale'`): KPI, conteggi, mappa, torre, export. Sempre filtrabile come manuale. |
 | Notifica admin | **Badge realtime + presa in carico** *informativa* (nessuna scadenza; rilascio manuale + override). Niente popup bloccante. |
 | Editor admin | L'admin può modificare **qualsiasi** campo (anagrafica + esiti) prima dell'ok. **Salva = Approva**: due soli pulsanti, *Approva* / *Rifiuta*. |
@@ -210,6 +211,7 @@ approvato  rifiutato      annullato
 - `POST /api/admin/interventi-manuali/[id]/rilascia` — rilascia la presa in carico.
 - `POST /api/admin/interventi-manuali/[id]/approva` — body: `{ dati_correnti }`. Aggiorna `dati_correnti`, crea l'`interventi` canonico (origine='manuale'), aggancia `voce.intervento_id`, setta `stato='approvato'`, `voce.approvazione_stato='approvato'`, avvia geocodifica async. **Salva = Approva**.
 - `POST /api/admin/interventi-manuali/[id]/rifiuta` — body: `{ motivo }`. `stato='rifiutato'`.
+- `GET /api/admin/rapportini/[rapportinoId]/foto-zip` — raccoglie tutte le foto degli interventi manuali del rapportino, le rinomina (§8) e restituisce un archivio **ZIP** (accesso al bucket privato lato server; generazione con `jszip`, già in dipendenze).
 
 ---
 
@@ -227,6 +229,7 @@ approvato  rifiutato      annullato
 - **`CodaRichieste`** — lista nella **Torre di controllo** ([app/hub/torre/page.tsx](../../../app/hub/torre/page.tsx)); mostra presa in carico ("in gestione da …").
 - **`PannelloRevisione`** — editor completo dei campi + **anteprima foto** + *Approva* / *Rifiuta (con motivo)*.
 - **`RegistroAutorizzazioni`** — nella Torre: storico con filtri (operatore, data, stato, committente) ed export.
+- **Icona "scarica foto (ZIP)"** nel **riepilogo rapportini** ([RiepilogoRapportini.tsx](../../../components/modules/mappa/RiepilogoRapportini.tsx) / [CardTerritorio.tsx](../../../components/modules/mappa/riepilogo/CardTerritorio.tsx)), accanto alle azioni esistenti (copia link, Excel, WhatsApp): scarica le foto del rapportino zippate e rinominate.
 
 ### 7.3 Configurazione template (admin)
 - Estensione di [TemplateRapportiniClient.tsx](../../../app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx): nuovo tipo campo **"foto"** con etichetta e flag **obbligatoria**, ordinabile come gli altri campi.
@@ -257,6 +260,8 @@ approvato  rifiutato      annullato
 - esempio: slot "Foto contatore" + PDR `12345` → `FotoContatore_12345.jpg`.
 
 **Admin:** in revisione vede l'anteprima delle foto. Se sbagliate → *Rifiuta con motivo* (l'operatore ricarica). L'admin **non** sostituisce le foto (assunzione corrente; modificabile).
+
+**Export ZIP (riepilogo admin):** nel riepilogo rapportini, un'icona per rapportino scarica **tutte** le foto dei suoi interventi manuali in un unico **ZIP**, con i file già rinominati (convenzione sopra). In caso di nomi coincidenti, le foto sono separate in sottocartelle per intervento (`<identificativo>/…`). Route server `GET /api/admin/rapportini/[rapportinoId]/foto-zip`, archivio generato con `jszip`.
 
 ---
 
@@ -298,6 +303,7 @@ approvato  rifiutato      annullato
 - Corsia "Liberi" UI: estensione di [ManualAssignmentsModal.tsx](../../../components/modules/mappa/ManualAssignmentsModal.tsx).
 - Config template foto: estensione di [TemplateRapportiniClient.tsx](../../../app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx) e di `TemplateCampo`/[CampoInput.tsx](../../../components/modules/rapportini/CampoInput.tsx).
 - Stato modificabilità rapportino: `tokenStatus` + flag `bloccato`.
+- Export ZIP foto: `jszip` (già nelle dipendenze del progetto).
 
 ---
 
@@ -306,6 +312,7 @@ approvato  rifiutato      annullato
 - **Creazione richiesta**: normale (in_attesa + voce sospesa) vs liberi (intervento + voce subito, auto_liberi).
 - **Validazione foto obbligatorie**: invio rifiutato (422) se manca uno slot obbligatorio.
 - **Naming foto**: etichetta normalizzata + identificativo per priorità (PDR→matricola→ODL→indirizzo).
+- **Export ZIP**: contenuto completo e nomi file corretti; separazione in sottocartelle su collisione di nomi.
 - **Blocco invio rapportino**: invio rifiutato con ≥1 voce in `in_attesa`.
 - **Transizioni di stato**: in_attesa → approvato / rifiutato / annullato; re-invio dopo rifiuto.
 - **Approvazione**: crea `interventi` con campi corretti (`origine='manuale'`, link voce, applica `dati_correnti`), preserva `dati_operatore`.
