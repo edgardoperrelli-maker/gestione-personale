@@ -7,6 +7,7 @@ import { groupByDayTerritory } from '@/utils/rapportini/groupByDayTerritory';
 import { filtraRapportini, type FiltriRiepilogo as Filtri } from '@/utils/rapportini/filtraRapportini';
 import FiltriRiepilogo from './riepilogo/FiltriRiepilogo';
 import CardTerritorio from './riepilogo/CardTerritorio';
+import { PERIODI, calcolaRange } from '@/utils/rapportini/rangePeriodo';
 
 function fmtData(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -14,17 +15,12 @@ function fmtData(iso: string): string {
   return d.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-const PERIODI = [
-  { k: '7', label: 'Ultimi 7 giorni', giorni: 7 },
-  { k: '30', label: 'Ultimi 30 giorni', giorni: 30 },
-  { k: '90', label: 'Ultimi 90 giorni', giorni: 90 },
-];
-const GIORNI_FUTURO = 14; // include rapportini pianificati nei prossimi giorni
-
 export default function RiepilogoRapportini() {
   const [raps, setRaps] = useState<RapRiepilogo[]>([]);
   const [loading, setLoading] = useState(true);
   const [periodo, setPeriodo] = useState('30');
+  const [dataDa, setDataDa] = useState('');
+  const [dataA, setDataA] = useState('');
   const [filtri, setFiltri] = useState<Filtri>({ territorio: '', operatore: '', stati: [], q: '' });
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
   const [confirmPiano, setConfirmPiano] = useState<string | null>(null);
@@ -32,12 +28,12 @@ export default function RiepilogoRapportini() {
   const [busy, setBusy] = useState(false);
 
   const carica = useCallback(async () => {
+    const oggi = new Date().toISOString().slice(0, 10);
+    const range = calcolaRange(periodo, { dataDa, dataA }, oggi);
+    if (!range) return; // custom incompleto/invertito: non ricaricare, mantieni i risultati
     setLoading(true);
     try {
-      const giorni = PERIODI.find((p) => p.k === periodo)?.giorni ?? 30;
-      const from = new Date(Date.now() - giorni * 24 * 3600 * 1000).toISOString().slice(0, 10);
-      const to = new Date(Date.now() + GIORNI_FUTURO * 24 * 3600 * 1000).toISOString().slice(0, 10);
-      const res = await fetch(`/api/mappa/rapportini/riepilogo?from=${from}&to=${to}`);
+      const res = await fetch(`/api/mappa/rapportini/riepilogo?from=${range.from}&to=${range.to}`);
       const data = await res.json();
       setRaps(Array.isArray(data) ? (data as RapRiepilogo[]) : []);
     } catch {
@@ -45,7 +41,7 @@ export default function RiepilogoRapportini() {
     } finally {
       setLoading(false);
     }
-  }, [periodo]);
+  }, [periodo, dataDa, dataA]);
 
   useEffect(() => { carica(); }, [carica]);
 
@@ -90,10 +86,40 @@ export default function RiepilogoRapportini() {
         <select
           className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
           value={periodo}
-          onChange={(e) => setPeriodo(e.target.value)}
+          onChange={(e) => {
+            const v = e.target.value;
+            if (v === 'custom' && !dataDa && !dataA) {
+              const oggi = new Date().toISOString().slice(0, 10);
+              const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggi);
+              if (r) { setDataDa(r.from); setDataA(r.to); }
+            }
+            setPeriodo(v);
+          }}
         >
           {PERIODI.map((p) => <option key={p.k} value={p.k}>{p.label}</option>)}
+          <option value="custom">Personalizzato…</option>
         </select>
+        {periodo === 'custom' && (
+          <>
+            <input
+              type="date"
+              aria-label="Dal"
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
+              value={dataDa}
+              max={dataA || undefined}
+              onChange={(e) => setDataDa(e.target.value)}
+            />
+            <span className="text-xs text-[var(--brand-text-muted)]">→</span>
+            <input
+              type="date"
+              aria-label="Al"
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
+              value={dataA}
+              min={dataDa || undefined}
+              onChange={(e) => setDataA(e.target.value)}
+            />
+          </>
+        )}
         <FiltriRiepilogo filtri={filtri} setFiltri={setFiltri} territori={territori} operatori={operatori} />
       </div>
 
