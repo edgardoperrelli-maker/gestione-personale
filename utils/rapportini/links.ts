@@ -7,6 +7,7 @@ export interface RapportinoStato {
   data: string;
   expires_at: string;
   submitted_at: string | null;
+  template_id?: string | null;
   url: string;
   statoCalcolato: 'valido' | 'scaduto' | 'inviato';
   nVoci: number;
