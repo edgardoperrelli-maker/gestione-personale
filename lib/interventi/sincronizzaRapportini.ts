@@ -87,8 +87,30 @@ export async function sincronizzaRapportini(
   if (interventiWarning) console.error('sincronizza: ensureInterventiForPiano:', interventiWarning);
 
   const { data: intRows } = await db
-    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr').eq('piano_id', pianoId);
+    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato').eq('piano_id', pianoId);
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
+
+  // Blocco: un intervento 'completato' non può cambiare operatore (riassegnazione vietata).
+  // Dopo ensureInterventiForPiano i completati mantengono lo staff_id originale: se un task
+  // proposto con lo stesso ODL è sotto un operatore diverso, è uno spostamento illecito.
+  const normOdl = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
+  const statoByOdl = new Map<string, { staff: string; stato: string }>();
+  for (const it of (intRows ?? []) as Array<{ staff_id: string | null; odl: string | null; stato: string }>) {
+    const k = normOdl(it.odl);
+    if (k) statoByOdl.set(k, { staff: String(it.staff_id ?? ''), stato: it.stato });
+  }
+  const violati: string[] = [];
+  for (const op of ops ?? []) {
+    for (const t of ((op.tasks as Array<{ odl?: string | null }>) ?? [])) {
+      const hit = statoByOdl.get(normOdl(t.odl));
+      if (hit && hit.stato === 'completato' && hit.staff !== String(op.staff_id)) {
+        violati.push(normOdl(t.odl));
+      }
+    }
+  }
+  if (violati.length > 0) {
+    return { ok: false, status: 409, error: `spostamento_completato:${violati.join(',')}` };
+  }
 
   for (const op of ops ?? []) {
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
@@ -105,8 +127,18 @@ export async function sincronizzaRapportini(
       if (eIns) return { ok: false, status: 500, error: eIns.message };
       rapId = ins!.id;
     } else {
-      await db.from('rapportini')
-        .update({ template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], expires_at: expires }).eq('id', rapId);
+      // Rapportino già esistente: aggiorna template/scadenza. Se è 'inviato' e l'utente
+      // ha confermato, riaprilo (torna compilabile) valorizzando riaperto_at.
+      const { data: cur } = await db.from('rapportini').select('stato').eq('id', rapId).maybeSingle();
+      const eraInviato = (cur as { stato?: string } | null)?.stato === 'inviato';
+      const patch: Record<string, unknown> = {
+        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], expires_at: expires,
+      };
+      if (eraInviato && opts.confermaInviati) {
+        patch.stato = 'in_corso';
+        patch.riaperto_at = new Date().toISOString();
+      }
+      await db.from('rapportini').update(patch).eq('id', rapId);
     }
 
     const { data: existingVoci } = await db.from('rapportino_voci')
