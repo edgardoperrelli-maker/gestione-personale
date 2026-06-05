@@ -1690,6 +1690,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   const d2 = await r2.json();
                   setRapStato(Array.isArray(d2) ? d2 : []);
                 } catch { /* l'effetto su savedDistribution ricarica comunque */ }
+              } else if (rg.status === 409) {
+                // Conflitto: stesso operatore ha già un rapportino in un ALTRO piano (stessa data/territorio).
+                // Mostra la finestra dei conflitti (come dal pulsante manuale) per scegliere Sovrascrivi/Salta,
+                // invece di fallire in silenzio.
+                const dataConf = (await rg.json().catch(() => ({}))) as {
+                  conflicts?: Array<{ staff_id: string; staff_name: string | null; territorio: string | null; data: string; submitted: boolean }>;
+                };
+                if (Array.isArray(dataConf.conflicts) && dataConf.conflicts.length > 0) {
+                  setRapConflicts(dataConf.conflicts);
+                } else {
+                  setRapError('Aggiornamento rapportini: conflitto non risolvibile automaticamente.');
+                }
               } else {
                 const ej = (await rg.json().catch(() => ({}))) as { error?: string };
                 setRapError(ej.error ?? 'Aggiornamento rapportini non riuscito.');
