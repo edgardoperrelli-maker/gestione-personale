@@ -2,7 +2,7 @@
 
 **Data:** 2026-06-06
 **Stato:** Design approvato in brainstorming, in attesa di review dello spec
-**Topic:** Caricamento di interventi manuali da parte dell'operatore sul rapportino digitale, con governance ibrida (approvazione admin + corsia "Liberi") e registro autorizzazioni.
+**Topic:** Caricamento di interventi manuali da parte dell'operatore sul rapportino digitale, con governance ibrida (approvazione admin + corsia "Liberi"), foto obbligatorie e registro autorizzazioni.
 
 ---
 
@@ -16,7 +16,7 @@ Servono perché capitano due scenari reali (confermati in brainstorming):
 
 Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri parecchi. Questo esclude un modello di autorizzazione uno-per-uno rigido e impone una leva che si adatti al volume.
 
-**Obiettivo:** un tasto "+" sempre visibile sul rapportino con cui l'operatore carica un intervento manuale completo (anagrafica + esiti); di default la richiesta passa per l'approvazione di uno dei 4 admin attivi; una corsia "Liberi" per-operatore-per-piano salta l'attesa per chi fa volumi alti. Una volta approvato, l'intervento diventa **canonico** (conta in KPI/conteggi/mappa/export, ma resta filtrabile come `origine='manuale'`). Tutto è tracciato in un **registro autorizzazioni**.
+**Obiettivo:** un tasto "+" sempre visibile sul rapportino con cui l'operatore carica un intervento manuale completo (anagrafica + esiti + foto obbligatorie); di default la richiesta passa per l'approvazione di uno dei 4 admin attivi; una corsia "Liberi" per-operatore-per-piano salta l'attesa per chi fa volumi alti. Una volta approvato, l'intervento diventa **canonico** (conta in KPI/conteggi/mappa/export, ma resta filtrabile come `origine='manuale'`). Tutto è tracciato in un **registro autorizzazioni**.
 
 ---
 
@@ -26,10 +26,12 @@ Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri p
 |------|-----------|
 | Governance | **Ibrido**: tasto sempre visibile; default = approvazione admin; corsia "Liberi" per-operatore-per-piano salta l'attesa. |
 | Attesa lato operatore | La voce compare **subito** nella lista in stato *Sospeso*, non compilabile e annullabile. Dopo l'ok diventa una voce normale col suo esito. |
-| Cosa carica l'operatore | Tutto in una modale: committente → template auto, **anagrafica + lavorazioni/esiti** + note. |
+| Blocco invio rapportino | Il rapportino **non è inviabile** a fine giornata se resta **anche una sola voce in sospeso**. Fa da forcing naturale sugli admin (niente timer). |
+| Cosa carica l'operatore | Tutto in una modale: committente → template auto, **anagrafica + lavorazioni/esiti + foto obbligatorie** + note. |
 | Committente → template | Scelta Italgas/Acea/Altro → carica il template del committente. **Template diversi per committente** (fallback a "Standard" finché non esistono i template specifici). |
+| Foto obbligatorie | **Solo interventi manuali.** Il template definisce **N slot foto** (etichetta + flag obbligatoria); scatto da fotocamera o scelta da libreria. File rinominato `etichettaSlot + identificativo` (vedi §8). |
 | Destinazione approvato | **Intervento canonico** (`origine='manuale'`): KPI, conteggi, mappa, torre, export. Sempre filtrabile come manuale. |
-| Notifica admin | **Badge realtime + presa in carico**. Niente popup bloccante. Quando un admin apre, gli altri vedono "in gestione da …" (con scadenza). |
+| Notifica admin | **Badge realtime + presa in carico** *informativa* (nessuna scadenza; rilascio manuale + override). Niente popup bloccante. |
 | Editor admin | L'admin può modificare **qualsiasi** campo (anagrafica + esiti) prima dell'ok. **Salva = Approva**: due soli pulsanti, *Approva* / *Rifiuta*. |
 | Audit | Si conserva lo **snapshot originale dell'operatore** separato dai dati correnti (eventualmente corretti dall'admin). |
 
@@ -42,9 +44,9 @@ Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri p
                                   │
                                   ▼
                      compila modale (committente → template,
-                              anagrafica, esiti, note)
+                       anagrafica, esiti, FOTO obbligatorie, note)
                                   │
-                                  ▼  "Invia richiesta"
+                                  ▼  "Invia richiesta"  (bloccato se mancano foto obbligatorie)
                     ┌─────────────────────────────────┐
                     │  corsia LIBERI per (piano,staff)?│
                     └─────────────────────────────────┘
@@ -54,8 +56,8 @@ Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri p
         + voce approvata subito          + voce "Sospeso" (non compilabile)
         richiesta stato = auto_liberi    badge realtime ai 4 admin
         (a registro, nessuna attesa)            │
-                          │              admin "prende in carico"
-                          │              (edita liberamente i campi)
+                          │              admin "prende in carico" (informativo)
+                          │              edita liberamente i campi
                           │                     │
                           │            ┌────────┴────────┐
                           │         APPROVA          RIFIUTA(+motivo)
@@ -67,6 +69,9 @@ Il volume è **molto variabile** per operatore/giorno: alcuni quasi mai, altri p
                           │
                           ▼
               operatore compila/modifica l'esito come una voce normale
+
+   Vincolo trasversale: il rapportino NON può essere inviato finché esiste
+   anche una sola voce con approvazione_stato = 'in_attesa'.
 ```
 
 Ogni transizione è registrata su `interventi_manuali` (= registro autorizzazioni).
@@ -96,8 +101,8 @@ Ogni transizione è registrata su `interventi_manuali` (= registro autorizzazion
 | `note` | text null | |
 | `stato` | text | check `('in_attesa','approvato','rifiutato','auto_liberi','annullato')` |
 | `corsia` | text | check `('normale','liberi')` |
-| `preso_in_carico_da` | uuid null | admin che sta gestendo |
-| `preso_in_carico_at` | timestamptz null | per scadenza presa in carico |
+| `preso_in_carico_da` | uuid null | admin che sta gestendo (informativo) |
+| `preso_in_carico_at` | timestamptz null | timestamp presa in carico (nessuna scadenza automatica) |
 | `deciso_da` | uuid null | admin che ha approvato/rifiutato |
 | `deciso_at` | timestamptz null | |
 | `motivo_rifiuto` | text null | |
@@ -105,41 +110,59 @@ Ogni transizione è registrata su `interventi_manuali` (= registro autorizzazion
 
 Indici: `(stato)` per la coda, `(rapportino_id)`, `(data)`, `(staff_id, data)`.
 
-### 4.2 Modifiche a `rapportino_voci`
+### 4.2 Nuova tabella `interventi_manuali_foto` (allegati)
+
+| Campo | Tipo | Note |
+|-------|------|------|
+| `id` | uuid PK | |
+| `richiesta_id` | uuid → `interventi_manuali.id` (cascade) | |
+| `slot_chiave` | text | chiave dello slot foto del template |
+| `slot_etichetta` | text | etichetta configurata (snapshot) |
+| `storage_path` | text | path nel bucket |
+| `file_name` | text | nome logico rinominato (vedi §8) |
+| `mime_type` | text | |
+| `size` | int null | byte |
+| `created_at` | timestamptz | |
+
+### 4.3 Modifiche a `rapportino_voci`
 
 | Campo nuovo | Tipo | Note |
 |-------------|------|------|
 | `manuale` | boolean default false | distingue le voci manuali |
-| `approvazione_stato` | text null | `null` = voce pianificata normale; altrimenti `('in_attesa','approvato','rifiutato')` (denormalizzato dalla richiesta per il rendering veloce nel rapportino) |
+| `approvazione_stato` | text null | `null` = voce pianificata normale; altrimenti `('in_attesa','approvato','rifiutato')` (denormalizzato dalla richiesta per il rendering veloce e per il blocco-invio) |
 | `richiesta_id` | uuid → `interventi_manuali.id` null | link alla richiesta |
 
 Regola di rendering: `manuale && approvazione_stato='in_attesa'` → badge **"⏳ Sospeso"**, campi non compilabili; `='rifiutato'` → badge **"✗ Rifiutato"** + motivo; `='approvato'` o `null` → voce normale.
 
-### 4.3 Modifiche a `interventi`
+### 4.4 Modifiche a `interventi`
 
 | Campo nuovo | Tipo | Note |
 |-------------|------|------|
 | `origine` | text default `'pianificato'` | check `('pianificato','manuale','import')`; i manuali = `'manuale'`. Filtrabile in mappa/torre/export. |
 
-`created_from_mappa` resta `false` per i manuali (non nascono dalla mappa).
+`created_from_mappa` resta `false` per i manuali.
 
-### 4.4 Modifiche a `rapportino_template`
+### 4.5 Modifiche a `rapportino_template` e al tipo campo
 
 | Campo nuovo | Tipo | Note |
 |-------------|------|------|
 | `committente` | text null | check `('acea','italgas','altro')`; marca un template per un committente |
 
-**Risoluzione template per committente** (server-side): cerca `rapportino_template` con `active=true AND committente=<scelto>`; se assente → `is_default=true` ("Standard"). Così la feature funziona da subito col solo "Standard" e diventa committente-specifica appena vengono creati i template dedicati.
+**`TemplateCampo` esteso** (oggi in [utils/rapportini/buildVoci.ts](../../../utils/rapportini/buildVoci.ts)):
+- `tipo` aggiunge il valore `'foto'`;
+- nuovo flag `obbligatoria?: boolean` (usato per i campi foto: uno slot foto può essere obbligatorio o opzionale).
 
-### 4.5 Corsia "Liberi"
+**Risoluzione template per committente** (server-side): cerca `rapportino_template` con `active=true AND committente=<scelto>`; se assente → `is_default=true` ("Standard"). La feature funziona da subito col solo "Standard" e diventa committente-specifica appena vengono creati i template dedicati.
 
-Estensione della tabella esistente `mappa_piani_lucchetti`:
+### 4.6 Corsia "Liberi"
+
+Estensione di `mappa_piani_lucchetti`:
 
 | Campo nuovo | Tipo | Note |
 |-------------|------|------|
-| `manuali_liberi` | boolean default false | per `(piano_id, staff_id)`: se true, gli interventi manuali di quell'operatore in quel piano saltano l'approvazione |
+| `manuali_liberi` | boolean default false | per `(piano_id, staff_id)`: se true, i manuali di quell'operatore in quel piano saltano l'approvazione |
 
-Upsert della riga lucchetto anche per operatori senza regole manuali (oggi il toggle lucchetto appare solo per chi ha regole; la corsia "Liberi" va estesa a qualsiasi operatore del piano).
+Upsert della riga lucchetto anche per operatori senza regole manuali (la corsia "Liberi" va estesa a qualsiasi operatore del piano).
 
 ---
 
@@ -168,21 +191,22 @@ approvato  rifiutato      annullato
 
 ### 6.1 Operatore (autenticazione via token del rapportino, come le altre `/r/[token]`)
 
-- `POST /api/r/[token]/intervento-manuale`
-  body: `{ committente, anagrafica:{...}, risposte:{...}, note }`
+- `POST /api/r/[token]/intervento-manuale` — **multipart** (foto + JSON dati).
   - valida che il rapportino sia modificabile (riusa `tokenStatus`/`bloccato`);
   - risolve `template_id` dal committente;
+  - **valida le foto obbligatorie** (tutti gli slot `obbligatoria=true` presenti) → altrimenti 422;
+  - carica le foto sul bucket (vedi §8) e crea i record `interventi_manuali_foto`;
   - legge la corsia da `mappa_piani_lucchetti.manuali_liberi` per `(piano_id, staff_id)`;
-  - **liberi** → crea intervento canonico + voce (`manuale=true`, `approvazione_stato='approvato'`) + richiesta `stato='auto_liberi'`;
+  - **liberi** → crea intervento canonico + voce (`approvazione_stato='approvato'`) + richiesta `stato='auto_liberi'`;
   - **normale** → crea richiesta `stato='in_attesa'` + voce (`manuale=true`, `approvazione_stato='in_attesa'`);
   - idempotenza: blocca il doppio invio (bottone disabilitato + guardia server).
-- `POST /api/r/[token]/intervento-manuale/[id]/annulla` — consentito solo se `stato='in_attesa'`.
-- Caricamento template per la modale: i template (campi + info_campi per committente) vengono passati nel payload iniziale della pagina o letti via `GET /api/r/[token]/templates`.
+- `POST /api/r/[token]/intervento-manuale/[id]/annulla` — solo se `stato='in_attesa'`.
+- `POST /api/r/[token]/invia` (esistente, da estendere) — **rifiuta l'invio** (409) se esiste ≥1 voce con `approvazione_stato='in_attesa'`, con messaggio "N interventi in attesa di approvazione".
 
 ### 6.2 Admin (`requireAdmin()`, [lib/apiAuth.ts](../../../lib/apiAuth.ts))
 
-- `GET /api/admin/interventi-manuali?stato=&from=&to=&staff=` — coda (in attesa) + registro (storico).
-- `POST /api/admin/interventi-manuali/[id]/prendi` — presa in carico (`preso_in_carico_da/at`); rifiuta se già preso da altri e non scaduto.
+- `GET /api/admin/interventi-manuali?stato=&from=&to=&staff=` — coda (in attesa) + registro (storico) + foto.
+- `POST /api/admin/interventi-manuali/[id]/prendi` — presa in carico informativa (`preso_in_carico_da/at`); `override=true` per riprendere una richiesta già in gestione da altri.
 - `POST /api/admin/interventi-manuali/[id]/rilascia` — rilascia la presa in carico.
 - `POST /api/admin/interventi-manuali/[id]/approva` — body: `{ dati_correnti }`. Aggiorna `dati_correnti`, crea l'`interventi` canonico (origine='manuale'), aggancia `voce.intervento_id`, setta `stato='approvato'`, `voce.approvazione_stato='approvato'`, avvia geocodifica async. **Salva = Approva**.
 - `POST /api/admin/interventi-manuali/[id]/rifiuta` — body: `{ motivo }`. `stato='rifiutato'`.
@@ -193,73 +217,112 @@ approvato  rifiutato      annullato
 
 ### 7.1 Operatore
 - **`FabInterventoManuale`** — "+" flottante in basso a destra, sopra la bottom-nav; disabilitato se rapportino non modificabile.
-- **`ModaleInterventoManuale`** — modale a step: (1) committente Italgas/Acea/Altro; (2) anagrafica (campi `info_campi` del template, minimi obbligatori: indirizzo + comune + un identificativo); (3) lavorazioni/esiti (campi del template); invio.
-- Estensione di [RapportinoLista.tsx](../../../components/modules/mappa/) e `VoceFocus` per i badge *Sospeso* / *Rifiutato* (+motivo) e il blocco compilazione finché non approvato.
+- **`ModaleInterventoManuale`** — modale a step: (1) committente Italgas/Acea/Altro; (2) anagrafica (campi `info_campi` del template, minimi obbligatori: indirizzo + comune + un identificativo PDR/ODL/matricola); (3) lavorazioni/esiti; (4) **foto obbligatorie** (uno slot per ciascun campo `foto` del template; vedi §8); invio bloccato finché le foto obbligatorie non sono tutte presenti.
+- Estensione di [RapportinoLista.tsx](../../../components/modules/rapportini/) e `VoceFocus` per i badge *Sospeso* / *Rifiutato* (+motivo) e il blocco compilazione finché non approvato.
+- Banner sul rapportino quando l'invio è bloccato da voci in sospeso.
 
 ### 7.2 Admin
 - **`CampanelloRichieste`** in [TopBar.tsx](../../../components/layout/TopBar.tsx) — badge contatore realtime, visibile su ogni pagina admin; apre la coda.
 - **`useRichiesteManualiFeed`** — hook realtime su `interventi_manuali` (filtro `stato=in_attesa`), modellato su [useInterventiFeed.ts](../../../lib/interventi/useInterventiFeed.ts).
-- **`CodaRichieste`** — lista nella **Torre di controllo** ([app/hub/torre/page.tsx](../../../app/hub/torre/page.tsx)), accessibile anche dal campanello; mostra presa in carico ("in gestione da …").
-- **`PannelloRevisione`** — editor completo dei campi + *Approva* / *Rifiuta (con motivo)*.
-- **`RegistroAutorizzazioni`** — vista storico con filtri (operatore, data, stato, committente) ed export.
+- **`CodaRichieste`** — lista nella **Torre di controllo** ([app/hub/torre/page.tsx](../../../app/hub/torre/page.tsx)); mostra presa in carico ("in gestione da …").
+- **`PannelloRevisione`** — editor completo dei campi + **anteprima foto** + *Approva* / *Rifiuta (con motivo)*.
+- **`RegistroAutorizzazioni`** — nella Torre: storico con filtri (operatore, data, stato, committente) ed export.
+
+### 7.3 Configurazione template (admin)
+- Estensione di [TemplateRapportiniClient.tsx](../../../app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx): nuovo tipo campo **"foto"** con etichetta e flag **obbligatoria**, ordinabile come gli altri campi.
 
 ---
 
-## 8. Realtime / Notifiche
+## 8. Foto obbligatorie (interventi manuali)
+
+**Scope:** solo gli interventi manuali. Le voci pianificate non sono toccate.
+
+**Configurazione:** ogni template definisce N campi di tipo `foto` (etichetta + flag `obbligatoria`). Oggi se ne configurano **4 obbligatori**; resta flessibile (più/meno slot, opzionali).
+
+**Cattura (mobile-first):**
+- Scatto: `<input type="file" accept="image/*" capture="environment">`.
+- Libreria: `<input type="file" accept="image/*">` (senza `capture`).
+- Preview per slot + possibilità di rifare lo scatto prima dell'invio.
+- Compressione/ridimensionamento lato client prima dell'upload (proposta: lato lungo ~1600px, JPEG q≈0.8) per reggere rete mobile e non saturare lo storage.
+
+**Validazione:** l'invio della richiesta è bloccato (client + server 422) finché ogni slot `obbligatoria=true` non ha una foto.
+
+**Storage:** nuovo bucket Supabase **privato** `interventi-foto` con RLS; lettura admin via **signed URL**. Riuso del client storage già presente nel progetto (pattern di [app/hub/rapportini/save/route.tsx](../../../app/hub/rapportini/save/route.tsx)).
+- `storage_path` = `<richiesta_id>/<slot_chiave>_<identificativo>.<ext>` (path univoco).
+
+**Rinomina file (`file_name` logico):**
+- formato: `<EtichettaSlotNormalizzata>_<identificativo>.<ext>`
+- `EtichettaSlotNormalizzata` = etichetta dello slot foto configurata nel template, normalizzata (no spazi/accenti).
+- `identificativo` = **primo disponibile** nell'ordine **PDR → matricola → ODL → indirizzo**, normalizzato.
+- esempio: slot "Foto contatore" + PDR `12345` → `FotoContatore_12345.jpg`.
+
+**Admin:** in revisione vede l'anteprima delle foto. Se sbagliate → *Rifiuta con motivo* (l'operatore ricarica). L'admin **non** sostituisce le foto (assunzione corrente; modificabile).
+
+---
+
+## 9. Realtime / Notifiche
 - Abilitare la publication realtime su `interventi_manuali` (stesso approccio di [20260603020000_realtime_interventi.sql](../../../supabase/migrations/)).
 - Il campanello sottoscrive gli `INSERT`/`UPDATE` con `stato='in_attesa'` e mostra il contatore; suono/toast all'arrivo (non bloccante).
-- **Presa in carico**: lock ottimistico via `preso_in_carico_da/at` con **scadenza** (es. 10 min) per liberare richieste lasciate aperte (browser chiuso).
+- **Presa in carico**: solo indicatore informativo (`preso_in_carico_da/at`), **senza scadenza automatica**; rilascio manuale e **override** se un admin si pianta. Il forcing reale è il blocco-invio del rapportino.
 
 ---
 
-## 9. Sicurezza e permessi
+## 10. Sicurezza e permessi
 - Route operatore: accesso **token-based** sul proprio rapportino (coerente con `voce/route.ts` e `invia/route.ts`); nessun accesso ad altri rapportini.
 - Route admin: `requireAdmin()`.
-- RLS `interventi_manuali`: coerente con le altre tabelle del progetto (`FOR ALL TO authenticated`), con il controllo reale demandato ai guard API; le route server usano il client server-side come le altre `/r/[token]`.
+- RLS `interventi_manuali` / `interventi_manuali_foto`: coerente con le altre tabelle (`FOR ALL TO authenticated`), controllo reale ai guard API.
+- Bucket `interventi-foto` **privato** + policy storage; visualizzazione admin via signed URL.
 
 ---
 
-## 10. Casi limite / error handling
+## 11. Casi limite / error handling
 - **Rapportino inviato/scaduto** → FAB disabilitato (riuso `bloccato`/`tokenStatus`).
-- **Race tra admin** → presa in carico con scadenza; il secondo admin vede "in gestione da …".
-- **Rifiuto → re-invio** → la stessa richiesta torna `in_attesa`; lo storico (snapshot operatore, motivo precedente) resta nel registro.
-- **Annulla in attesa** → voce rimossa, richiesta `annullata` (audit).
-- **Geocodifica fallita** → intervento creato senza coordinate (come per gli import), non blocca; resta geocodificabile in seguito.
+- **Invio rapportino con voci in sospeso** → bloccato (409) con elenco delle voci da attendere.
+- **Foto obbligatoria mancante** → invio richiesta bloccato (client + server 422).
+- **Upload foto fallito** → la richiesta non viene creata; messaggio + retry (prima si caricano le foto, poi si crea la richiesta).
+- **Race tra admin** → presa in carico informativa + override; l'azione finale (approva/rifiuta) è atomica: la seconda riceve "già gestita da …".
+- **Rifiuto → re-invio** → la stessa richiesta torna `in_attesa`; lo storico resta nel registro.
+- **Annulla in attesa** → voce rimossa, richiesta `annullata` (audit), foto eliminate dal bucket.
+- **Geocodifica fallita** → intervento creato senza coordinate (come per gli import), non blocca.
 - **Doppio invio** → bottone disabilitato durante l'invio + guardia server.
 - **Admin cambia committente** in revisione → ri-risoluzione del template di riferimento.
-- **Errore di rete in invio** (operatore) → retry, coerente con il pattern autosave esistente del rapportino.
 
 ---
 
-## 11. Riuso del codice esistente
-- Creazione intervento canonico: logica di [taskToIntervento.ts](../../../lib/interventi/taskToIntervento.ts) / `ensureInterventiForPiano` (mappare i campi della richiesta, `origine='manuale'`, `created_from_mappa=false`).
+## 12. Riuso del codice esistente
+- Creazione intervento canonico: logica di [taskToIntervento.ts](../../../lib/interventi/taskToIntervento.ts) / `ensureInterventiForPiano` (`origine='manuale'`, `created_from_mappa=false`).
 - Geocodifica: [geocodeServer.ts](../../../lib/interventi/geocodeServer.ts) / `POST /api/interventi/geocode`.
-- Aggancio voce↔intervento: setting diretto di `intervento_id` (la voce è creata da noi; pattern di riferimento in [voceInterventoLink.ts](../../../lib/interventi/voceInterventoLink.ts)).
+- Aggancio voce↔intervento: setting diretto di `intervento_id` (pattern in [voceInterventoLink.ts](../../../lib/interventi/voceInterventoLink.ts)).
+- Upload storage: pattern di [app/hub/rapportini/save/route.tsx](../../../app/hub/rapportini/save/route.tsx).
 - Feed realtime admin: pattern di [useInterventiFeed.ts](../../../lib/interventi/useInterventiFeed.ts).
-- Corsia "Liberi" UI: estensione di [ManualAssignmentsModal.tsx](../../../components/modules/mappa/ManualAssignmentsModal.tsx) accanto al lucchetto esistente.
+- Corsia "Liberi" UI: estensione di [ManualAssignmentsModal.tsx](../../../components/modules/mappa/ManualAssignmentsModal.tsx).
+- Config template foto: estensione di [TemplateRapportiniClient.tsx](../../../app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx) e di `TemplateCampo`/[CampoInput.tsx](../../../components/modules/rapportini/CampoInput.tsx).
 - Stato modificabilità rapportino: `tokenStatus` + flag `bloccato`.
 
 ---
 
-## 12. Strategia di test (TDD)
+## 13. Strategia di test (TDD)
 - **Risoluzione template per committente** (con fallback a default quando manca il template specifico).
-- **Creazione richiesta**: percorso normale (in_attesa + voce sospesa) vs liberi (intervento + voce subito, auto_liberi).
+- **Creazione richiesta**: normale (in_attesa + voce sospesa) vs liberi (intervento + voce subito, auto_liberi).
+- **Validazione foto obbligatorie**: invio rifiutato (422) se manca uno slot obbligatorio.
+- **Naming foto**: etichetta normalizzata + identificativo per priorità (PDR→matricola→ODL→indirizzo).
+- **Blocco invio rapportino**: invio rifiutato con ≥1 voce in `in_attesa`.
 - **Transizioni di stato**: in_attesa → approvato / rifiutato / annullato; re-invio dopo rifiuto.
 - **Approvazione**: crea `interventi` con campi corretti (`origine='manuale'`, link voce, applica `dati_correnti`), preserva `dati_operatore`.
-- **Snapshot audit**: la correzione admin non sovrascrive `dati_operatore`.
-- **Presa in carico concorrente**: secondo admin bloccato; scadenza libera la richiesta.
+- **Presa in carico**: indicatore + override; azione finale atomica (no doppia decisione).
 
 ---
 
-## 13. Fuori scope (YAGNI, per ora)
+## 14. Fuori scope (YAGNI, per ora)
 - Notifiche push/email agli admin (solo badge realtime in-app).
-- Modale di escalation a timeout (scartata in favore di badge + presa in carico).
+- Foto per gli interventi pianificati (solo manuali per ora).
+- Modale di escalation a timeout (scartata: badge + presa in carico + blocco-invio).
 - KPI dedicati ai manuali (confluiscono nei KPI esistenti via `origine`).
-- Allegati foto all'intervento manuale (non richiesto).
+- Sostituzione delle foto da parte dell'admin in revisione.
 
 ---
 
-## 14. Punti aperti
-- Soglia esatta di scadenza della presa in carico (default proposto: 10 min).
-- Elenco preciso dei campi obbligatori minimi nella modale operatore (proposta: indirizzo + comune + un identificativo tra PDR/ODL/matricola).
-- Collocazione definitiva del `RegistroAutorizzazioni` (Torre vs sezione dedicata nel riepilogo).
+## 15. Punti aperti
+- Limiti dimensione/compressione foto (proposta: lato lungo ~1600px, JPEG q≈0.8; tetto per foto).
+- Numero/etichette di default dei 4 slot foto da preconfigurare nei template (es. "Foto contatore", "Foto sigillo", "Foto matricola", "Foto panoramica").
+- Bucket pubblico vs privato+signed URL per l'anteprima admin (proposta: privato + signed URL).
