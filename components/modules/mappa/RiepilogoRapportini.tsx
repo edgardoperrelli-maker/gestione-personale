@@ -75,6 +75,20 @@ export default function RiepilogoRapportini() {
     finally { setBusy(false); setConfirmOp(null); }
   };
 
+  const riapriRapportino = async (rapportinoId: string) => {
+    setBusy(true);
+    try {
+      await fetch('/api/admin/rapportini/riapri', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rapportinoId }),
+      });
+      await carica();
+    } finally {
+      setBusy(false);
+    }
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
@@ -143,6 +157,7 @@ export default function RiepilogoRapportini() {
                 onRiapri={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
                 onEliminaPiano={eliminaPiano}
                 onRimuoviOp={rimuoviOperatore}
+                onRiapriRapportino={riapriRapportino}
                 confirmPiano={confirmPiano}
                 setConfirmPiano={setConfirmPiano}
                 confirmOp={confirmOp}

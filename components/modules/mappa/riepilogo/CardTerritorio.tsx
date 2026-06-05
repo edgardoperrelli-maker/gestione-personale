@@ -9,7 +9,7 @@ function fmtOra(iso: string | null): string {
 }
 
 export default function CardTerritorio({
-  terr, dataLabel, copiedToken, onCopia, onRiapri, onEliminaPiano, onRimuoviOp, confirmPiano, setConfirmPiano, confirmOp, setConfirmOp, busy,
+  terr, dataLabel, copiedToken, onCopia, onRiapri, onEliminaPiano, onRimuoviOp, onRiapriRapportino, confirmPiano, setConfirmPiano, confirmOp, setConfirmOp, busy,
 }: {
   terr: TerritorioGruppo;
   dataLabel: string;
@@ -18,6 +18,7 @@ export default function CardTerritorio({
   onRiapri: (pianoId: string) => string; // ritorna href
   onEliminaPiano: (pianoId: string) => void;
   onRimuoviOp: (pianoId: string, staffId: string) => void;
+  onRiapriRapportino: (rapportinoId: string) => void;
   confirmPiano: string | null;
   setConfirmPiano: (v: string | null) => void;
   confirmOp: string | null;
@@ -71,6 +72,13 @@ export default function CardTerritorio({
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
                     <button onClick={() => onCopia(r)} className="rounded bg-[var(--brand-primary)] px-2 py-0.5 font-semibold text-[oklch(0.16_0.06_245)]">{copiedToken === r.token ? '✓' : '🔗'}</button>
+                    <button
+                      type="button"
+                      onClick={() => onRiapriRapportino(r.id)}
+                      disabled={busy || r.statoCalcolato === 'valido'}
+                      title={r.statoCalcolato === 'valido' ? 'Aperto: l\'operatore può modificare' : 'Riapri per la modifica'}
+                      className="rounded border border-[var(--brand-border)] px-2 py-0.5 disabled:opacity-60"
+                    >{r.statoCalcolato === 'valido' ? '🔓' : '🔒'}</button>
                     <a href={whatsappHref(r.staff_name, dataLabel, r.url)} target="_blank" rel="noopener noreferrer" className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[var(--success)]">📲</a>
                     <a href={`/hub/rapportini/contenuto/${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">👁</a>
                     <a href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">⤓</a>
