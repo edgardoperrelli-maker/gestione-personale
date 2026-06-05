@@ -20,6 +20,7 @@ import ManualTaskModal, { type ManualTaskData } from '@/components/modules/mappa
 import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapportini/links';
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -2151,6 +2152,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             if (c.chiave === 'fascia_oraria') {
               rr.getCell(col).value = extractReportTime(t.fascia_oraria || '');
               rr.getCell(col).numFmt = '@';
+            } else if (c.chiave === 'coordinate') {
+              const coord = (t.coordinate ?? '').trim();
+              rr.getCell(col).value = coord
+                ? ({ text: coord, hyperlink: mapsUrlFromCoordinate(coord) } as ExcelJS.CellHyperlinkValue)
+                : '';
             } else {
               rr.getCell(col).value = valoreInfo(vi, c.chiave);
             }
