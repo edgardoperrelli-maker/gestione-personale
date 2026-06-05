@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
+import { requireUser } from '@/lib/apiAuth';
 import { parseRegole, buildRuleRows, buildLockRows } from './rulePayload';
 
 const supabaseAdmin = createClient(
@@ -13,6 +14,9 @@ export const runtime = 'nodejs';
 
 export async function GET(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(req.url);
     const from = searchParams.get('from');
     const to = searchParams.get('to');
@@ -85,6 +89,9 @@ export async function GET(req: Request) {
 
 export async function POST(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
+
     const body = await req.json();
     const { data: isoData, territorio, note, stato = 'bozza', operatori, regole, lucchetti } = body;
 
@@ -173,6 +180,9 @@ export async function POST(req: Request) {
 
 export async function DELETE(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
+
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
     if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
@@ -219,6 +229,9 @@ export async function DELETE(req: Request) {
 
 export async function PUT(req: Request) {
   try {
+    const auth = await requireUser();
+    if (auth instanceof NextResponse) return auth;
+
     const body = await req.json();
     const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti } = body;
 
