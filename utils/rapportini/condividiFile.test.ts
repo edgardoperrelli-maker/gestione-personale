@@ -2,6 +2,8 @@
 import { describe, it, expect } from 'vitest';
 import { supportaCondivisioneFile } from './condividiFile';
 
+// Nota: condividiOScarica (share/download) non è testato qui — richiede jsdom
+// (navigator.share + document.createElement). Verificato manualmente su dispositivo mobile.
 const file = new Blob(['x'], { type: 'application/pdf' });
 
 describe('supportaCondivisioneFile', () => {
