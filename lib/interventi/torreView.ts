@@ -124,16 +124,36 @@ export function rigaDettaglio(it: {
 }): { primario: string; secondario: string } {
   const t = (s: string | null | undefined) => (s ?? '').trim();
   const odl = t(it.odl);
-  const primario = t(it.nominativo) || odl || 'Intervento';
+  const matr = t(it.matricola_contatore);
+  const pdr = t(it.pdr);
+  // Intestazione: nominativo → ODL → matricola → PDR → fallback generico.
+  // Gli ACEA senza ODL sono identificati dalla matricola: meglio mostrarla che "Intervento".
+  const primario =
+    t(it.nominativo) || odl || (matr ? `matr. ${matr}` : '') || (pdr ? `PDR ${pdr}` : '') || 'Intervento';
   const luogo = [t(it.indirizzo), t(it.comune)].filter(Boolean).join(', ');
   const luogoCap = [luogo, t(it.cap)].filter(Boolean).join(' ');
   const parti = [
     luogoCap || null,
     odl && primario !== odl ? `ODL ${odl}` : null,
-    t(it.pdr) ? `PDR ${t(it.pdr)}` : null,
-    t(it.matricola_contatore) ? `matr. ${t(it.matricola_contatore)}` : null,
+    pdr && primario !== `PDR ${pdr}` ? `PDR ${pdr}` : null,
+    matr && primario !== `matr. ${matr}` ? `matr. ${matr}` : null,
     t(it.intervento_tipo) || null,
     t(it.fascia_oraria) || null,
   ].filter(Boolean);
   return { primario, secondario: parti.join(' · ') };
+}
+
+/**
+ * Ordina la lista per orario di salvataggio dell'operatore (`chiuso_at`, = ora di
+ * compilazione della voce) in modo CRESCENTE. Gli interventi non ancora salvati
+ * (chiuso_at null, es. "da fare") finiscono in fondo. Ordinamento stabile: a parità
+ * di orario (o tra i null) si preserva l'ordine d'ingresso.
+ */
+export function ordinaPerChiusura<T extends { chiuso_at: string | null }>(items: T[]): T[] {
+  return items.slice().sort((a, b) => {
+    if (!a.chiuso_at && !b.chiuso_at) return 0;
+    if (!a.chiuso_at) return 1;
+    if (!b.chiuso_at) return -1;
+    return a.chiuso_at < b.chiuso_at ? -1 : a.chiuso_at > b.chiuso_at ? 1 : 0;
+  });
 }

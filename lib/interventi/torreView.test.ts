@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, SENTINELLA_NON_ASSEGNATI } from './torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, ordinaPerChiusura, SENTINELLA_NON_ASSEGNATI } from './torreView';
 
 describe('coloreStato', () => {
   it('completato + eseguito_positivo → ok', () => {
@@ -129,5 +129,39 @@ describe('rigaDettaglio', () => {
     const r = rigaDettaglio({ ...base, comune: 'Zagarolo' });
     expect(r.primario).toBe('Intervento');
     expect(r.secondario).toBe('Zagarolo');
+  });
+
+  it('ACEA senza ODL: primario=matricola (non ripetuta nel secondario)', () => {
+    const r = rigaDettaglio({ ...base, matricola_contatore: '202115371556', indirizzo: 'Colle Prato Nuovo 3', comune: 'Zagarolo' });
+    expect(r.primario).toBe('matr. 202115371556');
+    expect(r.secondario).toBe('Colle Prato Nuovo 3, Zagarolo');
+  });
+
+  it('senza nominativo, ODL e matricola ma con PDR → primario=PDR', () => {
+    const r = rigaDettaglio({ ...base, pdr: 'PDR123', comune: 'Zagarolo' });
+    expect(r.primario).toBe('PDR PDR123');
+    expect(r.secondario).toBe('Zagarolo');
+  });
+});
+
+describe('ordinaPerChiusura', () => {
+  it('ordina per chiuso_at crescente, i null in fondo, stabile', () => {
+    const items = [
+      { id: 'a', chiuso_at: '2026-06-05T10:30:00Z' },
+      { id: 'b', chiuso_at: null },
+      { id: 'c', chiuso_at: '2026-06-05T08:15:00Z' },
+      { id: 'd', chiuso_at: null },
+      { id: 'e', chiuso_at: '2026-06-05T09:00:00Z' },
+    ];
+    expect(ordinaPerChiusura(items).map((x) => x.id)).toEqual(['c', 'e', 'a', 'b', 'd']);
+  });
+
+  it('non muta l\'array originale', () => {
+    const items = [
+      { id: 'a', chiuso_at: '2026-06-05T10:00:00Z' },
+      { id: 'b', chiuso_at: '2026-06-05T08:00:00Z' },
+    ];
+    ordinaPerChiusura(items);
+    expect(items.map((x) => x.id)).toEqual(['a', 'b']);
   });
 });

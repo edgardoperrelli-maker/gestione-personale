@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
-import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
+import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, ordinaPerChiusura, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
 import { useInterventiFeed, type TorreIntervento } from '@/lib/interventi/useInterventiFeed';
 
@@ -112,8 +112,9 @@ export default function TorreControlloClient({
     },
     { ok: 0, ko: 0, attesa: 0 },
   );
-  const itemsLista =
-    filtroStato === 'tutti' ? itemsMappa : itemsMappa.filter((it) => coloreStato(it.stato, it.esito) === filtroStato);
+  const itemsLista = ordinaPerChiusura(
+    filtroStato === 'tutti' ? itemsMappa : itemsMappa.filter((it) => coloreStato(it.stato, it.esito) === filtroStato),
+  );
 
   return (
     <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
