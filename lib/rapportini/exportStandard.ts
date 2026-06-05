@@ -2,9 +2,10 @@ import 'server-only';
 import path from 'path';
 import { readFile } from 'fs/promises';
 import ExcelJS from 'exceljs';
-import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
+import { resolveInfoCampi, valoreInfo, coordinateFromRaw, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { colonneVisibili, type VoceColonne } from '@/utils/rapportini/colonneVisibili';
+import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 
 /**
  * Export Excel dinamico dei rapportini compilati (lato server).
@@ -84,11 +85,12 @@ export async function buildRapportinoXlsx(
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('Foglio template non valido in Rapportino.xlsx.');
 
+  const vociC = voci.map((v) => ({ ...v, coordinate: coordinateFromRaw(v.raw_json) }));
   const info = resolveInfoCampi((rapportino.info_snapshot ?? []) as TemplateInfoCampo[]);
   const campi = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
   const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const { info: infoVis, campi: campiVis } = voci.length > 0
-    ? colonneVisibili(info, campiOrd, voci as unknown as VoceColonne[])
+  const { info: infoVis, campi: campiVis } = vociC.length > 0
+    ? colonneVisibili(info, campiOrd, vociC as unknown as VoceColonne[])
     : { info, campi: campiOrd };
 
   ws.getCell('B2').value = toDDMMYYYY(rapportino.data);
@@ -100,7 +102,7 @@ export async function buildRapportinoXlsx(
   for (let c = headers.length + 1; c <= 26; c++) hrow.getCell(c).value = null; // pulisci celle residue
   hrow.commit();
 
-  const ordered = [...voci].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const ordered = [...vociC].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   let rowIdx = DATA_START_ROW;
   for (const v of ordered) {
     const rr = ws.getRow(rowIdx);
@@ -109,7 +111,12 @@ export async function buildRapportinoXlsx(
     const nuovo = Boolean((v.raw_json as { _nuovo?: unknown } | null | undefined)?._nuovo);
     let col = 1;
     for (const c of infoVis) {
-      rr.getCell(col).value = valoreInfo(v as VoceInfo, c.chiave);
+      const val = valoreInfo(v as VoceInfo, c.chiave);
+      if (c.chiave === 'coordinate' && val) {
+        rr.getCell(col).value = { text: val, hyperlink: mapsUrlFromCoordinate(val) } as ExcelJS.CellHyperlinkValue;
+      } else {
+        rr.getCell(col).value = val;
+      }
       if (c.chiave === 'fascia_oraria') rr.getCell(col).numFmt = '@';
       col++;
     }
