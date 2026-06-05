@@ -7,7 +7,7 @@ import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -94,7 +94,12 @@ export function RapportinoLista({
               >
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
                 <span className="min-w-0 flex-1">
-                  <span className="flex min-w-0 items-baseline gap-1.5">
+                  <span className="flex min-w-0 items-center gap-1.5">
+                    {r.nuovo && (
+                      <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
+                        Nuovo
+                      </span>
+                    )}
                     <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)]">{r.titolo}</span>
                     {(r.attivita || r.fascia) && (
                       <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">

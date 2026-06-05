@@ -25,6 +25,7 @@ export type Voce = {
   accessibilita?: string;
   fascia_oraria?: string;
   risposte: Record<string, unknown>;
+  nuovo?: boolean;
 };
 
 type Props = {
@@ -183,7 +184,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi) };
+        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo };
       }),
     [voci, campi, titoloCampi],
   );

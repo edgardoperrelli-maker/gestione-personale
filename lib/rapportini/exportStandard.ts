@@ -34,6 +34,7 @@ export interface RapportinoVoce {
   accessibilita?: string | null;
   fascia_oraria?: string | null;
   risposte?: Record<string, unknown> | null;
+  raw_json?: unknown;
 }
 
 /** Rapportino dalla tabella `rapportini`. */
@@ -93,7 +94,7 @@ export async function buildRapportinoXlsx(
   ws.getCell('B2').value = toDDMMYYYY(rapportino.data);
   ws.getCell('B4').value = safeStr(rapportino.staff_name);
 
-  const headers = [...infoVis.map((c) => c.etichetta), 'ORDINE', ...campiVis.map((c) => c.etichetta)];
+  const headers = [...infoVis.map((c) => c.etichetta), 'ORDINE', ...campiVis.map((c) => c.etichetta), 'NUOVO'];
   const hrow = ws.getRow(HEADER_ROW);
   headers.forEach((label, i) => { hrow.getCell(i + 1).value = label; });
   for (let c = headers.length + 1; c <= 26; c++) hrow.getCell(c).value = null; // pulisci celle residue
@@ -105,6 +106,7 @@ export async function buildRapportinoXlsx(
     const rr = ws.getRow(rowIdx);
     const ordine = v.ordine ?? rowIdx - HEADER_ROW;
     const risposte = (v.risposte ?? {}) as Record<string, unknown>;
+    const nuovo = Boolean((v.raw_json as { _nuovo?: unknown } | null | undefined)?._nuovo);
     let col = 1;
     for (const c of infoVis) {
       rr.getCell(col).value = valoreInfo(v as VoceInfo, c.chiave);
@@ -117,11 +119,21 @@ export async function buildRapportinoXlsx(
       rr.getCell(col).value = raw === true ? 'X' : raw == null ? '' : String(raw);
       col++;
     }
+    // Badge "NUOVO" (ultima colonna): testo + evidenziazione riga per spotting a colpo d'occhio.
+    rr.getCell(col).value = nuovo ? 'NUOVO' : '';
+    if (nuovo) {
+      for (let c = 1; c <= col; c++) {
+        rr.getCell(c).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFF3CC' } };
+      }
+      const badge = rr.getCell(col);
+      badge.font = { bold: true, color: { argb: 'FF7A5B00' } };
+      badge.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFD54A' } };
+    }
     rr.commit();
     rowIdx++;
   }
 
-  const totalCols = infoVis.length + 1 + campiVis.length;
+  const totalCols = infoVis.length + 1 + campiVis.length + 1;
   for (let c = 1; c <= totalCols; c++) {
     let maxLen = 8;
     for (let r = HEADER_ROW; r < rowIdx; r++) {

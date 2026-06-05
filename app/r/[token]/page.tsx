@@ -24,6 +24,7 @@ type VoceRow = {
   accessibilita: string | null;
   fascia_oraria: string | null;
   risposte: Record<string, unknown> | null;
+  raw_json: unknown;
 };
 
 /* ── Layout standalone (fuori dalla shell dell'app) ────────────────────────── */
@@ -108,7 +109,7 @@ export default async function RapportinoPublicPage({
 
   const { data: vociRows } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
+    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json')
     .eq('rapportino_id', rap.id)
     .order('ordine');
 
@@ -127,6 +128,7 @@ export default async function RapportinoPublicPage({
     accessibilita: v.accessibilita ?? undefined,
     fascia_oraria: v.fascia_oraria ?? undefined,
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
+    nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])

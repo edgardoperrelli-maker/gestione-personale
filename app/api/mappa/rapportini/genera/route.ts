@@ -124,9 +124,17 @@ export async function POST(req: Request) {
       }
 
       const { data: existingVoci } = await supabaseAdmin.from('rapportino_voci')
-        .select('task_id, risposte').eq('rapportino_id', rapId);
+        .select('task_id, risposte, raw_json').eq('rapportino_id', rapId);
+      const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
+      const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
+      // Flag "nuovo" persistito nel raw_json della voce precedente (se c'era).
+      const prevNuovoByTask = new Map<string, boolean>(
+        existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
+      );
+      // Se il rapportino esisteva già, le voci con task_id mai visto sono interventi aggiunti dopo.
+      const rapPreesisteva = Boolean(existing?.id);
       const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, i + 1));
-      const existingAsVoci: Voce[] = ((existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null }>) ?? []).map((v) => ({
+      const existingAsVoci: Voce[] = existingRows.map((v) => ({
         task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {},
       }));
       const merged = mergeVoci(fromTasks, existingAsVoci);
@@ -142,7 +150,12 @@ export async function POST(req: Request) {
               matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
               pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
             });
-            return { rapportino_id: rapId, intervento_id, ...v };
+            // Badge "NUOVO": preserva il flag precedente; voce mai vista su rapportino già esistente → nuova.
+            const nuovo = existingTaskIds.has(v.task_id)
+              ? (prevNuovoByTask.get(v.task_id) ?? false)
+              : rapPreesisteva;
+            const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo };
+            return { rapportino_id: rapId, intervento_id, ...v, raw_json };
           }));
         if (eVoci) throw new Error(eVoci.message);
       }
