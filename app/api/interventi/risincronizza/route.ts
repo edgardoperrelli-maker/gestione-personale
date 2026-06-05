@@ -40,33 +40,39 @@ export async function POST(req: Request) {
     let agganciate = 0;
     let completati = 0;
 
-    // Recupero: agisce SOLO sulle voci ancora scollegate (idempotente). Per ognuna usa
-    // `updated_at` della voce come ORA REALE DI COMPILAZIONE (non l'ora attuale del recupero).
+    // Catch-up completo: per OGNI voce assicura il collegamento (aggancia quelle scollegate)
+    // e riapplica l'esito sull'intervento. `updated_at` della voce = ORA REALE DI COMPILAZIONE.
     for (const rap of (raps ?? []) as Array<{ id: string; staff_id: string | null; campi_snapshot: unknown }>) {
       const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
       const { data: voci } = await supabaseAdmin
         .from('rapportino_voci')
-        .select('id, raw_json, risposte, updated_at')
-        .eq('rapportino_id', rap.id)
-        .is('intervento_id', null);
+        .select('id, intervento_id, raw_json, risposte, updated_at')
+        .eq('rapportino_id', rap.id);
 
       for (const v of (voci ?? []) as Array<{
         id: string;
+        intervento_id: string | null;
         raw_json: unknown;
         risposte: Record<string, unknown> | null;
         updated_at: string;
       }>) {
-        const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
-        const interventoId = resolve({
-          staff_id: rap.staff_id,
-          odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined),
-          matricola: raw.matricola as string | null | undefined,
-          pdr: raw.pdr as string | null | undefined,
-        });
+        let interventoId = v.intervento_id;
+        if (!interventoId) {
+          const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+          const found = resolve({
+            staff_id: rap.staff_id,
+            odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined),
+            matricola: raw.matricola as string | null | undefined,
+            pdr: raw.pdr as string | null | undefined,
+          });
+          if (found) {
+            interventoId = found;
+            await supabaseAdmin.from('rapportino_voci').update({ intervento_id: found }).eq('id', v.id);
+            agganciate += 1;
+          }
+        }
         if (!interventoId) continue;
-        await supabaseAdmin.from('rapportino_voci').update({ intervento_id: interventoId }).eq('id', v.id);
-        agganciate += 1;
-        // Solo chiusura: voce neutra → non tocca (non riapre nel recupero).
+        // Voce neutra → non tocca (non riapre nel recupero).
         const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
         if (!patch) continue;
         const { error: e } = await supabaseAdmin
