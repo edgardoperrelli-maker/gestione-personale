@@ -115,7 +115,7 @@ export function RapportinoLista({
         <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {inviato ? (
             <>
-              <p className="rounded-xl border border-[var(--success)] bg-[var(--success-soft)] py-3 text-center text-sm font-semibold text-[var(--success)]">Rapportino inviato ✓</p>
+              <p className="mb-1.5 text-center text-xs font-medium text-[var(--success)]">Rapportino inviato ✓</p>
               <CondividiPdfButton
                 staffName={staffName}
                 dataLabel={dataLabel}

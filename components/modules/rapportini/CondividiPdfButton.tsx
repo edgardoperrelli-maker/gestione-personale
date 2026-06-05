@@ -53,7 +53,7 @@ export function CondividiPdfButton({
       type="button"
       onClick={onClick}
       disabled={stato === 'lavoro'}
-      className="mt-2 w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 text-base font-semibold text-[var(--brand-text-main)] transition enabled:active:border-[var(--brand-primary)] disabled:opacity-60"
+      className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[oklch(0.16_0.06_245)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
     >
       {label}
     </button>
