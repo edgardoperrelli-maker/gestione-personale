@@ -198,6 +198,12 @@ export async function DELETE(req: Request) {
         .eq('data', (piano as any).data);
     }
 
+    // Elimina anche gli interventi creati da questo piano, altrimenti restano orfani
+    // e visibili in torre. interventi.piano_id ha ON DELETE SET NULL: vanno cancellati
+    // PRIMA del piano (dopo non sarebbero più trovabili per piano_id).
+    const { error: eInt } = await supabaseAdmin.from('interventi').delete().eq('piano_id', id);
+    if (eInt) throw new Error(eInt.message);
+
     const { error } = await supabaseAdmin
       .from('mappa_piani')
       .delete()
