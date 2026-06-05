@@ -717,6 +717,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [rapError, setRapError] = useState<string | null>(null);
   const [rapConflicts, setRapConflicts] = useState<Array<{ staff_id: string; staff_name: string | null; territorio: string | null; data: string; submitted: boolean }> | null>(null);
   const [overwriteInviati, setOverwriteInviati] = useState(false);
+  const [diffPreview, setDiffPreview] = useState<import('@/utils/rapportini/diffRapportini').DiffRapportini | null>(null);
+  const [diffConfermaInviati, setDiffConfermaInviati] = useState(false);
+  const [pendingApply, setPendingApply] = useState<{ pid: string } | null>(null);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Setup modale per data e territorio all'apertura
@@ -1567,6 +1570,32 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSelectedOps((prev) => prev.map((o) => o.id === id ? { ...o, qty } : o));
   }, []);
 
+  // Applica la propagazione ai rapportini (riusa i token esistenti; preserva le risposte lato server).
+  const applicaRapportini = useCallback(async (pid: string, confermaInviati: boolean) => {
+    if (!rapTemplateId) { setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.'); return; }
+    try {
+      const rg = await fetch('/api/mappa/rapportini/genera', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pianoId: pid, templateId: rapTemplateId, confermaInviati }),
+      });
+      if (rg.ok) {
+        const r2 = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
+        const d2 = await r2.json();
+        setRapStato(Array.isArray(d2) ? d2 : []);
+      } else if (rg.status === 409) {
+        const dataConf = (await rg.json().catch(() => ({}))) as { conflicts?: typeof rapConflicts; error?: string };
+        if (Array.isArray(dataConf.conflicts) && dataConf.conflicts.length > 0) setRapConflicts(dataConf.conflicts);
+        else setRapError(dataConf.error ?? 'Aggiornamento rapportini: conflitto non risolvibile.');
+      } else {
+        const ej = (await rg.json().catch(() => ({}))) as { error?: string };
+        setRapError(ej.error ?? 'Aggiornamento rapportini non riuscito.');
+      }
+    } catch {
+      setRapError("Errore di rete nell'aggiornamento dei rapportini.");
+    }
+  }, [rapTemplateId]);
+
   // Salva distribuzione su Supabase
   const saveDistribution = useCallback(async () => {
     if (!distribution || !selectedOps.length) return;
@@ -1678,37 +1707,29 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           // Best-effort: non blocca il salvataggio del piano.
           if (rapTemplateId) {
             try {
-              const rg = await fetch('/api/mappa/rapportini/genera', {
+              const ap = await fetch('/api/mappa/piani/anteprima-rapportini', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pianoId: pid, templateId: rapTemplateId }),
+                body: JSON.stringify({ pianoId: pid, operatori }),
               });
-              if (rg.ok) {
-                // Ricarica lo stato rapportini (nVoci aggiornato) in modo deterministico,
-                // senza dipendere da `caricaRapportini` (definito più sotto → eviti la TDZ nelle deps).
-                try {
-                  const r2 = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
-                  const d2 = await r2.json();
-                  setRapStato(Array.isArray(d2) ? d2 : []);
-                } catch { /* l'effetto su savedDistribution ricarica comunque */ }
-              } else if (rg.status === 409) {
-                // Conflitto: stesso operatore ha già un rapportino in un ALTRO piano (stessa data/territorio).
-                // Mostra la finestra dei conflitti (come dal pulsante manuale) per scegliere Sovrascrivi/Salta,
-                // invece di fallire in silenzio.
-                const dataConf = (await rg.json().catch(() => ({}))) as {
-                  conflicts?: Array<{ staff_id: string; staff_name: string | null; territorio: string | null; data: string; submitted: boolean }>;
-                };
-                if (Array.isArray(dataConf.conflicts) && dataConf.conflicts.length > 0) {
-                  setRapConflicts(dataConf.conflicts);
+              if (ap.ok) {
+                const diff = (await ap.json()) as import('@/utils/rapportini/diffRapportini').DiffRapportini;
+                if (diff.bloccati.length > 0) {
+                  const elenco = diff.bloccati.map((b) => `• ${b.descr} (${b.daNome} → ${b.aNome})`).join('\n');
+                  setRapError(`Questi interventi sono già completati e non possono essere spostati. Riportali all'operatore originale e risalva:\n${elenco}`);
+                } else if (diff.nessunaModifica) {
+                  await applicaRapportini(pid, false);
                 } else {
-                  setRapError('Aggiornamento rapportini: conflitto non risolvibile automaticamente.');
+                  setDiffPreview(diff);
+                  setDiffConfermaInviati(false);
+                  setPendingApply({ pid });
                 }
               } else {
-                const ej = (await rg.json().catch(() => ({}))) as { error?: string };
-                setRapError(ej.error ?? 'Aggiornamento rapportini non riuscito.');
+                const ej = (await ap.json().catch(() => ({}))) as { error?: string };
+                setRapError(ej.error ?? 'Anteprima rapportini non riuscita.');
               }
             } catch {
-              setRapError("Errore di rete nell'aggiornamento dei rapportini.");
+              setRapError("Errore di rete nell'anteprima dei rapportini.");
             }
           } else {
             setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.');
@@ -1723,7 +1744,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente, unassignedTasks, rapTemplateId]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente, unassignedTasks, rapTemplateId, applicaRapportini]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -3431,6 +3452,49 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 className="rounded-lg bg-[var(--danger)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
                 Sovrascrivi tutti
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {diffPreview && pendingApply && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => { setDiffPreview(null); setPendingApply(null); }}>
+          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold">Conferma variazione rapportini</h3>
+            <ul className="my-3 max-h-60 space-y-1 overflow-y-auto text-sm">
+              {diffPreview.spostamenti.map((s) => (
+                <li key={`sp-${s.taskId}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5">
+                  <span className="font-medium">{s.descr}</span>: {s.daNome} → {s.aNome}
+                </li>
+              ))}
+              {diffPreview.nuoviLink.map((n) => (
+                <li key={`nl-${n.staffId}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-[var(--brand-primary)]">
+                  Nuovo rapportino + link per {n.staffName}
+                </li>
+              ))}
+              {diffPreview.svuotati.map((v) => (
+                <li key={`sv-${v.staffId}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-[var(--brand-text-muted)]">
+                  {v.staffName}: nessun intervento — rapportino vuoto, link conservato
+                </li>
+              ))}
+            </ul>
+            {diffPreview.inviatiCoinvolti.length > 0 && (
+              <label className="mb-3 flex items-start gap-2 text-xs text-[var(--danger)]">
+                <input type="checkbox" checked={diffConfermaInviati} onChange={(e) => setDiffConfermaInviati(e.target.checked)} />
+                <span>
+                  Riapri e applica anche ai rapportini già inviati di: {diffPreview.inviatiCoinvolti.map((i) => i.staffName).join(', ')}
+                </span>
+              </label>
+            )}
+            <div className="flex justify-end gap-2">
+              <button type="button" onClick={() => { setDiffPreview(null); setPendingApply(null); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm">Annulla</button>
+              <button
+                type="button"
+                onClick={async () => { const pid = pendingApply.pid; const conf = diffConfermaInviati; setDiffPreview(null); setPendingApply(null); await applicaRapportini(pid, conf); }}
+                disabled={diffPreview.inviatiCoinvolti.length > 0 && !diffConfermaInviati}
+                className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Applica
               </button>
             </div>
           </div>
