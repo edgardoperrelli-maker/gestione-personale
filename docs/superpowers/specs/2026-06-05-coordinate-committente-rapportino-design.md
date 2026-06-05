@@ -10,7 +10,7 @@
 
 Alcuni committenti forniscono nel file di lavorazione le **coordinate GPS** del punto (più precise del geocoding dell'indirizzo). Vogliamo:
 
-1. **Leggerle in automatico** dal file all'import, riconoscendole dall'intestazione: due colonne `Lat` + `Long` (come nel file ZAGAROLO) **oppure** una cella unica (`coordinate`, `lat,lng`, es. `41.853674, 12.788878`).
+1. **Leggerle in automatico** dal file all'import, riconoscendole dall'intestazione delle **due colonne** `Lat` e `Long` (formato usato **sempre** dai committenti — es. file ZAGAROLO). Le celle possono essere numeriche o testo con virgola decimale.
 2. Esporle come nuovo campo anagrafico **COORDINATE**, attivabile dalle *Impostazioni → Template rapportini* come gli altri campi.
 3. Renderle visibili nell'anagrafica del rapportino e **cliccabili** dal personale per aprire Maps sul **punto esatto**. In aggiunta, l'**indirizzo** diventa sempre cliccabile (ricerca su Maps).
 
@@ -18,7 +18,7 @@ Ambito: parser Excel condiviso (`utils/routing/`), campi info rapportino (`utils
 
 ## 2. Decisioni di prodotto (confermate)
 
-- **Origine coordinate:** import del file committente, **auto-riconoscimento da intestazione**. Nessun inserimento manuale, nessun file dedicato.
+- **Origine coordinate:** import del file committente, **auto-riconoscimento da intestazione**. Le coordinate arrivano **sempre su due colonne** (`Lat` + `Long`) — confermato; la cella unica non è usata. Nessun inserimento manuale, nessun file dedicato.
 - **Le coordinate sono "una cosa a parte".** L'import continua a usare **sempre l'indirizzo** per geocoding, routing e mappa. La coordinata del committente **non** sostituisce l'indirizzo e **non** entra nella logica mappa/routing né in `interventi.lat/lng`. È un dato separato, usato **solo** per il campo COORDINATE e il pulsante "apri Maps".
 - **Campo vuoto se non fornito.** Se il file non porta coordinate per quella riga, il campo COORDINATE resta **vuoto** — mai coordinate stimate dal geocoding. ⇒ va tracciata la **fonte**: la coordinata committente è un valore distinto dalle `lat/lng` geocodificate.
 - **Cliccabile:** coordinata (punto esatto) **+** indirizzo (ricerca su Maps).
@@ -37,26 +37,23 @@ Ambito: parser Excel condiviso (`utils/routing/`), campi info rapportino (`utils
 
 ### 4.1 Parsing coordinata (puro, testabile) — nuovo `utils/routing/parseCoordinate.ts`
 
-Funzione senza React/IO, unit-testabile. Accetta numeri (cella numerica, es. ZAGAROLO) o stringhe (cella testo, anche con **virgola decimale** all'italiana):
+Funzione senza React/IO, unit-testabile. Due colonne (`Lat`, `Long`); ogni cella può essere già numerica (es. ZAGAROLO) o testo con **virgola decimale** all'italiana:
 
 ```ts
-// Restituisce la stringa normalizzata "lat, lng" (sempre col PUNTO) oppure null se non valida.
-parseCoordinate(input: { lat?: unknown; lng?: unknown; single?: unknown }): string | null
+// Restituisce "lat, lng" (sempre col PUNTO) oppure null se non valida.
+parseLatLng(lat: unknown, lng: unknown): string | null
 ```
 
-Normalizzazione numero (`toNum`): se è già `number` → usato così com'è; se è stringa → `trim`, **virgola → punto** per il decimale, poi `parseFloat`. L'output è **sempre col punto**, subito utilizzabile nell'URL Maps.
-
-- **Due colonne** (`lat`, `lng`): ogni cella è **un solo numero** ⇒ `,`→`.` è sempre sicuro. Valida i range (`lat ∈ [-90,90]`, `lng ∈ [-180,180]`), formatta `"<lat>, <lng>"`. Copre ZAGAROLO (celle già numeriche) e i file con virgola decimale.
-- **Cella unica** (`single`): individua i due numeri usando come **separatore** `;`, lo spazio, oppure `, ` (virgola+spazio); su ciascun pezzo applica `,`→`.`. Es.: `41,853674; 12,788878` → `41.853674, 12.788878`; `41.853674, 12.788878` → invariato.
-- **Unico caso ambiguo:** cella unica in cui la virgola è **insieme** separatore decimale e unico delimitatore, senza spazi né `;` (`41,853674,12,788878`) → non distinguibile senza indovinare ⇒ `null` (campo vuoto), per non rischiare un punto sbagliato.
+- Normalizzazione (`toNum`): se è `number` → usato com'è; se è stringa → `trim`, **virgola → punto**, `parseFloat`. Ogni cella è **un solo numero**, quindi `,`→`.` è sempre sicuro.
+- Valida i range (`lat ∈ [-90,90]`, `lng ∈ [-180,180]`); formatta `"<lat>, <lng>"` (col punto, subito usabile nell'URL Maps).
 - Scarta `0,0`, vuoto, testo (`N/A`), valori fuori range → `null` (⇒ campo vuoto).
 
 ### 4.2 Cattura nell'excelParser — `utils/routing/excelParser.ts`
 
-- `ColMap` + `detectFormat`: aggiungere `lat`, `lng`, `coordinate` (indici opzionali, `number | null`).
-  - Riconoscimento da header (`findCol`, già esistente): `lat` → `/^lat(itudine)?$/`; `lng` → `/^long(itudine)?$/`, `/^lon$/`, `/^lng$/`; cella unica → `/^coordinate?$/`, `/^coordinate gps$/`, `/^lat[\s,;]*l(on|ng)/`.
+- `ColMap` + `detectFormat`: aggiungere `lat`, `lng` (indici opzionali, `number | null`).
+  - Riconoscimento da header (`findCol`, già esistente): `lat` → `/^lat(itudine)?$/`; `lng` → `/^long(itudine)?$/`, `/^lon$/`, `/^lng$/`.
   - Vale per il ramo "Export Dati / Geocall" (header leggibili — ZAGAROLO cade qui, ha `INDIRIZZO`/`Località`); per ATTGIORN/MASSIVA (indici fissi) si tenta comunque `findCol` sugli header, senza indici fissi se assenti.
-- In `parseExcelToTasks`, per ogni riga: `task.coordinate = parseCoordinate({ lat: row[colMap.lat], lng: row[colMap.lng], single: row[colMap.coordinate] })` (solo se le colonne esistono). **NON** toccare `task.lat`/`task.lng` (restano per il geocoding indirizzo).
+- In `parseExcelToTasks`, per ogni riga: `task.coordinate = parseLatLng(row[colMap.lat], row[colMap.lng])` (solo se entrambe le colonne esistono). **NON** toccare `task.lat`/`task.lng` (restano per il geocoding indirizzo).
 
 ### 4.3 Tipi e modello (nessuna migration)
 
@@ -113,7 +110,7 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 ## 6. Test
 
 **Automatici (vitest):**
-- `utils/routing/parseCoordinate.test.ts`: due colonne numeriche ok; due colonne con **virgola decimale** (`41,853674` / `12,788878`) → punto; cella unica `41.853674, 12.788878` ok; cella unica con virgola decimale + `;`/spazio ok; cella unica solo-virgole senza spazi (`41,8…,12,7…`) → null; fuori range → null; `0,0`/vuoto/`N/A` → null.
+- `utils/routing/parseCoordinate.test.ts`: due colonne numeriche ok; due colonne con **virgola decimale** (`41,853674` / `12,788878`) → punto; fuori range → null; `0,0`/vuoto/`N/A` → null.
 - `utils/rapportini/mapsLink.test.ts`: URL coordinata corretto; indirizzo con `encodeURIComponent`; campi mancanti.
 - (se utile) test mirato su `detectFormat`/`parseExcelToTasks` con header `Lat`/`Long` su una riga in stile ZAGAROLO → `task.coordinate` valorizzata e `task.lat/lng` **non** impostati dal file.
 
@@ -138,7 +135,7 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 - Uso delle coordinate committente per geocoding/routing/mappa o per `interventi.lat/lng` (escluso esplicitamente dall'utente).
 - Inserimento/modifica manuale delle coordinate (solo da import).
 - Colonna coordinate nella lista interventi `InterventiAssegnabili` (legge `interventi`, richiederebbe migration).
-- Solo il sotto-caso ambiguo della cella unica (virgola sia decimale sia unico separatore, senza spazi) resta non gestito; scelta tra Google/Apple/Waze (link universale unico).
+- Cella unica per le coordinate (i committenti danno **sempre due colonne**); inserimento manuale; scelta tra Google/Apple/Waze (link universale unico).
 
 ## 9. Rollout sicuro
 
