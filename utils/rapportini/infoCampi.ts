@@ -1,6 +1,7 @@
 export type InfoChiave =
   | 'nominativo' | 'matricola' | 'pdr' | 'odl' | 'via'
-  | 'comune' | 'cap' | 'recapito' | 'attivita' | 'accessibilita' | 'fascia_oraria';
+  | 'comune' | 'cap' | 'recapito' | 'attivita' | 'accessibilita' | 'fascia_oraria'
+  | 'coordinate';
 
 export interface TemplateInfoCampo {
   chiave: InfoChiave;
@@ -8,7 +9,7 @@ export interface TemplateInfoCampo {
   ordine: number;
 }
 
-/** Gli 11 campi anagrafici selezionabili, con etichetta di default. */
+/** I 12 campi anagrafici selezionabili, con etichetta di default. */
 export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: string }[] = [
   { chiave: 'nominativo', etichettaDefault: 'NOMINATIVO' },
   { chiave: 'matricola', etichettaDefault: 'MATRICOLA' },
@@ -21,6 +22,7 @@ export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: str
   { chiave: 'attivita', etichettaDefault: 'ATTIVITA' },
   { chiave: 'accessibilita', etichettaDefault: 'ACCESSIBILITA' },
   { chiave: 'fascia_oraria', etichettaDefault: 'FASCIA ORARIA' },
+  { chiave: 'coordinate', etichettaDefault: 'COORDINATE' },
 ];
 
 const CHIAVI_NOTE = new Set<string>(INFO_CAMPI_DISPONIBILI.map((c) => c.chiave));
@@ -29,7 +31,7 @@ function defaultEtichetta(chiave: InfoChiave): string {
   return INFO_CAMPI_DISPONIBILI.find((c) => c.chiave === chiave)?.etichettaDefault ?? chiave;
 }
 
-/** Config di default = tutti gli 11 nell'ordine canonico (comportamento storico). */
+/** Config di default = tutti i 12 nell'ordine canonico (comportamento storico). */
 export function infoCampiDefault(): TemplateInfoCampo[] {
   return INFO_CAMPI_DISPONIBILI.map((c, i) => ({
     chiave: c.chiave,
@@ -42,7 +44,7 @@ export function infoCampiDefault(): TemplateInfoCampo[] {
  * Risolve lo snapshot in una lista ordinata di campi info.
  * - filtra le chiavi sconosciute
  * - ordina per `ordine`
- * - snapshot vuoto/assente → fallback a tutti gli 11 (comportamento attuale)
+ * - snapshot vuoto/assente → fallback a tutti i 12 (comportamento attuale)
  */
 export function resolveInfoCampi(
   snapshot: TemplateInfoCampo[] | null | undefined,
@@ -102,4 +104,10 @@ export function titoloVoce(
     if (v) return v;
   }
   return `Voce ${indice + 1}`;
+}
+
+/** Estrae la coordinata committente ("lat, lng") dal raw_json di una voce, o undefined. */
+export function coordinateFromRaw(raw: unknown): string | undefined {
+  const c = (raw as { coordinate?: unknown } | null | undefined)?.coordinate;
+  return typeof c === 'string' && c.trim() !== '' ? c : undefined;
 }

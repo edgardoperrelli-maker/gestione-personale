@@ -6,19 +6,20 @@ import {
   INFO_CAMPI_DISPONIBILI,
   partitionInfoCampi,
   titoloVoce,
+  coordinateFromRaw,
 } from './infoCampi';
 
 describe('resolveInfoCampi', () => {
-  it('snapshot vuoto → tutti gli 11 di default', () => {
+  it('snapshot vuoto → tutti i 12 di default', () => {
     const r = resolveInfoCampi([]);
-    expect(r).toHaveLength(11);
+    expect(r).toHaveLength(12);
     expect(r.map((c) => c.chiave)).toEqual(INFO_CAMPI_DISPONIBILI.map((c) => c.chiave));
     expect(r[1]).toMatchObject({ chiave: 'matricola', etichetta: 'MATRICOLA', ordine: 2 });
   });
 
   it('null/undefined → default', () => {
-    expect(resolveInfoCampi(null)).toHaveLength(11);
-    expect(resolveInfoCampi(undefined)).toHaveLength(11);
+    expect(resolveInfoCampi(null)).toHaveLength(12);
+    expect(resolveInfoCampi(undefined)).toHaveLength(12);
   });
 
   it('ordina per ordine e rispetta le etichette custom', () => {
@@ -53,10 +54,10 @@ describe('resolveInfoCampi', () => {
 });
 
 describe('infoCampiDefault', () => {
-  it('produce 11 campi con ordine 1..11', () => {
+  it('produce 12 campi con ordine 1..12', () => {
     const d = infoCampiDefault();
-    expect(d).toHaveLength(11);
-    expect(d.map((c) => c.ordine)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
+    expect(d).toHaveLength(12);
+    expect(d.map((c) => c.ordine)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
   });
 });
 
@@ -72,7 +73,7 @@ describe('partitionInfoCampi', () => {
   it('separa primari e dettaglio dallo snapshot di default', () => {
     const { primari, dettaglio } = partitionInfoCampi([]);
     expect(primari.map((c) => c.chiave)).toEqual(['nominativo', 'via', 'comune', 'fascia_oraria']);
-    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odl', 'cap', 'recapito', 'attivita', 'accessibilita']);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odl', 'cap', 'recapito', 'attivita', 'accessibilita', 'coordinate']);
   });
   it('rispetta i campi mancanti nello snapshot', () => {
     const { primari, dettaglio } = partitionInfoCampi([
@@ -103,5 +104,26 @@ describe('titoloVoce', () => {
   });
   it('lista configurata con tutti i campi vuoti → "Voce N" (niente fallback a nominativo)', () => {
     expect(titoloVoce({ nominativo: 'IGNORATO' }, ['odl', 'via'], 2)).toBe('Voce 3');
+  });
+});
+
+describe('coordinateFromRaw', () => {
+  it('estrae la coordinata dal raw_json', () => {
+    expect(coordinateFromRaw({ coordinate: '41.853675, 12.7888783' })).toBe('41.853675, 12.7888783');
+  });
+  it('assente/vuota/non-stringa → undefined', () => {
+    expect(coordinateFromRaw({})).toBeUndefined();
+    expect(coordinateFromRaw({ coordinate: '' })).toBeUndefined();
+    expect(coordinateFromRaw(null)).toBeUndefined();
+    expect(coordinateFromRaw({ coordinate: 123 })).toBeUndefined();
+  });
+});
+
+describe('campo coordinate', () => {
+  it('coordinate è tra i campi info disponibili', () => {
+    expect(INFO_CAMPI_DISPONIBILI.some((c) => c.chiave === 'coordinate')).toBe(true);
+  });
+  it('valoreInfo legge coordinate dalla voce', () => {
+    expect(valoreInfo({ coordinate: '41.85, 12.78' }, 'coordinate')).toBe('41.85, 12.78');
   });
 });
