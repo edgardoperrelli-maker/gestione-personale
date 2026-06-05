@@ -31,9 +31,26 @@ export interface DatiRiepilogoPdf {
   nonEseguiti: RigaPdf[];
 }
 
+/** Valori di un select che indicano "non fatto" (allineato a voceColore). */
+const NEG_SELECT = /^(no|assente|negativ\w*|ko)$/i;
+
 /** Marcatori negativi (es. "assente") non sono "lavorazioni svolte". */
 function isMarcatoreAssente(chiave: string, etichetta: string): boolean {
   return /assent/i.test(`${chiave} ${etichetta}`);
+}
+
+/**
+ * La lavorazione di un campo è "svolta" su una voce?
+ * - crocetta: spuntata (true)
+ * - select: valorizzata e non negativa (es. "SI") — copre la saracinesca dei template ACEA
+ */
+function lavorazioneFatta(campo: TemplateCampo, valore: unknown): boolean {
+  if (campo.tipo === 'crocetta') return valore === true;
+  if (campo.tipo === 'select') {
+    const s = typeof valore === 'string' ? valore.trim() : '';
+    return s !== '' && !NEG_SELECT.test(s);
+  }
+  return false;
 }
 
 /** Valore di un campo compilabile del template per una voce, formattato per la cella. */
@@ -63,6 +80,16 @@ export function costruisciDatiPdf(params: {
     ...campiOrd.map((c) => ({ etichetta: c.etichetta, crocetta: c.tipo === 'crocetta' })),
   ];
 
+  // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
+  // escludendo i marcatori "assente".
+  const lavorazioni = campiOrd
+    .filter((c) => (c.tipo === 'crocetta' || c.tipo === 'select') && !isMarcatoreAssente(c.chiave, c.etichetta))
+    .map((c) => ({
+      etichetta: c.etichetta,
+      count: voci.filter((v) => lavorazioneFatta(c, v.risposte?.[c.chiave])).length,
+    }))
+    .filter((l) => l.count > 0);
+
   const eseguiti: RigaPdf[] = [];
   const nonEseguiti: RigaPdf[] = [];
 
@@ -82,9 +109,7 @@ export function costruisciDatiPdf(params: {
     staffName,
     dataLabel,
     stats: { totali: riep.totali, eseguiti: riep.eseguiti, nonEseguiti: riep.nonEseguiti },
-    lavorazioni: riep.lavorazioni
-      .filter((l) => !isMarcatoreAssente(l.chiave, l.etichetta))
-      .map((l) => ({ etichetta: l.etichetta, count: l.count })),
+    lavorazioni,
     colonne,
     eseguiti,
     nonEseguiti,
