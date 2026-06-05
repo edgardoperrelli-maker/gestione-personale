@@ -2,6 +2,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
+import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
 import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
@@ -128,6 +129,7 @@ export default async function RapportinoPublicPage({
     accessibilita: v.accessibilita ?? undefined,
     fascia_oraria: v.fascia_oraria ?? undefined,
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
+    coordinate: coordinateFromRaw(v.raw_json),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
   }));
 

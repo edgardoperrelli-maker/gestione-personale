@@ -5,6 +5,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { StatoVoce } from '@/utils/rapportini/riepilogo';
 import { CampoInput } from './CampoInput';
 import { SaveBadge, type SaveState } from './SaveBadge';
+import { mapsUrlFromAddress, mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 
 export type VoceFocusData = VoceInfo & { risposte: Record<string, unknown> };
 
@@ -40,7 +41,10 @@ export function VoceFocus({
   const titolo = titoloVoce(voce, titoloCampi, indice);
   const indirizzo = [valoreInfo(voce, 'via'), valoreInfo(voce, 'comune')].filter(Boolean).join(', ');
   const fascia = valoreInfo(voce, 'fascia_oraria');
+  const coordinata = valoreInfo(voce, 'coordinate');
+  const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
   const dett = dettaglio
+    .filter((c) => c.chiave !== 'coordinate')
     .map((c) => ({ label: c.etichetta, value: valoreInfo(voce, c.chiave) }))
     .filter((r) => r.value !== '');
   const crocette = campi.filter((c) => c.tipo === 'crocetta');
@@ -68,10 +72,26 @@ export function VoceFocus({
 
           <div className="mt-2.5 space-y-1.5 text-[14.5px] text-[var(--brand-text-main)]">
             {indirizzo && (
-              <div className="flex items-center gap-2">
-                <svg className="h-[17px] w-[17px] shrink-0 text-[var(--brand-primary)]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1118 0z" /><circle cx="12" cy="10" r="3" /></svg>
+              <a
+                href={mapsUrlFromAddress(valoreInfo(voce, 'via'), valoreInfo(voce, 'comune'), valoreInfo(voce, 'cap'))}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline"
+              >
+                <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1118 0z" /><circle cx="12" cy="10" r="3" /></svg>
                 <span>{indirizzo}</span>
-              </div>
+              </a>
+            )}
+            {coordinataAbilitata && coordinata && (
+              <a
+                href={mapsUrlFromCoordinate(coordinata)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline"
+              >
+                <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>
+                <span>Punto esatto · {coordinata}</span>
+              </a>
             )}
             {fascia && (
               <div className="flex items-center gap-2">

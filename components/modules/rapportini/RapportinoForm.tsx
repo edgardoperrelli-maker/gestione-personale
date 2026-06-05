@@ -24,6 +24,7 @@ export type Voce = {
   attivita?: string;
   accessibilita?: string;
   fascia_oraria?: string;
+  coordinate?: string;
   risposte: Record<string, unknown>;
   nuovo?: boolean;
 };
