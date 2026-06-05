@@ -15,7 +15,7 @@ export async function POST(req: Request) {
   try {
     const auth = await requireUser();
     if (auth instanceof NextResponse) return auth;
-    const { pianoId, templateId, overwrite } = await req.json() as { pianoId?: string; templateId?: string; overwrite?: 'replace' | 'skip' };
+    const { pianoId, templateId, overwrite, overwriteSubmitted } = await req.json() as { pianoId?: string; templateId?: string; overwrite?: 'replace' | 'skip'; overwriteSubmitted?: boolean };
     if (!pianoId || !templateId) return NextResponse.json({ error: 'pianoId e templateId obbligatori' }, { status: 400 });
 
     const { data: piano } = await supabaseAdmin.from('mappa_piani').select('id, data, territorio').eq('id', pianoId).single();
@@ -28,18 +28,20 @@ export async function POST(req: Request) {
     const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
 
     // Candidati: rapportini di ALTRI piani, stessa data, stessi operatori.
-    const { data: altriRaps } = await supabaseAdmin
+    const { data: altriRaps, error: eAltri } = await supabaseAdmin
       .from('rapportini')
       .select('id, staff_id, piano_id, data, stato, submitted_at')
       .eq('data', piano.data)
       .neq('piano_id', pianoId)
       .in('staff_id', operatoriPiano.map((o) => o.staff_id));
+    if (eAltri) return NextResponse.json({ error: eAltri.message }, { status: 500 });
 
     // Risolvi il territorio dei piani candidati.
     const altriPianoIds = [...new Set((altriRaps ?? []).map((r) => r.piano_id as string))];
     const terrByPiano: Record<string, string | null> = {};
     if (altriPianoIds.length) {
-      const { data: altriPiani } = await supabaseAdmin.from('mappa_piani').select('id, territorio').in('id', altriPianoIds);
+      const { data: altriPiani, error: ePiani } = await supabaseAdmin.from('mappa_piani').select('id, territorio').in('id', altriPianoIds);
+      if (ePiani) return NextResponse.json({ error: ePiani.message }, { status: 500 });
       (altriPiani ?? []).forEach((p: { id: string; territorio: string | null }) => { terrByPiano[p.id] = p.territorio ?? null; });
     }
     const esistenti: RapEsistente[] = (altriRaps ?? []).map((r) => ({
@@ -56,6 +58,10 @@ export async function POST(req: Request) {
     // Fase 1: ci sono conflitti e l'utente non ha ancora deciso → 409.
     if (conflicts.length > 0 && !overwrite) {
       return NextResponse.json({ conflicts }, { status: 409 });
+    }
+
+    if (overwrite === 'replace' && conflicts.some((c) => c.submitted) && !overwriteSubmitted) {
+      return NextResponse.json({ conflicts, error: 'submitted_richiede_conferma' }, { status: 409 });
     }
 
     const staffInConflitto = new Set(conflicts.map((c) => c.staff_id));

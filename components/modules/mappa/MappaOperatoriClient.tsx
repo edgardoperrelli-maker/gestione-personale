@@ -1710,7 +1710,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
   }, [savedDistribution, currentPianoId, caricaRapportini]);
 
-  const eseguiGenerazione = useCallback(async (overwrite?: 'replace' | 'skip') => {
+  const eseguiGenerazione = useCallback(async (overwrite?: 'replace' | 'skip', overwriteSubmitted?: boolean) => {
     if (!currentPianoId || !rapTemplateId) return;
     setRapGenerating(true);
     setRapError(null);
@@ -1718,7 +1718,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const res = await fetch('/api/mappa/rapportini/genera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId, overwrite }),
+        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId, overwrite, overwriteSubmitted }),
       });
       const data = await res.json();
       if (res.status === 409 && Array.isArray(data?.conflicts)) {
@@ -3332,10 +3332,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               </label>
             )}
             <div className="flex justify-end gap-2">
-              <button onClick={() => { setRapConflicts(null); setOverwriteInviati(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm">Annulla</button>
-              <button onClick={() => void eseguiGenerazione('skip')} disabled={rapGenerating} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm disabled:opacity-50">Salta esistenti</button>
+              <button type="button" onClick={() => { setRapConflicts(null); setOverwriteInviati(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm">Annulla</button>
+              <button type="button" onClick={() => void eseguiGenerazione('skip')} disabled={rapGenerating} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm disabled:opacity-50">Salta esistenti</button>
               <button
-                onClick={() => void eseguiGenerazione('replace')}
+                type="button"
+                onClick={() => void eseguiGenerazione('replace', overwriteInviati)}
                 disabled={rapGenerating || (rapConflicts.some((c) => c.submitted) && !overwriteInviati)}
                 className="rounded-lg bg-[var(--danger)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
               >
