@@ -37,17 +37,19 @@ Ambito: parser Excel condiviso (`utils/routing/`), campi info rapportino (`utils
 
 ### 4.1 Parsing coordinata (puro, testabile) — nuovo `utils/routing/parseCoordinate.ts`
 
-Funzione senza React/IO, unit-testabile:
+Funzione senza React/IO, unit-testabile. Accetta numeri (cella numerica, es. ZAGAROLO) o stringhe (cella testo, anche con **virgola decimale** all'italiana):
 
 ```ts
-// Restituisce la stringa normalizzata "lat, lng" oppure null se non valida.
+// Restituisce la stringa normalizzata "lat, lng" (sempre col PUNTO) oppure null se non valida.
 parseCoordinate(input: { lat?: unknown; lng?: unknown; single?: unknown }): string | null
 ```
 
-- **Due colonne** (`lat`, `lng`): converte ognuna in numero (decimale con punto), valida i range (`lat ∈ [-90,90]`, `lng ∈ [-180,180]`), formatta `"<lat>, <lng>"`.
-- **Cella unica** (`single`): estrae **due numeri float** separati da `,` `;` o spazio (es. `41.853674, 12.788878`). Decimali con **punto**. Se trova esattamente due numeri nei range → ok, altrimenti null.
+Normalizzazione numero (`toNum`): se è già `number` → usato così com'è; se è stringa → `trim`, **virgola → punto** per il decimale, poi `parseFloat`. L'output è **sempre col punto**, subito utilizzabile nell'URL Maps.
+
+- **Due colonne** (`lat`, `lng`): ogni cella è **un solo numero** ⇒ `,`→`.` è sempre sicuro. Valida i range (`lat ∈ [-90,90]`, `lng ∈ [-180,180]`), formatta `"<lat>, <lng>"`. Copre ZAGAROLO (celle già numeriche) e i file con virgola decimale.
+- **Cella unica** (`single`): individua i due numeri usando come **separatore** `;`, lo spazio, oppure `, ` (virgola+spazio); su ciascun pezzo applica `,`→`.`. Es.: `41,853674; 12,788878` → `41.853674, 12.788878`; `41.853674, 12.788878` → invariato.
+- **Unico caso ambiguo:** cella unica in cui la virgola è **insieme** separatore decimale e unico delimitatore, senza spazi né `;` (`41,853674,12,788878`) → non distinguibile senza indovinare ⇒ `null` (campo vuoto), per non rischiare un punto sbagliato.
 - Scarta `0,0`, vuoto, testo (`N/A`), valori fuori range → `null` (⇒ campo vuoto).
-- *Nota:* la cella unica con decimali a **virgola** (`41,85; 12,78`) è ambigua e fuori scope; coperti due-colonne e cella unica con punto (formato ZAGAROLO).
 
 ### 4.2 Cattura nell'excelParser — `utils/routing/excelParser.ts`
 
@@ -111,7 +113,7 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 ## 6. Test
 
 **Automatici (vitest):**
-- `utils/routing/parseCoordinate.test.ts`: due colonne ok; cella unica `41.853674, 12.788878` ok; separatori `,`/`;`/spazio; fuori range → null; `0,0`/vuoto/`N/A` → null.
+- `utils/routing/parseCoordinate.test.ts`: due colonne numeriche ok; due colonne con **virgola decimale** (`41,853674` / `12,788878`) → punto; cella unica `41.853674, 12.788878` ok; cella unica con virgola decimale + `;`/spazio ok; cella unica solo-virgole senza spazi (`41,8…,12,7…`) → null; fuori range → null; `0,0`/vuoto/`N/A` → null.
 - `utils/rapportini/mapsLink.test.ts`: URL coordinata corretto; indirizzo con `encodeURIComponent`; campi mancanti.
 - (se utile) test mirato su `detectFormat`/`parseExcelToTasks` con header `Lat`/`Long` su una riga in stile ZAGAROLO → `task.coordinate` valorizzata e `task.lat/lng` **non** impostati dal file.
 
@@ -136,7 +138,7 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 - Uso delle coordinate committente per geocoding/routing/mappa o per `interventi.lat/lng` (escluso esplicitamente dall'utente).
 - Inserimento/modifica manuale delle coordinate (solo da import).
 - Colonna coordinate nella lista interventi `InterventiAssegnabili` (legge `interventi`, richiederebbe migration).
-- Cella unica con decimali a virgola; scelta tra Google/Apple/Waze (link universale unico).
+- Solo il sotto-caso ambiguo della cella unica (virgola sia decimale sia unico separatore, senza spazi) resta non gestito; scelta tra Google/Apple/Waze (link universale unico).
 
 ## 9. Rollout sicuro
 
