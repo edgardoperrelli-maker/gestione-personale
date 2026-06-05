@@ -1,28 +1,23 @@
 // utils/rapportini/datiRiepilogoPdf.ts
 import { riepilogoRapportino, statoVoce } from './riepilogo';
-import { valoreInfo, type VoceInfo } from './infoCampi';
+import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
 import type { TemplateCampo } from './buildVoci';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
 }
 
-/** Colonna del PDF derivata da un campo compilabile del template. */
-export interface ColonnaCampo {
-  chiave: string;
+/** Colonna del PDF: campo anagrafico (info_snapshot) o campo compilabile (campi_snapshot). */
+export interface ColonnaPdf {
   etichetta: string;
-  tipo: TemplateCampo['tipo'];
+  /** true se è una crocetta del template → cella stretta e centrata ("X"). */
+  crocetta: boolean;
 }
 
-export interface RigaRiepilogo {
+export interface RigaPdf {
   n: number;
-  nominativo: string;
-  pdr: string;
-  indirizzo: string;
-  attivita: string;
-  motivo?: string;
-  /** Valori dei campi template, allineati per indice a DatiRiepilogoPdf.colonne. */
-  campi: string[];
+  /** Valori allineati per indice a DatiRiepilogoPdf.colonne. */
+  valori: string[];
 }
 
 export interface DatiRiepilogoPdf {
@@ -30,10 +25,10 @@ export interface DatiRiepilogoPdf {
   dataLabel: string;
   stats: { totali: number; eseguiti: number; nonEseguiti: number };
   lavorazioni: { etichetta: string; count: number }[];
-  /** Colonne dinamiche = campi compilabili del template assegnato (in ordine). */
-  colonne: ColonnaCampo[];
-  eseguiti: RigaRiepilogo[];
-  nonEseguiti: RigaRiepilogo[];
+  /** Colonne dinamiche: anagrafica (da info_snapshot) + campi compilabili (da campi_snapshot). */
+  colonne: ColonnaPdf[];
+  eseguiti: RigaPdf[];
+  nonEseguiti: RigaPdf[];
 }
 
 /** Marcatori negativi (es. "assente") non sono "lavorazioni svolte". */
@@ -41,14 +36,7 @@ function isMarcatoreAssente(chiave: string, etichetta: string): boolean {
   return /assent/i.test(`${chiave} ${etichetta}`);
 }
 
-/** Motivo del non eseguito: nota libera se presente, altrimenti "Assente". */
-export function motivoNonEseguito(risposte: Record<string, unknown>): string {
-  const raw = risposte?.note;
-  const nota = typeof raw === 'string' ? raw.trim() : '';
-  return nota || 'Assente';
-}
-
-/** Valore di un campo template per una voce, formattato per la cella del PDF. */
+/** Valore di un campo compilabile del template per una voce, formattato per la cella. */
 export function valoreCampo(risposte: Record<string, unknown>, campo: TemplateCampo): string {
   const v = risposte?.[campo.chiave];
   if (campo.tipo === 'crocetta') return v === true ? 'X' : '';
@@ -61,33 +49,32 @@ export function costruisciDatiPdf(params: {
   dataLabel: string;
   voci: VoceRiepilogo[];
   campi: TemplateCampo[];
+  infoCampi?: TemplateInfoCampo[] | null;
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci, campi } = params;
+  const { staffName, dataLabel, voci, campi, infoCampi } = params;
   const riep = riepilogoRapportino(voci, campi);
 
-  // Colonne = campi del template in ordine (come l'export Excel).
+  // Stesse colonne del rapportino digitale/Excel:
+  // anagrafica scelta nel template (info_snapshot) + campi compilabili (campi_snapshot).
+  const info = resolveInfoCampi(infoCampi);
   const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
-  const colonne: ColonnaCampo[] = campiOrd.map((c) => ({
-    chiave: c.chiave,
-    etichetta: c.etichetta,
-    tipo: c.tipo,
-  }));
+  const colonne: ColonnaPdf[] = [
+    ...info.map((c) => ({ etichetta: c.etichetta, crocetta: false })),
+    ...campiOrd.map((c) => ({ etichetta: c.etichetta, crocetta: c.tipo === 'crocetta' })),
+  ];
 
-  const eseguiti: RigaRiepilogo[] = [];
-  const nonEseguiti: RigaRiepilogo[] = [];
+  const eseguiti: RigaPdf[] = [];
+  const nonEseguiti: RigaPdf[] = [];
 
   voci.forEach((v, i) => {
-    const base: RigaRiepilogo = {
-      n: i + 1,
-      nominativo: valoreInfo(v, 'nominativo') || valoreInfo(v, 'pdr') || `Voce ${i + 1}`,
-      pdr: valoreInfo(v, 'pdr'),
-      indirizzo: [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · '),
-      attivita: valoreInfo(v, 'attivita'),
-      campi: campiOrd.map((c) => valoreCampo(v.risposte, c)),
-    };
+    const valori = [
+      ...info.map((c) => valoreInfo(v, c.chiave)),
+      ...campiOrd.map((c) => valoreCampo(v.risposte, c)),
+    ];
+    const riga: RigaPdf = { n: i + 1, valori };
     const stato = statoVoce(v.risposte, campi);
-    if (stato === 'eseguito') eseguiti.push(base);
-    else if (stato === 'non_eseguito') nonEseguiti.push({ ...base, motivo: motivoNonEseguito(v.risposte) });
+    if (stato === 'eseguito') eseguiti.push(riga);
+    else if (stato === 'non_eseguito') nonEseguiti.push(riga);
     // 'da_fare' ignorato: dopo l'invio non esiste (gate daFare === 0)
   });
 

@@ -264,6 +264,7 @@ export default function RapportinoForm({
           dataIso={rapportino.data}
           voci={voci}
           campi={campi}
+          infoCampi={infoCampi}
           riepilogo={riepilogo}
           righe={righe}
           filtro={filtro}

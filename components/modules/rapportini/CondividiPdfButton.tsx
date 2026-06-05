@@ -3,6 +3,7 @@
 
 import { useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { costruisciDatiPdf, type VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { generaRiepilogoPdfBlob, nomeFilePdf } from '@/utils/rapportini/rapportinoPdf';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
@@ -15,12 +16,14 @@ export function CondividiPdfButton({
   dataIso,
   voci,
   campi,
+  infoCampi,
 }: {
   staffName: string;
   dataLabel: string;
   dataIso: string;
   voci: VoceRiepilogo[];
   campi: TemplateCampo[];
+  infoCampi: TemplateInfoCampo[];
 }) {
   const [stato, setStato] = useState<Stato>('idle');
 
@@ -28,7 +31,7 @@ export function CondividiPdfButton({
     if (stato === 'lavoro') return;
     setStato('lavoro');
     try {
-      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi });
+      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi, infoCampi });
       const blob = await generaRiepilogoPdfBlob(dati);
       const esito = await condividiOScarica({
         blob,

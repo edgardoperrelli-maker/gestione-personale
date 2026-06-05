@@ -22,15 +22,13 @@ describe('generaRiepilogoPdfBlob', () => {
     stats: { totali: 2, eseguiti: 1, nonEseguiti: 1 },
     lavorazioni: [{ etichetta: 'CAMBIO', count: 1 }],
     colonne: [
-      { chiave: 'cambio', etichetta: 'CAMBIO', tipo: 'crocetta' },
-      { chiave: 'note', etichetta: 'NOTE', tipo: 'testo' },
+      { etichetta: 'NOMINATIVO', crocetta: false },
+      { etichetta: 'ODS/ODL', crocetta: false },
+      { etichetta: 'CAMBIO', crocetta: true },
+      { etichetta: 'NOTE', crocetta: false },
     ],
-    eseguiti: [
-      { n: 1, nominativo: 'Esposito Anna', pdr: '111', indirizzo: 'Via Toledo 45 · Napoli', attivita: 'Sost.', campi: ['X', ''] },
-    ],
-    nonEseguiti: [
-      { n: 2, nominativo: 'Conte Rosa', pdr: '222', indirizzo: 'Via Diaz 22 · Napoli', attivita: 'Sost.', motivo: 'Assente', campi: ['', 'Assente'] },
-    ],
+    eseguiti: [{ n: 1, valori: ['Esposito Anna', 'ODL-100', 'X', ''] }],
+    nonEseguiti: [{ n: 2, valori: ['Conte Rosa', 'ODL-200', '', 'Assente'] }],
   };
   it('produce un Blob PDF non vuoto', async () => {
     const blob = await generaRiepilogoPdfBlob(dati);

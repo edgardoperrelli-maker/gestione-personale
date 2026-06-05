@@ -1,7 +1,8 @@
 // utils/rapportini/datiRiepilogoPdf.test.ts
 import { describe, it, expect } from 'vitest';
-import { costruisciDatiPdf, motivoNonEseguito, valoreCampo } from './datiRiepilogoPdf';
+import { costruisciDatiPdf, valoreCampo } from './datiRiepilogoPdf';
 import type { TemplateCampo } from './buildVoci';
+import type { TemplateInfoCampo } from './infoCampi';
 
 const campi: TemplateCampo[] = [
   { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
@@ -10,16 +11,13 @@ const campi: TemplateCampo[] = [
   { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 4 },
 ];
 
-describe('motivoNonEseguito', () => {
-  it('usa la nota se presente (trim)', () => {
-    expect(motivoNonEseguito({ note: '  Cancello chiuso ' })).toBe('Cancello chiuso');
-  });
-  it('senza nota valida → "Assente"', () => {
-    expect(motivoNonEseguito({})).toBe('Assente');
-    expect(motivoNonEseguito({ note: '   ' })).toBe('Assente');
-    expect(motivoNonEseguito({ note: 42 })).toBe('Assente');
-  });
-});
+// Template SENZA pdr, CON odl → la colonna PDR non deve comparire, ODS/ODL sì.
+const infoCampi: TemplateInfoCampo[] = [
+  { chiave: 'nominativo', etichetta: 'NOMINATIVO', ordine: 1 },
+  { chiave: 'odl', etichetta: 'ODS/ODL', ordine: 2 },
+  { chiave: 'via', etichetta: 'VIA', ordine: 3 },
+  { chiave: 'comune', etichetta: 'COMUNE', ordine: 4 },
+];
 
 describe('valoreCampo', () => {
   it('crocetta true → "X", altrimenti vuoto', () => {
@@ -35,34 +33,36 @@ describe('valoreCampo', () => {
 
 describe('costruisciDatiPdf', () => {
   const voci = [
-    { nominativo: 'Esposito Anna', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', attivita: 'Sost.', risposte: { eseguito: 'SI', cambio: true } },
-    { nominativo: 'Conte Rosa', pdr: '222', via: 'Via Diaz 22', comune: 'Napoli', attivita: 'Sost.', risposte: { assente: true } },
-    { nominativo: 'Gallo Sara', pdr: '333', via: 'Via Petrarca 3', comune: 'Napoli', attivita: 'Verifica', risposte: { assente: true, note: 'Impianto non accessibile' } },
+    { nominativo: 'Esposito Anna', odl: 'ODL-100', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', risposte: { eseguito: 'SI', cambio: true } },
+    { nominativo: 'Conte Rosa', odl: 'ODL-200', pdr: '222', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true } },
+    { nominativo: 'Gallo Sara', odl: 'ODL-300', pdr: '333', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { assente: true, note: 'Impianto non accessibile' } },
   ];
-  const dati = costruisciDatiPdf({ staffName: 'Mario Rossi', dataLabel: '04/06/2026', voci, campi });
+  const dati = costruisciDatiPdf({ staffName: 'Mario Rossi', dataLabel: '04/06/2026', voci, campi, infoCampi });
 
   it('conteggi corretti', () => {
     expect(dati.stats).toEqual({ totali: 3, eseguiti: 1, nonEseguiti: 2 });
   });
-  it('separa eseguiti/non eseguiti con numerazione globale', () => {
-    expect(dati.eseguiti.map((r) => r.n)).toEqual([1]);
-    expect(dati.nonEseguiti.map((r) => r.n)).toEqual([2, 3]);
+  it('colonne = info del template + campi; niente PDR, presente ODS/ODL', () => {
+    expect(dati.colonne.map((c) => c.etichetta)).toEqual([
+      'NOMINATIVO', 'ODS/ODL', 'VIA', 'COMUNE', 'Eseguito', 'CAMBIO', 'Cliente assente', 'Note',
+    ]);
+    expect(dati.colonne.map((c) => c.etichetta)).not.toContain('PDR');
   });
-  it('indirizzo = via · comune', () => {
-    expect(dati.eseguiti[0].indirizzo).toBe('Via Toledo 45 · Napoli');
+  it('flag crocetta sulle colonne giuste', () => {
+    const byLabel = Object.fromEntries(dati.colonne.map((c) => [c.etichetta, c.crocetta]));
+    expect(byLabel['CAMBIO']).toBe(true);
+    expect(byLabel['NOMINATIVO']).toBe(false);
+    expect(byLabel['Note']).toBe(false);
   });
-  it('motivo = nota oppure "Assente"', () => {
-    expect(dati.nonEseguiti[0].motivo).toBe('Assente');
-    expect(dati.nonEseguiti[1].motivo).toBe('Impianto non accessibile');
+  it('valori riga allineati alle colonne (info poi campi)', () => {
+    expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'SI', 'X', '', '']);
+    expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-300', 'Via Petrarca 3', 'Napoli', '', '', 'X', 'Impianto non accessibile']);
   });
   it('lavorazioni escludono i marcatori "assente"', () => {
     expect(dati.lavorazioni).toEqual([{ etichetta: 'CAMBIO', count: 1 }]);
   });
-  it('colonne = campi del template in ordine', () => {
-    expect(dati.colonne.map((c) => c.etichetta)).toEqual(['Eseguito', 'CAMBIO', 'Cliente assente', 'Note']);
-  });
-  it('valori campi per riga allineati alle colonne', () => {
-    expect(dati.eseguiti[0].campi).toEqual(['SI', 'X', '', '']);
-    expect(dati.nonEseguiti[1].campi).toEqual(['', '', 'X', 'Impianto non accessibile']);
+  it('numerazione globale eseguiti/non eseguiti', () => {
+    expect(dati.eseguiti.map((r) => r.n)).toEqual([1]);
+    expect(dati.nonEseguiti.map((r) => r.n)).toEqual([2, 3]);
   });
 });

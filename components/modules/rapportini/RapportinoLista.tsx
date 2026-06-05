@@ -2,6 +2,7 @@
 
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
@@ -23,6 +24,7 @@ export function RapportinoLista({
   dataIso,
   voci,
   campi,
+  infoCampi,
   riepilogo,
   righe,
   filtro,
@@ -39,6 +41,7 @@ export function RapportinoLista({
   dataIso: string;
   voci: VoceRiepilogo[];
   campi: TemplateCampo[];
+  infoCampi: TemplateInfoCampo[];
   riepilogo: RiepilogoRapportino;
   righe: RigaVoce[];
   filtro: Filtro;
@@ -122,6 +125,7 @@ export function RapportinoLista({
                 dataIso={dataIso}
                 voci={voci}
                 campi={campi}
+                infoCampi={infoCampi}
               />
             </>
           ) : (
