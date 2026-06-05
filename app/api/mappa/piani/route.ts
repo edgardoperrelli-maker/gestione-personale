@@ -251,10 +251,14 @@ export async function PUT(req: Request) {
     if (eFind) throw new Error(eFind.message);
     if (!existing) return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
 
-    // Aggiorna la testata mantenendo lo stesso piano_id (i rapportini collegati restano validi)
+    // Aggiorna la testata mantenendo lo stesso piano_id (i rapportini collegati restano validi).
+    // `territorio` è NOT NULL: NON sovrascriverlo con null (es. riapertura piano senza filtro
+    // territorio attivo nella UI) → si preserva il valore già salvato.
+    const headerUpdate: Record<string, unknown> = { data: isoData, note: note ?? null, stato, updated_by: userId };
+    if (territorio != null) headerUpdate.territorio = territorio;
     const { error: eUpd } = await supabaseAdmin
       .from('mappa_piani')
-      .update({ data: isoData, territorio: territorio ?? null, note: note ?? null, stato, updated_by: userId })
+      .update(headerUpdate)
       .eq('id', id);
     if (eUpd) throw new Error(eUpd.message);
 

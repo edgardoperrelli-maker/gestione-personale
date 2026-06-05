@@ -1701,6 +1701,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.');
           }
         }
+      } else {
+        // Il PUT/POST del piano è fallito: NON restare in silenzio (altrimenti il task
+        // sembra salvato nella UI ma sparisce al ricaricamento).
+        const ej = (await res.json().catch(() => ({}))) as { error?: string };
+        alert(`Salvataggio piano non riuscito — ${ej.error ?? res.status}.`);
       }
     } finally {
       setSavingDistribution(false);
@@ -1996,6 +2001,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const idx = distribution ? distribution.findIndex((d) => d.staffId === operator.id) : -1;
     if (distribution && idx >= 0) {
       setDistribution((prev) => (prev ? appendTaskToOperator(prev, idx, geocoded, optimizeRouteByFascia) : prev));
+      // Allinea subito il conteggio "N. INTERVENTI" (qty) al nuovo numero di task dell'operatore.
+      setSelectedOps((prev) => prev.map((o) => (o.id === operator.id ? { ...o, qty: (o.qty || 0) + 1 } : o)));
       return;
     }
 
