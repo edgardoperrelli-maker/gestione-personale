@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { colonneVisibili } from '@/utils/rapportini/colonneVisibili';
 
 export const dynamic = 'force-dynamic';
 
@@ -68,6 +69,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
   const voci = (vociRows ?? []) as Array<
     VoceInfo & { id: string; ordine: number; risposte: Record<string, unknown> | null }
   >;
+  const { info: infoVis, campi: campiVis } = colonneVisibili(info, campi, voci);
 
   return (
     <main className="mx-auto max-w-6xl space-y-4 px-6 py-8">
@@ -93,10 +95,10 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
             <thead>
               <tr style={{ color: 'var(--brand-text-muted)' }}>
                 <th className={TD}>#</th>
-                {info.map((c) => (
+                {infoVis.map((c) => (
                   <th key={`i-${c.chiave}`} className={TH}>{c.etichetta}</th>
                 ))}
-                {campi.map((c) => (
+                {campiVis.map((c) => (
                   <th key={`c-${c.chiave}`} className={TH}>{c.etichetta}</th>
                 ))}
               </tr>
@@ -105,10 +107,10 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
               {voci.map((v, i) => (
                 <tr key={v.id} className="border-t" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
                   <td className={TD} style={{ color: 'var(--brand-text-muted)' }}>{i + 1}</td>
-                  {info.map((c) => (
+                  {infoVis.map((c) => (
                     <td key={`i-${c.chiave}`} className={TD}>{valoreInfo(v, c.chiave) || '—'}</td>
                   ))}
-                  {campi.map((c) => (
+                  {campiVis.map((c) => (
                     <td key={`c-${c.chiave}`} className={`${TD} text-center`}>
                       {fmtRisposta(c.tipo, (v.risposte ?? {})[c.chiave])}
                     </td>
