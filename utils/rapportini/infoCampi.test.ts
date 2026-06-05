@@ -10,16 +10,16 @@ import {
 } from './infoCampi';
 
 describe('resolveInfoCampi', () => {
-  it('snapshot vuoto → tutti i 12 di default', () => {
+  it('snapshot vuoto → tutti gli 11 di default', () => {
     const r = resolveInfoCampi([]);
-    expect(r).toHaveLength(12);
-    expect(r.map((c) => c.chiave)).toEqual(INFO_CAMPI_DISPONIBILI.map((c) => c.chiave));
+    expect(r).toHaveLength(11);
+    expect(r.map((c) => c.chiave)).toEqual(INFO_CAMPI_DISPONIBILI.filter((c) => c.chiave !== 'coordinate').map((c) => c.chiave));
     expect(r[1]).toMatchObject({ chiave: 'matricola', etichetta: 'MATRICOLA', ordine: 2 });
   });
 
   it('null/undefined → default', () => {
-    expect(resolveInfoCampi(null)).toHaveLength(12);
-    expect(resolveInfoCampi(undefined)).toHaveLength(12);
+    expect(resolveInfoCampi(null)).toHaveLength(11);
+    expect(resolveInfoCampi(undefined)).toHaveLength(11);
   });
 
   it('ordina per ordine e rispetta le etichette custom', () => {
@@ -51,13 +51,18 @@ describe('resolveInfoCampi', () => {
     expect(r[0].chiave).toBe('odl');
     expect(r[0].etichetta).toBe('ODSIN'); // l'etichetta salvata viene conservata
   });
+
+  it('include coordinate solo se presente esplicitamente nello snapshot', () => {
+    const r = resolveInfoCampi([{ chiave: 'coordinate', etichetta: 'COORDINATE', ordine: 1 }]);
+    expect(r.map((c) => c.chiave)).toContain('coordinate');
+  });
 });
 
 describe('infoCampiDefault', () => {
-  it('produce 12 campi con ordine 1..12', () => {
+  it('produce 11 campi con ordine 1..11', () => {
     const d = infoCampiDefault();
-    expect(d).toHaveLength(12);
-    expect(d.map((c) => c.ordine)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]);
+    expect(d).toHaveLength(11);
+    expect(d.map((c) => c.ordine)).toEqual([1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11]);
   });
 });
 
@@ -73,7 +78,7 @@ describe('partitionInfoCampi', () => {
   it('separa primari e dettaglio dallo snapshot di default', () => {
     const { primari, dettaglio } = partitionInfoCampi([]);
     expect(primari.map((c) => c.chiave)).toEqual(['nominativo', 'via', 'comune', 'fascia_oraria']);
-    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odl', 'cap', 'recapito', 'attivita', 'accessibilita', 'coordinate']);
+    expect(dettaglio.map((c) => c.chiave)).toEqual(['matricola', 'pdr', 'odl', 'cap', 'recapito', 'attivita', 'accessibilita']);
   });
   it('rispetta i campi mancanti nello snapshot', () => {
     const { primari, dettaglio } = partitionInfoCampi([

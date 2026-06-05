@@ -9,7 +9,7 @@ export interface TemplateInfoCampo {
   ordine: number;
 }
 
-/** I 12 campi anagrafici selezionabili, con etichetta di default. */
+/** I campi anagrafici selezionabili (12). `coordinate` è opt-in: NON nel default, va aggiunta dal template. */
 export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: string }[] = [
   { chiave: 'nominativo', etichettaDefault: 'NOMINATIVO' },
   { chiave: 'matricola', etichettaDefault: 'MATRICOLA' },
@@ -31,20 +31,22 @@ function defaultEtichetta(chiave: InfoChiave): string {
   return INFO_CAMPI_DISPONIBILI.find((c) => c.chiave === chiave)?.etichettaDefault ?? chiave;
 }
 
-/** Config di default = tutti i 12 nell'ordine canonico (comportamento storico). */
+/** Config di default = gli 11 campi storici. `coordinate` è opt-in: va aggiunta dal template. */
 export function infoCampiDefault(): TemplateInfoCampo[] {
-  return INFO_CAMPI_DISPONIBILI.map((c, i) => ({
-    chiave: c.chiave,
-    etichetta: c.etichettaDefault,
-    ordine: i + 1,
-  }));
+  return INFO_CAMPI_DISPONIBILI
+    .filter((c) => c.chiave !== 'coordinate')
+    .map((c, i) => ({
+      chiave: c.chiave,
+      etichetta: c.etichettaDefault,
+      ordine: i + 1,
+    }));
 }
 
 /**
  * Risolve lo snapshot in una lista ordinata di campi info.
  * - filtra le chiavi sconosciute
  * - ordina per `ordine`
- * - snapshot vuoto/assente → fallback a tutti i 12 (comportamento attuale)
+ * - snapshot vuoto/assente → fallback agli 11 storici (coordinate esclusa)
  */
 export function resolveInfoCampi(
   snapshot: TemplateInfoCampo[] | null | undefined,
