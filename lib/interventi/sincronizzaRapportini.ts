@@ -1,0 +1,144 @@
+// lib/interventi/sincronizzaRapportini.ts
+// Motore di (ri)generazione dei rapportini di un piano, condiviso tra il pulsante
+// "Genera" e il Salva della pianificazione. Estratto da genera/route.ts.
+import { randomBytes } from 'crypto';
+import type { SupabaseClient } from '@supabase/supabase-js';
+import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
+import { orphanRapportini } from '@/utils/rapportini/orphans';
+import { scadenzaIso } from '@/utils/rapportini/scadenza';
+import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
+import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
+import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
+
+export type SincronizzaOpts = {
+  templateId: string;
+  overwrite?: 'replace' | 'skip';
+  overwriteSubmitted?: boolean;
+  /** Conferma la riapertura dei rapportini INVIATI di questo stesso piano toccati dalla variazione. */
+  confermaInviati?: boolean;
+};
+
+export type SincronizzaResult =
+  | { ok: true; rapportini: { staff_id: string; staff_name: string | null; token: string; url: string }[]; interventiWarning?: string }
+  | { ok: false; status: number; error?: string; conflicts?: unknown[] };
+
+export async function sincronizzaRapportini(
+  db: SupabaseClient,
+  pianoId: string,
+  opts: SincronizzaOpts,
+): Promise<SincronizzaResult> {
+  const { data: piano } = await db.from('mappa_piani').select('id, data, territorio').eq('id', pianoId).single();
+  if (!piano) return { ok: false, status: 404, error: 'Piano non trovato' };
+  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi').eq('id', opts.templateId).single();
+  if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
+  const { data: ops } = await db.from('mappa_piani_operatori').select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
+
+  const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
+
+  const { data: altriRaps, error: eAltri } = await db
+    .from('rapportini').select('id, staff_id, piano_id, data, stato, submitted_at')
+    .eq('data', piano.data).neq('piano_id', pianoId).in('staff_id', operatoriPiano.map((o) => o.staff_id));
+  if (eAltri) return { ok: false, status: 500, error: eAltri.message };
+
+  const altriPianoIds = [...new Set((altriRaps ?? []).map((r) => r.piano_id as string))];
+  const terrByPiano: Record<string, string | null> = {};
+  if (altriPianoIds.length) {
+    const { data: altriPiani, error: ePiani } = await db.from('mappa_piani').select('id, territorio').in('id', altriPianoIds);
+    if (ePiani) return { ok: false, status: 500, error: ePiani.message };
+    (altriPiani ?? []).forEach((p: { id: string; territorio: string | null }) => { terrByPiano[p.id] = p.territorio ?? null; });
+  }
+  const esistenti: RapEsistente[] = (altriRaps ?? []).map((r) => ({
+    id: r.id as string, staff_id: String(r.staff_id), piano_id: r.piano_id as string,
+    territorio: terrByPiano[r.piano_id as string] ?? null, data: r.data as string,
+    stato: r.stato as string, submitted_at: (r.submitted_at as string | null) ?? null,
+  }));
+
+  const conflicts = rilevaConflitti({
+    pianoId, territorio: piano.territorio ?? null, data: piano.data, operatori: operatoriPiano, esistenti,
+  });
+  if (conflicts.length > 0 && !opts.overwrite) return { ok: false, status: 409, conflicts };
+  if (opts.overwrite === 'replace' && conflicts.some((c) => c.submitted) && !opts.overwriteSubmitted) {
+    return { ok: false, status: 409, conflicts, error: 'submitted_richiede_conferma' };
+  }
+
+  const staffInConflitto = new Set(conflicts.map((c) => c.staff_id));
+  if (opts.overwrite === 'replace' && conflicts.length > 0) {
+    await db.from('rapportini').delete().in('id', conflicts.map((c) => c.rapportino_id));
+  }
+
+  const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
+  if (currentStaffIds.length > 0) {
+    const { data: existingRaps } = await db.from('rapportini').select('id, staff_id').eq('piano_id', pianoId);
+    const toRemove = orphanRapportini((existingRaps as { id: string; staff_id: string }[]) ?? [], currentStaffIds);
+    if (toRemove.length > 0) await db.from('rapportini').delete().in('id', toRemove);
+  }
+
+  const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
+  const out: { staff_id: string; staff_name: string | null; token: string; url: string }[] = [];
+  const expires = scadenzaIso(piano.data);
+
+  let interventiWarning: string | undefined;
+  try {
+    const ens = await ensureInterventiForPiano(db, pianoId);
+    if (ens.error) interventiWarning = ens.error;
+  } catch (e) {
+    interventiWarning = (e instanceof Error ? e.message : String(e)) || 'errore ensure interventi';
+  }
+  if (interventiWarning) console.error('sincronizza: ensureInterventiForPiano:', interventiWarning);
+
+  const { data: intRows } = await db
+    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr').eq('piano_id', pianoId);
+  const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
+
+  for (const op of ops ?? []) {
+    if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
+    const { data: existing } = await db.from('rapportini')
+      .select('id, token').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
+    let rapId = existing?.id;
+    let token = existing?.token;
+    if (!rapId) {
+      token = randomBytes(24).toString('base64url');
+      const { data: ins, error: eIns } = await db.from('rapportini').insert({
+        piano_id: pianoId, staff_id: op.staff_id, staff_name: op.staff_name, data: piano.data,
+        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], token, stato: 'in_corso', expires_at: expires,
+      }).select('id').single();
+      if (eIns) return { ok: false, status: 500, error: eIns.message };
+      rapId = ins!.id;
+    } else {
+      await db.from('rapportini')
+        .update({ template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], expires_at: expires }).eq('id', rapId);
+    }
+
+    const { data: existingVoci } = await db.from('rapportino_voci')
+      .select('task_id, risposte, raw_json').eq('rapportino_id', rapId);
+    const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
+    const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
+    const prevNuovoByTask = new Map<string, boolean>(
+      existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
+    );
+    const rapPreesisteva = Boolean(existing?.id);
+    const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, i + 1));
+    const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
+    const merged = mergeVoci(fromTasks, existingAsVoci);
+
+    await db.from('rapportino_voci').delete().eq('rapportino_id', rapId);
+    if (merged.length) {
+      const { error: eVoci } = await db.from('rapportino_voci').insert(merged.map((v) => {
+        const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
+        const intervento_id = resolveIntervento({
+          staff_id: op.staff_id,
+          odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
+          matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
+          pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+        });
+        const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
+        const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo };
+        return { rapportino_id: rapId, intervento_id, ...v, raw_json };
+      }));
+      if (eVoci) return { ok: false, status: 500, error: eVoci.message };
+    }
+    out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${baseUrl}/r/${token}` });
+  }
+
+  return { ok: true, rapportini: out, interventiWarning };
+}
