@@ -45,6 +45,7 @@ export default function TorreControlloClient({
   const [filtroStato, setFiltroStato] = useState<'tutti' | 'ok' | 'ko' | 'attesa'>('tutti');
   const router = useRouter();
   const [syncing, setSyncing] = useState(false);
+  const [rigenerando, setRigenerando] = useState(false);
   const risincronizza = async () => {
     setSyncing(true);
     try {
@@ -54,6 +55,30 @@ export default function TorreControlloClient({
       /* ignora: l'utente può ritentare */
     } finally {
       setSyncing(false);
+    }
+  };
+  const rigenera = async () => {
+    if (!window.confirm('Rigenerare gli interventi del giorno dai piani salvati?\nRicrea gli assegnati dai task della distribuzione e preserva i completati.')) return;
+    setRigenerando(true);
+    try {
+      const res = await fetch(`/api/interventi/rigenera-giorno?data=${data}`, { method: 'POST' });
+      const j = (await res.json().catch(() => ({}))) as {
+        creati?: number;
+        preservati?: number;
+        scartati?: number;
+        piani?: number;
+        error?: string;
+      };
+      if (res.ok) {
+        await refresh();
+        alert(`Rigenerati: ${j.creati ?? 0} creati, ${j.preservati ?? 0} preservati${j.scartati ? `, ${j.scartati} scartati` : ''} su ${j.piani ?? 0} piani.`);
+      } else {
+        alert(`Rigenerazione non riuscita — ${j.error ?? res.status}.`);
+      }
+    } catch {
+      alert('Errore di rete nella rigenerazione.');
+    } finally {
+      setRigenerando(false);
     }
   };
 
@@ -118,6 +143,16 @@ export default function TorreControlloClient({
             title="Ri-aggancia le voci e riapplica gli esiti dei rapportini già compilati"
           >
             {syncing ? 'Sincronizzo…' : 'Risincronizza esiti'}
+          </button>
+          <button
+            type="button"
+            onClick={() => void rigenera()}
+            disabled={rigenerando}
+            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)] disabled:opacity-60"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            title="Ricrea gli interventi del giorno dai task salvati dei piani (ripristino), preservando i completati"
+          >
+            {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
           </button>
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
