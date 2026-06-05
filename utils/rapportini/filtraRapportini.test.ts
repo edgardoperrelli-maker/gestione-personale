@@ -29,4 +29,8 @@ describe('filtraRapportini', () => {
     const list = [rap({ id: 'a', staff_name: 'Anna Bianchi' }), rap({ id: 'b', staff_name: 'Mario Rossi' })];
     expect(filtraRapportini(list, { ...vuoto, q: 'bianchi' }).map((r) => r.id)).toEqual(['a']);
   });
+  it('filtra per operatore (staff_id)', () => {
+    const list = [rap({ id: 'a', staff_id: 's1' }), rap({ id: 'b', staff_id: 's2' })];
+    expect(filtraRapportini(list, { ...vuoto, operatore: 's1' }).map((r) => r.id)).toEqual(['a']);
+  });
 });

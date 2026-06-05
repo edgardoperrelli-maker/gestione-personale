@@ -19,6 +19,7 @@ const PERIODI = [
   { k: '30', label: 'Ultimi 30 giorni', giorni: 30 },
   { k: '90', label: 'Ultimi 90 giorni', giorni: 90 },
 ];
+const GIORNI_FUTURO = 14; // include rapportini pianificati nei prossimi giorni
 
 export default function RiepilogoRapportini() {
   const [raps, setRaps] = useState<RapRiepilogo[]>([]);
@@ -35,7 +36,7 @@ export default function RiepilogoRapportini() {
     try {
       const giorni = PERIODI.find((p) => p.k === periodo)?.giorni ?? 30;
       const from = new Date(Date.now() - giorni * 24 * 3600 * 1000).toISOString().slice(0, 10);
-      const to = new Date(Date.now() + 14 * 24 * 3600 * 1000).toISOString().slice(0, 10);
+      const to = new Date(Date.now() + GIORNI_FUTURO * 24 * 3600 * 1000).toISOString().slice(0, 10);
       const res = await fetch(`/api/mappa/rapportini/riepilogo?from=${from}&to=${to}`);
       const data = await res.json();
       setRaps(Array.isArray(data) ? (data as RapRiepilogo[]) : []);

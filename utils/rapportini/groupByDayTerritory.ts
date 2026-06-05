@@ -31,7 +31,7 @@ export function groupByDayTerritory(raps: RapRiepilogo[]): GiornoTerritori[] {
     if (!terrMap.has(ck)) {
       terrMap.set(ck, {
         chiave: ck,
-        etichetta: ck === SENZA ? 'Senza territorio' : (r.territorio ?? '').trim(),
+        etichetta: ck === SENZA ? 'Senza territorio' : (r.territorio ?? '').trim().toUpperCase(),
         piani: [],
         nOperatori: 0,
       });

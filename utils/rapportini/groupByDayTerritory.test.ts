@@ -48,4 +48,12 @@ describe('groupByDayTerritory', () => {
     ]);
     expect(out.map((g) => g.data)).toEqual(['2026-06-05', '2026-06-03']);
   });
+  it('due operatori sullo stesso piano finiscono nello stesso PianoGruppo', () => {
+    const out = groupByDayTerritory([
+      rap({ id: 'a', staff_id: 's1', piano_id: 'p1' }),
+      rap({ id: 'b', staff_id: 's2', piano_id: 'p1' }),
+    ]);
+    expect(out[0].territori[0].piani).toHaveLength(1);
+    expect(out[0].territori[0].piani[0].operatori).toHaveLength(2);
+  });
 });

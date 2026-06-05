@@ -30,11 +30,12 @@ export default function FiltriRiepilogo({
       </select>
       <select className={sel} value={filtri.operatore} onChange={(e) => setFiltri({ ...filtri, operatore: e.target.value })}>
         <option value="">Operatore: tutti</option>
-        {operatori.map((o) => <option key={o.id} value={o.nome}>{o.nome}</option>)}
+        {operatori.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
       </select>
       {STATI.map((s) => (
         <button
           key={s.k}
+          type="button"
           onClick={() => toggleStato(s.k)}
           className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
             filtri.stati.includes(s.k)
