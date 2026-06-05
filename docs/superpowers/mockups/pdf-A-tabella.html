@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { background:#5b6470; }
+  :root{
+    --ink:#1a2330; --muted:#5b6675; --line:#e3e8ee; --zebra:#f6f9fb;
+    --cyan:#0a8fb0; --cyan-soft:#e3f5fa;
+    --green:#15803d; --green-soft:#e7f6ec; --red:#c2261f; --red-soft:#fbe9e8;
+  }
+  .page{
+    width:1123px; height:794px; background:#fff; margin:0 auto;
+    font-family:Arial, Helvetica, sans-serif; color:var(--ink);
+    padding:34px 40px; position:relative;
+  }
+  .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .brandbar{ position:absolute; left:0; top:0; width:8px; height:794px; background:var(--cyan); }
+  .kick{ font-size:12px; letter-spacing:.18em; color:var(--cyan); font-weight:700; text-transform:uppercase; }
+  h1{ font-size:30px; font-weight:800; margin-top:2px; }
+  .date{ text-align:right; font-size:13px; color:var(--muted); }
+  .date b{ display:block; font-size:20px; color:var(--ink); }
+  .chips{ display:flex; gap:8px; margin-top:14px; }
+  .chip{ font-size:13px; font-weight:700; padding:6px 12px; border-radius:999px; }
+  .chip.ok{ background:var(--green-soft); color:var(--green); }
+  .chip.no{ background:var(--red-soft); color:var(--red); }
+  .chip.tot{ background:#eef1f5; color:var(--muted); }
+  table{ width:100%; border-collapse:collapse; margin-top:18px; font-size:13px; }
+  thead th{
+    background:var(--cyan); color:#fff; font-weight:700; text-align:left;
+    padding:9px 10px; font-size:12px; letter-spacing:.02em;
+  }
+  thead th.c, tbody td.c{ text-align:center; }
+  tbody td{ padding:9px 10px; border-bottom:1px solid var(--line); }
+  tbody tr:nth-child(even){ background:var(--zebra); }
+  .tick{ color:var(--cyan); font-weight:800; font-size:15px; }
+  .badge{ font-weight:800; font-size:12px; padding:4px 10px; border-radius:6px; display:inline-block; }
+  .badge.f{ background:var(--green-soft); color:var(--green); }
+  .badge.n{ background:var(--red-soft); color:var(--red); }
+  .num{ font-weight:800; color:var(--muted); }
+  .name{ font-weight:700; }
+  .sub{ color:var(--muted); font-size:12px; }
+  .foot{ position:absolute; left:40px; right:40px; bottom:18px; display:flex; justify-content:space-between;
+    font-size:11px; color:#9aa4b1; border-top:1px solid var(--line); padding-top:8px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="brandbar"></div>
+    <div class="top">
+      <div>
+        <div class="kick">Rapportino giornaliero · Plenzich S.p.A.</div>
+        <h1>Mario Rossi</h1>
+        <div class="chips">
+          <span class="chip ok">✓ 8 eseguiti</span>
+          <span class="chip no">✗ 2 non eseguiti</span>
+          <span class="chip tot">10 totali</span>
+        </div>
+      </div>
+      <div class="date">Data lavori<b>04/06/2026</b></div>
+    </div>
+
+    <table>
+      <thead>
+        <tr>
+          <th class="c">#</th>
+          <th>Cliente</th>
+          <th>PDR</th>
+          <th>Indirizzo</th>
+          <th>Attività</th>
+          <th class="c">Fascia</th>
+          <th class="c">Cambio</th>
+          <th class="c">RG&nbsp;Stop</th>
+          <th class="c">Mini&nbsp;Bag</th>
+          <th class="c">Att/Cess</th>
+          <th>Esito</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td class="c num">1</td><td class="name">Esposito Anna</td><td>12345678</td><td>Via Toledo 45 · Napoli</td><td>Sostituzione misuratore</td><td class="c">08–10</td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td class="c tick">✓</td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">2</td><td class="name">Russo Luigi</td><td>23456789</td><td>Via Chiaia 12 · Napoli</td><td>Verifica misuratore</td><td class="c">08–10</td><td class="c"></td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">3</td><td class="name">Marino Carla</td><td>34567890</td><td>Corso Umberto 80 · Napoli</td><td>Sostituzione misuratore</td><td class="c">10–12</td><td class="c tick">✓</td><td class="c"></td><td class="c tick">✓</td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">4</td><td class="name">Greco Paolo</td><td>45678901</td><td>Via Roma 5 · Portici</td><td>Verifica misuratore</td><td class="c">10–12</td><td class="c"></td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">5</td><td class="name">Conte Rosa</td><td>56789012</td><td>Via Diaz 22 · Napoli</td><td>Sostituzione misuratore</td><td class="c">12–14</td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td><span class="badge n">Non fatto</span></td></tr>
+        <tr><td class="c num">6</td><td class="name">Ferrari Marco</td><td>67890123</td><td>Via Posillipo 7 · Napoli</td><td>Verifica misuratore</td><td class="c">12–14</td><td class="c"></td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">7</td><td class="name">Bruno Elena</td><td>78901234</td><td>Via Foria 90 · Napoli</td><td>Sostituzione misuratore</td><td class="c">14–16</td><td class="c tick">✓</td><td class="c"></td><td class="c tick">✓</td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+        <tr><td class="c num">8</td><td class="name">Gallo Sara</td><td>89012345</td><td>Via Petrarca 3 · Napoli</td><td>Verifica misuratore</td><td class="c">14–16</td><td class="c"></td><td class="c"></td><td class="c"></td><td class="c tick">✓</td><td><span class="badge n">Non fatto</span></td></tr>
+        <tr><td class="c num">9</td><td class="name">Costa Davide</td><td>90123456</td><td>Via Manzoni 18 · Napoli</td><td>Sostituzione misuratore</td><td class="c">16–18</td><td class="c tick">✓</td><td class="c"></td><td class="c"></td><td class="c"></td><td><span class="badge f">Fatto</span></td></tr>
+      </tbody>
+    </table>
+
+    <div class="foot"><span>GestiLab Cantieri · Plenzich S.p.A.</span><span>Generato il 04/06/2026 18:42 · Pagina 1 di 1</span></div>
+  </div>
+</body>
+</html>

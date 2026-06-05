@@ -1,0 +1,92 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { background:#5b6470; }
+  :root{
+    --ink:#1a2330; --muted:#5b6675; --line:#e3e8ee;
+    --cyan:#0a8fb0; --cyan-soft:#e3f5fa;
+    --green:#15803d; --green-soft:#e7f6ec; --red:#c2261f; --red-soft:#fbe9e8;
+  }
+  .page{
+    width:794px; height:1123px; background:#fff; margin:0 auto;
+    font-family:Arial, Helvetica, sans-serif; color:var(--ink);
+    padding:30px 34px; position:relative;
+  }
+  .head{ background:#11324a; border-radius:14px; padding:18px 20px; color:#fff; display:flex; justify-content:space-between; align-items:center; }
+  .head .kick{ font-size:11px; letter-spacing:.18em; color:#7fd4e8; font-weight:700; text-transform:uppercase; }
+  .head h1{ font-size:25px; font-weight:800; margin-top:3px; }
+  .head .d{ text-align:right; font-size:12px; color:#a9c2d6; }
+  .head .d b{ display:block; font-size:18px; color:#fff; }
+  .chips{ display:flex; gap:8px; margin:14px 0 6px; }
+  .chip{ font-size:13px; font-weight:700; padding:7px 13px; border-radius:999px; }
+  .chip.ok{ background:var(--green-soft); color:var(--green); }
+  .chip.no{ background:var(--red-soft); color:var(--red); }
+  .chip.tot{ background:#eef1f5; color:var(--muted); }
+  .card{ border:1px solid var(--line); border-left:5px solid var(--green); border-radius:12px; padding:14px 16px; margin-top:12px; }
+  .card.no{ border-left-color:var(--red); }
+  .crow{ display:flex; justify-content:space-between; align-items:center; }
+  .who{ font-size:17px; font-weight:800; }
+  .who .n{ color:var(--muted); font-weight:700; margin-right:6px; }
+  .badge{ font-weight:800; font-size:12px; padding:5px 12px; border-radius:7px; }
+  .badge.f{ background:var(--green-soft); color:var(--green); }
+  .badge.x{ background:var(--red-soft); color:var(--red); }
+  .addr{ color:var(--muted); font-size:13px; margin-top:5px; }
+  .meta{ display:flex; gap:18px; margin-top:9px; font-size:13px; }
+  .meta .lbl{ color:var(--muted); }
+  .lav{ display:flex; gap:7px; flex-wrap:wrap; margin-top:11px; }
+  .pill{ font-size:12px; font-weight:700; padding:5px 11px; border-radius:8px; background:var(--cyan-soft); color:#08708a; }
+  .pill.off{ background:#f1f3f6; color:#aab2bd; }
+  .foot{ position:absolute; left:34px; right:34px; bottom:16px; display:flex; justify-content:space-between;
+    font-size:11px; color:#9aa4b1; border-top:1px solid var(--line); padding-top:8px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="head">
+      <div>
+        <div class="kick">Rapportino giornaliero</div>
+        <h1>Mario Rossi</h1>
+      </div>
+      <div class="d">Data lavori<b>04/06/2026</b></div>
+    </div>
+    <div class="chips">
+      <span class="chip ok">✓ 8 eseguiti</span>
+      <span class="chip no">✗ 2 non eseguiti</span>
+      <span class="chip tot">10 interventi</span>
+    </div>
+
+    <div class="card">
+      <div class="crow"><div class="who"><span class="n">1</span>Esposito Anna</div><span class="badge f">Fatto</span></div>
+      <div class="addr">PDR 12345678 · Via Toledo 45, Napoli · Matricola 0098231</div>
+      <div class="meta"><div><span class="lbl">Attività:</span> Sostituzione misuratore</div><div><span class="lbl">Fascia:</span> 08–10</div></div>
+      <div class="lav"><span class="pill">✓ Cambio</span><span class="pill">✓ Att/Cess</span><span class="pill off">Mini Bag</span><span class="pill off">RG Stop</span></div>
+    </div>
+
+    <div class="card">
+      <div class="crow"><div class="who"><span class="n">2</span>Russo Luigi</div><span class="badge f">Fatto</span></div>
+      <div class="addr">PDR 23456789 · Via Chiaia 12, Napoli · Matricola 0098544</div>
+      <div class="meta"><div><span class="lbl">Attività:</span> Verifica misuratore</div><div><span class="lbl">Fascia:</span> 08–10</div></div>
+      <div class="lav"><span class="pill">✓ RG Stop</span><span class="pill off">Cambio</span><span class="pill off">Mini Bag</span><span class="pill off">Att/Cess</span></div>
+    </div>
+
+    <div class="card no">
+      <div class="crow"><div class="who"><span class="n">5</span>Conte Rosa</div><span class="badge x">Non fatto</span></div>
+      <div class="addr">PDR 56789012 · Via Diaz 22, Napoli · Matricola 0091122</div>
+      <div class="meta"><div><span class="lbl">Attività:</span> Sostituzione misuratore</div><div><span class="lbl">Fascia:</span> 12–14</div></div>
+      <div class="lav"><span class="pill off">Cambio</span><span class="pill off">RG Stop</span><span class="pill" style="background:var(--red-soft);color:var(--red)">Cliente assente</span></div>
+    </div>
+
+    <div class="card">
+      <div class="crow"><div class="who"><span class="n">3</span>Marino Carla</div><span class="badge f">Fatto</span></div>
+      <div class="addr">PDR 34567890 · Corso Umberto 80, Napoli · Matricola 0090777</div>
+      <div class="meta"><div><span class="lbl">Attività:</span> Sostituzione misuratore</div><div><span class="lbl">Fascia:</span> 10–12</div></div>
+      <div class="lav"><span class="pill">✓ Cambio</span><span class="pill">✓ Mini Bag</span><span class="pill off">RG Stop</span><span class="pill off">Att/Cess</span></div>
+    </div>
+
+    <div class="foot"><span>GestiLab Cantieri · Plenzich S.p.A.</span><span>Generato il 04/06/2026 18:42 · Pagina 1 di 3</span></div>
+  </div>
+</body>
+</html>

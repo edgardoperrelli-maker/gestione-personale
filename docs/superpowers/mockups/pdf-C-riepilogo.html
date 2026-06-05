@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html,body { background:#5b6470; }
+  :root{
+    --ink:#1a2330; --muted:#5b6675; --line:#e3e8ee; --zebra:#f6f9fb;
+    --cyan:#0a8fb0; --cyan-soft:#e3f5fa;
+    --green:#15803d; --green-soft:#e7f6ec; --red:#c2261f; --red-soft:#fbe9e8;
+  }
+  .page{
+    width:794px; height:1123px; background:#fff; margin:0 auto;
+    font-family:Arial, Helvetica, sans-serif; color:var(--ink);
+    padding:30px 34px; position:relative;
+  }
+  .top{ display:flex; justify-content:space-between; align-items:flex-start; }
+  .kick{ font-size:11px; letter-spacing:.18em; color:var(--cyan); font-weight:700; text-transform:uppercase; }
+  h1{ font-size:27px; font-weight:800; margin-top:2px; }
+  .date{ text-align:right; font-size:12px; color:var(--muted); }
+  .date b{ display:block; font-size:18px; color:var(--ink); }
+  .stats{ display:flex; gap:12px; margin-top:16px; }
+  .stat{ flex:1; border:1px solid var(--line); border-radius:12px; padding:14px 16px; text-align:center; }
+  .stat .v{ font-size:32px; font-weight:800; line-height:1; }
+  .stat .l{ font-size:12px; color:var(--muted); margin-top:6px; text-transform:uppercase; letter-spacing:.04em; }
+  .stat.g .v{ color:var(--green); } .stat.r .v{ color:var(--red); } .stat.c .v{ color:var(--cyan); }
+  .barwrap{ margin-top:16px; border:1px solid var(--line); border-radius:12px; padding:14px 16px; }
+  .barwrap h3{ font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:.08em; margin-bottom:12px; }
+  .bar{ display:flex; align-items:center; gap:10px; margin:8px 0; font-size:13px; }
+  .bar .nm{ width:120px; font-weight:700; }
+  .bar .track{ flex:1; height:14px; background:#eef1f5; border-radius:8px; overflow:hidden; }
+  .bar .fill{ height:100%; background:var(--cyan); border-radius:8px; }
+  .bar .ct{ width:28px; text-align:right; font-weight:800; color:var(--muted); }
+  .sec{ margin-top:18px; }
+  .sec h2{ font-size:14px; font-weight:800; padding:7px 12px; border-radius:8px; display:inline-block; }
+  .sec.ok h2{ background:var(--green-soft); color:var(--green); }
+  .sec.no h2{ background:var(--red-soft); color:var(--red); }
+  table{ width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; }
+  td{ padding:7px 10px; border-bottom:1px solid var(--line); }
+  tr:nth-child(even){ background:var(--zebra); }
+  .num{ font-weight:800; color:var(--muted); width:24px; }
+  .name{ font-weight:700; }
+  .sub{ color:var(--muted); font-size:12px; }
+  .rsn{ color:var(--red); font-weight:700; font-size:12px; }
+  .foot{ position:absolute; left:34px; right:34px; bottom:16px; display:flex; justify-content:space-between;
+    font-size:11px; color:#9aa4b1; border-top:1px solid var(--line); padding-top:8px; }
+</style>
+</head>
+<body>
+  <div class="page">
+    <div class="top">
+      <div>
+        <div class="kick">Rapportino giornaliero · Plenzich S.p.A.</div>
+        <h1>Mario Rossi</h1>
+      </div>
+      <div class="date">Data lavori<b>04/06/2026</b></div>
+    </div>
+
+    <div class="stats">
+      <div class="stat c"><div class="v">10</div><div class="l">Interventi</div></div>
+      <div class="stat g"><div class="v">8</div><div class="l">Eseguiti</div></div>
+      <div class="stat r"><div class="v">2</div><div class="l">Non eseguiti</div></div>
+    </div>
+
+    <div class="barwrap">
+      <h3>Lavorazioni svolte</h3>
+      <div class="bar"><span class="nm">Cambio</span><span class="track"><span class="fill" style="width:62%"></span></span><span class="ct">5</span></div>
+      <div class="bar"><span class="nm">RG Stop</span><span class="track"><span class="fill" style="width:37%"></span></span><span class="ct">3</span></div>
+      <div class="bar"><span class="nm">Mini Bag</span><span class="track"><span class="fill" style="width:25%"></span></span><span class="ct">2</span></div>
+      <div class="bar"><span class="nm">Att/Cess</span><span class="track"><span class="fill" style="width:25%"></span></span><span class="ct">2</span></div>
+    </div>
+
+    <div class="sec ok">
+      <h2>✓ Eseguiti (8)</h2>
+      <table>
+        <tr><td class="num">1</td><td class="name">Esposito Anna</td><td>PDR 12345678</td><td class="sub">Via Toledo 45 · Napoli</td><td class="sub">Sost. misuratore</td></tr>
+        <tr><td class="num">2</td><td class="name">Russo Luigi</td><td>PDR 23456789</td><td class="sub">Via Chiaia 12 · Napoli</td><td class="sub">Verifica</td></tr>
+        <tr><td class="num">3</td><td class="name">Marino Carla</td><td>PDR 34567890</td><td class="sub">Corso Umberto 80 · Napoli</td><td class="sub">Sost. misuratore</td></tr>
+        <tr><td class="num">4</td><td class="name">Greco Paolo</td><td>PDR 45678901</td><td class="sub">Via Roma 5 · Portici</td><td class="sub">Verifica</td></tr>
+      </table>
+    </div>
+
+    <div class="sec no">
+      <h2>✗ Non eseguiti (2)</h2>
+      <table>
+        <tr><td class="num">5</td><td class="name">Conte Rosa</td><td>PDR 56789012</td><td class="sub">Via Diaz 22 · Napoli</td><td class="rsn">Cliente assente</td></tr>
+        <tr><td class="num">8</td><td class="name">Gallo Sara</td><td>PDR 89012345</td><td class="sub">Via Petrarca 3 · Napoli</td><td class="rsn">Impianto non accessibile</td></tr>
+      </table>
+    </div>
+
+    <div class="foot"><span>GestiLab Cantieri · Plenzich S.p.A.</span><span>Generato il 04/06/2026 18:42 · Pagina 1 di 1</span></div>
+  </div>
+</body>
+</html>
