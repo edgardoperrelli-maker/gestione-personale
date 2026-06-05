@@ -8,6 +8,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
+import { appendTaskToOperator } from '@/utils/mappa/appendTask';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
 import { formatEtaMin } from '@/utils/routing/timeEngine';
@@ -1463,12 +1464,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         await new Promise(r => setTimeout(r, 100));
       }
 
-      setTemplateTasks(geocoded);
+      // Il file template non ha colonna esecutore → i task entrano come NON assegnati
+      // (assegnabili a mano dalla mappa), senza ridistribuire il piano esistente.
+      // Restano nel pool (templateTasks → allTasks) per un'eventuale "Distribuisci".
+      setTemplateTasks((prev) => [...prev, ...geocoded]);
+      setUnassignedTasks((prev) => [...prev, ...geocoded]);
       setTemplateGeocoding(null);
-
-      if (distribution) {
-        distributeToOps();
-      }
     } catch (error) {
       console.error('Error processing template file:', error);
       setTemplateGeocoding(null);
@@ -1597,6 +1598,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       return;
     }
 
+    // Avviso: i task non assegnati non finiscono in alcun operatore del piano.
+    if (unassignedTasks.length > 0) {
+      const ok = window.confirm(
+        `Ci sono ${unassignedTasks.length} interventi non assegnati: resteranno fuori dal piano finché non li assegni a un operatore. Salvare comunque?`,
+      );
+      if (!ok) return;
+    }
+
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
@@ -1662,12 +1671,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           } catch {
             alert('Torre: errore di rete nella creazione interventi.');
           }
+
+          // Auto, sempre: genera/aggiorna i rapportini riusando i token esistenti
+          // (stesso link digitale + Excel; risposte già date preservate dal merge lato server).
+          // Best-effort: non blocca il salvataggio del piano.
+          if (rapTemplateId) {
+            try {
+              const rg = await fetch('/api/mappa/rapportini/genera', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ pianoId: pid, templateId: rapTemplateId }),
+              });
+              if (rg.ok) {
+                // Ricarica lo stato rapportini (nVoci aggiornato) in modo deterministico,
+                // senza dipendere da `caricaRapportini` (definito più sotto → eviti la TDZ nelle deps).
+                try {
+                  const r2 = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
+                  const d2 = await r2.json();
+                  setRapStato(Array.isArray(d2) ? d2 : []);
+                } catch { /* l'effetto su savedDistribution ricarica comunque */ }
+              } else {
+                const ej = (await rg.json().catch(() => ({}))) as { error?: string };
+                setRapError(ej.error ?? 'Aggiornamento rapportini non riuscito.');
+              }
+            } catch {
+              setRapError("Errore di rete nell'aggiornamento dei rapportini.");
+            }
+          } else {
+            setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.');
+          }
         }
       }
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente, unassignedTasks, rapTemplateId]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -1679,7 +1717,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     try {
       const res = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
       const data = await res.json();
-      setRapStato(Array.isArray(data) ? data : []);
+      const list: RapportinoStato[] = Array.isArray(data) ? data : [];
+      setRapStato(list);
+      // Preserva il modello già usato dai rapportini esistenti: così la rigenerazione
+      // non cambia il template e non crea link nuovi.
+      const tpl = list.find((r) => r.template_id)?.template_id;
+      if (tpl) setRapTemplateId(tpl);
     } catch {
       setRapStato([]);
     }
@@ -1694,7 +1737,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const arr: Array<{ id: string; nome: string; is_default?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }> = Array.isArray(list) ? list : [];
         setRapTemplates(arr);
         const def = arr.find((t) => t.is_default) ?? arr[0];
-        if (def) setRapTemplateId(def.id);
+        // Non sovrascrivere un template già impostato (es. da un piano riaperto):
+        // l'updater funzionale rende l'ordine di risoluzione delle fetch irrilevante.
+        if (def) setRapTemplateId((cur) => cur || def.id);
       } catch {
         /* nessun template attivo */
       }
@@ -1936,21 +1981,37 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const geocoded = await geocodeTask(task);
     setExcelTasks((prev) => [...prev, geocoded]);
     setExcelMode(true);
-    if (operator) {
-      setEsecutorePins((prev) => ({ ...prev, [task.id]: operator.id }));
-      setSelectedOps((prev) => {
-        if (prev.some((o) => o.id === operator.id)) return prev;
-        const isRepOnDay = operator.reperibileDates.includes(planningDate);
-        const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
-        const base = usesHome
-          ? { lat: operator.homeLat!, lng: operator.homeLng! }
-          : operator.startLat != null && operator.startLng != null
-            ? { lat: operator.startLat, lng: operator.startLng }
-            : null;
-        const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
-        return [...prev, { id: operator.id, name: operator.displayName, qty: 0, base, startAddress }];
-      });
+
+    // Nessun esecutore → l'intervento resta NON assegnato: compare in "Non assegnate"
+    // e sulla mappa (marker giallo), assegnabile a mano con assignUnassignedTask.
+    if (!operator) {
+      setUnassignedTasks((prev) => [...prev, geocoded]);
+      return;
     }
+
+    setEsecutorePins((prev) => ({ ...prev, [task.id]: operator.id }));
+
+    // Operatore già nel gruppo (piano riaperto) → aggancia SOLO a lui, preservando
+    // le assegnazioni degli altri (niente ridistribuzione cieca).
+    const idx = distribution ? distribution.findIndex((d) => d.staffId === operator.id) : -1;
+    if (distribution && idx >= 0) {
+      setDistribution((prev) => (prev ? appendTaskToOperator(prev, idx, geocoded, optimizeRouteByFascia) : prev));
+      return;
+    }
+
+    // Operatore non ancora nel gruppo (piano in costruzione) → aggiungilo e ridistribuisci.
+    setSelectedOps((prev) => {
+      if (prev.some((o) => o.id === operator.id)) return prev;
+      const isRepOnDay = operator.reperibileDates.includes(planningDate);
+      const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
+      const base = usesHome
+        ? { lat: operator.homeLat!, lng: operator.homeLng! }
+        : operator.startLat != null && operator.startLng != null
+          ? { lat: operator.startLat, lng: operator.startLng }
+          : null;
+      const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
+      return [...prev, { id: operator.id, name: operator.displayName, qty: 0, base, startAddress }];
+    });
     if (distribution) distributeToOps();
   }, [operatorOptions, planningDate, distribution, distributeToOps]);
 
@@ -2700,7 +2761,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 ? '✓ Salvata'
                                 : 'Salva distribuzione'}
                           </button>
-                          {savedDistribution && currentPianoId && (
+                          {currentPianoId && (
                             <>
                               <select
                                 value={rapTemplateId}
@@ -3305,7 +3366,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       />
       {manualModalOpen && (
         <ManualTaskModal
-          operators={operatorOptions.map((o) => ({ id: o.id, displayName: o.displayName }))}
+          operators={
+            distribution && selectedOps.length > 0
+              ? selectedOps.map((o) => ({ id: o.id, displayName: o.name }))
+              : operatorOptions.map((o) => ({ id: o.id, displayName: o.displayName }))
+          }
           onClose={() => setManualModalOpen(false)}
           onAdd={addManualTask}
         />
