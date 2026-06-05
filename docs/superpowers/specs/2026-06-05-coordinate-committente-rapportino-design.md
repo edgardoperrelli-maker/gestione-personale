@@ -148,3 +148,14 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 ## 10. Addendum (deciso in implementazione): COORDINATE è opt-in
 
 Durante l'implementazione (e confermato dal test `lib/rapportini/exportStandard.test.ts`) si è deciso che il campo **COORDINATE non entra nel set di default**: `infoCampiDefault()` resta a **11 campi storici**. Il campo resta **selezionabile** nell'editor del template (`INFO_CAMPI_DISPONIBILI` ha 12 voci) e compare nell'anagrafica/export **solo** quando il template lo include esplicitamente *e* la voce ha la coordinata. Motivi: (a) rispetta "le rendo visibili **dalle impostazioni del template**" (attivazione esplicita dell'utente); (b) i template senza `info_campi` esplicito non mostrano una colonna COORDINATE vuota e non cambiano comportamento → nessuna regressione (`exportStandard.test.ts` resta verde).
+
+## 11. Addendum (scope finale confermato)
+
+**Dove compaiono le coordinate (confermato con l'utente):**
+- ✅ **Rapportino digitale** (`/r/[token]`, `VoceFocus`): indirizzo cliccabile + "Punto esatto" sulla coordinata.
+- ✅ **Export Excel** del rapportino: colonna COORDINATE come hyperlink. Sia l'export server (`lib/rapportini/exportStandard.ts`) sia l'export client `exportDistribution` (ZIP) in `components/modules/mappa/MappaOperatoriClient.tsx`.
+- ❌ **Viste "esecuzioni" a video / PDF dell'ufficio**: NON mostrano le coordinate. Escluse da `app/hub/rapportini/eseguiti/page.tsx` (filtro su `info`) e da `app/hub/rapportini/contenuto/[id]/page.tsx` (ripristinata allo stato pre-feature; `colonneVisibili` nasconde comunque la colonna vuota). Non esiste un generatore PDF del rapportino: "il PDF" è la stampa di queste viste, quindi è coperto.
+
+**Ingresso delle coordinate:** dal file di import. Il template manuale scaricabile dalla mappa ("Scarica Template" → `template_mappa_operatori_con_nominativo.xlsx`) ha le colonne `Lat`/`Long`; caricato via "Carica file" → `parseExcelToTasks` legge le coordinate (vale per qualunque file con intestazioni `Lat`/`Long`, es. ZAGAROLO).
+
+**Niente migration:** le coordinate vivono solo nel `raw_json` della voce, mai sulla tabella `interventi`. Conseguenza: pianificando dagli "interventi del giorno" (flusso *Importa interventi* → `/api/interventi/da-pianificare`) la coordinata non è disponibile — **fuori scope** (servirebbe la colonna `interventi.coordinate`).

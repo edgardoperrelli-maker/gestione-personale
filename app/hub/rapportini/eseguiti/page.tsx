@@ -84,7 +84,9 @@ export default async function EseguitiPage({ searchParams }: { searchParams: Pro
         </div>
       ) : (
         rapportini.map((r) => {
-          const info = resolveInfoCampi((r.info_snapshot ?? []) as TemplateInfoCampo[]);
+          // COORDINATE è solo per il rapportino digitale + export Excel: escludila dalle viste
+          // "esecuzioni" a video / PDF (qui e in contenuto/[id]).
+          const info = resolveInfoCampi((r.info_snapshot ?? []) as TemplateInfoCampo[]).filter((c) => c.chiave !== 'coordinate');
           const campi = ((r.campi_snapshot ?? []) as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine);
           const vs = vociByRap.get(r.id) ?? [];
           return (
