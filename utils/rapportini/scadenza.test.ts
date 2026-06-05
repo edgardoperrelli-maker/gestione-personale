@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dataInRoma, addGiorni, mezzanotteRomaIso, isScaduto, scadenzaIso, GIORNI_VALIDITA } from './scadenza';
+import { dataInRoma, addGiorni, mezzanotteRomaIso, isScaduto, scadenzaIso, GIORNI_VALIDITA, entroRiapertura } from './scadenza';
 
 describe('GIORNI_VALIDITA', () => {
   it('è 2 (48h dalla mezzanotte)', () => { expect(GIORNI_VALIDITA).toBe(2); });
@@ -73,5 +73,17 @@ describe('isScaduto: robustezza (chiamante che non fornisce `data`)', () => {
   });
   it('data non valida → scaduto, senza crash', () => {
     expect(isScaduto('not-a-date', '2026-06-08T08:00:00Z')).toBe(true);
+  });
+});
+
+describe('entroRiapertura', () => {
+  it('entro 48h dal riapri → true', () => {
+    expect(entroRiapertura('2026-06-10T08:00:00Z', '2026-06-11T08:00:00Z')).toBe(true);
+  });
+  it('oltre 48h → false', () => {
+    expect(entroRiapertura('2026-06-10T08:00:00Z', '2026-06-12T09:00:00Z')).toBe(false);
+  });
+  it('istante non valido → false', () => {
+    expect(entroRiapertura('boh', '2026-06-11T08:00:00Z')).toBe(false);
   });
 });

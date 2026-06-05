@@ -35,3 +35,10 @@ export function isScaduto(data: string, nowIso: string): boolean {
 export function scadenzaIso(data: string): string {
   return mezzanotteRomaIso(addGiorni(data, GIORNI_VALIDITA)); // mezzanotte di data + 2
 }
+
+/** Riapertura valida per GIORNI_VALIDITA giorni (48h) dall'istante `riapertoAt`. */
+export function entroRiapertura(riapertoAtIso: string, nowIso: string): boolean {
+  const t = Date.parse(riapertoAtIso);
+  if (Number.isNaN(t)) return false;
+  return Date.parse(nowIso) < t + GIORNI_VALIDITA * 86_400_000;
+}
