@@ -4,6 +4,7 @@ import { readFile } from 'fs/promises';
 import ExcelJS from 'exceljs';
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { colonneVisibili } from '@/utils/rapportini/colonneVisibili';
 
 /**
  * Export Excel dinamico dei rapportini compilati (lato server).
@@ -85,11 +86,14 @@ export async function buildRapportinoXlsx(
   const info = resolveInfoCampi((rapportino.info_snapshot ?? []) as TemplateInfoCampo[]);
   const campi = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
   const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const { info: infoVis, campi: campiVis } = voci.length > 0
+    ? colonneVisibili(info, campiOrd, voci as never[])
+    : { info, campi: campiOrd };
 
   ws.getCell('B2').value = toDDMMYYYY(rapportino.data);
   ws.getCell('B4').value = safeStr(rapportino.staff_name);
 
-  const headers = [...info.map((c) => c.etichetta), 'ORDINE', ...campiOrd.map((c) => c.etichetta)];
+  const headers = [...infoVis.map((c) => c.etichetta), 'ORDINE', ...campiVis.map((c) => c.etichetta)];
   const hrow = ws.getRow(HEADER_ROW);
   headers.forEach((label, i) => { hrow.getCell(i + 1).value = label; });
   for (let c = headers.length + 1; c <= 26; c++) hrow.getCell(c).value = null; // pulisci celle residue
@@ -102,13 +106,13 @@ export async function buildRapportinoXlsx(
     const ordine = v.ordine ?? rowIdx - HEADER_ROW;
     const risposte = (v.risposte ?? {}) as Record<string, unknown>;
     let col = 1;
-    for (const c of info) {
+    for (const c of infoVis) {
       rr.getCell(col).value = valoreInfo(v as VoceInfo, c.chiave);
       if (c.chiave === 'fascia_oraria') rr.getCell(col).numFmt = '@';
       col++;
     }
     rr.getCell(col).value = ordine; col++;
-    for (const campo of campiOrd) {
+    for (const campo of campiVis) {
       const raw = risposte[campo.chiave];
       rr.getCell(col).value = raw === true ? 'X' : raw == null ? '' : String(raw);
       col++;
@@ -117,7 +121,7 @@ export async function buildRapportinoXlsx(
     rowIdx++;
   }
 
-  const totalCols = info.length + 1 + campiOrd.length;
+  const totalCols = infoVis.length + 1 + campiVis.length;
   for (let c = 1; c <= totalCols; c++) {
     let maxLen = 8;
     for (let r = HEADER_ROW; r < rowIdx; r++) {
