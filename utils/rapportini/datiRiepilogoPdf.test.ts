@@ -1,6 +1,6 @@
 // utils/rapportini/datiRiepilogoPdf.test.ts
 import { describe, it, expect } from 'vitest';
-import { costruisciDatiPdf, motivoNonEseguito } from './datiRiepilogoPdf';
+import { costruisciDatiPdf, motivoNonEseguito, valoreCampo } from './datiRiepilogoPdf';
 import type { TemplateCampo } from './buildVoci';
 
 const campi: TemplateCampo[] = [
@@ -18,6 +18,18 @@ describe('motivoNonEseguito', () => {
     expect(motivoNonEseguito({})).toBe('Assente');
     expect(motivoNonEseguito({ note: '   ' })).toBe('Assente');
     expect(motivoNonEseguito({ note: 42 })).toBe('Assente');
+  });
+});
+
+describe('valoreCampo', () => {
+  it('crocetta true → "X", altrimenti vuoto', () => {
+    expect(valoreCampo({ cambio: true }, campi[1])).toBe('X');
+    expect(valoreCampo({}, campi[1])).toBe('');
+  });
+  it('testo/select → valore stringa (trim)', () => {
+    expect(valoreCampo({ eseguito: 'SI' }, campi[0])).toBe('SI');
+    expect(valoreCampo({ note: '  ciao ' }, campi[3])).toBe('ciao');
+    expect(valoreCampo({}, campi[3])).toBe('');
   });
 });
 
@@ -45,5 +57,12 @@ describe('costruisciDatiPdf', () => {
   });
   it('lavorazioni escludono i marcatori "assente"', () => {
     expect(dati.lavorazioni).toEqual([{ etichetta: 'CAMBIO', count: 1 }]);
+  });
+  it('colonne = campi del template in ordine', () => {
+    expect(dati.colonne.map((c) => c.etichetta)).toEqual(['Eseguito', 'CAMBIO', 'Cliente assente', 'Note']);
+  });
+  it('valori campi per riga allineati alle colonne', () => {
+    expect(dati.eseguiti[0].campi).toEqual(['SI', 'X', '', '']);
+    expect(dati.nonEseguiti[1].campi).toEqual(['', '', 'X', 'Impianto non accessibile']);
   });
 });

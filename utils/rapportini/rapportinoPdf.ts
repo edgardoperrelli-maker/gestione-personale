@@ -1,5 +1,5 @@
 // utils/rapportini/rapportinoPdf.ts
-import type { DatiRiepilogoPdf } from './datiRiepilogoPdf';
+import type { DatiRiepilogoPdf, RigaRiepilogo } from './datiRiepilogoPdf';
 
 type RGB = [number, number, number];
 const INK: RGB = [26, 35, 48];
@@ -31,19 +31,18 @@ export async function generaRiepilogoPdfBlob(dati: DatiRiepilogoPdf): Promise<Bl
   const { jsPDF } = await import('jspdf');
   const autoTable = (await import('jspdf-autotable')).default;
 
-  const doc = new jsPDF({ unit: 'mm', format: 'a4' });
-  const pageW = doc.internal.pageSize.getWidth();   // 210
-  const pageH = doc.internal.pageSize.getHeight();  // 297
-  const contentW = pageW - ML - MR;
+  const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+  const pageW = doc.internal.pageSize.getWidth();   // 297
+  const pageH = doc.internal.pageSize.getHeight();  // 210
 
   // ── Intestazione ──
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(9);
   doc.setTextColor(...CYAN);
-  doc.text('RAPPORTINO GIORNALIERO · PLENZICH S.P.A.', ML, 16);
-  doc.setFontSize(20);
+  doc.text('RAPPORTINO GIORNALIERO · PLENZICH S.P.A.', ML, 15);
+  doc.setFontSize(19);
   doc.setTextColor(...INK);
-  doc.text(dati.staffName || 'Operatore', ML, 25);
+  doc.text(dati.staffName || 'Operatore', ML, 24);
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
   doc.setTextColor(...MUTED);
@@ -51,115 +50,116 @@ export async function generaRiepilogoPdfBlob(dati: DatiRiepilogoPdf): Promise<Bl
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(13);
   doc.setTextColor(...INK);
-  doc.text(dati.dataLabel, pageW - MR, 21, { align: 'right' });
+  doc.text(dati.dataLabel, pageW - MR, 20, { align: 'right' });
 
-  // ── 3 riquadri statistici ──
-  let y = 32;
-  const gap = 4;
-  const boxW = (contentW - gap * 2) / 3;
-  const boxH = 20;
+  // ── Riquadri statistici (sinistra) ──
+  const y0 = 30;
+  const boxH = 18;
+  const boxGap = 4;
+  const statsW = 116;
+  const boxW = (statsW - boxGap * 2) / 3;
   const boxes: { v: number; l: string; c: RGB }[] = [
     { v: dati.stats.totali, l: 'INTERVENTI', c: CYAN },
     { v: dati.stats.eseguiti, l: 'ESEGUITI', c: GREEN },
     { v: dati.stats.nonEseguiti, l: 'NON ESEGUITI', c: RED },
   ];
   boxes.forEach((b, i) => {
-    const x = ML + i * (boxW + gap);
+    const x = ML + i * (boxW + boxGap);
     doc.setDrawColor(...LINE);
     doc.setLineWidth(0.3);
-    doc.roundedRect(x, y, boxW, boxH, 2, 2, 'S');
+    doc.roundedRect(x, y0, boxW, boxH, 2, 2, 'S');
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(20);
+    doc.setFontSize(18);
     doc.setTextColor(...b.c);
-    doc.text(String(b.v), x + boxW / 2, y + 10, { align: 'center' });
+    doc.text(String(b.v), x + boxW / 2, y0 + 9, { align: 'center' });
     doc.setFont('helvetica', 'normal');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
-    doc.text(b.l, x + boxW / 2, y + 16, { align: 'center' });
+    doc.text(b.l, x + boxW / 2, y0 + 14, { align: 'center' });
   });
-  y += boxH + 8;
 
-  // ── Barre "Lavorazioni svolte" ──
+  // ── Barre "Lavorazioni svolte" (destra) ──
   if (dati.lavorazioni.length > 0) {
+    const barsX = ML + statsW + 12;
+    const barsW = pageW - MR - barsX;
     const maxCount = Math.max(...dati.lavorazioni.map((l) => l.count), 1);
     doc.setFont('helvetica', 'bold');
-    doc.setFontSize(8);
+    doc.setFontSize(7.5);
     doc.setTextColor(...MUTED);
-    doc.text('LAVORAZIONI SVOLTE', ML, y);
-    y += 5;
-    const labelW = 42;
-    const trackX = ML + labelW;
-    const trackW = contentW - labelW - 12;
+    doc.text('LAVORAZIONI SVOLTE', barsX, y0);
+    let by = y0 + 4;
+    const labelW = 48;
+    const trackX = barsX + labelW;
+    const trackW = Math.max(20, barsW - labelW - 10);
     for (const l of dati.lavorazioni) {
       doc.setFont('helvetica', 'normal');
-      doc.setFontSize(9);
+      doc.setFontSize(8);
       doc.setTextColor(...INK);
-      doc.text(l.etichetta, ML, y + 3);
+      doc.text(l.etichetta.length > 28 ? `${l.etichetta.slice(0, 27)}…` : l.etichetta, barsX, by + 2.5);
       doc.setFillColor(238, 241, 245);
-      doc.roundedRect(trackX, y, trackW, 4, 2, 2, 'F');
+      doc.roundedRect(trackX, by, trackW, 3.2, 1.6, 1.6, 'F');
       const w = Math.max(2, (l.count / maxCount) * trackW);
       doc.setFillColor(...CYAN);
-      doc.roundedRect(trackX, y, w, 4, 2, 2, 'F');
+      doc.roundedRect(trackX, by, w, 3.2, 1.6, 1.6, 'F');
       doc.setFont('helvetica', 'bold');
       doc.setTextColor(...MUTED);
-      doc.text(String(l.count), pageW - MR, y + 3, { align: 'right' });
-      y += 7;
+      doc.text(String(l.count), pageW - MR, by + 2.5, { align: 'right' });
+      by += 5.5;
     }
-    y += 3;
   }
+  let y = y0 + boxH + 9;
 
-  // ── Sezione con titolo colorato + tabella ──
-  const drawSezione = (titolo: string, colore: RGB, head: string[], body: string[][], startY: number): number => {
-    let y0 = startY;
-    if (y0 > pageH - 30) { doc.addPage(); y0 = 20; }
+  // ── Tabelle Eseguiti / Non eseguiti con colonne template ──
+  const headFisse = ['#', 'Cliente', 'PDR', 'Indirizzo', 'Attività'];
+  const head = [...headFisse, ...dati.colonne.map((c) => c.etichetta)];
+
+  const rigaToBody = (r: RigaRiepilogo): string[] => [
+    String(r.n), r.nominativo, r.pdr, r.indirizzo, r.attivita, ...r.campi,
+  ];
+
+  const drawSezione = (titolo: string, colore: RGB, righe: RigaRiepilogo[], startY: number): number => {
+    let ys = startY;
+    if (ys > pageH - 26) { doc.addPage(); ys = 18; }
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(11);
     doc.setTextColor(...colore);
-    doc.text(titolo, ML, y0);
+    doc.text(`${titolo} (${righe.length})`, ML, ys);
     autoTable(doc, {
-      startY: y0 + 2,
+      startY: ys + 2,
       head: [head],
-      body,
+      body: righe.map(rigaToBody),
       theme: 'striped',
-      headStyles: { fillColor: colore, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 9 },
-      styles: { font: 'helvetica', fontSize: 9, cellPadding: 2, textColor: INK },
+      headStyles: { fillColor: colore, textColor: [255, 255, 255], fontStyle: 'bold', fontSize: 7 },
+      styles: { font: 'helvetica', fontSize: 7.5, cellPadding: 1.6, textColor: INK, overflow: 'linebreak', valign: 'middle' },
       alternateRowStyles: { fillColor: [246, 249, 251] },
-      columnStyles: { 0: { cellWidth: 10, halign: 'center', textColor: MUTED, fontStyle: 'bold' } },
+      columnStyles: {
+        0: { cellWidth: 8, halign: 'center', textColor: MUTED, fontStyle: 'bold' },
+        1: { cellWidth: 33 },
+        2: { cellWidth: 22 },
+        3: { cellWidth: 40 },
+        4: { cellWidth: 26 },
+      },
       margin: { left: ML, right: MR },
     });
-    return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? y0;
+    return (doc as unknown as { lastAutoTable?: { finalY: number } }).lastAutoTable?.finalY ?? ys;
   };
 
-  if (dati.eseguiti.length > 0) {
-    y = drawSezione(
-      `Eseguiti (${dati.stats.eseguiti})`, GREEN,
-      ['#', 'Cliente', 'PDR', 'Indirizzo', 'Attività'],
-      dati.eseguiti.map((r) => [String(r.n), r.nominativo, r.pdr, r.indirizzo, r.attivita]),
-      y,
-    ) + 8;
-  }
-  if (dati.nonEseguiti.length > 0) {
-    y = drawSezione(
-      `Non eseguiti (${dati.stats.nonEseguiti})`, RED,
-      ['#', 'Cliente', 'PDR', 'Indirizzo', 'Motivo'],
-      dati.nonEseguiti.map((r) => [String(r.n), r.nominativo, r.pdr, r.indirizzo, r.motivo ?? '']),
-      y,
-    ) + 8;
-  }
+  if (dati.eseguiti.length > 0) y = drawSezione('Eseguiti', GREEN, dati.eseguiti, y) + 8;
+  if (dati.nonEseguiti.length > 0) y = drawSezione('Non eseguiti', RED, dati.nonEseguiti, y) + 8;
 
-  // ── Pie di pagina su ogni pagina ──
+  // ── Piè di pagina su ogni pagina ──
   const ts = timestampLabel();
   const totPag = doc.getNumberOfPages();
   for (let p = 1; p <= totPag; p++) {
     doc.setPage(p);
     doc.setDrawColor(...LINE);
     doc.setLineWidth(0.2);
-    doc.line(ML, pageH - 12, pageW - MR, pageH - 12);
+    doc.line(ML, pageH - 11, pageW - MR, pageH - 11);
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(8);
     doc.setTextColor(...MUTED);
-    doc.text('GestiLab Cantieri · Plenzich S.p.A.', ML, pageH - 8);
-    doc.text(`Generato il ${ts} · Pagina ${p} di ${totPag}`, pageW - MR, pageH - 8, { align: 'right' });
+    doc.text('GestiLab Cantieri · Plenzich S.p.A.', ML, pageH - 7);
+    doc.text(`Generato il ${ts} · Pagina ${p} di ${totPag}`, pageW - MR, pageH - 7, { align: 'right' });
   }
 
   return doc.output('blob');

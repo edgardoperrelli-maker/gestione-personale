@@ -7,6 +7,13 @@ export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
 }
 
+/** Colonna del PDF derivata da un campo compilabile del template. */
+export interface ColonnaCampo {
+  chiave: string;
+  etichetta: string;
+  tipo: TemplateCampo['tipo'];
+}
+
 export interface RigaRiepilogo {
   n: number;
   nominativo: string;
@@ -14,6 +21,8 @@ export interface RigaRiepilogo {
   indirizzo: string;
   attivita: string;
   motivo?: string;
+  /** Valori dei campi template, allineati per indice a DatiRiepilogoPdf.colonne. */
+  campi: string[];
 }
 
 export interface DatiRiepilogoPdf {
@@ -21,6 +30,8 @@ export interface DatiRiepilogoPdf {
   dataLabel: string;
   stats: { totali: number; eseguiti: number; nonEseguiti: number };
   lavorazioni: { etichetta: string; count: number }[];
+  /** Colonne dinamiche = campi compilabili del template assegnato (in ordine). */
+  colonne: ColonnaCampo[];
   eseguiti: RigaRiepilogo[];
   nonEseguiti: RigaRiepilogo[];
 }
@@ -37,6 +48,14 @@ export function motivoNonEseguito(risposte: Record<string, unknown>): string {
   return nota || 'Assente';
 }
 
+/** Valore di un campo template per una voce, formattato per la cella del PDF. */
+export function valoreCampo(risposte: Record<string, unknown>, campo: TemplateCampo): string {
+  const v = risposte?.[campo.chiave];
+  if (campo.tipo === 'crocetta') return v === true ? 'X' : '';
+  if (v == null) return '';
+  return String(v).trim();
+}
+
 export function costruisciDatiPdf(params: {
   staffName: string;
   dataLabel: string;
@@ -45,6 +64,14 @@ export function costruisciDatiPdf(params: {
 }): DatiRiepilogoPdf {
   const { staffName, dataLabel, voci, campi } = params;
   const riep = riepilogoRapportino(voci, campi);
+
+  // Colonne = campi del template in ordine (come l'export Excel).
+  const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const colonne: ColonnaCampo[] = campiOrd.map((c) => ({
+    chiave: c.chiave,
+    etichetta: c.etichetta,
+    tipo: c.tipo,
+  }));
 
   const eseguiti: RigaRiepilogo[] = [];
   const nonEseguiti: RigaRiepilogo[] = [];
@@ -56,6 +83,7 @@ export function costruisciDatiPdf(params: {
       pdr: valoreInfo(v, 'pdr'),
       indirizzo: [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · '),
       attivita: valoreInfo(v, 'attivita'),
+      campi: campiOrd.map((c) => valoreCampo(v.risposte, c)),
     };
     const stato = statoVoce(v.risposte, campi);
     if (stato === 'eseguito') eseguiti.push(base);
@@ -70,6 +98,7 @@ export function costruisciDatiPdf(params: {
     lavorazioni: riep.lavorazioni
       .filter((l) => !isMarcatoreAssente(l.chiave, l.etichetta))
       .map((l) => ({ etichetta: l.etichetta, count: l.count })),
+    colonne,
     eseguiti,
     nonEseguiti,
   };
