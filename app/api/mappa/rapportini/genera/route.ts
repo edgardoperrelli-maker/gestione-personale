@@ -7,6 +7,7 @@ import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { requireUser } from '@/lib/apiAuth';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
+import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 
 export const runtime = 'nodejs';
 
@@ -14,15 +15,53 @@ export async function POST(req: Request) {
   try {
     const auth = await requireUser();
     if (auth instanceof NextResponse) return auth;
-    const { pianoId, templateId } = await req.json();
+    const { pianoId, templateId, overwrite } = await req.json() as { pianoId?: string; templateId?: string; overwrite?: 'replace' | 'skip' };
     if (!pianoId || !templateId) return NextResponse.json({ error: 'pianoId e templateId obbligatori' }, { status: 400 });
 
-    const { data: piano } = await supabaseAdmin.from('mappa_piani').select('id, data').eq('id', pianoId).single();
+    const { data: piano } = await supabaseAdmin.from('mappa_piani').select('id, data, territorio').eq('id', pianoId).single();
     if (!piano) return NextResponse.json({ error: 'Piano non trovato' }, { status: 404 });
     const { data: tpl } = await supabaseAdmin.from('rapportino_template').select('id, campi, info_campi').eq('id', templateId).single();
     if (!tpl) return NextResponse.json({ error: 'Template non trovato' }, { status: 404 });
     const { data: ops } = await supabaseAdmin.from('mappa_piani_operatori')
       .select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
+
+    const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
+
+    // Candidati: rapportini di ALTRI piani, stessa data, stessi operatori.
+    const { data: altriRaps } = await supabaseAdmin
+      .from('rapportini')
+      .select('id, staff_id, piano_id, data, stato, submitted_at')
+      .eq('data', piano.data)
+      .neq('piano_id', pianoId)
+      .in('staff_id', operatoriPiano.map((o) => o.staff_id));
+
+    // Risolvi il territorio dei piani candidati.
+    const altriPianoIds = [...new Set((altriRaps ?? []).map((r) => r.piano_id as string))];
+    const terrByPiano: Record<string, string | null> = {};
+    if (altriPianoIds.length) {
+      const { data: altriPiani } = await supabaseAdmin.from('mappa_piani').select('id, territorio').in('id', altriPianoIds);
+      (altriPiani ?? []).forEach((p: { id: string; territorio: string | null }) => { terrByPiano[p.id] = p.territorio ?? null; });
+    }
+    const esistenti: RapEsistente[] = (altriRaps ?? []).map((r) => ({
+      id: r.id as string, staff_id: String(r.staff_id), piano_id: r.piano_id as string,
+      territorio: terrByPiano[r.piano_id as string] ?? null, data: r.data as string,
+      stato: r.stato as string, submitted_at: (r.submitted_at as string | null) ?? null,
+    }));
+
+    const conflicts = rilevaConflitti({
+      pianoId, territorio: piano.territorio ?? null, data: piano.data,
+      operatori: operatoriPiano, esistenti,
+    });
+
+    // Fase 1: ci sono conflitti e l'utente non ha ancora deciso → 409.
+    if (conflicts.length > 0 && !overwrite) {
+      return NextResponse.json({ conflicts }, { status: 409 });
+    }
+
+    const staffInConflitto = new Set(conflicts.map((c) => c.staff_id));
+    if (overwrite === 'replace' && conflicts.length > 0) {
+      await supabaseAdmin.from('rapportini').delete().in('id', conflicts.map((c) => c.rapportino_id));
+    }
 
     // Pulizia rapportini orfani: operatori non più nel piano → rimuovi rapportino (+ voci a cascata)
     const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
@@ -60,6 +99,7 @@ export async function POST(req: Request) {
     const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
 
     for (const op of ops ?? []) {
+      if (overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
       const { data: existing } = await supabaseAdmin.from('rapportini')
         .select('id, token').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
       let rapId = existing?.id;
