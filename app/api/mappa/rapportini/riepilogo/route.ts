@@ -25,10 +25,12 @@ export async function GET(req: Request) {
   }>;
 
   const pianoIds = [...new Set(list.map((r) => r.piano_id))];
-  const territoriById: Record<string, string | null> = {};
+  const pianoInfoById: Record<string, { territorio: string | null; creato_at: string | null }> = {};
   if (pianoIds.length) {
-    const { data: piani } = await supabaseAdmin.from('mappa_piani').select('id, territorio').in('id', pianoIds);
-    (piani ?? []).forEach((p: { id: string; territorio: string | null }) => { territoriById[p.id] = p.territorio ?? null; });
+    const { data: piani } = await supabaseAdmin.from('mappa_piani').select('id, territorio, created_at').in('id', pianoIds);
+    (piani ?? []).forEach((p: { id: string; territorio: string | null; created_at: string | null }) => {
+      pianoInfoById[p.id] = { territorio: p.territorio ?? null, creato_at: p.created_at ?? null };
+    });
   }
 
   const rapIds = list.map((r) => r.id);
@@ -42,7 +44,8 @@ export async function GET(req: Request) {
   const nowIso = now.toISOString();
   const out = list.map((r) => ({
     ...r,
-    territorio: territoriById[r.piano_id] ?? null,
+    territorio: pianoInfoById[r.piano_id]?.territorio ?? null,
+    piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
     url: `${base}/r/${r.token}`,
     statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string }, nowIso),
     nVoci: vociCount[r.id] ?? 0,
