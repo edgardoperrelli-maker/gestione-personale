@@ -144,3 +144,7 @@ Non toccati: `app/api/interventi/import/route.ts` (NON popola coordinate su `int
 3. `git push` → Vercel crea l'URL di anteprima HTTPS (solo con ok esplicito utente, vedi memoria).
 4. Test end-to-end dall'anteprima con un file reale del committente.
 5. Solo dopo OK utente: merge ff in `main` → deploy → elimina branch.
+
+## 10. Addendum (deciso in implementazione): COORDINATE è opt-in
+
+Durante l'implementazione (e confermato dal test `lib/rapportini/exportStandard.test.ts`) si è deciso che il campo **COORDINATE non entra nel set di default**: `infoCampiDefault()` resta a **11 campi storici**. Il campo resta **selezionabile** nell'editor del template (`INFO_CAMPI_DISPONIBILI` ha 12 voci) e compare nell'anagrafica/export **solo** quando il template lo include esplicitamente *e* la voce ha la coordinata. Motivi: (a) rispetta "le rendo visibili **dalle impostazioni del template**" (attivazione esplicita dell'utente); (b) i template senza `info_campi` esplicito non mostrano una colonna COORDINATE vuota e non cambiano comportamento → nessuna regressione (`exportStandard.test.ts` resta verde).
