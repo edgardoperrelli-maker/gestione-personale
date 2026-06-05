@@ -713,6 +713,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [rapTemplates, setRapTemplates] = useState<Array<{ id: string; nome: string; is_default?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }>>([]);
   const [rapGenerating, setRapGenerating] = useState(false);
   const [rapError, setRapError] = useState<string | null>(null);
+  const [rapConflicts, setRapConflicts] = useState<Array<{ staff_id: string; staff_name: string | null; territorio: string | null; data: string; submitted: boolean }> | null>(null);
+  const [overwriteInviati, setOverwriteInviati] = useState(false);
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
 
   // Setup modale per data e territorio all'apertura
@@ -1708,25 +1710,27 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
   }, [savedDistribution, currentPianoId, caricaRapportini]);
 
-  const generaRapportini = useCallback(async () => {
-    if (!currentPianoId) return;
-    if (!rapTemplateId) {
-      setRapError('Nessun modello attivo. Crea un template in Impostazioni → Template rapportini.');
-      return;
-    }
+  const eseguiGenerazione = useCallback(async (overwrite?: 'replace' | 'skip') => {
+    if (!currentPianoId || !rapTemplateId) return;
     setRapGenerating(true);
     setRapError(null);
     try {
       const res = await fetch('/api/mappa/rapportini/genera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId }),
+        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId, overwrite }),
       });
       const data = await res.json();
+      if (res.status === 409 && Array.isArray(data?.conflicts)) {
+        setRapConflicts(data.conflicts);
+        return;
+      }
       if (!res.ok || data?.error) {
         setRapError(data?.error ?? 'Errore durante la generazione.');
         return;
       }
+      setRapConflicts(null);
+      setOverwriteInviati(false);
       await caricaRapportini(currentPianoId);
     } catch {
       setRapError('Errore durante la generazione.');
@@ -1734,6 +1738,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       setRapGenerating(false);
     }
   }, [currentPianoId, rapTemplateId, caricaRapportini]);
+
+  const generaRapportini = useCallback(() => {
+    if (!rapTemplateId) {
+      setRapError('Nessun modello attivo. Crea un template in Impostazioni → Template rapportini.');
+      return;
+    }
+    void eseguiGenerazione();
+  }, [eseguiGenerazione, rapTemplateId]);
 
   const rapByStaff = useMemo(() => {
     const m = new Map<string, RapportinoStato>();
@@ -3297,6 +3309,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           onClose={() => setManualModalOpen(false)}
           onAdd={addManualTask}
         />
+      )}
+      {rapConflicts && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={() => setRapConflicts(null)}>
+          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5" onClick={(e) => e.stopPropagation()}>
+            <h3 className="text-base font-semibold">Rapportini già esistenti</h3>
+            <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
+              Questi operatori hanno già un rapportino su questo territorio/giorno da un altro piano:
+            </p>
+            <ul className="my-3 max-h-52 space-y-1 overflow-y-auto text-sm">
+              {rapConflicts.map((c) => (
+                <li key={c.staff_id} className="flex items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] px-3 py-1.5">
+                  <span>{c.staff_name ?? c.staff_id}</span>
+                  {c.submitted && <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--danger)]">già inviato</span>}
+                </li>
+              ))}
+            </ul>
+            {rapConflicts.some((c) => c.submitted) && (
+              <label className="mb-3 flex items-center gap-2 text-xs text-[var(--danger)]">
+                <input type="checkbox" checked={overwriteInviati} onChange={(e) => setOverwriteInviati(e.target.checked)} />
+                Sovrascrivi anche i rapportini già inviati (i dati compilati andranno persi)
+              </label>
+            )}
+            <div className="flex justify-end gap-2">
+              <button onClick={() => { setRapConflicts(null); setOverwriteInviati(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm">Annulla</button>
+              <button onClick={() => void eseguiGenerazione('skip')} disabled={rapGenerating} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm disabled:opacity-50">Salta esistenti</button>
+              <button
+                onClick={() => void eseguiGenerazione('replace')}
+                disabled={rapGenerating || (rapConflicts.some((c) => c.submitted) && !overwriteInviati)}
+                className="rounded-lg bg-[var(--danger)] px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              >
+                Sovrascrivi tutti
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
