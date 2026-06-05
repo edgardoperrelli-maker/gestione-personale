@@ -158,3 +158,15 @@ Nessuna modifica a `app/api/mappa/rapportini/genera/route.ts`, `export/route.ts`
 3. `git push` → Vercel crea URL di anteprima HTTPS.
 4. Test sul flusso reale dall'anteprima.
 5. Solo dopo OK utente: merge ff in `main` → deploy → elimina branch.
+
+## 10. Addendum (richiesta in corso d'opera): badge "NUOVO"
+
+Gli interventi **aggiunti dopo** (con +Aggiungi su un rapportino già generato) devono mostrare un **badge "NUOVO"** sia nel rapportino **digitale** sia nell'**Excel**, per individuarli a colpo d'occhio.
+
+**Decisione (confermata):** flag salvato in `raw_json` della voce — **nessuna migration** sul DB prod.
+
+- **Rilevamento** (`app/api/mappa/rapportini/genera/route.ts`): la `existingVoci` ora seleziona anche `raw_json`; una voce con `task_id` mai presente su un rapportino **già esistente** riceve `raw_json._nuovo = true`. Alla prima generazione nessuna è nuova. Il flag è **preservato** tra rigenerazioni (le voci già presenti mantengono il valore precedente).
+- **Digitale** (`app/r/[token]/page.tsx` → `RapportinoForm` → `RapportinoLista`): la voce porta `nuovo: boolean`; pill gialla "NUOVO" davanti al titolo nella lista.
+- **Excel** (`app/api/mappa/rapportini/export/route.ts` + `lib/rapportini/exportStandard.ts`): `raw_json` aggiunto al select; colonna **"NUOVO" in fondo** (per non rompere i test che leggono dall'inizio) + riga evidenziata in giallo.
+
+Persistenza: il badge resta finché non si rigenera da zero; non si auto-azzera all'invio (YAGNI).
