@@ -27,10 +27,16 @@ export async function DELETE(req: Request) {
     // 1) Elimina il rapportino dell'operatore (cascade su voci → link non più valido)
     await supabaseAdmin.from('rapportini').delete().eq('piano_id', pianoId).eq('staff_id', staffId);
 
-    // 2) Elimina la riga operatore del piano (operatore + suoi interventi)
+    // 2) Elimina la riga operatore del piano
     const { error: eOp } = await supabaseAdmin
       .from('mappa_piani_operatori').delete().eq('piano_id', pianoId).eq('staff_id', staffId);
     if (eOp) throw new Error(eOp.message);
+
+    // 2b) Elimina gli interventi di questo operatore in questo piano, così spariscono dalla
+    // torre (interventi.piano_id ha ON DELETE SET NULL: serve cancellarli esplicitamente).
+    const { error: eInt } = await supabaseAdmin
+      .from('interventi').delete().eq('piano_id', pianoId).eq('staff_id', staffId);
+    if (eInt) throw new Error(eInt.message);
 
     // 3) Azzera il contatore nel cronoprogramma
     await supabaseAdmin
