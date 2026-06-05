@@ -1,6 +1,10 @@
 import type { RapportinoStato } from './links';
 
-export type RapRiepilogo = RapportinoStato & { piano_id: string; territorio: string | null };
+export type RapRiepilogo = RapportinoStato & {
+  piano_id: string;
+  territorio: string | null;
+  piano_creato_at?: string | null;
+};
 
 export type GiornoGruppo = {
   data: string;
