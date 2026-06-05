@@ -30,12 +30,23 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
 
   const data = /^\d{4}-\d{2}-\d{2}$/.test(sp.data ?? '') ? (sp.data as string) : oggiRoma();
 
-  const { data: rows } = await supabase
-    .from('interventi')
-    .select('id, odl, nominativo, indirizzo, comune, cap, pdr, matricola_contatore, intervento_tipo, lat, lng, staff_id, stato, esito, esito_motivo, chiuso_at, fascia_oraria, territorio_id')
-    .eq('data', data)
-    .order('comune', { ascending: true })
-    .order('indirizzo', { ascending: true });
+  // Paginazione: PostgREST ritorna max ~1000 righe per richiesta. Carico tutte le pagine
+  // così la torre mostra TUTTI gli interventi del giorno (prima si fermava a 1000).
+  const PAGE = 1000;
+  const rows: TorreIntervento[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const { data: page } = await supabase
+      .from('interventi')
+      .select('id, odl, nominativo, indirizzo, comune, cap, pdr, matricola_contatore, intervento_tipo, lat, lng, staff_id, stato, esito, esito_motivo, chiuso_at, fascia_oraria, territorio_id')
+      .eq('data', data)
+      .order('comune', { ascending: true })
+      .order('indirizzo', { ascending: true })
+      .order('id', { ascending: true })
+      .range(from, from + PAGE - 1);
+    const batch = (page ?? []) as TorreIntervento[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
 
   const { data: territoriRows } = await supabase.from('territories').select('id, name').order('name', { ascending: true });
   const territori = (territoriRows ?? []) as Array<{ id: string; name: string }>;
@@ -46,6 +57,6 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
     .map((s) => ({ id: s.id, display_name: s.display_name }));
 
   return (
-    <TorreControlloClient data={data} interventi={(rows ?? []) as TorreIntervento[]} operatori={operatori} territori={territori} />
+    <TorreControlloClient data={data} interventi={rows} operatori={operatori} territori={territori} />
   );
 }

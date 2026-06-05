@@ -32,15 +32,25 @@ export async function GET(req: Request) {
     const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
     const supabase = createRouteHandlerClient({ cookies: cookieMethods });
 
-    const { data: rows, error } = await supabase
-      .from('interventi')
-      .select(COLONNE)
-      .eq('data', data)
-      .order('comune', { ascending: true })
-      .order('indirizzo', { ascending: true });
-    if (error) throw error;
+    // Paginazione: PostgREST ritorna max ~1000 righe per richiesta. Con migliaia di
+    // interventi in un giorno la torre ne perdeva una parte (disallineata coi rapportini).
+    const PAGE = 1000;
+    const interventi: unknown[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const { data: rows, error } = await supabase
+        .from('interventi')
+        .select(COLONNE)
+        .eq('data', data)
+        .order('comune', { ascending: true })
+        .order('indirizzo', { ascending: true })
+        .order('id', { ascending: true })
+        .range(from, from + PAGE - 1);
+      if (error) throw error;
+      interventi.push(...(rows ?? []));
+      if (!rows || rows.length < PAGE) break;
+    }
 
-    return NextResponse.json({ interventi: rows ?? [] });
+    return NextResponse.json({ interventi });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Errore caricamento interventi.' },
