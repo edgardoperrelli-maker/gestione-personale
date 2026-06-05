@@ -5,7 +5,14 @@ import type { Task } from '@/utils/routing/types';
 
 export type PianoMeta = { data: string };
 export type OperatorePiano = { staff_id: string; tasks: Task[] | null };
-export type InterventoEsistente = { id: string; odl: string | null; stato: string };
+export type InterventoEsistente = {
+  id: string;
+  odl: string | null;
+  stato: string;
+  matricola_contatore?: string | null;
+  indirizzo?: string | null;
+  intervento_tipo?: string | null;
+};
 
 export type PianoPlanInput = {
   committente?: string;
@@ -23,12 +30,36 @@ export type PianoPlan = {
   daInserire: InterventoDaMappa[];
 };
 
+/**
+ * Identità robusta di un intervento per il dedup in rigenerazione.
+ * ODL se presente; altrimenti (ACEA ha spesso ODL null) identità composta
+ * indirizzo+matricola(+attività). Serve a NON ricreare/duplicare un intervento
+ * già presente quando si rigenera dai task del piano.
+ */
+function identitaIntervento(r: {
+  odl: string | null;
+  matricola_contatore?: string | null;
+  indirizzo?: string | null;
+  intervento_tipo?: string | null;
+}): string | null {
+  const odl = (r.odl ?? '').trim().toLowerCase();
+  if (odl) return `odl:${odl}`;
+  const matr = (r.matricola_contatore ?? '').trim().toLowerCase();
+  const ind = (r.indirizzo ?? '').trim().toLowerCase();
+  const tipo = (r.intervento_tipo ?? '').trim().toLowerCase();
+  if (matr || ind) return `c:${matr}|${ind}|${tipo}`;
+  return null;
+}
+
 export function planInterventi(input: PianoPlanInput): PianoPlan {
   const committente = input.committente ?? 'acea';
   const isTerminale = (stato: string) => stato === 'completato' || stato === 'annullato';
 
-  const odlTerminali = new Set(
-    input.esistenti.filter((e) => isTerminale(e.stato)).map((e) => e.odl).filter((x): x is string => !!x),
+  // Identità degli interventi GIÀ TERMINALI (completati/annullati): sono preservati,
+  // quindi i task corrispondenti NON vanno re-inseriti (sennò si duplicano — caso
+  // ACEA con ODL null, dove il dedup per solo ODL non bastava).
+  const keyTerminali = new Set(
+    input.esistenti.filter((e) => isTerminale(e.stato)).map(identitaIntervento).filter((x): x is string => !!x),
   );
   const idDaEliminare = input.esistenti.filter((e) => !isTerminale(e.stato)).map((e) => e.id);
 
@@ -45,8 +76,10 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
         pianoId: input.pianoId,
         territorioId: input.territorioId,
       });
+      // Già chiuso (per ODL o per identità composta indirizzo+matricola) → preserva, non duplicare.
+      const key = identitaIntervento(rec);
+      if (key && keyTerminali.has(key)) continue;
       if (rec.odl) {
-        if (odlTerminali.has(rec.odl)) continue; // già chiuso → preserva, non duplicare
         if (odlGiaPresenti.has(rec.odl)) continue; // esiste su altro piano stessa data
         if (visti.has(rec.odl)) continue; // dedup interno al batch
         visti.add(rec.odl);

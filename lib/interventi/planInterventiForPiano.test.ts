@@ -68,4 +68,29 @@ describe('planInterventi', () => {
     });
     expect(r.daInserire).toHaveLength(2);
   });
+
+  it('non duplica un intervento terminale SENZA odl (identità matricola+indirizzo)', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: '', matricola: 'M1', indirizzo: 'Via Roma 1' })] }],
+      esistenti: [
+        { id: 'e1', odl: null, stato: 'completato', matricola_contatore: 'M1', indirizzo: 'Via Roma 1' },
+      ],
+    });
+    // il task corrisponde a un intervento GIÀ completato → niente duplicato, terminale preservato
+    expect(r.daInserire).toHaveLength(0);
+    expect(r.idDaEliminare).toEqual([]);
+  });
+
+  it('non accorpa interventi senza odl con matricola diversa', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: '', matricola: 'M2', indirizzo: 'Via Roma 1' })] }],
+      esistenti: [
+        { id: 'e1', odl: null, stato: 'completato', matricola_contatore: 'M1', indirizzo: 'Via Roma 1' },
+      ],
+    });
+    // matricola diversa → job distinto → va inserito (no over-dedup)
+    expect(r.daInserire).toHaveLength(1);
+  });
 });

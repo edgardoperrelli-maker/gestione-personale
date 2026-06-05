@@ -30,7 +30,7 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
 
   const { data: existing } = await db
     .from('interventi')
-    .select('id, odl, stato')
+    .select('id, odl, stato, matricola_contatore, indirizzo, intervento_tipo')
     .eq('piano_id', pianoId)
     .eq('created_from_mappa', true);
   const esistenti = (existing ?? []) as InterventoEsistente[];
