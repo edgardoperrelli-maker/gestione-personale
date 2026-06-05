@@ -10,6 +10,8 @@ export interface Task {
   durata_min?: number;
   lat?: number;
   lng?: number;
+  /** Coordinata committente "lat, lng" letta dal file (separata da lat/lng del geocoding). */
+  coordinate?: string;
   requiresTwoOperators?: boolean;
   // Campi ATTGIORN
   nominativo?: string;

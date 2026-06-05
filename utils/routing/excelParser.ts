@@ -1,5 +1,6 @@
 import * as XLSX from 'xlsx';
 import type { Task } from './types';
+import { parseLatLng } from './parseCoordinate';
 
 // ─── Normalizzazione header ──────────────────────────────────────────────────
 
@@ -68,6 +69,8 @@ type ColMap = {
   attivita: number | null;
   codice: number | null;
   durata: number | null;
+  lat: number | null;
+  lng: number | null;
 };
 
 export function detectFormat(headerRow: unknown[]): ColMap | null {
@@ -75,6 +78,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
   const ncols = headers.length;
   const odl = findCol(headers, [/^codice[_\s]*odl$/, /^odl$/, /^ods$/, /^ods\s*\/\s*odl$/]);
   const odsin = findCol(headers, [/^odsin$/, /^codice$/, /^codice\s+odsin$/, /^id$/]);
+  const lat = findCol(headers, [/^lat(itudine)?$/]);
+  const lng = findCol(headers, [/^long(itudine)?$/, /^lon$/, /^lng$/]);
 
   // ── Formato ATTGIORN: presenza "risorsa" in col B (indice 1) ──────────────
   if (/^risorsa$/i.test(headers[ATTGIORN_COL.OPERATORE] ?? '') ||
@@ -95,6 +100,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       attivita: ATTGIORN_COL.ATTIVITA,
       codice: ATTGIORN_COL.CODICE,
       durata: null,
+      lat,
+      lng,
     };
   }
 
@@ -118,6 +125,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
         attivita: null,
         codice: null,
         durata: null,
+        lat,
+        lng,
       };
     }
     // anche senza header corrispondente usiamo gli indici fissi se ncols > 80
@@ -137,6 +146,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       attivita: null,
       codice: null,
       durata: null,
+      lat,
+      lng,
     };
   }
 
@@ -160,6 +171,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
     codice: null,
     durata: findCol(headers, [/tempo.*esec/, /^durata$/, /^tempo$/, /minut/]),
+    lat,
+    lng,
   };
 }
 
@@ -278,6 +291,10 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       attivita: colMap.attivita != null ? str(row[colMap.attivita]) : undefined,
       codice: colMap.codice != null ? str(row[colMap.codice]) : undefined,
       durata_min: colMap.durata != null ? (Number.parseInt(str(row[colMap.durata]), 10) || undefined) : undefined,
+      coordinate:
+        colMap.lat != null && colMap.lng != null
+          ? (parseLatLng(row[colMap.lat], row[colMap.lng]) ?? undefined)
+          : undefined,
     };
     if (operatore) task._operatore = operatore;
     tasks.push(task);

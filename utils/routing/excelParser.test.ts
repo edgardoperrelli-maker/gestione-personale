@@ -66,3 +66,20 @@ describe('detectFormat — header "ODS"', () => {
     expect(cm!.via).toBe(1);
   });
 });
+
+describe('detectFormat — colonne coordinate', () => {
+  it('rileva Lat/Long dall\'intestazione (formato leggibile)', () => {
+    const header = ['Indirizzo', 'CAP', 'Comune', 'Long', 'Lat'];
+    const cm = detectFormat(header);
+    expect(cm).not.toBeNull();
+    expect(cm!.lat).toBe(4);
+    expect(cm!.lng).toBe(3);
+  });
+  it('senza colonne coordinate → lat/lng null', () => {
+    const header = ['Indirizzo', 'CAP', 'Comune'];
+    const cm = detectFormat(header);
+    expect(cm).not.toBeNull();
+    expect(cm!.lat).toBeNull();
+    expect(cm!.lng).toBeNull();
+  });
+});
