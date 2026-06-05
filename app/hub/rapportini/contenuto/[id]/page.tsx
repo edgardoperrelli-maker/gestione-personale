@@ -3,7 +3,8 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
-import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
+import { resolveInfoCampi, valoreInfo, coordinateFromRaw, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
+import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { colonneVisibili } from '@/utils/rapportini/colonneVisibili';
 
@@ -60,15 +61,15 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
 
   const { data: vociRows } = await supabase
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
+    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json')
     .eq('rapportino_id', id)
     .order('ordine', { ascending: true });
 
   const info = resolveInfoCampi((r.info_snapshot ?? []) as TemplateInfoCampo[]);
   const campi = ((r.campi_snapshot ?? []) as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine);
-  const voci = (vociRows ?? []) as Array<
-    VoceInfo & { id: string; ordine: number; risposte: Record<string, unknown> | null }
-  >;
+  const voci = ((vociRows ?? []) as Array<
+    VoceInfo & { id: string; ordine: number; risposte: Record<string, unknown> | null; raw_json?: unknown }
+  >).map((v) => ({ ...v, coordinate: coordinateFromRaw(v.raw_json) }));
   const { info: infoVis, campi: campiVis } = colonneVisibili(info, campi, voci);
 
   return (
@@ -107,9 +108,18 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
               {voci.map((v, i) => (
                 <tr key={v.id} className="border-t" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
                   <td className={TD} style={{ color: 'var(--brand-text-muted)' }}>{i + 1}</td>
-                  {infoVis.map((c) => (
-                    <td key={`i-${c.chiave}`} className={TD}>{valoreInfo(v, c.chiave) || '—'}</td>
-                  ))}
+                  {infoVis.map((c) => {
+                    const val = valoreInfo(v, c.chiave);
+                    return (
+                      <td key={`i-${c.chiave}`} className={TD}>
+                        {c.chiave === 'coordinate' && val ? (
+                          <a href={mapsUrlFromCoordinate(val)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--brand-primary)' }}>{val}</a>
+                        ) : (
+                          val || '—'
+                        )}
+                      </td>
+                    );
+                  })}
                   {campiVis.map((c) => (
                     <td key={`c-${c.chiave}`} className={`${TD} text-center`}>
                       {fmtRisposta(c.tipo, (v.risposte ?? {})[c.chiave])}
