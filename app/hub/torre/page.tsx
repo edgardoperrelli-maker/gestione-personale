@@ -84,7 +84,7 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="space-y-4">
-      <CodaRichiesteManuali infoCampi={infoCampiTorre} campiPerCommittente={campiPerCommittente} />
+      <CodaRichiesteManuali infoCampi={infoCampiTorre} campiPerCommittente={campiPerCommittente} userId={user.id} adminNomi={{}} />
       <TorreControlloClient data={data} interventi={rows} operatori={operatori} territori={territori} />
     </div>
   );
