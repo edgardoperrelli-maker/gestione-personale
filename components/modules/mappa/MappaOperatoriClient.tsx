@@ -21,6 +21,7 @@ import { type RapportinoStato, statoBadge, whatsappHref } from '@/utils/rapporti
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
+import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -1718,13 +1719,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 const diff = (await ap.json()) as import('@/utils/rapportini/diffRapportini').DiffRapportini;
                 if (diff.bloccati.length > 0) {
                   const elenco = diff.bloccati.map((b) => `• ${b.descr} (${b.daNome} → ${b.aNome})`).join('\n');
-                  setRapError(`Questi interventi sono già completati e non possono essere spostati. Riportali all'operatore originale e risalva:\n${elenco}`);
+                  alert(`Questi interventi sono già completati e non possono essere spostati.\nRiportali all'operatore originale e risalva:\n\n${elenco}`);
                 } else if (diff.nessunaModifica) {
                   await applicaRapportini(pid, false);
                 } else {
-                  setDiffPreview(diff);
-                  setDiffConfermaInviati(false);
-                  setPendingApply({ pid });
+                  // Riepilogo + conferma con dialogo NATIVO (sempre visibile): la modale React poteva
+                  // non comparire, lasciando i rapportini non aggiornati. Affidabile e bloccante.
+                  const { testo, haInviati } = buildRiepilogoConferma(diff);
+                  if (window.confirm(testo)) await applicaRapportini(pid, haInviati);
                 }
               } else {
                 const ej = (await ap.json().catch(() => ({}))) as { error?: string };
