@@ -6,6 +6,7 @@ import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
 import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
+import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -158,6 +159,18 @@ export default async function RapportinoPublicPage({
     }
   }
 
+  // Template attivi per committente → alimentano la modale "intervento manuale".
+  const { data: tplManuali } = await supabaseAdmin
+    .from('rapportino_template')
+    .select('committente, campi')
+    .eq('active', true);
+  const templatesPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
+  for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown }>) {
+    if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro') {
+      templatesPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
+    }
+  }
+
   return (
     <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
       <RapportinoForm
@@ -168,6 +181,8 @@ export default async function RapportinoPublicPage({
         infoCampi={infoCampiLive}
         titoloCampi={titoloCampi}
         readOnly={stato === 'inviato'}
+        infoCampiManuale={infoCampiLive}
+        templatesPerCommittente={templatesPerCommittente}
       />
     </main>
   );

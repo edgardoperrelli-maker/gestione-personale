@@ -7,6 +7,10 @@ import { statoVoce, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
 import type { SaveState } from './SaveBadge';
 import { RapportinoLista, type RigaVoce, type Filtro } from './RapportinoLista';
 import { VoceFocus } from './VoceFocus';
+import { FabInterventoManuale } from './FabInterventoManuale';
+import { ModaleInterventoManuale } from './ModaleInterventoManuale';
+import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
+import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -37,6 +41,8 @@ type Props = {
   infoCampi: TemplateInfoCampo[];
   titoloCampi?: InfoChiave[];
   readOnly: boolean;
+  infoCampiManuale?: TemplateInfoCampo[];
+  templatesPerCommittente?: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
 };
 
 const DEBOUNCE_MS = 800;
@@ -64,6 +70,8 @@ export default function RapportinoForm({
   infoCampi,
   titoloCampi = [],
   readOnly: readOnlyIniziale,
+  infoCampiManuale = [],
+  templatesPerCommittente = {},
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
   const vociOrdinate = useMemo(() => vociIniziali.slice().sort((a, b) => a.ordine - b.ordine), [vociIniziali]);
@@ -79,6 +87,7 @@ export default function RapportinoForm({
   const [vista, setVista] = useState<'lista' | 'focus'>('lista');
   const [indiceCorrente, setIndiceCorrente] = useState(0);
   const [filtro, setFiltro] = useState<Filtro>('tutti');
+  const [modaleAperta, setModaleAperta] = useState(false);
 
   const disabilitato = readOnly || bloccato || inviato;
 
@@ -277,6 +286,24 @@ export default function RapportinoForm({
           inviando={inviando}
           readOnly={readOnly}
           inviato={inviato}
+        />
+      )}
+      {vista === 'lista' && (
+        <FabInterventoManuale
+          abilitato={fabAbilitato({ readOnly, bloccato, inviato })}
+          onClick={() => setModaleAperta(true)}
+        />
+      )}
+      {modaleAperta && (
+        <ModaleInterventoManuale
+          token={token}
+          infoCampi={infoCampiManuale}
+          campiPerCommittente={templatesPerCommittente}
+          onClose={() => setModaleAperta(false)}
+          onCreata={() => {
+            setModaleAperta(false);
+            window.location.reload();
+          }}
         />
       )}
     </div>
