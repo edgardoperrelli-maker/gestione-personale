@@ -74,6 +74,18 @@ export function CampoInput({
     );
   }
 
+  if (campo.tipo === 'foto') {
+    return (
+      <div>
+        {labelEl}
+        <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-sm text-[var(--brand-text-muted)]">
+          <span aria-hidden>📷</span>
+          <span>Slot foto{campo.obbligatoria ? ' (obbligatoria)' : ''}</span>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div>
       {labelEl}

@@ -9,9 +9,12 @@ import {
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
 
+type Committente = 'acea' | 'italgas' | 'altro';
+
 type Template = {
   id: string;
   nome: string;
+  committente?: Committente | null;
   campi: TemplateCampo[];
   info_campi?: TemplateInfoCampo[];
   titolo_campi?: InfoChiave[];
@@ -46,6 +49,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   );
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
+  const [committente, setCommittente] = useState<Committente | ''>('');
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
@@ -69,6 +73,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setIsNew(false);
     setSelectedId(tpl.id);
     setNome(tpl.nome);
+    setCommittente(tpl.committente ?? '');
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
@@ -80,6 +85,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setIsNew(true);
     setSelectedId(null);
     setNome('');
+    setCommittente('');
     setCampi([newCampo(1)]);
     setInfoCampi(infoCampiDefault());
     setTitoloCampi([]);
@@ -179,6 +185,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     try {
       const payload = {
         nome: nome.trim(),
+        committente: committente || null,
         campi: campi.map((c, i) => ({
           ...c,
           ordine: i + 1,
@@ -248,6 +255,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         const payload = {
           id,
           nome: nome.trim(),
+          committente: committente || null,
           campi: campi.map((c, i) => ({
             ...c,
             ordine: i + 1,
@@ -268,7 +276,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, campi, infoCampi, titoloCampi, isNew, selectedId]);
+  }, [nome, committente, campi, infoCampi, titoloCampi, isNew, selectedId]);
 
   // All'apertura carica il primo template (evita un form vuoto con un template già selezionato).
   useEffect(() => {
@@ -362,6 +370,24 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
                 placeholder="es. Rapportino standard"
               />
+            </div>
+
+            {/* ── Committente ───────────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Committente</h3>
+              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+                Associa il template a un committente per gli interventi manuali. &quot;Nessuno&quot; = template generico (Standard).
+              </p>
+              <select
+                value={committente}
+                onChange={(e) => setCommittente(e.target.value as Committente | '')}
+                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+              >
+                <option value="">— Nessuno —</option>
+                <option value="acea">Acea</option>
+                <option value="italgas">Italgas</option>
+                <option value="altro">Altro</option>
+              </select>
             </div>
 
             {/* ── Intestazione della card ──────────────────────────────────────── */}
@@ -504,6 +530,19 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                           placeholder={'SI\nNO'}
                         />
                       </div>
+                    )}
+
+                    {/* Row 2b: flag obbligatoria (solo se tipo=foto) */}
+                    {campo.tipo === 'foto' && (
+                      <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                        <input
+                          type="checkbox"
+                          checked={campo.obbligatoria === true}
+                          onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
+                          className="h-4 w-4 accent-[var(--brand-primary)]"
+                        />
+                        Foto obbligatoria
+                      </label>
                     )}
 
                     {/* Row 3: azioni */}
