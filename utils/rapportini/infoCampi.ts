@@ -92,15 +92,18 @@ export function partitionInfoCampi(
 }
 
 /**
- * Titolo della voce: valore del primo campo non vuoto tra `titoloCampi` (lista di priorità).
- * Se `titoloCampi` è vuoto → comportamento storico (nominativo → pdr). Ultimo fallback: "Voce N".
+ * Titolo della voce: primo campo non vuoto tra `titoloCampi` (priorità del template).
+ * Se `titoloCampi` è vuoto → fallback robusto (nominativo → matricola → ODL → PDR), così le voci
+ * senza nominativo/pdr (es. ACEA: solo matricola/ODL) non cadono su "Voce N". Ultimo fallback: "Voce N".
  */
 export function titoloVoce(
   voce: VoceInfo,
   titoloCampi: InfoChiave[],
   indice: number,
 ): string {
-  const chiavi = titoloCampi.length > 0 ? titoloCampi : (['nominativo', 'pdr'] as InfoChiave[]);
+  const chiavi = titoloCampi.length > 0
+    ? titoloCampi
+    : (['nominativo', 'matricola', 'odl', 'pdr'] as InfoChiave[]);
   for (const c of chiavi) {
     const v = valoreInfo(voce, c);
     if (v) return v;

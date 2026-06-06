@@ -56,6 +56,11 @@ export function RapportinoLista({
   const visibili = righe.filter((r) =>
     filtro === 'tutti' ? true : filtro === 'dafare' ? r.stato === 'da_fare' : r.stato !== 'da_fare',
   );
+  const conteggi: Record<Filtro, number> = {
+    tutti: righe.length,
+    dafare: righe.filter((r) => r.stato === 'da_fare').length,
+    completati: righe.filter((r) => r.stato !== 'da_fare').length,
+  };
 
   return (
     <div className="flex h-dvh flex-col">
@@ -67,11 +72,18 @@ export function RapportinoLista({
               key={k}
               type="button"
               onClick={() => onFiltro(k)}
-              className={`min-h-[38px] flex-1 rounded-full px-2 py-2 text-sm font-semibold transition ${
+              className={`flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-semibold transition ${
                 filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
-              {lbl}
+              <span>{lbl}</span>
+              <span
+                className={`min-w-[1.25rem] rounded-full px-1 text-xs font-bold tabular-nums ${
+                  filtro === k ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
+                }`}
+              >
+                {conteggi[k]}
+              </span>
             </button>
           ))}
         </div>
@@ -140,13 +152,9 @@ export function RapportinoLista({
             </>
           ) : (
             <>
-              {!readOnly && (inviabile ? (
+              {!readOnly && inviabile && (
                 <p className="mb-1.5 text-center text-xs font-medium text-[var(--success)]">Tutti gli interventi hanno un esito ✓</p>
-              ) : (
-                <button type="button" onClick={() => onFiltro('dafare')} className="mb-1.5 block w-full text-center text-xs text-[var(--brand-text-muted)] underline">
-                  {riepilogo.daFare} {riepilogo.daFare === 1 ? 'intervento da completare' : 'interventi da completare'} · tocca per filtrarli
-                </button>
-              ))}
+              )}
               {!readOnly && (
                 <button
                   type="button"
