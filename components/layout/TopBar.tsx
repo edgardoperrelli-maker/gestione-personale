@@ -1,16 +1,18 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import CampanelloRichieste from './CampanelloRichieste';
 
 type TopBarProps = {
   userName: string;
   roleLabel?: string;
+  isAdmin?: boolean;
   onLogout: () => void | Promise<void>;
   /** Apre il drawer della sidebar su mobile. */
   onOpenMobile: () => void;
 };
 
-export default function TopBar({ userName, roleLabel = 'Operatore', onLogout, onOpenMobile }: TopBarProps) {
+export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = false, onLogout, onOpenMobile }: TopBarProps) {
   const [isLight, setIsLight] = useState(false);
   useEffect(() => {
     setIsLight(document.documentElement.classList.contains('light'));
@@ -66,6 +68,7 @@ export default function TopBar({ userName, roleLabel = 'Operatore', onLogout, on
           >
             {userName}
           </span>
+          {isAdmin && <CampanelloRichieste />}
           <button
             type="button"
             onClick={toggleTheme}

@@ -25,7 +25,7 @@ export default async function ImpostazioniLayout({ children }: { children: React
   const allowedModules = getAllowedModulesForUser(user.app_metadata, effectiveRole);
 
   return (
-    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules}>
+    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules} isAdmin={effectiveRole === 'admin'}>
       <PageTransitionWrapper>{children}</PageTransitionWrapper>
     </AppShell>
   );

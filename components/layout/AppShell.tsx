@@ -12,6 +12,7 @@ type Props = {
   userName?: string;
   allowedModules?: AppModuleKey[];
   onLogout?: () => void | Promise<void>;
+  isAdmin?: boolean;
 };
 
 const COLLAPSE_KEY = 'sidebar:collapsed';
@@ -22,6 +23,7 @@ export default function AppShell({
   userName,
   allowedModules,
   onLogout,
+  isAdmin = false,
 }: Props) {
   const displayName = userName ?? 'Utente';
   const pathname = usePathname();
@@ -108,6 +110,7 @@ export default function AppShell({
         <TopBar
           userName={displayName}
           roleLabel={roleLabel}
+          isAdmin={isAdmin}
           onLogout={handleLogout}
           onOpenMobile={() => setMobileOpen(true)}
         />

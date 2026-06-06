@@ -12,7 +12,7 @@ export async function GET(req: Request) {
   const filtro = parseFiltroLista(new URL(req.url).searchParams);
   let q = supabaseAdmin
     .from('interventi_manuali')
-    .select('id, rapportino_id, voce_id, intervento_id, staff_id, staff_name, committente, data, stato, corsia, dati_operatore, dati_correnti, note, motivo_rifiuto, created_at')
+    .select('id, rapportino_id, voce_id, intervento_id, staff_id, staff_name, committente, data, stato, corsia, dati_operatore, dati_correnti, note, motivo_rifiuto, created_at, preso_in_carico_da, preso_in_carico_at')
     .order('created_at', { ascending: false });
 
   if (filtro.stato) q = q.eq('stato', filtro.stato);
