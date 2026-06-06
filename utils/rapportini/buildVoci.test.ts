@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { taskToVoce, mergeVoci, type Voce } from './buildVoci';
+import { taskToVoce, mergeVoci, type Voce, type TemplateCampo } from './buildVoci';
 describe('taskToVoce', () => {
   it('snapshot dei campi', () => {
     const t = { id: 'x1', odl: 'O1', pdr: 'P1', indirizzo: 'Via A 1', citta: 'Roma', cap: '00100', nominativo: 'Mario', matricola: 'M1', recapito: '333', accessibilita: 'OK', attivita: 'S-AI-051', fascia_oraria: '8-12' };
@@ -18,5 +18,30 @@ describe('mergeVoci', () => {
     expect(merged.find((v) => v.task_id === 'a')!.risposte).toEqual({ att_cess: true, note: 'ok' });
     expect(merged.find((v) => v.task_id === 'a')!.ordine).toBe(1);
     expect(merged.find((v) => v.task_id === 'b')!.risposte).toEqual({});
+  });
+});
+
+describe('TemplateCampo tipo foto', () => {
+  it('accetta un campo di tipo foto con flag obbligatoria', () => {
+    const campo: TemplateCampo = {
+      chiave: 'foto_contatore',
+      etichetta: 'Foto contatore',
+      tipo: 'foto',
+      obbligatoria: true,
+      ordine: 1,
+    };
+    expect(campo.tipo).toBe('foto');
+    expect(campo.obbligatoria).toBe(true);
+  });
+
+  it('obbligatoria è opzionale (campo foto facoltativo)', () => {
+    const campo: TemplateCampo = {
+      chiave: 'foto_panoramica',
+      etichetta: 'Foto panoramica',
+      tipo: 'foto',
+      ordine: 2,
+    };
+    expect(campo.tipo).toBe('foto');
+    expect(campo.obbligatoria).toBeUndefined();
   });
 });

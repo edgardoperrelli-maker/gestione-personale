@@ -36,6 +36,7 @@ const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
   testo: 'Testo libero',
   select: 'Selezione',
   numero: 'Numero',
+  foto: 'Foto',
 };
 
 export default function TemplateRapportiniClient({ initial }: Props) {

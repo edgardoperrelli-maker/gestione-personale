@@ -1,7 +1,9 @@
 export interface TemplateCampo {
   chiave: string; etichetta: string;
-  tipo: 'crocetta' | 'testo' | 'select' | 'numero';
-  opzioni?: string[]; ordine: number;
+  tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto';
+  opzioni?: string[];
+  obbligatoria?: boolean; // usato dai campi tipo 'foto': slot obbligatorio o facoltativo
+  ordine: number;
 }
 export interface VoceSnapshot {
   task_id: string; ordine: number;
