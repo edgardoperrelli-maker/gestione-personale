@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizzaAscii, nomeFotoFile } from './fotoNaming';
+import { normalizzaAscii, nomeFotoFile, identificativoFoto } from './fotoNaming';
 
 describe('normalizzaAscii', () => {
   it('rimuove accenti e spazi', () => {
@@ -53,5 +53,18 @@ describe('nomeFotoFile', () => {
   it('etichetta vuota → "foto" come base', () => {
     const nome = nomeFotoFile('   ', { pdr: '7' }, 'jpg');
     expect(nome).toBe('foto_7.jpg');
+  });
+});
+
+describe('identificativoFoto', () => {
+  it('priorità PDR > matricola > ODL > indirizzo', () => {
+    expect(identificativoFoto({ pdr: 'P1', matricola: 'M1', odl: 'O1', indirizzo: 'Via X' })).toBe('P1');
+    expect(identificativoFoto({ matricola: 'M1', odl: 'O1', indirizzo: 'Via X' })).toBe('M1');
+    expect(identificativoFoto({ odl: 'O1', indirizzo: 'Via X' })).toBe('O1');
+    expect(identificativoFoto({ indirizzo: 'Via Roma 3' })).toBe('ViaRoma3');
+  });
+  it('fallback "intervento" se tutto vuoto', () => {
+    expect(identificativoFoto({})).toBe('intervento');
+    expect(identificativoFoto({ pdr: '', matricola: null })).toBe('intervento');
   });
 });

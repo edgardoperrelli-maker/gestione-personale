@@ -22,7 +22,7 @@ export function normalizzaAscii(input: string): string {
 }
 
 /** Primo identificativo non vuoto, nell'ordine PDR → matricola → ODL → indirizzo. */
-function identificativoFoto(ids: IdentificativiFoto): string {
+export function identificativoFoto(ids: IdentificativiFoto): string {
   const candidati = [ids.pdr, ids.matricola, ids.odl, ids.indirizzo];
   for (const c of candidati) {
     const norm = normalizzaAscii(String(c ?? '').trim());

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
@@ -6,7 +7,7 @@ import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
-import { nomeFotoFile } from '@/lib/interventi/manuali/fotoNaming';
+import { nomeFotoFile, identificativoFoto } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -80,9 +81,72 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     );
   }
 
+  // === C1: genera l'id richiesta in anticipo e carica TUTTE le foto prima di qualsiasi INSERT DB ===
+  const richiestaId = randomUUID();
+
+  const ids = {
+    pdr: anagrafica.pdr as string | undefined,
+    matricola: anagrafica.matricola as string | undefined,
+    odl: anagrafica.odl as string | undefined,
+    indirizzo: anagrafica.indirizzo as string | undefined,
+  };
+
+  // I2: check MIME server-side per ogni foto prima dell'upload.
+  for (const [, f] of fileBySlot) {
+    if (!f.type.startsWith('image/'))
+      return NextResponse.json({ error: 'tipo_file_non_valido' }, { status: 400 });
+  }
+
+  // Fase upload: carica tutte le foto (con storage_path definitivo), accumula i path.
+  type FotoCaricata = {
+    storagePath: string;
+    chiave: string;
+    etichetta: string;
+    fileName: string;
+    mimeType: string;
+    size: number;
+  };
+
+  const fotoCaricate: FotoCaricata[] = [];
+  const pathCaricati: string[] = [];
+
+  for (const c of slotFoto) {
+    const f = fileBySlot.get(c.chiave);
+    if (!f) continue; // slot facoltativo non compilato
+
+    const ext = (f.name.split('.').pop() ?? 'jpg').toLowerCase();
+    // I1: storage_path usa identificativoFoto, non l'UUID della richiesta.
+    const storagePath = `${richiestaId}/${c.chiave}_${identificativoFoto(ids)}.${ext}`;
+    const buf = Buffer.from(await f.arrayBuffer());
+
+    const { error: upErr } = await supabaseAdmin.storage
+      .from('interventi-foto')
+      .upload(storagePath, buf, { contentType: f.type || 'image/jpeg', upsert: true });
+
+    if (upErr) {
+      // Rollback: elimina i file già caricati prima di rispondere con errore.
+      if (pathCaricati.length > 0) {
+        await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+      }
+      return NextResponse.json({ error: 'upload_foto_fallito' }, { status: 502 });
+    }
+
+    pathCaricati.push(storagePath);
+    fotoCaricate.push({
+      storagePath,
+      chiave: c.chiave,
+      etichetta: c.etichetta,
+      fileName: nomeFotoFile(c.etichetta, ids, ext),
+      mimeType: f.type || 'image/jpeg',
+      size: f.size,
+    });
+  }
+
+  // === Solo se TUTTE le foto sono caricate: INSERT DB ===
   const { data: req2, error: eReq } = await supabaseAdmin
     .from('interventi_manuali')
     .insert({
+      id: richiestaId,
       rapportino_id: rap.id,
       piano_id: rap.piano_id,
       staff_id: rap.staff_id,
@@ -98,7 +162,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     })
     .select('id')
     .single();
-  if (eReq) return NextResponse.json({ error: eReq.message }, { status: 500 });
+  if (eReq) {
+    // Rollback storage se l'INSERT DB fallisce.
+    if (pathCaricati.length > 0) {
+      await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+    }
+    return NextResponse.json({ error: eReq.message }, { status: 500 });
+  }
 
   const { data: maxRow } = await supabaseAdmin
     .from('rapportino_voci')
@@ -119,37 +189,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   await supabaseAdmin.from('interventi_manuali').update({ voce_id: voceRow!.id }).eq('id', req2!.id);
 
-  // Upload foto e creazione record interventi_manuali_foto (dopo aver ottenuto req2.id).
-  const ids = {
-    pdr: anagrafica.pdr as string | undefined,
-    matricola: anagrafica.matricola as string | undefined,
-    odl: anagrafica.odl as string | undefined,
-    indirizzo: anagrafica.indirizzo as string | undefined,
-  };
-
-  for (const c of slotFoto) {
-    const f = fileBySlot.get(c.chiave);
-    if (!f) continue; // slot facoltativo non compilato
-
-    const ext = (f.name.split('.').pop() ?? 'jpg').toLowerCase();
-    const storagePath = `${req2!.id}/${c.chiave}_${req2!.id}.${ext}`;
-    const buf = Buffer.from(await f.arrayBuffer());
-
-    const { error: upErr } = await supabaseAdmin.storage
-      .from('interventi-foto')
-      .upload(storagePath, buf, { contentType: f.type || 'image/jpeg', upsert: true });
-    if (upErr) {
-      return NextResponse.json({ error: `Upload foto fallito: ${upErr.message}` }, { status: 502 });
-    }
-
+  // INSERT record foto (con path già caricati in storage).
+  for (const foto of fotoCaricate) {
     const { error: insErr } = await supabaseAdmin.from('interventi_manuali_foto').insert({
       richiesta_id: req2!.id,
-      slot_chiave: c.chiave,
-      slot_etichetta: c.etichetta,
-      storage_path: storagePath,
-      file_name: nomeFotoFile(c.etichetta, ids, ext),
-      mime_type: f.type || 'image/jpeg',
-      size: f.size,
+      slot_chiave: foto.chiave,
+      slot_etichetta: foto.etichetta,
+      storage_path: foto.storagePath,
+      file_name: foto.fileName,
+      mime_type: foto.mimeType,
+      size: foto.size,
     });
     if (insErr) {
       return NextResponse.json({ error: insErr.message }, { status: 500 });
