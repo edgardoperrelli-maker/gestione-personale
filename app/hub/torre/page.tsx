@@ -8,6 +8,8 @@ import TorreControlloClient, { type TorreIntervento } from '@/components/modules
 import { CodaRichiesteManuali } from '@/components/modules/torre/CodaRichiesteManuali';
 import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
+import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 export const dynamic = 'force-dynamic';
 
@@ -61,15 +63,22 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
 
   const { data: tplRows } = await supabase
     .from('rapportino_template')
-    .select('committente, campi, info_campi, is_default')
+    .select('id, committente, campi, info_campi, is_default, active')
     .eq('active', true);
-  const tpl = (tplRows ?? []) as Array<{ committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean }>;
+  const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean }>;
   const tplDefault = tpl.find((t) => t.is_default) ?? tpl[0];
   const infoCampiTorre: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
-  const campiPerCommittente: Partial<Record<'acea' | 'italgas' | 'altro', TemplateCampo[]>> = {};
-  for (const t of tpl) {
-    if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro') {
-      campiPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
+
+  // Per ogni committente, risolve il template corretto con fallback al default,
+  // così un committente senza template dedicato ottiene i campi del default invece di [].
+  const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro'];
+  const tplRows2 = tpl as TemplateRow[];
+  const campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
+  for (const committente of COMMITTENTI_MANUALI) {
+    const tplId = risolviTemplateCommittente(committente, tplRows2);
+    const tplMatch = tplId ? tpl.find((t) => t.id === tplId) : null;
+    if (tplMatch) {
+      campiPerCommittente[committente] = (tplMatch.campi ?? []) as TemplateCampo[];
     }
   }
 

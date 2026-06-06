@@ -4,6 +4,7 @@ import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 
 export const runtime = 'nodejs';
 
@@ -24,9 +25,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const committente = body.committente as CommittenteManuale | undefined;
   if (!committente || !COMMITTENTI.includes(committente))
     return NextResponse.json({ error: 'committente_non_valido' }, { status: 400 });
+
+  const anagrafica = body.anagrafica ?? {};
+  if (!anagraficaValida(anagrafica))
+    return NextResponse.json(
+      { error: 'campi_mancanti', dettaglio: 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).' },
+      { status: 422 },
+    );
+
   const dati: DatiInterventoManuale = {
     committente,
-    anagrafica: body.anagrafica ?? {},
+    anagrafica,
     risposte: body.risposte ?? {},
   };
 

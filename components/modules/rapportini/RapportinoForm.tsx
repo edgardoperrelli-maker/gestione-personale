@@ -92,6 +92,7 @@ export default function RapportinoForm({
   const [indiceCorrente, setIndiceCorrente] = useState(0);
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [modaleAperta, setModaleAperta] = useState(false);
+  const [bloccoSospese, setBloccoSospese] = useState<number | null>(null); // n. voci in attesa di approvazione
 
   const disabilitato = readOnly || bloccato || inviato;
 
@@ -226,10 +227,18 @@ export default function RapportinoForm({
     try {
       const res = await fetch(`/api/r/${token}/invia`, { method: 'POST' });
       if (res.status === 409) {
-        setBloccato(true);
+        const body = await res.json().catch(() => ({})) as { error?: string; inSospeso?: number };
+        if (body.error === 'voci_in_sospeso') {
+          // Mostra banner dedicato senza bloccare definitivamente il form:
+          // l'operatore potrà ritentare l'invio una volta che le voci vengono approvate.
+          setBloccoSospese(body.inSospeso ?? 1);
+        } else {
+          setBloccato(true);
+        }
         return;
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBloccoSospese(null);
       setInviato(true);
       setReadOnly(true);
       setVista('lista');
@@ -252,10 +261,19 @@ export default function RapportinoForm({
     );
   }
 
+  const bannerSospese = bloccoSospese !== null && !inviato ? (
+    <div className="mx-3 mb-3 rounded-2xl border border-[var(--warning,#f59e0b)] bg-[var(--warning-soft,#fef3c7)] p-4 text-sm font-medium text-[var(--warning-fg,#92400e)]">
+      {bloccoSospese === 1
+        ? 'Hai 1 intervento in attesa di approvazione: il rapportino non è inviabile finché non viene approvato.'
+        : `Hai ${bloccoSospese} interventi in attesa di approvazione: il rapportino non è inviabile finché non vengono approvati.`}
+    </div>
+  ) : null;
+
   const dataLabel = formatData(rapportino.data);
 
   return (
     <div className="mx-auto max-w-[480px]">
+      {bannerSospese}
       {vista === 'focus' && voci[indiceCorrente] ? (
         <VoceFocus
           voce={voci[indiceCorrente]}
