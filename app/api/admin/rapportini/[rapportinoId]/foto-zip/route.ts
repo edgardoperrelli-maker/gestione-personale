@@ -38,25 +38,36 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   // 4) scarica i blob dal bucket privato e impacchetta
   const zip = new JSZip();
+  const saltate: string[] = [];
   for (const e of entries) {
     const { data: blob, error: dlErr } = await supabaseAdmin.storage
       .from('interventi-foto')
       .download(e.storagePath);
     if (dlErr || !blob) {
-      return NextResponse.json({ error: `Download foto fallito: ${e.storagePath}` }, { status: 502 });
+      saltate.push(e.storagePath);
+      continue;
     }
     const buf = Buffer.from(await blob.arrayBuffer());
     zip.file(e.zipPath, buf);
   }
 
+  // se TUTTE le foto sono saltate, ritorna errore
+  if (saltate.length === entries.length) {
+    return NextResponse.json({ error: 'nessuna_foto_scaricabile', saltate }, { status: 502 });
+  }
+
   const archive = await zip.generateAsync({ type: 'nodebuffer' });
   const fileName = `foto-rapportino-${rapportinoId}.zip`;
+  const responseHeaders: Record<string, string> = {
+    'Content-Type': 'application/zip',
+    'Content-Disposition': `attachment; filename="${fileName}"`,
+    'Cache-Control': 'no-store',
+  };
+  if (saltate.length > 0) {
+    responseHeaders['X-Skipped-Photos'] = String(saltate.length);
+  }
   return new NextResponse(new Uint8Array(archive), {
     status: 200,
-    headers: {
-      'Content-Type': 'application/zip',
-      'Content-Disposition': `attachment; filename="${fileName}"`,
-      'Cache-Control': 'no-store',
-    },
+    headers: responseHeaders,
   });
 }
