@@ -82,6 +82,11 @@ export default function CardTerritorio({
                     <a href={whatsappHref(r.staff_name, dataLabel, r.url)} target="_blank" rel="noopener noreferrer" className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[var(--success)]">📲</a>
                     <a href={`/hub/rapportini/contenuto/${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">👁</a>
                     <a href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">⤓</a>
+                    <a
+                      href={`/api/admin/rapportini/${r.id}/foto-zip`}
+                      title="Scarica foto interventi manuali (ZIP)"
+                      className="rounded border border-[var(--brand-border)] px-2 py-0.5"
+                    >🖼️</a>
                     {confirmOp === r.id ? (
                       <>
                         <button onClick={() => onRimuoviOp(p.piano_id, r.staff_id)} disabled={busy} className="rounded border border-[var(--danger)] px-2 py-0.5 font-semibold text-[var(--danger)] disabled:opacity-50">Rimuovi?</button>
