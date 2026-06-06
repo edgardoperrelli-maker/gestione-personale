@@ -50,7 +50,7 @@ export async function GET(req: Request) {
       .in('piano_id', pianoIds);
     const { data: lockRows } = await supabaseAdmin
       .from('mappa_piani_lucchetti')
-      .select('piano_id, staff_id, aperto')
+      .select('piano_id, staff_id, aperto, manuali_liberi')
       .in('piano_id', pianoIds);
 
     // Raccogli tutti gli uuid autori (created_by e updated_by)
@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     if (auth instanceof NextResponse) return auth;
 
     const body = await req.json();
-    const { data: isoData, territorio, note, stato = 'bozza', operatori, regole, lucchetti } = body;
+    const { data: isoData, territorio, note, stato = 'bozza', operatori, regole, lucchetti, manualiLiberi } = body;
 
     if (!isoData) {
       return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
@@ -151,7 +151,7 @@ export async function POST(req: Request) {
       const { error: eRules } = await supabaseAdmin.from('mappa_assegnazioni_manuali').insert(ruleRows);
       if (eRules) console.error('[POST /api/mappa/piani] regole:', eRules.message);
     }
-    const lockRows = buildLockRows(pianoId, lucchetti);
+    const lockRows = buildLockRows(pianoId, lucchetti, manualiLiberi);
     if (lockRows.length > 0) {
       const { error: eLocks } = await supabaseAdmin.from('mappa_piani_lucchetti').insert(lockRows);
       if (eLocks) console.error('[POST /api/mappa/piani] lucchetti:', eLocks.message);
@@ -233,7 +233,7 @@ export async function PUT(req: Request) {
     if (auth instanceof NextResponse) return auth;
 
     const body = await req.json();
-    const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti } = body;
+    const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti, manualiLiberi } = body;
 
     if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
     if (!isoData) return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
@@ -286,7 +286,7 @@ export async function PUT(req: Request) {
       if (eRules) console.error('[PUT /api/mappa/piani] regole:', eRules.message);
     }
     await supabaseAdmin.from('mappa_piani_lucchetti').delete().eq('piano_id', id);
-    const lockRows = buildLockRows(id, lucchetti);
+    const lockRows = buildLockRows(id, lucchetti, manualiLiberi);
     if (lockRows.length > 0) {
       const { error: eLocks } = await supabaseAdmin.from('mappa_piani_lucchetti').insert(lockRows);
       if (eLocks) console.error('[PUT /api/mappa/piani] lucchetti:', eLocks.message);

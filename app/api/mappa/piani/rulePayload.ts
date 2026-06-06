@@ -42,9 +42,18 @@ export function buildRuleRows(pianoId: string, regole: Regola[]) {
   }));
 }
 
-export function buildLockRows(pianoId: string, lucchetti: unknown) {
-  if (!lucchetti || typeof lucchetti !== 'object') return [];
-  return Object.entries(lucchetti as Record<string, unknown>)
-    .filter(([staffId]) => staffId.length > 0)
-    .map(([staffId, aperto]) => ({ piano_id: pianoId, staff_id: staffId, aperto: aperto !== false }));
+export function buildLockRows(
+  pianoId: string,
+  lucchetti: unknown,
+  manualiLiberi?: unknown,
+) {
+  const aperti = lucchetti && typeof lucchetti === 'object' ? (lucchetti as Record<string, unknown>) : {};
+  const liberi = manualiLiberi && typeof manualiLiberi === 'object' ? (manualiLiberi as Record<string, unknown>) : {};
+  const staffIds = new Set<string>([...Object.keys(aperti), ...Object.keys(liberi)].filter((s) => s.length > 0));
+  return [...staffIds].map((staffId) => ({
+    piano_id: pianoId,
+    staff_id: staffId,
+    aperto: aperti[staffId] !== false,
+    manuali_liberi: liberi[staffId] === true,
+  }));
 }
