@@ -14,18 +14,36 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
 
   const body = (await req.json()) as { dati_correnti?: DatiInterventoManuale };
 
+  // Leggi la richiesta per ottenere il piano_id, staff_id, data, committente e
+  // dati_correnti di default (servono prima del check atomico per costruire il record).
   const { data: richiesta } = await supabaseAdmin
     .from('interventi_manuali')
     .select('id, stato, voce_id, piano_id, staff_id, data, committente, dati_correnti')
     .eq('id', id)
     .maybeSingle();
   if (!richiesta) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  if (richiesta.stato !== 'in_attesa')
-    return NextResponse.json({ error: 'gia_decisa' }, { status: 409 });
 
   const dati = (body.dati_correnti ?? richiesta.dati_correnti) as DatiInterventoManuale;
   const committente = (dati.committente ?? richiesta.committente) as CommittenteManuale;
 
+  // ── CHECK-AND-SET ATOMICO ────────────────────────────────────────────────────
+  // Aggiorna stato+dati_correnti+deciso_* SOLO se la riga è ancora in_attesa.
+  // Se due admin premono "approva" contemporaneamente, solo il primo ottiene locked != null.
+  const { data: locked } = await supabaseAdmin
+    .from('interventi_manuali')
+    .update({
+      stato: 'approvato',
+      dati_correnti: dati,
+      deciso_da: user.id,
+      deciso_at: new Date().toISOString(),
+    })
+    .eq('id', id)
+    .eq('stato', 'in_attesa')
+    .select('*')
+    .maybeSingle();
+  if (!locked) return NextResponse.json({ error: 'gia_gestita' }, { status: 409 });
+
+  // ── Crea l'intervento ────────────────────────────────────────────────────────
   const record = richiestaToIntervento(dati, {
     committente,
     data: (richiesta.data as string),
@@ -40,8 +58,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .single();
   if (eInt) return NextResponse.json({ error: eInt.message }, { status: 500 });
 
-  const decisoAt = new Date().toISOString();
-
+  // ── Aggiorna la voce (se presente) ──────────────────────────────────────────
   if (richiesta.voce_id) {
     await supabaseAdmin
       .from('rapportino_voci')
@@ -49,15 +66,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .eq('id', richiesta.voce_id);
   }
 
+  // ── Aggiorna interventi_manuali con l'intervento_id ─────────────────────────
   const { error: eReq } = await supabaseAdmin
     .from('interventi_manuali')
-    .update({
-      stato: 'approvato',
-      dati_correnti: dati,
-      intervento_id: intRow!.id,
-      deciso_da: user.id,
-      deciso_at: decisoAt,
-    })
+    .update({ intervento_id: intRow!.id })
     .eq('id', id);
   if (eReq) return NextResponse.json({ error: eReq.message }, { status: 500 });
 
