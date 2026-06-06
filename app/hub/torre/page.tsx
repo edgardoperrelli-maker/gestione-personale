@@ -5,6 +5,9 @@ import { resolveUserRole } from '@/lib/moduleAccess';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 import TorreControlloClient, { type TorreIntervento } from '@/components/modules/torre/TorreControlloClient';
+import { CodaRichiesteManuali } from '@/components/modules/torre/CodaRichiesteManuali';
+import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,7 +59,24 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
     .filter((s) => isStaffValidOnDay(s, data))
     .map((s) => ({ id: s.id, display_name: s.display_name }));
 
+  const { data: tplRows } = await supabase
+    .from('rapportino_template')
+    .select('committente, campi, info_campi, is_default')
+    .eq('active', true);
+  const tpl = (tplRows ?? []) as Array<{ committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean }>;
+  const tplDefault = tpl.find((t) => t.is_default) ?? tpl[0];
+  const infoCampiTorre: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
+  const campiPerCommittente: Partial<Record<'acea' | 'italgas' | 'altro', TemplateCampo[]>> = {};
+  for (const t of tpl) {
+    if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro') {
+      campiPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
+    }
+  }
+
   return (
-    <TorreControlloClient data={data} interventi={rows} operatori={operatori} territori={territori} />
+    <div className="space-y-4">
+      <CodaRichiesteManuali infoCampi={infoCampiTorre} campiPerCommittente={campiPerCommittente} />
+      <TorreControlloClient data={data} interventi={rows} operatori={operatori} territori={territori} />
+    </div>
   );
 }
