@@ -225,7 +225,21 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .insert(voce)
     .select('id')
     .single();
-  if (eVoce) return NextResponse.json({ error: eVoce.message }, { status: 500 });
+  if (eVoce) {
+    // Rollback best-effort: storage + richiesta DB (+ intervento se corsia liberi).
+    try {
+      if (pathCaricati.length > 0) {
+        await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+      }
+      await supabaseAdmin.from('interventi_manuali').delete().eq('id', req2!.id);
+      if (corsia === 'liberi' && interventoId) {
+        await supabaseAdmin.from('interventi').delete().eq('id', interventoId);
+      }
+    } catch {
+      // cleanup fallito: non mascheriamo l'errore originale
+    }
+    return NextResponse.json({ error: eVoce.message }, { status: 500 });
+  }
 
   await supabaseAdmin.from('interventi_manuali').update({ voce_id: voceRow!.id }).eq('id', req2!.id);
 
@@ -249,6 +263,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       size: foto.size,
     });
     if (insErr) {
+      // Rollback best-effort: storage + foto parziali + voce + richiesta (+ intervento se liberi).
+      try {
+        if (pathCaricati.length > 0) {
+          await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+        }
+        await supabaseAdmin.from('rapportino_voci').delete().eq('id', voceRow!.id);
+        await supabaseAdmin.from('interventi_manuali').delete().eq('id', req2!.id);
+        if (corsia === 'liberi' && interventoId) {
+          await supabaseAdmin.from('interventi').delete().eq('id', interventoId);
+        }
+      } catch {
+        // cleanup fallito: non mascheriamo l'errore originale
+      }
       return NextResponse.json({ error: insErr.message }, { status: 500 });
     }
   }
