@@ -10,6 +10,7 @@ import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/inf
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { RegistroAutorizzazioni } from '@/components/modules/torre/RegistroAutorizzazioni';
 
 export const dynamic = 'force-dynamic';
 
@@ -82,10 +83,22 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
     }
   }
 
+  // Mappa uuid→nome per gli admin (usata dalla coda per mostrare chi ha preso in carico).
+  // profiles ha: id, username, role — non esiste full_name/email → si usa username come etichetta.
+  const { data: adminRows } = await supabase
+    .from('profiles')
+    .select('id, username')
+    .eq('role', 'admin');
+  const adminNomi: Record<string, string> = {};
+  for (const a of (adminRows ?? []) as Array<{ id: string; username: string | null }>) {
+    adminNomi[a.id] = a.username ?? a.id;
+  }
+
   return (
     <div className="space-y-4">
-      <CodaRichiesteManuali infoCampi={infoCampiTorre} campiPerCommittente={campiPerCommittente} userId={user.id} adminNomi={{}} />
+      <CodaRichiesteManuali infoCampi={infoCampiTorre} campiPerCommittente={campiPerCommittente} userId={user.id} adminNomi={adminNomi} />
       <TorreControlloClient data={data} interventi={rows} operatori={operatori} territori={territori} />
+      <RegistroAutorizzazioni />
     </div>
   );
 }

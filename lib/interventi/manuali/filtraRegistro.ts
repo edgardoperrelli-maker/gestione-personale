@@ -1,0 +1,21 @@
+// PURA: applica i filtri del registro autorizzazioni (AND tra i campi valorizzati).
+import type { RigaRichiesta } from './types';
+
+export type FiltriRegistro = {
+  operatore: string;   // staff_id; '' = tutti
+  stato: string;       // StatoRichiesta; '' = tutti
+  committente: string; // CommittenteManuale; '' = tutti
+  from: string;        // YYYY-MM-DD; '' = nessun limite inferiore
+  to: string;          // YYYY-MM-DD; '' = nessun limite superiore
+};
+
+export function filtraRegistro(righe: RigaRichiesta[], f: FiltriRegistro): RigaRichiesta[] {
+  return (righe ?? []).filter((r) => {
+    if (f.operatore && r.staff_id !== f.operatore) return false;
+    if (f.stato && r.stato !== f.stato) return false;
+    if (f.committente && r.committente !== f.committente) return false;
+    if (f.from && (r.data ?? '') < f.from) return false;
+    if (f.to && (r.data ?? '') > f.to) return false;
+    return true;
+  });
+}
