@@ -9,6 +9,8 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { nomeFotoFile, identificativoFoto } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
+import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 
 export const runtime = 'nodejs';
 
@@ -143,6 +145,43 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   // === Solo se TUTTE le foto sono caricate: INSERT DB ===
+
+  // Corsia per (piano, operatore): se 'liberi', la richiesta salta l'approvazione.
+  let corsia: 'normale' | 'liberi' = 'normale';
+  if (rap.piano_id && rap.staff_id) {
+    const { data: lock } = await supabaseAdmin
+      .from('mappa_piani_lucchetti')
+      .select('manuali_liberi')
+      .eq('piano_id', rap.piano_id)
+      .eq('staff_id', rap.staff_id)
+      .maybeSingle();
+    corsia = decisioneCorsia(lock as { manuali_liberi?: boolean | null } | null);
+  }
+
+  // Ramo liberi: crea subito l'intervento canonico (origine='manuale').
+  let interventoId: string | null = null;
+  if (corsia === 'liberi') {
+    const record = richiestaToIntervento(dati, {
+      committente: committente as CommittenteManuale,
+      data: rap.data as string,
+      staff_id: String(rap.staff_id ?? ''),
+      piano_id: (rap.piano_id as string | null) ?? null,
+    });
+    const { data: intRow, error: eInt } = await supabaseAdmin
+      .from('interventi')
+      .insert(record)
+      .select('id')
+      .single();
+    if (eInt) {
+      // Rollback storage se la creazione intervento fallisce.
+      if (pathCaricati.length > 0) {
+        await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+      }
+      return NextResponse.json({ error: eInt.message }, { status: 500 });
+    }
+    interventoId = intRow!.id;
+  }
+
   const { data: req2, error: eReq } = await supabaseAdmin
     .from('interventi_manuali')
     .insert({
@@ -157,8 +196,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       dati_operatore: dati,
       dati_correnti: dati,
       note: rawDati.note ?? null,
-      stato: 'in_attesa',
-      corsia: 'normale',
+      stato: corsia === 'liberi' ? 'auto_liberi' : 'in_attesa',
+      corsia,
+      intervento_id: interventoId,
     })
     .select('id')
     .single();
@@ -189,6 +229,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   await supabaseAdmin.from('interventi_manuali').update({ voce_id: voceRow!.id }).eq('id', req2!.id);
 
+  // Ramo liberi: la voce nasce approvata e già agganciata all'intervento canonico.
+  if (corsia === 'liberi' && interventoId) {
+    await supabaseAdmin
+      .from('rapportino_voci')
+      .update({ approvazione_stato: 'approvato', intervento_id: interventoId })
+      .eq('id', voceRow!.id);
+  }
+
   // INSERT record foto (con path già caricati in storage).
   for (const foto of fotoCaricate) {
     const { error: insErr } = await supabaseAdmin.from('interventi_manuali_foto').insert({
@@ -205,5 +253,5 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     }
   }
 
-  return NextResponse.json({ id: req2!.id, voceId: voceRow!.id });
+  return NextResponse.json({ id: req2!.id, voceId: voceRow!.id, corsia, interventoId });
 }
