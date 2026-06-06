@@ -27,6 +27,9 @@ type VoceRow = {
   fascia_oraria: string | null;
   risposte: Record<string, unknown> | null;
   raw_json: unknown;
+  manuale?: boolean | null;
+  approvazione_stato?: string | null;
+  richiesta_id?: string | null;
 };
 
 /* ── Layout standalone (fuori dalla shell dell'app) ────────────────────────── */
@@ -111,9 +114,23 @@ export default async function RapportinoPublicPage({
 
   const { data: vociRows } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json')
+    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id')
     .eq('rapportino_id', rap.id)
     .order('ordine');
+
+  const richiesteIds = (vociRows ?? [])
+    .map((v) => (v as { richiesta_id?: string | null }).richiesta_id)
+    .filter((x): x is string => Boolean(x));
+  const motivoByRichiesta: Record<string, string | null> = {};
+  if (richiesteIds.length > 0) {
+    const { data: reqRows } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('id, motivo_rifiuto')
+      .in('id', richiesteIds);
+    for (const r of (reqRows ?? []) as Array<{ id: string; motivo_rifiuto: string | null }>) {
+      motivoByRichiesta[r.id] = r.motivo_rifiuto;
+    }
+  }
 
   const voci: FormVoce[] = ((vociRows ?? []) as VoceRow[]).map((v) => ({
     id: v.id,
@@ -132,6 +149,9 @@ export default async function RapportinoPublicPage({
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
     coordinate: coordinateFromRaw(v.raw_json),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
+    manuale: Boolean(v.manuale),
+    approvazione_stato: v.approvazione_stato ?? null,
+    motivo_rifiuto: v.richiesta_id ? (motivoByRichiesta[v.richiesta_id] ?? null) : null,
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])

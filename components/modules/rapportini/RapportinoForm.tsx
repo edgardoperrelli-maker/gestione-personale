@@ -11,6 +11,7 @@ import { FabInterventoManuale } from './FabInterventoManuale';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -31,6 +32,9 @@ export type Voce = {
   coordinate?: string;
   risposte: Record<string, unknown>;
   nuovo?: boolean;
+  manuale?: boolean;
+  approvazione_stato?: string | null;
+  motivo_rifiuto?: string | null;
 };
 
 type Props = {
@@ -194,7 +198,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo };
+        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, badge: badgeVoceManuale(v.approvazione_stato ?? null) };
       }),
     [voci, campi, titoloCampi],
   );
@@ -260,13 +264,15 @@ export default function RapportinoForm({
           campi={campi}
           dettaglio={dettaglio}
           titoloCampi={titoloCampi}
-          disabilitato={disabilitato}
+          disabilitato={disabilitato || (badgeVoceManuale(voci[indiceCorrente].approvazione_stato ?? null)?.bloccata ?? false)}
           stato={statoVoce(voci[indiceCorrente].risposte, campi)}
           saveState={saveStates[voci[indiceCorrente].id] ?? 'idle'}
           onChange={(chiave, valore) => setRisposta(voci[indiceCorrente].id, chiave, valore)}
           onPrev={onPrev}
           onNext={onNext}
           onClose={onClose}
+          approvazioneStato={voci[indiceCorrente].approvazione_stato ?? null}
+          motivoRifiuto={voci[indiceCorrente].motivo_rifiuto ?? null}
         />
       ) : (
         <RapportinoLista

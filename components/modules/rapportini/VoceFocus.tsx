@@ -6,6 +6,7 @@ import type { StatoVoce } from '@/utils/rapportini/riepilogo';
 import { CampoInput } from './CampoInput';
 import { SaveBadge, type SaveState } from './SaveBadge';
 import { mapsUrlFromAddress, mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
+import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 
 export type VoceFocusData = VoceInfo & { risposte: Record<string, unknown> };
 
@@ -23,6 +24,8 @@ export function VoceFocus({
   onPrev,
   onNext,
   onClose,
+  approvazioneStato,
+  motivoRifiuto,
 }: {
   voce: VoceFocusData;
   indice: number;
@@ -37,7 +40,10 @@ export function VoceFocus({
   onPrev: () => void;
   onNext: () => void;
   onClose: () => void;
+  approvazioneStato?: string | null;
+  motivoRifiuto?: string | null;
 }) {
+  const badge = badgeVoceManuale(approvazioneStato ?? null);
   const titolo = titoloVoce(voce, titoloCampi, indice);
   const indirizzo = [valoreInfo(voce, 'via'), valoreInfo(voce, 'comune')].filter(Boolean).join(', ');
   const fascia = valoreInfo(voce, 'fascia_oraria');
@@ -69,6 +75,13 @@ export function VoceFocus({
             <h1 className="text-xl font-bold text-[var(--brand-text-main)]">{titolo}</h1>
             <SaveBadge state={saveState} />
           </div>
+          {badge && (
+            <div className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+              {badge.label}
+              {badge.tono === 'attesa' && ' — in attesa di approvazione dalla centrale'}
+              {badge.tono === 'rifiutato' && motivoRifiuto ? ` · ${motivoRifiuto}` : ''}
+            </div>
+          )}
 
           <div className="mt-2.5 space-y-1.5 text-[14.5px] text-[var(--brand-text-main)]">
             {indirizzo && (

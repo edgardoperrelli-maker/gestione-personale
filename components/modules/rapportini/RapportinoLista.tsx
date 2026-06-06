@@ -7,7 +7,7 @@ import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -98,6 +98,11 @@ export function RapportinoLista({
                     {r.nuovo && (
                       <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
                         Nuovo
+                      </span>
+                    )}
+                    {r.badge && (
+                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+                        {r.badge.label}
                       </span>
                     )}
                     <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)]">{r.titolo}</span>
