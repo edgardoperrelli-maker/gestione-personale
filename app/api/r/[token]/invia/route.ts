@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 export const runtime = 'nodejs';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -15,6 +16,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString()) !== 'valido')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
+
+  const { data: vociApprovazione } = await supabaseAdmin
+    .from('rapportino_voci')
+    .select('approvazione_stato')
+    .eq('rapportino_id', rap.id);
+  const gate = rapportinoInviabile(
+    ((vociApprovazione ?? []) as Array<{ approvazione_stato: string | null }>),
+  );
+  if (!gate.inviabile)
+    return NextResponse.json({ error: 'voci_in_sospeso', inSospeso: gate.inSospeso }, { status: 409 });
+
   const { error } = await supabaseAdmin.from('rapportini').update({ stato: 'inviato', submitted_at: new Date().toISOString() }).eq('id', rap.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
