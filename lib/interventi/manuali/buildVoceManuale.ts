@@ -1,6 +1,6 @@
 // PURA: costruisce la riga rapportino_voci per una richiesta manuale.
-// La colonna ODL della tabella voci si chiama `odsin` (storico). La coordinata
-// committente va nel raw_json (coerente con coordinateFromRaw). _nuovo=true → badge "Nuovo".
+// La colonna ODL della tabella voci si chiama `odl` (migrazione 20260604000000_unifica_ods_odl).
+// La coordinata committente va nel raw_json (coerente con coordinateFromRaw). _nuovo=true → badge "Nuovo".
 import type { DatiInterventoManuale } from './types';
 
 export type VoceManualeInsert = {
@@ -12,7 +12,7 @@ export type VoceManualeInsert = {
   nominativo: string | null;
   matricola: string | null;
   pdr: string | null;
-  odsin: string | null;
+  odl: string | null;
   via: string | null;
   comune: string | null;
   cap: string | null;
@@ -47,7 +47,7 @@ export function buildVoceManuale(args: {
     nominativo: v(a.nominativo),
     matricola: v(a.matricola),
     pdr: v(a.pdr),
-    odsin: v(a.odl),
+    odl: v(a.odl),
     via: v(a.via),
     comune: v(a.comune),
     cap: v(a.cap),
