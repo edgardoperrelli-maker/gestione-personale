@@ -12,8 +12,10 @@ type Props = {
   tasks: Task[];
   rules: ManualRule[];
   locks: Record<string, boolean>;
+  manualiLiberi: Record<string, boolean>;
   onChangeRules: (rules: ManualRule[]) => void;
   onChangeLocks: (locks: Record<string, boolean>) => void;
+  onChangeManualiLiberi: (manualiLiberi: Record<string, boolean>) => void;
   onDistribute: () => void;
 };
 
@@ -84,23 +86,34 @@ export default function ManualAssignmentsModal(p: Props) {
             })}
           </div>
 
-          <h3 className="mt-6 mb-2 text-[15px] font-semibold">Operatori · lucchetto</h3>
+          <h3 className="mt-6 mb-2 text-[15px] font-semibold">Operatori · lucchetto · corsia</h3>
           <div className="space-y-2">
             {p.operators.map((o) => {
               const aperto = p.locks[o.id] !== false;
+              const liberi = p.manualiLiberi[o.id] === true;
               const pinned = pinnedStaffIds.has(o.id);
               return (
                 <div key={o.id} className="flex items-center justify-between rounded-xl border px-3 py-2.5" style={{ borderColor: C.border, opacity: pinned ? 1 : 0.6 }}>
                   <span className="text-[13.5px] font-semibold">{o.name}{pinned ? '' : ' · automatico'}</span>
-                  {pinned && (
-                    <button onClick={() => p.onChangeLocks({ ...p.locks, [o.id]: !aperto })}
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => p.onChangeManualiLiberi({ ...p.manualiLiberi, [o.id]: !liberi })}
+                      title="Interventi manuali liberi: saltano l'approvazione della torre"
                       className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
-                      style={aperto
+                      style={liberi
                         ? { background: 'oklch(0.74 0.21 145/.16)', color: 'oklch(0.52 0.21 145)' }
-                        : { background: 'oklch(0.64 0.25 350/.16)', color: 'oklch(0.54 0.25 350)' }}>
-                      {aperto ? '🔓 Aperto' : '🔒 Chiuso'}
+                        : { background: 'oklch(0.62 0.02 250/.16)', color: 'var(--brand-text-muted)' }}>
+                      {liberi ? '🟢 Liberi' : '⚪ Approva'}
                     </button>
-                  )}
+                    {pinned && (
+                      <button onClick={() => p.onChangeLocks({ ...p.locks, [o.id]: !aperto })}
+                        className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
+                        style={aperto
+                          ? { background: 'oklch(0.74 0.21 145/.16)', color: 'oklch(0.52 0.21 145)' }
+                          : { background: 'oklch(0.64 0.25 350/.16)', color: 'oklch(0.54 0.25 350)' }}>
+                        {aperto ? '🔓 Aperto' : '🔒 Chiuso'}
+                      </button>
+                    )}
+                  </div>
                 </div>
               );
             })}

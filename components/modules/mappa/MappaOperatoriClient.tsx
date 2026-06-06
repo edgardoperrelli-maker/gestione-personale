@@ -670,6 +670,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
   const [manualRules, setManualRules] = useState<ManualRule[]>([]);
   const [operatorLocks, setOperatorLocks] = useState<Record<string, boolean>>({});
+  const [operatorFreeLane, setOperatorFreeLane] = useState<Record<string, boolean>>({});
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
   const [distribution, setDistribution] = useState<DistEntry[] | null>(
@@ -1661,6 +1662,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         operatori,
         regole: manualRules,
         lucchetti: operatorLocks,
+        manualiLiberi: operatorFreeLane,
       };
 
       // Update in-place se il piano esiste già: mantiene piano_id → i link rapportini restano validi
@@ -1744,7 +1746,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, sorgente, unassignedTasks, rapTemplateId, applicaRapportini]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -3406,8 +3408,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         tasks={excelTasks}
         rules={manualRules}
         locks={operatorLocks}
+        manualiLiberi={operatorFreeLane}
         onChangeRules={setManualRules}
         onChangeLocks={setOperatorLocks}
+        onChangeManualiLiberi={setOperatorFreeLane}
         onDistribute={() => { setAssignModalOpen(false); distributeToOps(); }}
       />
       {manualModalOpen && (
