@@ -15,9 +15,6 @@ const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'altro', label: 'Altro' },
 ];
 
-const inputCls =
-  'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none';
-
 export function ModaleInterventoManuale({
   token,
   infoCampi,
@@ -106,17 +103,19 @@ export function ModaleInterventoManuale({
 
         {step === 2 && (
           <div className="space-y-3">
-            {campiAnag.map((c) => (
-              <div key={c.chiave}>
-                <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
-                <input
-                  type="text"
-                  value={anagrafica[c.chiave] ?? ''}
-                  onChange={(e) => setAnagrafica((prev) => ({ ...prev, [c.chiave]: e.target.value }))}
-                  className={inputCls}
-                />
-              </div>
-            ))}
+            <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+              {campiAnag.map((c) => (
+                <div key={c.chiave} className="min-w-0">
+                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
+                  <input
+                    type="text"
+                    value={anagrafica[c.chiave] ?? ''}
+                    onChange={(e) => setAnagrafica((prev) => ({ ...prev, [c.chiave]: e.target.value }))}
+                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
+                </div>
+              ))}
+            </div>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">Indietro</button>
               <button type="button" onClick={() => setStep(3)} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]">Avanti</button>

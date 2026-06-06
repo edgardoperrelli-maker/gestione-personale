@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useRef } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 const inputCls =
@@ -89,7 +90,28 @@ export function CampoInput({
   return (
     <div>
       {labelEl}
-      <textarea rows={2} value={typeof valore === 'string' ? valore : ''} disabled={disabilitato} onChange={(e) => onChange(e.target.value)} className={`${inputCls} resize-y`} />
+      <TextareaAuto valore={typeof valore === 'string' ? valore : ''} disabilitato={disabilitato} onChange={onChange} />
     </div>
+  );
+}
+
+/** Textarea compatta: parte da una riga ed espande in altezza solo quando viene popolata. */
+function TextareaAuto({ valore, disabilitato, onChange }: { valore: string; disabilitato: boolean; onChange: (v: unknown) => void }) {
+  const ref = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    el.style.height = 'auto';
+    el.style.height = `${el.scrollHeight}px`;
+  }, [valore]);
+  return (
+    <textarea
+      ref={ref}
+      rows={1}
+      value={valore}
+      disabled={disabilitato}
+      onChange={(e) => onChange(e.target.value)}
+      className={`${inputCls} resize-none overflow-hidden`}
+    />
   );
 }
