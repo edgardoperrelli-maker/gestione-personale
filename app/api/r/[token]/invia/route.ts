@@ -54,10 +54,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     .map(v => v.intervento_id)
     .filter((id): id is string => !!id);
   const { data: interventiMeta } = interventoIds.length > 0
-    ? await supabaseAdmin.from('interventi').select('id, committente, voce').in('id', interventoIds)
-    : { data: [] as Array<{ id: string; committente: string; voce: number | null }> };
+    ? await supabaseAdmin.from('interventi').select('id, committente, intervento_tipo').in('id', interventoIds)
+    : { data: [] as Array<{ id: string; committente: string; intervento_tipo: string | null }> };
   const committenteMap = new Map((interventiMeta ?? []).map(i => [i.id, i.committente as string]));
-  const voceMap = new Map((interventiMeta ?? []).map(i => [i.id, i.voce as number | null]));
+  const tipoMap = new Map((interventiMeta ?? []).map(i => [i.id, (i.intervento_tipo ?? '') as string]));
 
   for (const v of (voci ?? []) as Array<{
     intervento_id: string | null;
@@ -80,7 +80,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .neq('stato', 'annullato');
 
     // Raccolta misuratori rimossi (esito positivo + matricola presente)
-    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && voceMap.get(v.intervento_id) === 12) {
+    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && (tipoMap.get(v.intervento_id) ?? '').toLowerCase().includes('rimozione')) {
       misuratoriFermi.push({
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,

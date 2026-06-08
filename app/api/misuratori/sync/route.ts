@@ -19,7 +19,7 @@ export async function POST() {
     .from('interventi')
     .select('id, data, matricola_contatore')
     .eq('committente', 'acea')
-    .eq('voce', 12)
+    .ilike('intervento_tipo', '%rimozione%')
     .eq('esito', 'eseguito_positivo')
     .not('matricola_contatore', 'is', null)
     .neq('matricola_contatore', '');
