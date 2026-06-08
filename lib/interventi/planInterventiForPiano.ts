@@ -53,9 +53,12 @@ function identitaIntervento(r: {
 
 export function planInterventi(input: PianoPlanInput): PianoPlan {
   const committente = input.committente ?? 'acea';
-  // Solo i 'completato' sono esiti reali da preservare. Gli 'annullato' dei piani arrivano
-  // dall'ufficio (in pianificazione) e devono seguire i task → reversibili.
-  const isTerminale = (stato: string) => stato === 'completato';
+  // Preserva gli stati TERMINALI: 'completato' (esito reale) e 'annullato'. Gli annullati
+  // possono essere esiti reali (es. import ACEA) oppure annullamenti d'ufficio: in entrambi i
+  // casi NON vanno cancellati/ricreati da ensureInterventiForPiano (rigenera-giorno deve
+  // mantenerli — vedi suo commento). La reversibilità dell'annullamento d'ufficio vive sul flag
+  // della VOCE del rapportino (_annullato), non sullo stato dell'intervento.
+  const isTerminale = (stato: string) => stato === 'completato' || stato === 'annullato';
 
   // Identità degli interventi GIÀ TERMINALI (completati): sono preservati,
   // quindi i task corrispondenti NON vanno re-inseriti (sennò si duplicano — caso

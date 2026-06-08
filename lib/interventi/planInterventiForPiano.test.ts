@@ -94,12 +94,12 @@ describe('planInterventi', () => {
     expect(r.daInserire).toHaveLength(1);
   });
 
-  it('un intervento annullato esistente NON viene preservato: segue i task (reversibile)', () => {
+  it('un intervento annullato esistente VIENE preservato (esito reale, mai cancellato da rigenera)', () => {
     const out = planInterventi({
       piano: { data: '2026-06-10' }, pianoId: 'p1', territorioId: null,
       operatori: [{ staff_id: 's1', tasks: [{ id: 't1', odl: 'ODL1', indirizzo: 'V', cap: '0', citta: 'R', priorita: 0, fascia_oraria: '' }] }],
       esistenti: [{ id: 'i1', odl: 'ODL1', stato: 'annullato' }],
     });
-    expect(out.idDaEliminare).toContain('i1');
+    expect(out.idDaEliminare).not.toContain('i1');
   });
 });
