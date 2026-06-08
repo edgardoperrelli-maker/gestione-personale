@@ -18,6 +18,51 @@ const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
 
 const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], ['completati', 'Completati']];
 
+export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (index: number) => void }) {
+  const chip = CHIP[r.stato];
+  const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--danger)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--success)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--danger)]' : '';
+  const num = r.annullato ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : r.stato === 'eseguito' ? 'bg-[var(--success-soft)] text-[var(--success)]' : r.stato === 'non_eseguito' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
+  return (
+    <button
+      type="button"
+      onClick={r.annullato ? undefined : () => onApri(r.index)}
+      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--danger)] bg-[var(--danger-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
+    >
+      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
+      <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
+        <span className="flex min-w-0 items-center gap-1.5">
+          {r.annullato && (
+            <span className="shrink-0 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-white">
+              Annullato
+            </span>
+          )}
+          {r.nuovo && (
+            <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
+              Nuovo
+            </span>
+          )}
+          {r.badge && (
+            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+              {r.badge.label}
+            </span>
+          )}
+          <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
+          {(r.attivita || r.fascia) && (
+            <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">
+              {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
+            </span>
+          )}
+        </span>
+        <span className="mt-0.5 flex items-center gap-2">
+          <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--brand-text-muted)]">{r.sub}</span>
+          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
+        </span>
+      </span>
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
+    </button>
+  );
+}
+
 export function RapportinoLista({
   staffName,
   dataLabel,
@@ -93,51 +138,7 @@ export function RapportinoLista({
         {visibili.length === 0 ? (
           <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento in questo filtro.</p>
         ) : (
-          visibili.map((r) => {
-            const chip = CHIP[r.stato];
-            const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--danger)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--success)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--danger)]' : '';
-            const num = r.annullato ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : r.stato === 'eseguito' ? 'bg-[var(--success-soft)] text-[var(--success)]' : r.stato === 'non_eseguito' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
-            return (
-              <button
-                key={r.index}
-                type="button"
-                onClick={r.annullato ? undefined : () => onApri(r.index)}
-                className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--danger)] bg-[var(--danger-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
-              >
-                <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
-                <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
-                  <span className="flex min-w-0 items-center gap-1.5">
-                    {r.annullato && (
-                      <span className="shrink-0 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-white">
-                        Annullato
-                      </span>
-                    )}
-                    {r.nuovo && (
-                      <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
-                        Nuovo
-                      </span>
-                    )}
-                    {r.badge && (
-                      <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
-                        {r.badge.label}
-                      </span>
-                    )}
-                    <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
-                    {(r.attivita || r.fascia) && (
-                      <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">
-                        {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
-                      </span>
-                    )}
-                  </span>
-                  <span className="mt-0.5 flex items-center gap-2">
-                    <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--brand-text-muted)]">{r.sub}</span>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
-                  </span>
-                </span>
-                <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
-              </button>
-            );
-          })
+          visibili.map((r) => <RigaVoceCard key={r.index} riga={r} onApri={onApri} />)
         )}
       </div>
 
