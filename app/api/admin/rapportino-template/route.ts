@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { z } from 'zod';
+import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 
@@ -18,32 +18,6 @@ async function requireAdmin(): Promise<true | NextResponse> {
     return NextResponse.json({ error: 'Accesso riservato agli admin.' }, { status: 403 });
   return true;
 }
-
-const CampoSchema = z.object({
-  chiave: z.string().min(1), etichetta: z.string().min(1),
-  tipo: z.enum(['crocetta', 'testo', 'select', 'numero']),
-  opzioni: z.array(z.string()).optional(), ordine: z.number().int(),
-});
-const InfoCampoSchema = z.object({
-  chiave: z.enum([
-    'nominativo', 'matricola', 'pdr', 'odl', 'via',
-    'comune', 'cap', 'recapito', 'attivita', 'accessibilita', 'fascia_oraria',
-  ]),
-  etichetta: z.string().min(1),
-  ordine: z.number().int(),
-});
-const TitoloCampiSchema = z.array(z.enum([
-  'nominativo', 'matricola', 'pdr', 'odl', 'via',
-  'comune', 'cap', 'recapito', 'attivita', 'accessibilita', 'fascia_oraria',
-])).default([]);
-const TemplateSchema = z.object({
-  nome: z.string().min(1),
-  committente: z.enum(['acea', 'italgas', 'altro']).nullable().optional(),
-  campi: z.array(CampoSchema).min(1),
-  info_campi: z.array(InfoCampoSchema).default([]),
-  titolo_campi: TitoloCampiSchema,
-  active: z.boolean().optional().default(true),
-});
 
 export async function GET() {
   const { data, error } = await supabaseAdmin.from('rapportino_template')
