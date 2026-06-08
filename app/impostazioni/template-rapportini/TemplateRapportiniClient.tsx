@@ -6,10 +6,12 @@ import {
   infoCampiDefault,
   partitionInfoCampi,
   resolveInfoCampi,
+  titoloVoce,
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
-import { VoceCard, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
+import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
+import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 
 type Committente = 'acea' | 'italgas' | 'altro';
@@ -311,6 +313,14 @@ export default function TemplateRapportiniClient({ initial }: Props) {
 
   const anteprimaDettaglio = partitionInfoCampi(infoCampi).dettaglio;
   const anteprimaVoce = { ...SAMPLE_VOCE_INFO, risposte: sampleRisposte(campi) };
+  const anteprimaRiga: RigaVoce = {
+    index: 0,
+    titolo: titoloVoce(anteprimaVoce, titoloCampi, 0),
+    sub: [SAMPLE_VOCE_INFO.via, SAMPLE_VOCE_INFO.comune].filter(Boolean).join(' · '),
+    attivita: SAMPLE_VOCE_INFO.attivita,
+    fascia: SAMPLE_VOCE_INFO.fascia_oraria,
+    stato: 'da_fare',
+  };
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
@@ -427,9 +437,9 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               </label>
             </div>
 
-            {/* ── Titolo voce ──────────────────────────────────────── */}
+            {/* ── Card nella lista interventi ──────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Titolo voce</h3>
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Card nella lista interventi</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
                 Se tutti vuoti → &quot;Voce N&quot;. Lista vuota = comportamento storico (Nominativo, poi PDR).
@@ -465,13 +475,13 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 ))}
               </div>
               <AnteprimaBox>
-                <VoceCard voce={anteprimaVoce} indice={0} campi={campi} dettaglio={anteprimaDettaglio} titoloCampi={titoloCampi} stato="da_fare" disabilitato onChange={() => {}} />
+                <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
               </AnteprimaBox>
             </div>
 
-            {/* ── Header intervento ────────────────────────────────────────── */}
+            {/* ── Dettaglio card ────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Header intervento</h3>
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettaglio card</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata &quot;Punto esatto&quot;.
               </p>
@@ -485,13 +495,14 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 Mostra coordinate (link &quot;Punto esatto&quot;)
               </label>
               <AnteprimaBox>
+                <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
                 <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
               </AnteprimaBox>
             </div>
 
-            {/* ── Dettagli anagrafici ──────────────────────────────────────────────────────────── */}
+            {/* ── Dettaglio anagrafica ──────────────────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettagli anagrafici</h3>
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettaglio anagrafica</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
                 Nessuna selezione = mostra tutti gli 11 campi di default.
@@ -530,9 +541,9 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               </AnteprimaBox>
             </div>
 
-            {/* ── Campi ─────────────────────────────────────────────────────── */}
+            {/* ── Lista azioni da fare ─────────────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Campi da compilare</h3>
+              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Lista azioni da fare</h3>
 
               {campi.length === 0 && (
                 <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessun campo. Aggiungine uno.</p>
