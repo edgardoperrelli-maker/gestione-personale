@@ -2317,17 +2317,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   const downloadTemplate = useCallback(() => {
     const headers = [
-      'CO', 'MATRICOLA', 'Id', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
-      'Tipo OdL(CdL)/Servizio', 'Fascia Appuntamento/Blocco',
+      'CO', 'MATRICOLA', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
+      'Tipo OdL(CdL)/Servizio', 'Esecutore', 'Fascia Appuntamento/Blocco',
       'PdR / Impianto', 'Nominativo', 'Tempo Esecuzione', 'Num Risorse', 'Lat', 'Long',
     ];
     const examples = [
-      ['FIRENZE', 'MAT00012345', '10570366', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1', '43.819489', '11.133204'],
-      ['FIRENZE', 'MAT00067890', '10529574', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1', '43.768214', '11.262435'],
-      ['ROMA', 'MAT00099999', '20100001', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2', '41.901559', '12.492510'],
+      ['FIRENZE', 'MAT00012345', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', 'ROSSI', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1', '43.819489', '11.133204'],
+      ['FIRENZE', 'MAT00067890', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', 'BIANCHI', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1', '43.768214', '11.262435'],
+      ['ROMA', 'MAT00099999', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', 'VERDI', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2', '41.901559', '12.492510'],
     ];
     const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = [8, 14, 10, 16, 30, 8, 20, 20, 22, 18, 24, 8, 8, 12, 12].map((w) => ({ wch: w }));
+    ws['!cols'] = [8, 14, 16, 30, 8, 20, 20, 14, 22, 18, 24, 8, 8, 12, 12].map((w) => ({ wch: w }));
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, 'Export Dati');
     XLSX.writeFile(wb, 'template_mappa_operatori_con_nominativo.xlsx');
