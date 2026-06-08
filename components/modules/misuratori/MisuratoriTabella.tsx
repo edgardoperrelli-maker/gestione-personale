@@ -1,7 +1,6 @@
 'use client';
 import { useCallback, useMemo, useState } from 'react';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
-import StatoBadge from './StatoBadge';
 
 type SortKey = 'data_esecuzione' | 'stato' | 'comune';
 
