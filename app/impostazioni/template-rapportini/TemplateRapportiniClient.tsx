@@ -4,10 +4,13 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import {
   INFO_CAMPI_DISPONIBILI,
   infoCampiDefault,
+  partitionInfoCampi,
   resolveInfoCampi,
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
+import { VoceCard } from '@/components/modules/rapportini/VoceCard';
+import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 
 type Committente = 'acea' | 'italgas' | 'altro';
 
@@ -289,6 +292,9 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const selectedTpl = templates.find((t) => t.id === selectedId);
   const isEditing = isNew || selectedTpl != null;
 
+  const anteprimaDettaglio = partitionInfoCampi(infoCampi).dettaglio;
+  const anteprimaVoce = { ...SAMPLE_VOCE_INFO, risposte: sampleRisposte(campi) };
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
       {/* ─── COLONNA SINISTRA: Lista template ───────────────────────────────── */}
@@ -360,6 +366,26 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           </div>
         ) : (
           <>
+            {/* ── Anteprima operatore (live) ──────────────────────────────── */}
+            <div className="sticky top-4 z-10 rounded-2xl border border-[var(--brand-primary)] bg-[var(--brand-surface)] p-4 shadow-sm">
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Anteprima operatore</h3>
+              <p className="mb-3 text-xs text-[var(--brand-text-muted)]">
+                Come apparirà la scheda all&apos;operatore (dati d&apos;esempio). Si aggiorna mentre componi il template.
+              </p>
+              <div className="mx-auto max-h-[70vh] max-w-[420px] overflow-y-auto">
+                <VoceCard
+                  voce={anteprimaVoce}
+                  indice={0}
+                  campi={campi}
+                  dettaglio={anteprimaDettaglio}
+                  titoloCampi={titoloCampi}
+                  stato="da_fare"
+                  disabilitato
+                  onChange={() => {}}
+                />
+              </div>
+            </div>
+
             {/* ── Nome template ─────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Nome template</h3>
