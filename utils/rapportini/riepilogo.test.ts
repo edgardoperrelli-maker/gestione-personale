@@ -41,4 +41,13 @@ describe('riepilogoRapportino', () => {
     expect(riepilogoRapportino([{ risposte: {} }], campi).daFare).toBe(1);
     expect(riepilogoRapportino([], campi).daFare).toBe(0);
   });
+  it('le voci annullate non contano in daFare (invio possibile)', () => {
+    const campi = [{ chiave: 'esito', etichetta: 'Esito', tipo: 'crocetta' as const, ordine: 0 }];
+    const r = riepilogoRapportino(
+      [{ risposte: {}, annullato: true }, { risposte: { esito: true }, annullato: false }],
+      campi,
+    );
+    expect(r.daFare).toBe(0);
+    expect(r.annullati).toBe(1);
+  });
 });

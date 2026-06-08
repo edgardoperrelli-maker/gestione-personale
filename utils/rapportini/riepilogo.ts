@@ -13,6 +13,7 @@ export interface RiepilogoRapportino {
   eseguiti: number;
   nonEseguiti: number;
   daFare: number;
+  annullati: number;
   totali: number;
   lavorazioni: LavorazioneConteggio[];
 }
@@ -30,13 +31,16 @@ export function statoVoce(
 
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
-  voci: { risposte: Record<string, unknown> }[],
+  voci: { risposte: Record<string, unknown>; annullato?: boolean }[],
   campi: TemplateCampo[],
 ): RiepilogoRapportino {
   let eseguiti = 0;
   let nonEseguiti = 0;
   let daFare = 0;
+  let annullati = 0;
   for (const v of voci) {
+    // Le voci annullate non contribuiscono a daFare: il rapportino rimane inviabile
+    if (v.annullato) { annullati += 1; continue; }
     const s = statoVoce(v.risposte, campi);
     if (s === 'eseguito') eseguiti += 1;
     else if (s === 'non_eseguito') nonEseguiti += 1;
@@ -50,5 +54,5 @@ export function riepilogoRapportino(
       count: voci.filter((v) => v.risposte[c.chiave] === true).length,
     }))
     .filter((l) => l.count > 0);
-  return { eseguiti, nonEseguiti, daFare, totali: voci.length, lavorazioni };
+  return { eseguiti, nonEseguiti, daFare, annullati, totali: voci.length, lavorazioni };
 }
