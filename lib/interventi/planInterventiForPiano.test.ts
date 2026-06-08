@@ -93,4 +93,13 @@ describe('planInterventi', () => {
     // matricola diversa → job distinto → va inserito (no over-dedup)
     expect(r.daInserire).toHaveLength(1);
   });
+
+  it('un intervento annullato esistente NON viene preservato: segue i task (reversibile)', () => {
+    const out = planInterventi({
+      piano: { data: '2026-06-10' }, pianoId: 'p1', territorioId: null,
+      operatori: [{ staff_id: 's1', tasks: [{ id: 't1', odl: 'ODL1', indirizzo: 'V', cap: '0', citta: 'R', priorita: 0, fascia_oraria: '' }] }],
+      esistenti: [{ id: 'i1', odl: 'ODL1', stato: 'annullato' }],
+    });
+    expect(out.idDaEliminare).toContain('i1');
+  });
 });

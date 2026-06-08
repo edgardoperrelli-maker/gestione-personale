@@ -53,9 +53,11 @@ function identitaIntervento(r: {
 
 export function planInterventi(input: PianoPlanInput): PianoPlan {
   const committente = input.committente ?? 'acea';
-  const isTerminale = (stato: string) => stato === 'completato' || stato === 'annullato';
+  // Solo i 'completato' sono esiti reali da preservare. Gli 'annullato' dei piani arrivano
+  // dall'ufficio (in pianificazione) e devono seguire i task → reversibili.
+  const isTerminale = (stato: string) => stato === 'completato';
 
-  // Identità degli interventi GIÀ TERMINALI (completati/annullati): sono preservati,
+  // Identità degli interventi GIÀ TERMINALI (completati): sono preservati,
   // quindi i task corrispondenti NON vanno re-inseriti (sennò si duplicano — caso
   // ACEA con ODL null, dove il dedup per solo ODL non bastava).
   const keyTerminali = new Set(
