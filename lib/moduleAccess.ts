@@ -17,6 +17,7 @@ export type AppModuleKey =
   | 'interventi'
   | 'sopralluoghi'
   | 'torre'
+  | 'misuratori'
   | 'impostazioni';
 
 export type AppModuleDefinition = {
@@ -96,6 +97,15 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Stato avanzamento interventi in tempo reale',
     section: 'modules',
     matchPrefixes: ['/hub/torre'],
+    adminOnly: true,
+  },
+  {
+    key: 'misuratori',
+    href: '/hub/misuratori',
+    label: 'Misuratori',
+    description: 'Registro misuratori rimossi',
+    section: 'modules',
+    matchPrefixes: ['/hub/misuratori'],
     adminOnly: true,
   },
   {
