@@ -9,7 +9,7 @@ import {
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
-import { VoceCard } from '@/components/modules/rapportini/VoceCard';
+import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 
 type Committente = 'acea' | 'italgas' | 'altro';
@@ -35,6 +35,17 @@ function slugify(s: string): string {
 
 function newCampo(n: number): TemplateCampo {
   return { chiave: `campo_${n}`, etichetta: '', tipo: 'testo', ordine: n };
+}
+
+function AnteprimaBox({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
+      <p className="mb-2 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima</p>
+      <div className="mx-auto max-w-[420px] rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+        {children}
+      </div>
+    </div>
+  );
 }
 
 const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
@@ -366,26 +377,6 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           </div>
         ) : (
           <>
-            {/* ── Anteprima operatore (live) ──────────────────────────────── */}
-            <div className="sticky top-4 z-10 rounded-2xl border border-[var(--brand-primary)] bg-[var(--brand-surface)] p-4 shadow-sm">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Anteprima operatore</h3>
-              <p className="mb-3 text-xs text-[var(--brand-text-muted)]">
-                Come apparirà la scheda all&apos;operatore (dati d&apos;esempio). Si aggiorna mentre componi il template.
-              </p>
-              <div className="mx-auto max-h-[70vh] max-w-[420px] overflow-y-auto">
-                <VoceCard
-                  voce={anteprimaVoce}
-                  indice={0}
-                  campi={campi}
-                  dettaglio={anteprimaDettaglio}
-                  titoloCampi={titoloCampi}
-                  stato="da_fare"
-                  disabilitato
-                  onChange={() => {}}
-                />
-              </div>
-            </div>
-
             {/* ── Nome template ─────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Nome template</h3>
@@ -418,7 +409,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
 
             {/* ── Intestazione della card ──────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Intestazione della card</h3>
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Titolo voce</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
                 Se tutti vuoti → &quot;Voce N&quot;. Lista vuota = comportamento storico (Nominativo, poi PDR).
@@ -453,18 +444,41 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   </button>
                 ))}
               </div>
+              <AnteprimaBox>
+                <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
+              </AnteprimaBox>
+            </div>
+
+            {/* ── Header intervento ────────────────────────────────────────── */}
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Header intervento</h3>
+              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+                Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata &quot;Punto esatto&quot;.
+              </p>
+              <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                <input
+                  type="checkbox"
+                  checked={infoCampi.some((c) => c.chiave === 'coordinate')}
+                  onChange={() => toggleInfo('coordinate')}
+                  className="h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                Mostra coordinate (link &quot;Punto esatto&quot;)
+              </label>
+              <AnteprimaBox>
+                <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
+              </AnteprimaBox>
             </div>
 
             {/* ── Informazioni da mostrare ──────────────────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Informazioni da mostrare</h3>
+              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettagli anagrafici</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
                 Nessuna selezione = mostra tutti gli 11 campi di default.
               </p>
 
               <div className="space-y-2">
-                {infoCampi.map((c, idx) => (
+                {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
                   <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
                     <input
                       type="text"
@@ -480,22 +494,25 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                     <button type="button" onClick={() => toggleInfo(c.chiave)}
                       className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
                   </div>
-                ))}
+                )))}
               </div>
 
               <div className="mt-4 flex flex-wrap gap-2">
-                {INFO_CAMPI_DISPONIBILI.filter((d) => !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
+                {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
                   <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
                     className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
                     ＋ {d.etichettaDefault}
                   </button>
                 ))}
               </div>
+              <AnteprimaBox>
+                <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
+              </AnteprimaBox>
             </div>
 
             {/* ── Campi ─────────────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Campi</h3>
+              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Campi da compilare</h3>
 
               {campi.length === 0 && (
                 <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessun campo. Aggiungine uno.</p>
@@ -611,6 +628,9 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               >
                 ＋ Aggiungi campo
               </button>
+              <AnteprimaBox>
+                <VoceCampi campi={campi} voce={anteprimaVoce} disabilitato onChange={() => {}} />
+              </AnteprimaBox>
             </div>
 
             {/* ── Azioni ────────────────────────────────────────────────────── */}
