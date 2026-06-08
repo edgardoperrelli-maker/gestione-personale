@@ -2090,6 +2090,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setMovingTaskId(null);
   }, [distribution]);
 
+  // Annulla/Ripristina un task: marca `annullato` (si applica al Salva, come Sposta)
+  const toggleAnnullaTask = useCallback((taskId: string, opIdx: number) => {
+    if (!distribution) return;
+    const newDist = distribution.map((d) => ({ ...d, tasks: [...d.tasks] }));
+    const grp = newDist[opIdx].tasks;
+    const idx = grp.findIndex((t) => t.id === taskId);
+    if (idx === -1) return;
+    grp[idx] = { ...grp[idx], annullato: !grp[idx].annullato };
+    setDistribution(newDist);
+  }, [distribution]);
+
   const assignUnassignedTask = useCallback((taskId: string, toIdx: number) => {
     if (!distribution) return;
     const task = unassignedTasks.find((entry) => entry.id === taskId);
@@ -2963,7 +2974,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               ref={(node) => { excelTaskItemRefs.current[t.id] = node; }}
                               className={`rounded-lg border px-2 py-1.5 transition ${
                                 isSelected ? 'border-[var(--warning)]/40 bg-[var(--warning-soft)] shadow-sm' : 'border-[var(--brand-border)]'
-                              }`}
+                              } ${t.annullato ? 'line-through opacity-70 border-[var(--danger)]/40' : ''}`}
                             >
                               <div className="flex items-start gap-2">
                               <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[#0b1220]" style={{ backgroundColor: color }}>
@@ -2990,6 +3001,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               >
                                 Sposta
                               </button>
+                              {t.stato !== 'completato' && (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleAnnullaTask(t.id, activeOpIdx)}
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${t.annullato ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--danger)] hover:text-[var(--danger)]'}`}
+                                >
+                                  {t.annullato ? 'Ripristina' : 'Annulla'}
+                                </button>
+                              )}
                             </div>
                             {/* Selettore operatore destinazione */}
                             {isMoving && (
