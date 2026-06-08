@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
-import { STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
+import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
 
 export interface PdfFilters {
   dataInizio?: string;
@@ -24,7 +24,10 @@ export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilte
     parts.push(`Periodo: ${filters.dataInizio ?? '—'} / ${filters.dataFine ?? '—'}`);
   }
   if (filters.stato) {
-    parts.push(`Stato: ${STATO_LABEL[filters.stato as StatoMisuratore] ?? filters.stato}`);
+    const statoLabel = (STATI_MISURATORE as readonly string[]).includes(filters.stato)
+      ? STATO_LABEL[filters.stato as StatoMisuratore]
+      : filters.stato;
+    parts.push(`Stato: ${statoLabel}`);
   }
   if (filters.comune) parts.push(`Comune: ${filters.comune}`);
   if (filters.esecutore) parts.push(`Esecutore: ${filters.esecutore}`);

@@ -102,6 +102,7 @@ export default function MisuratoriTabella({ rows, onPatch }: Props) {
               {/* Dropdown stato inline */}
               <td className="px-3 py-2 whitespace-nowrap">
                 <select
+                  aria-label={`Stato misuratore ${row.matricola}`}
                   value={row.stato}
                   onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
                   className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
@@ -125,6 +126,8 @@ export default function MisuratoriTabella({ rows, onPatch }: Props) {
                   />
                 ) : (
                   <span
+                    role="button"
+                    aria-label={`Modifica note per ${row.matricola}`}
                     onClick={() => startNoteEdit(row)}
                     className="cursor-text text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] italic"
                     title="Clicca per modificare"
