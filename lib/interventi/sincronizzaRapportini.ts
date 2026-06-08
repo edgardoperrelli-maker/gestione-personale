@@ -22,6 +22,11 @@ export type SincronizzaResult =
   | { ok: true; rapportini: { staff_id: string; staff_name: string | null; token: string; url: string }[]; interventiWarning?: string }
   | { ok: false; status: number; error?: string; conflicts?: unknown[] };
 
+/** Riconosce la violazione FK su rapportino_voci.intervento_id (race: interventi ricreati da una generazione concorrente). */
+export function isInterventoFkError(msg: string | null | undefined): boolean {
+  return !!msg && /rapportino_voci_intervento_id_fkey/i.test(msg);
+}
+
 export async function sincronizzaRapportini(
   db: SupabaseClient,
   pianoId: string,
@@ -155,7 +160,7 @@ export async function sincronizzaRapportini(
 
     await db.from('rapportino_voci').delete().eq('rapportino_id', rapId);
     if (merged.length) {
-      const { error: eVoci } = await db.from('rapportino_voci').insert(merged.map((v) => {
+      const vociRows = merged.map((v) => {
         const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
         const intervento_id = resolveIntervento({
           staff_id: op.staff_id,
@@ -166,7 +171,14 @@ export async function sincronizzaRapportini(
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
         const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo };
         return { rapportino_id: rapId, intervento_id, ...v, raw_json };
-      }));
+      });
+      let { error: eVoci } = await db.from('rapportino_voci').insert(vociRows);
+      // Race: una generazione concorrente può aver ricreato gli interventi (id cambiati) →
+      // FK violation su intervento_id. Fallback: salva le voci SENZA collegamento intervento
+      // (campo opzionale), che si ricollega alla generazione successiva. Evita il 500.
+      if (eVoci && isInterventoFkError(eVoci.message)) {
+        ({ error: eVoci } = await db.from('rapportino_voci').insert(vociRows.map((r) => ({ ...r, intervento_id: null }))));
+      }
       if (eVoci) return { ok: false, status: 500, error: eVoci.message };
     }
     out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${baseUrl}/r/${token}` });

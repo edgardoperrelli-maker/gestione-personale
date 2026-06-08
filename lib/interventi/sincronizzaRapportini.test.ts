@@ -8,18 +8,19 @@ vi.mock('@/lib/interventi/ensureInterventiForPiano', () => ({
   ensureInterventiForPiano: vi.fn(async () => ({ creati: 0, preservati: 0, scartati: 0 })),
 }));
 
-import { sincronizzaRapportini } from './sincronizzaRapportini';
+import { sincronizzaRapportini, isInterventoFkError } from './sincronizzaRapportini';
 
 type Row = Record<string, unknown>;
 type Tables = Record<string, Row[]>;
 type Filtro = ['eq' | 'neq', string, unknown] | ['in', string, unknown[]];
 
 /** Fake Supabase client: simula le tabelle in memoria con le query chain usate dal motore. */
-function makeFakeDb(seed: Tables): { db: SupabaseClient; tables: Tables } {
+function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } = {}): { db: SupabaseClient; tables: Tables } {
   const tables: Tables = {};
   for (const k of Object.keys(seed)) tables[k] = seed[k].map((r) => ({ ...r }));
   let counter = 0;
   const genId = () => `gen_${++counter}`;
+  let failVociPending: string | null = opts.failVociInsertOnce ?? null;
 
   class Builder {
     table: string;
@@ -60,6 +61,11 @@ function makeFakeDb(seed: Tables): { db: SupabaseClient; tables: Tables } {
 
     insert(rows: Row | Row[]) {
       const arr = Array.isArray(rows) ? rows : [rows];
+      if (this.table === 'rapportino_voci' && failVociPending && arr.some((r) => r.intervento_id != null)) {
+        const message = failVociPending;
+        failVociPending = null; // consuma: il retry (intervento_id null) passa
+        return { then: (resolve: (v: unknown) => void) => resolve({ error: { message } }) };
+      }
       const inserted = arr.map((r) => { const row: Row = { ...r, id: (r.id as string | undefined) ?? genId() }; (tables[this.table] ??= []).push(row); return row; });
       return {
         select: () => ({ single: async () => ({ data: { id: inserted[0].id }, error: null }) }),
@@ -157,5 +163,30 @@ describe('sincronizzaRapportini', () => {
       expect(res.status).toBe(409);
       expect(res.error).toMatch(/^spostamento_completato:/);
     }
+  });
+});
+
+describe('isInterventoFkError', () => {
+  it('riconosce la FK su rapportino_voci.intervento_id', () => {
+    expect(isInterventoFkError('insert or update on table "rapportino_voci" violates foreign key constraint "rapportino_voci_intervento_id_fkey"')).toBe(true);
+  });
+  it('ignora altri errori e valori vuoti', () => {
+    expect(isInterventoFkError('altro errore qualsiasi')).toBe(false);
+    expect(isInterventoFkError(null)).toBe(false);
+    expect(isInterventoFkError(undefined)).toBe(false);
+  });
+});
+
+describe('sincronizzaRapportini — fallback FK su race', () => {
+  it("se l'insert voci va in FK violation, salva le voci SENZA collegamento e non fallisce", async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      interventi: [{ id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato' }],
+    }), { failVociInsertOnce: 'violates foreign key constraint "rapportino_voci_intervento_id_fkey"' });
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1');
+    expect(voce).toBeTruthy();
+    expect(voce?.intervento_id ?? null).toBeNull();
   });
 });
