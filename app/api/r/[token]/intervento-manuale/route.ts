@@ -56,7 +56,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   const { data: templates } = await supabaseAdmin
     .from('rapportino_template')
-    .select('id, committente, is_default, active, campi');
+    .select('id, committente, is_default, active, campi, solo_manuale')
+    .eq('solo_manuale', true);
   const templateId = risolviTemplateCommittente(committente, (templates ?? []) as TemplateRow[]);
   if (!templateId) return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
 

@@ -30,4 +30,5 @@ export const TemplateSchema = z.object({
   info_campi: z.array(InfoCampoSchema).default([]),
   titolo_campi: TitoloCampiSchema,
   active: z.boolean().optional().default(true),
+  solo_manuale: z.boolean().optional().default(false),
 });

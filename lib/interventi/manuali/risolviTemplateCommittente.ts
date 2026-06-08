@@ -7,6 +7,7 @@ export type TemplateRow = {
   committente: string | null;
   is_default: boolean;
   active: boolean;
+  solo_manuale?: boolean | null;
 };
 
 export function risolviTemplateCommittente(

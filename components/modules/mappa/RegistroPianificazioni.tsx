@@ -25,6 +25,7 @@ interface Template {
   nome: string;
   is_default?: boolean;
   active?: boolean;
+  solo_manuale?: boolean;
 }
 
 export default function RegistroPianificazioni() {
@@ -339,8 +340,9 @@ function RapportiniModal({
         const res = await fetch('/api/admin/rapportino-template');
         const data = await res.json();
         const list: Template[] = Array.isArray(data) ? data : [];
-        setTemplates(list);
-        const def = list.find((t) => t.is_default) ?? list[0];
+        const listFiltrata = list.filter((t) => !t.solo_manuale);
+        setTemplates(listFiltrata);
+        const def = listFiltrata.find((t) => t.is_default) ?? listFiltrata[0];
         if (def) setTemplateId(def.id);
       } catch (error) {
         console.error('Error loading templates:', error);

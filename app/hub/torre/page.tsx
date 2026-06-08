@@ -64,9 +64,10 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
 
   const { data: tplRows } = await supabase
     .from('rapportino_template')
-    .select('id, committente, campi, info_campi, is_default, active')
-    .eq('active', true);
-  const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean }>;
+    .select('id, committente, campi, info_campi, is_default, active, solo_manuale')
+    .eq('active', true)
+    .eq('solo_manuale', true);
+  const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean; solo_manuale?: boolean }>;
   const tplDefault = tpl.find((t) => t.is_default) ?? tpl[0];
   const infoCampiTorre: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
 

@@ -23,6 +23,7 @@ type Template = {
   titolo_campi?: InfoChiave[];
   is_default: boolean;
   active: boolean;
+  solo_manuale?: boolean;
 };
 
 type Props = { initial: Template[] };
@@ -64,6 +65,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<Committente | ''>('');
+  const [soloManuale, setSoloManuale] = useState(false);
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
@@ -88,6 +90,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(tpl.id);
     setNome(tpl.nome);
     setCommittente(tpl.committente ?? '');
+    setSoloManuale(tpl.solo_manuale ?? false);
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
@@ -100,6 +103,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(null);
     setNome('');
     setCommittente('');
+    setSoloManuale(false);
     setCampi([newCampo(1)]);
     setInfoCampi(infoCampiDefault());
     setTitoloCampi([]);
@@ -200,6 +204,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       const payload = {
         nome: nome.trim(),
         committente: committente || null,
+        solo_manuale: soloManuale,
         campi: campi.map((c, i) => ({
           ...c,
           ordine: i + 1,
@@ -270,6 +275,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           id,
           nome: nome.trim(),
           committente: committente || null,
+          solo_manuale: soloManuale,
           campi: campi.map((c, i) => ({
             ...c,
             ordine: i + 1,
@@ -290,7 +296,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, campi, infoCampi, titoloCampi, isNew, selectedId]);
+  }, [nome, committente, soloManuale, campi, infoCampi, titoloCampi, isNew, selectedId]);
 
   // All'apertura carica il primo template (evita un form vuoto con un template già selezionato).
   useEffect(() => {
@@ -405,6 +411,20 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <option value="italgas">Italgas</option>
                 <option value="altro">Altro</option>
               </select>
+              <label className="mt-3 flex items-start gap-2 text-sm text-[var(--brand-text-main)]">
+                <input
+                  type="checkbox"
+                  checked={soloManuale}
+                  onChange={(e) => setSoloManuale(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span>
+                  Solo interventi manuali
+                  <span className="mt-0.5 block text-xs text-[var(--brand-text-muted)]">
+                    Se attivo, questo template è usato solo per gli interventi manuali (con foto) e non compare nella generazione dei rapportini pianificati.
+                  </span>
+                </span>
+              </label>
             </div>
 
             {/* ── Titolo voce ──────────────────────────────────────── */}

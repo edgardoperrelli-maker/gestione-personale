@@ -184,7 +184,8 @@ export default async function RapportinoPublicPage({
   const { data: tplManuali } = await supabaseAdmin
     .from('rapportino_template')
     .select('committente, campi')
-    .eq('active', true);
+    .eq('active', true)
+    .eq('solo_manuale', true);
   const templatesPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
   for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown }>) {
     if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro') {
