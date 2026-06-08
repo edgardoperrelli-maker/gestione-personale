@@ -1,7 +1,9 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { comprimiImmagine } from './CampoFoto';
+import { useUploadFoto } from './RapportinoFotoCtx';
 
 const inputCls =
   'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none disabled:opacity-70';
@@ -76,21 +78,132 @@ export function CampoInput({
   }
 
   if (campo.tipo === 'foto') {
-    return (
-      <div>
-        {labelEl}
-        <div className="flex items-center gap-2 rounded-lg border border-dashed border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-sm text-[var(--brand-text-muted)]">
-          <span aria-hidden>📷</span>
-          <span>Slot foto{campo.obbligatoria ? ' (obbligatoria)' : ''}</span>
-        </div>
-      </div>
-    );
+    return <CampoFotoInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} />;
   }
 
   return (
     <div>
       {labelEl}
       <TextareaAuto valore={typeof valore === 'string' ? valore : ''} disabilitato={disabilitato} onChange={onChange} />
+    </div>
+  );
+}
+
+/**
+ * Input foto per il rapportino regolare (VoceFocus).
+ * Comprime lato client, carica su storage via /api/r/[token]/foto-campo,
+ * poi chiama onChange(path) per salvare il percorso nelle risposte.
+ */
+function CampoFotoInput({
+  campo, valore, disabilitato, onChange,
+}: {
+  campo: TemplateCampo;
+  valore: unknown;
+  disabilitato: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  const uploadFoto = useUploadFoto();
+  const [localFile, setLocalFile] = useState<File | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [uploading, setUploading] = useState(false);
+  const [uploadStato, setUploadStato] = useState<'idle' | 'ok' | 'errore'>('idle');
+  const scattoRef = useRef<HTMLInputElement>(null);
+  const libreriaRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!localFile) { setPreview(null); return; }
+    const url = URL.createObjectURL(localFile);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
+  }, [localFile]);
+
+  async function handleFiles(list: FileList | null) {
+    const f = list?.[0];
+    if (!f) return;
+    setUploadStato('idle');
+    setUploading(true);
+    try {
+      const compressed = await comprimiImmagine(f);
+      setLocalFile(compressed);
+      const path = await uploadFoto(campo.chiave, compressed);
+      if (path) {
+        onChange(path);
+        setUploadStato('ok');
+      } else {
+        setUploadStato('errore');
+      }
+    } catch {
+      setUploadStato('errore');
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  const hasFotoEsistente = !localFile && typeof valore === 'string' && valore.length > 0;
+  const busy = uploading;
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+        {campo.etichetta}
+        {campo.obbligatoria && <span className="ml-1 font-bold text-[var(--danger)]">*</span>}
+      </label>
+
+      {preview && (
+        <img src={preview} alt={campo.etichetta} className="mb-2 max-h-40 w-full rounded-lg object-cover" />
+      )}
+
+      {/* Input nascosti con opacity-0 (mobile-safe: display:none blocca il click su iOS) */}
+      <input
+        ref={scattoRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        aria-hidden
+        tabIndex={-1}
+        disabled={disabilitato || busy}
+        onChange={(e) => { void handleFiles(e.target.files); e.target.value = ''; }}
+      />
+      <input
+        ref={libreriaRef}
+        type="file"
+        accept="image/*"
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        aria-hidden
+        tabIndex={-1}
+        disabled={disabilitato || busy}
+        onChange={(e) => { void handleFiles(e.target.files); e.target.value = ''; }}
+      />
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          disabled={disabilitato || busy}
+          onClick={() => scattoRef.current?.click()}
+          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+        >
+          {hasFotoEsistente || uploadStato === 'ok' ? '📷 Rifai scatto' : '📷 Scatta'}
+        </button>
+        <button
+          type="button"
+          disabled={disabilitato || busy}
+          onClick={() => libreriaRef.current?.click()}
+          className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-semibold text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] disabled:opacity-50"
+        >
+          🖼️ Libreria
+        </button>
+        {busy && <span className="text-xs text-[var(--brand-text-muted)]">Caricamento…</span>}
+        {!busy && uploadStato === 'ok' && (
+          <span className="text-xs font-semibold text-[var(--success)]">✓ Caricata</span>
+        )}
+        {!busy && uploadStato === 'errore' && (
+          <span className="text-xs font-semibold text-[var(--danger)]">Errore upload</span>
+        )}
+        {!busy && uploadStato === 'idle' && hasFotoEsistente && (
+          <span className="text-xs font-semibold text-[var(--success)]">✓ Già presente</span>
+        )}
+      </div>
     </div>
   );
 }

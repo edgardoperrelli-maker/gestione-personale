@@ -12,6 +12,7 @@ import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
+import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -101,6 +102,8 @@ export default function RapportinoForm({
   const latestRisposteRef = useRef<Record<string, Record<string, unknown>>>({});
   const attemptsRef = useRef<Record<string, number>>({});
   const mountedRef = useRef(true);
+  /** Id della voce attualmente in focus (aggiornato a ogni render). */
+  const voceIdUploadRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     vociOrdinate.forEach((v) => {
@@ -188,6 +191,37 @@ export default function RapportinoForm({
     [disabilitato, saveVoce],
   );
 
+  /**
+   * Carica una foto per il campo `chiave` della voce corrente.
+   * Usato da CampoInput tipo='foto' via RapportinoFotoCtx.
+   * 1. Invia il file a /api/r/[token]/foto-campo
+   * 2. Salva il path nelle risposte della voce (setRisposta + save immediato)
+   */
+  const uploadFotoVoce = useCallback(
+    async (chiave: string, file: File): Promise<string | null> => {
+      const voceId = voceIdUploadRef.current;
+      if (!voceId || !mountedRef.current) return null;
+      try {
+        const fd = new FormData();
+        fd.append('file', file, file.name);
+        const res = await fetch(`/api/r/${token}/foto-campo`, { method: 'POST', body: fd });
+        if (!res.ok) return null;
+        const json = (await res.json()) as { path?: string };
+        const path = json.path ?? null;
+        if (path && mountedRef.current) {
+          setRisposta(voceId, chiave, path);
+          // Salvataggio immediato (non attendere il debounce: la foto è già su storage)
+          clearTimeout(timersRef.current[voceId]);
+          void saveVoce(voceId);
+        }
+        return path;
+      } catch {
+        return null;
+      }
+    },
+    [token, setRisposta, saveVoce],
+  );
+
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
 
   const riepilogo = useMemo(() => riepilogoRapportino(voci, campi), [voci, campi]);
@@ -272,7 +306,11 @@ export default function RapportinoForm({
 
   const dataLabel = formatData(rapportino.data);
 
+  // Aggiorna il ref alla voce corrente: usato da uploadFotoVoce senza causare re-render.
+  voceIdUploadRef.current = vista === 'focus' ? voci[indiceCorrente]?.id : undefined;
+
   return (
+    <RapportinoFotoCtx.Provider value={uploadFotoVoce}>
     <div className="mx-auto max-w-[480px]">
       {bannerSospese}
       {vista === 'focus' && voci[indiceCorrente] ? (
@@ -332,5 +370,6 @@ export default function RapportinoForm({
         />
       )}
     </div>
+    </RapportinoFotoCtx.Provider>
   );
 }

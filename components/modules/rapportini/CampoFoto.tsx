@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import { dimensioniTarget, JPEG_QUALITA } from '@/lib/interventi/manuali/compressioneFoto';
 
 /** Comprime un file immagine su canvas: lato lungo ~1600px, JPEG q≈0.8. */
-async function comprimiImmagine(file: File): Promise<File> {
+export async function comprimiImmagine(file: File): Promise<File> {
   const dataUrl: string = await new Promise((res, rej) => {
     const fr = new FileReader();
     fr.onload = () => res(String(fr.result));
