@@ -49,6 +49,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     pdr: string | null;
   }> = [];
 
+  // Pre-fetch committente per escludere interventi non-ACEA dal registro
+  const interventoIds = ((voci ?? []) as Array<{ intervento_id: string | null }>)
+    .map(v => v.intervento_id)
+    .filter((id): id is string => !!id);
+  const { data: interventiMeta } = interventoIds.length > 0
+    ? await supabaseAdmin.from('interventi').select('id, committente, voce').in('id', interventoIds)
+    : { data: [] as Array<{ id: string; committente: string; voce: number | null }> };
+  const committenteMap = new Map((interventiMeta ?? []).map(i => [i.id, i.committente as string]));
+  const voceMap = new Map((interventiMeta ?? []).map(i => [i.id, i.voce as number | null]));
+
   for (const v of (voci ?? []) as Array<{
     intervento_id: string | null;
     risposte: Record<string, unknown> | null;
@@ -70,7 +80,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .neq('stato', 'annullato');
 
     // Raccolta misuratori rimossi (esito positivo + matricola presente)
-    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim()) {
+    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && voceMap.get(v.intervento_id) === 12) {
       misuratoriFermi.push({
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,

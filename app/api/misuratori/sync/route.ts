@@ -18,6 +18,8 @@ export async function POST() {
   const { data: interventi, error: errInt } = await supabaseAdmin
     .from('interventi')
     .select('id, data, matricola_contatore')
+    .eq('committente', 'acea')
+    .eq('voce', 12)
     .eq('esito', 'eseguito_positivo')
     .not('matricola_contatore', 'is', null)
     .neq('matricola_contatore', '');
