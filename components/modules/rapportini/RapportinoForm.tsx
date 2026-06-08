@@ -32,6 +32,7 @@ export type Voce = {
   coordinate?: string;
   risposte: Record<string, unknown>;
   nuovo?: boolean;
+  annullato?: boolean;
   manuale?: boolean;
   approvazione_stato?: string | null;
   motivo_rifiuto?: string | null;

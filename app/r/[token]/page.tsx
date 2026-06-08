@@ -149,6 +149,7 @@ export default async function RapportinoPublicPage({
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
     coordinate: coordinateFromRaw(v.raw_json),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
+    annullato: Boolean((v.raw_json as { _annullato?: unknown } | null)?._annullato),
     manuale: Boolean(v.manuale),
     approvazione_stato: v.approvazione_stato ?? null,
     motivo_rifiuto: v.richiesta_id ? (motivoByRichiesta[v.richiesta_id] ?? null) : null,
