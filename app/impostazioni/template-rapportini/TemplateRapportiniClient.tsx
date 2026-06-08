@@ -9,7 +9,7 @@ import {
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
-import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
+import { VoceCard, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 
 type Committente = 'acea' | 'italgas' | 'altro';
@@ -445,7 +445,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 ))}
               </div>
               <AnteprimaBox>
-                <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
+                <VoceCard voce={anteprimaVoce} indice={0} campi={campi} dettaglio={anteprimaDettaglio} titoloCampi={titoloCampi} stato="da_fare" disabilitato onChange={() => {}} />
               </AnteprimaBox>
             </div>
 
