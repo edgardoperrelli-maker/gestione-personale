@@ -160,7 +160,7 @@ export async function sincronizzaRapportini(
 
     await db.from('rapportino_voci').delete().eq('rapportino_id', rapId);
     if (merged.length) {
-      const vociRows = merged.map((v) => {
+      const vociRows = merged.map(({ annullato, ...v }) => {
         const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
         const intervento_id = resolveIntervento({
           staff_id: op.staff_id,
@@ -169,7 +169,7 @@ export async function sincronizzaRapportini(
           pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
         });
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
-        const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(v.annullato) };
+        const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(annullato) };
         return { rapportino_id: rapId, intervento_id, ...v, raw_json };
       });
       let { error: eVoci } = await db.from('rapportino_voci').insert(vociRows);

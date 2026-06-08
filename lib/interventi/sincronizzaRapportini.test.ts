@@ -184,8 +184,10 @@ describe('sincronizzaRapportini — voce annullata', () => {
     }));
     const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
     expect(res.ok).toBe(true);
-    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1') as { raw_json?: { _annullato?: boolean } } | undefined;
+    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1') as { annullato?: unknown; raw_json?: { _annullato?: boolean } } | undefined;
     expect(voce?.raw_json?._annullato).toBe(true);
+    // Il flag vive SOLO in raw_json: 'annullato' non è una colonna di rapportino_voci (il DB reale la rifiuta).
+    expect(voce?.annullato).toBeUndefined();
   });
 });
 
