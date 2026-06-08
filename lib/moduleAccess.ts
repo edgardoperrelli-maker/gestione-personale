@@ -183,7 +183,7 @@ export function normalizeAllowedModules(
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
   if (isAdminAssignableRole(role)) {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre']));
+    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre', 'misuratori']));
   }
 
   return Array.from(
