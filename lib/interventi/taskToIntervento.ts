@@ -27,7 +27,7 @@ export type InterventoDaMappa = {
   intervento_tipo: string | null;
   data: string;
   staff_id: string;
-  stato: 'assegnato';
+  stato: 'assegnato' | 'annullato';
   piano_id: string;
   territorio_id: string | null;
   created_from_mappa: true;
@@ -49,7 +49,7 @@ export function taskToIntervento(task: Task, ctx: InterventoContext): Intervento
     intervento_tipo: task.attivita ?? null,
     data: ctx.data,
     staff_id: ctx.staffId,
-    stato: 'assegnato',
+    stato: task.annullato ? 'annullato' : 'assegnato',
     piano_id: ctx.pianoId,
     territorio_id: ctx.territorioId ?? null,
     created_from_mappa: true,

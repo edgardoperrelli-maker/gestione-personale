@@ -26,6 +26,8 @@ export interface Task {
   // Stato operativo (popolato solo quando il Task viene da un intervento del giorno)
   stato?: string;
   esito?: string | null;
+  /** Marcato annullato dall'ufficio in pianificazione (non da fare; voce rossa nel rapportino). */
+  annullato?: boolean;
 }
 
 export interface OperatorBase {

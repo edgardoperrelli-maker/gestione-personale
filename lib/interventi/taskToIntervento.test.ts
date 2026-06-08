@@ -54,3 +54,15 @@ describe('taskToIntervento', () => {
     expect(r.created_from_mappa).toBe(true);
   });
 });
+
+const ctxAnn = { committente: 'acea', data: '2026-06-10', staffId: 's1', pianoId: 'p1', territorioId: null };
+const baseTask = (over: Partial<Task> = {}): Task => ({ id: 't1', odl: 'ODL1', indirizzo: 'Via 1', cap: '00100', citta: 'Roma', priorita: 0, fascia_oraria: '', ...over });
+
+describe('taskToIntervento — stato annullato', () => {
+  it('task annullato → intervento stato "annullato"', () => {
+    expect(taskToIntervento(baseTask({ annullato: true }), ctxAnn).stato).toBe('annullato');
+  });
+  it('task normale → intervento stato "assegnato"', () => {
+    expect(taskToIntervento(baseTask(), ctxAnn).stato).toBe('assegnato');
+  });
+});
