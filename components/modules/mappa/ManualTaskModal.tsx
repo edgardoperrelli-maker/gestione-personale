@@ -8,6 +8,7 @@ export type ManualTaskData = {
   citta: string;
   odl: string;
   pdr: string;
+  matricola: string;
   attivita: string;
   fascia_oraria: string;
   nominativo: string;
@@ -24,7 +25,7 @@ export default function ManualTaskModal({
   onAdd: (data: ManualTaskData) => Promise<void> | void;
 }) {
   const [d, setD] = useState<ManualTaskData>({
-    indirizzo: '', cap: '', citta: '', odl: '', pdr: '', attivita: '', fascia_oraria: '', nominativo: '', staffId: '',
+    indirizzo: '', cap: '', citta: '', odl: '', pdr: '', matricola: '', attivita: '', fascia_oraria: '', nominativo: '', staffId: '',
   });
   const [saving, setSaving] = useState(false);
   const set = (k: keyof ManualTaskData) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
@@ -57,6 +58,7 @@ export default function ManualTaskModal({
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Comune *</span><input className={inputCls} value={d.citta} onChange={set('citta')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODS/ODL</span><input className={inputCls} value={d.odl} onChange={set('odl')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">PDR</span><input className={inputCls} value={d.pdr} onChange={set('pdr')} /></label>
+          <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Matricola</span><input className={inputCls} value={d.matricola} onChange={set('matricola')} /></label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Attività</span><input className={inputCls} value={d.attivita} onChange={set('attivita')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Fascia oraria</span><input className={inputCls} value={d.fascia_oraria} onChange={set('fascia_oraria')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Nominativo</span><input className={inputCls} value={d.nominativo} onChange={set('nominativo')} /></label>

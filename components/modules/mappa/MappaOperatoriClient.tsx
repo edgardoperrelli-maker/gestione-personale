@@ -2022,6 +2022,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       odl: data.odl.trim(),
       priorita: 0,
       pdr: data.pdr.trim() || undefined,
+      matricola: data.matricola.trim() || undefined,
       attivita: data.attivita.trim() || undefined,
       fascia_oraria: data.fascia_oraria.trim(),
       nominativo: data.nominativo.trim() || undefined,
