@@ -10,7 +10,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const { token } = await params;
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, stato, data, campi_snapshot, riaperto_at')
+    .select('id, stato, data, staff_name, campi_snapshot, riaperto_at')
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -35,9 +35,30 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
   const { data: voci } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('intervento_id, risposte, updated_at')
+    .select('intervento_id, risposte, updated_at, matricola, pdr, odl, via, comune')
     .eq('rapportino_id', rap.id);
-  for (const v of (voci ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null; updated_at: string }>) {
+  const misuratoriFermi: Array<{
+    intervento_id: string;
+    rapportino_id: string;
+    odl: string | null;
+    data_esecuzione: string;
+    esecutore: string | null;
+    indirizzo: string | null;
+    comune: string | null;
+    matricola: string;
+    pdr: string | null;
+  }> = [];
+
+  for (const v of (voci ?? []) as Array<{
+    intervento_id: string | null;
+    risposte: Record<string, unknown> | null;
+    updated_at: string;
+    matricola: string | null;
+    pdr: string | null;
+    odl: string | null;
+    via: string | null;
+    comune: string | null;
+  }>) {
     if (!v.intervento_id) continue;
     const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
     if (!patch) continue;
@@ -47,6 +68,28 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at })
       .eq('id', v.intervento_id)
       .neq('stato', 'annullato');
+
+    // Raccolta misuratori rimossi (esito positivo + matricola presente)
+    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim()) {
+      misuratoriFermi.push({
+        intervento_id:   v.intervento_id,
+        rapportino_id:   rap.id,
+        odl:             v.odl ?? null,
+        data_esecuzione: (rap as { data: string }).data,
+        esecutore:       (rap as { staff_name?: string | null }).staff_name ?? null,
+        indirizzo:       v.via ?? null,
+        comune:          v.comune ?? null,
+        matricola:       v.matricola.trim(),
+        pdr:             v.pdr ?? null,
+      });
+    }
+  }
+
+  // Inserisci in misuratori_rimossi (idempotente: ON CONFLICT DO NOTHING)
+  if (misuratoriFermi.length > 0) {
+    await supabaseAdmin
+      .from('misuratori_rimossi')
+      .upsert(misuratoriFermi, { onConflict: 'intervento_id', ignoreDuplicates: true });
   }
 
   return NextResponse.json({ ok: true });
