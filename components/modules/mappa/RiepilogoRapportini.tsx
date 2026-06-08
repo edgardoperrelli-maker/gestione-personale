@@ -89,11 +89,31 @@ export default function RiepilogoRapportini() {
     }
   };
 
+  const scaricaExcel = () => {
+    const oggi = new Date().toISOString().slice(0, 10);
+    const range = calcolaRange(periodo, { dataDa, dataA }, oggi);
+    if (!range) return;
+    const p = new URLSearchParams({ from: range.from, to: range.to });
+    if (filtri.territorio) p.set('territorio', filtri.territorio);
+    if (filtri.operatore) p.set('operatore', filtri.operatore);
+    window.open(`/api/admin/rapportini/export-intervalli?${p.toString()}`, '_blank');
+  };
+
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Riepilogo rapportini</h2>
-        <a href="/hub/rapportini/eseguiti" className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90">📋 Tutti gli interventi eseguiti</a>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={scaricaExcel}
+            title="Scarica Excel con tutti gli interventi del periodo selezionato"
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+          >
+            📥 Excel interventi
+          </button>
+          <a href="/hub/rapportini/eseguiti" className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90">📋 Tutti gli interventi eseguiti</a>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
