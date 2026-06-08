@@ -20,3 +20,18 @@ describe('parseLatLng', () => {
   it('lat fuori range → null', () => { expect(parseLatLng(91, 12)).toBeNull(); });
   it('lng fuori range → null', () => { expect(parseLatLng(41, 181)).toBeNull(); });
 });
+
+describe('parseLatLng — auto-correzione ordine (Italia: lat 35-48, lng 6-19)', () => {
+  it('invertite (long sotto "Lat", lat sotto "Long") → raddrizzate a "lat, lng"', () => {
+    expect(parseLatLng('12.782855', '41.853305')).toBe('41.853305, 12.782855');
+  });
+  it('corrette → invariate', () => {
+    expect(parseLatLng('41.853305', '12.782855')).toBe('41.853305, 12.782855');
+  });
+  it('numeri invertiti nelle bande italiane', () => {
+    expect(parseLatLng(8, 44)).toBe('44, 8');
+  });
+  it('fuori dalle bande italiane → ordine invariato (fiducia alle intestazioni)', () => {
+    expect(parseLatLng(20, 10)).toBe('20, 10');
+  });
+});
