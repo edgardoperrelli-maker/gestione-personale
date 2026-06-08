@@ -7,7 +7,7 @@ import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -95,18 +95,23 @@ export function RapportinoLista({
         ) : (
           visibili.map((r) => {
             const chip = CHIP[r.stato];
-            const bordo = r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--success)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--danger)]' : '';
-            const num = r.stato === 'eseguito' ? 'bg-[var(--success-soft)] text-[var(--success)]' : r.stato === 'non_eseguito' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
+            const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--danger)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--success)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--danger)]' : '';
+            const num = r.annullato ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : r.stato === 'eseguito' ? 'bg-[var(--success-soft)] text-[var(--success)]' : r.stato === 'non_eseguito' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
             return (
               <button
                 key={r.index}
                 type="button"
-                onClick={() => onApri(r.index)}
-                className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-left transition active:border-[var(--brand-primary)] ${bordo}`}
+                onClick={r.annullato ? undefined : () => onApri(r.index)}
+                className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--danger)] bg-[var(--danger-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
               >
                 <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
-                <span className="min-w-0 flex-1">
+                <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
                   <span className="flex min-w-0 items-center gap-1.5">
+                    {r.annullato && (
+                      <span className="shrink-0 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-white">
+                        Annullato
+                      </span>
+                    )}
                     {r.nuovo && (
                       <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
                         Nuovo
@@ -117,7 +122,7 @@ export function RapportinoLista({
                         {r.badge.label}
                       </span>
                     )}
-                    <span className="min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)]">{r.titolo}</span>
+                    <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
                     {(r.attivita || r.fascia) && (
                       <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">
                         {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
