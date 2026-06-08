@@ -12,7 +12,9 @@ const INFO_CHIAVI = INFO_CAMPI_DISPONIBILI.map((c) => c.chiave) as [InfoChiave, 
 export const CampoSchema = z.object({
   chiave: z.string().min(1), etichetta: z.string().min(1),
   tipo: z.enum(['crocetta', 'testo', 'select', 'numero', 'foto']),
-  opzioni: z.array(z.string()).optional(), ordine: z.number().int(),
+  opzioni: z.array(z.string()).optional(),
+  obbligatoria: z.boolean().optional(),
+  ordine: z.number().int(),
 });
 
 export const InfoCampoSchema = z.object({
