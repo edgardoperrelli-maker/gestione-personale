@@ -177,6 +177,18 @@ describe('isInterventoFkError', () => {
   });
 });
 
+describe('sincronizzaRapportini — voce annullata', () => {
+  it('un task annullato produce una voce con raw_json._annullato = true', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1', annullato: true }] }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1') as { raw_json?: { _annullato?: boolean } } | undefined;
+    expect(voce?.raw_json?._annullato).toBe(true);
+  });
+});
+
 describe('sincronizzaRapportini — fallback FK su race', () => {
   it("se l'insert voci va in FK violation, salva le voci SENZA collegamento e non fallisce", async () => {
     const { db, tables } = makeFakeDb(seedBase({

@@ -169,7 +169,7 @@ export async function sincronizzaRapportini(
           pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
         });
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
-        const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo };
+        const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(v.annullato) };
         return { rapportino_id: rapId, intervento_id, ...v, raw_json };
       });
       let { error: eVoci } = await db.from('rapportino_voci').insert(vociRows);

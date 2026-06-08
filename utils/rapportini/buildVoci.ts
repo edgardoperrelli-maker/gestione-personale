@@ -11,6 +11,7 @@ export interface VoceSnapshot {
   via?: string; comune?: string; cap?: string; recapito?: string;
   attivita?: string; accessibilita?: string; fascia_oraria?: string;
   raw_json: unknown;
+  annullato?: boolean;
 }
 export type Voce = VoceSnapshot & { risposte: Record<string, unknown> };
 
@@ -22,6 +23,7 @@ export function taskToVoce(task: any, ordine: number): VoceSnapshot {
     via: task.indirizzo, comune: task.citta, cap: task.cap, recapito: task.recapito,
     attivita: task.attivita, accessibilita: task.accessibilita, fascia_oraria: task.fascia_oraria,
     raw_json: task,
+    annullato: Boolean(task.annullato),
   };
 }
 
