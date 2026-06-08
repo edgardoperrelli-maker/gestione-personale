@@ -1,27 +1,12 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { resolveUserRole } from '@/lib/moduleAccess';
+import { requireAdmin } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
-async function requireAdmin(): Promise<true | NextResponse> {
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({
-    cookies: (() => cookieStore) as unknown as () => ReturnType<typeof cookies>,
-  });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  if (resolveUserRole(profile?.role, user.app_metadata?.role) !== 'admin')
-    return NextResponse.json({ error: 'Riservato agli admin' }, { status: 403 });
-  return true;
-}
-
 export async function POST() {
-  const guard = await requireAdmin();
-  if (guard instanceof NextResponse) return guard;
+  const auth = await requireAdmin();
+  if (auth instanceof NextResponse) return auth;
 
   // 1. IDs già presenti
   const { data: existing } = await supabaseAdmin

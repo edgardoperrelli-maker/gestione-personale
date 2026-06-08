@@ -1,23 +1,12 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
-async function requireUser(): Promise<true | NextResponse> {
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({
-    cookies: (() => cookieStore) as unknown as () => ReturnType<typeof cookies>,
-  });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
-  return true;
-}
-
 export async function GET(req: Request) {
-  const guard = await requireUser();
-  if (guard instanceof NextResponse) return guard;
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
 
   const { searchParams } = new URL(req.url);
   const dataInizio = searchParams.get('data_inizio');

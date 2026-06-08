@@ -1,29 +1,19 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { STATI_MISURATORE } from '@/types/misuratori';
+import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
-
-async function requireUser(): Promise<true | NextResponse> {
-  const cookieStore = await cookies();
-  const supabase = createRouteHandlerClient({
-    cookies: (() => cookieStore) as unknown as () => ReturnType<typeof cookies>,
-  });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Non autenticato' }, { status: 401 });
-  return true;
-}
 
 export async function PATCH(
   req: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
-  const guard = await requireUser();
-  if (guard instanceof NextResponse) return guard;
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
 
   const { id } = await params;
+  if (!id?.trim()) return NextResponse.json({ error: 'ID richiesto.' }, { status: 400 });
   const body = await req.json() as Record<string, unknown>;
 
   const patch: Record<string, unknown> = {
