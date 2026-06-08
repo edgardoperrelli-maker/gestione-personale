@@ -1426,6 +1426,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       // Parsing unificato — stessa logica del caricamento Excel principale:
       // supporta ATTGIORN, Massiva/Rapportini e Export Dati/Geocall.
+      // Legge anche la colonna esecutore/operatore se presente.
       const parsed = await parseExcelToTasks(file);
       if (parsed.length === 0) {
         setTemplateGeocoding(null);
@@ -1447,12 +1448,60 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         setTemplateGeocoding({ done: i + 1, total: tasks.length });
       }
 
-      // Il template non ha colonna esecutore → i task entrano come NON assegnati
-      // (visibili in "Non assegnate" e sulla mappa, assegnabili a mano).
-      // Non ridistribuisce il piano esistente (stesso comportamento di addManualTask
-      // con esecutore vuoto).
+      // ── Gestione esecutori (colonna operatore nel file) ──────────────────────
+      // Abbina i nomi alla lista operatori noti (stesso algoritmo del file principale).
+      const { pins, nonAbbinati } = buildEsecutorePins(geocoded, operatorOptions);
+      if (nonAbbinati.length > 0) setEsecutoreWarnings((prev) => [...prev, ...nonAbbinati]);
+
+      // Separa i task in due bucket:
+      //   • esecutore trovato E operatore nel gruppo → aggancia direttamente
+      //   • tutto il resto (esecutore assente / non nel gruppo) → Non assegnate
+      const perOperatore: Record<string, Task[]> = {};
+      const nuoviNonAssegnati: Task[] = [];
+
+      for (const task of geocoded) {
+        const staffId = pins[task.id];
+        const inGruppo = staffId && distribution
+          ? distribution.some((d) => d.staffId === staffId)
+          : false;
+
+        if (inGruppo && staffId) {
+          if (!perOperatore[staffId]) perOperatore[staffId] = [];
+          perOperatore[staffId].push(task);
+        } else {
+          nuoviNonAssegnati.push(task);
+        }
+      }
+
+      // Aggancia i task agli operatori rispettivi (nessuna ridistribuzione cieca),
+      // stesso comportamento di addManualTask con operatore presente nel gruppo.
+      if (Object.keys(perOperatore).length > 0) {
+        setDistribution((prev) => {
+          if (!prev) return prev;
+          let next = prev;
+          for (const [staffId, tasksPerOp] of Object.entries(perOperatore)) {
+            const idx = next.findIndex((d) => d.staffId === staffId);
+            if (idx < 0) continue;
+            for (const task of tasksPerOp) {
+              next = appendTaskToOperator(next, idx, task, optimizeRouteByFascia);
+            }
+          }
+          return next;
+        });
+        // Allinea il contatore "N. INTERVENTI" di selectedOps
+        setSelectedOps((prev) =>
+          prev.map((o) => {
+            const count = perOperatore[o.id]?.length ?? 0;
+            return count > 0 ? { ...o, qty: o.qty + count } : o;
+          }),
+        );
+        if (Object.keys(pins).length > 0) setEsecutorePins((prev) => ({ ...prev, ...pins }));
+      }
+
+      // Tutti i task entrano nel pool (per un'eventuale "Distribuisci" successivo).
       setTemplateTasks((prev) => [...prev, ...geocoded]);
-      setUnassignedTasks((prev) => [...prev, ...geocoded]);
+      // Solo quelli non abbinati vanno in "Non assegnate" (marker giallo sulla mappa).
+      if (nuoviNonAssegnati.length > 0) setUnassignedTasks((prev) => [...prev, ...nuoviNonAssegnati]);
       setTemplateGeocoding(null);
     } catch (error) {
       console.error('Error processing template file:', error);
@@ -1462,7 +1511,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (fileTemplateInputRef.current) {
       fileTemplateInputRef.current.value = '';
     }
-  }, []);
+  }, [distribution, operatorOptions]);
 
   // Apre il form di modifica per un task
   const openEdit = useCallback((task: Task) => {
