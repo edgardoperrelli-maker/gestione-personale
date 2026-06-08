@@ -9,6 +9,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
 import { appendTaskToOperator } from '@/utils/mappa/appendTask';
+import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
 import { formatEtaMin } from '@/utils/routing/timeEngine';
@@ -663,6 +664,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Modifica task non geocodificati
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [selectedExcelTaskId, setSelectedExcelTaskId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
   const [editDraft, setEditDraft] = useState({ indirizzo: '', cap: '', citta: '' });
   const [geocodingSingleId, setGeocodingSingleId] = useState<string | null>(null);
 
@@ -1498,6 +1500,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     map.panTo(marker.getLatLng(), { animate: true });
     marker.openPopup();
   }, []);
+
+  // Risultati della barra di ricerca interventi (tra tutti gli operatori)
+  const risultatiRicerca = useMemo(
+    () => (distribution ? cercaInterventi(distribution, searchQuery) : []),
+    [distribution, searchQuery],
+  );
 
   // Salva la modifica e tenta geocodifica singola
   const saveAndGeocode = useCallback(async (taskId: string) => {
@@ -2924,6 +2932,39 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           {/* ── Distribuzione operatori ── */}
           {excelMode && distribution ? (
             <>
+              {/* Barra di ricerca interventi (tra tutti gli operatori) */}
+              <div className="mb-3">
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Cerca intervento (ODL o indirizzo)…"
+                  className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-1.5 text-xs text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+                />
+                {searchQuery.trim() && (
+                  <div className="mt-1 max-h-48 overflow-y-auto rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+                    {risultatiRicerca.length === 0 ? (
+                      <div className="px-3 py-2 text-xs text-[var(--brand-text-subtle)]">Nessun intervento trovato</div>
+                    ) : (
+                      risultatiRicerca.map((r) => (
+                        <button
+                          key={r.taskId}
+                          type="button"
+                          onClick={() => { setActiveOpIdx(r.opIdx); focusExcelTask(r.taskId); setSearchQuery(''); }}
+                          className="flex w-full items-start gap-2 border-b border-[var(--brand-border)] px-3 py-1.5 text-left last:border-0 hover:bg-[var(--brand-surface-muted)]"
+                        >
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-[var(--brand-text-main)]">{r.odl || r.indirizzo || r.taskId}</span>
+                            {r.indirizzo && <span className="block truncate text-[10px] text-[var(--brand-text-muted)]">{r.indirizzo}</span>}
+                          </span>
+                          <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--brand-text-muted)]">{r.opName.split(' ')[0]}</span>
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+              </div>
+
               {/* Tab operatori */}
               <div className="mb-3 flex flex-wrap gap-1">
                 {distribution.map((d, i) => (
