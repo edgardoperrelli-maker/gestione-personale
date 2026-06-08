@@ -62,14 +62,22 @@ export default async function TorrePage({ searchParams }: { searchParams: Promis
     .filter((s) => isStaffValidOnDay(s, data))
     .map((s) => ({ id: s.id, display_name: s.display_name }));
 
+  // Header info della torre: usa il template default PIANIFICATO (non i solo-manuale).
+  const { data: tplDefRows } = await supabase
+    .from('rapportino_template')
+    .select('info_campi, is_default')
+    .eq('active', true);
+  const tplDef = (tplDefRows ?? []) as Array<{ info_campi: unknown; is_default: boolean }>;
+  const tplDefault = tplDef.find((t) => t.is_default) ?? tplDef[0];
+  const infoCampiTorre: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
+
+  // Campi esito per committente nel pannello revisione richieste: solo i template SOLO-MANUALE.
   const { data: tplRows } = await supabase
     .from('rapportino_template')
     .select('id, committente, campi, info_campi, is_default, active, solo_manuale')
     .eq('active', true)
     .eq('solo_manuale', true);
   const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean; solo_manuale?: boolean }>;
-  const tplDefault = tpl.find((t) => t.is_default) ?? tpl[0];
-  const infoCampiTorre: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
 
   // Per ogni committente, risolve il template corretto con fallback al default,
   // così un committente senza template dedicato ottiene i campi del default invece di [].
