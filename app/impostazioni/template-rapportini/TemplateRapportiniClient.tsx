@@ -407,7 +407,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               </select>
             </div>
 
-            {/* ── Intestazione della card ──────────────────────────────────────── */}
+            {/* ── Titolo voce ──────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Titolo voce</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
@@ -469,7 +469,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               </AnteprimaBox>
             </div>
 
-            {/* ── Informazioni da mostrare ──────────────────────────────────────────────────────────── */}
+            {/* ── Dettagli anagrafici ──────────────────────────────────────────────────────────── */}
             <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
               <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettagli anagrafici</h3>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
