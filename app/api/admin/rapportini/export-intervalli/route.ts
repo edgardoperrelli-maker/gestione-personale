@@ -255,14 +255,19 @@ export async function GET(req: Request) {
         }
 
         const wsRow = ws.getRow(rowIdx);
-        wsRow.values = [undefined, ...ws.columns.map((col) => (row[(col.key as string)] ?? '') as ExcelJS.CellValue)];
-        // Riga alternata (leggibilità)
+        // Assegnazione per chiave (NON per array): evita lo shift di colonna
+        // che ExcelJS causa con array e offset interno index+1.
+        wsRow.values = row as Record<string, ExcelJS.CellValue>;
+        // Riga alternata (leggibilità) — applica a tutte le celle della riga
         if (rowIdx % 2 === 0) {
-          wsRow.eachCell({ includeEmpty: false }, (cell) => {
-            cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FA' } };
-          });
+          const nCols = COL_FISSI.length + campiUniti.length + COL_EXTRA.length;
+          for (let ci = 1; ci <= nCols; ci++) {
+            wsRow.getCell(ci).fill = {
+              type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFF0F4FA' },
+            };
+          }
         }
-        // Evidenzia righe "inviato" con un bordo sinistro verde
+        // Bordo sinistro verde per righe "inviato"
         if (rap.stato === 'inviato') {
           wsRow.getCell(1).border = { left: { style: 'medium', color: { argb: 'FF16A34A' } } };
         }
