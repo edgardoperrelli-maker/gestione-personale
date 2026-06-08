@@ -90,23 +90,32 @@ export function CampoFoto({
         />
       )}
 
-      {/* Input nascosti: scatto (capture) + libreria */}
+      {/*
+        Input visivamente nascosti con opacity-0 + dimensioni minime (NON display:none).
+        Su iOS Safari e Android Chrome il .click() programmativo su un input[type=file]
+        con display:none viene silenziosamente ignorato; opacity-0 funziona sempre.
+        e.target.value='' consente di ri-selezionare lo stesso file.
+      */}
       <input
         ref={scattoRef}
         type="file"
         accept="image/*"
         capture="environment"
-        className="hidden"
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        aria-hidden="true"
+        tabIndex={-1}
         disabled={disabilitato || elaboro}
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
       />
       <input
         ref={libreriaRef}
         type="file"
         accept="image/*"
-        className="hidden"
+        className="absolute h-px w-px overflow-hidden opacity-0"
+        aria-hidden="true"
+        tabIndex={-1}
         disabled={disabilitato || elaboro}
-        onChange={(e) => handleFiles(e.target.files)}
+        onChange={(e) => { handleFiles(e.target.files); e.target.value = ''; }}
       />
 
       <div className="flex flex-wrap gap-2">
