@@ -60,9 +60,7 @@ const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
 
 export default function TemplateRapportiniClient({ initial }: Props) {
   const [templates, setTemplates] = useState<Template[]>(initial);
-  const [selectedId, setSelectedId] = useState<string | null>(
-    initial.length > 0 ? initial[0].id : null,
-  );
+  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<Committente | ''>('');
@@ -299,11 +297,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     return () => clearTimeout(timer);
   }, [nome, committente, soloManuale, campi, infoCampi, titoloCampi, isNew, selectedId]);
 
-  // All'apertura carica il primo template (evita un form vuoto con un template già selezionato).
-  useEffect(() => {
-    if (initial.length > 0) loadTemplate(initial[0]);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  // Nessun template selezionato all'apertura: l'utente sceglie a mano.
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
