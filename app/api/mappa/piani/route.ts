@@ -110,6 +110,27 @@ export async function POST(req: Request) {
     const { data: { user } } = await supabaseBrowser.auth.getUser();
     const userId = user?.id ?? null;
 
+    // Anti-duplicato: un solo piano per (data, territorio). "Nuova pianificazione" azzera
+    // currentPianoId, quindi ri-pianificare lo stesso giorno+territorio creerebbe un secondo
+    // piano lasciando vivo il vecchio → gli interventi si duplicano tra i piani e il dedup
+    // (committente, odl, data) ne scarta metà, svuotando la torre. Prima di creare, elimino i
+    // piani RESIDUI (senza rapportini) di quel giorno+territorio e i loro interventi
+    // (interventi.piano_id è ON DELETE SET NULL → vanno cancellati esplicitamente). I piani CON
+    // rapportini non si toccano: nessuna perdita di lavoro compilato.
+    {
+      let qVecchi = supabaseAdmin.from('mappa_piani').select('id').eq('data', isoData);
+      qVecchi = (territorio ?? null) === null ? qVecchi.is('territorio', null) : qVecchi.eq('territorio', territorio);
+      const { data: vecchi } = await qVecchi;
+      for (const v of (vecchi ?? []) as { id: string }[]) {
+        const { count, error: eCount } = await supabaseAdmin
+          .from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', v.id);
+        if (!eCount && (count ?? 0) === 0) {
+          await supabaseAdmin.from('interventi').delete().eq('piano_id', v.id);
+          await supabaseAdmin.from('mappa_piani').delete().eq('id', v.id);
+        }
+      }
+    }
+
     const { data: piano, error: ePiano } = await supabaseAdmin
       .from('mappa_piani')
       .insert({
