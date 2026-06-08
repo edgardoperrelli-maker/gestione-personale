@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import {
   INFO_CAMPI_DISPONIBILI,
-  infoCampiDefault,
   partitionInfoCampi,
   resolveInfoCampi,
   titoloVoce,
@@ -106,8 +105,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome('');
     setCommittente('');
     setSoloManuale(false);
-    setCampi([newCampo(1)]);
-    setInfoCampi(infoCampiDefault());
+    setCampi([]);
+    setInfoCampi([]);
     setTitoloCampi([]);
   }
 
