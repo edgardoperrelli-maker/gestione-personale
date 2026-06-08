@@ -1423,55 +1423,34 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
     try {
       setTemplateGeocoding({ done: 0, total: 0 });
-      const data = await file.arrayBuffer();
-      const workbook = XLSX.read(new Uint8Array(data), { type: 'array' });
-      const sheet = workbook.Sheets[workbook.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet);
 
-      const tasks: Task[] = rows.map((row: any, idx) => ({
-        id: `template-${Date.now()}-${idx}`,
-        indirizzo: row.indirizzo || '',
-        cap: row.cap || '',
-        citta: row.citta || '',
-        odl: row.odl || '',
-        priorita: row.priorita || '',
-        fascia_oraria: row.fascia_oraria || '',
-      }));
+      // Parsing unificato — stessa logica del caricamento Excel principale:
+      // supporta ATTGIORN, Massiva/Rapportini e Export Dati/Geocall.
+      const parsed = await parseExcelToTasks(file);
+      if (parsed.length === 0) {
+        setTemplateGeocoding(null);
+        return;
+      }
+
+      // Assegna ID univoci con prefisso stabile: evita collisioni con i task
+      // row-{i} dell'import principale qualora si carichino entrambi.
+      const prefix = `tpl-${Date.now()}`;
+      const tasks: Task[] = parsed.map((t, idx) => ({ ...t, id: `${prefix}-${idx}` }));
 
       setTemplateGeocoding({ done: 0, total: tasks.length });
       const geocoded: Task[] = [];
 
+      // Geocodifica con geocodeTask: usa la cache del progetto + correzioni manuali,
+      // esattamente come fa il flusso principale (startGeocoding).
       for (let i = 0; i < tasks.length; i++) {
-        const task = tasks[i];
-        try {
-          const response = await fetch(
-            `https://nominatim.openstreetmap.org/search?` +
-            `street=${encodeURIComponent(task.indirizzo)}&` +
-            `postalcode=${encodeURIComponent(task.cap)}&` +
-            `city=${encodeURIComponent(task.citta)}&` +
-            `format=json&limit=1`
-          );
-          const results = await response.json();
-          if (results.length > 0) {
-            geocoded.push({
-              ...task,
-              lat: parseFloat(results[0].lat),
-              lng: parseFloat(results[0].lon),
-            });
-          } else {
-            geocoded.push(task);
-          }
-        } catch (error) {
-          console.error(`Geocoding error for task ${i}:`, error);
-          geocoded.push(task);
-        }
+        geocoded.push(await geocodeTask(tasks[i]));
         setTemplateGeocoding({ done: i + 1, total: tasks.length });
-        await new Promise(r => setTimeout(r, 100));
       }
 
-      // Il file template non ha colonna esecutore → i task entrano come NON assegnati
-      // (assegnabili a mano dalla mappa), senza ridistribuire il piano esistente.
-      // Restano nel pool (templateTasks → allTasks) per un'eventuale "Distribuisci".
+      // Il template non ha colonna esecutore → i task entrano come NON assegnati
+      // (visibili in "Non assegnate" e sulla mappa, assegnabili a mano).
+      // Non ridistribuisce il piano esistente (stesso comportamento di addManualTask
+      // con esecutore vuoto).
       setTemplateTasks((prev) => [...prev, ...geocoded]);
       setUnassignedTasks((prev) => [...prev, ...geocoded]);
       setTemplateGeocoding(null);
