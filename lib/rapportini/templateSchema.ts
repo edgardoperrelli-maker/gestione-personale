@@ -14,6 +14,7 @@ export const CampoSchema = z.object({
   tipo: z.enum(['crocetta', 'testo', 'select', 'numero', 'foto']),
   opzioni: z.array(z.string()).optional(),
   obbligatoria: z.boolean().optional(),
+  scope_foto: z.enum(['misuratore', 'fase', 'accessoria']).optional(),
   ordine: z.number().int(),
 });
 
@@ -37,6 +38,7 @@ export const TemplateSchema = z.object({
   info_campi: z.array(InfoCampoSchema).default([]),
   titolo_campi: TitoloCampiSchema,
   foto_id_priority: FotoIdPrioritySchema,
+  tipo: z.enum(['standard', 'risanamento']).optional().default('standard'),
   active: z.boolean().optional().default(true),
   solo_manuale: z.boolean().optional().default(false),
 });

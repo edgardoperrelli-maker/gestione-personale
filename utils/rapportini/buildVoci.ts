@@ -3,6 +3,7 @@ export interface TemplateCampo {
   tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto';
   opzioni?: string[];
   obbligatoria?: boolean; // usato dai campi tipo 'foto': slot obbligatorio o facoltativo
+  scope_foto?: 'misuratore' | 'fase' | 'accessoria'; // solo per tipo='foto' nei template risanamento
   ordine: number;
 }
 

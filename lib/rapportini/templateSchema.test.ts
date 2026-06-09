@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { TemplateSchema } from './templateSchema';
+import { CampoSchema, TemplateSchema } from './templateSchema';
 import { INFO_CAMPI_DISPONIBILI } from '@/utils/rapportini/infoCampi';
 
 const base = {
@@ -35,5 +35,33 @@ describe('TemplateSchema', () => {
       info_campi: [{ chiave: 'pippo', etichetta: 'P', ordine: 1 }],
     });
     expect(r.success).toBe(false);
+  });
+});
+
+describe('CampoSchema scope_foto', () => {
+  it('accetta scope_foto valido', () => {
+    expect(CampoSchema.safeParse({ chiave: 'f', etichetta: 'Foto', tipo: 'foto', ordine: 1, scope_foto: 'misuratore' }).success).toBe(true);
+  });
+  it('rifiuta scope_foto fuori enum', () => {
+    expect(CampoSchema.safeParse({ chiave: 'f', etichetta: 'Foto', tipo: 'foto', ordine: 1, scope_foto: 'xxx' }).success).toBe(false);
+  });
+  it('scope_foto opzionale (assente ok)', () => {
+    expect(CampoSchema.safeParse({ chiave: 'f', etichetta: 'Foto', tipo: 'foto', ordine: 1 }).success).toBe(true);
+  });
+});
+
+describe('TemplateSchema tipo', () => {
+  it('default standard se assente', () => {
+    const r = TemplateSchema.safeParse(base);
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.tipo).toBe('standard');
+  });
+  it('accetta tipo risanamento', () => {
+    const r = TemplateSchema.safeParse({ ...base, tipo: 'risanamento' });
+    expect(r.success).toBe(true);
+    if (r.success) expect(r.data.tipo).toBe('risanamento');
+  });
+  it('rifiuta tipo fuori enum', () => {
+    expect(TemplateSchema.safeParse({ ...base, tipo: 'altro' }).success).toBe(false);
   });
 });
