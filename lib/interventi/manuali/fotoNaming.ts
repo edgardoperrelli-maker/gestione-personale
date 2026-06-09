@@ -32,18 +32,19 @@ export function identificativoFoto(ids: IdentificativiFoto): string {
 }
 
 /**
- * Nome file logico della foto: `<EtichettaSlotNormalizzata>_<identificativo>.<ext>`.
- * - etichetta normalizzata ASCII (fallback "foto" se vuota dopo normalizzazione);
+ * Nome file logico della foto: `<identificativo>_<EtichettaSlotNormalizzata>.<ext>`.
  * - identificativo = primo non vuoto tra PDR → matricola → ODL → indirizzo (fallback "intervento");
+ * - etichetta normalizzata ASCII (fallback "foto" se vuota dopo normalizzazione);
  * - estensione in minuscolo, senza punto iniziale.
+ * Esempio: ODL9001 + "Foto contatore" → "ODL9001_FotoContatore.jpg"
  */
 export function nomeFotoFile(
   etichettaSlot: string,
   ids: IdentificativiFoto,
   ext: string,
 ): string {
-  const base = normalizzaAscii(etichettaSlot) || 'foto';
   const id = identificativoFoto(ids);
+  const base = normalizzaAscii(etichettaSlot) || 'foto';
   const estensione = String(ext ?? '').trim().replace(/^\./, '').toLowerCase() || 'jpg';
-  return `${base}_${id}.${estensione}`;
+  return `${id}_${base}.${estensione}`;
 }

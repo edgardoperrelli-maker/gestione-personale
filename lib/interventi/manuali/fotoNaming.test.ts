@@ -22,37 +22,37 @@ describe('nomeFotoFile', () => {
       { pdr: '12345', matricola: 'M99', odl: 'O77', indirizzo: 'Via Roma 1' },
       'jpg',
     );
-    expect(nome).toBe('FotoContatore_12345.jpg');
+    expect(nome).toBe('12345_FotoContatore.jpg');
   });
 
   it('usa la matricola se manca il PDR', () => {
     const nome = nomeFotoFile('Foto sigillo', { matricola: 'MAT-77' }, 'jpg');
-    expect(nome).toBe('FotoSigillo_MAT77.jpg');
+    expect(nome).toBe('MAT77_FotoSigillo.jpg');
   });
 
   it('usa l\'ODL se mancano PDR e matricola', () => {
     const nome = nomeFotoFile('Foto matricola', { odl: 'ODL 9001' }, 'png');
-    expect(nome).toBe('FotoMatricola_ODL9001.png');
+    expect(nome).toBe('ODL9001_FotoMatricola.png');
   });
 
   it('usa l\'indirizzo se mancano PDR, matricola e ODL', () => {
     const nome = nomeFotoFile('Foto panoramica', { indirizzo: 'Via San Giovanni, 3' }, 'jpg');
-    expect(nome).toBe('FotoPanoramica_ViaSanGiovanni3.jpg');
+    expect(nome).toBe('ViaSanGiovanni3_FotoPanoramica.jpg');
   });
 
   it('fallback a "intervento" se nessun identificativo', () => {
     const nome = nomeFotoFile('Foto contatore', {}, 'jpg');
-    expect(nome).toBe('FotoContatore_intervento.jpg');
+    expect(nome).toBe('intervento_FotoContatore.jpg');
   });
 
   it('normalizza etichette con accenti/spazi e identificativo', () => {
     const nome = nomeFotoFile('Foto attività à', { pdr: 'PDR 0042' }, 'JPEG');
-    expect(nome).toBe('FotoAttivitaA_PDR0042.jpeg');
+    expect(nome).toBe('PDR0042_FotoAttivitaA.jpeg');
   });
 
   it('etichetta vuota → "foto" come base', () => {
     const nome = nomeFotoFile('   ', { pdr: '7' }, 'jpg');
-    expect(nome).toBe('foto_7.jpg');
+    expect(nome).toBe('7_foto.jpg');
   });
 });
 
