@@ -54,6 +54,13 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="M5 20a8 8 0 0 1 14 0" />
     </svg>
   ),
+  'lista-attesa': (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <path d="M4 6h10M4 12h10M4 18h6" />
+      <circle cx="18" cy="17" r="3.5" />
+      <path d="M18 15.5v1.5l1 1" />
+    </svg>
+  ),
   misuratori: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18" />

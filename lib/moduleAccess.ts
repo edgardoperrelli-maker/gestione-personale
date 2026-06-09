@@ -17,6 +17,7 @@ export type AppModuleKey =
   | 'interventi'
   | 'sopralluoghi'
   | 'torre'
+  | 'lista-attesa'
   | 'misuratori'
   | 'impostazioni';
 
@@ -97,6 +98,15 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Stato avanzamento interventi in tempo reale',
     section: 'modules',
     matchPrefixes: ['/hub/torre'],
+    adminOnly: true,
+  },
+  {
+    key: 'lista-attesa',
+    href: '/hub/lista-attesa',
+    label: 'Lista attesa',
+    description: 'Ordini manuali degli operatori',
+    section: 'modules',
+    matchPrefixes: ['/hub/lista-attesa'],
     adminOnly: true,
   },
   {
@@ -183,11 +193,11 @@ export function normalizeAllowedModules(
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
   if (isAdminAssignableRole(role)) {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre', 'misuratori']));
+    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre', 'lista-attesa', 'misuratori']));
   }
 
   return Array.from(
-    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'torre'), 'sopralluoghi']),
+    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'torre' && key !== 'lista-attesa'), 'sopralluoghi']),
   );
 }
 
