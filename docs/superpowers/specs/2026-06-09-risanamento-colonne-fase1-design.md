@@ -131,6 +131,49 @@ da persistere** in Fase 1 (comportamento della Fase 5).
 
 ---
 
+## Sezione 4 — Raffinamento: archiviazione lavorati + pulizia della ricerca
+
+**Obiettivo:** tenere `risanamento_misuratori_ref` sempre snella, così il lookup dello scanner resta
+rapido. Lo storico "vero" dei misuratori lavorati vive già negli **interventi** esitati (modulo
+Riepilogo interventi): l'archivio qui è solo un deposito tecnico leggero.
+
+### Tabella `risanamento_misuratori_archivio`
+
+Copia anagrafica del record di riferimento lavorato + provenienza:
+
+| colonna | tipo | note |
+|---|---|---|
+| `id` | bigserial PK | |
+| `matricola`, `pdr`, `nominativo`, `indirizzo`, `civico`, `comune`, `cap` | text | copia del record lavorato |
+| `import_id` | uuid | import di origine (tracciabilità) |
+| `ref_id_originale` | bigint | id che il record aveva in `risanamento_misuratori_ref` |
+| `rapportino_id` | uuid FK → `rapportini` ON DELETE SET NULL | da quale rapportino è stato lavorato |
+| `archiviato_at` | timestamptz default now() | |
+
+Indici minimi: `matricola`, `rapportino_id`. RLS all-auth come le altre tabelle.
+
+### Spostamento alla chiusura (logica → Fase 5)
+
+Alla chiusura/invio del rapportino: per ogni `rapportino_righe` del rapportino con `ref_id` non null,
+il record corrispondente in `risanamento_misuratori_ref` viene **spostato** in archivio (INSERT
+archivio con `rapportino_id` + `ref_id_originale`, poi DELETE dalla ref), in modo atomico e idempotente
+(un ref già spostato non genera duplicati). I misuratori `fonte='manuale'` (senza `ref_id`) non hanno
+record da spostare — i loro dati sono già nella riga e poi nell'intervento esitato.
+
+### Pulizia manuale dei residui (modulo admin)
+
+Nel modulo *Estrazione misuratori*: filtri **via / civico / comune / import** sulla tabella di
+riferimento, con conteggio, ed eliminazione (con conferma) delle righe filtrate. Serve a rimuovere i
+misuratori mai lavorati di una via, a lavori ultimati.
+
+### Cosa si implementa adesso (collegato alla Fase 1)
+
+- **(a)** Tabella `risanamento_misuratori_archivio` nella migration della Fase 1 (ancora in coda).
+- **(b)** Filtri + eliminazione filtrata nel modulo admin (estende endpoint GET/DELETE e UI).
+- **Rimandato alla Fase 5:** la logica di spostamento dei lavorati alla chiusura.
+
+---
+
 ## Migration
 
 Tutte le modifiche di schema di questo progetto multi-fase vengono **accumulate e consegnate in un
@@ -142,6 +185,7 @@ Migration introdotte dalla Fase 1 (file nel repo):
 - `risanamento_misuratori_ref` (Sezione 1)
 - `rapportino_righe` (Sezione 2)
 - `rapportino_template.tipo`, `rapportini.tipo` (Sezione 3)
+- `risanamento_misuratori_archivio` (Sezione 4 — raffinamento; logica di spostamento in Fase 5)
 
 ---
 
