@@ -5,6 +5,8 @@ import { useCallback, useEffect, useState } from 'react';
 type ImportRow = { import_id: string; righe: number; caricato_at: string; indirizzo_campione: string | null };
 type Esito = { type: 'ok' | 'err'; msg: string } | null;
 
+const ENDPOINT = '/api/admin/risanamento/import-misuratori';
+
 export default function ImportMisuratoriClient() {
   const [lista, setLista] = useState<ImportRow[]>([]);
   const [file, setFile] = useState<File | null>(null);
@@ -12,8 +14,9 @@ export default function ImportMisuratoriClient() {
   const [esito, setEsito] = useState<Esito>(null);
 
   const carica = useCallback(async () => {
-    const res = await fetch('/api/admin/risanamento/import-misuratori');
+    const res = await fetch(ENDPOINT);
     if (res.ok) setLista((await res.json()) as ImportRow[]);
+    else setEsito({ type: 'err', msg: 'Impossibile caricare la lista (DB non ancora migrato?).' });
   }, []);
 
   useEffect(() => { void carica(); }, [carica]);
@@ -25,7 +28,7 @@ export default function ImportMisuratoriClient() {
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
-      const res = await fetch('/api/admin/risanamento/import-misuratori', { method: 'POST', body: fd });
+      const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) { setEsito({ type: 'err', msg: json.error ?? 'Import fallito.' }); return; }
       setEsito({ type: 'ok', msg: `Importati ${json.inseriti} misuratori (scartate ${json.scartate}).` });
@@ -42,7 +45,12 @@ export default function ImportMisuratoriClient() {
     if (!confirm('Eliminare questo import e tutti i suoi misuratori?')) return;
     setBusy(true);
     try {
-      await fetch(`/api/admin/risanamento/import-misuratori?import_id=${encodeURIComponent(importId)}`, { method: 'DELETE' });
+      const res = await fetch(`${ENDPOINT}?import_id=${encodeURIComponent(importId)}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const json = (await res.json().catch(() => ({}))) as { error?: string };
+        setEsito({ type: 'err', msg: json.error ?? 'Eliminazione fallita.' });
+        return;
+      }
       await carica();
     } finally {
       setBusy(false);
@@ -58,7 +66,11 @@ export default function ImportMisuratoriClient() {
         <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
           File Excel/CSV con colonne: Matricola (obbligatoria), PDR, Nominativo, Indirizzo, Civico, Comune, CAP.
         </p>
+        <label htmlFor="file-import" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+          File estrazione
+        </label>
         <input
+          id="file-import"
           type="file"
           accept=".xlsx,.xls,.csv"
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
