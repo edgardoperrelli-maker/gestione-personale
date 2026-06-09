@@ -6,13 +6,18 @@ import { parseFiltriRef, type FiltriRef } from '@/lib/risanamento/filtriRef';
 
 export const runtime = 'nodejs';
 
+/** Escapa i metacaratteri ilike (% _ \) così l'input utente non agisce da wildcard. */
+function escLike(v: string): string {
+  return v.replace(/[%_\\]/g, '\\$&');
+}
+
 /** Applica i filtri a una query builder Supabase su risanamento_misuratori_ref. */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function applica(q: any, f: FiltriRef): any {
   let out = q;
-  if (f.indirizzo) out = out.ilike('indirizzo', `%${f.indirizzo}%`);
+  if (f.indirizzo) out = out.ilike('indirizzo', `%${escLike(f.indirizzo)}%`);
   if (f.civico) out = out.eq('civico', f.civico);
-  if (f.comune) out = out.ilike('comune', `%${f.comune}%`);
+  if (f.comune) out = out.ilike('comune', `%${escLike(f.comune)}%`);
   if (f.import_id) out = out.eq('import_id', f.import_id);
   return out;
 }
@@ -38,8 +43,11 @@ export async function DELETE(req: Request) {
   if (f.vuoto) {
     return NextResponse.json({ error: 'Specifica almeno un filtro: la cancellazione totale non è ammessa.' }, { status: 400 });
   }
-  const base = supabaseAdmin.from('risanamento_misuratori_ref').delete({ count: 'exact' });
-  const { count, error } = await applica(base, f);
+  // Conta prima: count:'exact' su DELETE non è affidabile su tutti i setup PostgREST.
+  const head = supabaseAdmin.from('risanamento_misuratori_ref').select('id', { count: 'exact', head: true });
+  const { count: nMatch, error: eCount } = await applica(head, f);
+  if (eCount) return NextResponse.json({ error: eCount.message }, { status: 500 });
+  const { error } = await applica(supabaseAdmin.from('risanamento_misuratori_ref').delete(), f);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ eliminati: count ?? 0 });
+  return NextResponse.json({ eliminati: nMatch ?? 0 });
 }
