@@ -27,7 +27,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
   );
   const campiFoto = campiSnapshot.filter((c) => c.tipo === 'foto');
 
-  // Priorità nome foto: letta live dal template corrente. Template assente → default storico.
+  // Priorità nome foto: letta live dal template corrente. Template assente/cancellato o errore di lettura → default storico.
   let fotoPriority: FotoIdCampo[] = [];
   const templateId = (rap as { template_id?: string | null }).template_id;
   if (templateId) {
