@@ -25,6 +25,7 @@ export const InfoCampoSchema = z.object({
 
 export const TitoloCampiSchema = z.array(z.enum(INFO_CHIAVI)).default([]);
 
+// Deve specchiare FotoIdCampo in lib/interventi/manuali/fotoNaming.ts (enum inline, come INFO_CHIAVI).
 export const FotoIdPrioritySchema = z
   .array(z.enum(['pdr', 'matricola', 'odl', 'indirizzo']))
   .default([]);
