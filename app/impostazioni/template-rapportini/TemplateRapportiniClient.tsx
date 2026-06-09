@@ -662,7 +662,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                               value={campo.scope_foto ?? 'misuratore'}
                               onChange={(e) => {
                                 const scope = e.target.value as 'misuratore' | 'fase' | 'accessoria';
-                                updateCampo(idx, scope === 'accessoria' ? { scope_foto: scope, obbligatoria: false } : { scope_foto: scope });
+                                // Accessoria = sempre opzionale; uscendo riporta obbligatoria al neutro (undefined), non 'false' residuo.
+                                updateCampo(idx, scope === 'accessoria' ? { scope_foto: scope, obbligatoria: false } : { scope_foto: scope, obbligatoria: undefined });
                               }}
                               className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
                             >
