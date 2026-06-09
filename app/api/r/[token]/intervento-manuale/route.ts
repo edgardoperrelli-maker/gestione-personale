@@ -7,7 +7,7 @@ import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
-import { nomeFotoFile, identificativoFoto } from '@/lib/interventi/manuali/fotoNaming';
+import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
@@ -56,7 +56,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   const { data: templates } = await supabaseAdmin
     .from('rapportino_template')
-    .select('id, committente, is_default, active, campi, solo_manuale')
+    .select('id, committente, is_default, active, campi, solo_manuale, foto_id_priority')
     .eq('solo_manuale', true);
   const templateId = risolviTemplateCommittente(committente, (templates ?? []) as TemplateRow[]);
   if (!templateId) return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
@@ -94,6 +94,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     indirizzo: anagrafica.indirizzo as string | undefined,
   };
 
+  const fotoPriority = ((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[];
+
   // I2: check MIME server-side per ogni foto prima dell'upload.
   for (const [, f] of fileBySlot) {
     if (!f.type.startsWith('image/'))
@@ -119,7 +121,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     const ext = (f.name.split('.').pop() ?? 'jpg').toLowerCase();
     // I1: storage_path usa identificativoFoto, non l'UUID della richiesta.
-    const storagePath = `${richiestaId}/${c.chiave}_${identificativoFoto(ids)}.${ext}`;
+    const storagePath = `${richiestaId}/${c.chiave}_${identificativoFoto(ids, fotoPriority)}.${ext}`;
     const buf = Buffer.from(await f.arrayBuffer());
 
     const { error: upErr } = await supabaseAdmin.storage
@@ -139,7 +141,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       storagePath,
       chiave: c.chiave,
       etichetta: c.etichetta,
-      fileName: nomeFotoFile(c.etichetta, ids, ext),
+      fileName: nomeFotoFile(c.etichetta, ids, ext, fotoPriority),
       mimeType: f.type || 'image/jpeg',
       size: f.size,
     });

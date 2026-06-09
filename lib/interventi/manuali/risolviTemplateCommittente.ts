@@ -8,6 +8,7 @@ export type TemplateRow = {
   is_default: boolean;
   active: boolean;
   solo_manuale?: boolean | null;
+  foto_id_priority?: string[] | null;
 };
 
 export function risolviTemplateCommittente(
