@@ -14,6 +14,12 @@ import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/component
 import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 
+const SCOPE_FOTO: { v: 'misuratore' | 'fase' | 'accessoria'; label: string }[] = [
+  { v: 'misuratore', label: 'Misuratore (prima/dopo)' },
+  { v: 'fase', label: 'Fase lavorazione' },
+  { v: 'accessoria', label: 'Accessoria opzionale' },
+];
+
 type Committente = 'acea' | 'italgas' | 'altro';
 
 type Template = {
@@ -27,6 +33,7 @@ type Template = {
   is_default: boolean;
   active: boolean;
   solo_manuale?: boolean;
+  tipo?: 'standard' | 'risanamento';
 };
 
 type Props = { initial: Template[] };
@@ -67,6 +74,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<Committente | ''>('');
   const [soloManuale, setSoloManuale] = useState(false);
+  const [tipo, setTipo] = useState<'standard' | 'risanamento'>('standard');
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
@@ -93,6 +101,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome(tpl.nome);
     setCommittente(tpl.committente ?? '');
     setSoloManuale(tpl.solo_manuale ?? false);
+    setTipo(tpl.tipo ?? 'standard');
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
@@ -107,6 +116,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome('');
     setCommittente('');
     setSoloManuale(false);
+    setTipo('standard');
     setCampi([]);
     setInfoCampi([]);
     setTitoloCampi([]);
@@ -225,6 +235,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         nome: nome.trim(),
         committente: committente || null,
         solo_manuale: soloManuale,
+        tipo,
         campi: campi.map((c, i) => ({
           ...c,
           ordine: i + 1,
@@ -297,6 +308,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           nome: nome.trim(),
           committente: committente || null,
           solo_manuale: soloManuale,
+          tipo,
           campi: campi.map((c, i) => ({
             ...c,
             ordine: i + 1,
@@ -318,7 +330,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, soloManuale, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
+  }, [nome, committente, soloManuale, tipo, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
 
   // Nessun template selezionato all'apertura: l'utente sceglie a mano.
 
@@ -436,6 +448,15 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Associa il template a un committente per gli interventi manuali. &quot;Nessuno&quot; = template generico (Standard).
               </p>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo template</label>
+              <select
+                value={tipo}
+                onChange={(e) => setTipo(e.target.value as 'standard' | 'risanamento')}
+                className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+              >
+                <option value="standard">Standard</option>
+                <option value="risanamento">Risanamento colonne</option>
+              </select>
               <select
                 value={committente}
                 onChange={(e) => setCommittente(e.target.value as Committente | '')}
@@ -631,17 +652,36 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                       </div>
                     )}
 
-                    {/* Row 2b: flag obbligatoria (solo se tipo=foto) */}
+                    {/* Row 2b: scope + flag obbligatoria (solo se tipo=foto) */}
                     {campo.tipo === 'foto' && (
-                      <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-                        <input
-                          type="checkbox"
-                          checked={campo.obbligatoria === true}
-                          onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
-                          className="h-4 w-4 accent-[var(--brand-primary)]"
-                        />
-                        Foto obbligatoria
-                      </label>
+                      <div className="mb-3 space-y-2">
+                        {tipo === 'risanamento' && (
+                          <div>
+                            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Sezione foto</label>
+                            <select
+                              value={campo.scope_foto ?? 'misuratore'}
+                              onChange={(e) => {
+                                const scope = e.target.value as 'misuratore' | 'fase' | 'accessoria';
+                                updateCampo(idx, scope === 'accessoria' ? { scope_foto: scope, obbligatoria: false } : { scope_foto: scope });
+                              }}
+                              className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                            >
+                              {SCOPE_FOTO.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+                            </select>
+                          </div>
+                        )}
+                        {!(tipo === 'risanamento' && (campo.scope_foto ?? 'misuratore') === 'accessoria') && (
+                          <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                            <input
+                              type="checkbox"
+                              checked={campo.obbligatoria === true}
+                              onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
+                              className="h-4 w-4 accent-[var(--brand-primary)]"
+                            />
+                            Foto obbligatoria
+                          </label>
+                        )}
+                      </div>
                     )}
 
                     {/* Row 3: azioni */}
@@ -684,6 +724,24 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               >
                 ＋ Aggiungi campo
               </button>
+              {tipo === 'risanamento' && campi.some((c) => c.tipo === 'foto') && (
+                <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3 text-xs">
+                  <p className="mb-2 font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima sezioni foto</p>
+                  {SCOPE_FOTO.map((s) => {
+                    const slots = campi.filter((c) => c.tipo === 'foto' && (c.scope_foto ?? 'misuratore') === s.v);
+                    if (slots.length === 0) return null;
+                    return (
+                      <div key={s.v} className="mb-1">
+                        <span className="font-medium text-[var(--brand-text-main)]">{s.label}:</span>{' '}
+                        <span className="text-[var(--brand-text-muted)]">
+                          {slots.map((c) => `${c.etichetta || '(senza nome)'}${s.v !== 'accessoria' && c.obbligatoria ? ' *' : ''}`).join(', ')}
+                        </span>
+                      </div>
+                    );
+                  })}
+                  <p className="mt-1 text-[var(--brand-text-subtle)]">* obbligatoria</p>
+                </div>
+              )}
               <AnteprimaBox>
                 <VoceCampi campi={campi} voce={anteprimaVoce} disabilitato onChange={() => {}} />
               </AnteprimaBox>
