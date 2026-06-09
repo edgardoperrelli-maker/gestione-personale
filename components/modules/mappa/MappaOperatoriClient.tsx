@@ -682,7 +682,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
-  const [planningDate, setPlanningDate] = useState<string>(isoTomorrow());
+  const [planningDate, setPlanningDate] = useState<string>('');
   const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
   const [currentPianoId, setCurrentPianoId] = useState<string | undefined>(initialPianoId);
 
@@ -725,7 +725,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Setup modale per data e territorio all'apertura
   const [setupDone, setSetupDone] = useState(false);
-  const [setupModalDate, setSetupModalDate] = useState(isoTomorrow());
+  const [setupModalDate, setSetupModalDate] = useState('');
   const [setupModalTerritory, setSetupModalTerritory] = useState('');
   const todayIso = useMemo(
     () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
@@ -2357,7 +2357,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setShowOpPicker(false);
     setZtlConflicts([]);
     setTerritoryFilter('');
-    setPlanningDate(isoTomorrow());
+    setPlanningDate('');
+    setSetupModalDate('');
     setSetupDone(false);
   }, []);
 
