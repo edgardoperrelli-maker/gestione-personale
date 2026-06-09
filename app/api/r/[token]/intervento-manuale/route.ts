@@ -91,7 +91,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     pdr: anagrafica.pdr as string | undefined,
     matricola: anagrafica.matricola as string | undefined,
     odl: anagrafica.odl as string | undefined,
-    indirizzo: anagrafica.indirizzo as string | undefined,
+    indirizzo: anagrafica.via as string | undefined,
   };
 
   const fotoPriority = ((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[];
