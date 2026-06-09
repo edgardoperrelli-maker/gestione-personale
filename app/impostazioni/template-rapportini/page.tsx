@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 export default async function TemplateRapportiniPage() {
   const { data } = await supabaseAdmin
     .from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, is_default, active, solo_manuale')
+    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, is_default, active, solo_manuale')
     .order('is_default', { ascending: false })
     .order('nome');
 
