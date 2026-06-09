@@ -32,8 +32,8 @@ export const FOTO_ID_CAMPI: { chiave: FotoIdCampo; etichetta: string }[] = [
   { chiave: 'indirizzo', etichetta: 'Indirizzo' },
 ];
 
-/** Ordine storico, usato quando la priorità del template è vuota/assente. */
-export const FOTO_ID_PRIORITY_DEFAULT: FotoIdCampo[] = ['pdr', 'matricola', 'odl', 'indirizzo'];
+/** Ordine storico, usato quando la priorità del template è vuota/assente. `readonly`: fallback condiviso, non mutabile. */
+export const FOTO_ID_PRIORITY_DEFAULT: readonly FotoIdCampo[] = ['pdr', 'matricola', 'odl', 'indirizzo'];
 
 /**
  * Primo identificativo non vuoto secondo `priority`. Se `priority` è vuota o assente,

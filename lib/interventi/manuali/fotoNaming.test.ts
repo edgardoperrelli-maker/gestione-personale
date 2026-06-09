@@ -128,6 +128,11 @@ describe('costanti foto id', () => {
   });
 
   it('FOTO_ID_CAMPI elenca i 4 identificativi con etichetta', () => {
-    expect(FOTO_ID_CAMPI.map((c) => c.chiave)).toEqual(['pdr', 'matricola', 'odl', 'indirizzo']);
+    expect(FOTO_ID_CAMPI).toEqual([
+      { chiave: 'pdr', etichetta: 'PDR' },
+      { chiave: 'matricola', etichetta: 'Matricola' },
+      { chiave: 'odl', etichetta: 'ODS/ODL' },
+      { chiave: 'indirizzo', etichetta: 'Indirizzo' },
+    ]);
   });
 });
