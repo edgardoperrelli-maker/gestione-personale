@@ -21,7 +21,7 @@ async function requireAdmin(): Promise<true | NextResponse> {
 
 export async function GET() {
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, is_default, active, solo_manuale, created_at, updated_at')
+    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, is_default, active, solo_manuale, created_at, updated_at')
     .order('is_default', { ascending: false }).order('nome');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: parsed.data.nome, committente: parsed.data.committente ?? null, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false }).select('id').single();
+    .insert({ nome: parsed.data.nome, committente: parsed.data.committente ?? null, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false }).select('id').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id });
 }
@@ -44,7 +44,7 @@ export async function PATCH(req: Request) {
   const parsed = TemplateSchema.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
-  for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'active', 'solo_manuale'] as const) if (k in parsed.data) patch[k] = (parsed.data as any)[k];
+  for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'foto_id_priority', 'active', 'solo_manuale'] as const) if (k in parsed.data) patch[k] = (parsed.data as any)[k];
   const { error } = await supabaseAdmin.from('rapportino_template').update(patch).eq('id', body.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });

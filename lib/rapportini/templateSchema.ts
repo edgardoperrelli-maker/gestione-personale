@@ -25,12 +25,17 @@ export const InfoCampoSchema = z.object({
 
 export const TitoloCampiSchema = z.array(z.enum(INFO_CHIAVI)).default([]);
 
+export const FotoIdPrioritySchema = z
+  .array(z.enum(['pdr', 'matricola', 'odl', 'indirizzo']))
+  .default([]);
+
 export const TemplateSchema = z.object({
   nome: z.string().min(1),
   committente: z.enum(['acea', 'italgas', 'altro']).nullable().optional(),
   campi: z.array(CampoSchema).min(1),
   info_campi: z.array(InfoCampoSchema).default([]),
   titolo_campi: TitoloCampiSchema,
+  foto_id_priority: FotoIdPrioritySchema,
   active: z.boolean().optional().default(true),
   solo_manuale: z.boolean().optional().default(false),
 });
