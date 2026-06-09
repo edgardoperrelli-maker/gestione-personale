@@ -1,5 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { normalizzaAscii, nomeFotoFile, identificativoFoto } from './fotoNaming';
+import {
+  normalizzaAscii,
+  nomeFotoFile,
+  identificativoFoto,
+  FOTO_ID_CAMPI,
+  FOTO_ID_PRIORITY_DEFAULT,
+} from './fotoNaming';
 
 describe('normalizzaAscii', () => {
   it('rimuove accenti e spazi', () => {
@@ -66,5 +72,62 @@ describe('identificativoFoto', () => {
   it('fallback "intervento" se tutto vuoto', () => {
     expect(identificativoFoto({})).toBe('intervento');
     expect(identificativoFoto({ pdr: '', matricola: null })).toBe('intervento');
+  });
+});
+
+describe('identificativoFoto con priority', () => {
+  it('priority singola usa quel campo ignorando gli altri', () => {
+    expect(
+      identificativoFoto({ pdr: '12345', matricola: 'M99', odl: 'O77' }, ['odl']),
+    ).toBe('O77');
+  });
+
+  it('priority a sequenza: salta i vuoti e prende il primo valorizzato', () => {
+    expect(
+      identificativoFoto({ pdr: '', matricola: '', odl: 'O77', indirizzo: 'Via X' }, ['pdr', 'odl', 'indirizzo']),
+    ).toBe('O77');
+  });
+
+  it('priority vuota → ordine storico (PDR prima)', () => {
+    expect(
+      identificativoFoto({ pdr: '12345', matricola: 'M99' }, []),
+    ).toBe('12345');
+  });
+
+  it('priority indirizzo → indirizzo normalizzato', () => {
+    expect(
+      identificativoFoto({ matricola: 'M99', indirizzo: 'Via San Giovanni, 3' }, ['indirizzo']),
+    ).toBe('ViaSanGiovanni3');
+  });
+
+  it('priority valorizzata ma identificativi tutti vuoti → "intervento"', () => {
+    expect(identificativoFoto({ pdr: '', odl: '' }, ['pdr', 'odl'])).toBe('intervento');
+  });
+});
+
+describe('nomeFotoFile con priority', () => {
+  it('usa la priority per scegliere l\'identificativo (ODL prima del PDR)', () => {
+    const nome = nomeFotoFile(
+      'Foto contatore',
+      { pdr: '12345', odl: 'ODL 9001' },
+      'jpg',
+      ['odl', 'pdr'],
+    );
+    expect(nome).toBe('ODL9001_FotoContatore.jpg');
+  });
+
+  it('priority vuota → identico al comportamento storico', () => {
+    const nome = nomeFotoFile('Foto contatore', { pdr: '12345' }, 'jpg', []);
+    expect(nome).toBe('12345_FotoContatore.jpg');
+  });
+});
+
+describe('costanti foto id', () => {
+  it('FOTO_ID_PRIORITY_DEFAULT è l\'ordine storico', () => {
+    expect(FOTO_ID_PRIORITY_DEFAULT).toEqual(['pdr', 'matricola', 'odl', 'indirizzo']);
+  });
+
+  it('FOTO_ID_CAMPI elenca i 4 identificativi con etichetta', () => {
+    expect(FOTO_ID_CAMPI.map((c) => c.chiave)).toEqual(['pdr', 'matricola', 'odl', 'indirizzo']);
   });
 });

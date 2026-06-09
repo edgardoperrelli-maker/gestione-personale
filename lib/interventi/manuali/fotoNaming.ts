@@ -21,11 +21,31 @@ export function normalizzaAscii(input: string): string {
     .replace(/[^A-Za-z0-9]/g, '');            // rimuove tutto il non-alfanumerico residuo
 }
 
-/** Primo identificativo non vuoto, nell'ordine PDR → matricola → ODL → indirizzo. */
-export function identificativoFoto(ids: IdentificativiFoto): string {
-  const candidati = [ids.pdr, ids.matricola, ids.odl, ids.indirizzo];
-  for (const c of candidati) {
-    const norm = normalizzaAscii(String(c ?? '').trim());
+/** Le 4 chiavi identificativo selezionabili come priorità nome foto. */
+export type FotoIdCampo = 'pdr' | 'matricola' | 'odl' | 'indirizzo';
+
+/** Etichette UI dei 4 identificativi (unica fonte di verità per l'editor template). */
+export const FOTO_ID_CAMPI: { chiave: FotoIdCampo; etichetta: string }[] = [
+  { chiave: 'pdr', etichetta: 'PDR' },
+  { chiave: 'matricola', etichetta: 'Matricola' },
+  { chiave: 'odl', etichetta: 'ODS/ODL' },
+  { chiave: 'indirizzo', etichetta: 'Indirizzo' },
+];
+
+/** Ordine storico, usato quando la priorità del template è vuota/assente. */
+export const FOTO_ID_PRIORITY_DEFAULT: FotoIdCampo[] = ['pdr', 'matricola', 'odl', 'indirizzo'];
+
+/**
+ * Primo identificativo non vuoto secondo `priority`. Se `priority` è vuota o assente,
+ * usa l'ordine storico PDR → matricola → ODL → indirizzo. Fallback finale: "intervento".
+ */
+export function identificativoFoto(
+  ids: IdentificativiFoto,
+  priority?: FotoIdCampo[] | null,
+): string {
+  const ordine = priority && priority.length > 0 ? priority : FOTO_ID_PRIORITY_DEFAULT;
+  for (const chiave of ordine) {
+    const norm = normalizzaAscii(String(ids[chiave] ?? '').trim());
     if (norm) return norm;
   }
   return 'intervento';
@@ -33,7 +53,8 @@ export function identificativoFoto(ids: IdentificativiFoto): string {
 
 /**
  * Nome file logico della foto: `<identificativo>_<EtichettaSlotNormalizzata>.<ext>`.
- * - identificativo = primo non vuoto tra PDR → matricola → ODL → indirizzo (fallback "intervento");
+ * - identificativo = primo non vuoto secondo `priority` (default PDR → matricola → ODL → indirizzo,
+ *   fallback "intervento");
  * - etichetta normalizzata ASCII (fallback "foto" se vuota dopo normalizzazione);
  * - estensione in minuscolo, senza punto iniziale.
  * Esempio: ODL9001 + "Foto contatore" → "ODL9001_FotoContatore.jpg"
@@ -42,8 +63,9 @@ export function nomeFotoFile(
   etichettaSlot: string,
   ids: IdentificativiFoto,
   ext: string,
+  priority?: FotoIdCampo[] | null,
 ): string {
-  const id = identificativoFoto(ids);
+  const id = identificativoFoto(ids, priority);
   const base = normalizzaAscii(etichettaSlot) || 'foto';
   const estensione = String(ext ?? '').trim().replace(/^\./, '').toLowerCase() || 'jpg';
   return `${id}_${base}.${estensione}`;
