@@ -1,0 +1,68 @@
+import { describe, it, expect } from 'vitest';
+import { parseImportMisuratori } from './parseImportMisuratori';
+
+describe('parseImportMisuratori', () => {
+  const header = ['Indirizzo', 'Civico', 'Comune', 'CAP', 'PDR', 'Matricola', 'Nominativo'];
+
+  it('mappa le colonne e produce i record', () => {
+    const rows = [
+      header,
+      ['Via Mario Rossi', '24', 'Napoli', '80100', 'PDR1', 'MAT1', 'Mario Rossi'],
+      ['Via Mario Rossi', '24', 'Napoli', '80100', 'PDR2', 'MAT2', 'Anna Bianchi'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.totale).toBe(2);
+    expect(res.scartate).toBe(0);
+    expect(res.records).toEqual([
+      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR1', matricola: 'MAT1', nominativo: 'Mario Rossi' },
+      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR2', matricola: 'MAT2', nominativo: 'Anna Bianchi' },
+    ]);
+  });
+
+  it('scarta le righe senza matricola e le conta', () => {
+    const rows = [
+      header,
+      ['Via X', '1', 'Napoli', '', '', 'MATX', 'Tizio'],
+      ['Via Y', '2', 'Napoli', '', 'PDRY', '', 'Caio'], // niente matricola → scartata
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.totale).toBe(2);
+    expect(res.scartate).toBe(1);
+    expect(res.records).toHaveLength(1);
+    expect(res.records[0].matricola).toBe('MATX');
+  });
+
+  it('riconosce gli header indipendentemente da maiuscole/spazi/accenti', () => {
+    const rows = [
+      ['  MATRICOLA ', 'p.d.r.', 'Nominativo', 'VIA', 'N. Civico', 'Città', 'C.A.P.'],
+      ['MAT9', 'PDR9', 'Nome9', 'Via Z', '9', 'Napoli', '80120'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0]).toEqual({
+      matricola: 'MAT9', pdr: 'PDR9', nominativo: 'Nome9',
+      indirizzo: 'Via Z', civico: '9', comune: 'Napoli', cap: '80120',
+    });
+  });
+
+  it('campi opzionali assenti → stringa vuota', () => {
+    const rows = [
+      ['Matricola', 'Indirizzo', 'Civico'],
+      ['MAT1', 'Via A', '3'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0]).toEqual({
+      matricola: 'MAT1', indirizzo: 'Via A', civico: '3',
+      comune: '', cap: '', pdr: '', nominativo: '',
+    });
+  });
+
+  it('lancia se manca la colonna matricola', () => {
+    const rows = [['Indirizzo', 'Civico', 'PDR'], ['Via A', '1', 'PDR1']];
+    expect(() => parseImportMisuratori(rows)).toThrowError(/matricola/i);
+  });
+
+  it('file vuoto o solo header → nessun record', () => {
+    expect(parseImportMisuratori([]).records).toEqual([]);
+    expect(parseImportMisuratori([['Matricola']]).records).toEqual([]);
+  });
+});
