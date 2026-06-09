@@ -2,13 +2,13 @@
 
 import { useRichiesteManualiFeed } from '@/lib/interventi/manuali/useRichiesteManualiFeed';
 
-/** Campanello admin: badge realtime col numero di richieste manuali in attesa; apre la torre. */
+/** Campanello admin: badge realtime col numero di richieste manuali in attesa; apre la lista attesa. */
 export default function CampanelloRichieste() {
   const { count, live } = useRichiesteManualiFeed();
 
   return (
     <a
-      href="/hub/torre"
+      href="/hub/lista-attesa"
       aria-label={`Richieste manuali in attesa: ${count}`}
       title={live ? `${count} richieste in attesa` : `${count} richieste in attesa (offline)`}
       className="relative inline-flex h-9 w-9 items-center justify-center rounded-lg border transition hover:bg-[var(--brand-primary-soft)]"
