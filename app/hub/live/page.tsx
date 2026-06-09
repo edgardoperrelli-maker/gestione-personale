@@ -5,7 +5,7 @@ import { resolveUserRole } from '@/lib/moduleAccess';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 import LiveClient, { type TorreIntervento } from '@/components/modules/live/LiveClient';
-import { clampDataLive } from '@/lib/interventi/liveWindow';
+import { clampDataLive, minDataLive } from '@/lib/interventi/liveWindow';
 
 export const dynamic = 'force-dynamic';
 
@@ -56,6 +56,8 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   return (
     <LiveClient
       data={data}
+      minData={minDataLive(oggi)}
+      maxData={oggi}
       interventi={rows}
       operatori={operatori}
       territori={territori}

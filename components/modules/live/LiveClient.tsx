@@ -27,11 +27,15 @@ function oraEsito(iso: string): string {
 
 export default function LiveClient({
   data,
+  minData,
+  maxData,
   interventi,
   operatori,
   territori,
 }: {
   data: string;
+  minData: string;
+  maxData: string;
   interventi: TorreIntervento[];
   operatori: { id: string; display_name: string }[];
   territori: { id: string; name: string }[];
@@ -132,6 +136,8 @@ export default function LiveClient({
             type="date"
             value={data}
             onChange={(e) => e.target.value && router.push(`/hub/live?data=${e.target.value}`)}
+            min={minData}
+            max={maxData}
             className="rounded-xl border px-3 py-1.5 text-sm outline-none"
             style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
           />
