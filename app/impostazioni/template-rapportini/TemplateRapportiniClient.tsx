@@ -732,7 +732,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 </div>
 
                 <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
-                  <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file</p>
+                  <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
                   <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
                 </div>
               </div>
