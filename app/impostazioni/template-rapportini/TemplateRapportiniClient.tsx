@@ -1,6 +1,7 @@
 ﻿'use client';
 import { useEffect, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { nomeFotoFile, FOTO_ID_CAMPI, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import {
   INFO_CAMPI_DISPONIBILI,
   partitionInfoCampi,
@@ -22,6 +23,7 @@ type Template = {
   campi: TemplateCampo[];
   info_campi?: TemplateInfoCampo[];
   titolo_campi?: InfoChiave[];
+  foto_id_priority?: FotoIdCampo[];
   is_default: boolean;
   active: boolean;
   solo_manuale?: boolean;
@@ -68,6 +70,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
+  const [fotoIdPriority, setFotoIdPriority] = useState<FotoIdCampo[]>([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   // Stato auto-save per i template esistenti (i nuovi si creano con "Crea template").
@@ -93,6 +96,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
+    setFotoIdPriority(tpl.foto_id_priority ?? []);
   }
 
   function startNew() {
@@ -106,6 +110,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setCampi([]);
     setInfoCampi([]);
     setTitoloCampi([]);
+    setFotoIdPriority([]);
   }
 
   async function reloadTemplates() {
@@ -189,6 +194,22 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     });
   }
 
+  function toggleFotoId(chiave: FotoIdCampo) {
+    setFotoIdPriority((prev) =>
+      prev.includes(chiave) ? prev.filter((c) => c !== chiave) : [...prev, chiave],
+    );
+  }
+
+  function moveFotoId(idx: number, dir: -1 | 1) {
+    const next = idx + dir;
+    setFotoIdPriority((prev) => {
+      if (next < 0 || next >= prev.length) return prev;
+      const arr = [...prev];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return arr;
+    });
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
   async function handleSave() {
@@ -211,6 +232,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         })),
         info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
         titolo_campi: titoloCampi,
+        foto_id_priority: fotoIdPriority,
         active: true,
         ...(isNew ? {} : { id: selectedId }),
       };
@@ -282,6 +304,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           })),
           info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
           titolo_campi: titoloCampi,
+          foto_id_priority: fotoIdPriority,
           active: true,
         };
         const res = await fetch('/api/admin/rapportino-template', {
@@ -295,7 +318,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, soloManuale, campi, infoCampi, titoloCampi, isNew, selectedId]);
+  }, [nome, committente, soloManuale, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
 
   // Nessun template selezionato all'apertura: l'utente sceglie a mano.
 
@@ -314,6 +337,15 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     fascia: SAMPLE_VOCE_INFO.fascia_oraria,
     stato: 'da_fare',
   };
+
+  const haCampiFoto = campi.some((c) => c.tipo === 'foto');
+  const etichettaFotoEsempio = campi.find((c) => c.tipo === 'foto')?.etichetta?.trim() || 'Foto contatore';
+  const anteprimaNomeFoto = nomeFotoFile(
+    etichettaFotoEsempio,
+    { pdr: '12345', matricola: 'M-678', odl: 'ODL-900', indirizzo: 'Via Roma 1' },
+    'jpg',
+    fotoIdPriority,
+  );
 
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
@@ -656,6 +688,55 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <VoceCampi campi={campi} voce={anteprimaVoce} disabilitato onChange={() => {}} />
               </AnteprimaBox>
             </div>
+
+            {/* ── Priorità nome foto (solo se ci sono campi foto) ───────────────── */}
+            {haCampiFoto && (
+              <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+                <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Priorità nome foto</h3>
+                <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+                  Le foto vengono rinominate come <b>&lt;identificativo&gt;_&lt;tipo foto&gt;</b>. Scegli quale
+                  identificativo usare (il <b>primo non vuoto</b> della lista, in ordine).
+                  Lista vuota = ordine predefinito: PDR → Matricola → ODS/ODL → Indirizzo.
+                </p>
+
+                <div className="space-y-2">
+                  {fotoIdPriority.length === 0 && (
+                    <p className="text-xs text-[var(--brand-text-muted)]">
+                      Nessun identificativo selezionato: ordine predefinito (PDR → Matricola → ODS/ODL → Indirizzo).
+                    </p>
+                  )}
+                  {fotoIdPriority.map((chiave, idx) => {
+                    const def = FOTO_ID_CAMPI.find((d) => d.chiave === chiave);
+                    return (
+                      <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                        <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichetta ?? chiave}</span>
+                        <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{chiave}</span>
+                        <button type="button" onClick={() => moveFotoId(idx, -1)} disabled={idx === 0}
+                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                        <button type="button" onClick={() => moveFotoId(idx, 1)} disabled={idx === fotoIdPriority.length - 1}
+                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                        <button type="button" onClick={() => toggleFotoId(chiave)}
+                          className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-4 flex flex-wrap gap-2">
+                  {FOTO_ID_CAMPI.filter((d) => !fotoIdPriority.includes(d.chiave)).map((d) => (
+                    <button key={d.chiave} type="button" onClick={() => toggleFotoId(d.chiave)}
+                      className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                      ＋ {d.etichetta}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
+                  <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file</p>
+                  <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
+                </div>
+              </div>
+            )}
 
             {/* ── Azioni ────────────────────────────────────────────────────── */}
             <div className="flex items-center gap-3">
