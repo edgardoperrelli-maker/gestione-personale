@@ -6,6 +6,7 @@ type ImportRow = { import_id: string; righe: number; caricato_at: string; indiri
 type Esito = { type: 'ok' | 'err'; msg: string } | null;
 
 const ENDPOINT = '/api/admin/risanamento/import-misuratori';
+const REF_ENDPOINT = '/api/admin/risanamento/misuratori-ref';
 
 export default function ImportMisuratoriClient() {
   const [lista, setLista] = useState<ImportRow[]>([]);
@@ -26,6 +27,10 @@ export default function ImportMisuratoriClient() {
   }, []);
 
   useEffect(() => { void carica(); }, [carica]);
+
+  // Invalida il conteggio quando cambia un filtro: il bottone "Elimina N" sparisce finché
+  // non si ricerca di nuovo, così la DELETE non agisce su un perimetro diverso da quello mostrato.
+  useEffect(() => { setRefCount(null); setRefSample([]); }, [fIndirizzo, fCivico, fComune, fImport]);
 
   const importa = async () => {
     if (!file) return;
@@ -63,8 +68,12 @@ export default function ImportMisuratoriClient() {
   const cercaRef = async () => {
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/risanamento/misuratori-ref?${queryRef().toString()}`);
-      if (!res.ok) { setEsito({ type: 'err', msg: 'Ricerca fallita.' }); return; }
+      const res = await fetch(`${REF_ENDPOINT}?${queryRef().toString()}`);
+      if (!res.ok) {
+        const err = (await res.json().catch(() => ({}))) as { error?: string };
+        setEsito({ type: 'err', msg: err.error ?? 'Ricerca fallita.' });
+        return;
+      }
       const json = (await res.json()) as { count: number; sample: typeof refSample };
       setRefCount(json.count);
       setRefSample(json.sample);
@@ -77,7 +86,7 @@ export default function ImportMisuratoriClient() {
     if (!confirm(`Eliminare ${refCount ?? '?'} righe di riferimento corrispondenti ai filtri?`)) return;
     setBusy(true);
     try {
-      const res = await fetch(`/api/admin/risanamento/misuratori-ref?${p.toString()}`, { method: 'DELETE' });
+      const res = await fetch(`${REF_ENDPOINT}?${p.toString()}`, { method: 'DELETE' });
       const json = await res.json();
       if (!res.ok) { setEsito({ type: 'err', msg: json.error ?? 'Eliminazione fallita.' }); return; }
       setEsito({ type: 'ok', msg: `Eliminate ${json.eliminati} righe di riferimento.` });
