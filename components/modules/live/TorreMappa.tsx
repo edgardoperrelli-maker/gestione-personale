@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react';
 import type * as Leaflet from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { coloreStato, type TonoTorre } from '@/lib/interventi/torreView';
-import type { TorreIntervento } from './TorreControlloClient';
+import type { TorreIntervento } from './LiveClient';
 
 const DOT: Record<TonoTorre, string> = {
   ok: '#22c55e',

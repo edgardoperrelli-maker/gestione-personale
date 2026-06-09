@@ -165,7 +165,7 @@ export default async function DashboardPage() {
                 Live
               </div>
               <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-                Stato avanzamento interventi in tempo reale · mappa colorata e board per operatore
+                Interventi del giorno in tempo reale · mappa e board per operatore
               </div>
             </div>
           </div>
