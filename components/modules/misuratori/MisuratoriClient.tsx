@@ -82,13 +82,18 @@ export default function MisuratoriClient() {
     setSyncing(true);
     try {
       const res = await fetch('/api/misuratori/sync', { method: 'POST' });
-      const json = await res.json() as { ok?: boolean; inseriti?: number; error?: string };
+      const json = await res.json() as { ok?: boolean; inseriti?: number; rimossi?: number; error?: string };
       if (json.ok) {
         await fetchData(filters);
-        if (json.inseriti && json.inseriti > 0) {
-          alert(`Sincronizzazione completata: ${json.inseriti} nuovi misuratori aggiunti.`);
+        const inseriti = json.inseriti ?? 0;
+        const rimossi  = json.rimossi  ?? 0;
+        if (inseriti > 0 || rimossi > 0) {
+          const parti: string[] = [];
+          if (inseriti > 0) parti.push(`${inseriti} aggiunti`);
+          if (rimossi > 0)  parti.push(`${rimossi} rimossi (non più validi)`);
+          alert(`Ricalcolo completato: ${parti.join(', ')}.`);
         } else {
-          alert('Nessun nuovo misuratore da sincronizzare.');
+          alert('Nessuna modifica: registro già allineato.');
         }
       } else {
         alert(`Errore sync: ${json.error}`);
