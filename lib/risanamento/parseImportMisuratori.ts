@@ -11,7 +11,7 @@ export type MisuratoreRefInput = {
 
 export type ParseResult = {
   records: MisuratoreRefInput[];
-  totale: number;   // righe dati lette (escluso header)
+  totale: number;   // righe dati non vuote (escluso header); = records.length + scartate
   scartate: number; // righe senza matricola
 };
 
@@ -21,11 +21,11 @@ type Campo = keyof MisuratoreRefInput;
 const PATTERN: Record<Campo, RegExp> = {
   matricola: /matricola|matr/,
   pdr: /pdr|puntodiriconsegna|puntoriconsegna/,
-  nominativo: /nominativo|intestatario|cliente|nome/,
-  indirizzo: /indirizzo|via|odonimo|toponimo/,
+  nominativo: /nominativo|intestatario|cliente|^nome/,
+  indirizzo: /indirizzo|^via$|odonimo|toponimo/,
   civico: /civico|nciv|numciv/,
   comune: /comune|citta|localita/,
-  cap: /^cap$|^c.?a.?p/,
+  cap: /^cap$|^c\.?a\.?p/,
 };
 
 /** Normalizza un'intestazione: minuscolo, senza accenti/diacritici, senza non-alfanumerici. */

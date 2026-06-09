@@ -65,4 +65,11 @@ describe('parseImportMisuratori', () => {
     expect(parseImportMisuratori([]).records).toEqual([]);
     expect(parseImportMisuratori([['Matricola']]).records).toEqual([]);
   });
+
+  it('converte valori numerici (da Excel) in stringa', () => {
+    const rows = [['Matricola', 'CAP'], [12345678, 80100]];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].matricola).toBe('12345678');
+    expect(res.records[0].cap).toBe('80100');
+  });
 });
