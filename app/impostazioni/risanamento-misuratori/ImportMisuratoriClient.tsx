@@ -12,6 +12,12 @@ export default function ImportMisuratoriClient() {
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [esito, setEsito] = useState<Esito>(null);
+  const [fIndirizzo, setFIndirizzo] = useState('');
+  const [fCivico, setFCivico] = useState('');
+  const [fComune, setFComune] = useState('');
+  const [fImport, setFImport] = useState('');
+  const [refCount, setRefCount] = useState<number | null>(null);
+  const [refSample, setRefSample] = useState<Array<{ id: number; matricola: string; indirizzo: string; civico: string; comune: string }>>([]);
 
   const carica = useCallback(async () => {
     const res = await fetch(ENDPOINT);
@@ -43,6 +49,41 @@ export default function ImportMisuratoriClient() {
     } finally {
       setBusy(false);
     }
+  };
+
+  const queryRef = () => {
+    const p = new URLSearchParams();
+    if (fIndirizzo.trim()) p.set('indirizzo', fIndirizzo.trim());
+    if (fCivico.trim()) p.set('civico', fCivico.trim());
+    if (fComune.trim()) p.set('comune', fComune.trim());
+    if (fImport) p.set('import_id', fImport);
+    return p;
+  };
+
+  const cercaRef = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/risanamento/misuratori-ref?${queryRef().toString()}`);
+      if (!res.ok) { setEsito({ type: 'err', msg: 'Ricerca fallita.' }); return; }
+      const json = (await res.json()) as { count: number; sample: typeof refSample };
+      setRefCount(json.count);
+      setRefSample(json.sample);
+    } finally { setBusy(false); }
+  };
+
+  const eliminaRef = async () => {
+    const p = queryRef();
+    if ([...p.keys()].length === 0) { setEsito({ type: 'err', msg: 'Imposta almeno un filtro prima di eliminare.' }); return; }
+    if (!confirm(`Eliminare ${refCount ?? '?'} righe di riferimento corrispondenti ai filtri?`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`/api/admin/risanamento/misuratori-ref?${p.toString()}`, { method: 'DELETE' });
+      const json = await res.json();
+      if (!res.ok) { setEsito({ type: 'err', msg: json.error ?? 'Eliminazione fallita.' }); return; }
+      setEsito({ type: 'ok', msg: `Eliminate ${json.eliminati} righe di riferimento.` });
+      setRefCount(null); setRefSample([]);
+      await carica();
+    } finally { setBusy(false); }
   };
 
   const elimina = async (importId: string) => {
@@ -118,6 +159,48 @@ export default function ImportMisuratoriClient() {
                   Elimina
                 </button>
               </li>
+            ))}
+          </ul>
+        )}
+      </div>
+
+      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+        <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Pulizia righe di riferimento</h2>
+        <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+          A lavori ultimati in una via, elimina i misuratori mai lavorati. Imposta almeno un filtro.
+        </p>
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+          <input value={fIndirizzo} onChange={(e) => setFIndirizzo(e.target.value)} placeholder="Via"
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Via" />
+          <input value={fCivico} onChange={(e) => setFCivico(e.target.value)} placeholder="Civico"
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Civico" />
+          <input value={fComune} onChange={(e) => setFComune(e.target.value)} placeholder="Comune"
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Comune" />
+          <select value={fImport} onChange={(e) => setFImport(e.target.value)}
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Import">
+            <option value="">Tutti gli import</option>
+            {lista.map((imp) => <option key={imp.import_id} value={imp.import_id}>{imp.righe} · {new Date(imp.caricato_at).toLocaleDateString('it-IT')}</option>)}
+          </select>
+        </div>
+        <div className="mt-3 flex items-center gap-2">
+          <button type="button" disabled={busy} onClick={cercaRef}
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50">
+            Cerca
+          </button>
+          {refCount !== null && (
+            <>
+              <span className="text-xs text-[var(--brand-text-muted)]">{refCount} corrispondenti</span>
+              <button type="button" disabled={busy || refCount === 0} onClick={eliminaRef}
+                className="rounded-lg border border-[var(--danger)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50">
+                Elimina {refCount}
+              </button>
+            </>
+          )}
+        </div>
+        {refSample.length > 0 && (
+          <ul className="mt-3 max-h-40 space-y-1 overflow-auto text-xs text-[var(--brand-text-muted)]">
+            {refSample.map((r) => (
+              <li key={r.id}>{r.matricola} · {r.indirizzo} {r.civico} {r.comune}</li>
             ))}
           </ul>
         )}
