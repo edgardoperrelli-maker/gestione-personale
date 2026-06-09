@@ -6,6 +6,7 @@ import dynamic from 'next/dynamic';
 import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili, rigaDettaglio, ordinaPerChiusura, SENTINELLA_NON_ASSEGNATI, type TonoTorre } from '@/lib/interventi/torreView';
 import { labelStato } from '@/lib/interventi/interventiView';
 import { useInterventiFeed, type TorreIntervento } from '@/lib/interventi/useInterventiFeed';
+import { EsportaExcelButton } from './EsportaExcelButton';
 
 export type { TorreIntervento };
 
@@ -161,6 +162,7 @@ export default function LiveClient({
           >
             {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
           </button>
+          <EsportaExcelButton defaultData={data} selStaff={selStaff} selTerr={selTerr} filtroStato={filtroStato} />
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
             style={{
