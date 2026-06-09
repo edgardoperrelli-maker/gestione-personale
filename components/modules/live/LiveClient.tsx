@@ -162,7 +162,7 @@ export default function LiveClient({
           >
             {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
           </button>
-          <EsportaExcelButton defaultData={data} selStaff={selStaff} selTerr={selTerr} filtroStato={filtroStato} />
+          <EsportaExcelButton defaultData={data} maxData={maxData} selStaff={selStaff} selTerr={selTerr} filtroStato={filtroStato} />
           <span
             className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
             style={{

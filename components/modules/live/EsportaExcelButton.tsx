@@ -9,11 +9,13 @@ import type { FiltroStatoLive } from '@/lib/interventi/exportFiltro';
  */
 export function EsportaExcelButton({
   defaultData,
+  maxData,
   selStaff,
   selTerr,
   filtroStato,
 }: {
   defaultData: string;
+  maxData: string;
   selStaff: string | null;
   selTerr: string | null;
   filtroStato: FiltroStatoLive;
@@ -53,7 +55,7 @@ export function EsportaExcelButton({
           </label>
           <label className="flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
             Al
-            <input type="date" value={to} min={from} onChange={(e) => setTo(e.target.value)}
+            <input type="date" value={to} min={from} max={maxData} onChange={(e) => setTo(e.target.value)}
               className="rounded-lg border px-2 py-1 text-sm" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }} />
           </label>
           <button
