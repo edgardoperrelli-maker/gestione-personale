@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
-import { nomeFotoFile } from '@/lib/interventi/manuali/fotoNaming';
+import { nomeFotoFile, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -16,7 +16,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
   // ── 1. Rapportino (serve campi_snapshot per individuare campi tipo='foto') ──────
   const { data: rap, error: rapErr } = await supabaseAdmin
     .from('rapportini')
-    .select('id, campi_snapshot')
+    .select('id, campi_snapshot, template_id')
     .eq('id', rapportinoId)
     .maybeSingle();
   if (rapErr) return NextResponse.json({ error: rapErr.message }, { status: 500 });
@@ -26,6 +26,18 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
     (a, b) => a.ordine - b.ordine,
   );
   const campiFoto = campiSnapshot.filter((c) => c.tipo === 'foto');
+
+  // Priorità nome foto: letta live dal template corrente. Template assente → default storico.
+  let fotoPriority: FotoIdCampo[] = [];
+  const templateId = (rap as { template_id?: string | null }).template_id;
+  if (templateId) {
+    const { data: tpl } = await supabaseAdmin
+      .from('rapportino_template')
+      .select('foto_id_priority')
+      .eq('id', templateId)
+      .maybeSingle();
+    fotoPriority = ((tpl?.foto_id_priority ?? []) as FotoIdCampo[]);
+  }
 
   // ── 2. Fonte A: foto da interventi manuali (tabella interventi_manuali_foto) ───
   const fotoManuali: FotoZip[] = [];
@@ -72,7 +84,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
         const storagePath = (v.risposte ?? {})[campo.chiave];
         if (typeof storagePath !== 'string' || !storagePath) continue;
         const ext = storagePath.split('.').pop() ?? 'jpg';
-        const fileName = nomeFotoFile(campo.etichetta, ids, ext);
+        const fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
         // richiesta_id = voce id (usato da buildZipEntries per sottocartelle su collisione)
         fotoVoci.push({ richiesta_id: v.id, storage_path: storagePath, file_name: fileName });
       }
