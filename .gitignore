@@ -7,3 +7,6 @@
 .worktrees
 .claude/worktrees/
 .superpowers/
+
+# Cache incrementale di TypeScript (rigenerata da tsc / next build)
+tsconfig.tsbuildinfo
