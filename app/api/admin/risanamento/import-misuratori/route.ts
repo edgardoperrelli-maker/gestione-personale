@@ -25,12 +25,22 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Formato non supportato (usa .xlsx, .xls o .csv).' }, { status: 400 });
   }
 
+  // Endpoint admin a basso traffico: il file viene letto interamente in memoria.
+  // Volume atteso poche migliaia di righe (qualche MB); se in futuro cresce, valutare un limite esplicito.
   let rows: unknown[][];
   try {
-    const wb = name.endsWith('.csv')
-      ? XLSX.read(await file.text(), { type: 'string' })
-      : XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]];
+    let wb: XLSX.WorkBook;
+    if (name.endsWith('.csv')) {
+      const text = (await file.text()).replace(/^﻿/, ''); // strip BOM
+      // I CSV dei gestionali italiani usano spesso ';' come separatore.
+      const fs = /;/.test(text.split(/\r?\n/)[0] ?? '') ? ';' : ',';
+      wb = XLSX.read(text, { type: 'string', FS: fs });
+    } else {
+      wb = XLSX.read(new Uint8Array(await file.arrayBuffer()), { type: 'array' });
+    }
+    const sheetName = wb.SheetNames[0];
+    const ws = sheetName ? wb.Sheets[sheetName] : undefined;
+    if (!ws) return NextResponse.json({ error: 'File vuoto o privo di fogli.' }, { status: 422 });
     rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '', raw: false, blankrows: false });
   } catch {
     return NextResponse.json({ error: 'Impossibile leggere il file.' }, { status: 400 });
@@ -49,17 +59,22 @@ export async function POST(req: Request) {
   const importId = randomUUID();
   const payload = parsed.records.map((r: MisuratoreRefInput) => ({ ...r, import_id: importId }));
 
+  // Insert non atomico tra batch: se un batch fallisce, i precedenti restano committati.
+  // Accettabile per un import admin in Fase 1; riportiamo `inseriti_parziali` per visibilita.
+  let inseriti = 0;
   for (let i = 0; i < payload.length; i += BATCH) {
+    const chunk = payload.slice(i, i + BATCH);
     const { error } = await supabaseAdmin
       .from('risanamento_misuratori_ref')
-      .insert(payload.slice(i, i + BATCH));
-    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      .insert(chunk);
+    if (error) return NextResponse.json({ error: error.message, inseriti_parziali: inseriti }, { status: 500 });
+    inseriti += chunk.length;
   }
 
   return NextResponse.json({
     success: true,
     import_id: importId,
-    inseriti: parsed.records.length,
+    inseriti,
     totale: parsed.totale,
     scartate: parsed.scartate,
   });
