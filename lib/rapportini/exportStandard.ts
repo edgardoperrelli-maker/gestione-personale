@@ -3,7 +3,7 @@ import path from 'path';
 import { readFile } from 'fs/promises';
 import ExcelJS from 'exceljs';
 import { resolveInfoCampi, valoreInfo, coordinateFromRaw, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
-import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { campiEsportabili, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { colonneVisibili, type VoceColonne } from '@/utils/rapportini/colonneVisibili';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 
@@ -88,7 +88,7 @@ export async function buildRapportinoXlsx(
   const vociC = voci.map((v) => ({ ...v, coordinate: coordinateFromRaw(v.raw_json) }));
   const info = resolveInfoCampi((rapportino.info_snapshot ?? []) as TemplateInfoCampo[]);
   const campi = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
-  const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const campiOrd = campiEsportabili(campi).sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   const { info: infoVis, campi: campiVis } = vociC.length > 0
     ? colonneVisibili(info, campiOrd, vociC as unknown as VoceColonne[])
     : { info, campi: campiOrd };

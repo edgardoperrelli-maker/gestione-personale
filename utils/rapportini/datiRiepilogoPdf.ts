@@ -1,7 +1,7 @@
 // utils/rapportini/datiRiepilogoPdf.ts
 import { riepilogoRapportino, statoVoce } from './riepilogo';
 import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
-import type { TemplateCampo } from './buildVoci';
+import { campiEsportabili, type TemplateCampo } from './buildVoci';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
@@ -74,7 +74,7 @@ export function costruisciDatiPdf(params: {
   // Stesse colonne del rapportino digitale/Excel:
   // anagrafica scelta nel template (info_snapshot) + campi compilabili (campi_snapshot).
   const info = resolveInfoCampi(infoCampi);
-  const campiOrd = [...campi].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  const campiOrd = campiEsportabili(campi).sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   const colonne: ColonnaPdf[] = [
     ...info.map((c) => ({ etichetta: c.etichetta, crocetta: false })),
     ...campiOrd.map((c) => ({ etichetta: c.etichetta, crocetta: c.tipo === 'crocetta' })),

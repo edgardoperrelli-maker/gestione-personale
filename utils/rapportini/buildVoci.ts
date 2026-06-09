@@ -5,6 +5,11 @@ export interface TemplateCampo {
   obbligatoria?: boolean; // usato dai campi tipo 'foto': slot obbligatorio o facoltativo
   ordine: number;
 }
+
+/** Campi mostrati negli export tabellari (PDF/Excel): esclude i campi 'foto' (allegati, non impaginabili in tabella). */
+export function campiEsportabili(campi: TemplateCampo[]): TemplateCampo[] {
+  return campi.filter((c) => c.tipo !== 'foto');
+}
 export interface VoceSnapshot {
   task_id: string; ordine: number;
   nominativo?: string; matricola?: string; pdr?: string; odl?: string;

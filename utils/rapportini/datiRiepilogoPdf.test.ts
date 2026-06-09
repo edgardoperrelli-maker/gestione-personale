@@ -1,7 +1,7 @@
 // utils/rapportini/datiRiepilogoPdf.test.ts
 import { describe, it, expect } from 'vitest';
 import { costruisciDatiPdf, valoreCampo } from './datiRiepilogoPdf';
-import type { TemplateCampo } from './buildVoci';
+import { campiEsportabili, type TemplateCampo } from './buildVoci';
 import type { TemplateInfoCampo } from './infoCampi';
 
 // Template tipo ACEA: una crocetta + un select (saracinesca SI/NO) + assente + note.
@@ -10,6 +10,7 @@ const campi: TemplateCampo[] = [
   { chiave: 'saracinesca', etichetta: 'SOST. SARACINESCA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 2 },
   { chiave: 'assente', etichetta: 'Cliente assente', tipo: 'crocetta', ordine: 3 },
   { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 4 },
+  { chiave: 'foto_contatore', etichetta: 'FOTO CONTATORE', tipo: 'foto', obbligatoria: true, ordine: 5 },
 ];
 
 // Template SENZA pdr, CON odl → la colonna PDR non deve comparire, ODS/ODL sì.
@@ -32,9 +33,15 @@ describe('valoreCampo', () => {
   });
 });
 
+describe('campiEsportabili', () => {
+  it('esclude i campi foto dagli export', () => {
+    expect(campiEsportabili(campi).map((c) => c.chiave)).toEqual(['cambio', 'saracinesca', 'assente', 'note']);
+  });
+});
+
 describe('costruisciDatiPdf', () => {
   const voci = [
-    { nominativo: 'Esposito Anna', odl: 'ODL-100', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', risposte: { cambio: true, saracinesca: 'SI' } },
+    { nominativo: 'Esposito Anna', odl: 'ODL-100', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', risposte: { cambio: true, saracinesca: 'SI', foto_contatore: 'https://x/p.jpg' } },
     { nominativo: 'Russo Luigi', odl: 'ODL-200', pdr: '222', via: 'Via Chiaia 12', comune: 'Napoli', risposte: { saracinesca: 'SI' } },
     { nominativo: 'Conte Rosa', odl: 'ODL-300', pdr: '333', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true } },
     { nominativo: 'Gallo Sara', odl: 'ODL-400', pdr: '444', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { saracinesca: 'NO', note: 'Valvola bloccata' } },
@@ -50,11 +57,12 @@ describe('costruisciDatiPdf', () => {
       { etichetta: 'SOST. SARACINESCA', count: 2 },
     ]);
   });
-  it('colonne = info del template + campi; niente PDR, presente ODS/ODL', () => {
+  it('colonne = info del template + campi; niente PDR, presente ODS/ODL, niente colonne FOTO', () => {
     expect(dati.colonne.map((c) => c.etichetta)).toEqual([
       'NOMINATIVO', 'ODS/ODL', 'VIA', 'COMUNE', 'CAMBIO', 'SOST. SARACINESCA', 'Cliente assente', 'Note',
     ]);
     expect(dati.colonne.map((c) => c.etichetta)).not.toContain('PDR');
+    expect(dati.colonne.map((c) => c.etichetta)).not.toContain('FOTO CONTATORE');
   });
   it('valori riga allineati alle colonne (info poi campi)', () => {
     expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'X', 'SI', '', '']);
