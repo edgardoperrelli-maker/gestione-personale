@@ -12,10 +12,30 @@ const eseguito: TemplateCampo[] = [
 ];
 
 describe('voceEsitoColore', () => {
-  it('crocetta ASSENTE → rossa', () => { expect(voceEsitoColore({ assente: true }, standard)).toBe('rossa'); });
-  it('crocetta positiva → verde', () => { expect(voceEsitoColore({ att_cess: true }, standard)).toBe('verde'); });
-  it('ASSENTE ha priorità sul positivo', () => { expect(voceEsitoColore({ att_cess: true, assente: true }, standard)).toBe('rossa'); });
-  it('select NO → rossa, SI → verde', () => {
+  // Esito negativo SENZA note → neutro (note obbligatorie con esito negativo)
+  it('crocetta ASSENTE senza note → neutro (note obbligatorie)', () => {
+    expect(voceEsitoColore({ assente: true }, standard)).toBe('neutro');
+  });
+  // Esito negativo CON note → rossa
+  it('crocetta ASSENTE + note compilate → rossa', () => {
+    expect(voceEsitoColore({ assente: true, note: 'cliente non trovato' }, standard)).toBe('rossa');
+  });
+  // Esito positivo → verde, le note non contano
+  it('crocetta positiva senza note → verde (note facoltative)', () => {
+    expect(voceEsitoColore({ att_cess: true }, standard)).toBe('verde');
+  });
+  it('crocetta positiva con note → verde', () => {
+    expect(voceEsitoColore({ att_cess: true, note: 'ok' }, standard)).toBe('verde');
+  });
+  // Esito negativo ha priorità sul positivo
+  it('ASSENTE ha priorità sul positivo, ma senza note → neutro', () => {
+    expect(voceEsitoColore({ att_cess: true, assente: true }, standard)).toBe('neutro');
+  });
+  it('ASSENTE ha priorità sul positivo, con note → rossa', () => {
+    expect(voceEsitoColore({ att_cess: true, assente: true, note: 'assente al campanello' }, standard)).toBe('rossa');
+  });
+  it('select NO → rossa (template senza note), SI → verde', () => {
+    // Template senza campi note → noteCompilate() = true → esito negativo accettato
     expect(voceEsitoColore({ eseguito: 'NO' }, eseguito)).toBe('rossa');
     expect(voceEsitoColore({ eseguito: 'SI' }, eseguito)).toBe('verde');
   });
