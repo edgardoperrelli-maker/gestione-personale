@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { ymdLocal } from '@/utils/date-it';
 
 export const runtime = 'nodejs';
 
@@ -11,13 +12,13 @@ export async function POST() {
   // 1. Interventi che QUALIFICANO oggi come rimozione misuratore ACEA positiva.
   //    NB: la matricola NON è filtrata qui. L'hook di invio inserisce basandosi su
   //    rapportino_voci.matricola (dato compilato dall'operatore), che è una colonna
-  //    DIVERSA da interventi.matricola_contatore: filtrare su quest'ultima
-  //    rimuoverebbe record legittimi. La matricola è già garantita non nulla sui
-  //    record esistenti (vincolo NOT NULL) e viene ri-controllata su voci.matricola
-  //    nel solo ramo di inserimento.
+  //    DIVERSA da interventi.matricola_contatore: filtrarla rimuoverebbe record
+  //    legittimi. La matricola è già garantita non nulla sui record esistenti
+  //    (vincolo NOT NULL) e viene ri-controllata su voci.matricola nel solo
+  //    ramo di inserimento.
   const { data: interventi, error: errInt } = await supabaseAdmin
     .from('interventi')
-    .select('id, data')
+    .select('id, data, chiuso_at')
     .eq('committente', 'acea')
     .ilike('intervento_tipo', '%rimozione%')
     .eq('esito', 'eseguito_positivo');
@@ -25,10 +26,16 @@ export async function POST() {
 
   const qualifyingIds = new Set((interventi ?? []).map(i => i.id));
 
-  // 2. Record già presenti in tabella (id, intervento, stato).
+  // Data ESECUZIONE = momento reale di chiusura (chiuso_at) in fuso Europe/Rome.
+  // Fallback alla data pianificata dell'intervento se chiuso_at è assente.
+  const execDateMap = new Map(
+    (interventi ?? []).map(i => [i.id, i.chiuso_at ? ymdLocal(new Date(i.chiuso_at)) : i.data]),
+  );
+
+  // 2. Record già presenti in tabella.
   const { data: existing, error: errExist } = await supabaseAdmin
     .from('misuratori_rimossi')
-    .select('id, intervento_id, stato');
+    .select('id, intervento_id, stato, data_esecuzione');
   if (errExist) return NextResponse.json({ error: errExist.message }, { status: 500 });
 
   const existingIds = new Set((existing ?? []).map(r => r.intervento_id).filter(Boolean));
@@ -55,12 +62,43 @@ export async function POST() {
     }
   }
 
+  // 3b. CORREZIONE DATA: record (in QUALSIASI stato) il cui intervento qualifica ma
+  //     la cui data_esecuzione registrata diverge da quella reale (chiuso_at).
+  //     A differenza della rimozione, correggere la data è solo un fix di un campo
+  //     descrittivo: non altera il flusso logistico, quindi si applica anche agli
+  //     stati avanzati. Aggiornamento batch per data target (poche date distinte).
+  const daAggiornare = (existing ?? []).filter(r =>
+    r.intervento_id &&
+    qualifyingIds.has(r.intervento_id) &&
+    execDateMap.get(r.intervento_id) &&
+    r.data_esecuzione !== execDateMap.get(r.intervento_id),
+  );
+  let aggiornati = 0;
+  if (daAggiornare.length > 0) {
+    const idsByDate = new Map<string, string[]>();
+    for (const r of daAggiornare) {
+      const target = execDateMap.get(r.intervento_id)!;
+      const bucket = idsByDate.get(target) ?? [];
+      bucket.push(r.id);
+      idsByDate.set(target, bucket);
+    }
+    for (const [date, ids] of idsByDate) {
+      const { data: updated, error: errUpd } = await supabaseAdmin
+        .from('misuratori_rimossi')
+        .update({ data_esecuzione: date })
+        .in('id', ids)
+        .select('id');
+      if (errUpd) return NextResponse.json({ error: errUpd.message }, { status: 500 });
+      aggiornati += updated?.length ?? 0;
+    }
+  }
+
   // 4. INSERIMENTO: interventi qualificanti non ancora registrati.
   const nuoviIds = (interventi ?? [])
     .map(i => i.id)
     .filter(id => !existingIds.has(id));
 
-  if (nuoviIds.length === 0) return NextResponse.json({ ok: true, inseriti: 0, rimossi });
+  if (nuoviIds.length === 0) return NextResponse.json({ ok: true, inseriti: 0, rimossi, aggiornati });
 
   // 5. Recupera dati voce per questi interventi.
   const { data: voci, error: errVoci } = await supabaseAdmin
@@ -77,7 +115,6 @@ export async function POST() {
     .in('id', rapIds);
 
   const rapMap = Object.fromEntries((rapportini ?? []).map(r => [r.id, r.staff_name]));
-  const intDataMap = Object.fromEntries((interventi ?? []).map(i => [i.id, i.data]));
 
   // 7. Costruisci payload e inserisci (gate finale su voci.matricola, come l'hook).
   const toInsert = (voci ?? [])
@@ -86,7 +123,7 @@ export async function POST() {
       intervento_id:   v.intervento_id,
       rapportino_id:   v.rapportino_id ?? null,
       odl:             v.odl ?? null,
-      data_esecuzione: intDataMap[v.intervento_id],
+      data_esecuzione: execDateMap.get(v.intervento_id)!,
       esecutore:       rapMap[v.rapportino_id ?? ''] ?? null,
       indirizzo:       v.via ?? null,
       comune:          v.comune ?? null,
@@ -94,12 +131,12 @@ export async function POST() {
       pdr:             v.pdr ?? null,
     }));
 
-  if (toInsert.length === 0) return NextResponse.json({ ok: true, inseriti: 0, rimossi });
+  if (toInsert.length === 0) return NextResponse.json({ ok: true, inseriti: 0, rimossi, aggiornati });
 
   const { error: errIns } = await supabaseAdmin
     .from('misuratori_rimossi')
     .upsert(toInsert, { onConflict: 'intervento_id', ignoreDuplicates: true });
   if (errIns) return NextResponse.json({ error: errIns.message }, { status: 500 });
 
-  return NextResponse.json({ ok: true, inseriti: toInsert.length, rimossi });
+  return NextResponse.json({ ok: true, inseriti: toInsert.length, rimossi, aggiornati });
 }

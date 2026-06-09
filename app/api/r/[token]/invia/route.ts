@@ -4,6 +4,7 @@ import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
+import { ymdLocal } from '@/utils/date-it';
 export const runtime = 'nodejs';
 
 export async function POST(_req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -85,7 +86,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,
         odl:             v.odl ?? null,
-        data_esecuzione: (rap as { data: string }).data,
+        // Data ESECUZIONE = momento reale di chiusura voce (chiuso_at = v.updated_at),
+        // in fuso Europe/Rome. Fallback alla data del rapportino se assente.
+        data_esecuzione: v.updated_at ? ymdLocal(new Date(v.updated_at)) : (rap as { data: string }).data,
         esecutore:       (rap as { staff_name?: string | null }).staff_name ?? null,
         indirizzo:       v.via ?? null,
         comune:          v.comune ?? null,

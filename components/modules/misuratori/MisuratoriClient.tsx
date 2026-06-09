@@ -82,15 +82,17 @@ export default function MisuratoriClient() {
     setSyncing(true);
     try {
       const res = await fetch('/api/misuratori/sync', { method: 'POST' });
-      const json = await res.json() as { ok?: boolean; inseriti?: number; rimossi?: number; error?: string };
+      const json = await res.json() as { ok?: boolean; inseriti?: number; rimossi?: number; aggiornati?: number; error?: string };
       if (json.ok) {
         await fetchData(filters);
-        const inseriti = json.inseriti ?? 0;
-        const rimossi  = json.rimossi  ?? 0;
-        if (inseriti > 0 || rimossi > 0) {
+        const inseriti   = json.inseriti   ?? 0;
+        const rimossi    = json.rimossi    ?? 0;
+        const aggiornati = json.aggiornati ?? 0;
+        if (inseriti > 0 || rimossi > 0 || aggiornati > 0) {
           const parti: string[] = [];
-          if (inseriti > 0) parti.push(`${inseriti} aggiunti`);
-          if (rimossi > 0)  parti.push(`${rimossi} rimossi (non più validi)`);
+          if (inseriti > 0)   parti.push(`${inseriti} aggiunti`);
+          if (rimossi > 0)    parti.push(`${rimossi} rimossi (non più validi)`);
+          if (aggiornati > 0) parti.push(`${aggiornati} date corrette`);
           alert(`Ricalcolo completato: ${parti.join(', ')}.`);
         } else {
           alert('Nessuna modifica: registro già allineato.');

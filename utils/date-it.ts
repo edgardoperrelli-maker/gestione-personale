@@ -13,6 +13,15 @@ export function isTodayLocal(d: Date): boolean {
   return ymdLocal(d) === ymdLocal(new Date());
 }
 
+// "YYYY-MM-DD" (o ISO timestamp) → "DD/MM/YYYY" per display italiano.
+// Pura manipolazione di stringa: nessun parsing Date, nessuno shift UTC.
+export function formatItalian(iso: string | null | undefined): string {
+  if (!iso) return '—';
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  if (!y || !m || !d) return iso;
+  return `${d}/${m}/${y}`;
+}
+
 function easterY(year: number): Date {
   // Algoritmo Meeus/Jones/Butcher
   const a = year % 19;

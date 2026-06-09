@@ -1,6 +1,7 @@
 'use client';
 import { useCallback, useMemo, useState } from 'react';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
+import { formatItalian } from '@/utils/date-it';
 
 type SortKey = 'data_esecuzione' | 'stato' | 'comune';
 
@@ -92,7 +93,7 @@ export default function MisuratoriTabella({ rows, onPatch }: Props) {
           {sorted.map(row => (
             <tr key={row.id} className="hover:bg-[var(--brand-surface)] transition-colors">
               <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{row.odl ?? '—'}</td>
-              <td className="px-3 py-2 whitespace-nowrap">{row.data_esecuzione}</td>
+              <td className="px-3 py-2 whitespace-nowrap">{formatItalian(row.data_esecuzione)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{row.esecutore ?? '—'}</td>
               <td className="px-3 py-2 max-w-[180px] truncate">{row.indirizzo ?? '—'}</td>
               <td className="px-3 py-2 whitespace-nowrap">{row.comune ?? '—'}</td>

@@ -1,6 +1,7 @@
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
+import { formatItalian } from '@/utils/date-it';
 
 export interface PdfFilters {
   dataInizio?: string;
@@ -45,7 +46,7 @@ export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilte
     head: [['ODS/ODL', 'Data', 'Esecutore', 'Indirizzo', 'Comune', 'Matricola', 'PDR', 'Stato', 'Note']],
     body: rows.map(r => [
       r.odl ?? '',
-      r.data_esecuzione,
+      formatItalian(r.data_esecuzione),
       r.esecutore ?? '',
       r.indirizzo ?? '',
       r.comune ?? '',
