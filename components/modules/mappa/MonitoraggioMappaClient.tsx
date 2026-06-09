@@ -5,7 +5,7 @@ import dynamic from 'next/dynamic';
 import { coloreStato } from '@/lib/interventi/torreView';
 import { useInterventiFeed } from '@/lib/interventi/useInterventiFeed';
 
-const TorreMappa = dynamic(() => import('@/components/modules/torre/TorreMappa'), { ssr: false });
+const TorreMappa = dynamic(() => import('@/components/modules/live/TorreMappa'), { ssr: false });
 
 function oggiRoma(): string {
   return new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });

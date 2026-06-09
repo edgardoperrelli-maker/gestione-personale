@@ -149,7 +149,7 @@ export default async function DashboardPage() {
 
       {isAdmin && (
         <Link
-          href="/hub/torre"
+          href="/hub/live"
           className="flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)]"
           style={{ borderColor: 'var(--brand-primary-border)', backgroundColor: 'var(--brand-surface)' }}
         >
@@ -158,11 +158,11 @@ export default async function DashboardPage() {
               className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)]"
               style={{ color: 'var(--brand-primary)' }}
             >
-              {MODULE_ICONS.torre}
+              {MODULE_ICONS.live}
             </span>
             <div>
               <div className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                Torre di controllo
+                Live
               </div>
               <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
                 Stato avanzamento interventi in tempo reale · mappa colorata e board per operatore

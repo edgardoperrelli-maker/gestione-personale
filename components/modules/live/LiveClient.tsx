@@ -25,7 +25,7 @@ function oraEsito(iso: string): string {
   return new Date(iso).toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Rome' });
 }
 
-export default function TorreControlloClient({
+export default function LiveClient({
   data,
   interventi,
   operatori,
@@ -121,7 +121,7 @@ export default function TorreControlloClient({
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
           <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
-            Torre di controllo
+            Live
           </h1>
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
             {data} · {items.length} interventi · ✅ {totali.fatti} · ❌ {totali.nonFatti} · ⏳ {totali.daFare}
@@ -131,7 +131,7 @@ export default function TorreControlloClient({
           <input
             type="date"
             value={data}
-            onChange={(e) => e.target.value && router.push(`/hub/torre?data=${e.target.value}`)}
+            onChange={(e) => e.target.value && router.push(`/hub/live?data=${e.target.value}`)}
             className="rounded-xl border px-3 py-1.5 text-sm outline-none"
             style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
           />

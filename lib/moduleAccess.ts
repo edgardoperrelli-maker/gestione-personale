@@ -16,7 +16,7 @@ export type AppModuleKey =
   | 'mappa'
   | 'interventi'
   | 'sopralluoghi'
-  | 'torre'
+  | 'live'
   | 'lista-attesa'
   | 'misuratori'
   | 'impostazioni';
@@ -92,12 +92,12 @@ export const APP_MODULES: AppModuleDefinition[] = [
     matchPrefixes: ['/hub/sopralluoghi'],
   },
   {
-    key: 'torre',
-    href: '/hub/torre',
-    label: 'Torre di controllo',
-    description: 'Stato avanzamento interventi in tempo reale',
+    key: 'live',
+    href: '/hub/live',
+    label: 'Live',
+    description: 'Interventi del giorno in tempo reale',
     section: 'modules',
-    matchPrefixes: ['/hub/torre'],
+    matchPrefixes: ['/hub/live'],
     adminOnly: true,
   },
   {
@@ -193,11 +193,11 @@ export function normalizeAllowedModules(
   const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
 
   if (isAdminAssignableRole(role)) {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'torre', 'lista-attesa', 'misuratori']));
+    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'live', 'lista-attesa', 'misuratori']));
   }
 
   return Array.from(
-    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'torre' && key !== 'lista-attesa'), 'sopralluoghi']),
+    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'live' && key !== 'lista-attesa'), 'sopralluoghi']),
   );
 }
 
