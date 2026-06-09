@@ -30,7 +30,11 @@ export default function ImportMisuratoriClient() {
       fd.append('file', file, file.name);
       const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
       const json = await res.json();
-      if (!res.ok) { setEsito({ type: 'err', msg: json.error ?? 'Import fallito.' }); return; }
+      if (!res.ok) {
+        const extra = typeof json.inseriti_parziali === 'number' ? ` (inserite ${json.inseriti_parziali} righe prima dell'errore)` : '';
+        setEsito({ type: 'err', msg: `${json.error ?? 'Import fallito.'}${extra}` });
+        return;
+      }
       setEsito({ type: 'ok', msg: `Importati ${json.inseriti} misuratori (scartate ${json.scartate}).` });
       setFile(null);
       await carica();

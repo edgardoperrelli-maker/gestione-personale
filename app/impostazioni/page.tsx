@@ -50,6 +50,12 @@ const MODULES = [
     description: 'Configura i campi dei rapportini compilabili dai tecnici.',
     icon: 'R',
   },
+  {
+    href: '/impostazioni/risanamento-misuratori',
+    title: 'Estrazione misuratori',
+    description: 'Importa l\'estrazione misuratori (Excel/CSV) usata dal flusso risanamento colonne.',
+    icon: 'M',
+  },
 ];
 
 export default function ImpostazioniPage() {
