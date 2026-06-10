@@ -1,5 +1,6 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import AgendaOperatoreClient, { type AgendaIntervento } from '@/components/modules/agenda/AgendaOperatoreClient';
+import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -54,12 +55,15 @@ export default async function AgendaPage({ params }: { params: Promise<{ token: 
     .order('indirizzo', { ascending: true });
 
   return (
-    <AgendaOperatoreClient
-      token={token}
-      operatore={(staffRow as { display_name?: string } | null)?.display_name ?? tok.staff_id}
-      data={tok.data}
-      readOnly={tok.data !== oggiRoma()}
-      interventi={(rows ?? []) as AgendaIntervento[]}
-    />
+    <>
+      <ServiceWorkerRegister />
+      <AgendaOperatoreClient
+        token={token}
+        operatore={(staffRow as { display_name?: string } | null)?.display_name ?? tok.staff_id}
+        data={tok.data}
+        readOnly={tok.data !== oggiRoma()}
+        interventi={(rows ?? []) as AgendaIntervento[]}
+      />
+    </>
   );
 }

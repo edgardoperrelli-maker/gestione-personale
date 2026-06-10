@@ -1,4 +1,5 @@
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
@@ -206,6 +207,7 @@ export default async function RapportinoPublicPage({
 
   return (
     <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
+      <ServiceWorkerRegister />
       <RapportinoForm
         token={token}
         rapportino={{ staff_name: rap.staff_name, data: rap.data }}
