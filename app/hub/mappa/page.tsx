@@ -221,6 +221,7 @@ async function MappaPageContent({
 
   let initialDistribution: InitialDistributionEntry[] | undefined = undefined;
   let initialPianoId: string | undefined = undefined;
+  let initialPlanningDate: string | undefined = undefined;
 
   if (pianoId) {
     const { data: opRows } = await supabaseAdmin
@@ -240,6 +241,15 @@ async function MappaPageContent({
         base: null,
         startAddress: op.start_address ?? null,
       }));
+
+      // Data del piano riaperto: inizializza il giorno di pianificazione
+      // (altrimenti in riapertura resta vuoto → "campo data obbligatorio").
+      const { data: pianoRow } = await supabaseAdmin
+        .from('mappa_piani')
+        .select('data')
+        .eq('id', pianoId)
+        .maybeSingle();
+      initialPlanningDate = (pianoRow as { data: string } | null)?.data ?? undefined;
     }
   }
 
@@ -254,6 +264,7 @@ async function MappaPageContent({
       allegato10ActiveCodes={allegato10ActiveCodes}
       initialPianoId={initialPianoId}
       initialDistribution={initialDistribution}
+      initialPlanningDate={initialPlanningDate}
     />
   );
 }

@@ -80,6 +80,7 @@ type Props = {
   allegato10ActiveCodes?: string[];
   initialPianoId?: string;
   initialDistribution?: DistEntry[];
+  initialPlanningDate?: string;
 };
 
 type DistEntry = {
@@ -636,7 +637,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution, initialPlanningDate }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -682,7 +683,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
-  const [planningDate, setPlanningDate] = useState<string>('');
+  const [planningDate, setPlanningDate] = useState<string>(initialPlanningDate ?? '');
   const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
   const [currentPianoId, setCurrentPianoId] = useState<string | undefined>(initialPianoId);
 
