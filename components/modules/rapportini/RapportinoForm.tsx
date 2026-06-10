@@ -13,6 +13,8 @@ import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
+import { RisanamentoView } from './risanamento/RisanamentoView';
+import type { RigaRisanamento } from './risanamento/types';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -49,6 +51,8 @@ type Props = {
   readOnly: boolean;
   infoCampiManuale?: TemplateInfoCampo[];
   templatesPerCommittente?: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
+  tipo?: 'standard' | 'risanamento';
+  righe?: RigaRisanamento[];
 };
 
 const DEBOUNCE_MS = 800;
@@ -78,6 +82,8 @@ export default function RapportinoForm({
   readOnly: readOnlyIniziale,
   infoCampiManuale = [],
   templatesPerCommittente = {},
+  tipo,
+  righe: righeRisanamento,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
   const vociOrdinate = useMemo(() => vociIniziali.slice().sort((a, b) => a.ordine - b.ordine), [vociIniziali]);
@@ -313,7 +319,9 @@ export default function RapportinoForm({
     <RapportinoFotoCtx.Provider value={uploadFotoVoce}>
     <div className="mx-auto max-w-[480px]">
       {bannerSospese}
-      {vista === 'focus' && voci[indiceCorrente] ? (
+      {tipo === 'risanamento' ? (
+        <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
+      ) : vista === 'focus' && voci[indiceCorrente] ? (
         <VoceFocus
           voce={voci[indiceCorrente]}
           indice={indiceCorrente}

@@ -87,7 +87,7 @@ export default async function RapportinoPublicPage({
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot, template_id, riaperto_at')
+    .select('id, staff_name, data, stato, expires_at, campi_snapshot, info_snapshot, template_id, riaperto_at, tipo')
     .eq('token', token)
     .maybeSingle();
 
@@ -117,6 +117,17 @@ export default async function RapportinoPublicPage({
     .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id')
     .eq('rapportino_id', rap.id)
     .order('ordine');
+
+  // Risanamento: carica le righe-misuratore (figlie delle voci-civico) per il rendering gerarchico.
+  let righe: Array<{ id: string; voce_id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null; ordine: number; fonte: string }> = [];
+  if ((rap as { tipo?: string }).tipo === 'risanamento') {
+    const { data: righeRows } = await supabaseAdmin
+      .from('rapportino_righe')
+      .select('id, voce_id, matricola, pdr, nominativo, risposte, ordine, fonte')
+      .eq('rapportino_id', rap.id)
+      .order('ordine', { ascending: true });
+    righe = (righeRows ?? []) as typeof righe;
+  }
 
   const richiesteIds = (vociRows ?? [])
     .map((v) => (v as { richiesta_id?: string | null }).richiesta_id)
@@ -205,6 +216,8 @@ export default async function RapportinoPublicPage({
         readOnly={stato === 'inviato'}
         infoCampiManuale={infoCampiLive}
         templatesPerCommittente={templatesPerCommittente}
+        tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
+        righe={righe}
       />
     </main>
   );
