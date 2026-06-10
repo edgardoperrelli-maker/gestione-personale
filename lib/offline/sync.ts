@@ -1,6 +1,7 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
 import { ordineInvio, classificaEsito } from './syncPlan';
 import { marcaErrore } from './outboxModel';
+import { idOutboxVoce } from './ids';
 import type { OutboxItem } from './types';
 
 let inCorso = false;
@@ -27,24 +28,43 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
     if (item.type === 'foto') {
       const blob = await dbBlob.leggi(item.payload.blobId);
       if (!blob) return 200; // blob già caricato/rimosso: trattalo come completato
-      const fd = new FormData();
-      fd.append('file', blob, `${item.payload.clientKey}.jpg`);
-      fd.append('clientKey', item.payload.clientKey);
-      const r = await fetch(`/api/r/${item.token}/foto-campo`, { method: 'POST', body: fd });
-      if (r.ok) {
-        const { path } = (await r.json()) as { path?: string };
-        if (path) {
-          // riscrive il path reale nelle risposte locali della voce
-          const lavori = await dbLavoro.perToken(item.token);
-          const lavoro = lavori.find((l) => l.voceId === item.payload.voceId);
-          const risposte = { ...(lavoro?.risposte ?? {}), [item.payload.chiave]: path };
-          await dbLavoro.salva({ chiave: `${item.token}:${item.payload.voceId}`, token: item.token, voceId: item.payload.voceId, risposte, aggiornatoIl: Date.now() });
-          // accoda/aggiorna il salvataggio della voce con il path reale
-          await dbOutbox.put({ id: `voce-${item.token}-${item.payload.voceId}`, type: 'voce', token: item.token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: { voceId: item.payload.voceId, risposte } });
+
+      // 1) Chiamata di rete (un suo fallimento è errore di rete → 0 → ritenta).
+      let status = 0;
+      let path: string | undefined;
+      try {
+        const fd = new FormData();
+        fd.append('file', blob, `${item.payload.clientKey}.jpg`);
+        fd.append('clientKey', item.payload.clientKey);
+        const r = await fetch(`/api/r/${item.token}/foto-campo`, { method: 'POST', body: fd });
+        status = r.status;
+        if (r.ok) {
+          const j = (await r.json().catch(() => ({}))) as { path?: string };
+          path = j.path;
         }
-        await dbBlob.rimuovi(item.payload.blobId);
+      } catch {
+        return 0; // errore di rete
       }
-      return r.status;
+
+      // 2) Bookkeeping locale best-effort: un fallimento QUI non deve far ritentare la
+      //    rete (la foto è già su storage). L'item foto verrà comunque rimosso (completato).
+      if (status >= 200 && status < 300) {
+        try {
+          if (path) {
+            const lavori = await dbLavoro.perToken(item.token);
+            const lavoro = lavori.find((l) => l.voceId === item.payload.voceId);
+            const risposte = { ...(lavoro?.risposte ?? {}), [item.payload.chiave]: path };
+            await dbLavoro.salva({ chiave: `${item.token}:${item.payload.voceId}`, token: item.token, voceId: item.payload.voceId, risposte, aggiornatoIl: Date.now() });
+            // Ri-accoda il salvataggio della voce col path reale, usando l'id canonico
+            // (così coincide con la voce accodata dal form → coalescing via chiave IndexedDB).
+            await dbOutbox.put({ id: idOutboxVoce(item.token, item.payload.voceId), type: 'voce', token: item.token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: { voceId: item.payload.voceId, risposte } });
+          }
+          await dbBlob.rimuovi(item.payload.blobId);
+        } catch {
+          /* bookkeeping locale fallito: non ritentiamo la rete; l'item foto sarà rimosso */
+        }
+      }
+      return status;
     }
     if (item.type === 'manuale') {
       const fd = new FormData();
@@ -73,7 +93,15 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
   }
 }
 
-/** Sincronizza tutta la coda di un token. Ritorna true se la coda è vuota a fine giro. */
+/**
+ * Sincronizza tutta la coda di un token. Ritorna true se la coda è vuota a fine giro.
+ *
+ * Nota resilienza: se la pagina si chiude DOPO che il server ha ricevuto una mutazione ma
+ * PRIMA della rimozione locale dell'item, alla riapertura l'item viene re-inviato. È sicuro
+ * perché gli endpoint sono idempotenti: voce (sovrascrive le risposte), agenda (imposta lo
+ * stato), invia (imposta stato=inviato; un secondo invio ok/409), foto (clientKey) e
+ * manuale (richiestaId) deduplicano lato server.
+ */
 export async function sincronizzaToken(token: string): Promise<boolean> {
   if (!indexedDbDisponibile() || inCorso) return false;
   if (typeof navigator !== 'undefined' && navigator.onLine === false) return false;
