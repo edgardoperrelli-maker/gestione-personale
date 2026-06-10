@@ -20,6 +20,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     voceId?: string; rigaId?: string;
     matricola?: string; pdr?: string; nominativo?: string;
     risposte?: Record<string, unknown>; creato_da?: string;
+    fonte?: 'civico' | 'fuori_elenco' | 'manuale'; ref_id?: number | null;
   };
 
   // UPDATE riga esistente (merge risposte + anagrafica).
@@ -59,7 +60,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .from('rapportino_righe').insert({
       id: randomUUID(), voce_id: body.voceId, rapportino_id: rap.id,
       matricola: body.matricola.trim(), pdr: body.pdr ?? null, nominativo: body.nominativo ?? null,
-      ref_id: null, fonte: 'manuale', risposte: body.risposte ?? {}, ordine, creato_da: body.creato_da ?? null,
+      ref_id: body.ref_id ?? null,
+      fonte: body.fonte === 'civico' || body.fonte === 'fuori_elenco' ? body.fonte : 'manuale',
+      risposte: body.risposte ?? {}, ordine, creato_da: body.creato_da ?? null,
     })
     .select('id, voce_id, matricola, pdr, nominativo, risposte, ordine, fonte').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
