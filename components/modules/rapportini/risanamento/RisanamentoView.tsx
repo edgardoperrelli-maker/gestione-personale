@@ -6,6 +6,8 @@ import { campiPerScope } from '@/utils/rapportini/campiScope';
 import type { Voce } from '@/components/modules/rapportini/RapportinoForm';
 import type { RigaRisanamento } from './types';
 import { SlotFoto } from './SlotFoto';
+import { GalleriaFoto } from './GalleriaFoto';
+import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { ScannerMisuratore } from './ScannerMisuratore';
 import { righeIncomplete, type DettaglioIncompleto } from '@/utils/rapportini/righeIncomplete';
 import { datiPdfRisanamento } from '@/utils/rapportini/datiPdfRisanamento';
@@ -142,23 +144,36 @@ export function RisanamentoView({
     }
   };
 
-  const salvaFotoVoce = async (chiave: string, path: string | null) => {
-    if (!path) { setErrore('Upload foto fallito'); return; }
+  // Foto-voce multiple (Fasi/Accessorie): aggiunge/rimuove un path alla lista del campo.
+  const aggiungiFotoVoce = async (chiave: string, path: string) => {
     if (!civicoApertoId) return;
     setErrore(null);
+    const nuovo = [...comeArrayFoto((vociRisposte[civicoApertoId] ?? {})[chiave]), path];
     try {
       const res = await fetch(`/api/r/${token}/voce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voceId: civicoApertoId, risposte: { [chiave]: path } }),
+        body: JSON.stringify({ voceId: civicoApertoId, risposte: { [chiave]: nuovo } }),
       });
       if (!res.ok) { setErrore('Errore nel salvataggio della foto'); return; }
-      setVociRisposte((prev) => ({
-        ...prev,
-        [civicoApertoId]: { ...(prev[civicoApertoId] ?? {}), [chiave]: path },
-      }));
+      setVociRisposte((prev) => ({ ...prev, [civicoApertoId]: { ...(prev[civicoApertoId] ?? {}), [chiave]: nuovo } }));
     } catch {
       setErrore('Errore di rete nel salvataggio della foto');
+    }
+  };
+  const rimuoviFotoVoce = async (chiave: string, path: string) => {
+    if (!civicoApertoId) return;
+    const nuovo = comeArrayFoto((vociRisposte[civicoApertoId] ?? {})[chiave]).filter((p) => p !== path);
+    try {
+      const res = await fetch(`/api/r/${token}/voce`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voceId: civicoApertoId, risposte: { [chiave]: nuovo } }),
+      });
+      if (!res.ok) { setErrore('Errore nella rimozione della foto'); return; }
+      setVociRisposte((prev) => ({ ...prev, [civicoApertoId]: { ...(prev[civicoApertoId] ?? {}), [chiave]: nuovo } }));
+    } catch {
+      setErrore('Errore di rete');
     }
   };
 
@@ -460,14 +475,15 @@ export function RisanamentoView({
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Fasi</h2>
             <div className="space-y-2">
               {scope.fase.map((campo) => (
-                <SlotFoto
+                <GalleriaFoto
                   key={campo.chiave}
                   token={token}
                   etichetta={campo.etichetta}
                   obbligatoria={campo.obbligatoria}
-                  valore={(risposteVoce[campo.chiave] as string | null | undefined) ?? null}
+                  valori={comeArrayFoto(risposteVoce[campo.chiave])}
                   disabilitato={readOnly}
-                  onUploaded={(path) => { void salvaFotoVoce(campo.chiave, path); }}
+                  onAdd={(path) => { void aggiungiFotoVoce(campo.chiave, path); }}
+                  onRemove={(path) => { void rimuoviFotoVoce(campo.chiave, path); }}
                 />
               ))}
             </div>
@@ -480,17 +496,18 @@ export function RisanamentoView({
             <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Accessorie</h2>
             <div className="space-y-2">
               {scope.accessoria.map((campo) => {
-                const attiva = accessorieAttive.has(campo.chiave) || Boolean(risposteVoce[campo.chiave]);
+                const attiva = accessorieAttive.has(campo.chiave) || comeArrayFoto(risposteVoce[campo.chiave]).length > 0;
                 if (attiva) {
                   return (
-                    <SlotFoto
+                    <GalleriaFoto
                       key={campo.chiave}
                       token={token}
                       etichetta={campo.etichetta}
                       obbligatoria={campo.obbligatoria}
-                      valore={(risposteVoce[campo.chiave] as string | null | undefined) ?? null}
+                      valori={comeArrayFoto(risposteVoce[campo.chiave])}
                       disabilitato={readOnly}
-                      onUploaded={(path) => { void salvaFotoVoce(campo.chiave, path); }}
+                      onAdd={(path) => { void aggiungiFotoVoce(campo.chiave, path); }}
+                      onRemove={(path) => { void rimuoviFotoVoce(campo.chiave, path); }}
                     />
                   );
                 }
