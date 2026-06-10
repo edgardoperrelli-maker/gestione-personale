@@ -3,7 +3,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
 import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
-import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
+import { ASSIGNABLE_ROLE_LABELS, getAllowedModulesForUser, resolveAssignableRole, resolveUserRole } from '@/lib/moduleAccess';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +20,7 @@ export default async function ImpostazioniLayout({ children }: { children: React
   const effectiveRole = resolveUserRole(profile?.role, user.app_metadata?.role);
   if (effectiveRole !== 'admin') redirect('/dashboard');
 
-  const roleLabel = 'Admin';
+  const roleLabel = ASSIGNABLE_ROLE_LABELS[resolveAssignableRole(profile?.role, user.app_metadata?.role)];
   const userName = profile?.username ?? user.email ?? undefined;
   const allowedModules = getAllowedModulesForUser(user.app_metadata, effectiveRole);
 
