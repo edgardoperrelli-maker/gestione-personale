@@ -1,5 +1,9 @@
-'use client';
+import { cookies } from 'next/headers';
+import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
+import { canManageUsers, resolveAssignableRole } from '@/lib/moduleAccess';
+
+export const dynamic = 'force-dynamic';
 
 const MODULES = [
   {
@@ -7,6 +11,7 @@ const MODULES = [
     title: 'Utenze',
     description: 'Gestisci password, ruoli e moduli visibili per ogni utente di accesso.',
     icon: 'U',
+    requiresAdminPlus: true,
   },
   {
     href: '/impostazioni/personale',
@@ -58,7 +63,17 @@ const MODULES = [
   },
 ];
 
-export default function ImpostazioniPage() {
+export default async function ImpostazioniPage() {
+  const cookieStore = await cookies();
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createServerComponentClient({ cookies: cookieMethods });
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    : { data: null };
+  const isAdminPlus = canManageUsers(resolveAssignableRole(profile?.role, user?.app_metadata?.role));
+  const modules = MODULES.filter((module) => !module.requiresAdminPlus || isAdminPlus);
+
   return (
     <div className="space-y-6">
       <div>
@@ -69,7 +84,7 @@ export default function ImpostazioniPage() {
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-        {MODULES.map((module) => (
+        {modules.map((module) => (
           <Link
             key={module.href}
             href={module.href}
