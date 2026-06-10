@@ -242,7 +242,7 @@ export function findModuleByPath(pathname: string): AppModuleDefinition | null {
 export function canAccessPath(pathname: string, allowedModules: AppModuleKey[], role?: ValidRole | null): boolean {
   const matchedModule = findModuleByPath(pathname);
   if (!matchedModule) return true;
-  if (matchedModule.requiresAdminRole && role !== 'admin') return false; // solo impostazioni
+  if (matchedModule.requiresAdminRole && role !== 'admin') return false; // gate di ruolo forte
   return allowedModules.includes(matchedModule.key);
 }
 
@@ -270,9 +270,10 @@ export function buildAppMetadataUpdate(
   requestedModules: unknown,
 ): { role: AssignableRole; allowedModules: AppModuleKey[] } {
   const effectiveRole = requestedRole ?? resolveAssignableRole(undefined, currentMetadataRole);
-  const modulesInput = Array.isArray(requestedModules)
-    ? requestedModules
-    : (Array.isArray(currentAllowedModules) ? currentAllowedModules : prefillModulesForRole(effectiveRole));
+  const modulesInput =
+    Array.isArray(requestedModules) ? requestedModules :
+    Array.isArray(currentAllowedModules) ? currentAllowedModules :
+    prefillModulesForRole(effectiveRole);
   return {
     role: effectiveRole,
     allowedModules: normalizeAllowedModules(modulesInput, effectiveRole),
