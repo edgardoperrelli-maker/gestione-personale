@@ -248,7 +248,8 @@ export async function DELETE(req: NextRequest) {
   }
 
   // ANTI-LOCKOUT: non eliminare l'ultimo admin_plus.
-  const { data: target } = await supabaseAdmin.auth.admin.getUserById(userId);
+  const { data: target, error: targetErr } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (targetErr) return NextResponse.json({ error: targetErr.message }, { status: 400 });
   if (resolveAssignableRole(undefined, target?.user?.app_metadata?.role) === 'admin_plus') {
     if (await countAdminPlus() <= 1) {
       return NextResponse.json({ error: 'Deve restare almeno un Admin Plus.' }, { status: 403 });
