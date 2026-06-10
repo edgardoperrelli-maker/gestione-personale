@@ -34,9 +34,11 @@ function StarRating({ value }: { value: number }) {
 export default function HotelClient({
   initialHotels,
   territories,
+  isAdminPlus = false,
 }: {
   initialHotels: Hotel[];
   territories: Territory[];
+  isAdminPlus?: boolean;
 }) {
   const [hotels, setHotels] = useState<Hotel[]>(sortHotels(initialHotels));
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -171,7 +173,7 @@ export default function HotelClient({
 
   return (
     <div className="space-y-6">
-      <SettingsSubNav />
+      <SettingsSubNav isAdminPlus={isAdminPlus} />
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold text-[var(--brand-text-main)]">Hotel</h1>
