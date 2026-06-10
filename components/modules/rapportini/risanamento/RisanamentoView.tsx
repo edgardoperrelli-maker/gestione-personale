@@ -50,7 +50,7 @@ export function RisanamentoView({
   const [nom, setNom] = useState('');
   const [errore, setErrore] = useState<string | null>(null);
   const [aggiungendoRiga, setAggiungendoRiga] = useState(false);
-  const [scanner, setScanner] = useState<null | 'crea' | 'cerca'>(null);
+  const [scanner, setScanner] = useState(false);
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
 
   /** vociRisposte: copia locale delle risposte delle voci, per aggiornamento ottimistico. */
@@ -75,7 +75,7 @@ export function RisanamentoView({
   useEffect(() => { setAccessorieAttive(new Set()); }, [civicoApertoId]);
 
   // Auto-clear highlight riga dopo 4 secondi
-  useEffect(() => { if (!evidenziata) return; const t = setTimeout(() => setEvidenziata(null), 4000); return () => clearTimeout(t); }, [evidenziata]);
+  useEffect(() => { if (!evidenziata) return; document.getElementById(`mis-${evidenziata}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); const t = setTimeout(() => setEvidenziata(null), 4000); return () => clearTimeout(t); }, [evidenziata]);
 
   /* ── Derived (validazione invio) ───────────────────────────────────────── */
 
@@ -206,9 +206,18 @@ export function RisanamentoView({
     setAccessorieAttive((prev) => new Set([...prev, chiave]));
   };
 
-  const onScanCrea = async (codice: string) => {
-    setScanner(null);
+  // Scanner unico "trova-o-crea": se la matricola è già in questo civico la evidenzia (niente doppioni),
+  // altrimenti cerca nell'estrazione e crea la riga (o precompila il form manuale se non in elenco).
+  const onScan = async (codice: string) => {
+    setScanner(false);
     if (!civicoApertoId) return;
+    const norm = codice.trim();
+    const esistente = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === norm);
+    if (esistente) {
+      setEvidenziata(esistente.id);
+      setErrore('Misuratore già presente: fai la foto «dopo».');
+      return;
+    }
     try {
       const res = await fetch(`/api/r/${token}/lookup-misuratore?voceId=${encodeURIComponent(civicoApertoId)}&codice=${encodeURIComponent(codice)}`);
       if (!res.ok) { setErrore('Errore nella ricerca del misuratore'); return; }
@@ -232,13 +241,6 @@ export function RisanamentoView({
     } catch {
       setErrore('Errore di rete');
     }
-  };
-
-  const onScanCerca = (codice: string) => {
-    setScanner(null);
-    const riga = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === codice.trim());
-    if (riga) { setEvidenziata(riga.id); setErrore(null); }
-    else setErrore('Misuratore non presente: usa "Scansiona" per crearlo.');
   };
 
   /* ── Vista lista civici ─────────────────────────────────────────────────── */
@@ -404,7 +406,7 @@ export function RisanamentoView({
           )}
 
           {righeCivico.map((riga) => (
-            <div key={riga.id} className={`mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
+            <div key={riga.id} id={`mis-${riga.id}`} className={`mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
               <div className="mb-2 text-sm font-semibold text-[var(--brand-text-main)]">
                 {riga.matricola && <span className="mr-2">Matricola: {riga.matricola}</span>}
                 {riga.nominativo && <span className="text-[var(--brand-text-muted)]">{riga.nominativo}</span>}
@@ -454,8 +456,7 @@ export function RisanamentoView({
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setScanner('crea')} className="rounded-lg border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)]">📷 Scansiona</button>
-                <button type="button" onClick={() => setScanner('cerca')} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold">🔍 Cerca (scan)</button>
+                <button type="button" onClick={() => setScanner(true)} className="rounded-lg border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)]">📷 Scansiona misuratore</button>
               </div>
               <button
                 type="button"
@@ -528,7 +529,7 @@ export function RisanamentoView({
         )}
       </div>
       {scanner && (
-        <ScannerMisuratore onCodice={scanner === 'crea' ? onScanCrea : onScanCerca} onChiudi={() => setScanner(null)} />
+        <ScannerMisuratore onCodice={onScan} onChiudi={() => setScanner(false)} />
       )}
     </div>
   );
