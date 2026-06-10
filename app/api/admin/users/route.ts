@@ -8,8 +8,8 @@ import {
   normalizeAllowedModules,
   buildAppMetadataUpdate,
   ASSIGNABLE_ROLE_LABELS,
-  resolveUserRole,
   resolveAssignableRole,
+  canManageUsers,
   toStoredProfileRole,
   isAssignableRole,
   type AppModuleKey,
@@ -36,7 +36,8 @@ function toUsername(email: string): string {
   return normalizeUsername(email);
 }
 
-async function requireAdmin(): Promise<{ userId: string } | NextResponse> {
+/** Solo gli Admin Plus possono operare sulla sezione Utenze. */
+async function requireAdminPlus(): Promise<{ userId: string } | NextResponse> {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createRouteHandlerClient({ cookies: cookieMethods });
@@ -44,16 +45,24 @@ async function requireAdmin(): Promise<{ userId: string } | NextResponse> {
   if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
   const { data: profile } = await supabase
     .from('profiles').select('role').eq('id', user.id).maybeSingle();
-  const effectiveRole = resolveUserRole(profile?.role, user.app_metadata?.role);
-  if (effectiveRole !== 'admin') {
-    return NextResponse.json({ error: 'Accesso riservato agli admin.' }, { status: 403 });
+  const role = resolveAssignableRole(profile?.role, user.app_metadata?.role);
+  if (!canManageUsers(role)) {
+    return NextResponse.json({ error: 'Riservato agli Admin Plus.' }, { status: 403 });
   }
   return { userId: user.id };
 }
 
+/** Conta gli utenti con ruolo assegnabile admin_plus (per l'anti-lockout). */
+async function countAdminPlus(): Promise<number> {
+  const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 500 });
+  return (data?.users ?? []).filter(
+    (u) => resolveAssignableRole(undefined, u.app_metadata?.role) === 'admin_plus',
+  ).length;
+}
+
 /* GET — lista tutti gli utenti */
 export async function GET() {
-  const guard = await requireAdmin();
+  const guard = await requireAdminPlus();
   if (guard instanceof NextResponse) return guard;
 
   const [authRes, profilesRes] = await Promise.all([
@@ -86,18 +95,20 @@ export async function GET() {
 
   return NextResponse.json({
     users,
+    currentUserId: guard.userId,
     availableModules: APP_MODULES.map((module) => ({
       key: module.key,
       label: module.label,
       description: module.description,
       adminOnly: !!module.adminOnly,
+      requiresAdminRole: !!module.requiresAdminRole,
     })),
   });
 }
 
 /* POST — crea nuovo utente */
 export async function POST(req: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireAdminPlus();
   if (guard instanceof NextResponse) return guard;
 
   const body = await req.json() as {
@@ -154,9 +165,9 @@ export async function POST(req: NextRequest) {
   });
 }
 
-/* PATCH — aggiorna password e/o ruolo */
+/* PATCH — aggiorna password, ruolo e/o moduli */
 export async function PATCH(req: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireAdminPlus();
   if (guard instanceof NextResponse) return guard;
 
   const body = await req.json() as {
@@ -170,8 +181,26 @@ export async function PATCH(req: NextRequest) {
   const userId = (body.userId ?? '').trim();
   if (!userId) return NextResponse.json({ error: 'userId richiesto.' }, { status: 400 });
 
+  // Stato corrente del target (serve per anti-lockout e per preservare i moduli).
+  const { data: current, error: getErr } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (getErr) return NextResponse.json({ error: getErr.message }, { status: 400 });
+  const currentMetaRole = current?.user?.app_metadata?.role;
+  const currentModules = current?.user?.app_metadata?.allowedModules;
+  const currentAssignable = resolveAssignableRole(undefined, currentMetaRole);
+
+  const requestedRole = isAssignableRole(body.role) ? body.role : undefined;
+
+  // ANTI-LOCKOUT: declassamento di un admin_plus.
+  if (currentAssignable === 'admin_plus' && requestedRole && requestedRole !== 'admin_plus') {
+    if (userId === guard.userId) {
+      return NextResponse.json({ error: 'Non puoi rimuovere a te stesso il ruolo Admin Plus.' }, { status: 403 });
+    }
+    if (await countAdminPlus() <= 1) {
+      return NextResponse.json({ error: 'Deve restare almeno un Admin Plus.' }, { status: 403 });
+    }
+  }
+
   const updates: Record<string, unknown> = {};
-  const role = isAssignableRole(body.role) ? body.role : undefined;
   if (body.password && body.password.trim().length >= 6) {
     updates.password = body.password.trim();
   } else if (body.password && body.password.trim().length > 0) {
@@ -181,16 +210,13 @@ export async function PATCH(req: NextRequest) {
     updates.email = toEmail(body.username);
   }
 
-  if (role || Array.isArray(body.allowedModules)) {
-    // Se il ruolo non cambia, recuperalo dall'utente per non declassarlo
-    // aggiornando i soli moduli (e per normalizzare i moduli sul ruolo reale).
-    let currentMetadataRole: unknown;
-    if (!role) {
-      const { data: current, error: getErr } = await supabaseAdmin.auth.admin.getUserById(userId);
-      if (getErr) return NextResponse.json({ error: getErr.message }, { status: 400 });
-      currentMetadataRole = current?.user?.app_metadata?.role;
-    }
-    updates.app_metadata = buildAppMetadataUpdate(currentMetadataRole, role, body.allowedModules);
+  if (requestedRole || Array.isArray(body.allowedModules)) {
+    updates.app_metadata = buildAppMetadataUpdate(
+      currentMetaRole,
+      currentModules,
+      requestedRole,
+      body.allowedModules,
+    );
   }
 
   if (Object.keys(updates).length > 0) {
@@ -200,7 +226,7 @@ export async function PATCH(req: NextRequest) {
 
   const profilePatch: Record<string, unknown> = { id: userId };
   if (body.username) profilePatch.username = normalizeUsername(body.username);
-  if (role) profilePatch.role = toStoredProfileRole(role);
+  if (requestedRole) profilePatch.role = toStoredProfileRole(requestedRole);
 
   if (Object.keys(profilePatch).length > 1) {
     const { error: profileErr } = await supabaseAdmin.from('profiles').upsert(profilePatch);
@@ -212,13 +238,21 @@ export async function PATCH(req: NextRequest) {
 
 /* DELETE — elimina utente */
 export async function DELETE(req: NextRequest) {
-  const guard = await requireAdmin();
+  const guard = await requireAdminPlus();
   if (guard instanceof NextResponse) return guard;
 
   const { userId } = await req.json() as { userId?: string };
   if (!userId) return NextResponse.json({ error: 'userId richiesto.' }, { status: 400 });
   if (userId === guard.userId) {
     return NextResponse.json({ error: 'Non puoi eliminare l’utenza con cui sei autenticato.' }, { status: 400 });
+  }
+
+  // ANTI-LOCKOUT: non eliminare l'ultimo admin_plus.
+  const { data: target } = await supabaseAdmin.auth.admin.getUserById(userId);
+  if (resolveAssignableRole(undefined, target?.user?.app_metadata?.role) === 'admin_plus') {
+    if (await countAdminPlus() <= 1) {
+      return NextResponse.json({ error: 'Deve restare almeno un Admin Plus.' }, { status: 403 });
+    }
   }
 
   const { error: auditErr } = await supabaseAdmin
