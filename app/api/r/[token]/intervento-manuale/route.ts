@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
+import { richiestaIdValido } from '@/lib/offline/idRichiesta';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
@@ -30,6 +31,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Parsing multipart: la modale invia FormData con `dati` (JSON) e `foto:<slot>` per ogni foto.
   const form = await req.formData();
   const rawDati = JSON.parse(String(form.get('dati') ?? '{}')) as {
+    richiestaId?: string;
     committente?: CommittenteManuale;
     anagrafica?: Record<string, unknown>;
     risposte?: Record<string, unknown>;
@@ -85,7 +87,27 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   // === C1: genera l'id richiesta in anticipo e carica TUTTE le foto prima di qualsiasi INSERT DB ===
-  const richiestaId = randomUUID();
+
+  // Idempotenza: se il client fornisce un richiestaId già esistente (re-invio offline),
+  // restituisci il risultato esistente senza re-inserire.
+  if (richiestaIdValido(rawDati.richiestaId)) {
+    const { data: esistente } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('id, voce_id, corsia, intervento_id')
+      .eq('id', rawDati.richiestaId)
+      .maybeSingle();
+    if (esistente) {
+      return NextResponse.json({
+        id: esistente.id,
+        voceId: esistente.voce_id,
+        corsia: esistente.corsia,
+        interventoId: esistente.intervento_id,
+        idempotente: true,
+      });
+    }
+  }
+
+  const richiestaId = richiestaIdValido(rawDati.richiestaId) ? rawDati.richiestaId : randomUUID();
 
   const ids = {
     pdr: anagrafica.pdr as string | undefined,
