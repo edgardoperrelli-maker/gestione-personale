@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
-import { randomUUID } from 'crypto';
+import { nomeFileFoto } from './idempotenza';
 
 export const runtime = 'nodejs';
 
@@ -45,7 +45,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   // Upload su storage
   const ext = file.type === 'image/jpeg' ? 'jpg' : (file.type.split('/')[1] ?? 'bin');
-  const storagePath = `rapportini/${rap.id}/${randomUUID()}.${ext}`;
+  const clientKey = typeof fd.get('clientKey') === 'string' ? (fd.get('clientKey') as string) : undefined;
+  const storagePath = nomeFileFoto(rap.id, clientKey, ext);
   const bytes = await file.arrayBuffer();
 
   const { error: upErr } = await supabaseAdmin.storage
