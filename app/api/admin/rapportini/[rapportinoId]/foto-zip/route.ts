@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
 import { nomeFotoFile, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
+import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -81,12 +82,14 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
         indirizzo: v.via ?? undefined,
       };
       for (const campo of campiFoto) {
-        const storagePath = (v.risposte ?? {})[campo.chiave];
-        if (typeof storagePath !== 'string' || !storagePath) continue;
-        const ext = storagePath.split('.').pop() ?? 'jpg';
-        const fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
-        // richiesta_id = voce id (usato da buildZipEntries per sottocartelle su collisione)
-        fotoVoci.push({ richiesta_id: v.id, storage_path: storagePath, file_name: fileName });
+        const paths = comeArrayFoto((v.risposte ?? {})[campo.chiave]);
+        paths.forEach((storagePath, i) => {
+          const ext = storagePath.split('.').pop() ?? 'jpg';
+          let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
+          if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
+          // richiesta_id = voce id (usato da buildZipEntries per sottocartelle su collisione)
+          fotoVoci.push({ richiesta_id: v.id, storage_path: storagePath, file_name: fileName });
+        });
       }
     }
   }
@@ -103,10 +106,13 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
     for (const r of (righeRows ?? []) as Array<{ id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null }>) {
       const ids = { pdr: r.pdr ?? undefined, matricola: r.matricola ?? undefined };
       for (const campo of campiMisuratore) {
-        const storagePath = (r.risposte ?? {})[campo.chiave];
-        if (typeof storagePath !== 'string' || !storagePath) continue;
-        const ext = storagePath.split('.').pop() ?? 'jpg';
-        fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: nomeFotoFile(campo.etichetta, ids, ext, fotoPriority) });
+        const paths = comeArrayFoto((r.risposte ?? {})[campo.chiave]);
+        paths.forEach((storagePath, i) => {
+          const ext = storagePath.split('.').pop() ?? 'jpg';
+          let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
+          if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
+          fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: fileName });
+        });
       }
     }
   }
