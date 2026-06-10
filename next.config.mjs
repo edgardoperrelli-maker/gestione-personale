@@ -1,4 +1,6 @@
 /** @type {import('next').NextConfig} */
+import withSerwistInit from '@serwist/next';
+
 const nextConfig = {
   eslint: { ignoreDuringBuilds: true },
   turbopack: {
@@ -16,4 +18,13 @@ const nextConfig = {
     ];
   },
 };
-export default nextConfig;
+
+const withSerwist = withSerwistInit({
+  swSrc: 'app/sw.ts',
+  swDest: 'public/sw.js',
+  // Il SW viene generato solo nel build di produzione: in `next dev --turbopack`
+  // il plugin webpack non gira e il SW non esiste (atteso).
+  disable: process.env.NODE_ENV === 'development',
+});
+
+export default withSerwist(nextConfig);

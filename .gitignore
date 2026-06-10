@@ -10,3 +10,8 @@
 
 # Cache incrementale di TypeScript (rigenerata da tsc / next build)
 tsconfig.tsbuildinfo
+
+# Serwist: service worker generato dal build (non va in git)
+public/sw.js
+public/sw.js.map
+public/swe-worker-*.js
