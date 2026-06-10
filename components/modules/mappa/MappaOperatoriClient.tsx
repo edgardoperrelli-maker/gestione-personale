@@ -2659,8 +2659,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               )}
             </div>
 
-            {/* Pannello distribuzione operatori */}
-            {excelGeocoded >= 2 && !isGeocoding && (
+            {/* Pannello distribuzione operatori — >=1 per pianificare anche un solo civico (es. risanamento singolo) */}
+            {excelGeocoded >= 1 && !isGeocoding && (
               <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2.5">
                 {/* Intestazione + toggle */}
                 <div className="flex items-center justify-between">
