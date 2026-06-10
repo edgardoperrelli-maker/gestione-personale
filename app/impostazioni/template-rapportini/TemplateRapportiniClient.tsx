@@ -733,14 +733,14 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                     if (slots.length === 0) return null;
                     return (
                       <div key={s.v} className="mb-1">
-                        <span className="font-medium text-[var(--brand-text-main)]">{s.label}:</span>{' '}
+                        <span className="font-medium text-[var(--brand-text-main)]">{s.label}{s.v !== 'misuratore' ? ' (più foto)' : ''}:</span>{' '}
                         <span className="text-[var(--brand-text-muted)]">
                           {slots.map((c) => `${c.etichetta || '(senza nome)'}${s.v !== 'accessoria' && c.obbligatoria ? ' *' : ''}`).join(', ')}
                         </span>
                       </div>
                     );
                   })}
-                  <p className="mt-1 text-[var(--brand-text-subtle)]">* obbligatoria</p>
+                  <p className="mt-1 text-[var(--brand-text-subtle)]">* obbligatoria · (più foto) = l&apos;operatore può caricarne diverse</p>
                 </div>
               )}
               <AnteprimaBox>
