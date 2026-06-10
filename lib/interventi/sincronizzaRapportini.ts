@@ -34,7 +34,7 @@ export async function sincronizzaRapportini(
 ): Promise<SincronizzaResult> {
   const { data: piano } = await db.from('mappa_piani').select('id, data, territorio').eq('id', pianoId).single();
   if (!piano) return { ok: false, status: 404, error: 'Piano non trovato' };
-  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi').eq('id', opts.templateId).single();
+  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', opts.templateId).single();
   if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
   const { data: ops } = await db.from('mappa_piani_operatori').select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
 
@@ -127,7 +127,7 @@ export async function sincronizzaRapportini(
       token = randomBytes(24).toString('base64url');
       const { data: ins, error: eIns } = await db.from('rapportini').insert({
         piano_id: pianoId, staff_id: op.staff_id, staff_name: op.staff_name, data: piano.data,
-        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], token, stato: 'in_corso', expires_at: expires,
+        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', token, stato: 'in_corso', expires_at: expires,
       }).select('id').single();
       if (eIns) return { ok: false, status: 500, error: eIns.message };
       rapId = ins!.id;
@@ -137,7 +137,7 @@ export async function sincronizzaRapportini(
       const { data: cur } = await db.from('rapportini').select('stato').eq('id', rapId).maybeSingle();
       const eraInviato = (cur as { stato?: string } | null)?.stato === 'inviato';
       const patch: Record<string, unknown> = {
-        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], expires_at: expires,
+        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', expires_at: expires,
       };
       if (eraInviato && opts.confermaInviati) {
         patch.stato = 'in_corso';
