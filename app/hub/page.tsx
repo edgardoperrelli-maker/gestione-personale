@@ -5,7 +5,7 @@ import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
 import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
 import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
 import Link from 'next/link';
-import { canViewPremialita, resolveAssignableRole, isAdminAssignableRole } from '@/lib/moduleAccess';
+import { canViewPremialita, resolveAssignableRole, getAllowedModulesForUser } from '@/lib/moduleAccess';
 import { MODULE_ICONS } from '@/components/layout/moduleIcons';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
 import { isStaffValidOnDay } from '@/lib/staff';
@@ -129,7 +129,8 @@ export default async function DashboardPage() {
 
   const role = resolveAssignableRole(profile?.role, user?.app_metadata?.role);
   const showPremialita = canViewPremialita(role);
-  const isAdmin = isAdminAssignableRole(role);
+  const allowedModules = getAllowedModulesForUser(user?.app_metadata, role);
+  const showLivePromo = allowedModules.includes('live');
 
   const todayIso = fmtDay(new Date());
   const todayRows = await loadTodayOperators(supabase, todayIso);
@@ -147,7 +148,7 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      {isAdmin && (
+      {showLivePromo && (
         <Link
           href="/hub/live"
           className="flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)]"
