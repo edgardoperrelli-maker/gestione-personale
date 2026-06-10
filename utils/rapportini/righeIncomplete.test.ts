@@ -35,4 +35,16 @@ describe('righeIncomplete', () => {
     const r = righeIncomplete([voce] as never, [] as never, campi);
     expect(r.ok).toBe(true);
   });
+  it('fase obbligatoria con array vuoto → incompleta; con foto → ok', () => {
+    const campiFase = [
+      { chiave: 'prima', etichetta: 'Prima', tipo: 'foto', ordine: 1, scope_foto: 'misuratore', obbligatoria: true },
+      { chiave: 'dopo', etichetta: 'Dopo', tipo: 'foto', ordine: 2, scope_foto: 'misuratore', obbligatoria: true },
+      { chiave: 'resina', etichetta: 'Resina', tipo: 'foto', ordine: 3, scope_foto: 'fase', obbligatoria: true },
+    ] as never;
+    const rigaOk = [{ id: 'r1', voce_id: 'v1', matricola: 'M1', risposte: { prima: 'p.jpg', dopo: 'd.jpg' } }] as never;
+    const vuoto = righeIncomplete([{ id: 'v1', via: 'V', risposte: { resina: [] } }] as never, rigaOk, campiFase);
+    expect(vuoto.ok).toBe(false);
+    const pieno = righeIncomplete([{ id: 'v1', via: 'V', risposte: { resina: ['r1.jpg', 'r2.jpg'] } }] as never, rigaOk, campiFase);
+    expect(pieno.ok).toBe(true);
+  });
 });
