@@ -306,6 +306,7 @@ export function RisanamentoView({
                 className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
                 {pdfBusy ? 'Genero…' : '📄 Condividi PDF'}
               </button>
+              {errore && <p className="mt-2 text-xs text-[var(--danger)]">{errore}</p>}
             </div>
           )}
         </div>
