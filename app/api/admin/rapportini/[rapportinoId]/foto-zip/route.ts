@@ -91,8 +91,28 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
     }
   }
 
-  // ── 4. Unisce le due fonti e verifica che ci sia almeno una foto ───────────────
-  const tutteLePhoto = [...fotoManuali, ...fotoVoci];
+  // ── 3-bis. Fonte C: foto delle righe-misuratore (risanamento), scope='misuratore' ─
+  const fotoRighe: FotoZip[] = [];
+  const campiMisuratore = campiFoto.filter((c) => ((c as { scope_foto?: string }).scope_foto ?? 'misuratore') === 'misuratore');
+  if (campiMisuratore.length > 0) {
+    const { data: righeRows } = await supabaseAdmin
+      .from('rapportino_righe')
+      .select('id, matricola, pdr, nominativo, risposte')
+      .eq('rapportino_id', rapportinoId)
+      .order('ordine', { ascending: true });
+    for (const r of (righeRows ?? []) as Array<{ id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null }>) {
+      const ids = { pdr: r.pdr ?? undefined, matricola: r.matricola ?? undefined };
+      for (const campo of campiMisuratore) {
+        const storagePath = (r.risposte ?? {})[campo.chiave];
+        if (typeof storagePath !== 'string' || !storagePath) continue;
+        const ext = storagePath.split('.').pop() ?? 'jpg';
+        fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: nomeFotoFile(campo.etichetta, ids, ext, fotoPriority) });
+      }
+    }
+  }
+
+  // ── 4. Unisce le fonti e verifica che ci sia almeno una foto ───────────────
+  const tutteLePhoto = [...fotoManuali, ...fotoVoci, ...fotoRighe];
   if (tutteLePhoto.length === 0) {
     return NextResponse.json({ error: 'Nessuna foto da scaricare.' }, { status: 404 });
   }
