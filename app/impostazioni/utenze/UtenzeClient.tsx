@@ -2,10 +2,8 @@
 
 import { useEffect, useState } from 'react';
 import {
-  DEFAULT_ALLOWED_MODULES,
-  normalizeAllowedModules,
+  prefillModulesForRole,
   ASSIGNABLE_ROLE_LABELS,
-  isAdminAssignableRole,
   type AppModuleKey,
   type AssignableRole,
 } from '@/lib/moduleAccess';
@@ -15,6 +13,7 @@ type ModuleOption = {
   label: string;
   description: string;
   adminOnly: boolean;
+  requiresAdminRole: boolean;
 };
 
 type UserRow = {
@@ -57,18 +56,12 @@ function formatDate(value: string) {
   return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function applyModules(role: AssignableRole, modules: AppModuleKey[]) {
-  return normalizeAllowedModules(modules, role);
-}
-
 function ModuleSelector({
   selected,
-  role,
   modules,
   onToggle,
 }: {
   selected: AppModuleKey[];
-  role: AssignableRole;
   modules: ModuleOption[];
   onToggle: (moduleKey: AppModuleKey) => void;
 }) {
@@ -76,13 +69,13 @@ function ModuleSelector({
     <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
       {modules.map((module) => {
         const checked = selected.includes(module.key);
-        const disabled = module.adminOnly && !isAdminAssignableRole(role);
+        const locked = module.requiresAdminRole; // Impostazioni: segue il ruolo, non si tocca
 
         return (
           <label
             key={module.key}
             className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
-              disabled ? 'opacity-60' : 'cursor-pointer hover:border-[var(--brand-primary)]'
+              locked ? 'opacity-60' : 'cursor-pointer hover:border-[var(--brand-primary)]'
             }`}
             style={{
               borderColor: checked ? 'var(--brand-primary)' : 'var(--brand-border)',
@@ -92,13 +85,28 @@ function ModuleSelector({
             <input
               type="checkbox"
               checked={checked}
-              disabled={disabled}
+              disabled={locked}
               onChange={() => onToggle(module.key)}
               className="mt-1"
             />
             <span className="min-w-0">
-              <span className="block text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+              <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                 {module.label}
+                {module.requiresAdminRole ? (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ backgroundColor: 'var(--brand-surface-muted)', color: 'var(--brand-text-muted)' }}
+                  >
+                    Segue il ruolo
+                  </span>
+                ) : module.adminOnly ? (
+                  <span
+                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
+                    style={{ backgroundColor: 'var(--info-soft)', color: 'var(--info)' }}
+                  >
+                    Sensibile
+                  </span>
+                ) : null}
               </span>
               <span className="mt-0.5 block text-xs leading-relaxed" style={{ color: 'var(--brand-text-muted)' }}>
                 {module.description}
@@ -114,6 +122,7 @@ function ModuleSelector({
 export default function UtenzeClient() {
   const [users, setUsers] = useState<EditRow[]>([]);
   const [availableModules, setAvailableModules] = useState<ModuleOption[]>([]);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<Feedback>(null);
   const [saving, setSaving] = useState<string | null>(null);
@@ -132,7 +141,7 @@ export default function UtenzeClient() {
     username: '',
     password: '',
     role: 'operatore',
-    allowedModules: applyModules('operatore', DEFAULT_ALLOWED_MODULES),
+    allowedModules: prefillModulesForRole('operatore'),
   });
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -147,13 +156,13 @@ export default function UtenzeClient() {
       setLoading(true);
       try {
         const res = await fetch('/api/admin/users', { cache: 'no-store' });
-        const json = await res.json() as { users?: UserRow[]; availableModules?: ModuleOption[]; error?: string };
+        const json = await res.json() as { users?: UserRow[]; availableModules?: ModuleOption[]; currentUserId?: string; error?: string };
         if (!res.ok) throw new Error(json.error ?? 'Errore caricamento utenti.');
         if (!active) return;
         setAvailableModules(json.availableModules ?? []);
+        setCurrentUserId(json.currentUserId ?? null);
         setUsers((json.users ?? []).map((user) => ({
           ...user,
-          allowedModules: applyModules(user.role, user.allowedModules),
           newPassword: '',
         })));
       } catch (err) {
@@ -173,14 +182,7 @@ export default function UtenzeClient() {
   }, []);
 
   const updateRow = (userId: string, patch: Partial<EditRow>) => {
-    setUsers((prev) => prev.map((user) => {
-      if (user.userId !== userId) return user;
-      const next = { ...user, ...patch };
-      return {
-        ...next,
-        allowedModules: applyModules(next.role, next.allowedModules),
-      };
-    }));
+    setUsers((prev) => prev.map((user) => (user.userId === userId ? { ...user, ...patch } : user)));
   };
 
   const toggleCreateModule = (moduleKey: AppModuleKey) => {
@@ -189,10 +191,7 @@ export default function UtenzeClient() {
       const nextModules = hasModule
         ? prev.allowedModules.filter((item) => item !== moduleKey)
         : [...prev.allowedModules, moduleKey];
-      return {
-        ...prev,
-        allowedModules: applyModules(prev.role, nextModules),
-      };
+      return { ...prev, allowedModules: nextModules };
     });
   };
 
@@ -201,15 +200,11 @@ export default function UtenzeClient() {
     const nextModules = hasModule
       ? user.allowedModules.filter((item) => item !== moduleKey)
       : [...user.allowedModules, moduleKey];
-    updateRow(user.userId, { allowedModules: applyModules(user.role, nextModules) });
+    updateRow(user.userId, { allowedModules: nextModules });
   };
 
   const handleCreateRoleChange = (role: AssignableRole) => {
-    setForm((prev) => ({
-      ...prev,
-      role,
-      allowedModules: applyModules(role, prev.allowedModules),
-    }));
+    setForm((prev) => ({ ...prev, role, allowedModules: prefillModulesForRole(role) }));
   };
 
   const handleCreate = async () => {
@@ -222,7 +217,7 @@ export default function UtenzeClient() {
         username: normalizeUsername(form.username),
         password: form.password,
         role: form.role,
-        allowedModules: applyModules(form.role, form.allowedModules),
+        allowedModules: form.allowedModules,
       };
 
       const res = await fetch('/api/admin/users', {
@@ -235,7 +230,6 @@ export default function UtenzeClient() {
 
       setUsers((prev) => [...prev, {
         ...json.user!,
-        allowedModules: applyModules(json.user!.role, json.user!.allowedModules),
         newPassword: '',
       }].sort((a, b) => a.username.localeCompare(b.username, 'it')));
 
@@ -243,7 +237,7 @@ export default function UtenzeClient() {
         username: '',
         password: '',
         role: 'operatore',
-        allowedModules: applyModules('operatore', DEFAULT_ALLOWED_MODULES),
+        allowedModules: prefillModulesForRole('operatore'),
       });
       showFeedback('success', `Utenza "${json.user?.username}" creata.`);
     } catch (err) {
@@ -264,7 +258,7 @@ export default function UtenzeClient() {
           username: normalizeUsername(user.username),
           role: user.role,
           password: user.newPassword || undefined,
-          allowedModules: applyModules(user.role, user.allowedModules),
+          allowedModules: user.allowedModules,
         }),
       });
       const json = await res.json() as { ok?: boolean; error?: string };
@@ -303,7 +297,7 @@ export default function UtenzeClient() {
       <div className="space-y-1">
         <h1 className="text-2xl font-bold" style={{ color: 'var(--brand-text-main)' }}>Impostazioni Utenze</h1>
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Gestisci password, ruoli e moduli visibili per ogni utenza di accesso.
+          Il ruolo precompila i moduli; poi puoi abilitarli o disabilitarli liberamente per ogni utente.
         </p>
       </div>
 
@@ -370,23 +364,32 @@ export default function UtenzeClient() {
             <div>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Moduli visibili</h3>
               <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                Il modulo Impostazioni resta riservato agli admin.
+                Impostazioni segue il ruolo (sempre per gli admin, mai per gli operatori); gli altri moduli sono liberi.
               </p>
             </div>
-            <button
-              type="button"
-              onClick={handleCreate}
-              disabled={creating}
-              className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
-              style={{ backgroundColor: 'var(--brand-primary)' }}
-            >
-              {creating ? 'Creazione...' : 'Crea utenza'}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((prev) => ({ ...prev, allowedModules: prefillModulesForRole(prev.role) }))}
+                className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
+              >
+                Reimposta ai default del ruolo
+              </button>
+              <button
+                type="button"
+                onClick={handleCreate}
+                disabled={creating}
+                className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
+                style={{ backgroundColor: 'var(--brand-primary)' }}
+              >
+                {creating ? 'Creazione...' : 'Crea utenza'}
+              </button>
+            </div>
           </div>
 
           <ModuleSelector
             selected={form.allowedModules}
-            role={form.role}
             modules={availableModules}
             onToggle={toggleCreateModule}
           />
@@ -412,7 +415,9 @@ export default function UtenzeClient() {
           <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna utenza configurata.</div>
         ) : (
           <div className="grid gap-4 p-5">
-            {users.map((user) => (
+            {users.map((user) => {
+              const isSelf = user.userId === currentUserId;
+              return (
               <article
                 key={user.userId}
                 className="rounded-2xl border p-4"
@@ -483,7 +488,9 @@ export default function UtenzeClient() {
                       <button
                         type="button"
                         onClick={() => setConfirmDelete(user.userId)}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                        disabled={isSelf}
+                        title={isSelf ? 'Non puoi eliminare la tua utenza' : undefined}
+                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition enabled:hover:border-[var(--danger)] enabled:hover:text-[var(--danger)] disabled:opacity-50"
                         style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
                       >
                         Elimina
@@ -566,11 +573,13 @@ export default function UtenzeClient() {
                     <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
                     <select
                       value={user.role}
+                      disabled={isSelf}
+                      title={isSelf ? 'Non puoi cambiare il tuo ruolo' : undefined}
                       onChange={(e) => updateRow(user.userId, {
                         role: e.target.value as AssignableRole,
-                        allowedModules: applyModules(e.target.value as AssignableRole, user.allowedModules),
+                        allowedModules: prefillModulesForRole(e.target.value as AssignableRole),
                       })}
-                      className={inputCls}
+                      className={`${inputCls} disabled:opacity-60`}
                       style={inputStyle}
                     >
                       {Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => (
@@ -585,29 +594,39 @@ export default function UtenzeClient() {
                     <div>
                       <h3 className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Moduli abilitati</h3>
                       <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                        Se il ruolo non è admin, Impostazioni viene escluso automaticamente.
+                        Impostazioni segue il ruolo; gli altri moduli sono liberamente abilitabili.
                       </p>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => void handleSave(user)}
-                      disabled={saving === user.userId}
-                      className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
-                      style={{ backgroundColor: 'var(--brand-primary)' }}
-                    >
-                      {saving === user.userId ? 'Salvo...' : 'Salva modifiche'}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => updateRow(user.userId, { allowedModules: prefillModulesForRole(user.role) })}
+                        className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
+                      >
+                        Reimposta ai default del ruolo
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void handleSave(user)}
+                        disabled={saving === user.userId}
+                        className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-60"
+                        style={{ backgroundColor: 'var(--brand-primary)' }}
+                      >
+                        {saving === user.userId ? 'Salvo...' : 'Salva modifiche'}
+                      </button>
+                    </div>
                   </div>
 
                   <ModuleSelector
                     selected={user.allowedModules}
-                    role={user.role}
                     modules={availableModules}
                     onToggle={(moduleKey) => toggleUserModule(user, moduleKey)}
                   />
                 </div>
               </article>
-            ))}
+            );
+            })}
           </div>
         )}
       </section>
