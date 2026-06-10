@@ -689,11 +689,21 @@ export function ordineInvio(items: OutboxItem[]): OutboxItem[] {
   const ordinati = nonInvia
     .slice()
     .sort((a, b) => priorita(a.type) - priorita(b.type) || a.createdAt - b.createdAt);
-  // Includi `invia` solo se non resta nessun altro elemento da sincronizzare.
-  if (nonInvia.length === 0 && invia.length > 0) {
+
+  // Se non resta nessun altro elemento: restituisci solo il primo invia (se esiste).
+  if (nonInvia.length === 0) {
+    if (invia.length === 0) return [];
     return [invia.sort((a, b) => a.createdAt - b.createdAt)[0]];
   }
-  return ordinati;
+
+  // Se c'è almeno un elemento non-invia bloccato, NON inviare (il rapportino non va
+  // chiuso finché resta lavoro irrisolto): escludi invia.
+  if (nonInvia.some((i) => i.stato === 'bloccato')) return ordinati;
+
+  // Altrimenti appendi invia in coda (ultimo): nello stesso giro parte solo dopo che
+  // gli altri elementi sono stati inviati con successo (l'orchestratore interrompe
+  // su errore di rete prima di arrivare a invia).
+  return [...ordinati, ...invia.slice().sort((a, b) => a.createdAt - b.createdAt)];
 }
 
 export type EsitoSync =
