@@ -16,7 +16,7 @@ export function SlotFoto({
   const [err, setErr] = useState(false);
 
   const handle = async (f: File | undefined) => {
-    if (!f) return;
+    if (!f || busy) return;
     setBusy(true); setErr(false);
     try {
       const compressed = await comprimiImmagine(f);

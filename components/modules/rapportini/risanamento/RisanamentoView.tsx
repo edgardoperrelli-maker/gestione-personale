@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { campiPerScope } from '@/utils/rapportini/campiScope';
 import type { Voce } from '@/components/modules/rapportini/RapportinoForm';
@@ -42,11 +42,22 @@ export function RisanamentoView({
   const [pdr, setPdr] = useState('');
   const [nom, setNom] = useState('');
   const [errore, setErrore] = useState<string | null>(null);
+  const [aggiungendoRiga, setAggiungendoRiga] = useState(false);
 
   /** vociRisposte: copia locale delle risposte delle voci, per aggiornamento ottimistico. */
   const [vociRisposte, setVociRisposte] = useState<Record<string, Record<string, unknown>>>(
     () => Object.fromEntries(voci.map((v) => [v.id, { ...(v.risposte ?? {}) }])),
   );
+
+  /* ── Effects ────────────────────────────────────────────────────────────── */
+
+  // Fix 1: reset civicoApertoId se la voce non esiste più (no setState in render)
+  useEffect(() => {
+    if (civicoApertoId !== null && !voci.find((v) => v.id === civicoApertoId)) setCivicoApertoId(null);
+  }, [civicoApertoId, voci]);
+
+  // Fix 4: reset accessorieAttive al cambio di civico
+  useEffect(() => { setAccessorieAttive(new Set()); }, [civicoApertoId]);
 
   /* ── Helpers async ──────────────────────────────────────────────────────── */
 
@@ -90,9 +101,9 @@ export function RisanamentoView({
   };
 
   const aggiungiRiga = async () => {
-    if (!mat.trim()) { setErrore('La matricola è obbligatoria'); return; }
-    if (!civicoApertoId) return;
+    if (!mat.trim() || !civicoApertoId || aggiungendoRiga) return;
     setErrore(null);
+    setAggiungendoRiga(true);
     try {
       const res = await fetch(`/api/r/${token}/riga`, {
         method: 'POST',
@@ -109,6 +120,8 @@ export function RisanamentoView({
       }
     } catch {
       setErrore('Errore di rete nell\'aggiunta del misuratore');
+    } finally {
+      setAggiungendoRiga(false);
     }
   };
 
@@ -169,14 +182,13 @@ export function RisanamentoView({
   /* ── Vista dettaglio civico ─────────────────────────────────────────────── */
 
   const voce = voci.find((v) => v.id === civicoApertoId);
-  if (!voce) {
-    setCivicoApertoId(null);
-    return null;
-  }
+  if (civicoApertoId !== null && !voce) return null;
+  // voce is defined here: the guard above returns null when voce is undefined
+  const voceDefinita = voce!;
 
   const righeCivico = righe.filter((r) => r.voce_id === civicoApertoId).sort((a, b) => a.ordine - b.ordine);
   const risposteVoce = vociRisposte[civicoApertoId] ?? {};
-  const titoloCivico = [voce.via, (voce as Voce & { civico?: string }).civico].filter(Boolean).join(' ') || voce.nominativo || 'Civico';
+  const titoloCivico = [voceDefinita.via, (voceDefinita as Voce & { civico?: string }).civico].filter(Boolean).join(' ') || voceDefinita.nominativo || 'Civico';
 
   return (
     <div className="flex h-dvh flex-col">
@@ -193,7 +205,7 @@ export function RisanamentoView({
           Civici
         </button>
         <div className="text-base font-bold text-[var(--brand-text-main)]">{titoloCivico}</div>
-        <div className="text-sm text-[var(--brand-text-muted)]">{voce.comune ?? ''}</div>
+        <div className="text-sm text-[var(--brand-text-muted)]">{voceDefinita.comune ?? ''}</div>
       </div>
 
       {/* Corpo scrollabile */}
@@ -242,6 +254,7 @@ export function RisanamentoView({
               <input
                 type="text"
                 placeholder="Matricola *"
+                aria-label="Matricola"
                 value={mat}
                 onChange={(e) => { setMat(e.target.value); setErrore(null); }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
@@ -249,6 +262,7 @@ export function RisanamentoView({
               <input
                 type="text"
                 placeholder="PDR (facoltativo)"
+                aria-label="PDR"
                 value={pdr}
                 onChange={(e) => { setPdr(e.target.value); }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
@@ -256,6 +270,7 @@ export function RisanamentoView({
               <input
                 type="text"
                 placeholder="Nominativo (facoltativo)"
+                aria-label="Nominativo"
                 value={nom}
                 onChange={(e) => { setNom(e.target.value); }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
@@ -263,7 +278,8 @@ export function RisanamentoView({
               <button
                 type="button"
                 onClick={() => { void aggiungiRiga(); }}
-                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
+                disabled={aggiungendoRiga}
+                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
               >
                 + Aggiungi misuratore
               </button>
