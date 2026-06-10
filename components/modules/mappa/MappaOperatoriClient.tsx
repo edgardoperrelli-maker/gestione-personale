@@ -1827,7 +1827,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Risanamento: se il piano ha task con attività RESINE, preseleziona il template risanamento.
   useEffect(() => {
     if (rapTemplates.length === 0 || !distribution) return;
-    const tasks = distribution.flatMap((d) => d.tasks);
+    const tasks = distribution.flatMap((d) => d.tasks ?? []);
     if (!pianoHaRisanamento(tasks)) return;
     const tplId = risolviTemplateRisanamento(rapTemplates);
     if (tplId) setRapTemplateId(tplId);
