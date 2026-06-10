@@ -3,7 +3,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 
 const TABS = [
-  { href: '/impostazioni/utenze',    label: 'Utenze' },
+  { href: '/impostazioni/utenze',    label: 'Utenze', requiresAdminPlus: true },
   { href: '/impostazioni/personale', label: 'Personale' },
   { href: '/impostazioni/territori', label: 'Territori' },
   { href: '/impostazioni/gruppo-attivita', label: 'Attivita' },
@@ -11,11 +11,12 @@ const TABS = [
   { href: '/impostazioni/zone-ztl',  label: 'Zone ZTL' },
 ];
 
-export default function SettingsSubNav() {
+export default function SettingsSubNav({ isAdminPlus = false }: { isAdminPlus?: boolean }) {
   const pathname = usePathname();
+  const tabs = TABS.filter((tab) => !tab.requiresAdminPlus || isAdminPlus);
   return (
     <div className="mb-6 flex flex-wrap gap-2 border-b border-[var(--brand-border)] pb-4">
-      {TABS.map(({ href, label }) => {
+      {tabs.map(({ href, label }) => {
         const active = pathname.startsWith(href);
         return (
           <Link

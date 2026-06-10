@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
-import { resolveUserRole } from '@/lib/moduleAccess';
+import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
 import LiveClient, { type TorreIntervento } from '@/components/modules/live/LiveClient';
@@ -24,7 +24,8 @@ export default async function LivePage({ searchParams }: { searchParams: Promise
   if (!user) redirect('/login');
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
-  if (role !== 'admin') redirect('/hub');
+  const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
+  if (!allowedModules.includes('live')) redirect('/hub');
 
   const oggi = oggiRoma();
   const data = clampDataLive(sp.data, oggi);

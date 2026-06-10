@@ -2,10 +2,9 @@ export type ValidRole = 'admin' | 'operatore';
 
 /**
  * Ruolo assegnabile dall'area Utenze. `admin_plus` è un super-admin che, oltre
- * ai privilegi admin, vede il cruscotto premialità. A livello di AUTORIZZAZIONE
- * resta "admin" (vedi resolveUserRole + toStoredProfileRole), così tutti i guard
- * e le policy RLS basate su role='admin' continuano a valere senza modifiche.
- * La distinzione "plus" è trasportata in app_metadata.role = 'admin_plus'.
+ * ai privilegi admin, vede il cruscotto premialità e gestisce le Utenze. A
+ * livello di AUTORIZZAZIONE resta "admin" (vedi resolveUserRole +
+ * toStoredProfileRole). La distinzione "plus" vive in app_metadata.role.
  */
 export type AssignableRole = ValidRole | 'admin_plus';
 
@@ -28,7 +27,10 @@ export type AppModuleDefinition = {
   description: string;
   section: 'overview' | 'modules' | 'system';
   matchPrefixes?: string[];
+  /** Modulo "sensibile": escluso dai default operatore + badge in UI. NON è un gate di accesso. */
   adminOnly?: boolean;
+  /** Gate FORTE di ruolo: l'accesso richiede ruolo admin. Solo `impostazioni`. */
+  requiresAdminRole?: boolean;
 };
 
 export const ROLE_LABELS: Record<ValidRole, string> = {
@@ -126,11 +128,13 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'system',
     matchPrefixes: ['/impostazioni'],
     adminOnly: true,
+    requiresAdminRole: true,
   },
 ];
 
 export const ALL_MODULE_KEYS = APP_MODULES.map((module) => module.key);
 
+/** Set operativo non-sensibile: fallback per gli operatori legacy senza metadata. */
 export const DEFAULT_ALLOWED_MODULES = APP_MODULES
   .filter((module) => !module.adminOnly)
   .map((module) => module.key);
@@ -160,6 +164,11 @@ export function canViewPremialita(role: AssignableRole | null | undefined): bool
   return role === 'admin_plus';
 }
 
+/** Solo `admin_plus` gestisce la sezione Utenze (creazione/modifica/eliminazione utenti). */
+export function canManageUsers(role: AssignableRole | null | undefined): boolean {
+  return role === 'admin_plus';
+}
+
 /** True per i ruoli con privilegi amministrativi (admin e admin_plus). */
 export function isAdminAssignableRole(role: AssignableRole | null | undefined): boolean {
   return role === 'admin' || role === 'admin_plus';
@@ -169,9 +178,6 @@ export function resolveUserRole(
   profileRole?: string | null,
   metadataRole?: unknown,
 ): ValidRole {
-  // admin_plus è un super-admin: a livello di AUTORIZZAZIONE equivale ad admin.
-  // Va riconosciuto anche quando arriva dal solo app_metadata (es. nel middleware,
-  // che non legge profiles), altrimenti i super-admin vengono trattati da operatori.
   if (profileRole === 'admin_plus' || metadataRole === 'admin_plus') return 'admin';
   if (isValidRole(profileRole)) return profileRole;
   if (profileRole === 'editor' || profileRole === 'viewer') return 'operatore';
@@ -181,24 +187,34 @@ export function resolveUserRole(
 }
 
 export function toStoredProfileRole(role: AssignableRole): 'admin' | 'viewer' {
-  // admin_plus è admin a livello di profilo/RLS: la tier "plus" vive in app_metadata.
   return isAdminAssignableRole(role) ? 'admin' : 'viewer';
 }
 
+/** Template di pre-compilazione mostrato nella UI Utenze quando si seleziona un ruolo. */
+export function prefillModulesForRole(role?: AssignableRole | null): AppModuleKey[] {
+  if (isAdminAssignableRole(role)) return [...ALL_MODULE_KEYS];
+  return []; // operatore: parte vuoto
+}
+
+/** Default usato SOLO quando l'utente non ha `allowedModules` nei metadata (legacy). */
+export function fallbackModulesForRole(role?: AssignableRole | null): AppModuleKey[] {
+  if (isAdminAssignableRole(role)) return [...ALL_MODULE_KEYS];
+  return [...DEFAULT_ALLOWED_MODULES]; // operatore legacy: set operativo
+}
+
+/**
+ * Valida la lista moduli contro le chiavi note. UNICO invariante: `impostazioni`
+ * è presente se e solo se il ruolo è admin/admin_plus. Nessun'altra forzatura.
+ */
 export function normalizeAllowedModules(
   input: unknown,
   role?: AssignableRole | null,
 ): AppModuleKey[] {
-  const raw = Array.isArray(input) ? input : DEFAULT_ALLOWED_MODULES;
-  const allowed = ALL_MODULE_KEYS.filter((key) => raw.includes(key));
-
-  if (isAdminAssignableRole(role)) {
-    return Array.from(new Set<AppModuleKey>([...allowed, 'sopralluoghi', 'impostazioni', 'live', 'lista-attesa', 'misuratori']));
-  }
-
-  return Array.from(
-    new Set<AppModuleKey>([...allowed.filter((key) => key !== 'impostazioni' && key !== 'live' && key !== 'lista-attesa'), 'sopralluoghi']),
-  );
+  const raw = Array.isArray(input) ? input : [];
+  const set = new Set<AppModuleKey>(ALL_MODULE_KEYS.filter((key) => raw.includes(key)));
+  if (isAdminAssignableRole(role)) set.add('impostazioni');
+  else set.delete('impostazioni');
+  return ALL_MODULE_KEYS.filter((key) => set.has(key)); // ordine stabile
 }
 
 function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: unknown } | null {
@@ -210,7 +226,10 @@ export function getAllowedModulesForUser(appMetadata: unknown, role?: Assignable
   const metadata = extractAppMetadata(appMetadata);
   const metadataRole = isAssignableRole(metadata?.role) ? metadata.role : null;
   const effectiveRole = role ?? metadataRole;
-  return normalizeAllowedModules(metadata?.allowedModules, effectiveRole);
+  if (!Array.isArray(metadata?.allowedModules)) {
+    return fallbackModulesForRole(effectiveRole);
+  }
+  return normalizeAllowedModules(metadata.allowedModules, effectiveRole);
 }
 
 export function findModuleByPath(pathname: string): AppModuleDefinition | null {
@@ -223,16 +242,13 @@ export function findModuleByPath(pathname: string): AppModuleDefinition | null {
 export function canAccessPath(pathname: string, allowedModules: AppModuleKey[], role?: ValidRole | null): boolean {
   const matchedModule = findModuleByPath(pathname);
   if (!matchedModule) return true;
-  if (matchedModule.adminOnly && role !== 'admin') return false;
+  if (matchedModule.requiresAdminRole && role !== 'admin') return false; // gate di ruolo forte
   return allowedModules.includes(matchedModule.key);
 }
 
 /**
- * Decisione di accesso usata dal middleware, basata SOLO su `app_metadata`
- * (il middleware non interroga il profilo nel DB). Centralizza la logica così
- * che resti coerente con i guard server-side: in particolare `admin_plus` viene
- * trattato come `admin` (vedi resolveUserRole), evitando il redirect erroneo
- * dei super-admin fuori dalle aree adminOnly come /impostazioni.
+ * Decisione di accesso usata dal middleware, basata SOLO su `app_metadata`.
+ * `admin_plus` è trattato come `admin` (vedi resolveUserRole).
  */
 export function canAccessPathFromMetadata(pathname: string, appMetadata: unknown): boolean {
   const metadataRole = extractAppMetadata(appMetadata)?.role;
@@ -243,18 +259,23 @@ export function canAccessPathFromMetadata(pathname: string, appMetadata: unknown
 
 /**
  * Costruisce l'app_metadata da salvare in un aggiornamento utente (PATCH Utenze).
- * Quando il ruolo non viene cambiato (`requestedRole` assente) usa il ruolo
- * CORRENTE dell'utente, così aggiornare i soli moduli non lo declassa e i moduli
- * vengono normalizzati sul ruolo reale (non come non-admin).
+ * Senza `requestedRole` usa il ruolo corrente (non declassare aggiornando i soli moduli).
+ * Senza `requestedModules` preserva i moduli correnti. Applica sempre l'invariante
+ * `impostazioni` ⟺ ruolo admin.
  */
 export function buildAppMetadataUpdate(
   currentMetadataRole: unknown,
+  currentAllowedModules: unknown,
   requestedRole: AssignableRole | undefined,
   requestedModules: unknown,
 ): { role: AssignableRole; allowedModules: AppModuleKey[] } {
   const effectiveRole = requestedRole ?? resolveAssignableRole(undefined, currentMetadataRole);
+  const modulesInput =
+    Array.isArray(requestedModules) ? requestedModules :
+    Array.isArray(currentAllowedModules) ? currentAllowedModules :
+    prefillModulesForRole(effectiveRole);
   return {
     role: effectiveRole,
-    allowedModules: normalizeAllowedModules(requestedModules, effectiveRole),
+    allowedModules: normalizeAllowedModules(modulesInput, effectiveRole),
   };
 }
