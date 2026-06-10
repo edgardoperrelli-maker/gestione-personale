@@ -23,6 +23,7 @@ import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } f
 import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
+import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -716,7 +717,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
   const [rapTemplateId, setRapTemplateId] = useState('');
-  const [rapTemplates, setRapTemplates] = useState<Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }>>([]);
+  const [rapTemplates, setRapTemplates] = useState<Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; tipo?: string; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }>>([]);
   const [rapGenerating, setRapGenerating] = useState(false);
   const [rapError, setRapError] = useState<string | null>(null);
   const [rapConflicts, setRapConflicts] = useState<Array<{ staff_id: string; staff_name: string | null; territorio: string | null; data: string; submitted: boolean }> | null>(null);
@@ -1810,7 +1811,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       try {
         const res = await fetch('/api/admin/rapportino-template');
         const list = await res.json();
-        const arr: Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }> = Array.isArray(list) ? list : [];
+        const arr: Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; tipo?: string; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }> = Array.isArray(list) ? list : [];
         const arrFiltrato = arr.filter((t) => !t.solo_manuale);
         setRapTemplates(arrFiltrato);
         const def = arrFiltrato.find((t) => t.is_default) ?? arrFiltrato[0];
@@ -1822,6 +1823,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       }
     })();
   }, []);
+
+  // Risanamento: se il piano ha task con attività RESINE, preseleziona il template risanamento.
+  useEffect(() => {
+    if (rapTemplates.length === 0 || !distribution) return;
+    const tasks = distribution.flatMap((d) => d.tasks);
+    if (!pianoHaRisanamento(tasks)) return;
+    const tplId = risolviTemplateRisanamento(rapTemplates);
+    if (tplId) setRapTemplateId(tplId);
+  }, [distribution, rapTemplates]);
 
   // Carica lo stato rapportini quando il piano è salvato (incluso edit mode)
   useEffect(() => {
