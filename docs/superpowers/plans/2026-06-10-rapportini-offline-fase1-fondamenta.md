@@ -1497,3 +1497,17 @@ git commit -m "chore(offline): verifica Fase 1 (fondamenta) completata" --allow-
 
 - **Fase 2 — Rapportino offline (compilazione):** wiring di `RapportinoForm` al data layer (`lavoro`+`outbox`+reidratazione), foto offline via `blob`+`compressImage`, `SaveBadge` con stato "in attesa di rete", `OfflineStatusPill`, Background Sync (Android), cassetto "da risolvere", e2e Playwright offline. Salva snapshot in `page.tsx` rapportino.
 - **Fase 3 — Agenda + Intervento manuale offline:** wiring di `AgendaOperatoreClient` (Fatto/Non fatto via outbox) e `ModaleInterventoManuale` (accodamento con pre-validazione + foto blob), snapshot agenda, e2e.
+
+## Contratti e note emersi dalle review della Fase 1 (DA RISPETTARE in Fase 2/3)
+
+- **Id canonico delle voci outbox:** quando il form accoda un salvataggio voce DEVE usare `idOutboxVoce(token, voceId)` (= `voce:${token}:${voceId}`, in [lib/offline/ids.ts](../../../lib/offline/ids.ts)) come `id` dell'elemento outbox. Così coincide con la voce ri-accodata dall'orchestratore dopo l'upload foto e con `chiaveCoalescing` → niente doppioni in IndexedDB.
+- **`clientKey` unico per foto:** chi genera un elemento `foto` in coda DEVE assegnare un `clientKey` **univoco per ogni singola foto** (es. UUID per blob). Il path di storage è deterministico (`upsert`), quindi due foto che condividono lo stesso `clientKey` nello stesso rapportino si sovrascriverebbero.
+- **Replay manuale e `voceId`:** il corto-circuito idempotente di `intervento-manuale` può restituire `voceId: null` se il replay arriva mentre l'originale è ancora a metà (la `voce_id` è impostata da una UPDATE successiva). Il chiamante (`sync.ts`) oggi ignora il body, quindi è innocuo; un futuro consumatore NON deve fidarsi del `voceId` di una risposta `idempotente:true`.
+- **Concorrenza cross-tab:** il guard `inCorso` di `sync.ts` è single-flight per-tab. Due tab/dispositivi che replicano lo stesso `richiestaId` in parallelo possono incrociarsi sul rollback storage (caso stretto). Da valutare in Fase 2/3 se diventa rilevante.
+- **`db.tx` durabilità:** le scritture risolvono al commit della transazione (`oncomplete`) — sicuro affidarsi alla rimozione/put come durabili.
+
+## Verifica build / QA (limite ambiente locale)
+
+- Il `npm run build` completo **non si conclude in locale** per un errore **pre-esistente** in "collect page data" della route admin `/api/admin/rapportini/[rapportinoId]/foto-zip` (non toccata da questa feature). Il **service worker Serwist si genera comunque** (`public/sw.js`, ~56KB).
+- Verifica end-to-end (build completo + comportamento offline reale: cache pagine, coda, sync) da fare su **preview Vercel**, anche perché il SW è attivo **solo nel build di produzione** (in `next dev --turbopack` non viene generato).
+- Verifica locale effettuata: `tsc --noEmit` pulito sui file della feature; **22 test unitari offline verdi** (outboxModel, syncPlan, validateManuale, idRichiesta, nomeFileFoto).
