@@ -714,10 +714,14 @@ export type EsitoSync =
 /** Classifica l'esito HTTP di un invio. status 0 = errore di rete. */
 export function classificaEsito(status: number): EsitoSync {
   if (status >= 200 && status < 300) return { esito: 'completato' };
-  if (status === 409) return { esito: 'bloccato', motivo: 'Link scaduto o non più modificabile' };
+  // Transitori → ritenta: errore di rete (0), troppe richieste (429), errori server (5xx).
+  if (status === 0 || status === 429 || status >= 500) return { esito: 'ritenta' };
+  // Errori client permanenti (4xx): ritentare non aiuta → bloccato (le route operatore
+  // usano 400/404 per condizioni definitive, quindi NON vanno ritentate all'infinito).
   if (status === 403) return { esito: 'bloccato', motivo: 'Giornata già chiusa' };
+  if (status === 409) return { esito: 'bloccato', motivo: 'Link scaduto o non più modificabile' };
   if (status === 422) return { esito: 'bloccato', motivo: 'Dati non validi' };
-  return { esito: 'ritenta' };
+  return { esito: 'bloccato', motivo: 'Richiesta non valida' };
 }
 ```
 

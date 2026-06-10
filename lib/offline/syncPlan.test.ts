@@ -40,8 +40,14 @@ describe('classificaEsito', () => {
     expect(classificaEsito(403).esito).toBe('bloccato');
     expect(classificaEsito(422).esito).toBe('bloccato');
   });
-  it('5xx e 0 (rete) → ritenta', () => {
+  it('transitori (0 rete, 429, 5xx) → ritenta', () => {
     expect(classificaEsito(500).esito).toBe('ritenta');
+    expect(classificaEsito(503).esito).toBe('ritenta');
+    expect(classificaEsito(429).esito).toBe('ritenta');
     expect(classificaEsito(0).esito).toBe('ritenta');
+  });
+  it('4xx non transitori (400/404) → bloccato', () => {
+    expect(classificaEsito(400).esito).toBe('bloccato');
+    expect(classificaEsito(404).esito).toBe('bloccato');
   });
 });
