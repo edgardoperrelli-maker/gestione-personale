@@ -30,9 +30,15 @@ function tx<T>(store: string, mode: IDBTransactionMode, fn: (s: IDBObjectStore) 
     (db) =>
       new Promise<T>((resolve, reject) => {
         const t = db.transaction(store, mode);
+        let risultato: T;
         const req = fn(t.objectStore(store));
-        req.onsuccess = () => resolve(req.result);
+        req.onsuccess = () => {
+          risultato = req.result;
+        };
         req.onerror = () => reject(req.error);
+        t.oncomplete = () => resolve(risultato);
+        t.onabort = () => reject(t.error ?? new Error('transazione annullata'));
+        t.onerror = () => reject(t.error ?? req.error);
       }),
   );
 }
