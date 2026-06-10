@@ -86,6 +86,7 @@ function ModuleSelector({
               type="checkbox"
               checked={checked}
               disabled={locked}
+              title={locked ? 'Questo modulo segue il ruolo e non può essere modificato' : undefined}
               onChange={() => onToggle(module.key)}
               className="mt-1"
             />
@@ -195,12 +196,15 @@ export default function UtenzeClient() {
     });
   };
 
-  const toggleUserModule = (user: EditRow, moduleKey: AppModuleKey) => {
-    const hasModule = user.allowedModules.includes(moduleKey);
-    const nextModules = hasModule
-      ? user.allowedModules.filter((item) => item !== moduleKey)
-      : [...user.allowedModules, moduleKey];
-    updateRow(user.userId, { allowedModules: nextModules });
+  const toggleUserModule = (userId: string, moduleKey: AppModuleKey) => {
+    setUsers((prev) => prev.map((u) => {
+      if (u.userId !== userId) return u;
+      const hasModule = u.allowedModules.includes(moduleKey);
+      const allowedModules = hasModule
+        ? u.allowedModules.filter((item) => item !== moduleKey)
+        : [...u.allowedModules, moduleKey];
+      return { ...u, allowedModules };
+    }));
   };
 
   const handleCreateRoleChange = (role: AssignableRole) => {
@@ -621,7 +625,7 @@ export default function UtenzeClient() {
                   <ModuleSelector
                     selected={user.allowedModules}
                     modules={availableModules}
-                    onToggle={(moduleKey) => toggleUserModule(user, moduleKey)}
+                    onToggle={(moduleKey) => toggleUserModule(user.userId, moduleKey)}
                   />
                 </div>
               </article>
