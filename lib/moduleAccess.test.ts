@@ -47,6 +47,10 @@ describe('prefillModulesForRole / fallbackModulesForRole', () => {
     expect(prefillModulesForRole('admin_plus')).toContain('live');
     expect(fallbackModulesForRole('admin')).toContain('impostazioni');
   });
+  it('prefill con ruolo nullo/assente → vuoto', () => {
+    expect(prefillModulesForRole(null)).toEqual([]);
+    expect(prefillModulesForRole(undefined)).toEqual([]);
+  });
 });
 
 describe('normalizeAllowedModules (nessuna forzatura, unico invariante su impostazioni)', () => {
@@ -88,6 +92,9 @@ describe('canAccessPathFromMetadata (logica del middleware)', () => {
   it('operatore con impostazioni anomalo in metadata: resta bloccato (gate ruolo)', () => {
     expect(canAccessPathFromMetadata('/impostazioni', { role: 'operatore', allowedModules: ['impostazioni'] })).toBe(false);
   });
+  it('admin legacy (nessun allowedModules in metadata) può accedere a /hub/live', () => {
+    expect(canAccessPathFromMetadata('/hub/live', { role: 'admin' })).toBe(true);
+  });
 });
 
 describe('buildAppMetadataUpdate (PATCH Utenze)', () => {
@@ -114,5 +121,9 @@ describe('buildAppMetadataUpdate (PATCH Utenze)', () => {
   it('moduli non inviati: preserva i correnti (ordine di ALL_MODULE_KEYS)', () => {
     const out = buildAppMetadataUpdate('operatore', ['mappa', 'rapportini'], undefined, undefined);
     expect(out.allowedModules).toEqual(['rapportini', 'mappa']); // rapportini precede mappa in ALL_MODULE_KEYS
+  });
+  it('nessun modulo né corrente né richiesto: usa il prefill del ruolo', () => {
+    const out = buildAppMetadataUpdate('operatore', undefined, undefined, undefined);
+    expect(out.allowedModules).toEqual([]); // prefillModulesForRole('operatore') = []
   });
 });
