@@ -8,6 +8,9 @@ import type { RigaRisanamento } from './types';
 import { SlotFoto } from './SlotFoto';
 import { ScannerMisuratore } from './ScannerMisuratore';
 import { righeIncomplete, type DettaglioIncompleto } from '@/utils/rapportini/righeIncomplete';
+import { datiPdfRisanamento } from '@/utils/rapportini/datiPdfRisanamento';
+import { generaPdfRisanamentoBlob, nomeFilePdfRisanamento } from '@/utils/rapportini/pdfRisanamento';
+import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -57,6 +60,7 @@ export function RisanamentoView({
   const [inviato, setInviato] = useState(readOnly);
   const [modalePuntiGas, setModalePuntiGas] = useState(false);
   const [incompleti, setIncompleti] = useState<DettaglioIncompleto[]>([]);
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   /* ── Effects ────────────────────────────────────────────────────────────── */
 
@@ -101,6 +105,20 @@ export function RisanamentoView({
       if (!res.ok) { setErrore('Invio fallito.'); return; }
       setInviato(true);
     } catch { setErrore('Errore di rete.'); } finally { setInviando(false); }
+  };
+
+  const condividiPdf = async () => {
+    setPdfBusy(true);
+    try {
+      const dati = datiPdfRisanamento(voci as never, righe as never);
+      const blob = await generaPdfRisanamentoBlob(dati, { staffName: rapportino.staff_name, dataLabel: formatData(rapportino.data) });
+      await condividiOScarica({
+        blob,
+        filename: nomeFilePdfRisanamento(rapportino.staff_name, rapportino.data),
+        title: 'Rapportino risanamento',
+        text: `Rapportino risanamento ${rapportino.staff_name} ${formatData(rapportino.data)}`,
+      });
+    } catch { setErrore('Generazione PDF fallita.'); } finally { setPdfBusy(false); }
   };
 
   /* ── Helpers async ──────────────────────────────────────────────────────── */
@@ -282,8 +300,12 @@ export function RisanamentoView({
 
           {/* Banner inviato */}
           {inviato && (
-            <div className="m-3 rounded-xl border border-[var(--success)] bg-[var(--success)]/10 p-4 text-center text-sm font-semibold text-[var(--success)]">
-              Rapportino inviato ✓
+            <div className="m-3 rounded-xl border border-[var(--success)] bg-[var(--success)]/10 p-4 text-center">
+              <p className="mb-3 text-sm font-semibold text-[var(--success)]">Rapportino inviato ✓</p>
+              <button type="button" onClick={condividiPdf} disabled={pdfBusy}
+                className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
+                {pdfBusy ? 'Genero…' : '📄 Condividi PDF'}
+              </button>
             </div>
           )}
         </div>
