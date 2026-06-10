@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
-import { resolveUserRole } from '@/lib/moduleAccess';
+import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { CodaRichiesteManuali } from '@/components/modules/lista-attesa/CodaRichiesteManuali';
 import { RegistroAutorizzazioni } from '@/components/modules/lista-attesa/RegistroAutorizzazioni';
 import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
@@ -20,7 +20,8 @@ export default async function ListaAttesaPage() {
   if (!user) redirect('/login');
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
-  if (role !== 'admin') redirect('/hub');
+  const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
+  if (!allowedModules.includes('lista-attesa')) redirect('/hub');
 
   // Header info per la revisione: template default PIANIFICATO.
   const { data: tplDefRows } = await supabase
