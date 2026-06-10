@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { righeModelloMisuratori } from '@/lib/risanamento/righeModelloMisuratori';
 
 type ImportRow = { import_id: string; righe: number; caricato_at: string; indirizzo_campione: string | null };
 type Esito = { type: 'ok' | 'err'; msg: string } | null;
@@ -19,6 +20,24 @@ export default function ImportMisuratoriClient() {
   const [fImport, setFImport] = useState('');
   const [refCount, setRefCount] = useState<number | null>(null);
   const [refSample, setRefSample] = useState<Array<{ id: number; matricola: string; indirizzo: string; civico: string; comune: string }>>([]);
+
+  // Genera e scarica un modello .xlsx (intestazioni + 1 riga di esempio) compatibile con l'import.
+  const scaricaModello = useCallback(async () => {
+    const XLSX = await import('xlsx');
+    const ws = XLSX.utils.aoa_to_sheet(righeModelloMisuratori());
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Misuratori');
+    const buf = XLSX.write(wb, { type: 'array', bookType: 'xlsx' }) as ArrayBuffer;
+    const blob = new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'modello-estrazione-misuratori.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }, []);
 
   const carica = useCallback(async () => {
     const res = await fetch(ENDPOINT);
@@ -130,14 +149,23 @@ export default function ImportMisuratoriClient() {
           onChange={(e) => setFile(e.target.files?.[0] ?? null)}
           className="block w-full text-sm text-[var(--brand-text-main)]"
         />
-        <button
-          type="button"
-          disabled={!file || busy}
-          onClick={importa}
-          className="mt-4 rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
-        >
-          {busy ? 'Import in corso…' : 'Importa'}
-        </button>
+        <div className="mt-4 flex flex-wrap items-center gap-2">
+          <button
+            type="button"
+            disabled={!file || busy}
+            onClick={importa}
+            className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+          >
+            {busy ? 'Import in corso…' : 'Importa'}
+          </button>
+          <button
+            type="button"
+            onClick={() => { void scaricaModello(); }}
+            className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-semibold text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface-muted)]"
+          >
+            ⬇ Scarica modello
+          </button>
+        </div>
         {esito && (
           <p className={`mt-3 text-sm ${esito.type === 'ok' ? 'text-[var(--success)]' : 'text-[var(--danger)]'}`}>
             {esito.msg}
