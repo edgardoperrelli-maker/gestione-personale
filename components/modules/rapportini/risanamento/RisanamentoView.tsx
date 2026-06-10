@@ -6,6 +6,7 @@ import { campiPerScope } from '@/utils/rapportini/campiScope';
 import type { Voce } from '@/components/modules/rapportini/RapportinoForm';
 import type { RigaRisanamento } from './types';
 import { SlotFoto } from './SlotFoto';
+import { ScannerMisuratore } from './ScannerMisuratore';
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -43,6 +44,8 @@ export function RisanamentoView({
   const [nom, setNom] = useState('');
   const [errore, setErrore] = useState<string | null>(null);
   const [aggiungendoRiga, setAggiungendoRiga] = useState(false);
+  const [scanner, setScanner] = useState<null | 'crea' | 'cerca'>(null);
+  const [evidenziata, setEvidenziata] = useState<string | null>(null);
 
   /** vociRisposte: copia locale delle risposte delle voci, per aggiornamento ottimistico. */
   const [vociRisposte, setVociRisposte] = useState<Record<string, Record<string, unknown>>>(
@@ -58,6 +61,9 @@ export function RisanamentoView({
 
   // Fix 4: reset accessorieAttive al cambio di civico
   useEffect(() => { setAccessorieAttive(new Set()); }, [civicoApertoId]);
+
+  // Auto-clear highlight riga dopo 4 secondi
+  useEffect(() => { if (!evidenziata) return; const t = setTimeout(() => setEvidenziata(null), 4000); return () => clearTimeout(t); }, [evidenziata]);
 
   /* ── Helpers async ──────────────────────────────────────────────────────── */
 
@@ -127,6 +133,41 @@ export function RisanamentoView({
 
   const attivaAccessoria = (chiave: string) => {
     setAccessorieAttive((prev) => new Set([...prev, chiave]));
+  };
+
+  const onScanCrea = async (codice: string) => {
+    setScanner(null);
+    if (!civicoApertoId) return;
+    try {
+      const res = await fetch(`/api/r/${token}/lookup-misuratore?voceId=${encodeURIComponent(civicoApertoId)}&codice=${encodeURIComponent(codice)}`);
+      if (!res.ok) { setErrore('Errore nella ricerca del misuratore'); return; }
+      const json = (await res.json()) as { trovato: false } | { trovato: true; fonte: string; ref_id: string; pdr: string | null; nominativo: string | null; indirizzoRef?: string };
+      if (!json.trovato) {
+        setMat(codice); setPdr(''); setNom('');
+        setErrore('Matricola non in elenco: completa i dati e salva.');
+        return;
+      }
+      const postRes = await fetch(`/api/r/${token}/riga`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ voceId: civicoApertoId, matricola: codice, pdr: json.pdr, nominativo: json.nominativo, fonte: json.fonte, ref_id: json.ref_id }),
+      });
+      if (!postRes.ok) { setErrore('Errore nell\'aggiunta del misuratore'); return; }
+      const rj = (await postRes.json()) as { riga?: RigaRisanamento };
+      if (rj.riga) {
+        setRighe((prev) => [...prev, rj.riga!]);
+        if (json.fonte === 'fuori_elenco') setErrore(`Misuratore fuori elenco (anagrafica: ${json.indirizzoRef ?? '—'}).`);
+      }
+    } catch {
+      setErrore('Errore di rete');
+    }
+  };
+
+  const onScanCerca = (codice: string) => {
+    setScanner(null);
+    const riga = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === codice.trim());
+    if (riga) { setEvidenziata(riga.id); setErrore(null); }
+    else setErrore('Misuratore non presente: usa "Scansiona" per crearlo.');
   };
 
   /* ── Vista lista civici ─────────────────────────────────────────────────── */
@@ -226,7 +267,7 @@ export function RisanamentoView({
           )}
 
           {righeCivico.map((riga) => (
-            <div key={riga.id} className="mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+            <div key={riga.id} className={`mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
               <div className="mb-2 text-sm font-semibold text-[var(--brand-text-main)]">
                 {riga.matricola && <span className="mr-2">Matricola: {riga.matricola}</span>}
                 {riga.nominativo && <span className="text-[var(--brand-text-muted)]">{riga.nominativo}</span>}
@@ -275,6 +316,10 @@ export function RisanamentoView({
                 onChange={(e) => { setNom(e.target.value); }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
+              <div className="flex gap-2">
+                <button type="button" onClick={() => setScanner('crea')} className="rounded-lg border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)]">📷 Scansiona</button>
+                <button type="button" onClick={() => setScanner('cerca')} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold">🔍 Cerca (scan)</button>
+              </div>
               <button
                 type="button"
                 onClick={() => { void aggiungiRiga(); }}
@@ -343,6 +388,9 @@ export function RisanamentoView({
           </div>
         )}
       </div>
+      {scanner && (
+        <ScannerMisuratore onCodice={scanner === 'crea' ? onScanCrea : onScanCerca} onChiudi={() => setScanner(null)} />
+      )}
     </div>
   );
 }
