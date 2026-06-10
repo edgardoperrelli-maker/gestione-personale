@@ -141,7 +141,7 @@ export function RisanamentoView({
     try {
       const res = await fetch(`/api/r/${token}/lookup-misuratore?voceId=${encodeURIComponent(civicoApertoId)}&codice=${encodeURIComponent(codice)}`);
       if (!res.ok) { setErrore('Errore nella ricerca del misuratore'); return; }
-      const json = (await res.json()) as { trovato: false } | { trovato: true; fonte: string; ref_id: string; pdr: string | null; nominativo: string | null; indirizzoRef?: string };
+      const json = (await res.json()) as { trovato: false } | { trovato: true; fonte: string; ref_id: number; pdr: string | null; nominativo: string | null; indirizzoRef?: string };
       if (!json.trovato) {
         setMat(codice); setPdr(''); setNom('');
         setErrore('Matricola non in elenco: completa i dati e salva.');
