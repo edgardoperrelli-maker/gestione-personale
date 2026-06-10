@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { campiPerScope } from '@/utils/rapportini/campiScope';
 import type { Voce } from '@/components/modules/rapportini/RapportinoForm';
 import type { RigaRisanamento } from './types';
 import { SlotFoto } from './SlotFoto';
 import { ScannerMisuratore } from './ScannerMisuratore';
+import { righeIncomplete, type DettaglioIncompleto } from '@/utils/rapportini/righeIncomplete';
 
 /* ── Helpers ────────────────────────────────────────────────────────────────── */
 
@@ -52,6 +53,11 @@ export function RisanamentoView({
     () => Object.fromEntries(voci.map((v) => [v.id, { ...(v.risposte ?? {}) }])),
   );
 
+  const [inviando, setInviando] = useState(false);
+  const [inviato, setInviato] = useState(readOnly);
+  const [modalePuntiGas, setModalePuntiGas] = useState(false);
+  const [incompleti, setIncompleti] = useState<DettaglioIncompleto[]>([]);
+
   /* ── Effects ────────────────────────────────────────────────────────────── */
 
   // Fix 1: reset civicoApertoId se la voce non esiste più (no setState in render)
@@ -64,6 +70,38 @@ export function RisanamentoView({
 
   // Auto-clear highlight riga dopo 4 secondi
   useEffect(() => { if (!evidenziata) return; const t = setTimeout(() => setEvidenziata(null), 4000); return () => clearTimeout(t); }, [evidenziata]);
+
+  /* ── Derived (validazione invio) ───────────────────────────────────────── */
+
+  const vociLite = useMemo(
+    () => voci.map((v) => ({ id: v.id, via: v.via, risposte: (vociRisposte[v.id] ?? {}) as Record<string, unknown> })),
+    [voci, vociRisposte],
+  );
+  const validazione = useMemo(() => righeIncomplete(vociLite, righe as never, campi), [vociLite, righe, campi]);
+  const puntiGas = righe.length;
+  const nCivici = new Set(righe.map((r) => r.voce_id)).size;
+
+  /* ── Handlers invio ─────────────────────────────────────────────────────── */
+
+  const onInviaClick = () => {
+    setErrore(null);
+    if (!validazione.ok) { setIncompleti(validazione.dettagli); return; }
+    setIncompleti([]); setModalePuntiGas(true);
+  };
+
+  const confermaInvio = async () => {
+    setModalePuntiGas(false); setInviando(true); setErrore(null);
+    try {
+      const res = await fetch(`/api/r/${token}/invia`, { method: 'POST' });
+      if (res.status === 409) {
+        const body = await res.json() as { error?: string; dettagli?: DettaglioIncompleto[] };
+        if (body.error === 'foto_mancanti') { setIncompleti(body.dettagli ?? []); return; }
+        setErrore('Invio non possibile.'); return;
+      }
+      if (!res.ok) { setErrore('Invio fallito.'); return; }
+      setInviato(true);
+    } catch { setErrore('Errore di rete.'); } finally { setInviando(false); }
+  };
 
   /* ── Helpers async ──────────────────────────────────────────────────────── */
 
@@ -174,49 +212,110 @@ export function RisanamentoView({
 
   if (civicoApertoId === null) {
     return (
-      <div className="flex h-dvh flex-col">
-        {/* Header */}
-        <div className="shrink-0 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-4">
-          <div className="text-base font-bold text-[var(--brand-text-main)]">{rapportino.staff_name}</div>
-          <div className="text-sm text-[var(--brand-text-muted)]">{formatData(rapportino.data)}</div>
-        </div>
+      <>
+        <div className="flex h-dvh flex-col">
+          {/* Header */}
+          <div className="shrink-0 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-4">
+            <div className="text-base font-bold text-[var(--brand-text-main)]">{rapportino.staff_name}</div>
+            <div className="text-sm text-[var(--brand-text-muted)]">{formatData(rapportino.data)}</div>
+          </div>
 
-        {/* Lista civici */}
-        <div className="flex-1 space-y-2.5 overflow-y-auto px-3 pb-6 pt-3">
-          {voci.length === 0 ? (
-            <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun civico assegnato.</p>
-          ) : (
-            voci.map((voce, idx) => {
-              const nMisuratori = righe.filter((r) => r.voce_id === voce.id).length;
-              const titolo = [voce.via, (voce as Voce & { civico?: string }).civico].filter(Boolean).join(' ');
-              return (
-                <button
-                  key={voce.id}
-                  type="button"
-                  onClick={() => { setCivicoApertoId(voce.id); setErrore(null); }}
-                  className="flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-left transition active:border-[var(--brand-primary)]"
-                >
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary-soft)] text-sm font-bold text-[var(--brand-primary)]">
-                    {idx + 1}
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-[15px] font-bold text-[var(--brand-text-main)]">
-                      {titolo || voce.nominativo || `Civico ${idx + 1}`}
+          {/* Lista civici */}
+          <div className="flex-1 space-y-2.5 overflow-y-auto px-3 pb-6 pt-3">
+            {voci.length === 0 ? (
+              <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun civico assegnato.</p>
+            ) : (
+              voci.map((voce, idx) => {
+                const nMisuratori = righe.filter((r) => r.voce_id === voce.id).length;
+                const titolo = [voce.via, (voce as Voce & { civico?: string }).civico].filter(Boolean).join(' ');
+                return (
+                  <button
+                    key={voce.id}
+                    type="button"
+                    onClick={() => { setCivicoApertoId(voce.id); setErrore(null); }}
+                    className="flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-left transition active:border-[var(--brand-primary)]"
+                  >
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary-soft)] text-sm font-bold text-[var(--brand-primary)]">
+                      {idx + 1}
                     </span>
-                    <span className="block truncate text-[12.5px] text-[var(--brand-text-muted)]">{voce.comune ?? ''}</span>
-                  </span>
-                  <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
-                    {nMisuratori} misuratori
-                  </span>
-                  <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2">
-                    <path d="M9 6l6 6-6 6" />
-                  </svg>
-                </button>
-              );
-            })
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-[15px] font-bold text-[var(--brand-text-main)]">
+                        {titolo || voce.nominativo || `Civico ${idx + 1}`}
+                      </span>
+                      <span className="block truncate text-[12.5px] text-[var(--brand-text-muted)]">{voce.comune ?? ''}</span>
+                    </span>
+                    <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
+                      {nMisuratori} misuratori
+                    </span>
+                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2">
+                      <path d="M9 6l6 6-6 6" />
+                    </svg>
+                  </button>
+                );
+              })
+            )}
+          </div>
+
+          {/* Footer invio */}
+          {!readOnly && !inviato && (
+            <div className="sticky bottom-0 border-t border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
+              {incompleti.length > 0 && (
+                <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger)]/10 p-3 text-xs text-[var(--danger)]">
+                  <p className="mb-1 font-semibold">Mancano foto obbligatorie:</p>
+                  <ul className="space-y-0.5">
+                    {incompleti.map((d, i) => (
+                      <li key={i}>{d.tipo === 'riga' ? `Misuratore ${d.matricola} (${d.civico})` : `Civico ${d.civico}`}: {d.campiMancanti.join(', ')}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              <button
+                type="button"
+                onClick={onInviaClick}
+                disabled={inviando}
+                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+              >
+                {inviando ? 'Invio…' : `Invia rapportino (${puntiGas} punti gas)`}
+              </button>
+            </div>
+          )}
+
+          {/* Banner inviato */}
+          {inviato && (
+            <div className="m-3 rounded-xl border border-[var(--success)] bg-[var(--success)]/10 p-4 text-center text-sm font-semibold text-[var(--success)]">
+              Rapportino inviato ✓
+            </div>
           )}
         </div>
-      </div>
+
+        {/* Modale conferma punti gas */}
+        {modalePuntiGas && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+            <div className="w-full max-w-sm rounded-2xl bg-[var(--brand-surface)] p-5">
+              <p className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Conferma invio</p>
+              <p className="mb-4 text-sm text-[var(--brand-text-soft)]">
+                Rilevati <b>{puntiGas} punti gas</b> ({puntiGas} misuratori in {nCivici} civici). Confermi l&apos;invio del rapportino?
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setModalePuntiGas(false)}
+                  className="flex-1 rounded-xl border border-[var(--brand-border)] px-4 py-2.5 text-sm font-semibold"
+                >
+                  Annulla
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void confermaInvio(); }}
+                  className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white"
+                >
+                  Conferma
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </>
     );
   }
 
