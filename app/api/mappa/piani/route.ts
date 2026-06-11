@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { requireUser } from '@/lib/apiAuth';
 import { parseRegole, buildRuleRows, buildLockRows } from './rulePayload';
+import { idAnnullatiDaEliminare, type InterventoEsistente } from '@/lib/interventi/planInterventiForPiano';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -254,7 +255,7 @@ export async function PUT(req: Request) {
     if (auth instanceof NextResponse) return auth;
 
     const body = await req.json();
-    const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti, manualiLiberi } = body;
+    const { id, data: isoData, territorio, note, stato = 'confermato', operatori, regole, lucchetti, manualiLiberi, eliminati } = body;
 
     if (!id) return NextResponse.json({ error: 'id mancante' }, { status: 400 });
     if (!isoData) return NextResponse.json({ error: 'Campo data obbligatorio' }, { status: 400 });
@@ -298,6 +299,27 @@ export async function PUT(req: Request) {
     }));
     const { error: eOp } = await supabaseAdmin.from('mappa_piani_operatori').insert(opRows);
     if (eOp) throw new Error(eOp.message);
+
+    // Elimina definitiva (azione utente in pianificazione): cancella gli interventi canonici
+    // ANNULLATI il cui task è stato rimosso dal piano. Scoped a created_from_mappa di QUESTO
+    // piano e SOLO alle identità inviate dal client → NON intacca l'invariante della
+    // rigenerazione ("gli annullati non si cancellano mai in rigenerazione").
+    const chiaviEliminate: string[] = Array.isArray(eliminati)
+      ? eliminati.filter((k: unknown): k is string => typeof k === 'string')
+      : [];
+    if (chiaviEliminate.length > 0) {
+      const { data: ann } = await supabaseAdmin
+        .from('interventi')
+        .select('id, odl, stato, matricola_contatore, indirizzo, intervento_tipo')
+        .eq('piano_id', id)
+        .eq('created_from_mappa', true)
+        .eq('stato', 'annullato');
+      const ids = idAnnullatiDaEliminare((ann ?? []) as InterventoEsistente[], new Set(chiaviEliminate));
+      if (ids.length > 0) {
+        const { error: eDel } = await supabaseAdmin.from('interventi').delete().in('id', ids);
+        if (eDel) console.error('[PUT /api/mappa/piani] elimina annullati:', eDel.message);
+      }
+    }
 
     // Rigenera regole e lucchetti
     await supabaseAdmin.from('mappa_assegnazioni_manuali').delete().eq('piano_id', id);
