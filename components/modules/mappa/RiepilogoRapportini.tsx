@@ -26,6 +26,8 @@ export default function RiepilogoRapportini() {
   const [confirmPiano, setConfirmPiano] = useState<string | null>(null);
   const [confirmOp, setConfirmOp] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [territoriLista, setTerritoriLista] = useState<Array<{ id: string; name: string }>>([]);
+  const [spostaOpen, setSpostaOpen] = useState<string | null>(null);
 
   const carica = useCallback(async () => {
     const oggi = new Date().toISOString().slice(0, 10);
@@ -44,6 +46,15 @@ export default function RiepilogoRapportini() {
   }, [periodo, dataDa, dataA]);
 
   useEffect(() => { carica(); }, [carica]);
+
+  useEffect(() => {
+    let attivo = true;
+    fetch('/api/mappa/territori')
+      .then((r) => r.json())
+      .then((d) => { if (attivo) setTerritoriLista(Array.isArray(d) ? d : []); })
+      .catch(() => { if (attivo) setTerritoriLista([]); });
+    return () => { attivo = false; };
+  }, []);
 
   const territori = useMemo(
     () => [...new Set(raps.map((r) => (r.territorio ?? '').trim()).filter(Boolean))].sort(),
@@ -73,6 +84,18 @@ export default function RiepilogoRapportini() {
     setBusy(true);
     try { await fetch(`/api/mappa/piani/operatore?pianoId=${pianoId}&staffId=${encodeURIComponent(staffId)}`, { method: 'DELETE' }); await carica(); }
     finally { setBusy(false); setConfirmOp(null); }
+  };
+
+  const spostaOperatore = async (rapportinoId: string, territorio: string | null) => {
+    setBusy(true);
+    try {
+      await fetch('/api/mappa/rapportini/territorio', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rapportinoId, territorio }),
+      });
+      await carica();
+    } finally { setBusy(false); setSpostaOpen(null); }
   };
 
   const riapriRapportino = async (rapportinoId: string) => {
@@ -183,6 +206,10 @@ export default function RiepilogoRapportini() {
                 confirmOp={confirmOp}
                 setConfirmOp={setConfirmOp}
                 busy={busy}
+                territori={territoriLista}
+                onSposta={spostaOperatore}
+                spostaOpen={spostaOpen}
+                setSpostaOpen={setSpostaOpen}
               />
             ))}
           </div>

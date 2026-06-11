@@ -9,7 +9,7 @@ function fmtOra(iso: string | null): string {
 }
 
 export default function CardTerritorio({
-  terr, dataLabel, copiedToken, onCopia, onRiapri, onEliminaPiano, onRimuoviOp, onRiapriRapportino, confirmPiano, setConfirmPiano, confirmOp, setConfirmOp, busy,
+  terr, dataLabel, copiedToken, onCopia, onRiapri, onEliminaPiano, onRimuoviOp, onRiapriRapportino, confirmPiano, setConfirmPiano, confirmOp, setConfirmOp, busy, territori, onSposta, spostaOpen, setSpostaOpen,
 }: {
   terr: TerritorioGruppo;
   dataLabel: string;
@@ -24,6 +24,10 @@ export default function CardTerritorio({
   confirmOp: string | null;
   setConfirmOp: (v: string | null) => void;
   busy: boolean;
+  territori: Array<{ id: string; name: string }>;
+  onSposta: (rapportinoId: string, territorio: string | null) => void;
+  spostaOpen: string | null;
+  setSpostaOpen: (v: string | null) => void;
 }) {
   const multiPiano = terr.piani.length > 1;
   const azioniPiano = (p: PianoGruppo) => (
@@ -69,6 +73,12 @@ export default function CardTerritorio({
                     <span className="text-sm font-medium">{r.staff_name ?? 'Operatore'}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span>
                     <span className="text-xs text-[var(--brand-text-muted)]">{r.nVoci} interventi</span>
+                    {r.territorio_override && (
+                      <span
+                        className="rounded-full border border-[var(--brand-primary-border)] px-2 py-0.5 text-[10px] text-[var(--brand-primary)]"
+                        title={`Spostato in ${r.territorio_override}`}
+                      >↪ spostato</span>
+                    )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
                     <button onClick={() => onCopia(r)} className="rounded bg-[var(--brand-primary)] px-2 py-0.5 font-semibold text-[oklch(0.16_0.06_245)]">{copiedToken === r.token ? '✓' : '🔗'}</button>
@@ -87,6 +97,27 @@ export default function CardTerritorio({
                       title="Scarica foto interventi manuali (ZIP)"
                       className="rounded border border-[var(--brand-border)] px-2 py-0.5"
                     >🖼️</a>
+                    {spostaOpen === r.id ? (
+                      <select
+                        autoFocus
+                        defaultValue=""
+                        disabled={busy}
+                        onChange={(e) => { const v = e.target.value; onSposta(r.id, v === '__reset__' || v === '' ? null : v); }}
+                        onBlur={() => setSpostaOpen(null)}
+                        className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1 py-0.5 text-[11px]"
+                      >
+                        <option value="" disabled>Sposta in…</option>
+                        {r.territorio_override && <option value="__reset__">↩ Riporta al piano</option>}
+                        {territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                      </select>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setSpostaOpen(r.id)}
+                        title="Sposta in un altro territorio"
+                        className="rounded border border-[var(--brand-border)] px-2 py-0.5 text-[var(--brand-text-muted)] hover:text-[var(--brand-primary)]"
+                      >↪</button>
+                    )}
                     {confirmOp === r.id ? (
                       <>
                         <button onClick={() => onRimuoviOp(p.piano_id, r.staff_id)} disabled={busy} className="rounded border border-[var(--danger)] px-2 py-0.5 font-semibold text-[var(--danger)] disabled:opacity-50">Rimuovi?</button>
