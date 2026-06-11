@@ -18,6 +18,12 @@ describe('contaFotoObbligatorieMancanti', () => {
   it('un segnaposto NON conta come mancante (scattata, in caricamento)', () => {
     expect(contaFotoObbligatorieMancanti([{ risposte: { a: PATH, b: PH } }], campi)).toBe(0);
   });
+  it('un array di soli segnaposto NON conta come mancante', () => {
+    expect(contaFotoObbligatorieMancanti([{ risposte: { a: PATH, b: [PH] } }], campi)).toBe(0);
+  });
+  it('un array misto (segnaposto + path reale) NON conta come mancante', () => {
+    expect(contaFotoObbligatorieMancanti([{ risposte: { a: [PH, PATH], b: PATH } }], campi)).toBe(0);
+  });
   it('le facoltative non contano', () => {
     expect(contaFotoObbligatorieMancanti([{ risposte: { a: PATH, b: PATH } }], campi)).toBe(0);
   });
