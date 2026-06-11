@@ -8,7 +8,8 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
-import { appendTaskToOperator } from '@/utils/mappa/appendTask';
+import { appendTaskToOperator, removeTaskFromOperator } from '@/utils/mappa/appendTask';
+import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
@@ -681,6 +682,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [distribution, setDistribution] = useState<DistEntry[] | null>(
     initialDistribution ?? null
   );
+  // Identità degli interventi GIÀ annullati eliminati dall'utente: inviate al Salva per
+  // cancellare anche l'intervento canonico (i terminali sono preservati dalla rigenerazione).
+  const [eliminatiAnnullati, setEliminatiAnnullati] = useState<string[]>([]);
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
@@ -1699,6 +1703,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         regole: manualRules,
         lucchetti: operatorLocks,
         manualiLiberi: operatorFreeLane,
+        eliminati: eliminatiAnnullati,
       };
 
       // Update in-place se il piano esiste già: mantiene piano_id → i link rapportini restano validi
@@ -1717,6 +1722,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       if (res.ok) {
         const json = await res.json();
         setSavedDistribution(true);
+        setEliminatiAnnullati([]);
         const pid = json.id ?? currentPianoId;
         if (json.id) {
           setCurrentPianoId(json.id);
@@ -2145,6 +2151,25 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (idx === -1) return;
     grp[idx] = { ...grp[idx], annullato: !grp[idx].annullato };
     setDistribution(newDist);
+  }, [distribution]);
+
+  // Elimina definitiva: rimuove il task dal piano (al Salva sparisce voce + intervento).
+  // Per i task GIÀ annullati registra l'identità, così il Salva cancella anche l'intervento canonico.
+  const eliminaTask = useCallback((taskId: string, opIdx: number) => {
+    if (!distribution) return;
+    const t = distribution[opIdx]?.tasks.find((x) => x.id === taskId);
+    if (!t) return;
+    if (!window.confirm("Eliminare definitivamente questo intervento?\nSparirà dal rapportino dell'operatore e non sarà recuperabile.\nL'effetto si applica al Salva.")) return;
+    if (t.annullato) {
+      const chiave = identitaIntervento({
+        odl: t.odl || null,
+        matricola_contatore: t.matricola ?? null,
+        indirizzo: t.indirizzo ?? null,
+        intervento_tipo: t.attivita ?? null,
+      });
+      if (chiave) setEliminatiAnnullati((prev) => (prev.includes(chiave) ? prev : [...prev, chiave]));
+    }
+    setDistribution(removeTaskFromOperator(distribution, opIdx, taskId, optimizeRouteByFascia));
   }, [distribution]);
 
   const assignUnassignedTask = useCallback((taskId: string, toIdx: number) => {
@@ -3095,6 +3120,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                   className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${t.annullato ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--danger)] hover:text-[var(--danger)]'}`}
                                 >
                                   {t.annullato ? 'Ripristina' : 'Annulla'}
+                                </button>
+                              )}
+                              {t.stato !== 'completato' && (
+                                <button
+                                  type="button"
+                                  onClick={() => eliminaTask(t.id, activeOpIdx)}
+                                  className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                                >
+                                  Elimina
                                 </button>
                               )}
                             </div>
