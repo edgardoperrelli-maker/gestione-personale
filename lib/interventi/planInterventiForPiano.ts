@@ -36,7 +36,7 @@ export type PianoPlan = {
  * indirizzo+matricola(+attività). Serve a NON ricreare/duplicare un intervento
  * già presente quando si rigenera dai task del piano.
  */
-function identitaIntervento(r: {
+export function identitaIntervento(r: {
   odl: string | null;
   matricola_contatore?: string | null;
   indirizzo?: string | null;
@@ -49,6 +49,25 @@ function identitaIntervento(r: {
   const tipo = (r.intervento_tipo ?? '').trim().toLowerCase();
   if (matr || ind) return `c:${matr}|${ind}|${tipo}`;
   return null;
+}
+
+/**
+ * Id degli interventi canonici da cancellare per un'azione ESPLICITA di "Elimina" in
+ * pianificazione: tra gli esistenti, solo gli ANNULLATI la cui identità è tra le chiavi
+ * inviate dall'utente. Separato da `planInterventi` per NON intaccare l'invariante
+ * "in rigenerazione gli annullati non si cancellano mai".
+ */
+export function idAnnullatiDaEliminare(
+  esistenti: InterventoEsistente[],
+  chiaviEliminate: Set<string>,
+): string[] {
+  return esistenti
+    .filter((e) => e.stato === 'annullato')
+    .filter((e) => {
+      const k = identitaIntervento(e);
+      return k != null && chiaviEliminate.has(k);
+    })
+    .map((e) => e.id);
 }
 
 export function planInterventi(input: PianoPlanInput): PianoPlan {

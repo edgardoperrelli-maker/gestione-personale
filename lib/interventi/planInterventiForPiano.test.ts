@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { planInterventi } from './planInterventiForPiano';
+import { planInterventi, identitaIntervento, idAnnullatiDaEliminare } from './planInterventiForPiano';
 import type { Task } from '@/utils/routing/types';
 
 const task = (over: Partial<Task>): Task => ({
@@ -101,5 +101,36 @@ describe('planInterventi', () => {
       esistenti: [{ id: 'i1', odl: 'ODL1', stato: 'annullato' }],
     });
     expect(out.idDaEliminare).not.toContain('i1');
+  });
+});
+
+describe('idAnnullatiDaEliminare', () => {
+  it('seleziona solo gli annullati con identità tra le chiavi eliminate', () => {
+    const esistenti = [
+      { id: 'a', odl: 'ODL1', stato: 'annullato' },
+      { id: 'b', odl: 'ODL2', stato: 'annullato' },
+      { id: 'c', odl: 'ODL3', stato: 'assegnato' },
+    ];
+    const keys = new Set([identitaIntervento({ odl: 'ODL1' })!]);
+    expect(idAnnullatiDaEliminare(esistenti, keys)).toEqual(['a']);
+  });
+
+  it('non tocca gli assegnati anche se la loro identità è nelle chiavi', () => {
+    const esistenti = [{ id: 'c', odl: 'ODL3', stato: 'assegnato' }];
+    const keys = new Set([identitaIntervento({ odl: 'ODL3' })!]);
+    expect(idAnnullatiDaEliminare(esistenti, keys)).toEqual([]);
+  });
+
+  it('identità composta senza odl (indirizzo+matricola)', () => {
+    const esistenti = [
+      { id: 'm', odl: null, stato: 'annullato', matricola_contatore: 'M1', indirizzo: 'Via Roma 1' },
+    ];
+    const keys = new Set([identitaIntervento({ odl: null, matricola_contatore: 'M1', indirizzo: 'Via Roma 1' })!]);
+    expect(idAnnullatiDaEliminare(esistenti, keys)).toEqual(['m']);
+  });
+
+  it('set vuoto → nessuna cancellazione', () => {
+    const esistenti = [{ id: 'a', odl: 'ODL1', stato: 'annullato' }];
+    expect(idAnnullatiDaEliminare(esistenti, new Set<string>())).toEqual([]);
   });
 });
