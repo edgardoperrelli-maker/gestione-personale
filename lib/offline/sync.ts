@@ -2,12 +2,13 @@ import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
 import { ordineInvio, classificaEsito } from './syncPlan';
 import { marcaErrore } from './outboxModel';
 import { idOutboxVoce } from './ids';
+import { inviaRitentabile } from './inviaRitentabile';
 import type { OutboxItem } from './types';
 
 let inCorso = false;
 
 /** Esegue l'invio HTTP di un singolo elemento; restituisce lo status (0 = errore rete). */
-async function inviaElemento(item: OutboxItem): Promise<number> {
+async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean }> {
   try {
     if (item.type === 'voce') {
       const r = await fetch(`/api/r/${item.token}/voce`, {
@@ -15,7 +16,7 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ voceId: item.payload.voceId, risposte: item.payload.risposte }),
       });
-      return r.status;
+      return { status: r.status };
     }
     if (item.type === 'agenda') {
       const r = await fetch(`/api/agenda/${item.token}/intervento`, {
@@ -23,11 +24,11 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(item.payload),
       });
-      return r.status;
+      return { status: r.status };
     }
     if (item.type === 'foto') {
       const blob = await dbBlob.leggi(item.payload.blobId);
-      if (!blob) return 200; // blob già caricato/rimosso: trattalo come completato
+      if (!blob) return { status: 200 }; // blob già caricato/rimosso: trattalo come completato
 
       // 1) Chiamata di rete (un suo fallimento è errore di rete → 0 → ritenta).
       let status = 0;
@@ -43,7 +44,7 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
           path = j.path;
         }
       } catch {
-        return 0; // errore di rete
+        return { status: 0 }; // errore di rete
       }
 
       // 2) Bookkeeping locale best-effort: un fallimento QUI non deve far ritentare la
@@ -64,7 +65,7 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
           /* bookkeeping locale fallito: non ritentiamo la rete; l'item foto sarà rimosso */
         }
       }
-      return status;
+      return { status };
     }
     if (item.type === 'manuale') {
       const fd = new FormData();
@@ -83,13 +84,15 @@ async function inviaElemento(item: OutboxItem): Promise<number> {
       if (r.ok) {
         for (const ref of item.payload.fotoBlobRefs) await dbBlob.rimuovi(ref.blobId);
       }
-      return r.status;
+      return { status: r.status };
     }
     // invia
     const r = await fetch(`/api/r/${item.token}/invia`, { method: 'POST' });
-    return r.status;
+    let corpo: unknown = null;
+    if (r.status === 409) corpo = await r.json().catch(() => null);
+    return { status: r.status, ritentabile: inviaRitentabile(r.status, corpo) };
   } catch {
-    return 0; // errore di rete
+    return { status: 0 }; // errore di rete
   }
 }
 
@@ -111,8 +114,8 @@ export async function sincronizzaToken(token: string): Promise<boolean> {
     const ordinati = ordineInvio(items);
     for (const item of ordinati) {
       await dbOutbox.put({ ...item, stato: 'in_invio' });
-      const status = await inviaElemento(item);
-      const esito = classificaEsito(status);
+      const { status, ritentabile } = await inviaElemento(item);
+      const esito = ritentabile ? ({ esito: 'ritenta' } as const) : classificaEsito(status);
       if (esito.esito === 'completato') {
         await dbOutbox.rimuovi(item.id);
       } else if (esito.esito === 'bloccato') {
