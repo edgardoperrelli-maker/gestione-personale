@@ -8,6 +8,7 @@ import type { OutboxItem } from './types';
 export type StatoSync = {
   inAttesa: number;
   bloccati: number;
+  bloccatiItems: OutboxItem[];
   perVoce: Record<string, OutboxItem>;
   online: boolean;
 };
@@ -18,21 +19,22 @@ export type StatoSync = {
  * Espone `sincronizzaOra` per il pulsante manuale.
  */
 export function useStatoSync(token: string): StatoSync & { sincronizzaOra: () => void } {
-  const [stato, setStato] = useState<StatoSync>({ inAttesa: 0, bloccati: 0, perVoce: {}, online: true });
+  const [stato, setStato] = useState<StatoSync>({ inAttesa: 0, bloccati: 0, bloccatiItems: [], perVoce: {}, online: true });
 
   const aggiorna = useCallback(async () => {
     if (!indexedDbDisponibile()) return;
     try {
       const items = await dbOutbox.perToken(token);
       const perVoce: Record<string, OutboxItem> = {};
+      const bloccatiItems: OutboxItem[] = [];
       let inAttesa = 0;
       let bloccati = 0;
       for (const it of items) {
         if (it.type === 'voce') perVoce[it.payload.voceId] = it;
-        if (it.stato === 'bloccato') bloccati += 1;
+        if (it.stato === 'bloccato') { bloccati += 1; bloccatiItems.push(it); }
         else inAttesa += 1;
       }
-      setStato({ inAttesa, bloccati, perVoce, online: typeof navigator === 'undefined' ? true : navigator.onLine });
+      setStato({ inAttesa, bloccati, bloccatiItems, perVoce, online: typeof navigator === 'undefined' ? true : navigator.onLine });
     } catch {
       /* best-effort */
     }
