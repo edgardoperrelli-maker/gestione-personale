@@ -1,6 +1,8 @@
 'use client';
+import { useState } from 'react';
 import { statoBadge, whatsappHref, type RapportinoStato } from '@/utils/rapportini/links';
 import type { TerritorioGruppo, PianoGruppo } from '@/utils/rapportini/groupByDayTerritory';
+import ModaleScaricaFoto from './ModaleScaricaFoto';
 
 function fmtOra(iso: string | null): string {
   if (!iso) return '';
@@ -30,6 +32,7 @@ export default function CardTerritorio({
   setSpostaOpen: (v: string | null) => void;
 }) {
   const multiPiano = terr.piani.length > 1;
+  const [fotoModal, setFotoModal] = useState<{ id: string; etichetta: string } | null>(null);
   const azioniPiano = (p: PianoGruppo) => (
     <span className="flex items-center gap-2 text-[11px]">
       <a href={onRiapri(p.piano_id)} className="font-medium text-[var(--brand-primary)] hover:opacity-90">↗ Riapri</a>
@@ -98,11 +101,12 @@ export default function CardTerritorio({
                     <a href={whatsappHref(r.staff_name, dataLabel, r.url)} target="_blank" rel="noopener noreferrer" className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[var(--success)]">📲</a>
                     <a href={`/hub/rapportini/contenuto/${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">👁</a>
                     <a href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">⤓</a>
-                    <a
-                      href={`/api/admin/rapportini/${r.id}/foto-zip`}
-                      title="Scarica foto interventi manuali (ZIP)"
+                    <button
+                      type="button"
+                      onClick={() => setFotoModal({ id: r.id, etichetta: `${r.staff_name ?? 'Operatore'} · ${dataLabel}` })}
+                      title="Scarica foto"
                       className="rounded border border-[var(--brand-border)] px-2 py-0.5"
-                    >🖼️</a>
+                    >🖼️</button>
                     {spostaOpen === r.id ? (
                       <select
                         autoFocus
@@ -139,6 +143,13 @@ export default function CardTerritorio({
           </ul>
         </div>
       ))}
+      {fotoModal && (
+        <ModaleScaricaFoto
+          rapportinoId={fotoModal.id}
+          etichetta={fotoModal.etichetta}
+          onClose={() => setFotoModal(null)}
+        />
+      )}
     </div>
   );
 }
