@@ -9,10 +9,12 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
 
-export async function GET(_req: Request, { params }: { params: Promise<{ rapportinoId: string }> }) {
+export async function GET(req: Request, { params }: { params: Promise<{ rapportinoId: string }> }) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
   const { rapportinoId } = await params;
+  const voceId = new URL(req.url).searchParams.get('voceId');
+  let voceForName: { via: string | null; odl: string | null } | null = null;
 
   // ── 1. Rapportino (serve campi_snapshot per individuare campi tipo='foto') ──────
   const { data: rap, error: rapErr } = await supabaseAdmin
@@ -42,28 +44,31 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   // ── 2. Fonte A: foto da interventi manuali (tabella interventi_manuali_foto) ───
   const fotoManuali: FotoZip[] = [];
-  const { data: richieste } = await supabaseAdmin
-    .from('interventi_manuali')
-    .select('id')
-    .eq('rapportino_id', rapportinoId);
-  const richiestaIds = (richieste ?? []).map((r: { id: string }) => r.id);
-  if (richiestaIds.length > 0) {
-    const { data: fotoRows, error: fotoErr } = await supabaseAdmin
-      .from('interventi_manuali_foto')
-      .select('richiesta_id, storage_path, file_name')
-      .in('richiesta_id', richiestaIds);
-    if (fotoErr) return NextResponse.json({ error: fotoErr.message }, { status: 500 });
-    fotoManuali.push(...((fotoRows ?? []) as FotoZip[]));
+  if (!voceId) {
+    const { data: richieste } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('id')
+      .eq('rapportino_id', rapportinoId);
+    const richiestaIds = (richieste ?? []).map((r: { id: string }) => r.id);
+    if (richiestaIds.length > 0) {
+      const { data: fotoRows, error: fotoErr } = await supabaseAdmin
+        .from('interventi_manuali_foto')
+        .select('richiesta_id, storage_path, file_name')
+        .in('richiesta_id', richiestaIds);
+      if (fotoErr) return NextResponse.json({ error: fotoErr.message }, { status: 500 });
+      fotoManuali.push(...((fotoRows ?? []) as FotoZip[]));
+    }
   }
 
   // ── 3. Fonte B: foto nei campi tipo='foto' delle voci (risposte[campo.chiave]) ─
   const fotoVoci: FotoZip[] = [];
   if (campiFoto.length > 0) {
-    const { data: vociRows, error: vociErr } = await supabaseAdmin
+    let vociQuery = supabaseAdmin
       .from('rapportino_voci')
       .select('id, nominativo, matricola, pdr, odl, via, risposte')
-      .eq('rapportino_id', rapportinoId)
-      .order('ordine', { ascending: true });
+      .eq('rapportino_id', rapportinoId);
+    if (voceId) vociQuery = vociQuery.eq('id', voceId);
+    const { data: vociRows, error: vociErr } = await vociQuery.order('ordine', { ascending: true });
     if (vociErr) return NextResponse.json({ error: vociErr.message }, { status: 500 });
 
     for (const v of (vociRows ?? []) as Array<{
@@ -81,6 +86,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
         odl: v.odl ?? undefined,
         indirizzo: v.via ?? undefined,
       };
+      if (voceId && !voceForName) voceForName = { via: v.via, odl: v.odl };
       for (const campo of campiFoto) {
         const paths = comeArrayFoto((v.risposte ?? {})[campo.chiave]);
         paths.forEach((storagePath, i) => {
@@ -96,23 +102,25 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   // ── 3-bis. Fonte C: foto delle righe-misuratore (risanamento), scope='misuratore' ─
   const fotoRighe: FotoZip[] = [];
-  const campiMisuratore = campiFoto.filter((c) => ((c as { scope_foto?: string }).scope_foto ?? 'misuratore') === 'misuratore');
-  if (campiMisuratore.length > 0) {
-    const { data: righeRows } = await supabaseAdmin
-      .from('rapportino_righe')
-      .select('id, matricola, pdr, nominativo, risposte')
-      .eq('rapportino_id', rapportinoId)
-      .order('ordine', { ascending: true });
-    for (const r of (righeRows ?? []) as Array<{ id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null }>) {
-      const ids = { pdr: r.pdr ?? undefined, matricola: r.matricola ?? undefined };
-      for (const campo of campiMisuratore) {
-        const paths = comeArrayFoto((r.risposte ?? {})[campo.chiave]);
-        paths.forEach((storagePath, i) => {
-          const ext = storagePath.split('.').pop() ?? 'jpg';
-          let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
-          if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
-          fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: fileName });
-        });
+  if (!voceId) {
+    const campiMisuratore = campiFoto.filter((c) => ((c as { scope_foto?: string }).scope_foto ?? 'misuratore') === 'misuratore');
+    if (campiMisuratore.length > 0) {
+      const { data: righeRows } = await supabaseAdmin
+        .from('rapportino_righe')
+        .select('id, matricola, pdr, nominativo, risposte')
+        .eq('rapportino_id', rapportinoId)
+        .order('ordine', { ascending: true });
+      for (const r of (righeRows ?? []) as Array<{ id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null }>) {
+        const ids = { pdr: r.pdr ?? undefined, matricola: r.matricola ?? undefined };
+        for (const campo of campiMisuratore) {
+          const paths = comeArrayFoto((r.risposte ?? {})[campo.chiave]);
+          paths.forEach((storagePath, i) => {
+            const ext = storagePath.split('.').pop() ?? 'jpg';
+            let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
+            if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
+            fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: fileName });
+          });
+        }
       }
     }
   }
@@ -146,7 +154,11 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
   }
 
   const archive = await zip.generateAsync({ type: 'nodebuffer' });
-  const fileName = `foto-rapportino-${rapportinoId}.zip`;
+  let fileName = `foto-rapportino-${rapportinoId}.zip`;
+  if (voceId) {
+    const base = (voceForName?.via || voceForName?.odl || `voce-${voceId}`).replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
+    fileName = `foto-${base || 'voce'}.zip`;
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/zip',
     'Content-Disposition': `attachment; filename="${fileName}"`,
