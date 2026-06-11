@@ -11,6 +11,7 @@ export interface RapportinoStato {
   url: string;
   statoCalcolato: 'valido' | 'scaduto' | 'inviato';
   nVoci: number;
+  fotoInSospeso?: number;
 }
 
 export function statoBadge(
