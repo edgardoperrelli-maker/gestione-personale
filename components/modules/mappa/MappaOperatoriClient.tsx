@@ -2075,6 +2075,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       attivita: data.attivita.trim() || undefined,
       fascia_oraria: data.fascia_oraria.trim(),
       nominativo: data.nominativo.trim() || undefined,
+      note: data.note.trim() || undefined,
       _operatore: operator?.displayName,
     };
     const geocoded = await geocodeTask(task);
