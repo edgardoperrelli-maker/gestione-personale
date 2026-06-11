@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
+import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -15,21 +16,29 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-  if (tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString()) !== 'valido')
+  const stato = tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString());
+  // 'inviato' è ammesso ma SOLO per completare le foto pendenti (vedi mergeRisposte);
+  // 'scaduto' resta bloccato (l'ufficio può riaprire).
+  if (stato === 'scaduto')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id, raw_json')
+    .select('id, intervento_id, raw_json, risposte')
     .eq('id', voceId)
     .eq('rapportino_id', rap.id)
     .maybeSingle();
   if (!voce) return NextResponse.json({ error: 'voce_non_valida' }, { status: 400 });
-  const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte }).eq('id', voceId);
+
+  const esistenti = ((voce as { risposte: Record<string, unknown> | null }).risposte ?? {});
+  const merged = mergeRisposte(esistenti, (risposte ?? {}) as Record<string, unknown>, {
+    soloCompletamentoFoto: stato === 'inviato',
+  });
+  const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte: merged }).eq('id', voceId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Propagazione live (best-effort: un errore qui NON deve far fallire l'autosave;
-  // la voce è la fonte di verità e l'esito viene riapplicato anche all'invio/risincronizza).
-  try {
+  // Propagazione live SOLO sui salvataggi di un rapportino ancora modificabile:
+  // su un 'inviato' stiamo solo completando foto pendenti, non si ri-propaga l'esito.
+  if (stato === 'valido') try {
     const vAny = voce as { intervento_id: string | null; raw_json: unknown };
     const rapAny = rap as { campi_snapshot: unknown; data: string; staff_id: string | null };
     let interventoId = vAny.intervento_id;
@@ -59,7 +68,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     if (interventoId) {
       const campi = (rapAny.campi_snapshot ?? []) as TemplateCampo[];
-      const patch = patchInterventoLiveDaVoce((risposte ?? {}) as Record<string, unknown>, campi);
+      const patch = patchInterventoLiveDaVoce(merged as Record<string, unknown>, campi);
       // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
       // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento
       // solo se è 'completato', così non declassa stati intermedi gestiti da altri flussi.
