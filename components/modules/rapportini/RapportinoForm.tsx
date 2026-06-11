@@ -16,6 +16,7 @@ import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
 import type { RigaRisanamento } from './risanamento/types';
 import { reidrataVoci, persistiVoce } from '@/lib/offline/persistVoce';
+import { accodaFoto } from '@/lib/offline/persistFoto';
 import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
@@ -183,31 +184,29 @@ export default function RapportinoForm({
   );
 
   /**
-   * Carica una foto per il campo `chiave` della voce corrente.
-   * Usato da CampoInput tipo='foto' via RapportinoFotoCtx.
-   * 1. Invia il file a /api/r/[token]/foto-campo
-   * 2. Salva il path nelle risposte della voce (setRisposta + debounce)
+   * Carica una foto per il campo `chiave` della voce corrente — offline-first.
+   * Accoda il blob in IndexedDB (via accodaFoto), scrive il placeholder nelle
+   * risposte e lo persiste immediatamente (no debounce) per evitare che un
+   * salvataggio successivo sovrascriva il path reale riscritto dal sync.
    */
   const uploadFotoVoce = useCallback(
     async (chiave: string, file: File): Promise<string | null> => {
       const voceId = voceIdUploadRef.current;
       if (!voceId || !mountedRef.current) return null;
-      try {
-        const fd = new FormData();
-        fd.append('file', file, file.name);
-        const res = await fetch(`/api/r/${token}/foto-campo`, { method: 'POST', body: fd });
-        if (!res.ok) return null;
-        const json = (await res.json()) as { path?: string };
-        const path = json.path ?? null;
-        if (path && mountedRef.current) {
-          setRisposta(voceId, chiave, path);
-        }
-        return path;
-      } catch {
-        return null;
-      }
+      const now = Date.now();
+      // Accoda la foto (blob in IndexedDB + elemento outbox). Ritorna il placeholder.
+      const placeholder = await accodaFoto(token, voceId, chiave, file, now);
+      if (!placeholder || !mountedRef.current) return placeholder;
+      // Scrivi il placeholder nella risposta e PERSISTI subito (no debounce) per evitare
+      // che un salvataggio successivo sovrascriva il path reale riscritto dal sync.
+      const risposteCorrenti = { ...(latestRisposteRef.current[voceId] ?? {}), [chiave]: placeholder };
+      latestRisposteRef.current[voceId] = risposteCorrenti;
+      setVoci((prev) => prev.map((v) => (v.id === voceId ? { ...v, risposte: risposteCorrenti } : v)));
+      await persistiVoce(token, voceId, risposteCorrenti, now);
+      void sincronizzaToken(token);
+      return placeholder;
     },
-    [token, setRisposta],
+    [token],
   );
 
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
