@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { contaVociByRapportino } from '@/lib/rapportini/contaVoci';
+import { territorioEffettivo } from '@/utils/rapportini/territorioEffettivo';
 import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
@@ -16,13 +17,14 @@ export async function GET(req: Request) {
 
   const { data: raps } = await supabaseAdmin
     .from('rapportini')
-    .select('id, piano_id, staff_id, staff_name, data, stato, token, expires_at, submitted_at, riaperto_at')
+    .select('id, piano_id, staff_id, staff_name, data, stato, token, expires_at, submitted_at, riaperto_at, territorio_override')
     .gte('data', from)
     .lte('data', to)
     .order('data', { ascending: false });
   const list = (raps ?? []) as Array<{
     id: string; piano_id: string; staff_id: string; staff_name: string | null;
     data: string; stato: string; token: string; expires_at: string; submitted_at: string | null; riaperto_at: string | null;
+    territorio_override: string | null;
   }>;
 
   const pianoIds = [...new Set(list.map((r) => r.piano_id))];
@@ -43,7 +45,8 @@ export async function GET(req: Request) {
   const nowIso = now.toISOString();
   const out = list.map((r) => ({
     ...r,
-    territorio: pianoInfoById[r.piano_id]?.territorio ?? null,
+    territorio: territorioEffettivo(r.territorio_override, pianoInfoById[r.piano_id]?.territorio),
+    territorio_override: r.territorio_override ?? null,
     piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
     url: `${base}/r/${r.token}`,
     statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),

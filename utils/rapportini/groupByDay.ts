@@ -4,6 +4,7 @@ export type RapRiepilogo = RapportinoStato & {
   piano_id: string;
   territorio: string | null;
   piano_creato_at?: string | null;
+  territorio_override?: string | null;
 };
 
 export type GiornoGruppo = {
