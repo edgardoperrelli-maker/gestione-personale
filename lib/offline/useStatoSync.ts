@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { dbOutbox, indexedDbDisponibile } from './db';
+import { registraBackgroundSync } from './backgroundSync';
 import { sincronizzaToken } from './sync';
 import type { OutboxItem } from './types';
 
@@ -35,6 +36,7 @@ export function useStatoSync(token: string): StatoSync & { sincronizzaOra: () =>
         else inAttesa += 1;
       }
       setStato({ inAttesa, bloccati, bloccatiItems, perVoce, online: typeof navigator === 'undefined' ? true : navigator.onLine });
+      if (inAttesa > 0) void registraBackgroundSync();
     } catch {
       /* best-effort */
     }
