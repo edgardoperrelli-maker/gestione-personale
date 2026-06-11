@@ -24,6 +24,12 @@ export default function ModaleScaricaFoto({
     return () => { attivo = false; };
   }, [rapportinoId]);
 
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', onKey);
+    return () => document.removeEventListener('keydown', onKey);
+  }, [onClose]);
+
   const zip = (qs = '') => `/api/admin/rapportini/${rapportinoId}/foto-zip${qs}`;
 
   return (
@@ -34,7 +40,7 @@ export default function ModaleScaricaFoto({
       >
         <div className="mb-3 flex items-center justify-between">
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Scarica foto — {etichetta}</h2>
-          <button onClick={onClose} className="text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]">✕</button>
+          <button onClick={onClose} aria-label="Chiudi" className="text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]">✕</button>
         </div>
 
         <a
