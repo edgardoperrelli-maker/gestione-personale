@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
+import { contaVociByRapportino } from '@/lib/rapportini/contaVoci';
 import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
@@ -34,11 +35,9 @@ export async function GET(req: Request) {
   }
 
   const rapIds = list.map((r) => r.id);
-  const vociCount: Record<string, number> = {};
-  if (rapIds.length) {
-    const { data: voci } = await supabaseAdmin.from('rapportino_voci').select('rapportino_id').in('rapportino_id', rapIds);
-    (voci ?? []).forEach((v: { rapportino_id: string }) => { vociCount[v.rapportino_id] = (vociCount[v.rapportino_id] ?? 0) + 1; });
-  }
+  // Conteggio paginato: PostgREST tronca a 1000 righe, quindi una singola query
+  // .in(...) restituiva conteggi 0/parziali sui rapportini oltre la 1000ª voce.
+  const vociCount = await contaVociByRapportino(supabaseAdmin, rapIds);
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const nowIso = now.toISOString();
