@@ -13,6 +13,39 @@ export type RoutableEntry = {
 export type OptimizeFn = (tasks: Task[], base?: OperatorBase) => RouteResult;
 
 /**
+ * Rimuove il task `taskId` dall'operatore in posizione `opIdx`, ricalcolando SOLO la sua
+ * rotta. Se l'operatore resta senza task, azzera la rotta (km 0, polyline/schedule vuoti).
+ * Funzione pura: non muta l'input. Difensivo: indice fuori range o task assente → ritorna
+ * la distribuzione originale invariata (stesso riferimento).
+ */
+export function removeTaskFromOperator<E extends RoutableEntry>(
+  distribution: E[],
+  opIdx: number,
+  taskId: string,
+  optimize: OptimizeFn,
+): E[] {
+  if (opIdx < 0 || opIdx >= distribution.length) return distribution;
+  const idx = distribution[opIdx].tasks.findIndex((t) => t.id === taskId);
+  if (idx === -1) return distribution;
+  const next = distribution.map((entry) => ({ ...entry, tasks: [...entry.tasks] })) as E[];
+  const target = next[opIdx];
+  target.tasks.splice(idx, 1);
+  if (target.tasks.length >= 1) {
+    const res = optimize(target.tasks, target.base ?? undefined);
+    next[opIdx] = {
+      ...target,
+      tasks: res.orderedTasks,
+      km: res.totalDistanceKm,
+      polyline: res.polyline,
+      schedule: res.schedule,
+    } as E;
+  } else {
+    next[opIdx] = { ...target, tasks: [], km: 0, polyline: [], schedule: [] } as E;
+  }
+  return next;
+}
+
+/**
  * Aggiunge `task` all'operatore in posizione `toIdx`, ricalcolando SOLO la sua
  * rotta e lasciando intatte tutte le altre entry. Funzione pura: non muta l'input.
  * Difensivo: indice fuori range → ritorna la distribuzione originale invariata.
