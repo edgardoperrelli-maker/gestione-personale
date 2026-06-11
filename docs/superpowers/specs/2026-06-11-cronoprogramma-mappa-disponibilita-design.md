@@ -23,6 +23,7 @@ Oggi i due moduli non sono collegati:
 - **Tipi**: `ferie`, `104`, `permesso`, `malattia`.
 - **Migrazione**: i ferie/104 storici (attività in `assignments`) vengono convertiti nella nuova tabella e le vecchie card-attività rimosse, per evitare doppioni.
 - **Conflitto retroattivo**: se un operatore già nel piano Mappa diventa assente-intero per quella data, la Mappa **lo segnala** (badge rosso + banner) senza rimuoverlo in automatico.
+- **Indipendenza dal territorio**: un'assenza è uno **stato della persona**, NON un lavoro su una zona. La tabella `disponibilita_operatore` **non ha `territory_id`**; il dialog non chiede il territorio; nel calendario la card assenza è renderizzata a livello di **giorno**, non dentro una colonna territorio. (Nelle future viste grid/split le assenze andranno in una fascia/area "del giorno", mai forzate sotto un territorio.)
 
 ---
 
@@ -146,6 +147,7 @@ Test in `lib/disponibilita.test.ts` (vitest) sui quattro casi della tabella sema
   - Tipo (Ferie / 104 / Permesso / Malattia).
   - Modalità: radio "Tutto il giorno" | "Disponibile fino alle…" | "Disponibile dalle…" | "Finestra…" → mostra i campi orario pertinenti.
   - Note (opzionale).
+  - **Nessun campo territorio** (l'assenza è indipendente dalla zona).
   - Salva → `POST /api/disponibilita` (upsert); Elimina → `DELETE`.
 - **Rendering nel calendario** (`CronoCalendarView` / `DayCell`): le righe `disponibilita_operatore` del range vengono caricate in `CronoprogrammaWorkspace` (nuovo `useEffect` su `range`, come già per `taskCountMap`) e disegnate come **card colorata per tipo** nella cella del giorno, con etichetta `labelDisponibilita`. Click sulla card → riapre `AssenzaDialog` in modifica.
 - **Fuori scope v1**: rendering delle assenze nelle viste `grid` / `split` / `table` (follow-up). La vista `calendar` è la default e copre il caso d'uso.
