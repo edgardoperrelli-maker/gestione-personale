@@ -3,21 +3,10 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
-import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import { colonneVisibili } from '@/utils/rapportini/colonneVisibili';
+import RapportinoEditor, { type VoceEditabile } from '@/components/modules/rapportini/RapportinoEditor';
 
 export const dynamic = 'force-dynamic';
-
-/** Rende leggibile una risposta in base al tipo di campo del template. */
-function fmtRisposta(tipo: string, val: unknown): string {
-  if (tipo === 'crocetta') return val === true ? '✓' : '—';
-  if (val == null || val === '') return '—';
-  return String(val);
-}
-
-const TH = 'whitespace-nowrap px-3 py-2 text-left font-semibold';
-const TD = 'whitespace-nowrap px-3 py-2';
 
 export default async function ContenutoRapportinoPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -35,7 +24,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
 
   const { data: rap } = await supabase
     .from('rapportini')
-    .select('id, staff_name, data, stato, campi_snapshot, info_snapshot')
+    .select('id, staff_name, data, stato, campi_snapshot')
     .eq('id', id)
     .maybeSingle();
 
@@ -50,13 +39,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
     );
   }
 
-  const r = rap as {
-    staff_name: string | null;
-    data: string | null;
-    stato: string | null;
-    campi_snapshot: unknown;
-    info_snapshot: unknown;
-  };
+  const r = rap as { staff_name: string | null; data: string | null; stato: string | null; campi_snapshot: unknown };
 
   const { data: vociRows } = await supabase
     .from('rapportino_voci')
@@ -64,12 +47,12 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
     .eq('rapportino_id', id)
     .order('ordine', { ascending: true });
 
-  const info = resolveInfoCampi((r.info_snapshot ?? []) as TemplateInfoCampo[]);
-  const campi = ((r.campi_snapshot ?? []) as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine);
-  const voci = (vociRows ?? []) as Array<
-    VoceInfo & { id: string; ordine: number; risposte: Record<string, unknown> | null }
-  >;
-  const { info: infoVis, campi: campiVis } = colonneVisibili(info, campi, voci);
+  // Tutti i campi del template tranne le foto (non editabili in tabella), ordinati.
+  const campi = ((r.campi_snapshot ?? []) as TemplateCampo[])
+    .slice()
+    .sort((a, b) => a.ordine - b.ordine)
+    .filter((c) => c.tipo !== 'foto');
+  const voci = (vociRows ?? []) as VoceEditabile[];
 
   return (
     <main className="mx-auto max-w-6xl space-y-4 px-6 py-8">
@@ -81,7 +64,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
           Rapportino · {r.staff_name ?? 'Operatore'}
         </h1>
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          {r.data ?? '—'} · {voci.length} interventi · stato {r.stato ?? '—'}
+          {r.data ?? '—'} · {voci.length} interventi · stato {r.stato ?? '—'} · correggi gli esiti e premi &ldquo;Salva modifiche&rdquo;.
         </p>
       </div>
 
@@ -90,36 +73,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
           Nessun intervento registrato in questo rapportino.
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: 'var(--brand-border)' }}>
-          <table className="min-w-full text-sm">
-            <thead>
-              <tr style={{ color: 'var(--brand-text-muted)' }}>
-                <th className={TD}>#</th>
-                {infoVis.map((c) => (
-                  <th key={`i-${c.chiave}`} className={TH}>{c.etichetta}</th>
-                ))}
-                {campiVis.map((c) => (
-                  <th key={`c-${c.chiave}`} className={TH}>{c.etichetta}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {voci.map((v, i) => (
-                <tr key={v.id} className="border-t" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
-                  <td className={TD} style={{ color: 'var(--brand-text-muted)' }}>{i + 1}</td>
-                  {infoVis.map((c) => (
-                    <td key={`i-${c.chiave}`} className={TD}>{valoreInfo(v, c.chiave) || '—'}</td>
-                  ))}
-                  {campiVis.map((c) => (
-                    <td key={`c-${c.chiave}`} className={`${TD} text-center`}>
-                      {fmtRisposta(c.tipo, (v.risposte ?? {})[c.chiave])}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <RapportinoEditor rapportinoId={id} vociIniziali={voci} campi={campi} />
       )}
     </main>
   );
