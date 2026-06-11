@@ -16,11 +16,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
   if (auth instanceof NextResponse) return auth;
   const { rapportinoId } = await params;
 
-  const { data: rap } = await supabaseAdmin
+  const { data: rap, error: rapErr } = await supabaseAdmin
     .from('rapportini')
     .select('id, campi_snapshot')
     .eq('id', rapportinoId)
     .maybeSingle();
+  if (rapErr) return NextResponse.json({ error: rapErr.message }, { status: 500 });
   if (!rap) return NextResponse.json({ error: 'rapportino non trovato' }, { status: 404 });
 
   const chiaviFoto = ((rap.campi_snapshot ?? []) as TemplateCampo[])
