@@ -1789,7 +1789,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini, eliminatiAnnullati]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
