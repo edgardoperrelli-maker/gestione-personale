@@ -22,6 +22,8 @@ import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
+import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
+import { dbOutbox } from '@/lib/offline/db';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -107,7 +109,7 @@ export default function RapportinoForm({
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
 
-  const { perVoce: outboxPerVoce, bloccati } = useStatoSync(token);
+  const { perVoce: outboxPerVoce, bloccati, bloccatiItems, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
 
   const disabilitato = readOnly || bloccato || inviato;
@@ -248,7 +250,11 @@ export default function RapportinoForm({
     // L'invio richiede rete in questa fase: i dati compilati sono già salvati/sincronizzati,
     // ma la chiusura del rapportino (con i suoi controlli) va fatta online.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
-      window.alert('Serve la connessione per inviare il rapportino. I dati compilati restano salvati e si sincronizzano da soli.');
+      await dbOutbox.put({ id: `invia:${token}`, type: 'invia', token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: {} });
+      setInviato(true);
+      setReadOnly(true);
+      setVista('lista');
+      window.alert('Rapportino messo in coda: verrà inviato appena torna la rete.');
       return;
     }
     setInviando(true);
@@ -280,9 +286,12 @@ export default function RapportinoForm({
   if (bloccato && !inviato) {
     return (
       <div className="mx-auto max-w-[480px] px-3 py-6">
-        <div className="rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger)]">
-          Rapportino non più modificabile. Aggiorna la pagina o contatta l&apos;ufficio.
-        </div>
+        {bloccatoInvia && (
+          <div className="mb-3 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger)]">
+            Rapportino non più inviabile (link scaduto o già inviato). Contatta l&apos;ufficio.
+          </div>
+        )}
+        <CassettoDaRisolvere items={bloccatiItems} onRimosso={sincronizzaOra} />
       </div>
     );
   }
