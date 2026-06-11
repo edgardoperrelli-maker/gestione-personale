@@ -25,6 +25,7 @@ import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
+import { contaFotoObbligatorieMancanti } from '@/utils/rapportini/fotoObbligatorieMancanti';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -267,6 +268,10 @@ export default function RapportinoForm({
 
   const handleInvia = useCallback(async () => {
     if (disabilitato || inviando || !inviabile) return;
+    const fotoMancanti = contaFotoObbligatorieMancanti(voci, campi);
+    if (fotoMancanti > 0 && !window.confirm(`Mancano ${fotoMancanti} foto obbligatorie (mai scattate). Inviare comunque?`)) {
+      return;
+    }
     // L'invio richiede rete in questa fase: i dati compilati sono già salvati/sincronizzati,
     // ma la chiusura del rapportino (con i suoi controlli) va fatta online.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -299,7 +304,7 @@ export default function RapportinoForm({
     } finally {
       if (mountedRef.current) setInviando(false);
     }
-  }, [disabilitato, inviando, inviabile, token]);
+  }, [disabilitato, inviando, inviabile, token, voci, campi]);
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
 
