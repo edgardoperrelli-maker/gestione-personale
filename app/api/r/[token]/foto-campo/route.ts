@@ -22,11 +22,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .maybeSingle();
 
   if (!rap) return NextResponse.json({ error: 'token non valido' }, { status: 404 });
+  // Solo 'scaduto' è bloccato: un rapportino 'inviato' deve poter ancora ricevere
+  // le foto rimaste in coda sul telefono (lo storage non altera le risposte; il
+  // gate d'integrità è su /voce).
   if (
     tokenStatus(
       rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null },
       new Date().toISOString(),
-    ) !== 'valido'
+    ) === 'scaduto'
   )
     return NextResponse.json({ error: 'rapportino non modificabile' }, { status: 409 });
 
