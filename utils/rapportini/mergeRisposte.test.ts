@@ -28,6 +28,14 @@ describe('mergeRisposte — modalità normale', () => {
     const out = mergeRisposte({ a: PATH_A }, { a: null }, { soloCompletamentoFoto: false });
     expect(out).toEqual({ a: null });
   });
+  it('un segnaposto NON sovrascrive un path reale già salvato (riapertura + copia stale)', () => {
+    const out = mergeRisposte({ a: PATH_A }, { a: PH }, { soloCompletamentoFoto: false });
+    expect(out).toEqual({ a: PATH_A });
+  });
+  it('un path reale sovrascrive comunque un segnaposto', () => {
+    const out = mergeRisposte({ a: PH }, { a: PATH_A }, { soloCompletamentoFoto: false });
+    expect(out).toEqual({ a: PATH_A });
+  });
 });
 
 describe('mergeRisposte — modalità completamento foto (rapportino inviato)', () => {
