@@ -42,6 +42,7 @@ export type Voce = {
   accessibilita?: string;
   fascia_oraria?: string;
   coordinate?: string;
+  notaUfficio?: string;
   risposte: Record<string, unknown>;
   nuovo?: boolean;
   annullato?: boolean;
@@ -223,7 +224,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, badge: badgeVoceManuale(v.approvazione_stato ?? null) };
+        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null) };
       }),
     [voci, campi, titoloCampi],
   );
@@ -333,6 +334,7 @@ export default function RapportinoForm({
           onClose={onClose}
           approvazioneStato={voci[indiceCorrente].approvazione_stato ?? null}
           motivoRifiuto={voci[indiceCorrente].motivo_rifiuto ?? null}
+          notaUfficio={voci[indiceCorrente].notaUfficio ?? null}
         />
       ) : (
         <RapportinoLista

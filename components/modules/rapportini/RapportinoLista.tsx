@@ -7,7 +7,7 @@ import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -45,6 +45,9 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
             <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
               {r.badge.label}
             </span>
+          )}
+          {r.nota && (
+            <span title="Nota dall'ufficio" aria-label="Nota dall'ufficio" className="shrink-0 text-[13px] leading-none">📝</span>
           )}
           <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (

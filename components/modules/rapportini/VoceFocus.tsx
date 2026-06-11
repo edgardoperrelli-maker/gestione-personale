@@ -10,7 +10,7 @@ export type VoceFocusData = VoceCardData;
 
 export function VoceFocus({
   voce, indice, totale, campi, dettaglio, titoloCampi, disabilitato, stato, saveState,
-  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto,
+  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto, notaUfficio,
 }: {
   voce: VoceFocusData;
   indice: number;
@@ -27,6 +27,7 @@ export function VoceFocus({
   onClose: () => void;
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
+  notaUfficio?: string | null;
 }) {
   const isFirst = indice === 0;
   const isLast = indice === totale - 1;
@@ -54,6 +55,7 @@ export function VoceFocus({
           headerRight={<SaveBadge state={saveState} />}
           approvazioneStato={approvazioneStato}
           motivoRifiuto={motivoRifiuto}
+          notaUfficio={notaUfficio}
         />
       </div>
 

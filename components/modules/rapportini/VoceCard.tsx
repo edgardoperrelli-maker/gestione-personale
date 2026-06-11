@@ -94,7 +94,7 @@ export function VoceCampi({ campi, voce, disabilitato, onChange }: { campi: Temp
 /** Card di una voce, condivisa da VoceFocus (operatore) e dall'anteprima del template. */
 export function VoceCard({
   voce, indice, campi, dettaglio, titoloCampi, stato, disabilitato, onChange,
-  headerRight, approvazioneStato, motivoRifiuto,
+  headerRight, approvazioneStato, motivoRifiuto, notaUfficio,
 }: {
   voce: VoceCardData;
   indice: number;
@@ -107,6 +107,7 @@ export function VoceCard({
   headerRight?: React.ReactNode;
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
+  notaUfficio?: string | null;
 }) {
   const badge = badgeVoceManuale(approvazioneStato ?? null);
   const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
@@ -126,6 +127,15 @@ export function VoceCard({
         </div>
       )}
       <VoceHeaderInfo voce={voce} coordinataAbilitata={coordinataAbilitata} />
+      {notaUfficio && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3.5 py-2.5">
+          <span aria-hidden className="text-base leading-none">📝</span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--brand-text-muted)]">Nota dall&apos;ufficio</p>
+            <p className="mt-0.5 whitespace-pre-wrap break-words text-[14px] text-[var(--brand-text-main)]">{notaUfficio}</p>
+          </div>
+        </div>
+      )}
       <VoceDettagli voce={voce} dettaglio={dettaglio} />
       <VoceCampi campi={campi} voce={voce} disabilitato={disabilitato} onChange={onChange} />
     </section>
