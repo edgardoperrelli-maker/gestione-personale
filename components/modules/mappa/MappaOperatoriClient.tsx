@@ -25,6 +25,7 @@ import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
+import DatePicker from '@/components/ui/DatePicker';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -2439,11 +2440,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   <label className="block text-sm font-medium text-[var(--brand-text-main)] mb-2">
                     Data pianificazione
                   </label>
-                  <input
-                    type="date"
+                  <DatePicker
+                    fullWidth
                     value={setupModalDate}
-                    onChange={(e) => setSetupModalDate(e.target.value)}
-                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm"
+                    onChange={(iso) => setSetupModalDate(iso)}
+                    ariaLabel="Data pianificazione"
                   />
                 </div>
                 <div>
@@ -2493,21 +2494,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
                 Data
               </label>
-              <input
-                type="date"
+              <DatePicker
                 value={planningDate}
                 disabled={isEditMode || setupDone}
-                onChange={(e) => {
+                onChange={(iso) => {
                   if (isEditMode || setupDone) return;
-                  if (e.target.value) {
-                    setPlanningDate(e.target.value);
+                  if (iso) {
+                    setPlanningDate(iso);
                     setSelectedOps([]);
                     setDistribution(null);
                   }
                 }}
-                className={`rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-sm ${
-                  isEditMode || setupDone ? 'opacity-50 cursor-not-allowed' : ''
-                }`}
+                ariaLabel="Data pianificazione"
               />
               {isEditMode && (
                 <span className="rounded-full border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--warning)]">
