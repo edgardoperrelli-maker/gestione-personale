@@ -1,6 +1,9 @@
 'use client';
 
-export type SaveState = 'idle' | 'saving' | 'saved' | 'error' | 'queued' | 'bloccato';
+import type { SaveStateOffline } from '@/lib/offline/types';
+
+/** Stato del badge di salvataggio: alias del tipo condiviso (unica fonte di verità). */
+export type SaveState = SaveStateOffline;
 
 export function SaveBadge({ state }: { state: SaveState }) {
   if (state === 'idle') return null;
