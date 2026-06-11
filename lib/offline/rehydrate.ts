@@ -41,3 +41,28 @@ export function risolviFotoPlaceholder<T extends { id: string; risposte: Record<
     return cambiato ? { ...v, risposte } : v;
   });
 }
+
+/**
+ * Voci da RIPARARE (recupero del bug pre-fix): quelle dove il server (`vociServer`, dai props)
+ * ha ancora un placeholder foto `blob-locale:` MA il telefono (`dbLavoro`) ha già il path reale.
+ * Re-inviando queste voci col valore di dbLavoro, la foto si ricollega sul server.
+ * Ritorna gli id delle voci da re-inviare.
+ */
+export function vociDaRiparare<T extends { id: string; risposte: Record<string, unknown> }>(
+  vociServer: T[],
+  lavori: LavoroVoce[],
+): string[] {
+  if (lavori.length === 0) return [];
+  const perVoce = new Map(lavori.map((l) => [l.voceId, l.risposte]));
+  const out: string[] = [];
+  for (const v of vociServer) {
+    const lav = perVoce.get(v.id);
+    if (!lav) continue;
+    const serve = Object.entries(v.risposte).some(([chiave, valore]) => {
+      const reale = lav[chiave];
+      return isPlaceholderFoto(valore) && typeof reale === 'string' && !isPlaceholderFoto(reale);
+    });
+    if (serve) out.push(v.id);
+  }
+  return out;
+}

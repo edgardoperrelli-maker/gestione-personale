@@ -16,7 +16,7 @@ import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
 import type { RigaRisanamento } from './risanamento/types';
 import { reidrataVoci, persistiVoce } from '@/lib/offline/persistVoce';
-import { risolviFotoPlaceholder } from '@/lib/offline/rehydrate';
+import { risolviFotoPlaceholder, vociDaRiparare } from '@/lib/offline/rehydrate';
 import { accodaFoto } from '@/lib/offline/persistFoto';
 import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
@@ -154,6 +154,27 @@ export default function RapportinoForm({
       if (!attivo) return;
       setVoci(reidratate);
       reidratate.forEach((v) => { latestRisposteRef.current[v.id] = v.risposte; });
+    });
+    return () => { attivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  // Riparazione (recupero del bug pre-fix): se il rapportino è riaperto/modificabile e il server
+  // ha ancora dei placeholder foto mentre il telefono (dbLavoro) ha il path reale, re-invia da solo
+  // quelle voci così le foto si ricollegano. Gira una volta al mount.
+  useEffect(() => {
+    if (readOnlyIniziale) return; // se non riaperto, il salvataggio sarebbe rifiutato (409)
+    let attivo = true;
+    void dbLavoro.perToken(token).then((lavori) => {
+      if (!attivo || !mountedRef.current) return;
+      const daRiparare = vociDaRiparare(vociOrdinate, lavori);
+      if (daRiparare.length === 0) return;
+      const perVoce = new Map(lavori.map((l) => [l.voceId, l.risposte]));
+      for (const voceId of daRiparare) {
+        const risposte = perVoce.get(voceId);
+        if (risposte) void persistiVoce(token, voceId, risposte, Date.now());
+      }
+      void sincronizzaToken(token);
     });
     return () => { attivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
