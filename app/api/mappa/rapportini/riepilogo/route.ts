@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { contaVociByRapportino } from '@/lib/rapportini/contaVoci';
+import { contaFotoInSospesoByRapportino } from '@/lib/rapportini/contaFotoInSospeso';
 import { territorioEffettivo } from '@/utils/rapportini/territorioEffettivo';
 import { requireUser } from '@/lib/apiAuth';
 
@@ -40,6 +41,7 @@ export async function GET(req: Request) {
   // Conteggio paginato: PostgREST tronca a 1000 righe, quindi una singola query
   // .in(...) restituiva conteggi 0/parziali sui rapportini oltre la 1000ª voce.
   const vociCount = await contaVociByRapportino(supabaseAdmin, rapIds);
+  const fotoSospese = await contaFotoInSospesoByRapportino(supabaseAdmin, rapIds);
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const nowIso = now.toISOString();
@@ -51,6 +53,7 @@ export async function GET(req: Request) {
     url: `${base}/r/${r.token}`,
     statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
     nVoci: vociCount[r.id] ?? 0,
+    fotoInSospeso: fotoSospese[r.id] ?? 0,
   }));
   return NextResponse.json(out);
 }
