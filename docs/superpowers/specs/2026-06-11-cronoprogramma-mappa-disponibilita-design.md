@@ -20,7 +20,7 @@ Oggi i due moduli non sono collegati:
 - **Architettura A**: tabella dedicata `disponibilita_operatore` come fonte unica di verità (non si estende `assignments`).
 - **Granularità**: fascia oraria precisa (`ora_da`/`ora_a`).
 - **Blocco Mappa**: **netto** per assenza a giornata intera (non selezionabile); **parziale** selezionabile con avviso + limite orario.
-- **Tipi**: `ferie`, `104`, `permesso`, `malattia`.
+- **Tipi**: `ferie`, `104`, `malattia`, `permesso`, `congedo`, `lutto` (i 6 stati realmente usati oggi come attività).
 - **Migrazione**: i ferie/104 storici (attività in `assignments`) vengono convertiti nella nuova tabella e le vecchie card-attività rimosse, per evitare doppioni.
 - **Conflitto retroattivo**: se un operatore già nel piano Mappa diventa assente-intero per quella data, la Mappa **lo segnala** (badge rosso + banner) senza rimuoverlo in automatico.
 - **Indipendenza dal territorio**: un'assenza è uno **stato della persona**, NON un lavoro su una zona. La tabella `disponibilita_operatore` **non ha `territory_id`**; il dialog non chiede il territorio; nel calendario la card assenza è renderizzata a livello di **giorno**, non dentro una colonna territorio. (Nelle future viste grid/split le assenze andranno in una fascia/area "del giorno", mai forzate sotto un territorio.)
@@ -38,8 +38,8 @@ CREATE TABLE IF NOT EXISTS disponibilita_operatore (
   id          uuid DEFAULT gen_random_uuid() PRIMARY KEY,
   staff_id    text NOT NULL,                 -- convenzione progetto (no FK su schema base)
   data        date NOT NULL,
-  tipo        text NOT NULL                  -- 'ferie' | '104' | 'permesso' | 'malattia'
-              CHECK (tipo IN ('ferie','104','permesso','malattia')),
+  tipo        text NOT NULL                  -- 'ferie'|'104'|'malattia'|'permesso'|'congedo'|'lutto'
+              CHECK (tipo IN ('ferie','104','malattia','permesso','congedo','lutto')),
   modalita    text NOT NULL DEFAULT 'intera' -- 'intera' | 'parziale'
               CHECK (modalita IN ('intera','parziale')),
   ora_da      time NULL,                     -- inizio finestra DISPONIBILITÀ (null = da inizio giornata)
@@ -78,8 +78,10 @@ Regola di derivazione: `modalita = 'intera'` ⇔ `ora_da IS NULL AND ora_a IS NU
 |---|---|---|
 | `ferie` | Ferie | `--info` / blu |
 | `104` | 104 | `--brand-accent` / viola |
-| `permesso` | Permesso | `--warning` / ambra |
 | `malattia` | Malattia | `--danger` / rosso |
+| `permesso` | Permesso | `--warning` / ambra |
+| `congedo` | Congedo | `--success` / verde-acqua |
+| `lutto` | Lutto | grigio/neutro (sobrio) |
 
 (Colori indicativi: usare i token tema esistenti, niente colori hard-coded.)
 
@@ -111,7 +113,7 @@ export type Disponibilita = {
   id: string;
   staff_id: string;
   data: string;          // YYYY-MM-DD
-  tipo: 'ferie' | '104' | 'permesso' | 'malattia';
+  tipo: 'ferie' | '104' | 'malattia' | 'permesso' | 'congedo' | 'lutto';
   modalita: 'intera' | 'parziale';
   ora_da: string | null; // 'HH:MM'
   ora_a: string | null;  // 'HH:MM'
@@ -144,7 +146,7 @@ Test in `lib/disponibilita.test.ts` (vitest) sui quattro casi della tabella sema
 - **Nuovo dialog `AssenzaDialog`** (stile coerente con `NewAssignmentDialog`/`EditAssignmentDialog`), campi:
   - Operatore (select su `staff` validi nel giorno).
   - Data (riusa `components/ui/DatePicker.tsx`; preimpostata se aperto da una cella giorno).
-  - Tipo (Ferie / 104 / Permesso / Malattia).
+  - Tipo (Ferie / 104 / Malattia / Permesso / Congedo / Lutto).
   - Modalità: radio "Tutto il giorno" | "Disponibile fino alle…" | "Disponibile dalle…" | "Finestra…" → mostra i campi orario pertinenti.
   - Note (opzionale).
   - **Nessun campo territorio** (l'assenza è indipendente dalla zona).
@@ -165,13 +167,15 @@ Test in `lib/disponibilita.test.ts` (vitest) sui quattro casi della tabella sema
 
 ## Migrazione dati storici
 
-SQL **una tantum** (consegnata all'utente da lanciare; il Supabase MCP non punta al DB prod). Da verificare prima i **nomi reali** delle attività ferie/104/permesso/malattia in `activities_renamed`.
+SQL **una tantum** (consegnata all'utente da lanciare; il Supabase MCP non punta al DB prod).
+
+Nomi attività reali = i 6 stati: **Ferie, 104, Malattia, Permesso, Congedo, Lutto**. La mappatura nome→tipo è praticamente un'**identità**: `tipo = lower(trim(activities_renamed.name))`. (Lo script userà comunque un match case-insensitive ed esatto su questi 6 nomi, così attività di lavoro con nomi diversi non vengono toccate.)
 
 Logica:
-1. Per ogni `assignments` a la cui `activity_id` corrisponde a un'attività di assenza (match per nome, case-insensitive), inserire in `disponibilita_operatore` `(staff_id, data = calendar_days.day, tipo dedotto dal nome, modalita='intera', ora_da=NULL, ora_a=NULL)`, con `ON CONFLICT (staff_id, data) DO NOTHING`.
+1. Per ogni `assignments` la cui `activity_id` punta a un'attività con `name` in {Ferie,104,Malattia,Permesso,Congedo,Lutto}, inserire in `disponibilita_operatore` `(staff_id, data = calendar_days.day, tipo = lower(name), modalita='intera', ora_da=NULL, ora_a=NULL)`, con `ON CONFLICT (staff_id, data) DO NOTHING`.
 2. Eliminare quelle `assignments` migrate (evita doppioni nel calendario, ora alimentato dalla nuova tabella).
 
-Mappatura nome→tipo (da confermare sui dati reali): contiene "ferie"→`ferie`; contiene "104"→`104`; "permesso"/"uscita"→`permesso`; "malattia"→`malattia`.
+> Verifica pre-migrazione: prima di lanciare, conviene una query di conteggio `SELECT a.name, count(*) FROM assignments JOIN activities_renamed a ON a.id = assignments.activity_id WHERE lower(a.name) IN (...) GROUP BY a.name` per confermare nomi/maiuscole reali ed eventuali varianti (es. "ART.104", "Permesso 104").
 
 ---
 
