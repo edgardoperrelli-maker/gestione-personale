@@ -7,9 +7,15 @@ export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: s
   const videoRef = useRef<HTMLVideoElement>(null);
   const controlsRef = useRef<IScannerControls | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
+  // onCodice via ref: lo scanner si monta UNA volta sola (deps []), immune ai re-render del parent.
+  // Senza questo, ogni re-render (autosave, ecc.) cambiava l'identità di onCodice e l'effetto rimontava
+  // la fotocamera in continuazione → non decodificava mai ("inquadra e basta").
+  const onCodiceRef = useRef(onCodice);
+  onCodiceRef.current = onCodice;
 
   useEffect(() => {
     let attivo = true;
+    let localControls: IScannerControls | null = null;
     const reader = new BrowserMultiFormatReader();
     (async () => {
       try {
@@ -19,18 +25,19 @@ export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: s
           (result) => {
             if (result && attivo) {
               const testo = result.getText().trim();
-              if (testo) { controlsRef.current?.stop(); onCodice(testo); }
+              if (testo) { attivo = false; localControls?.stop(); onCodiceRef.current(testo); }
             }
           },
         );
+        localControls = controls;
         controlsRef.current = controls;
         if (!attivo) controls.stop();
       } catch {
         if (attivo) setErrore('Fotocamera non disponibile o permesso negato. Usa l\'inserimento manuale.');
       }
     })();
-    return () => { attivo = false; controlsRef.current?.stop(); };
-  }, [onCodice]);
+    return () => { attivo = false; localControls?.stop(); controlsRef.current?.stop(); };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
