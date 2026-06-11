@@ -20,7 +20,6 @@ import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
-import { dbOutbox } from '@/lib/offline/db';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
@@ -104,10 +103,11 @@ export default function RapportinoForm({
   const [indiceCorrente, setIndiceCorrente] = useState(0);
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [modaleAperta, setModaleAperta] = useState(false);
-  const [bloccoSospese] = useState<number | null>(null); // n. voci in attesa di approvazione (gestito dalla coda offline)
+  const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
+  const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
 
   const { perVoce: outboxPerVoce, bloccati } = useStatoSync(token);
-  const bloccato = bloccati > 0;
+  const bloccato = bloccati > 0 || bloccatoInvia;
 
   const disabilitato = readOnly || bloccato || inviato;
 
@@ -246,17 +246,31 @@ export default function RapportinoForm({
 
   const handleInvia = useCallback(async () => {
     if (disabilitato || inviando || !inviabile) return;
+    // L'invio richiede rete in questa fase: i dati compilati sono già salvati/sincronizzati,
+    // ma la chiusura del rapportino (con i suoi controlli) va fatta online.
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      window.alert('Serve la connessione per inviare il rapportino. I dati compilati restano salvati e si sincronizzano da soli.');
+      return;
+    }
     setInviando(true);
     try {
-      await dbOutbox.put({ id: `invia:${token}`, type: 'invia', token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: {} });
-      const vuota = await sincronizzaToken(token);
-      if (vuota && typeof navigator !== 'undefined' && navigator.onLine) {
-        setInviato(true);
-        setReadOnly(true);
-        setVista('lista');
+      const res = await fetch(`/api/r/${token}/invia`, { method: 'POST' });
+      if (res.status === 409) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string; inSospeso?: number };
+        if (body.error === 'voci_in_sospeso') {
+          setBloccoSospese(body.inSospeso ?? 1); // banner soft, ritentabile dopo approvazione
+        } else {
+          setBloccatoInvia(true); // terminale: link scaduto / già inviato
+        }
+        return;
       }
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setBloccoSospese(null);
+      setInviato(true);
+      setReadOnly(true);
+      setVista('lista');
     } catch {
-      window.alert('Invio non riuscito. Riprova.');
+      window.alert('Invio non riuscito. Controlla la connessione e riprova.');
     } finally {
       if (mountedRef.current) setInviando(false);
     }
