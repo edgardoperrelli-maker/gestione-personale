@@ -9,7 +9,7 @@ test('compila offline → torna online → sincronizza', async ({ page, context 
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 
-  await page.goto('/__offline-e2e__');
+  await page.goto('/offline-e2e');
   await expect(page.getByTestId('harness')).toHaveText('pronto');
 
   await page.evaluate(async (t) => {
