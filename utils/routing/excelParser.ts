@@ -172,7 +172,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     matricola: findCol(headers, [/^matricola$/, /matricola/]),
     recapito: null,
     accessibilita: null,
-    note: findCol(headers, [/^note$/, /^nota$/, /^annotazioni$/]),
+    note: findCol(headers, [/^note per operatore$/, /^note$/, /^nota$/, /^annotazioni$/]),
     attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
     codice: null,
     durata: findCol(headers, [/tempo.*esec/, /^durata$/, /^tempo$/, /minut/]),

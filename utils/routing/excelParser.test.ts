@@ -98,4 +98,9 @@ describe('detectFormat — colonna Note', () => {
     const cm = detectFormat(['Indirizzo', 'CAP', 'Comune']);
     expect(cm!.note).toBeNull();
   });
+  it('riconosce l\'header del template "Note per operatore"', () => {
+    const cm = detectFormat(['Indirizzo', 'CAP', 'Comune', 'Note per operatore']);
+    expect(cm).not.toBeNull();
+    expect(cm!.note).toBe(3);
+  });
 });
