@@ -3,6 +3,7 @@
 // così è riusabile sia dalle route API sia dallo script di backfill (tsx).
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
+import { reapplyOverridesInterventi } from './territorioOverride';
 
 export type EnsureResult = { creati: number; preservati: number; scartati: number; error?: string };
 
@@ -66,5 +67,10 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
     const { error } = await db.from('interventi').insert(daInserire);
     if (error) return { creati: 0, preservati, scartati, error: error.message };
   }
+
+  // Ri-applica gli override per-operatore: la rigenerazione ha appena rimesso il
+  // territorio del piano su tutte le righe; per gli operatori spostati va ripristinato.
+  await reapplyOverridesInterventi(db, pianoId);
+
   return { creati: daInserire.length, preservati, scartati };
 }
