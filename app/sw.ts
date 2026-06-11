@@ -21,7 +21,9 @@ const navigazioneOperatore: RuntimeCaching = {
     (url.pathname.startsWith('/r/') || url.pathname.startsWith('/agenda/')),
   handler: new NetworkFirst({
     cacheName: 'operatore-pagine',
-    networkTimeoutSeconds: 5,
+    // Niente networkTimeoutSeconds: online (anche su rete lenta) si aspetta SEMPRE il dato
+    // fresco → l'operatore vede gli aggiornamenti caricati dall'ufficio. La cache scatta solo
+    // se DAVVERO offline (lì la fetch fallisce subito), così la consultazione offline resta veloce.
     plugins: [new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: SETTE_GIORNI })],
   }),
 };
@@ -32,7 +34,7 @@ const apiOperatore: RuntimeCaching = {
     request.method === 'GET' && url.pathname.startsWith('/api/r/'),
   handler: new NetworkFirst({
     cacheName: 'operatore-api',
-    networkTimeoutSeconds: 5,
+    // Niente timeout: fresco quando online, cache solo se offline (come navigazioneOperatore).
     plugins: [new ExpirationPlugin({ maxEntries: 100, maxAgeSeconds: SETTE_GIORNI })],
   }),
 };
