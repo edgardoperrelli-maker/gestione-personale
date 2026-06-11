@@ -2,16 +2,19 @@
 
 import { useEffect, useState } from 'react';
 import { persistiVoce, reidrataVoci } from '@/lib/offline/persistVoce';
+import { accodaFoto } from '@/lib/offline/persistFoto';
 import { sincronizzaToken } from '@/lib/offline/sync';
-import { dbOutbox } from '@/lib/offline/db';
+import { dbLavoro, dbOutbox } from '@/lib/offline/db';
 
 declare global {
   interface Window {
     __offline?: {
       persistiVoce: typeof persistiVoce;
       reidrataVoci: typeof reidrataVoci;
+      accodaFoto: typeof accodaFoto;
       sincronizzaToken: typeof sincronizzaToken;
       codaPerToken: (token: string) => Promise<Array<{ id: string; type: string; stato: string }>>;
+      risposteLavoro: (token: string, voceId: string) => Promise<Record<string, unknown> | undefined>;
     };
   }
 }
@@ -23,9 +26,12 @@ export default function HarnessClient() {
     window.__offline = {
       persistiVoce,
       reidrataVoci,
+      accodaFoto,
       sincronizzaToken,
       codaPerToken: async (token: string) =>
         (await dbOutbox.perToken(token)).map((i) => ({ id: i.id, type: i.type, stato: i.stato })),
+      risposteLavoro: async (token: string, voceId: string) =>
+        (await dbLavoro.perToken(token)).find((l) => l.voceId === voceId)?.risposte,
     };
     setPronto(true);
   }, []);

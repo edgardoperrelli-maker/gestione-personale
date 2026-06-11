@@ -35,3 +35,46 @@ test('compila offline → torna online → sincronizza', async ({ page, context 
   await expect.poll(async () => (await page.evaluate((t) => window.__offline!.codaPerToken(t), TOK)).length).toBe(0);
   expect(postChiamate.length).toBeGreaterThan(postPrima);
 });
+
+test('foto offline → al sync la voce riceve il PATH reale (non il placeholder)', async ({ page, context }) => {
+  const TOKF = 'e2e-foto';
+  const FOTO_PATH = 'rapportini/r/REALE.jpg';
+  let fotoUpload = 0;
+  let voceBody: { voceId?: string; risposte?: Record<string, unknown> } | null = null;
+
+  await page.route('**/api/r/**/foto-campo', async (route) => {
+    fotoUpload += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ path: FOTO_PATH }) });
+  });
+  await page.route('**/api/r/**/voce', async (route) => {
+    voceBody = JSON.parse(route.request().postData() ?? '{}');
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+
+  await page.goto('/offline-e2e');
+  await expect(page.getByTestId('harness')).toHaveText('pronto');
+
+  // OFFLINE: allega una foto (blob in coda) e scrivi il placeholder nella risposta della voce.
+  await context.setOffline(true);
+  const placeholder = await page.evaluate(async (t) => {
+    const blob = new Blob(['fake-image-bytes'], { type: 'image/jpeg' });
+    const ph = await window.__offline!.accodaFoto(t, 'v1', 'foto', blob, Date.now());
+    await window.__offline!.persistiVoce(t, 'v1', { foto: ph }, Date.now());
+    return ph;
+  }, TOKF);
+  expect(placeholder).toMatch(/^blob-locale:/);
+
+  // ONLINE: sincronizza.
+  await context.setOffline(false);
+  await page.evaluate((t) => window.__offline!.sincronizzaToken(t), TOKF);
+
+  // La foto è stata caricata e la coda si è svuotata...
+  await expect.poll(() => fotoUpload).toBeGreaterThan(0);
+  await expect.poll(async () => (await page.evaluate((t) => window.__offline!.codaPerToken(t), TOKF)).length).toBe(0);
+  // ...e la voce inviata al server contiene il PATH REALE, non il placeholder (regressione bug 2b).
+  expect(voceBody?.risposte?.foto).toBe(FOTO_PATH);
+  expect(String(voceBody?.risposte?.foto)).not.toMatch(/^blob-locale:/);
+  // dbLavoro locale aggiornato col path reale.
+  const lavoro = await page.evaluate((t) => window.__offline!.risposteLavoro(t, 'v1'), TOKF);
+  expect(lavoro?.foto).toBe(FOTO_PATH);
+});

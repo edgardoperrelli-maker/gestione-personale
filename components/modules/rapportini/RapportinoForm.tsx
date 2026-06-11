@@ -16,6 +16,7 @@ import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
 import type { RigaRisanamento } from './risanamento/types';
 import { reidrataVoci, persistiVoce } from '@/lib/offline/persistVoce';
+import { risolviFotoPlaceholder } from '@/lib/offline/rehydrate';
 import { accodaFoto } from '@/lib/offline/persistFoto';
 import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
@@ -23,7 +24,7 @@ import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
-import { dbOutbox } from '@/lib/offline/db';
+import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -110,7 +111,7 @@ export default function RapportinoForm({
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
 
-  const { perVoce: outboxPerVoce, bloccati, bloccatiItems, sincronizzaOra } = useStatoSync(token);
+  const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
 
   const disabilitato = readOnly || bloccato || inviato;
@@ -120,6 +121,8 @@ export default function RapportinoForm({
   const mountedRef = useRef(true);
   /** Id della voce attualmente in focus (aggiornato a ogni render). */
   const voceIdUploadRef = useRef<string | undefined>(undefined);
+  /** Valore precedente di `inAttesa`: per rilevare quando la coda si svuota. */
+  const prevInAttesaRef = useRef(0);
 
   useEffect(() => {
     vociOrdinate.forEach((v) => {
@@ -154,6 +157,22 @@ export default function RapportinoForm({
     return () => { attivo = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
+
+  // Quando la coda si svuota (sync completato), risolve i placeholder foto col path reale
+  // scritto in dbLavoro → il badge "in attesa di rete" sparisce e la foto risulta caricata.
+  useEffect(() => {
+    if (prevInAttesaRef.current > 0 && inAttesa === 0) {
+      void dbLavoro.perToken(token).then((lavori) => {
+        if (!mountedRef.current) return;
+        setVoci((prev) => {
+          const risolte = risolviFotoPlaceholder(prev, lavori);
+          risolte.forEach((v) => { latestRisposteRef.current[v.id] = v.risposte; });
+          return risolte;
+        });
+      });
+    }
+    prevInAttesaRef.current = inAttesa;
+  }, [inAttesa, token]);
 
   const setRisposta = useCallback(
     (voceId: string, chiave: string, valore: unknown) => {

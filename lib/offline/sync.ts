@@ -11,10 +11,16 @@ let inCorso = false;
 async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean }> {
   try {
     if (item.type === 'voce') {
+      // Le risposte CORRENTI stanno in dbLavoro: il ramo foto vi riscrive il path reale dopo
+      // l'upload, mentre l'item in coda (snapshot) può avere ancora i placeholder `blob-locale:`.
+      // Inviamo SEMPRE dbLavoro così il server riceve i path reali delle foto, non i segnaposto.
+      const lavori = await dbLavoro.perToken(item.token);
+      const lavoro = lavori.find((l) => l.voceId === item.payload.voceId);
+      const risposte = lavoro?.risposte ?? item.payload.risposte;
       const r = await fetch(`/api/r/${item.token}/voce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voceId: item.payload.voceId, risposte: item.payload.risposte }),
+        body: JSON.stringify({ voceId: item.payload.voceId, risposte }),
       });
       return { status: r.status };
     }
