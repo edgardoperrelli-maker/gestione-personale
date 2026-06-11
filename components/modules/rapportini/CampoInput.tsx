@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { comprimiImmagine } from './CampoFoto';
 import { useUploadFoto } from './RapportinoFotoCtx';
+import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
+import { leggiBlobFoto } from '@/lib/offline/persistFoto';
 
 const inputCls =
   'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none disabled:opacity-70';
@@ -117,6 +119,20 @@ function CampoFotoInput({
     return () => URL.revokeObjectURL(url);
   }, [localFile]);
 
+  // Anteprima da blob locale per le foto in attesa di rete (placeholder), alla riapertura.
+  useEffect(() => {
+    if (localFile) return; // l'anteprima di sessione ha la precedenza
+    if (!isPlaceholderFoto(valore)) return;
+    let attivo = true;
+    let url: string | null = null;
+    void leggiBlobFoto(valore).then((blob) => {
+      if (!attivo || !blob) return;
+      url = URL.createObjectURL(blob);
+      setPreview(url);
+    });
+    return () => { attivo = false; if (url) URL.revokeObjectURL(url); };
+  }, [valore, localFile]);
+
   async function handleFiles(list: FileList | null) {
     const f = list?.[0];
     if (!f) return;
@@ -139,7 +155,8 @@ function CampoFotoInput({
     }
   }
 
-  const hasFotoEsistente = !localFile && typeof valore === 'string' && valore.length > 0;
+  const inAttesaRete = isPlaceholderFoto(valore);
+  const hasFotoEsistente = !localFile && typeof valore === 'string' && valore.length > 0 && !inAttesaRete;
   const busy = uploading;
 
   return (
@@ -183,7 +200,7 @@ function CampoFotoInput({
           onClick={() => scattoRef.current?.click()}
           className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
         >
-          {hasFotoEsistente || uploadStato === 'ok' ? '📷 Rifai scatto' : '📷 Scatta'}
+          {hasFotoEsistente || inAttesaRete || uploadStato === 'ok' ? '📷 Rifai scatto' : '📷 Scatta'}
         </button>
         <button
           type="button"
@@ -199,6 +216,9 @@ function CampoFotoInput({
         )}
         {!busy && uploadStato === 'errore' && (
           <span className="text-xs font-semibold text-[var(--danger)]">Errore upload</span>
+        )}
+        {!busy && inAttesaRete && (
+          <span className="text-xs font-semibold text-[var(--warning-fg,#92400e)]">⏳ in attesa di rete</span>
         )}
         {!busy && uploadStato === 'idle' && hasFotoEsistente && (
           <span className="text-xs font-semibold text-[var(--success)]">✓ Già presente</span>
