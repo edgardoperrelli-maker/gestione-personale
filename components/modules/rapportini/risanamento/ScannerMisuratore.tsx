@@ -1,6 +1,17 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { BrowserMultiFormatReader, type IScannerControls } from '@zxing/browser';
+import { DecodeHintType, BarcodeFormat } from '@zxing/library';
+
+// Hint zxing: ricerca approfondita + formati tipici dei misuratori (barcode 1D + QR/DataMatrix) → decodifica più affidabile.
+const HINTS = new Map<DecodeHintType, unknown>([
+  [DecodeHintType.TRY_HARDER, true],
+  [DecodeHintType.POSSIBLE_FORMATS, [
+    BarcodeFormat.CODE_128, BarcodeFormat.CODE_39, BarcodeFormat.ITF,
+    BarcodeFormat.EAN_13, BarcodeFormat.EAN_8, BarcodeFormat.UPC_A,
+    BarcodeFormat.QR_CODE, BarcodeFormat.DATA_MATRIX,
+  ]],
+]);
 
 /** Overlay scanner: apre la fotocamera posteriore, decodifica barcode/QR, primo codice → onCodice. */
 export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: string) => void; onChiudi: () => void }) {
@@ -16,11 +27,11 @@ export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: s
   useEffect(() => {
     let attivo = true;
     let localControls: IScannerControls | null = null;
-    const reader = new BrowserMultiFormatReader();
+    const reader = new BrowserMultiFormatReader(HINTS);
     (async () => {
       try {
         const controls = await reader.decodeFromConstraints(
-          { video: { facingMode: 'environment' } },
+          { video: { facingMode: 'environment', width: { ideal: 1920 }, height: { ideal: 1080 } } },
           videoRef.current ?? undefined,
           (result) => {
             if (result && attivo) {
