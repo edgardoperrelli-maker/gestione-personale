@@ -39,3 +39,6 @@ export type LavoroVoce = {
   risposte: Record<string, unknown>;
   aggiornatoIl: number;
 };
+
+/** Stato del badge di salvataggio lato form (estende i casi UI). */
+export type SaveStateOffline = 'idle' | 'saving' | 'saved' | 'error' | 'queued' | 'bloccato';
