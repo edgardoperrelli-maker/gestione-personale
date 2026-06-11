@@ -83,3 +83,19 @@ describe('detectFormat — colonne coordinate', () => {
     expect(cm!.lng).toBeNull();
   });
 });
+
+describe('detectFormat — colonna Note', () => {
+  it('mappa una colonna "Note" (formato leggibile)', () => {
+    const cm = detectFormat(['Indirizzo', 'CAP', 'Comune', 'Note']);
+    expect(cm).not.toBeNull();
+    expect(cm!.note).toBe(3);
+  });
+  it('riconosce anche "Nota" e "Annotazioni"', () => {
+    expect(detectFormat(['Indirizzo', 'Nota'])!.note).toBe(1);
+    expect(detectFormat(['Indirizzo', 'Annotazioni'])!.note).toBe(1);
+  });
+  it('senza colonna note → note null', () => {
+    const cm = detectFormat(['Indirizzo', 'CAP', 'Comune']);
+    expect(cm!.note).toBeNull();
+  });
+});

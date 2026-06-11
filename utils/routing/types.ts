@@ -28,6 +28,8 @@ export interface Task {
   esito?: string | null;
   /** Marcato annullato dall'ufficio in pianificazione (non da fare; voce rossa nel rapportino). */
   annullato?: boolean;
+  /** Nota informativa dall'ufficio per l'operatore (sola lettura lato operatore). */
+  note?: string;
 }
 
 export interface OperatorBase {

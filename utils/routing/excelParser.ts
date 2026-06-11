@@ -66,6 +66,7 @@ type ColMap = {
   matricola: number | null;
   recapito: number | null;
   accessibilita: number | null;
+  note: number | null;
   attivita: number | null;
   codice: number | null;
   durata: number | null;
@@ -97,6 +98,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       matricola: ATTGIORN_COL.MATRICOLA,
       recapito: ATTGIORN_COL.RECAPITO,
       accessibilita: ATTGIORN_COL.ACCESSIBILITA,
+      note: null,
       attivita: ATTGIORN_COL.ATTIVITA,
       codice: ATTGIORN_COL.CODICE,
       durata: null,
@@ -122,6 +124,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
         matricola: null,
         recapito: null,
         accessibilita: null,
+        note: null,
         attivita: null,
         codice: null,
         durata: null,
@@ -143,6 +146,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       matricola: null,
       recapito: null,
       accessibilita: null,
+      note: null,
       attivita: null,
       codice: null,
       durata: null,
@@ -168,6 +172,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     matricola: findCol(headers, [/^matricola$/, /matricola/]),
     recapito: null,
     accessibilita: null,
+    note: findCol(headers, [/^note$/, /^nota$/, /^annotazioni$/]),
     attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
     codice: null,
     durata: findCol(headers, [/tempo.*esec/, /^durata$/, /^tempo$/, /minut/]),
@@ -288,6 +293,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       matricola: colMap.matricola != null ? str(row[colMap.matricola]) : undefined,
       recapito: colMap.recapito != null ? str(row[colMap.recapito]) : undefined,
       accessibilita: colMap.accessibilita != null ? str(row[colMap.accessibilita]) : undefined,
+      note: colMap.note != null ? (str(row[colMap.note]) || undefined) : undefined,
       attivita: colMap.attivita != null ? str(row[colMap.attivita]) : undefined,
       codice: colMap.codice != null ? str(row[colMap.codice]) : undefined,
       durata_min: colMap.durata != null ? (Number.parseInt(str(row[colMap.durata]), 10) || undefined) : undefined,
