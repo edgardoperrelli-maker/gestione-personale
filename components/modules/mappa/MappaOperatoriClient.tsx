@@ -1722,7 +1722,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       if (res.ok) {
         const json = await res.json();
         setSavedDistribution(true);
-        setEliminatiAnnullati([]);
+        if (json.eliminatiOk === false) {
+          alert('Attenzione: alcuni interventi eliminati non sono stati rimossi del tutto dal database. Riprova il salvataggio.');
+        } else {
+          setEliminatiAnnullati([]);
+        }
         const pid = json.id ?? currentPianoId;
         if (json.id) {
           setCurrentPianoId(json.id);
@@ -2159,6 +2163,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (!distribution) return;
     const t = distribution[opIdx]?.tasks.find((x) => x.id === taskId);
     if (!t) return;
+    if (t.stato === 'completato') return;
     if (!window.confirm("Eliminare definitivamente questo intervento?\nSparirà dal rapportino dell'operatore e non sarà recuperabile.\nL'effetto si applica al Salva.")) return;
     if (t.annullato) {
       const chiave = identitaIntervento({

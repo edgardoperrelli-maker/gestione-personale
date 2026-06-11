@@ -304,6 +304,7 @@ export async function PUT(req: Request) {
     // ANNULLATI il cui task è stato rimosso dal piano. Scoped a created_from_mappa di QUESTO
     // piano e SOLO alle identità inviate dal client → NON intacca l'invariante della
     // rigenerazione ("gli annullati non si cancellano mai in rigenerazione").
+    let eliminatiOk = true;
     const chiaviEliminate: string[] = Array.isArray(eliminati)
       ? eliminati.filter((k: unknown): k is string => typeof k === 'string')
       : [];
@@ -317,7 +318,7 @@ export async function PUT(req: Request) {
       const ids = idAnnullatiDaEliminare((ann ?? []) as InterventoEsistente[], new Set(chiaviEliminate));
       if (ids.length > 0) {
         const { error: eDel } = await supabaseAdmin.from('interventi').delete().in('id', ids);
-        if (eDel) console.error('[PUT /api/mappa/piani] elimina annullati:', eDel.message);
+        if (eDel) { eliminatiOk = false; console.error('[PUT /api/mappa/piani] elimina annullati:', eDel.message); }
       }
     }
 
@@ -346,7 +347,7 @@ export async function PUT(req: Request) {
       .from('mappa_distribuzioni').upsert(distribuzioniRows, { onConflict: 'staff_id,data' });
     if (eDist) console.error('[PUT /api/mappa/piani] upsert distribuzioni:', eDist.message);
 
-    return NextResponse.json({ ok: true, id });
+    return NextResponse.json({ ok: true, id, eliminatiOk });
   } catch (err: any) {
     console.error('[PUT /api/mappa/piani]', err.message);
     return NextResponse.json({ error: err.message }, { status: 500 });
