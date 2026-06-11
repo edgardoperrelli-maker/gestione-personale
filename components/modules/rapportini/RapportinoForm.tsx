@@ -15,6 +15,13 @@ import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
 import type { RigaRisanamento } from './risanamento/types';
+import { reidrataVoci, persistiVoce } from '@/lib/offline/persistVoce';
+import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
+import { useStatoSync } from '@/lib/offline/useStatoSync';
+import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
+import { salvaSnapshot } from '@/lib/offline/snapshot';
+import { dbOutbox } from '@/lib/offline/db';
+import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -56,7 +63,6 @@ type Props = {
 };
 
 const DEBOUNCE_MS = 800;
-const MAX_BACKOFF_MS = 8000;
 
 function formatData(raw: string): string {
   const d = new Date(raw.length <= 10 ? `${raw}T00:00:00` : raw);
@@ -91,8 +97,6 @@ export default function RapportinoForm({
 
   const [voci, setVoci] = useState<Voce[]>(vociOrdinate);
   const [readOnly, setReadOnly] = useState(readOnlyIniziale);
-  const [bloccato, setBloccato] = useState(false); // 409 non_modificabile
-  const [saveStates, setSaveStates] = useState<Record<string, SaveState>>({});
   const [inviando, setInviando] = useState(false);
   const [inviato, setInviato] = useState(readOnlyIniziale);
 
@@ -100,13 +104,15 @@ export default function RapportinoForm({
   const [indiceCorrente, setIndiceCorrente] = useState(0);
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [modaleAperta, setModaleAperta] = useState(false);
-  const [bloccoSospese, setBloccoSospese] = useState<number | null>(null); // n. voci in attesa di approvazione
+  const [bloccoSospese] = useState<number | null>(null); // n. voci in attesa di approvazione (gestito dalla coda offline)
+
+  const { perVoce: outboxPerVoce, bloccati } = useStatoSync(token);
+  const bloccato = bloccati > 0;
 
   const disabilitato = readOnly || bloccato || inviato;
 
   const timersRef = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
   const latestRisposteRef = useRef<Record<string, Record<string, unknown>>>({});
-  const attemptsRef = useRef<Record<string, number>>({});
   const mountedRef = useRef(true);
   /** Id della voce attualmente in focus (aggiornato a ogni render). */
   const voceIdUploadRef = useRef<string | undefined>(undefined);
@@ -125,46 +131,25 @@ export default function RapportinoForm({
     };
   }, []);
 
-  const setSaveState = useCallback((voceId: string, s: SaveState) => {
-    setSaveStates((prev) => (prev[voceId] === s ? prev : { ...prev, [voceId]: s }));
-  }, []);
+  useEffect(() => {
+    void salvaSnapshot(token, 'rapportino', {
+      rapportino, voci: vociOrdinate, campiSnapshot, infoCampi, titoloCampi,
+    });
+    const stop = avviaSyncAutomatica(token);
+    return stop;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
-  const saveVoce = useCallback(
-    async (voceId: string) => {
-      if (!mountedRef.current) return;
-      const risposte = latestRisposteRef.current[voceId] ?? {};
-      setSaveState(voceId, 'saving');
-      try {
-        const res = await fetch(`/api/r/${token}/voce`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ voceId, risposte }),
-        });
-        if (res.status === 409) {
-          attemptsRef.current[voceId] = 0;
-          if (mountedRef.current) {
-            setBloccato(true);
-            setSaveState(voceId, 'idle');
-          }
-          return;
-        }
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        attemptsRef.current[voceId] = 0;
-        if (mountedRef.current) setSaveState(voceId, 'saved');
-      } catch {
-        if (!mountedRef.current) return;
-        setSaveState(voceId, 'error');
-        const attempt = (attemptsRef.current[voceId] ?? 0) + 1;
-        attemptsRef.current[voceId] = attempt;
-        const delay = Math.min(1000 * 2 ** (attempt - 1), MAX_BACKOFF_MS);
-        clearTimeout(timersRef.current[voceId]);
-        timersRef.current[voceId] = setTimeout(() => {
-          void saveVoce(voceId);
-        }, delay);
-      }
-    },
-    [token, setSaveState],
-  );
+  useEffect(() => {
+    let attivo = true;
+    void reidrataVoci(token, vociOrdinate).then((reidratate) => {
+      if (!attivo) return;
+      setVoci(reidratate);
+      reidratate.forEach((v) => { latestRisposteRef.current[v.id] = v.risposte; });
+    });
+    return () => { attivo = false; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
 
   const setRisposta = useCallback(
     (voceId: string, chiave: string, valore: unknown) => {
@@ -177,14 +162,13 @@ export default function RapportinoForm({
           return { ...v, risposte };
         }),
       );
-      attemptsRef.current[voceId] = 0;
-      setSaveState(voceId, 'saving');
       clearTimeout(timersRef.current[voceId]);
       timersRef.current[voceId] = setTimeout(() => {
-        void saveVoce(voceId);
+        void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now())
+          .then(() => sincronizzaToken(token));
       }, DEBOUNCE_MS);
     },
-    [disabilitato, saveVoce, setSaveState],
+    [disabilitato, token],
   );
 
   /** Forza il salvataggio immediato di una voce (usato da "Salva e avanti"). */
@@ -192,16 +176,17 @@ export default function RapportinoForm({
     (voceId: string) => {
       if (disabilitato) return;
       clearTimeout(timersRef.current[voceId]);
-      void saveVoce(voceId);
+      void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now())
+        .then(() => sincronizzaToken(token));
     },
-    [disabilitato, saveVoce],
+    [disabilitato, token],
   );
 
   /**
    * Carica una foto per il campo `chiave` della voce corrente.
    * Usato da CampoInput tipo='foto' via RapportinoFotoCtx.
    * 1. Invia il file a /api/r/[token]/foto-campo
-   * 2. Salva il path nelle risposte della voce (setRisposta + save immediato)
+   * 2. Salva il path nelle risposte della voce (setRisposta + debounce)
    */
   const uploadFotoVoce = useCallback(
     async (chiave: string, file: File): Promise<string | null> => {
@@ -216,16 +201,13 @@ export default function RapportinoForm({
         const path = json.path ?? null;
         if (path && mountedRef.current) {
           setRisposta(voceId, chiave, path);
-          // Salvataggio immediato (non attendere il debounce: la foto è già su storage)
-          clearTimeout(timersRef.current[voceId]);
-          void saveVoce(voceId);
         }
         return path;
       } catch {
         return null;
       }
     },
-    [token, setRisposta, saveVoce],
+    [token, setRisposta],
   );
 
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
@@ -266,25 +248,15 @@ export default function RapportinoForm({
     if (disabilitato || inviando || !inviabile) return;
     setInviando(true);
     try {
-      const res = await fetch(`/api/r/${token}/invia`, { method: 'POST' });
-      if (res.status === 409) {
-        const body = await res.json().catch(() => ({})) as { error?: string; inSospeso?: number };
-        if (body.error === 'voci_in_sospeso') {
-          // Mostra banner dedicato senza bloccare definitivamente il form:
-          // l'operatore potrà ritentare l'invio una volta che le voci vengono approvate.
-          setBloccoSospese(body.inSospeso ?? 1);
-        } else {
-          setBloccato(true);
-        }
-        return;
+      await dbOutbox.put({ id: `invia:${token}`, type: 'invia', token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: {} });
+      const vuota = await sincronizzaToken(token);
+      if (vuota && typeof navigator !== 'undefined' && navigator.onLine) {
+        setInviato(true);
+        setReadOnly(true);
+        setVista('lista');
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setBloccoSospese(null);
-      setInviato(true);
-      setReadOnly(true);
-      setVista('lista');
     } catch {
-      window.alert('Invio non riuscito. Controlla la connessione e riprova.');
+      window.alert('Invio non riuscito. Riprova.');
     } finally {
       if (mountedRef.current) setInviando(false);
     }
@@ -318,6 +290,7 @@ export default function RapportinoForm({
   return (
     <RapportinoFotoCtx.Provider value={uploadFotoVoce}>
     <div className="mx-auto max-w-[480px]">
+      <OfflineStatusPill token={token} />
       {bannerSospese}
       {tipo === 'risanamento' ? (
         <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
@@ -331,7 +304,7 @@ export default function RapportinoForm({
           titoloCampi={titoloCampi}
           disabilitato={disabilitato || (badgeVoceManuale(voci[indiceCorrente].approvazione_stato ?? null)?.bloccata ?? false)}
           stato={statoVoce(voci[indiceCorrente].risposte, campi)}
-          saveState={saveStates[voci[indiceCorrente].id] ?? 'idle'}
+          saveState={statoBadgeDaOutbox(outboxPerVoce[voci[indiceCorrente].id]) as SaveState}
           onChange={(chiave, valore) => setRisposta(voci[indiceCorrente].id, chiave, valore)}
           onPrev={onPrev}
           onNext={onNext}
