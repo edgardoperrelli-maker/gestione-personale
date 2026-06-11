@@ -2,6 +2,7 @@
 import { defaultCache } from '@serwist/next/worker';
 import type { PrecacheEntry, RuntimeCaching, SerwistGlobalConfig } from 'serwist';
 import { CacheFirst, ExpirationPlugin, NetworkFirst, Serwist, StaleWhileRevalidate } from 'serwist';
+import { drenaTuttiIToken, TAG_BACKGROUND_SYNC } from '@/lib/offline/backgroundSync';
 
 declare global {
   interface WorkerGlobalScope extends SerwistGlobalConfig {
@@ -67,3 +68,12 @@ const serwist = new Serwist({
 });
 
 serwist.addEventListeners();
+
+// Background Sync (Android/Chromium): alla connettività, drena la coda anche ad app chiusa.
+// iOS Safari non supporta l'evento 'sync' → no-op lì (coperto dai trigger ad-app-aperta).
+self.addEventListener('sync', (event) => {
+  const e = event as Event & { tag?: string; waitUntil(p: Promise<unknown>): void };
+  if (e.tag === TAG_BACKGROUND_SYNC) {
+    e.waitUntil(drenaTuttiIToken());
+  }
+});
