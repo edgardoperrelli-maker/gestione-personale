@@ -9,6 +9,7 @@ export type CensitoMisuratore = {
   civico?: string | null;
   comune?: string | null;
   cap?: string | null;
+  odl?: string | null;
 };
 
 const s = (v: unknown): string => String(v ?? '').trim();
@@ -19,6 +20,7 @@ export function autofillAnagrafica(m: CensitoMisuratore): AnagraficaManuale {
   const via = [s(m.indirizzo), s(m.civico)].filter(Boolean).join(' ');
   const out: AnagraficaManuale = {};
   if (s(m.matricola)) out.matricola = s(m.matricola);
+  if (s(m.odl)) out.odl = s(m.odl);
   if (s(m.pdr)) out.pdr = s(m.pdr);
   if (s(m.nominativo)) out.nominativo = s(m.nominativo);
   if (via) out.via = via;

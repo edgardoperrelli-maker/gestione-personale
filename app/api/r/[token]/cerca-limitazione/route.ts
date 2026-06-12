@@ -6,7 +6,7 @@ import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
 export const runtime = 'nodejs';
 
 const COMMITTENTE_LIMITAZIONE = 'acea';
-const CAMPI = 'id, matricola, pdr, nominativo, indirizzo, civico, comune, cap';
+const CAMPI = 'id, matricola, pdr, nominativo, indirizzo, civico, comune, cap, odl';
 
 /** Escapa i metacaratteri ilike (% _ \) così l'input utente non agisce da wildcard. */
 function escLike(v: string): string {

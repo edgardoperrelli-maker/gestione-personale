@@ -3,14 +3,14 @@ import { autofillAnagrafica, type CensitoMisuratore } from './autofillAnagrafica
 
 const base: CensitoMisuratore = {
   matricola: 'A023041', pdr: '00123', nominativo: 'Rossi Mario',
-  indirizzo: 'Via Roma', civico: '12', comune: 'Firenze', cap: '50100',
+  indirizzo: 'Via Roma', civico: '12', comune: 'Firenze', cap: '50100', odl: 'ODL900',
 };
 
 describe('autofillAnagrafica', () => {
-  it('mappa i campi e concatena civico alla via', () => {
+  it('mappa i campi (incluso ODS/ODL) e concatena civico alla via', () => {
     expect(autofillAnagrafica(base)).toEqual({
       matricola: 'A023041', pdr: '00123', nominativo: 'Rossi Mario',
-      via: 'Via Roma 12', comune: 'Firenze', cap: '50100',
+      via: 'Via Roma 12', comune: 'Firenze', cap: '50100', odl: 'ODL900',
     });
   });
 
