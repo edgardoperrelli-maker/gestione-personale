@@ -1014,6 +1014,8 @@ export default function CronoprogrammaWorkspace() {
             onDropDay={handleDropDay}
             staffCount={visibleStaff.length}
             taskCountMap={taskCountMap}
+            assenzeByDay={assenze}
+            onEditAssenza={openEditAssenza}
           />
         </motion.div>
       )}

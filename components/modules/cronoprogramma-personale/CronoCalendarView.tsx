@@ -6,6 +6,7 @@ import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
+import { TIPO_META, labelDisponibilita, type Disponibilita } from '@/lib/disponibilita';
 import {
   eqDate,
   filterAssignments,
@@ -42,6 +43,8 @@ export default function CronoCalendarView({
   onDropAssignment,
   staffCount,
   taskCountMap,
+  assenzeByDay,
+  onEditAssenza,
 }: {
   weeks: Date[][];
   anchor: Date;
@@ -66,6 +69,8 @@ export default function CronoCalendarView({
   }) => void;
   staffCount: number;
   taskCountMap?: Record<string,number>;
+  assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
+  onEditAssenza?: (d: Disponibilita) => void;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
 
@@ -100,6 +105,8 @@ export default function CronoCalendarView({
               onDropAssignment={onDropAssignment}
               staffCount={staffCount}
               taskCountMap={taskCountMap}
+              assenzeByDay={assenzeByDay}
+              onEditAssenza={onEditAssenza}
             />
           ))}
         </div>
@@ -132,6 +139,8 @@ function DayCell(props: {
   }) => void;
   staffCount: number;
   taskCountMap?: Record<string,number>;
+  assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
+  onEditAssenza?: (d: Disponibilita) => void;
 }) {
   const {
     d,
@@ -148,6 +157,8 @@ function DayCell(props: {
     onDropAssignment,
     staffCount,
     taskCountMap,
+    assenzeByDay,
+    onEditAssenza,
   } = props;
 
   const iso = fmtDay(d);
@@ -250,6 +261,30 @@ function DayCell(props: {
       </div>
 
       <div className="mt-2 space-y-2">
+        {(() => {
+          const dayAssenze = assenzeByDay?.[iso] ?? [];
+          if (!dayAssenze.length) return null;
+          return (
+            <div className="space-y-1">
+              {dayAssenze.map((a) => {
+                const meta = TIPO_META[a.tipo];
+                return (
+                  <button
+                    key={a.id}
+                    type="button"
+                    onClick={() => onEditAssenza?.(a)}
+                    className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-110"
+                    style={{ backgroundColor: meta.bg, border: `1px solid ${meta.border}`, color: meta.text }}
+                    title={a.note ?? undefined}
+                  >
+                    <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: meta.border }} />
+                    <span className="truncate">{a.staff_name} · {labelDisponibilita(a)}</span>
+                  </button>
+                );
+              })}
+            </div>
+          );
+        })()}
         {sorted.length ? (
           sortMode === 'TERRITORIO' || sortMode === 'PER_TERRITORIO' ? (
             (() => {
