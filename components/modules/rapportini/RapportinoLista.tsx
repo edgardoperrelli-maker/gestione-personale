@@ -6,8 +6,9 @@ import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
+import { rigaMatchRicerca } from '@/utils/rapportini/rigaMatchRicerca';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -83,6 +84,7 @@ export function RapportinoLista({
   inviando,
   readOnly,
   inviato,
+  ricerca = '',
 }: {
   staffName: string;
   dataLabel: string;
@@ -100,14 +102,16 @@ export function RapportinoLista({
   inviando: boolean;
   readOnly: boolean;
   inviato: boolean;
+  ricerca?: string;
 }) {
-  const visibili = righe.filter((r) =>
+  const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
+  const visibili = righeCercate.filter((r) =>
     filtro === 'tutti' ? true : filtro === 'dafare' ? r.stato === 'da_fare' : r.stato !== 'da_fare',
   );
   const conteggi: Record<Filtro, number> = {
-    tutti: righe.length,
-    dafare: righe.filter((r) => r.stato === 'da_fare').length,
-    completati: righe.filter((r) => r.stato !== 'da_fare').length,
+    tutti: righeCercate.length,
+    dafare: righeCercate.filter((r) => r.stato === 'da_fare').length,
+    completati: righeCercate.filter((r) => r.stato !== 'da_fare').length,
   };
 
   return (
@@ -135,6 +139,11 @@ export function RapportinoLista({
             </button>
           ))}
         </div>
+        {ricerca.trim() && (
+          <p className="mt-2 px-1 text-xs text-[var(--brand-text-subtle)]">
+            {righeCercate.length} risultat{righeCercate.length === 1 ? 'o' : 'i'} per «{ricerca.trim()}»
+          </p>
+        )}
       </div>
 
       <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-28 pt-2">
