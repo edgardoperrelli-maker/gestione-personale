@@ -2,7 +2,7 @@ export interface TemplateCampo {
   chiave: string; etichetta: string;
   tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto';
   opzioni?: string[];
-  obbligatoria?: boolean; // usato dai campi tipo 'foto': slot obbligatorio o facoltativo
+  obbligatoria?: boolean; // campo obbligatorio: foto = slot richiesto; non-foto = avviso all'invio (template manuali)
   scope_foto?: 'misuratore' | 'fase' | 'accessoria'; // solo per tipo='foto' nei template risanamento
   ordine: number;
 }
