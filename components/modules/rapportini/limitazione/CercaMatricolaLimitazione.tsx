@@ -3,38 +3,69 @@
 import { useState } from 'react';
 import { ScannerMisuratore } from '@/components/modules/rapportini/risanamento/ScannerMisuratore';
 import type { CensitoMisuratore } from '@/lib/limitazione/autofillAnagrafica';
+import { matchVociMatricola, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
+import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
 
 export function CercaMatricolaLimitazione({
   token,
+  voci,
   onTrovato,
   onManuale,
+  onApriAssegnato,
   onIndietro,
 }: {
   token: string;
+  voci: VoceMatricola[];
   onTrovato: (m: CensitoMisuratore) => void;
   onManuale: (matricola: string) => void;
+  onApriAssegnato: (voceId: string) => void;
   onIndietro: () => void;
 }) {
   const [q, setQ] = useState('');
   const [scanner, setScanner] = useState(false);
   const [cercando, setCercando] = useState(false);
-  const [suggerimenti, setSuggerimenti] = useState<CensitoMisuratore[] | null>(null);
-  const [nonTrovato, setNonTrovato] = useState(false);
+  const [suggerimenti, setSuggerimenti] = useState<CensitoMisuratore[]>([]);
+  const [suggVoci, setSuggVoci] = useState<Array<VoceMatricola & { matricola: string }>>([]);
+  const [altroOperatore, setAltroOperatore] = useState<string | null>(null);
+  const [misuratore, setMisuratore] = useState<CensitoMisuratore | null>(null);
+  const [cercato, setCercato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+
+  const reset = () => {
+    setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]);
+    setAltroOperatore(null); setMisuratore(null);
+  };
 
   const cerca = async (valore: string) => {
     const v = valore.trim();
     if (!v) return;
-    setCercando(true); setErrore(null); setNonTrovato(false); setSuggerimenti(null);
+    reset();
+
+    // 1) Già tuo → apri in automatico quella voce
+    const own = matchVociMatricola(voci, v);
+    if (own) { onApriAssegnato(own.id); return; }
+
+    setCercando(true);
     try {
       const res = await fetch(`/api/r/${token}/cerca-limitazione?q=${encodeURIComponent(v)}`);
       if (!res.ok) { setErrore('Ricerca non riuscita.'); return; }
       const j = (await res.json()) as
-        | { trovato: true; misuratore: CensitoMisuratore }
-        | { trovato: false; suggerimenti: CensitoMisuratore[] };
-      if (j.trovato) { onTrovato(j.misuratore); return; }
-      setSuggerimenti(j.suggerimenti);
-      setNonTrovato(true);
+        | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null }
+        | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null };
+      setAltroOperatore(j.altroOperatore);
+      const simili = matricoleSimili(
+        v,
+        voci.filter((x): x is VoceMatricola & { matricola: string } => x.matricola != null && x.matricola !== ''),
+        5,
+      );
+      setSuggVoci(simili);
+      if (j.trovato) {
+        setMisuratore(j.misuratore);
+        if (!j.altroOperatore) { onTrovato(j.misuratore); return; }
+      } else {
+        setSuggerimenti(j.suggerimenti);
+      }
+      setCercato(true);
     } catch {
       setErrore('Errore di rete.');
     } finally {
@@ -52,7 +83,7 @@ export function CercaMatricolaLimitazione({
           placeholder="Matricola misuratore"
           aria-label="Matricola"
           value={q}
-          onChange={(e) => { setQ(e.target.value); setNonTrovato(false); }}
+          onChange={(e) => { setQ(e.target.value); setCercato(false); }}
           onKeyDown={(e) => { if (e.key === 'Enter') void cerca(q); }}
           className="min-w-0 flex-1 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
         />
@@ -62,27 +93,58 @@ export function CercaMatricolaLimitazione({
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">{errore}</p>}
 
-      {nonTrovato && (
+      {altroOperatore && (
+        <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm font-medium text-[var(--danger)]">
+          ⚠️ Matricola assegnata a <b>{altroOperatore}</b> — contatta l&apos;ufficio per fartela assegnare.
+        </div>
+      )}
+
+      {cercato && (
         <div className="space-y-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-          <p className="text-sm font-medium text-[var(--brand-text-main)]">Matricola non censita.</p>
-          {suggerimenti && suggerimenti.length > 0 && (
+          {misuratore && altroOperatore ? (
+            <button type="button" onClick={() => onTrovato(misuratore)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
+              Procedi comunque (compila i dati)
+            </button>
+          ) : (
             <>
-              <p className="text-xs text-[var(--brand-text-muted)]">Forse intendevi:</p>
-              <ul className="space-y-1">
-                {suggerimenti.map((s) => (
-                  <li key={s.matricola}>
-                    <button type="button" onClick={() => onTrovato(s)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
-                      <span className="font-semibold">{s.matricola}</span>
-                      <span className="ml-2 text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
+              {suggVoci.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-[var(--brand-text-muted)]">📋 Già nel tuo rapportino:</p>
+                  <ul className="space-y-1">
+                    {suggVoci.map((s) => (
+                      <li key={s.id}>
+                        <button type="button" onClick={() => onApriAssegnato(s.id)} className="w-full rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]">
+                          <span className="font-semibold">{s.matricola}</span>
+                          <span className="ml-2 text-xs text-[var(--brand-text-muted)]">{[s.via, s.comune].filter(Boolean).join(' ')}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {suggerimenti.length > 0 && (
+                <>
+                  <p className="text-xs font-semibold text-[var(--brand-text-muted)]">Forse intendevi:</p>
+                  <ul className="space-y-1">
+                    {suggerimenti.map((s) => (
+                      <li key={s.matricola}>
+                        <button type="button" onClick={() => onTrovato(s)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
+                          <span className="font-semibold">{s.matricola}</span>
+                          <span className="ml-2 text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                </>
+              )}
+              {suggVoci.length === 0 && suggerimenti.length === 0 && (
+                <p className="text-sm font-medium text-[var(--brand-text-main)]">Matricola non censita.</p>
+              )}
+              <button type="button" onClick={() => onManuale(q.trim())} className="w-full rounded-lg border border-dashed border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+                Inserisci a mano questa matricola
+              </button>
             </>
           )}
-          <button type="button" onClick={() => onManuale(q.trim())} className="w-full rounded-lg border border-dashed border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
-            Inserisci a mano questa matricola
-          </button>
         </div>
       )}
 
