@@ -8,6 +8,16 @@ export const runtime = 'nodejs';
 const COMMITTENTE_LIMITAZIONE = 'acea';
 const CAMPI = 'id, matricola, pdr, nominativo, indirizzo, civico, comune, cap';
 
+/** Escapa i metacaratteri ilike (% _ \) così l'input utente non agisce da wildcard. */
+function escLike(v: string): string {
+  return v.replace(/[%_\\]/g, '\\$&');
+}
+
+type RigaRef = {
+  id: number; matricola: string; pdr: string | null; nominativo: string | null;
+  indirizzo: string | null; civico: string | null; comune: string | null; cap: string | null;
+};
+
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
   const q = (new URL(req.url).searchParams.get('q') ?? '').trim();
@@ -30,13 +40,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     return NextResponse.json({ trovato: true, misuratore: esatti[0] });
   }
 
-  // 2) nessun esatto → suggerimenti simili (bidirezionali) sul dataset committente=acea.
-  //    Dataset per comune limitato (poche migliaia di righe): carichiamo fino a 2000 e filtriamo con la pura.
-  const { data: rows } = await supabaseAdmin
-    .from('limitazione_misuratori_ref')
-    .select(CAMPI)
-    .eq('committente', COMMITTENTE_LIMITAZIONE)
-    .limit(2000);
-  const suggerimenti = matricoleSimili(q, (rows ?? []) as Array<{ matricola: string }>, 8);
+  // 2) nessun esatto → suggerimenti simili (bidirezionali):
+  //    (a) pre-filtro SQL ilike '%q%' = "candidato contiene q": robusto anche su dataset grandi
+  //        (caso del prefisso variabile, es. q=A023041 trova 99A023041).
+  //    (b) campione ordinato del dataset acea (fino a 2000) per il caso inverso "q contiene candidato".
+  //    La pura matricoleSimili decide ordine e taglio a 8 sull'unione deduplicata per id.
+  const [resLike, resSample] = await Promise.all([
+    supabaseAdmin.from('limitazione_misuratori_ref').select(CAMPI)
+      .eq('committente', COMMITTENTE_LIMITAZIONE).ilike('matricola', `%${escLike(q)}%`).limit(50),
+    supabaseAdmin.from('limitazione_misuratori_ref').select(CAMPI)
+      .eq('committente', COMMITTENTE_LIMITAZIONE).order('matricola', { ascending: true }).limit(2000),
+  ]);
+  const perId = new Map<number, RigaRef>();
+  for (const r of ([...(resLike.data ?? []), ...(resSample.data ?? [])] as RigaRef[])) perId.set(r.id, r);
+  const suggerimenti = matricoleSimili(q, [...perId.values()], 8);
   return NextResponse.json({ trovato: false, suggerimenti });
 }
