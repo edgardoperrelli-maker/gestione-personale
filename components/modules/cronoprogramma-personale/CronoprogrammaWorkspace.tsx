@@ -1166,6 +1166,7 @@ export default function CronoprogrammaWorkspace() {
       />
 
       <AssenzaDialog
+        key={`${assenzaEditing?.id ?? 'new'}-${assenzaDefaultDate}`}
         open={assenzaDialogOpen}
         staffList={staff}
         defaultDate={assenzaDefaultDate}
