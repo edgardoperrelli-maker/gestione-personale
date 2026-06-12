@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { appNavigation, sectionLabels } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import { MODULE_ICONS, DASHBOARD_HOME_ICON } from './moduleIcons';
+import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
 type SidebarProps = {
   allowedModules?: AppModuleKey[];
@@ -27,6 +28,16 @@ export default function Sidebar({
   onToggleCollapsed,
 }: SidebarProps) {
   const pathname = usePathname();
+  const { count: nAttesa } = useRichiesteManualiContext();
+  const badgeAttesa = nAttesa > 0 ? (
+    <span
+      aria-label={`${nAttesa} in attesa`}
+      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ${collapsed ? 'absolute right-1 top-1' : 'ml-auto'}`}
+      style={{ backgroundColor: 'var(--danger)' }}
+    >
+      {nAttesa > 99 ? '99+' : nAttesa}
+    </span>
+  ) : null;
 
   const visibleItems = appNavigation.filter((item) => {
     if (item.key === 'hub') return false; // la home è la voce brand in alto
@@ -45,6 +56,7 @@ export default function Sidebar({
     label: string,
     icon: React.ReactNode,
     active: boolean,
+    trailing?: React.ReactNode,
   ) => (
     <Link
       key={href}
@@ -52,13 +64,14 @@ export default function Sidebar({
       onClick={onNavigate}
       title={collapsed ? label : undefined}
       aria-current={active ? 'page' : undefined}
-      className={`group flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
+      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
         collapsed ? 'justify-center' : ''
       } ${active ? 'bg-[var(--brand-nav-active-bg)] font-semibold' : 'hover:bg-[var(--brand-primary-soft)]'}`}
       style={{ color: active ? 'var(--brand-primary)' : 'var(--brand-text-main)' }}
     >
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
       {!collapsed && <span className="truncate">{label}</span>}
+      {trailing}
     </Link>
   );
 
@@ -109,6 +122,7 @@ export default function Sidebar({
                 item.label,
                 MODULE_ICONS[item.key as AppModuleKey],
                 matchesPath(pathname, item.href, item.matchPrefixes),
+                item.key === 'lista-attesa' ? badgeAttesa : undefined,
               ),
             )}
           </>

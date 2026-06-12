@@ -1,10 +1,10 @@
 'use client';
 
-import { useRichiesteManualiFeed } from '@/lib/interventi/manuali/useRichiesteManualiFeed';
+import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
 /** Campanello admin: badge realtime col numero di richieste manuali in attesa; apre la lista attesa. */
 export default function CampanelloRichieste() {
-  const { count, live } = useRichiesteManualiFeed();
+  const { count, live } = useRichiesteManualiContext();
 
   return (
     <a

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
+import { RichiesteManualiProvider } from './RichiesteManualiProvider';
 
 type Props = {
   children: ReactNode;
@@ -77,6 +78,7 @@ export default function AppShell({
   };
 
   return (
+    <RichiesteManualiProvider enabled={isAdmin}>
     <div className="flex min-h-screen bg-[var(--brand-bg)]">
       {/* Sidebar desktop (in-flow) */}
       <div className="sticky top-0 hidden h-screen md:block">
@@ -119,5 +121,6 @@ export default function AppShell({
         </main>
       </div>
     </div>
+    </RichiesteManualiProvider>
   );
 }
