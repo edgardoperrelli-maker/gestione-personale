@@ -1,6 +1,6 @@
 import AppShell from '@/components/layout/AppShell';
 import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
-import { ASSIGNABLE_ROLE_LABELS, getAllowedModulesForUser, resolveAssignableRole } from '@/lib/moduleAccess';
+import { ASSIGNABLE_ROLE_LABELS, getAllowedModulesForUser, isAdminAssignableRole, resolveAssignableRole } from '@/lib/moduleAccess';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { cookies } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -28,7 +28,7 @@ export default async function HubLayout({ children }: { children: React.ReactNod
   const allowedModules = getAllowedModulesForUser(user.app_metadata, effectiveRole);
 
   return (
-    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules} isAdmin={effectiveRole === 'admin'}>
+    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules} isAdmin={isAdminAssignableRole(effectiveRole)}>
       <PageTransitionWrapper>{children}</PageTransitionWrapper>
     </AppShell>
   );

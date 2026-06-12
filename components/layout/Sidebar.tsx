@@ -32,7 +32,7 @@ export default function Sidebar({
   const badgeAttesa = nAttesa > 0 ? (
     <span
       aria-label={`${nAttesa} in attesa`}
-      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ${collapsed ? 'absolute right-1 top-1' : 'ml-auto'}`}
+      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ${collapsed ? 'absolute right-1 top-1' : ''}`}
       style={{ backgroundColor: 'var(--danger)' }}
     >
       {nAttesa > 99 ? '99+' : nAttesa}
