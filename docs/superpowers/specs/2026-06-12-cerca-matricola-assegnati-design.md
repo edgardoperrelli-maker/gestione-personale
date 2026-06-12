@@ -10,7 +10,7 @@ Per le limitazioni i task sono **voci pianificate** del rapportino (`rapportino_
 
 ## Decisioni (confermate)
 1. **Già tuo → apertura automatica** della voce (VoceFocus), con avviso "ordine già assegnato a te". Niente nuovo intervento.
-2. **Di un altro operatore → alert** (non bloccante): "Matricola assegnata a [Nome] — verifica prima di procedere".
+2. **Di un altro operatore → alert** (non bloccante): "Matricola assegnata a [Nome] — **contatta l'ufficio per fartela assegnare**".
 3. **Suggerimenti "simili" anche dai task del proprio rapportino** (oltre ai censiti).
 4. **Scope conflitto = stesso piano/campagna** (`rapportini.piano_id`, staff diverso).
 
@@ -18,7 +18,7 @@ Per le limitazioni i task sono **voci pianificate** del rapportino (`rapportino_
 1. **Match esatto tra i propri task** (client): `voci.find(v => normMatricola(v.matricola) === normMatricola(q))`.
    - Trovato → `onApriAssegnato(voce.id)` → la modale si chiude, `RapportinoForm` **apre la voce** (VoceFocus) con `window.alert('Ordine già assegnato a te — apro il task da compilare.')`. **Fine.**
 2. **Altrimenti** → `GET /api/r/[token]/cerca-limitazione?q=…` (esteso, vedi §2). La risposta include `altroOperatore`.
-   - Se `altroOperatore` ≠ null → mostra **banner alert** "⚠️ Matricola assegnata a {altroOperatore} — verifica prima di procedere" e **non avanza** in automatico: l'operatore prosegue con un'azione esplicita (scegliere un suggerimento, "Procedi comunque", o inserimento manuale).
+   - Se `altroOperatore` ≠ null → mostra **banner alert** "⚠️ Matricola assegnata a {altroOperatore} — contatta l'ufficio per fartela assegnare" e **non avanza** in automatico: l'operatore prosegue con un'azione esplicita (scegliere un suggerimento, "Procedi comunque", o inserimento manuale).
    - Se `trovato` (censito esatto) e nessun `altroOperatore` → autofill come ora.
    - Altrimenti → **suggerimenti** (vedi §3).
 
