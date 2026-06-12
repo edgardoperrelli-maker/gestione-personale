@@ -20,6 +20,8 @@ export default function ImportMisuratoriClient() {
   const [fImport, setFImport] = useState('');
   const [refCount, setRefCount] = useState<number | null>(null);
   const [refSample, setRefSample] = useState<Array<{ id: number; matricola: string; indirizzo: string; civico: string; comune: string }>>([]);
+  const [dataset, setDataset] = useState<'resine' | 'limitazione'>('resine');
+  const [committente, setCommittente] = useState<'acea' | 'italgas'>('acea');
 
   // Genera e scarica un modello .xlsx (intestazioni + 1 riga di esempio) compatibile con l'import.
   const scaricaModello = useCallback(async () => {
@@ -40,12 +42,12 @@ export default function ImportMisuratoriClient() {
   }, []);
 
   const carica = useCallback(async () => {
-    const res = await fetch(ENDPOINT);
+    const res = await fetch(`${ENDPOINT}?attivita=${dataset}`);
     if (res.ok) setLista((await res.json()) as ImportRow[]);
     else setEsito({ type: 'err', msg: 'Impossibile caricare la lista (DB non ancora migrato?).' });
-  }, []);
+  }, [dataset]);
 
-  useEffect(() => { void carica(); }, [carica]);
+  useEffect(() => { void carica(); }, [carica, dataset]);
 
   // Invalida il conteggio quando cambia un filtro: il bottone "Elimina N" sparisce finché
   // non si ricerca di nuovo, così la DELETE non agisce su un perimetro diverso da quello mostrato.
@@ -58,6 +60,8 @@ export default function ImportMisuratoriClient() {
     try {
       const fd = new FormData();
       fd.append('file', file, file.name);
+      fd.append('attivita', dataset);
+      fd.append('committente', committente);
       const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) {
@@ -118,7 +122,7 @@ export default function ImportMisuratoriClient() {
     if (!confirm('Eliminare questo import e tutti i suoi misuratori?')) return;
     setBusy(true);
     try {
-      const res = await fetch(`${ENDPOINT}?import_id=${encodeURIComponent(importId)}`, { method: 'DELETE' });
+      const res = await fetch(`${ENDPOINT}?import_id=${encodeURIComponent(importId)}&attivita=${dataset}`, { method: 'DELETE' });
       if (!res.ok) {
         const json = (await res.json().catch(() => ({}))) as { error?: string };
         setEsito({ type: 'err', msg: json.error ?? 'Eliminazione fallita.' });
@@ -136,6 +140,24 @@ export default function ImportMisuratoriClient() {
 
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
         <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Importa estrazione</h2>
+        <div className="mb-4 grid grid-cols-2 gap-2">
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            Attività
+            <select value={dataset} onChange={(e) => setDataset(e.target.value as 'resine' | 'limitazione')}
+              className="mt-1 block w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)]">
+              <option value="resine">Resine (risanamento)</option>
+              <option value="limitazione">Limitazioni massive</option>
+            </select>
+          </label>
+          <label className="block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            Committente
+            <select value={committente} onChange={(e) => setCommittente(e.target.value as 'acea' | 'italgas')}
+              className="mt-1 block w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)]">
+              <option value="acea">Acea</option>
+              <option value="italgas">Italgas</option>
+            </select>
+          </label>
+        </div>
         <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
           File Excel/CSV con colonne: Matricola (obbligatoria), PDR, Nominativo, Indirizzo, Civico, Comune, CAP.
         </p>
@@ -201,47 +223,49 @@ export default function ImportMisuratoriClient() {
         )}
       </div>
 
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-        <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Pulizia righe di riferimento</h2>
-        <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-          A lavori ultimati in una via, elimina i misuratori mai lavorati. Imposta almeno un filtro.
-        </p>
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <input value={fIndirizzo} onChange={(e) => setFIndirizzo(e.target.value)} placeholder="Via"
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Via" />
-          <input value={fCivico} onChange={(e) => setFCivico(e.target.value)} placeholder="Civico"
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Civico" />
-          <input value={fComune} onChange={(e) => setFComune(e.target.value)} placeholder="Comune"
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Comune" />
-          <select value={fImport} onChange={(e) => setFImport(e.target.value)}
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Import">
-            <option value="">Tutti gli import</option>
-            {lista.map((imp) => <option key={imp.import_id} value={imp.import_id}>{imp.righe} · {new Date(imp.caricato_at).toLocaleDateString('it-IT')}</option>)}
-          </select>
-        </div>
-        <div className="mt-3 flex items-center gap-2">
-          <button type="button" disabled={busy} onClick={cercaRef}
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50">
-            Cerca
-          </button>
-          {refCount !== null && (
-            <>
-              <span className="text-xs text-[var(--brand-text-muted)]">{refCount} corrispondenti</span>
-              <button type="button" disabled={busy || refCount === 0} onClick={eliminaRef}
-                className="rounded-lg border border-[var(--danger)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50">
-                Elimina {refCount}
-              </button>
-            </>
+      {dataset === 'resine' && (
+        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+          <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Pulizia righe di riferimento</h2>
+          <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
+            A lavori ultimati in una via, elimina i misuratori mai lavorati. Imposta almeno un filtro.
+          </p>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            <input value={fIndirizzo} onChange={(e) => setFIndirizzo(e.target.value)} placeholder="Via"
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Via" />
+            <input value={fCivico} onChange={(e) => setFCivico(e.target.value)} placeholder="Civico"
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Civico" />
+            <input value={fComune} onChange={(e) => setFComune(e.target.value)} placeholder="Comune"
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Comune" />
+            <select value={fImport} onChange={(e) => setFImport(e.target.value)}
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs" aria-label="Import">
+              <option value="">Tutti gli import</option>
+              {lista.map((imp) => <option key={imp.import_id} value={imp.import_id}>{imp.righe} · {new Date(imp.caricato_at).toLocaleDateString('it-IT')}</option>)}
+            </select>
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button type="button" disabled={busy} onClick={cercaRef}
+              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50">
+              Cerca
+            </button>
+            {refCount !== null && (
+              <>
+                <span className="text-xs text-[var(--brand-text-muted)]">{refCount} corrispondenti</span>
+                <button type="button" disabled={busy || refCount === 0} onClick={eliminaRef}
+                  className="rounded-lg border border-[var(--danger)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50">
+                  Elimina {refCount}
+                </button>
+              </>
+            )}
+          </div>
+          {refSample.length > 0 && (
+            <ul className="mt-3 max-h-40 space-y-1 overflow-auto text-xs text-[var(--brand-text-muted)]">
+              {refSample.map((r) => (
+                <li key={r.id}>{r.matricola} · {r.indirizzo} {r.civico} {r.comune}</li>
+              ))}
+            </ul>
           )}
         </div>
-        {refSample.length > 0 && (
-          <ul className="mt-3 max-h-40 space-y-1 overflow-auto text-xs text-[var(--brand-text-muted)]">
-            {refSample.map((r) => (
-              <li key={r.id}>{r.matricola} · {r.indirizzo} {r.civico} {r.comune}</li>
-            ))}
-          </ul>
-        )}
-      </div>
+      )}
     </div>
   );
 }
