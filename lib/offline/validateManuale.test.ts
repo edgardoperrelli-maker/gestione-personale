@@ -21,4 +21,17 @@ describe('validaManualeClient', () => {
     expect(r.ok).toBe(false);
     if (!r.ok) expect(r.motivo).toMatch(/foto/i);
   });
+  it('esito negativo → foto non obbligatorie (ok anche senza foto)', () => {
+    const campiNeg = [
+      ...campi,
+      { chiave: 'assente', etichetta: 'Assente', tipo: 'crocetta', ordine: 2 } as TemplateCampo,
+    ];
+    const r = validaManualeClient({
+      anagrafica: { pdr: '123', via: 'Roma' },
+      campiTemplate: campiNeg,
+      slotFotoPresenti: { foto_contatore: false },
+      risposte: { assente: true },
+    });
+    expect(r.ok).toBe(true);
+  });
 });

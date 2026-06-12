@@ -2,6 +2,7 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import type { AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 
 export type EsitoValidazione = { ok: true } | { ok: false; motivo: string };
 
@@ -13,11 +14,14 @@ export function validaManualeClient(args: {
   anagrafica: Record<string, unknown>;
   campiTemplate: TemplateCampo[];
   slotFotoPresenti: Record<string, boolean>;
+  risposte?: Record<string, unknown>;
 }): EsitoValidazione {
   if (!anagraficaValida(args.anagrafica as AnagraficaManuale)) {
     return { ok: false, motivo: 'Indicare almeno un identificativo (PDR, ODL o matricola) e un campo indirizzo (via o comune).' };
   }
-  const esito = validaFotoObbligatorie(args.campiTemplate, args.slotFotoPresenti);
+  const esito = haEsitoNegativo(args.risposte ?? {}, args.campiTemplate)
+    ? { ok: true as const, mancanti: [] as string[] }
+    : validaFotoObbligatorie(args.campiTemplate, args.slotFotoPresenti);
   if (!esito.ok) {
     return { ok: false, motivo: `Foto obbligatorie mancanti: ${esito.mancanti.join(', ')}` };
   }
