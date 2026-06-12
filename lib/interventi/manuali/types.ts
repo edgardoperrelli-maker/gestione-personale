@@ -7,7 +7,7 @@ export type StatoRichiesta = (typeof STATI_RICHIESTA)[number];
 export const CORSIE_RICHIESTA = ['normale', 'liberi'] as const;
 export type CorsiaRichiesta = (typeof CORSIE_RICHIESTA)[number];
 
-export type CommittenteManuale = 'acea' | 'italgas' | 'altro';
+export type CommittenteManuale = 'acea' | 'italgas' | 'altro' | 'lim_massive';
 
 /** Anagrafica compilata dall'operatore: sottoinsieme delle chiavi info, tutte string. */
 export type AnagraficaManuale = Partial<Record<InfoChiave, string>>;

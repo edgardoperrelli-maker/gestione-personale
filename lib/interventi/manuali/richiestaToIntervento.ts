@@ -1,10 +1,10 @@
 // PURA: dai dati correnti di una richiesta manuale approvata, costruisce il record
 // per la tabella canonica `interventi`. Speculare a lib/interventi/taskToIntervento.ts,
 // ma origine='manuale' e created_from_mappa=false. L'I/O (insert) sta nella route.
-import type { DatiInterventoManuale } from './types';
+import type { CommittenteManuale, DatiInterventoManuale } from './types';
 
 export type ContextInterventoManuale = {
-  committente: 'acea' | 'italgas' | 'altro';
+  committente: CommittenteManuale;
   data: string;
   staff_id: string;
   piano_id?: string | null;
