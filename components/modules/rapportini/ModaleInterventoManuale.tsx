@@ -11,6 +11,7 @@ import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/vali
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
+import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
@@ -23,6 +24,8 @@ export function ModaleInterventoManuale({
   token,
   infoCampi,
   campiPerCommittente,
+  voci,
+  onApriAssegnato,
   onClose,
   onCreata,
 }: {
@@ -30,6 +33,8 @@ export function ModaleInterventoManuale({
   infoCampi: TemplateInfoCampo[];
   /** Campi esito (template) per committente; se non noto si usa []. */
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
+  voci: VoceMatricola[];
+  onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
   onCreata: () => void;
 }) {
@@ -113,8 +118,10 @@ export function ModaleInterventoManuale({
         {step === 2 && committente === 'lim_massive' && !cercaFatta && (
           <CercaMatricolaLimitazione
             token={token}
+            voci={voci}
             onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
             onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
+            onApriAssegnato={onApriAssegnato}
             onIndietro={() => setStep(1)}
           />
         )}

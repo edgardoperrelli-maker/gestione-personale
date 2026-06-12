@@ -412,6 +412,12 @@ export default function RapportinoForm({
           token={token}
           infoCampi={infoCampiManuale}
           campiPerCommittente={templatesPerCommittente}
+          voci={voci}
+          onApriAssegnato={(voceId) => {
+            setModaleAperta(false);
+            const idx = voci.findIndex((v) => v.id === voceId);
+            if (idx >= 0) { window.alert('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
+          }}
           onClose={() => setModaleAperta(false)}
           onCreata={() => {
             setModaleAperta(false);
