@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
@@ -30,6 +30,15 @@ export function PannelloRevisioneRichiesta({
   const [busy, setBusy] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
+  const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null }>>([]);
+  useEffect(() => {
+    let attivo = true;
+    fetch(`/api/admin/interventi-manuali/${riga.id}/foto`)
+      .then((r) => (r.ok ? r.json() : { foto: [] }))
+      .then((j: { foto?: Array<{ id: string; etichetta: string; url: string | null }> }) => { if (attivo) setFoto(j.foto ?? []); })
+      .catch(() => { /* foto opzionali: errore silenzioso */ });
+    return () => { attivo = false; };
+  }, [riga.id]);
 
   const approva = async () => {
     setBusy(true); setErrore(null);
@@ -71,6 +80,19 @@ export function PannelloRevisioneRichiesta({
         <input type="text" value={motivo} onChange={(e) => setMotivo(e.target.value)} className={inputCls} />
       </div>
       {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
+      {foto.length > 0 && (
+        <div className="space-y-1">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Foto ({foto.length})</p>
+          <div className="flex flex-wrap gap-2">
+            {foto.map((f) => f.url && (
+              <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-20 w-20 overflow-hidden rounded-lg border border-[var(--brand-border)]">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.url} alt={f.etichetta} className="h-full w-full object-cover" />
+              </a>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="flex gap-2">
         <button type="button" onClick={rifiuta} disabled={busy} className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-3 font-bold text-[var(--danger)] disabled:opacity-50">Rifiuta</button>
         <button type="button" onClick={approva} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
