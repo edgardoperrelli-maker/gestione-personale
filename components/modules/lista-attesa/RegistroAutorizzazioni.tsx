@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
+import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import type { RigaRichiesta } from '@/lib/interventi/manuali/types';
 
 const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs';
@@ -106,6 +107,7 @@ export function RegistroAutorizzazioni() {
           <option value="acea">Acea</option>
           <option value="italgas">Italgas</option>
           <option value="altro">Altro</option>
+          <option value="lim_massive">Limitazioni massive</option>
         </select>
         <input
           type="date"
@@ -146,7 +148,7 @@ export function RegistroAutorizzazioni() {
                 <tr key={r.id}>
                   <td className="px-3 py-2">{r.data}</td>
                   <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
-                  <td className="px-3 py-2">{r.committente}</td>
+                  <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                   <td className="px-3 py-2">{r.stato}</td>
                   <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
                 </tr>

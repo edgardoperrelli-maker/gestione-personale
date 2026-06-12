@@ -5,6 +5,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
+import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 
@@ -55,7 +56,7 @@ export function PannelloRevisioneRichiesta({
 
   return (
     <div className="space-y-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">{riga.staff_name ?? riga.staff_id} · {riga.committente} · {riga.data}</p>
+      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">{riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {riga.data}</p>
       {campiAnag.map((c) => (
         <div key={c.chiave}>
           <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>

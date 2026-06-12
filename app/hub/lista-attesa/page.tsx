@@ -40,7 +40,7 @@ export default async function ListaAttesaPage() {
     .eq('solo_manuale', true);
   const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean; solo_manuale?: boolean }>;
 
-  const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro'];
+  const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
   const tplRows2 = tpl as TemplateRow[];
   const campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
   for (const committente of COMMITTENTI_MANUALI) {
