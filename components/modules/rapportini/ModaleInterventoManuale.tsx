@@ -8,10 +8,13 @@ import { CampoFoto } from './CampoFoto';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
+import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
   { value: 'acea', label: 'Acea' },
+  { value: 'lim_massive', label: 'Limitazioni massive' },
   { value: 'altro', label: 'Altro' },
 ];
 
@@ -36,6 +39,7 @@ export function ModaleInterventoManuale({
   const [foto, setFoto] = useState<Record<string, File>>({});
   const [inviando, setInviando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [cercaFatta, setCercaFatta] = useState(false);
 
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
   const campiEsito = committente ? campiPerCommittente[committente] ?? [] : [];
@@ -82,12 +86,12 @@ export function ModaleInterventoManuale({
         {step === 1 && (
           <div className="space-y-2">
             <p className="text-sm font-semibold text-[var(--brand-text-muted)]">Committente</p>
-            <div className="grid grid-cols-3 gap-2">
+            <div className="grid grid-cols-2 gap-2">
               {COMMITTENTI.map((c) => (
                 <button
                   key={c.value}
                   type="button"
-                  onClick={() => { setCommittente(c.value); setStep(2); }}
+                  onClick={() => { setCommittente(c.value); setStep(2); setCercaFatta(false); }}
                   className={`min-h-[50px] rounded-xl border p-3 text-sm font-semibold transition ${
                     committente === c.value
                       ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
@@ -101,7 +105,16 @@ export function ModaleInterventoManuale({
           </div>
         )}
 
-        {step === 2 && (
+        {step === 2 && committente === 'lim_massive' && !cercaFatta && (
+          <CercaMatricolaLimitazione
+            token={token}
+            onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+            onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
+            onIndietro={() => setStep(1)}
+          />
+        )}
+
+        {step === 2 && !(committente === 'lim_massive' && !cercaFatta) && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-x-2 gap-y-2">
               {campiAnag.map((c) => (
