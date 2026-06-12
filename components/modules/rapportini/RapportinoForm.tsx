@@ -8,6 +8,7 @@ import type { SaveState } from './SaveBadge';
 import { RapportinoLista, type RigaVoce, type Filtro } from './RapportinoLista';
 import { VoceFocus } from './VoceFocus';
 import { FabInterventoManuale } from './FabInterventoManuale';
+import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
@@ -108,6 +109,7 @@ export default function RapportinoForm({
   const [vista, setVista] = useState<'lista' | 'focus'>('lista');
   const [indiceCorrente, setIndiceCorrente] = useState(0);
   const [filtro, setFiltro] = useState<Filtro>('tutti');
+  const [ricerca, setRicerca] = useState('');
   const [modaleAperta, setModaleAperta] = useState(false);
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
@@ -265,7 +267,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null) };
+        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
     [voci, campi, titoloCampi],
   );
@@ -399,7 +401,11 @@ export default function RapportinoForm({
           inviando={inviando}
           readOnly={readOnly}
           inviato={inviato}
+          ricerca={ricerca}
         />
+      )}
+      {tipo !== 'risanamento' && vista === 'lista' && (
+        <LenteRicerca value={ricerca} onChange={setRicerca} />
       )}
       {vista === 'lista' && (
         <FabInterventoManuale
