@@ -8,6 +8,7 @@ import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
@@ -76,9 +77,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   // Valida le foto obbligatorie → 422 se mancano.
-  const esito = validaFotoObbligatorie(campiTemplate, Object.fromEntries(
-    slotFoto.map((c) => [c.chiave, fileBySlot.has(c.chiave)]),
-  ));
+  const esito = haEsitoNegativo(dati.risposte, campiTemplate)
+    ? { ok: true, mancanti: [] as string[] }
+    : validaFotoObbligatorie(campiTemplate, Object.fromEntries(
+        slotFoto.map((c) => [c.chiave, fileBySlot.has(c.chiave)]),
+      ));
   if (!esito.ok) {
     return NextResponse.json(
       { error: 'Foto obbligatorie mancanti', mancanti: esito.mancanti },

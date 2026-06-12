@@ -8,6 +8,7 @@ import { CampoFoto } from './CampoFoto';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
@@ -52,10 +53,12 @@ export function ModaleInterventoManuale({
 
   // Slot foto del template selezionato e validazione obbligatorie
   const slotFoto = campiFoto(campiEsito);
-  const esitoFoto = validaFotoObbligatorie(
-    campiEsito,
-    Object.fromEntries(slotFoto.map((c) => [c.chiave, foto[c.chiave] != null])),
-  );
+  const esitoFoto = haEsitoNegativo(risposte, campiEsito)
+    ? { ok: true, mancanti: [] as string[] }
+    : validaFotoObbligatorie(
+        campiEsito,
+        Object.fromEntries(slotFoto.map((c) => [c.chiave, foto[c.chiave] != null])),
+      );
 
   const handleInvia = async () => {
     if (!committente) return;
