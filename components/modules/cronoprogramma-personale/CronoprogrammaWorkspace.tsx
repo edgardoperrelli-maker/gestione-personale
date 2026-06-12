@@ -20,6 +20,8 @@ import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
 import AppointmentDayCards from './AppointmentDayCards';
 import AppointmentModal from './AppointmentModal';
+import AssenzaDialog from './AssenzaDialog';
+import type { Disponibilita } from '@/lib/disponibilita';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
 import {
@@ -93,6 +95,12 @@ export default function CronoprogrammaWorkspace() {
 
   const [taskCountMap, setTaskCountMap] = useState<Record<string,number>>({});
   const [taskCountRefresh, setTaskCountRefresh] = useState(0);
+
+  // Assenze / disponibilità (per giorno ISO)
+  const [assenze, setAssenze] = useState<Record<string, (Disponibilita & { staff_name: string })[]>>({});
+  const [assenzaDialogOpen, setAssenzaDialogOpen] = useState(false);
+  const [assenzaEditing, setAssenzaEditing] = useState<Disponibilita | null>(null);
+  const [assenzaDefaultDate, setAssenzaDefaultDate] = useState<string>('');
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
@@ -356,6 +364,30 @@ export default function CronoprogrammaWorkspace() {
     };
   }, [range.start, range.end, taskCountRefresh]);
 
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const from = fmtDay(range.start);
+      const to = fmtDay(range.end);
+      if (!from || !to) return;
+      try {
+        const res = await fetch(`/api/disponibilita?from=${from}&to=${to}`);
+        if (!res.ok) return;
+        const rows = (await res.json()) as Disponibilita[];
+        if (!alive || !Array.isArray(rows)) return;
+        const nameById = new Map(staff.map((s) => [s.id, s.display_name]));
+        const grouped: Record<string, (Disponibilita & { staff_name: string })[]> = {};
+        for (const r of rows) {
+          (grouped[r.data] ??= []).push({ ...r, staff_name: nameById.get(r.staff_id) ?? '—' });
+        }
+        setAssenze(grouped);
+      } catch (e) {
+        console.error('Errore fetch disponibilità:', e);
+      }
+    })();
+    return () => { alive = false; };
+  }, [range.start, range.end, rev, staff]);
+
   const removeAssignment = async (a: Assignment) => {
     setActionFeedback(null);
     const prev = assignments;
@@ -372,6 +404,39 @@ export default function CronoprogrammaWorkspace() {
       return;
     }
     setTimeout(() => softRefresh(), 300);
+  };
+
+  const openNewAssenza = (iso?: string) => {
+    setAssenzaEditing(null);
+    setAssenzaDefaultDate(iso ?? todayIso);
+    setAssenzaDialogOpen(true);
+  };
+  const openEditAssenza = (d: Disponibilita) => {
+    setAssenzaEditing(d);
+    setAssenzaDefaultDate(d.data);
+    setAssenzaDialogOpen(true);
+  };
+  const upsertAssenzaInState = (d: Disponibilita) => {
+    const nameById = new Map(staff.map((s) => [s.id, s.display_name]));
+    setAssenze((prev) => {
+      const next: Record<string, (Disponibilita & { staff_name: string })[]> = {};
+      for (const [iso, list] of Object.entries(prev)) {
+        const filtered = list.filter((x) => x.id !== d.id && !(x.staff_id === d.staff_id && x.data === d.data));
+        if (filtered.length) next[iso] = filtered;
+      }
+      (next[d.data] ??= []).push({ ...d, staff_name: nameById.get(d.staff_id) ?? '—' });
+      return next;
+    });
+  };
+  const removeAssenzaFromState = (id: string) => {
+    setAssenze((prev) => {
+      const next: Record<string, (Disponibilita & { staff_name: string })[]> = {};
+      for (const [iso, list] of Object.entries(prev)) {
+        const filtered = list.filter((x) => x.id !== id);
+        if (filtered.length) next[iso] = filtered;
+      }
+      return next;
+    });
   };
 
   const handleAppointmentDrop = async (appointmentId: string, newDate: string) => {
@@ -873,6 +938,7 @@ export default function CronoprogrammaWorkspace() {
           onToday={goToday}
           onPlannerViewChange={setPlannerView}
           onInsertRep={() => setOpenInsertRep(true)}
+          onNewAssenza={() => openNewAssenza()}
           onNewAppointment={() => {
             setNewAppointmentDate(undefined);
             setShowAppointmentModal(true);
@@ -1095,6 +1161,16 @@ export default function CronoprogrammaWorkspace() {
         onClose={() => setOpenExport(false)}
         defaultFrom={range.start.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
         defaultTo={range.end.toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10)}
+      />
+
+      <AssenzaDialog
+        open={assenzaDialogOpen}
+        staffList={staff}
+        defaultDate={assenzaDefaultDate}
+        existing={assenzaEditing}
+        onClose={() => { setAssenzaDialogOpen(false); setAssenzaEditing(null); }}
+        onSaved={(d) => { upsertAssenzaInState(d); setAssenzaDialogOpen(false); setAssenzaEditing(null); }}
+        onDeleted={(id) => { removeAssenzaFromState(id); setAssenzaDialogOpen(false); setAssenzaEditing(null); }}
       />
 
       {dropChoiceDialog && (
