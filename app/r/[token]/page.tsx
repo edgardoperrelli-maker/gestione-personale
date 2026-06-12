@@ -202,7 +202,7 @@ export default async function RapportinoPublicPage({
     .eq('solo_manuale', true);
   const templatesPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
   for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown }>) {
-    if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro') {
+    if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro' || t.committente === 'lim_massive') {
       templatesPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
     }
   }

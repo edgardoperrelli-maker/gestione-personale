@@ -15,7 +15,7 @@ import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToInter
 
 export const runtime = 'nodejs';
 
-const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro'];
+const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
