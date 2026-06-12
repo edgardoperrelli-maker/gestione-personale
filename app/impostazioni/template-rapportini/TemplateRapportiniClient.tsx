@@ -20,7 +20,7 @@ const SCOPE_FOTO: { v: 'misuratore' | 'fase' | 'accessoria'; label: string }[] =
   { v: 'accessoria', label: 'Accessoria opzionale' },
 ];
 
-type Committente = 'acea' | 'italgas' | 'altro';
+type Committente = 'acea' | 'italgas' | 'altro' | 'lim_massive';
 
 type Template = {
   id: string;
@@ -466,6 +466,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <option value="acea">Acea</option>
                 <option value="italgas">Italgas</option>
                 <option value="altro">Altro</option>
+                <option value="lim_massive">Limitazioni massive</option>
               </select>
               <label className="mt-3 flex items-start gap-2 text-sm text-[var(--brand-text-main)]">
                 <input

@@ -33,7 +33,7 @@ export const FotoIdPrioritySchema = z
 
 export const TemplateSchema = z.object({
   nome: z.string().min(1),
-  committente: z.enum(['acea', 'italgas', 'altro']).nullable().optional(),
+  committente: z.enum(['acea', 'italgas', 'altro', 'lim_massive']).nullable().optional(),
   campi: z.array(CampoSchema).min(1),
   info_campi: z.array(InfoCampoSchema).default([]),
   titolo_campi: TitoloCampiSchema,
