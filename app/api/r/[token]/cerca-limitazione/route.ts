@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
+import { matchVociMatricola } from '@/lib/limitazione/matchVociMatricola';
 
 export const runtime = 'nodejs';
 
@@ -24,10 +25,33 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   if (!q) return NextResponse.json({ error: 'q obbligatorio' }, { status: 400 });
 
   const { data: rap } = await supabaseAdmin
-    .from('rapportini').select('id, stato, data, riaperto_at').eq('token', token).maybeSingle();
+    .from('rapportini').select('id, stato, data, riaperto_at, piano_id, staff_id').eq('token', token).maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
   if (tokenStatus(rap as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, new Date().toISOString()) !== 'valido')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
+
+  // Conflitto: stesso piano, altro operatore con quella matricola tra i suoi task.
+  let altroOperatore: string | null = null;
+  const pianoId = (rap as { piano_id?: string | null }).piano_id ?? null;
+  const staffId = (rap as { staff_id?: string | null }).staff_id ?? '';
+  if (pianoId) {
+    const { data: altri } = await supabaseAdmin
+      .from('rapportini').select('id, staff_name').eq('piano_id', pianoId).neq('staff_id', staffId);
+    const nomePerRapp = new Map<string, string>(
+      ((altri ?? []) as Array<{ id: string; staff_name: string | null }>).map((r) => [r.id, r.staff_name ?? '']),
+    );
+    if (nomePerRapp.size > 0) {
+      const { data: vociAltri } = await supabaseAdmin
+        .from('rapportino_voci').select('matricola, rapportino_id')
+        .in('rapportino_id', [...nomePerRapp.keys()]).not('matricola', 'is', null).limit(2000);
+      const hit = matchVociMatricola(
+        ((vociAltri ?? []) as Array<{ matricola: string | null; rapportino_id: string }>)
+          .map((v) => ({ id: v.rapportino_id, matricola: v.matricola })),
+        q,
+      );
+      if (hit) altroOperatore = nomePerRapp.get(hit.id) || null;
+    }
+  }
 
   // 1) match esatto
   const { data: esatti } = await supabaseAdmin
@@ -37,7 +61,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     .eq('matricola', q)
     .limit(1);
   if (esatti && esatti.length > 0) {
-    return NextResponse.json({ trovato: true, misuratore: esatti[0] });
+    return NextResponse.json({ trovato: true, misuratore: esatti[0], altroOperatore });
   }
 
   // 2) nessun esatto → suggerimenti simili (bidirezionali):
@@ -54,5 +78,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const perId = new Map<number, RigaRef>();
   for (const r of ([...(resLike.data ?? []), ...(resSample.data ?? [])] as RigaRef[])) perId.set(r.id, r);
   const suggerimenti = matricoleSimili(q, [...perId.values()], 8);
-  return NextResponse.json({ trovato: false, suggerimenti });
+  return NextResponse.json({ trovato: false, suggerimenti, altroOperatore });
 }
