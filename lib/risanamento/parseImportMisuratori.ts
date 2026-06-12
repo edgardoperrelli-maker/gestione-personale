@@ -7,6 +7,7 @@ export type MisuratoreRefInput = {
   pdr: string;
   matricola: string;
   nominativo: string;
+  odl: string;
 };
 
 export type ParseResult = {
@@ -26,6 +27,7 @@ const PATTERN: Record<Campo, RegExp> = {
   civico: /civico|nciv|numciv/,
   comune: /comune|citta|localita/,
   cap: /^cap$|^c\.?a\.?p/,
+  odl: /ods|odl|ordinativo/,
 };
 
 /** Normalizza un'intestazione: minuscolo, senza accenti/diacritici, senza non-alfanumerici. */
@@ -82,6 +84,7 @@ export function parseImportMisuratori(rows: unknown[][]): ParseResult {
       pdr: get(row, 'pdr'),
       matricola,
       nominativo: get(row, 'nominativo'),
+      odl: get(row, 'odl'),
     });
   }
 

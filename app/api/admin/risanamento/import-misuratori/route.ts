@@ -71,11 +71,12 @@ export async function POST(req: Request) {
 
   const importId = randomUUID();
   const isLim = ds.tabella === 'limitazione_misuratori_ref';
-  const payload = parsed.records.map((r: MisuratoreRefInput) => ({
-    ...r,
-    import_id: importId,
-    ...(isLim ? { committente } : {}),
-  }));
+  const payload = parsed.records.map((r: MisuratoreRefInput) => {
+    const { odl, ...base } = r;
+    return isLim
+      ? { ...base, odl, import_id: importId, committente }
+      : { ...base, import_id: importId };
+  });
 
   // Insert non atomico tra batch: se un batch fallisce, i precedenti restano committati.
   // Accettabile per un import admin in Fase 1; riportiamo `inseriti_parziali` per visibilita.

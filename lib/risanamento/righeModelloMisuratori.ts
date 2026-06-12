@@ -2,7 +2,7 @@
  *  Le intestazioni combaciano coi pattern di `parseImportMisuratori` → il modello è sempre re-importabile. */
 export function righeModelloMisuratori(): string[][] {
   return [
-    ['Matricola', 'PDR', 'Nominativo', 'Indirizzo', 'Civico', 'Comune', 'CAP'],
-    ['MAT123456', '00123456789', 'Rossi Mario', 'Via Roma', '12', 'Firenze', '50100'],
+    ['ODS/ODL', 'Matricola', 'PDR', 'Nominativo', 'Indirizzo', 'Civico', 'Comune', 'CAP'],
+    ['ODL900', 'MAT123456', '00123456789', 'Rossi Mario', 'Via Roma', '12', 'Firenze', '50100'],
   ];
 }

@@ -14,16 +14,26 @@ describe('parseImportMisuratori', () => {
     expect(res.totale).toBe(2);
     expect(res.scartate).toBe(0);
     expect(res.records).toEqual([
-      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR1', matricola: 'MAT1', nominativo: 'Mario Rossi' },
-      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR2', matricola: 'MAT2', nominativo: 'Anna Bianchi' },
+      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR1', matricola: 'MAT1', nominativo: 'Mario Rossi', odl: '' },
+      { indirizzo: 'Via Mario Rossi', civico: '24', comune: 'Napoli', cap: '80100', pdr: 'PDR2', matricola: 'MAT2', nominativo: 'Anna Bianchi', odl: '' },
     ]);
+  });
+
+  it('riconosce la colonna ODS/ODL', () => {
+    const rows = [
+      ['Ods/odl', 'Matricola', 'PDR', 'Nominativo', 'Indirizzo', 'Comune', 'CAP'],
+      ['912228701', '202015209996', '4000169806', '', 'COLLE DELLE CASETTE 16', 'ZAGAROLO', '00039'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].odl).toBe('912228701');
+    expect(res.records[0].matricola).toBe('202015209996');
   });
 
   it('scarta le righe senza matricola e le conta', () => {
     const rows = [
       header,
       ['Via X', '1', 'Napoli', '', '', 'MATX', 'Tizio'],
-      ['Via Y', '2', 'Napoli', '', 'PDRY', '', 'Caio'], // niente matricola → scartata
+      ['Via Y', '2', 'Napoli', '', 'PDRY', '', 'Caio'],
     ];
     const res = parseImportMisuratori(rows);
     expect(res.totale).toBe(2);
@@ -40,7 +50,7 @@ describe('parseImportMisuratori', () => {
     const res = parseImportMisuratori(rows);
     expect(res.records[0]).toEqual({
       matricola: 'MAT9', pdr: 'PDR9', nominativo: 'Nome9',
-      indirizzo: 'Via Z', civico: '9', comune: 'Napoli', cap: '80120',
+      indirizzo: 'Via Z', civico: '9', comune: 'Napoli', cap: '80120', odl: '',
     });
   });
 
@@ -52,7 +62,7 @@ describe('parseImportMisuratori', () => {
     const res = parseImportMisuratori(rows);
     expect(res.records[0]).toEqual({
       matricola: 'MAT1', indirizzo: 'Via A', civico: '3',
-      comune: '', cap: '', pdr: '', nominativo: '',
+      comune: '', cap: '', pdr: '', nominativo: '', odl: '',
     });
   });
 
