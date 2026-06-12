@@ -686,6 +686,19 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                       </div>
                     )}
 
+                    {/* Row 2c: obbligatoria (campi non-foto, solo template manuale) */}
+                    {soloManuale && campo.tipo !== 'foto' && (
+                      <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                        <input
+                          type="checkbox"
+                          checked={campo.obbligatoria === true}
+                          onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
+                          className="h-4 w-4 accent-[var(--brand-primary)]"
+                        />
+                        Obbligatoria
+                      </label>
+                    )}
+
                     {/* Row 3: azioni */}
                     <div className="flex items-center gap-2">
                       <button
