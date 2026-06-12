@@ -1641,6 +1641,38 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSelectedOps((prev) => prev.map((o) => o.id === id ? { ...o, qty } : o));
   }, []);
 
+  // True se l'operatore ha un'assenza a giornata intera nel giorno pianificato.
+  const isAssenteIntera = (staffId: string) => {
+    const a = assenzeByStaff[staffId];
+    return !!(a && isAssenzaIntera(a));
+  };
+
+  // Operatori già nel piano che ora risultano assenti-interi (conflitto retroattivo).
+  const conflittiAssenza = useMemo(
+    () => selectedOps.filter((o) => isAssenteIntera(o.id)),
+    [selectedOps, assenzeByStaff] // eslint-disable-line react-hooks/exhaustive-deps
+  );
+
+  // Badge assenza per la lista di selezione operatori.
+  const renderAssenzaBadge = (staffId: string) => {
+    const a = assenzeByStaff[staffId];
+    if (!a) return null;
+    const intera = isAssenzaIntera(a);
+    return (
+      <span
+        className="ml-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+        style={
+          intera
+            ? { backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }
+            : { backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }
+        }
+        title={intera ? 'Assente tutto il giorno' : 'Disponibilità parziale'}
+      >
+        {intera ? '🔒 ' : ''}{a.tipo}{intera ? '' : ` · ${labelOrario(a.ora_da, a.ora_a)}`}
+      </span>
+    );
+  };
+
   // Applica la propagazione ai rapportini (riusa i token esistenti; preserva le risposte lato server).
   const applicaRapportini = useCallback(async (pid: string, confermaInviati: boolean) => {
     if (!rapTemplateId) { setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.'); return; }
@@ -2738,6 +2770,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   </div>
                 )}
 
+                {assenzaMsg && (
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                    {assenzaMsg}{' '}
+                    <button type="button" className="underline" onClick={() => setAssenzaMsg(null)}>chiudi</button>
+                  </div>
+                )}
+                {conflittiAssenza.length > 0 && (
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                    ⚠ {conflittiAssenza.length} operator{conflittiAssenza.length === 1 ? 'e' : 'i'} ora assent{conflittiAssenza.length === 1 ? 'e' : 'i'} per il {planningDate}: {conflittiAssenza.map((o) => o.name).join(', ')}. Rivedi il piano.
+                  </div>
+                )}
+
                 {/* Pannello selezione — inline, nessun absolute */}
                 {showOpPicker && (
                   <div className="mt-2 space-y-2">
@@ -2748,9 +2792,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
                             const checked = selIdx !== -1;
                             return (
-                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)]">
+                              <label key={operator.id} className={`flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)] ${isAssenteIntera(operator.id) ? 'opacity-50' : ''}`}>
                                 <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-[var(--brand-primary)]" />
                                 <span className="truncate text-xs text-[var(--brand-text-main)]">{operator.displayName}</span>
+                                {renderAssenzaBadge(operator.id)}
                                 {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
                               </label>
                             );
@@ -2780,9 +2825,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
                             const checked = selIdx !== -1;
                             return (
-                              <label key={operator.id} className="flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)]">
+                              <label key={operator.id} className={`flex cursor-pointer items-center gap-1.5 rounded px-1 py-0.5 hover:bg-[var(--brand-surface)] ${isAssenteIntera(operator.id) ? 'opacity-50' : ''}`}>
                                 <input type="checkbox" checked={checked} onChange={() => toggleOp(operator)} className="accent-[var(--brand-primary)]" />
                                 <span className="truncate text-xs text-[var(--brand-text-main)]">{operator.displayName}</span>
+                                {renderAssenzaBadge(operator.id)}
                                 {checked && <span className="ml-auto h-2 w-2 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[selIdx % OP_COLORS.length] }} />}
                               </label>
                             );
@@ -2806,6 +2852,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: OP_COLORS[i % OP_COLORS.length] }} />
                             <div className="min-w-0">
                               <div className="truncate text-xs font-medium text-[var(--brand-text-main)]">{op.name}</div>
+                              {(() => {
+                                const a = assenzeByStaff[op.id];
+                                if (!a || !isAssenzaIntera(a)) return null;
+                                return (
+                                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                                    ⚠ ora in {a.tipo}
+                                  </span>
+                                );
+                              })()}
                               {op.startAddress && (
                                 <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">{op.startAddress}</div>
                               )}
