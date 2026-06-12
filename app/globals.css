@@ -55,6 +55,8 @@
   --danger-soft:  oklch(0.70 0.25 350 / 0.16);
   --info:         oklch(0.80 0.16 215);
   --info-soft:    oklch(0.80 0.16 215 / 0.16);
+  --viola:        oklch(0.62 0.20 300);
+  --viola-soft:   oklch(0.62 0.20 300 / 0.16);
 
   --app-bg:     oklch(0.14 0.04 245);
   --card-bg:    oklch(0.18 0.05 245);
@@ -128,6 +130,8 @@ html.light {
   --danger-soft:  oklch(0.70 0.25 350 / 0.12);
   --info:         oklch(0.55 0.13 215);
   --info-soft:    oklch(0.78 0.155 215 / 0.14);
+  --viola:        oklch(0.55 0.17 300);
+  --viola-soft:   oklch(0.62 0.20 300 / 0.14);
 
   --app-bg:     oklch(0.985 0.012 245);
   --card-bg:    oklch(1 0 0);
