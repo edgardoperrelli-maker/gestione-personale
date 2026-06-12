@@ -67,10 +67,17 @@ Nuovo `GET /api/r/[token]/cerca-limitazione?q=<matricola>` (operatore, auth via 
 - valida token (`tokenStatus` === valido);
 - **match esatto** su `matricola` in `limitazione_misuratori_ref` WHERE `committente='acea'`
   → `{ trovato: true, ref_id, pdr, nominativo, indirizzo, civico, comune, cap }`;
-- se nessun esatto → `{ trovato: false, suggerimenti: [...] }`: fino a **8** misuratori la cui matricola
-  normalizzata **inizia con** o **contiene** `q`, ordinati per vicinanza (startsWith prima, poi lunghezza).
+- se nessun esatto → `{ trovato: false, suggerimenti: [...] }`: fino a **8** suggerimenti.
+- **Similarità bidirezionale + suffix-aware** (il problema reale è un **prefisso variabile**, es. `99`):
+  normalizzando entrambe (upper + via spazi/trattini/non-alfanumerici), un candidato è simile se
+  `norm(cand).includes(norm(q))` **oppure** `norm(q).includes(norm(cand))` (contenimento simmetrico).
+  Così `A023041` trova `99A023041` **e** viceversa. Per evitare rumore: containment solo se `q.length >= 4`.
+- **Ordine di vicinanza:** esatto > stesso suffisso (`endsWith`) > prefisso (`startsWith`) > contenimento; a parità, minore differenza di lunghezza.
 - **Nessun** vincolo sul civico (toponimi inaffidabili): ricerca su tutto il dataset committente=acea.
 - Logica "matricole simili" in una **funzione pura** testabile (`lib/limitazione/matricoleSimili.ts`).
+  Implementazione endpoint: pre-filtro SQL `ilike('matricola','%q%')` per il caso comune (candidato contiene q)
+  **più** il caso inverso filtrato in memoria sul dataset acea (poche migliaia di righe per comune/import → ok);
+  la `matricoleSimili` pura decide ordine e taglio a 8.
 
 ## 3. Modale — nuovo step "Cerca matricola"
 Estendo [ModaleInterventoManuale](../../../components/modules/rapportini/ModaleInterventoManuale.tsx):
@@ -116,7 +123,9 @@ dipende dalla lista esatta: l'autofill popola i campi che arrivano dal DB, il re
   `app/hub/lista-attesa/page.tsx` + label revisione/registro.
 
 ## Testing
-- **Pure fn:** `matricoleSimili` (esatto/prefix/contains/ordine/cap 8), `autofillAnagrafica` (mapping campi) → unit (vitest).
+- **Pure fn:** `matricoleSimili` → unit (vitest). Casi obbligatori: match esatto; **prefisso variabile reale
+  `q='A023041'` deve suggerire `'99A023041'`** e il caso inverso `q='99A023041'` → `'A023041'`; ordine
+  (esatto > suffisso > prefisso > contenimento); soglia `q.length >= 4`; cap a 8. `autofillAnagrafica` (mapping campi) → unit.
 - **Scanner/camera:** non testabile in locale → gate `tsc`/`eslint`/`build` + prova sul campo (deploy Vercel).
 - Baseline lint/test già rossa su main: verifica **mirata** con `npx eslint`/`npx vitest run` sui soli file del WP.
 
@@ -127,4 +136,5 @@ dipende dalla lista esatta: l'autofill popola i campi che arrivano dal DB, il re
 
 ## Aperti
 - Lista **campi obbligatori** del template `lim_massive` (l'utente li configura nel template).
-- Soglia esatta dei "suggerimenti simili" (default proposto: startsWith/contains, max 8).
+- Regola "suggerimenti simili" **definita** (contenimento simmetrico + suffix-aware, `q>=4`, max 8): vedi §2.
+  Caso reale coperto: `A023041` ↔ `99A023041` (prefisso variabile).
