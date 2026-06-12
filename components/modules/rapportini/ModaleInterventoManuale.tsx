@@ -8,6 +8,7 @@ import { CampoFoto } from './CampoFoto';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 
@@ -53,6 +54,10 @@ export function ModaleInterventoManuale({
 
   const handleInvia = async () => {
     if (!committente) return;
+    const mancanti = campiObbligatoriMancanti(campiEsito, risposte);
+    if (mancanti.length > 0 && !window.confirm(`Mancano ${mancanti.length} campi obbligatori da compilare: ${mancanti.join(', ')}. Inviare comunque?`)) {
+      return;
+    }
     setInviando(true);
     setErrore(null);
     try {
