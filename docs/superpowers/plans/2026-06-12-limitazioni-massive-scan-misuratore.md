@@ -35,6 +35,7 @@ Dopo il merge, l'utente deve:
   - `app/r/[token]/page.tsx` — mappa `templatesPerCommittente`.
   - `app/hub/lista-attesa/page.tsx` — `COMMITTENTI_MANUALI`.
   - `components/modules/lista-attesa/CodaRichiesteManuali.tsx`, `PannelloRevisioneRichiesta.tsx`, `RegistroAutorizzazioni.tsx` — etichette + galleria foto.
+  - `lib/rapportini/templateSchema.ts` + `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx` — committente `lim_massive` selezionabile.
 
 ## Note sui gate di verifica
 La baseline `npm run lint` / `npx vitest run` è **già rossa** su main: per ogni task la verifica è **mirata** ai file del WP — `npx tsc --noEmit`, `npx eslint <file>`, e `npx vitest run <testfile>` per le funzioni pure. Lo scanner (fotocamera) si prova solo sul campo (deploy Vercel).
@@ -1040,6 +1041,52 @@ Expected: nessun nuovo errore.
 ```bash
 git add components/modules/lista-attesa/PannelloRevisioneRichiesta.tsx
 git commit -m "feat(limitazioni): galleria foto apribili nel pannello di revisione
+
+Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
+```
+
+---
+
+### Task 13: Editor template — committente "Limitazioni massive" selezionabile
+
+> Necessario perché i campi obbligatori del template `lim_massive` si configurano **dinamicamente** dalle Impostazioni: l'editor e la validazione devono accettare il nuovo committente.
+
+**Files:**
+- Modify: `lib/rapportini/templateSchema.ts:36`
+- Modify: `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx:23` (type) + select committente (≈ riga 468)
+
+- [ ] **Step 1: Allarga lo zod enum committente**
+
+In `lib/rapportini/templateSchema.ts` sostituisci la riga 36:
+
+```ts
+  committente: z.enum(['acea', 'italgas', 'altro', 'lim_massive']).nullable().optional(),
+```
+
+- [ ] **Step 2: Allarga il type dell'editor e aggiungi l'opzione nel select**
+
+In `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx` sostituisci la riga 23:
+
+```ts
+type Committente = 'acea' | 'italgas' | 'altro' | 'lim_massive';
+```
+
+e aggiungi, subito dopo `<option value="altro">Altro</option>` (≈ riga 468):
+
+```tsx
+                <option value="lim_massive">Limitazioni massive</option>
+```
+
+- [ ] **Step 3: Verifica tipi/lint**
+
+Run: `npx tsc --noEmit` ed `npx eslint lib/rapportini/templateSchema.ts app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx`
+Expected: nessun nuovo errore. Se esiste `lib/rapportini/templateSchema.test.ts`, esegui `npx vitest run lib/rapportini/templateSchema.test.ts` → PASS.
+
+- [ ] **Step 4: Commit**
+
+```bash
+git add lib/rapportini/templateSchema.ts app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx
+git commit -m "feat(limitazioni): committente lim_massive selezionabile nell'editor template
 
 Co-Authored-By: Claude Opus 4.8 <noreply@anthropic.com>"
 ```
