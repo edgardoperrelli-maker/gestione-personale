@@ -25,6 +25,7 @@ import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
+import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
 import DatePicker from '@/components/ui/DatePicker';
 
 export type MappaStaffRow = {
@@ -690,6 +691,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
   const [planningDate, setPlanningDate] = useState<string>(initialPlanningDate ?? '');
+  // Assenze del giorno pianificato: lookup per staff_id
+  const [assenzeByStaff, setAssenzeByStaff] = useState<Record<string, Disponibilita>>({});
+  const [assenzaMsg, setAssenzaMsg] = useState<string | null>(null);
   const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
   const [currentPianoId, setCurrentPianoId] = useState<string | undefined>(initialPianoId);
 
@@ -830,6 +834,26 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       controller.abort();
     };
   }, [planningDate, territoryFilter, setupDone, isEditMode]);
+
+  // Carica le assenze per la data pianificata
+  useEffect(() => {
+    if (!planningDate) { setAssenzeByStaff({}); return; }
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/disponibilita?data=${planningDate}`);
+        if (!res.ok) return;
+        const rows = (await res.json()) as Disponibilita[];
+        if (!alive || !Array.isArray(rows)) return;
+        const m: Record<string, Disponibilita> = {};
+        for (const r of rows) m[r.staff_id] = r;
+        setAssenzeByStaff(m);
+      } catch (e) {
+        console.error('Errore fetch disponibilità (mappa):', e);
+      }
+    })();
+    return () => { alive = false; };
+  }, [planningDate]);
 
   // Geocodifica appuntamenti appena caricati
   useEffect(() => {
@@ -1597,15 +1621,20 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       ? (operator.homeAddress ?? operator.startAddress)
       : operator.startAddress;
 
-    setSelectedOps((prev) =>
-      prev.some((o) => o.id === operator.id)
-        ? prev.filter((o) => o.id !== operator.id)
-        : [
-            ...prev,
-            { id: operator.id, name: operator.displayName, qty: 0, base, startAddress },
-          ]
-    );
-  }, [planningDate]);
+    const ass = assenzeByStaff[operator.id];
+    const blocca = !!(ass && isAssenzaIntera(ass));
+
+    setSelectedOps((prev) => {
+      const already = prev.some((o) => o.id === operator.id);
+      if (already) return prev.filter((o) => o.id !== operator.id); // deseleziona sempre permesso
+      if (blocca) return prev;                                       // assenza intera: non aggiungere
+      return [...prev, { id: operator.id, name: operator.displayName, qty: 0, base, startAddress }];
+    });
+
+    if (blocca) {
+      setAssenzaMsg(`${operator.displayName} è assente (${ass!.tipo}) il ${planningDate}: non assegnabile.`);
+    }
+  }, [planningDate, assenzeByStaff]);
 
   // Aggiorna la quantità di un operatore
   const changeOpQty = useCallback((id: string, qty: number) => {
