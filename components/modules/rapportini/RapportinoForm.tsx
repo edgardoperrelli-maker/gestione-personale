@@ -159,11 +159,11 @@ export default function RapportinoForm({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  // Riparazione (recupero del bug pre-fix): se il rapportino è riaperto/modificabile e il server
-  // ha ancora dei placeholder foto mentre il telefono (dbLavoro) ha il path reale, re-invia da solo
-  // quelle voci così le foto si ricollegano. Gira una volta al mount.
+  // Riparazione (recupero del bug pre-fix): se il telefono (dbLavoro) ha il path reale di una foto
+  // ma il server ha ancora un placeholder, re-invia quelle voci. Gira ANCHE su rapportino inviato:
+  // /api/r/[token]/voce accetta i salvataggi post-invio applicando SOLO il completamento foto
+  // (mergeRisposte soloCompletamentoFoto). No-op se il telefono non ha i path reali in locale.
   useEffect(() => {
-    if (readOnlyIniziale) return; // se non riaperto, il salvataggio sarebbe rifiutato (409)
     let attivo = true;
     void dbLavoro.perToken(token).then((lavori) => {
       if (!attivo || !mountedRef.current) return;
