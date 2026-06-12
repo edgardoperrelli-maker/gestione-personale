@@ -100,6 +100,13 @@ Riuso la pipeline [`/api/r/[token]/intervento-manuale`](../../../app/api/r/[toke
 - la riga finisce in `interventi_manuali` → **Lista Attesa** come categoria **"Limitazioni massive"**;
 - idempotenza offline (`richiestaId`), corsia liberi/normale, foto: **invariati**.
 
+**Iter foto (ereditato, nessun lavoro extra):** le foto vanno nel bucket privato `interventi-foto` +
+record `interventi_manuali_foto` (per `richiesta_id`) — **non** nelle `risposte` della voce. All'**approvazione**
+([approva/route.ts](../../../app/api/admin/interventi-manuali/[id]/approva/route.ts)) la voce manuale passa a
+`approvazione_stato='approvato'` con `intervento_id` e **resta nel rapportino del giorno** dell'operatore insieme
+alle altre righe approvate; le foto restano collegate alla voce/richiesta e sono disponibili nel flusso foto del
+rapportino (download/ZIP). Le limitazioni usano la **stessa identica** pipeline → comportamento garantito.
+
 ## 5. Aggancio enum committente (modifiche puntuali)
 Aggiungo `lim_massive` a `CommittenteManuale` e alle liste/etichette:
 - [lib/interventi/manuali/types.ts](../../../lib/interventi/manuali/types.ts) — enum;
@@ -114,13 +121,21 @@ Un `rapportino_template` con `committente='lim_massive'`, `solo_manuale=true`, c
 nell'editor template esistente con i **campi obbligatori** (anagrafica/esiti/foto). L'architettura non
 dipende dalla lista esatta: l'autofill popola i campi che arrivano dal DB, il resto si compila a mano.
 
+## 7. Foto in revisione — Lista Attesa (nuovo)
+Oggi [PannelloRevisioneRichiesta](../../../components/modules/lista-attesa/PannelloRevisioneRichiesta.tsx) mostra
+solo i campi anagrafica/esito: **le foto non si vedono**. Per validare le limitazioni serve poterle **aprire**.
+- Nuovo `GET /api/admin/interventi-manuali/[id]/foto` (admin): legge `interventi_manuali_foto` per `richiesta_id`
+  e ritorna `[{ slot_etichetta, signedUrl }]` con **signed URL** dal bucket privato `interventi-foto` (TTL breve).
+- `PannelloRevisioneRichiesta`: **galleria thumbnail** sopra Approva/Rifiuta; tap → apertura full-size (lightbox/nuova scheda).
+- Funzione **generale** (vale per tutti i committenti in revisione), ma **necessaria** per validare le limitazioni.
+
 ## File toccati (stima)
 - **DB:** migration `limitazione_misuratori_ref` + vista catalogo (lanciata dall'utente).
 - **Nuovi:** `lib/limitazione/matricoleSimili.ts` (+test), `lib/limitazione/autofillAnagrafica.ts` (+test),
-  `app/api/r/[token]/cerca-limitazione/route.ts`.
+  `app/api/r/[token]/cerca-limitazione/route.ts`, `app/api/admin/interventi-manuali/[id]/foto/route.ts` (signed URL revisione).
 - **Modificati:** import route + `ImportMisuratoriClient.tsx` (selettori committente/attività),
   `ModaleInterventoManuale.tsx`, `types.ts`, `intervento-manuale/route.ts`, `app/r/[token]/page.tsx`,
-  `app/hub/lista-attesa/page.tsx` + label revisione/registro.
+  `app/hub/lista-attesa/page.tsx` + label revisione/registro, `PannelloRevisioneRichiesta.tsx` (galleria foto).
 
 ## Testing
 - **Pure fn:** `matricoleSimili` → unit (vitest). Casi obbligatori: match esatto; **prefisso variabile reale
