@@ -31,6 +31,23 @@ function noteCompilate(risposte: Record<string, unknown>, campi: TemplateCampo[]
   });
 }
 
+/** True se un campo "negativo" (crocetta o select) è valorizzato → esito negativo. */
+export function haEsitoNegativo(
+  risposte: Record<string, unknown>,
+  campi: TemplateCampo[],
+): boolean {
+  for (const c of campi) {
+    const v = risposte[c.chiave];
+    if (c.tipo === 'crocetta') {
+      if (v === true && nomeNegativo(c)) return true;
+    } else if (c.tipo === 'select') {
+      const s = typeof v === 'string' ? v.trim() : '';
+      if (s !== '' && (NEG_SELECT.test(s) || nomeNegativo(c))) return true;
+    }
+  }
+  return false;
+}
+
 export function voceEsitoColore(
   risposte: Record<string, unknown>,
   campi: TemplateCampo[],

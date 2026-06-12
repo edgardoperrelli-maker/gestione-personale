@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { voceEsitoColore } from './voceColore';
+import { voceEsitoColore, haEsitoNegativo } from './voceColore';
 import type { TemplateCampo } from './buildVoci';
 
 const standard: TemplateCampo[] = [
@@ -57,5 +57,25 @@ describe('voceEsitoColore — campi esito a tendina (Eseguito / Assente / Non es
   it('Eseguito = NO → rossa', () => { expect(voceEsitoColore({ eseguito: 'NO' }, campi)).toBe('rossa'); });
   it('Non eseguito spuntato (crocetta) → rossa', () => {
     expect(voceEsitoColore({ ne: true }, [{ chiave: 'ne', etichetta: 'Non eseguito', tipo: 'crocetta', ordine: 1 }])).toBe('rossa');
+  });
+});
+
+describe('haEsitoNegativo', () => {
+  const campi: TemplateCampo[] = [
+    { chiave: 'assente', etichetta: 'Assente', tipo: 'crocetta', ordine: 1 },
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'crocetta', ordine: 2 },
+    { chiave: 'esito', etichetta: 'Esito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 3 },
+  ];
+  it('crocetta negativa spuntata → true', () => {
+    expect(haEsitoNegativo({ assente: true }, campi)).toBe(true);
+  });
+  it('select su NO → true', () => {
+    expect(haEsitoNegativo({ esito: 'NO' }, campi)).toBe(true);
+  });
+  it('solo positivi → false', () => {
+    expect(haEsitoNegativo({ eseguito: true, esito: 'SI' }, campi)).toBe(false);
+  });
+  it('niente compilato → false', () => {
+    expect(haEsitoNegativo({}, campi)).toBe(false);
   });
 });
