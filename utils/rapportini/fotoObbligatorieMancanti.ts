@@ -1,6 +1,7 @@
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 
 /** True se il campo foto è "vuoto": nessun path reale e nessun segnaposto. */
 function fotoVuota(valore: unknown): boolean {
@@ -24,6 +25,7 @@ export function contaFotoObbligatorieMancanti(
   let n = 0;
   for (const v of voci) {
     const risposte = v.risposte ?? {};
+    if (haEsitoNegativo(risposte, campi)) continue; // esito negativo → foto non obbligatorie
     for (const c of obbligatorie) {
       if (fotoVuota(risposte[c.chiave])) n += 1;
     }

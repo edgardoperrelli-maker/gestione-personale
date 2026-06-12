@@ -30,4 +30,11 @@ describe('contaFotoObbligatorieMancanti', () => {
   it('somma su più voci', () => {
     expect(contaFotoObbligatorieMancanti([{ risposte: { a: PATH } }, { risposte: {} }], campi)).toBe(3);
   });
+  it('voce con esito negativo → foto non obbligatorie (0 mancanti)', () => {
+    const campiNeg = [
+      { chiave: 'a', etichetta: 'Foto A', tipo: 'foto', obbligatoria: true, ordine: 1 },
+      { chiave: 'assente', etichetta: 'Assente', tipo: 'crocetta', ordine: 2 },
+    ] as never;
+    expect(contaFotoObbligatorieMancanti([{ risposte: { assente: true } }], campiNeg)).toBe(0);
+  });
 });
