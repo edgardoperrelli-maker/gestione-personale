@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { partitionInfoCampi, titoloVoce, valoreInfo, type InfoChiave, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { statoVoce, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
+import { motivoVoceIncompleta, type MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 import type { SaveState } from './SaveBadge';
 import { RapportinoLista, type RigaVoce, type Filtro } from './RapportinoLista';
 import { VoceFocus } from './VoceFocus';
@@ -272,6 +273,16 @@ export default function RapportinoForm({
     [voci, campi, titoloCampi],
   );
 
+  const mancanti = useMemo(
+    () =>
+      voci
+        .map((v, idx) => ({ index: idx, v }))
+        .filter(({ v }) => !v.annullato)
+        .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campi) }))
+        .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
+    [voci, campi, titoloCampi],
+  );
+
   /* ── Navigazione ──────────────────────────────────────────────────────────── */
 
   const onApri = useCallback((index: number) => {
@@ -393,6 +404,7 @@ export default function RapportinoForm({
           infoCampi={infoCampi}
           riepilogo={riepilogo}
           righe={righe}
+          mancanti={mancanti}
           filtro={filtro}
           onFiltro={setFiltro}
           onApri={onApri}

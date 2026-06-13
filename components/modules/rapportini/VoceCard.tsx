@@ -6,6 +6,7 @@ import type { StatoVoce } from '@/utils/rapportini/riepilogo';
 import { CampoInput } from './CampoInput';
 import { mapsUrlFromAddress, mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
+import { motivoVoceIncompleta, isCampoNota } from '@/utils/rapportini/voceMancante';
 
 export type VoceCardData = VoceInfo & { risposte: Record<string, unknown> };
 
@@ -69,13 +70,13 @@ export function VoceDettagli({ voce, dettaglio }: { voce: VoceCardData; dettagli
 }
 
 /** Campi da compilare: campi "altri" + crocette "Lavorazioni". */
-export function VoceCampi({ campi, voce, disabilitato, onChange }: { campi: TemplateCampo[]; voce: VoceCardData; disabilitato: boolean; onChange: (chiave: string, valore: unknown) => void }) {
+export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota }: { campi: TemplateCampo[]; voce: VoceCardData; disabilitato: boolean; onChange: (chiave: string, valore: unknown) => void; evidenziaNota?: boolean }) {
   const crocette = campi.filter((c) => c.tipo === 'crocetta');
   const altri = campi.filter((c) => c.tipo !== 'crocetta');
   return (
     <div className="mt-4 space-y-3.5">
       {altri.map((campo) => (
-        <CampoInput key={campo.chiave} campo={campo} valore={voce.risposte[campo.chiave]} disabilitato={disabilitato} onChange={(v) => onChange(campo.chiave, v)} />
+        <CampoInput key={campo.chiave} campo={campo} valore={voce.risposte[campo.chiave]} disabilitato={disabilitato} onChange={(v) => onChange(campo.chiave, v)} evidenzia={Boolean(evidenziaNota) && isCampoNota(campo)} />
       ))}
       {crocette.length > 0 && (
         <div>
@@ -112,6 +113,7 @@ export function VoceCard({
   const badge = badgeVoceManuale(approvazioneStato ?? null);
   const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
   const bordo = stato === 'eseguito' ? 'border-[var(--success)]' : stato === 'non_eseguito' ? 'border-[var(--danger)]' : 'border-[var(--brand-border)]';
+  const notaMancante = motivoVoceIncompleta(voce.risposte, campi) === 'nota_mancante';
 
   return (
     <section className={`rounded-2xl border bg-[var(--brand-surface)] p-4 shadow-sm ${bordo}`}>
@@ -136,8 +138,16 @@ export function VoceCard({
           </div>
         </div>
       )}
+      {notaMancante && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3.5 py-2.5">
+          <span aria-hidden className="text-base leading-none">⚠️</span>
+          <p className="text-[13.5px] font-semibold text-[var(--danger)]">
+            Esito negativo: la nota è obbligatoria. Compila il campo nota qui sotto per completare l&apos;intervento.
+          </p>
+        </div>
+      )}
       <VoceDettagli voce={voce} dettaglio={dettaglio} />
-      <VoceCampi campi={campi} voce={voce} disabilitato={disabilitato} onChange={onChange} />
+      <VoceCampi campi={campi} voce={voce} disabilitato={disabilitato} onChange={onChange} evidenziaNota={notaMancante} />
     </section>
   );
 }

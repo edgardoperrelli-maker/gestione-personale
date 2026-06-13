@@ -15,11 +15,13 @@ export function CampoInput({
   valore,
   disabilitato,
   onChange,
+  evidenzia,
 }: {
   campo: TemplateCampo;
   valore: unknown;
   disabilitato: boolean;
   onChange: (valore: unknown) => void;
+  evidenzia?: boolean;
 }) {
   if (campo.tipo === 'crocetta') {
     const checked = valore === true;
@@ -86,7 +88,7 @@ export function CampoInput({
   return (
     <div>
       {labelEl}
-      <TextareaAuto valore={typeof valore === 'string' ? valore : ''} disabilitato={disabilitato} onChange={onChange} />
+      <TextareaAuto valore={typeof valore === 'string' ? valore : ''} disabilitato={disabilitato} onChange={onChange} evidenzia={evidenzia} />
     </div>
   );
 }
@@ -229,7 +231,7 @@ function CampoFotoInput({
 }
 
 /** Textarea compatta: parte da una riga ed espande in altezza solo quando viene popolata. */
-function TextareaAuto({ valore, disabilitato, onChange }: { valore: string; disabilitato: boolean; onChange: (v: unknown) => void }) {
+function TextareaAuto({ valore, disabilitato, onChange, evidenzia }: { valore: string; disabilitato: boolean; onChange: (v: unknown) => void; evidenzia?: boolean }) {
   const ref = useRef<HTMLTextAreaElement>(null);
   useEffect(() => {
     const el = ref.current;
@@ -244,7 +246,7 @@ function TextareaAuto({ valore, disabilitato, onChange }: { valore: string; disa
       value={valore}
       disabled={disabilitato}
       onChange={(e) => onChange(e.target.value)}
-      className={`${inputCls} resize-none overflow-hidden`}
+      className={`${inputCls} resize-none overflow-hidden ${evidenzia ? 'border-[var(--danger)] ring-1 ring-[var(--danger)]' : ''}`}
     />
   );
 }

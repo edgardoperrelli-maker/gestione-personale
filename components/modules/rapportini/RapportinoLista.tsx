@@ -7,6 +7,7 @@ import type { VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
 import { IntestazioneRiepilogo } from './IntestazioneRiepilogo';
 import { CondividiPdfButton } from './CondividiPdfButton';
 import { rigaMatchRicerca } from '@/utils/rapportini/rigaMatchRicerca';
+import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 
 export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
@@ -18,6 +19,11 @@ const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
 };
 
 const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], ['completati', 'Completati']];
+
+const MOTIVO_LABEL: Record<MotivoIncompleto, string> = {
+  senza_esito: 'senza esito',
+  nota_mancante: 'nota obbligatoria mancante',
+};
 
 export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (index: number) => void }) {
   const chip = CHIP[r.stato];
@@ -76,6 +82,7 @@ export function RapportinoLista({
   infoCampi,
   riepilogo,
   righe,
+  mancanti,
   filtro,
   onFiltro,
   onApri,
@@ -94,6 +101,7 @@ export function RapportinoLista({
   infoCampi: TemplateInfoCampo[];
   riepilogo: RiepilogoRapportino;
   righe: RigaVoce[];
+  mancanti: { index: number; titolo: string; motivo: MotivoIncompleto }[];
   filtro: Filtro;
   onFiltro: (f: Filtro) => void;
   onApri: (index: number) => void;
@@ -170,6 +178,29 @@ export function RapportinoLista({
             </>
           ) : (
             <>
+              {!readOnly && mancanti.length > 0 && (
+                <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2">
+                  <p className="mb-1 text-xs font-bold text-[var(--danger)]">
+                    Per inviare, completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}:
+                  </p>
+                  <div className="space-y-0.5">
+                    {mancanti.map((m) => (
+                      <button
+                        key={m.index}
+                        type="button"
+                        onClick={() => onApri(m.index)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
+                          <span className="font-bold">Intervento {m.index + 1}</span>
+                          {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
+                        </span>
+                        <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {!readOnly && inviabile && (
                 <p className="mb-1.5 text-center text-xs font-medium text-[var(--success)]">Tutti gli interventi hanno un esito ✓</p>
               )}
