@@ -21,7 +21,7 @@ import CronoTableView, { type TableRow } from './CronoTableView';
 import AppointmentDayCards from './AppointmentDayCards';
 import AppointmentModal from './AppointmentModal';
 import AssenzaDialog from './AssenzaDialog';
-import type { Disponibilita } from '@/lib/disponibilita';
+import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
 import {
@@ -237,6 +237,12 @@ export default function CronoprogrammaWorkspace() {
     territories.forEach((item) => map.set(item.id, item));
     return map;
   }, [territories]);
+
+  // Attività di lavoro: escludo i tipi-assenza (Ferie/104/Malattia/… ora gestiti dal pulsante "Assenza").
+  const workActivities = useMemo(
+    () => activities.filter((a) => !isNomeAttivitaAssenza(a.name)),
+    [activities]
+  );
 
   useEffect(() => {
     let alive = true;
@@ -1053,8 +1059,11 @@ export default function CronoprogrammaWorkspace() {
                 .map((a) => a?.staff?.id ?? '')
                 .filter((id) => id !== '')
             );
+            const absentIdsForDay = new Set(
+              (assenze[iso] ?? []).filter((x) => isAssenzaIntera(x)).map((x) => x.staff_id)
+            );
             const availableStaffForDay = (staff ?? []).filter(
-              (s) => isStaffValidOnDay(s, todayIso) && !excludeIds.has(s.id)
+              (s) => isStaffValidOnDay(s, todayIso) && !excludeIds.has(s.id) && !absentIdsForDay.has(s.id)
             );
 
             return (
@@ -1062,7 +1071,7 @@ export default function CronoprogrammaWorkspace() {
                 dayId={dayId}
                 iso={iso}
                 staffList={availableStaffForDay}
-                actList={activities}
+                actList={workActivities}
                 terrList={territories}
                 onClose={() => setDialogOpenForDay(null)}
                 onCreated={(row: Assignment, close = true) => {
@@ -1115,10 +1124,14 @@ export default function CronoprogrammaWorkspace() {
                 .map((a) => a?.staff?.id ?? '')
                 .filter((id) => id !== '' && id !== (a0.staff?.id ?? ''))
             );
+            const absentIdsForEdit = new Set(
+              (assenze[assignmentIso] ?? []).filter((x) => isAssenzaIntera(x)).map((x) => x.staff_id)
+            );
             const availableStaffForEdit = (staff ?? []).filter(
               (s) =>
                 (s.id === (a0.staff?.id ?? '') || !excludeIds.has(s.id)) &&
-                isStaffValidOnDay(s, todayIso)
+                isStaffValidOnDay(s, todayIso) &&
+                (s.id === (a0.staff?.id ?? '') || !absentIdsForEdit.has(s.id))
             );
 
             return (
@@ -1126,7 +1139,7 @@ export default function CronoprogrammaWorkspace() {
                 assignment={a0}
                 iso={assignmentIso}
                 staffList={availableStaffForEdit}
-                actList={activities}
+                actList={workActivities}
                 terrList={territories}
                 onClose={() => setEditAssignment(null)}
                 onSaved={(updated, close = true) => {

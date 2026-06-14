@@ -6,6 +6,7 @@ import {
   labelDisponibilita,
   indexByStaffData,
   isTipoAssenza,
+  isNomeAttivitaAssenza,
   type Disponibilita,
 } from './disponibilita';
 
@@ -52,4 +53,17 @@ describe('indexByStaffData', () => {
 describe('isTipoAssenza', () => {
   it('accetta i 6 tipi', () => expect(isTipoAssenza('lutto')).toBe(true));
   it('rifiuta altro', () => expect(isTipoAssenza('lavoro')).toBe(false));
+});
+
+describe('isNomeAttivitaAssenza', () => {
+  it('riconosce i nomi assenza (case/spazi-insensitive)', () => {
+    expect(isNomeAttivitaAssenza('Ferie')).toBe(true);
+    expect(isNomeAttivitaAssenza('  MALATTIA ')).toBe(true);
+    expect(isNomeAttivitaAssenza('104')).toBe(true);
+  });
+  it('rifiuta attività di lavoro e vuoti', () => {
+    expect(isNomeAttivitaAssenza('Clientela')).toBe(false);
+    expect(isNomeAttivitaAssenza('')).toBe(false);
+    expect(isNomeAttivitaAssenza(null)).toBe(false);
+  });
 });

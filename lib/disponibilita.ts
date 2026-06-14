@@ -26,6 +26,11 @@ export function isTipoAssenza(v: unknown): v is TipoAssenza {
   return typeof v === 'string' && (TIPI_ASSENZA as readonly string[]).includes(v);
 }
 
+/** True se il nome attività corrisponde a un tipo di assenza (Ferie/104/Malattia/Permesso/Congedo/Lutto). */
+export function isNomeAttivitaAssenza(name: string | null | undefined): boolean {
+  return isTipoAssenza((name ?? '').toLowerCase().trim());
+}
+
 /** 'intera' se nessun orario, altrimenti 'parziale'. */
 export function derivaModalita(ora_da: string | null, ora_a: string | null): 'intera' | 'parziale' {
   return !ora_da && !ora_a ? 'intera' : 'parziale';
