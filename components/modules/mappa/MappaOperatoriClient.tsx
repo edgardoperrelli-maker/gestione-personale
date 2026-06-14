@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
-import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator } from '@/utils/mappa/appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution } from '@/utils/mappa/appendTask';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
@@ -2187,34 +2187,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // distribuire. Le righe con esecutore restano comunque vincolate al loro operatore.
 
   // Sposta un task da un operatore a un altro e ricalcola le route
-  const moveTask = useCallback((taskId: string, fromIdx: number, toIdx: number) => {
-    if (!distribution) return;
-    const newDist = distribution.map((d) => ({ ...d, tasks: [...d.tasks] }));
-    const taskIdx = newDist[fromIdx].tasks.findIndex((t) => t.id === taskId);
-    if (taskIdx === -1) return;
-    const [task] = newDist[fromIdx].tasks.splice(taskIdx, 1);
-    newDist[toIdx].tasks.push(task);
+  // Costruisce un gruppo distribuzione VUOTO per un operatore selezionato (colore dalla palette).
+  const makeEmptyEntry = useCallback((op: OpConfig, color: string): DistEntry => ({
+    op: op.name ?? op.id ?? 'Operatore',
+    staffId: op.id,
+    color,
+    tasks: [],
+    km: 0,
+    polyline: [],
+    base: op.base,
+    startAddress: op.startAddress,
+    schedule: [],
+  }), []);
 
-    // Ricalcola route per i due operatori coinvolti
-    [fromIdx, toIdx].forEach((i) => {
-      const grp = newDist[i].tasks;
-      if (grp.length >= 1) {
-        const res = optimizeRouteByFascia(grp, newDist[i].base ?? undefined);
-        newDist[i] = { ...newDist[i], tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
-      } else {
-        newDist[i] = { ...newDist[i], km: 0, polyline: [], schedule: [] };
-      }
+  // Sposta un singolo task all'operatore `op` (anche se NON ancora distribuito: gli crea un gruppo
+  // vuoto al primo spostamento). `opSelIdx` = indice in selectedOps, per il colore della palette.
+  const moveTask = useCallback((taskId: string, fromIdx: number, op: OpConfig, opSelIdx: number) => {
+    const color = OP_COLORS[opSelIdx % OP_COLORS.length];
+    setDistribution((prev) => {
+      if (!prev) return prev;
+      const { distribution: withGroup, idx } = ensureOperatorInDistribution(prev, op.id, () => makeEmptyEntry(op, color));
+      return moveTaskToOperator(withGroup, taskId, fromIdx, idx, optimizeRouteByFascia);
     });
-
-    setDistribution(newDist);
     setMovingTaskId(null);
-  }, [distribution]);
+  }, [makeEmptyEntry]);
 
-  // Sposta TUTTI gli interventi non-completati dell'operatore `fromIdx` all'operatore `toIdx`.
-  const moveAllTasks = useCallback((fromIdx: number, toIdx: number) => {
-    setDistribution((prev) => (prev ? moveAllTasksToOperator(prev, fromIdx, toIdx, optimizeRouteByFascia) : prev));
+  // Sposta TUTTI gli interventi non-completati dell'operatore `fromIdx` all'operatore `op` (anche non distribuito).
+  const moveAllTasks = useCallback((fromIdx: number, op: OpConfig, opSelIdx: number) => {
+    const color = OP_COLORS[opSelIdx % OP_COLORS.length];
+    setDistribution((prev) => {
+      if (!prev) return prev;
+      const { distribution: withGroup, idx } = ensureOperatorInDistribution(prev, op.id, () => makeEmptyEntry(op, color));
+      return moveAllTasksToOperator(withGroup, fromIdx, idx, optimizeRouteByFascia);
+    });
     setMovingAllOpen(false);
-  }, []);
+  }, [makeEmptyEntry]);
 
   // Annulla/Ripristina un task: marca `annullato` (si applica al Salva, come Sposta)
   const toggleAnnullaTask = useCallback((taskId: string, opIdx: number) => {
@@ -3183,17 +3190,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           {movingAllOpen && (
                             <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
                               <span className="w-full text-[10px] text-[var(--brand-text-subtle)]">Sposta tutti gli interventi a:</span>
-                              {distribution!.map((d, di) => {
-                                if (di === activeOpIdx) return null;
+                              {selectedOps.map((op, opSelIdx) => {
+                                if (op.id === distribution![activeOpIdx].staffId) return null;
+                                const count = distribution!.find((d) => d.staffId === op.id)?.tasks.length ?? 0;
                                 return (
                                   <button
-                                    key={d.staffId}
+                                    key={op.id}
                                     type="button"
-                                    onClick={() => moveAllTasks(activeOpIdx, di)}
+                                    onClick={() => moveAllTasks(activeOpIdx, op, opSelIdx)}
                                     className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition hover:opacity-80"
-                                    style={{ backgroundColor: d.color }}
+                                    style={{ backgroundColor: OP_COLORS[opSelIdx % OP_COLORS.length] }}
                                   >
-                                    {d.op ?? 'Operatore'} ({d.tasks.length})
+                                    {op.name ?? 'Operatore'} ({count})
                                   </button>
                                 );
                               })}
@@ -3261,30 +3269,22 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             {isMoving && (
                               <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
                                 <span className="text-[10px] text-[var(--brand-text-subtle)] w-full">Sposta a:</span>
-                                {distribution!.map((d, di) => {
-                                  if (di === activeOpIdx) return null;
+                                {selectedOps.map((op, opSelIdx) => {
+                                  if (op.id === distribution![activeOpIdx].staffId) return null;
                                   const ztl = getTaskZtl(t.cap, ztlZones);
-                                  const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(d.staffId);
-                                  const targetCap = 0;
-                                  const capReached = false;
-                                  const disabled = blocked;
+                                  const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(op.id);
+                                  const count = distribution!.find((d) => d.staffId === op.id)?.tasks.length ?? 0;
                                   return (
                                     <button
-                                      key={d.staffId}
+                                      key={op.id}
                                       type="button"
-                                      onClick={() => !blocked && moveTask(t.id, activeOpIdx, di)}
+                                      onClick={() => !blocked && moveTask(t.id, activeOpIdx, op, opSelIdx)}
                                       disabled={blocked}
-                                      title={
-                                        blocked
-                                          ? `${d.op ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}`
-                                          : capReached
-                                            ? `${d.op ?? 'Operatore'} ha già raggiunto il limite di ${targetCap} attività`
-                                            : undefined
-                                      }
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition ${disabled ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
-                                      style={{ backgroundColor: d.color }}
+                                      title={blocked ? `${op.name ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}` : undefined}
+                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition ${blocked ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
+                                      style={{ backgroundColor: OP_COLORS[opSelIdx % OP_COLORS.length] }}
                                     >
-                                      {d.op ?? 'Operatore'} ({d.tasks.length}) {blocked ? '🔒' : ''}
+                                      {op.name ?? 'Operatore'} ({count}) {blocked ? '🔒' : ''}
                                     </button>
                                   );
                                 })}
