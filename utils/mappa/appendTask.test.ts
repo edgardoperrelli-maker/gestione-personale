@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, type RoutableEntry, type OptimizeFn } from './appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, type RoutableEntry, type OptimizeFn } from './appendTask';
 import type { Task } from '@/utils/routing/types';
 
 function task(id: string, lat?: number, lng?: number): Task {
@@ -130,5 +130,54 @@ describe('moveAllTasksToOperator', () => {
     const out = moveAllTasksToOperator(dist, 0, 1, fakeOptimize);
     expect(dist).toEqual(snap);
     expect(out[2]).toEqual(dist[2]);
+  });
+});
+
+describe('moveTaskToOperator', () => {
+  it('sposta il task e ricalcola entrambe le rotte', () => {
+    const dist = [entry('A', [task('a1'), task('a2')]), entry('B', [task('b1')])];
+    const out = moveTaskToOperator(dist, 'a1', 0, 1, fakeOptimize);
+    expect(out[0].tasks.map((t) => t.id)).toEqual(['a2']);
+    expect(out[1].tasks.map((t) => t.id)).toEqual(['b1', 'a1']);
+    expect(out[1].km).toBe(2);
+  });
+
+  it('sorgente svuotata → rotta azzerata', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [])];
+    const out = moveTaskToOperator(dist, 'a1', 0, 1, fakeOptimize);
+    expect(out[0].tasks).toEqual([]);
+    expect(out[0].km).toBe(0);
+  });
+
+  it('from===to / fuori range / task assente → stesso riferimento', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [])];
+    expect(moveTaskToOperator(dist, 'a1', 0, 0, fakeOptimize)).toBe(dist);
+    expect(moveTaskToOperator(dist, 'a1', 5, 1, fakeOptimize)).toBe(dist);
+    expect(moveTaskToOperator(dist, 'zzz', 0, 1, fakeOptimize)).toBe(dist);
+  });
+
+  it('non muta input', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [])];
+    const snap = JSON.parse(JSON.stringify(dist));
+    moveTaskToOperator(dist, 'a1', 0, 1, fakeOptimize);
+    expect(dist).toEqual(snap);
+  });
+});
+
+describe('ensureOperatorInDistribution', () => {
+  it('operatore già presente → stessa distribuzione e indice esistente', () => {
+    const dist = [entry('A', []), entry('B', [])];
+    const res = ensureOperatorInDistribution(dist, 'B', () => { throw new Error('non deve creare'); });
+    expect(res.distribution).toBe(dist);
+    expect(res.idx).toBe(1);
+  });
+
+  it('operatore assente → appende il gruppo creato dalla factory in coda', () => {
+    const dist = [entry('A', [task('a1')])];
+    const res = ensureOperatorInDistribution(dist, 'C', () => entry('C', []));
+    expect(res.idx).toBe(1);
+    expect(res.distribution).toHaveLength(2);
+    expect(res.distribution[1].staffId).toBe('C');
+    expect(dist).toHaveLength(1);
   });
 });

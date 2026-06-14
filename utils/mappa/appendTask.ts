@@ -102,3 +102,51 @@ export function moveAllTasksToOperator<E extends RoutableEntry>(
   next[toIdx] = { ...to, tasks: r.orderedTasks, km: r.totalDistanceKm, polyline: r.polyline, schedule: r.schedule } as E;
   return next;
 }
+
+/**
+ * Sposta il task `taskId` dall'operatore `fromIdx` all'operatore `toIdx`, ricalcolando le rotte
+ * di entrambi. Funzione pura: non muta l'input. Difensivo: indici uguali / fuori range / task
+ * assente → ritorna la distribuzione invariata (stesso riferimento).
+ */
+export function moveTaskToOperator<E extends RoutableEntry>(
+  distribution: E[],
+  taskId: string,
+  fromIdx: number,
+  toIdx: number,
+  optimize: OptimizeFn,
+): E[] {
+  if (fromIdx === toIdx) return distribution;
+  if (fromIdx < 0 || fromIdx >= distribution.length) return distribution;
+  if (toIdx < 0 || toIdx >= distribution.length) return distribution;
+  const idx = distribution[fromIdx].tasks.findIndex((t) => t.id === taskId);
+  if (idx === -1) return distribution;
+  const next = distribution.map((e) => ({ ...e, tasks: [...e.tasks] })) as E[];
+  const [task] = next[fromIdx].tasks.splice(idx, 1);
+  next[toIdx].tasks.push(task);
+  for (const i of [fromIdx, toIdx]) {
+    const grp = next[i].tasks;
+    if (grp.length >= 1) {
+      const r = optimize(grp, next[i].base ?? undefined);
+      next[i] = { ...next[i], tasks: r.orderedTasks, km: r.totalDistanceKm, polyline: r.polyline, schedule: r.schedule } as E;
+    } else {
+      next[i] = { ...next[i], km: 0, polyline: [], schedule: [] } as E;
+    }
+  }
+  return next;
+}
+
+/**
+ * Assicura che l'operatore `staffId` abbia un gruppo nella distribuzione: se manca, ne appende uno
+ * (creato da `makeEmpty`) in coda. Ritorna la distribuzione (eventualmente estesa) e l'indice del
+ * gruppo. Pura: se l'operatore esiste già ritorna la distribuzione invariata (stesso riferimento).
+ */
+export function ensureOperatorInDistribution<E extends RoutableEntry & { staffId: string }>(
+  distribution: E[],
+  staffId: string,
+  makeEmpty: () => E,
+): { distribution: E[]; idx: number } {
+  const idx = distribution.findIndex((d) => d.staffId === staffId);
+  if (idx !== -1) return { distribution, idx };
+  const next = [...distribution, makeEmpty()];
+  return { distribution: next, idx: next.length - 1 };
+}
