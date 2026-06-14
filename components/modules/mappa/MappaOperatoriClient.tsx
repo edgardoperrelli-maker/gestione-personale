@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
-import { appendTaskToOperator, removeTaskFromOperator } from '@/utils/mappa/appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator } from '@/utils/mappa/appendTask';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
@@ -690,6 +690,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [unassignedTasks, setUnassignedTasks] = useState<Task[]>([]);
   const [activeOpIdx, setActiveOpIdx] = useState(0);
   const [movingTaskId, setMovingTaskId] = useState<string | null>(null);
+  const [movingAllOpen, setMovingAllOpen] = useState(false);
   const [planningDate, setPlanningDate] = useState<string>(initialPlanningDate ?? '');
   // Assenze del giorno pianificato: lookup per staff_id
   const [assenzeByStaff, setAssenzeByStaff] = useState<Record<string, Disponibilita>>({});
@@ -2209,6 +2210,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setMovingTaskId(null);
   }, [distribution]);
 
+  // Sposta TUTTI gli interventi non-completati dell'operatore `fromIdx` all'operatore `toIdx`.
+  const moveAllTasks = useCallback((fromIdx: number, toIdx: number) => {
+    setDistribution((prev) => (prev ? moveAllTasksToOperator(prev, fromIdx, toIdx, optimizeRouteByFascia) : prev));
+    setMovingAllOpen(false);
+  }, []);
+
   // Annulla/Ripristina un task: marca `annullato` (si applica al Salva, come Sposta)
   const toggleAnnullaTask = useCallback((taskId: string, opIdx: number) => {
     if (!distribution) return;
@@ -3164,6 +3171,36 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         {km} km
                       </span>
                     </div>
+                      {distribution!.length > 1 && tasks.some((t) => t.stato !== 'completato') && (
+                        <div className="mb-2">
+                          <button
+                            type="button"
+                            onClick={() => setMovingAllOpen((v) => !v)}
+                            className="rounded-md border border-[var(--brand-border)] px-2 py-0.5 text-[10px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
+                          >
+                            ⇄ Sposta tutti a…
+                          </button>
+                          {movingAllOpen && (
+                            <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
+                              <span className="w-full text-[10px] text-[var(--brand-text-subtle)]">Sposta tutti gli interventi a:</span>
+                              {distribution!.map((d, di) => {
+                                if (di === activeOpIdx) return null;
+                                return (
+                                  <button
+                                    key={d.staffId}
+                                    type="button"
+                                    onClick={() => moveAllTasks(activeOpIdx, di)}
+                                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-[#0b1220] transition hover:opacity-80"
+                                    style={{ backgroundColor: d.color }}
+                                  >
+                                    {d.op ?? 'Operatore'} ({d.tasks.length})
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
                       <div className="space-y-1.5">
                         {tasks.map((t, idx) => {
                           const isMoving = movingTaskId === t.id;
