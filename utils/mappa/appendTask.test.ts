@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appendTaskToOperator, removeTaskFromOperator, type RoutableEntry, type OptimizeFn } from './appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, type RoutableEntry, type OptimizeFn } from './appendTask';
 import type { Task } from '@/utils/routing/types';
 
 function task(id: string, lat?: number, lng?: number): Task {
@@ -88,5 +88,47 @@ describe('removeTaskFromOperator', () => {
     const dist = [entry('A', [task('a1')])];
     expect(removeTaskFromOperator(dist, 5, 'a1', fakeOptimize)).toBe(dist);
     expect(removeTaskFromOperator(dist, 0, 'zzz', fakeOptimize)).toBe(dist);
+  });
+});
+
+describe('moveAllTasksToOperator', () => {
+  const completato = (id: string): Task => ({ ...task(id), stato: 'completato' });
+
+  it('sposta tutti i task non-completati da from a to e ricalcola entrambe le rotte', () => {
+    const dist = [entry('A', [task('a1'), task('a2')]), entry('B', [task('b1')])];
+    const out = moveAllTasksToOperator(dist, 0, 1, fakeOptimize);
+    expect(out[0].tasks).toEqual([]);
+    expect(out[0].km).toBe(0);
+    expect(out[1].tasks.map((t) => t.id)).toEqual(['b1', 'a1', 'a2']);
+    expect(out[1].km).toBe(3);
+  });
+
+  it('lascia i completati sulla sorgente', () => {
+    const dist = [entry('A', [task('a1'), completato('a2')]), entry('B', [])];
+    const out = moveAllTasksToOperator(dist, 0, 1, fakeOptimize);
+    expect(out[0].tasks.map((t) => t.id)).toEqual(['a2']);
+    expect(out[1].tasks.map((t) => t.id)).toEqual(['a1']);
+  });
+
+  it('niente da spostare (solo completati o vuoto) → stesso riferimento', () => {
+    const soloCompletati = [entry('A', [completato('a1')]), entry('B', [])];
+    expect(moveAllTasksToOperator(soloCompletati, 0, 1, fakeOptimize)).toBe(soloCompletati);
+    const vuoto = [entry('A', []), entry('B', [])];
+    expect(moveAllTasksToOperator(vuoto, 0, 1, fakeOptimize)).toBe(vuoto);
+  });
+
+  it('from === to o indici fuori range → stesso riferimento', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [])];
+    expect(moveAllTasksToOperator(dist, 0, 0, fakeOptimize)).toBe(dist);
+    expect(moveAllTasksToOperator(dist, 5, 1, fakeOptimize)).toBe(dist);
+    expect(moveAllTasksToOperator(dist, 0, 5, fakeOptimize)).toBe(dist);
+  });
+
+  it('non muta input e preserva le entry non coinvolte', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', []), entry('C', [task('c1')])];
+    const snap = JSON.parse(JSON.stringify(dist));
+    const out = moveAllTasksToOperator(dist, 0, 1, fakeOptimize);
+    expect(dist).toEqual(snap);
+    expect(out[2]).toEqual(dist[2]);
   });
 });

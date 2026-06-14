@@ -70,3 +70,35 @@ export function appendTaskToOperator<E extends RoutableEntry>(
   } as E;
   return next;
 }
+
+/**
+ * Sposta TUTTI i task non-completati dall'operatore `fromIdx` all'operatore `toIdx`,
+ * ricalcolando le rotte di entrambi (sorgente svuotata → azzerata). I task `completato`
+ * restano sulla sorgente. Funzione pura: non muta l'input. Difensivo: indici uguali,
+ * fuori range, o niente da spostare → ritorna la distribuzione invariata (stesso riferimento).
+ */
+export function moveAllTasksToOperator<E extends RoutableEntry>(
+  distribution: E[],
+  fromIdx: number,
+  toIdx: number,
+  optimize: OptimizeFn,
+): E[] {
+  if (fromIdx === toIdx) return distribution;
+  if (fromIdx < 0 || fromIdx >= distribution.length) return distribution;
+  if (toIdx < 0 || toIdx >= distribution.length) return distribution;
+  const daSpostare = distribution[fromIdx].tasks.filter((t) => t.stato !== 'completato');
+  if (daSpostare.length === 0) return distribution;
+  const restano = distribution[fromIdx].tasks.filter((t) => t.stato === 'completato');
+  const next = distribution.map((e) => ({ ...e, tasks: [...e.tasks] })) as E[];
+  const from = next[fromIdx];
+  if (restano.length >= 1) {
+    const r = optimize(restano, from.base ?? undefined);
+    next[fromIdx] = { ...from, tasks: r.orderedTasks, km: r.totalDistanceKm, polyline: r.polyline, schedule: r.schedule } as E;
+  } else {
+    next[fromIdx] = { ...from, tasks: [], km: 0, polyline: [], schedule: [] } as E;
+  }
+  const to = next[toIdx];
+  const r = optimize([...to.tasks, ...daSpostare], to.base ?? undefined);
+  next[toIdx] = { ...to, tasks: r.orderedTasks, km: r.totalDistanceKm, polyline: r.polyline, schedule: r.schedule } as E;
+  return next;
+}
