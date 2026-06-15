@@ -1,6 +1,8 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
+import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { CodaRichiesteManuali } from '@/components/modules/lista-attesa/CodaRichiesteManuali';
 import { RegistroAutorizzazioni } from '@/components/modules/lista-attesa/RegistroAutorizzazioni';
@@ -49,11 +51,13 @@ export default async function ListaAttesaPage() {
     if (tplMatch) campiPerCommittente[committente] = (tplMatch.campi ?? []) as TemplateCampo[];
   }
 
-  // Mappa uuid→nome admin per la coda (chi ha preso in carico).
-  const { data: adminRows } = await supabase.from('profiles').select('id, username').eq('role', 'admin');
+  // Mappa uuid→nome per la coda (chi ha preso in carico). L'identità vive in
+  // auth.users (la tabella profiles è vuota): username derivato dall'email
+  // u_<username>@local.it, come nel resto dell'app.
+  const { data: authUsers } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 500 });
   const adminNomi: Record<string, string> = {};
-  for (const a of (adminRows ?? []) as Array<{ id: string; username: string | null }>) {
-    adminNomi[a.id] = a.username ?? a.id;
+  for (const u of authUsers?.users ?? []) {
+    adminNomi[u.id] = usernameFromEmail(u.email) || u.id;
   }
 
   return (
