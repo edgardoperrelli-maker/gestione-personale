@@ -21,6 +21,7 @@ import CronoTableView, { type TableRow } from './CronoTableView';
 import AppointmentCountStrip from './AppointmentCountStrip';
 import AssenzaDialog from './AssenzaDialog';
 import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
+import type { CostCenterRange } from '@/lib/costCenter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
 import {
@@ -97,6 +98,8 @@ export default function CronoprogrammaWorkspace() {
   const [assenzaDialogOpen, setAssenzaDialogOpen] = useState(false);
   const [assenzaEditing, setAssenzaEditing] = useState<Disponibilita | null>(null);
   const [assenzaDefaultDate, setAssenzaDefaultDate] = useState<string>('');
+
+  const [costCenterRangesByStaff, setCostCenterRangesByStaff] = useState<Record<string, CostCenterRange[]>>({});
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
@@ -246,7 +249,7 @@ export default function CronoprogrammaWorkspace() {
       const [sRes, aRes, tRes] = await Promise.all([
         sb
           .from('staff')
-          .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng')
+          .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, cost_center')
           .order('display_name', { ascending: true }),
         sb.from('activities_renamed').select('id, name').order('name', { ascending: true }),
         sb.from('territories').select('*').order('name', { ascending: true }),
@@ -389,6 +392,20 @@ export default function CronoprogrammaWorkspace() {
     })();
     return () => { alive = false; };
   }, [range.start, range.end, rev, staff]);
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const { data } = await sb.from('staff_cost_center_ranges').select('staff_id, cost_center, valid_from, valid_to');
+      if (!alive || !data) return;
+      const m: Record<string, CostCenterRange[]> = {};
+      for (const r of data as { staff_id: string; cost_center: string; valid_from: string; valid_to: string | null }[]) {
+        (m[r.staff_id] ??= []).push({ cost_center: r.cost_center, valid_from: r.valid_from, valid_to: r.valid_to });
+      }
+      setCostCenterRangesByStaff(m);
+    })();
+    return () => { alive = false; };
+  }, [sb]);
 
   const removeAssignment = async (a: Assignment) => {
     setActionFeedback(null);
