@@ -1,7 +1,7 @@
 'use client';
 
 import { getTerritoryStyle } from '@/lib/territoryColors';
-import { fmtDay } from './utils';
+import { fmtDay } from '@/components/modules/cronoprogramma-personale/utils';
 
 type AppointmentTerritory = { id: string; name: string } | null;
 
