@@ -12,6 +12,7 @@ import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
 import { seedRisposteDaAnagrafica } from '@/lib/interventi/manuali/seedRisposteDaAnagrafica';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
+import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
@@ -122,7 +123,13 @@ export function ModaleInterventoManuale({
                 <button
                   key={c.value}
                   type="button"
-                  onClick={() => { setCommittente(c.value); setStep(2); setCercaFatta(false); }}
+                  onClick={() => {
+                    setCommittente(c.value);
+                    setStep(2);
+                    setCercaFatta(false);
+                    const att = attivitaDefaultManuale(c.value);
+                    if (att) setAnagrafica((prev) => (String(prev.attivita ?? '').trim() ? prev : { ...prev, attivita: att }));
+                  }}
                   className={`min-h-[50px] rounded-xl border p-3 text-sm font-semibold transition ${
                     committente === c.value
                       ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'

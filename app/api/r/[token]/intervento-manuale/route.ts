@@ -8,6 +8,7 @@ import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
+import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
@@ -51,6 +52,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       { error: 'campi_mancanti', dettaglio: 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).' },
       { status: 422 },
     );
+
+  // Attività di default per committente (es. lim_massive → "LIMITAZIONI MASSIVE"): il personale
+  // non la scrive. Autorevole anche per l'offline (stesso payload ri-giocato qui). Solo se vuota.
+  const attivitaDefault = attivitaDefaultManuale(committente);
+  if (attivitaDefault && !String((anagrafica as { attivita?: unknown }).attivita ?? '').trim()) {
+    (anagrafica as { attivita?: string }).attivita = attivitaDefault;
+  }
 
   const dati: DatiInterventoManuale = {
     committente,
