@@ -29,6 +29,7 @@ import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponib
 import DatePicker from '@/components/ui/DatePicker';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
+import MenuDropdown, { type MenuItem } from './MenuDropdown';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -2648,43 +2649,27 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
             <input ref={fileTemplateInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleTemplateFileChange} />
 
-            {!excelMode && (
-              <button
-                type="button"
-                onClick={downloadTemplate}
-                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
-                title="Scarica il template Excel da compilare"
-              >
-                Scarica Template
-              </button>
-            )}
+            <MenuDropdown
+              align="right"
+              buttonClassName="rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-primary-soft)] px-3 py-1.5 text-sm font-medium text-[var(--brand-primary)] hover:opacity-90"
+              label="+ Aggiungi interventi ▾"
+              items={[
+                { label: 'Carica Excel',                    onClick: () => fileInputRef.current?.click(),          hidden: excelMode },
+                { label: 'Carica interventi del giorno',    onClick: caricaInterventiDelGiorno,                    hidden: excelMode },
+                { label: 'Scarica Template',                onClick: downloadTemplate,                             hidden: excelMode },
+                { label: '+ Aggiungi attività da template', onClick: () => fileTemplateInputRef.current?.click(),  hidden: !(excelMode && distribution) },
+                { label: '+ Aggiungi manuale',              onClick: () => setManualModalOpen(true),               hidden: !(excelMode && distribution) },
+                { label: 'Chiudi Excel',                    onClick: clearExcel,                                   hidden: !excelMode },
+              ] satisfies MenuItem[]}
+            />
 
-            {!excelMode ? (
-              <>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3 py-1.5 text-sm font-medium text-[var(--warning)] hover:opacity-90"
-                >
-                  Carica Excel
-                </button>
-                <button
-                  type="button"
-                  onClick={caricaInterventiDelGiorno}
-                  className="rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-surface)] px-3 py-1.5 text-sm font-medium text-[var(--brand-primary)] hover:bg-[var(--brand-surface-muted)]"
-                  title="Carica gli interventi geocodificati del giorno dal database"
-                >
-                  Carica interventi del giorno
-                </button>
-              </>
-            ) : (
-              <button
-                type="button"
-                onClick={clearExcel}
-                className="rounded-lg border border-[var(--warning)]/50 bg-[var(--warning)] px-3 py-1.5 text-sm font-medium text-[oklch(0.18_0.05_95)] hover:opacity-90"
-              >
-                Chiudi Excel
-              </button>
+            {distribution && (
+              <MenuDropdown
+                align="right"
+                buttonClassName="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
+                label="Esporta ▾"
+                items={[{ label: 'Esporta Excel', onClick: exportDistribution }]}
+              />
             )}
 
             {/* Percorso ottimale — nascosto se è attiva la distribuzione */}
@@ -2961,9 +2946,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       </button>
                       {distribution && (
                         <>
-                          <button type="button" onClick={exportDistribution} className="rounded-lg bg-[var(--success)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.05_145)] hover:opacity-90">
-                            Esporta Excel
-                          </button>
                           <button
                             type="button"
                             onClick={() => {
@@ -2979,24 +2961,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           >
                             Azzera
                           </button>
-                          {excelMode && (
-                            <button
-                              type="button"
-                              onClick={() => fileTemplateInputRef.current?.click()}
-                              className="rounded-lg border border-[var(--brand-violet)]/40 bg-[var(--brand-violet-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-violet)] hover:opacity-90"
-                            >
-                              + Aggiungi attività da template
-                            </button>
-                          )}
-                          {excelMode && (
-                            <button
-                              type="button"
-                              onClick={() => setManualModalOpen(true)}
-                              className="rounded-lg border border-[var(--brand-violet)]/40 bg-[var(--brand-violet-soft)] px-3 py-1 text-xs font-medium text-[var(--brand-violet)] hover:opacity-90"
-                            >
-                              + Aggiungi manuale
-                            </button>
-                          )}
                           {/* Scelta modello rapportino PRIMA del salvataggio/generazione:
                               il salvataggio auto-genera i rapportini, quindi il template va
                               scelto a monte. Obbligatorio e bloccante quando esistono modelli. */}
