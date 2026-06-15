@@ -60,9 +60,10 @@ function lavorazioneFatta(campo: TemplateCampo, valore: unknown): boolean {
 /** Valore di un campo compilabile del template per una voce, formattato per la cella. */
 export function valoreCampo(risposte: Record<string, unknown>, campo: TemplateCampo): string {
   const v = risposte?.[campo.chiave];
-  // Booleano: "X"/vuoto su qualsiasi tipo (le voci manuali salvano la crocetta come true
-  // anche dove il template pianificato dichiara 'select').
-  if (v === true) return 'X';
+  // "Fatto" uniforme → "X": crocetta `true` (voci manuali) E select affermativo "SI"/"Sì"
+  // (voci pianificate). Così la stessa lavorazione (es. Sostituzione valvola) si legge sempre "X".
+  // I valori negativi ("NO") e gli altri testi restano invariati.
+  if (v === true || (typeof v === 'string' && /^s[iì]$/i.test(v.trim()))) return 'X';
   if (v === false || v == null) return '';
   if (campo.tipo === 'crocetta') return '';
   return String(v).trim();

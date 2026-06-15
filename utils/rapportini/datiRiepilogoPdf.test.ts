@@ -26,8 +26,9 @@ describe('valoreCampo', () => {
     expect(valoreCampo({ cambio: true }, campi[0])).toBe('X');
     expect(valoreCampo({}, campi[0])).toBe('');
   });
-  it('select/testo → valore stringa (trim)', () => {
-    expect(valoreCampo({ saracinesca: 'SI' }, campi[1])).toBe('SI');
+  it('select affermativo "SI" → "X"; negativo "NO" resta; testo invariato', () => {
+    expect(valoreCampo({ saracinesca: 'SI' }, campi[1])).toBe('X');
+    expect(valoreCampo({ saracinesca: 'NO' }, campi[1])).toBe('NO');
     expect(valoreCampo({ note: '  ciao ' }, campi[3])).toBe('ciao');
     expect(valoreCampo({}, campi[1])).toBe('');
   });
@@ -69,7 +70,7 @@ describe('costruisciDatiPdf', () => {
     expect(dati.colonne.map((c) => c.etichetta)).not.toContain('FOTO CONTATORE');
   });
   it('valori riga allineati alle colonne (info poi campi)', () => {
-    expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'X', 'SI', '', '']);
+    expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'X', 'X', '', '']);
     expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-400', 'Via Petrarca 3', 'Napoli', '', 'NO', '', 'Valvola bloccata']);
   });
   it('numerazione globale eseguiti/non eseguiti', () => {
