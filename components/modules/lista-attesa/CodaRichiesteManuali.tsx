@@ -7,6 +7,7 @@ import { PannelloRevisioneRichiesta } from './PannelloRevisioneRichiesta';
 import { useRichiesteManualiFeed } from '@/lib/interventi/manuali/useRichiesteManualiFeed';
 import { statoPresaInCarico } from '@/lib/interventi/manuali/etichettaPresaInCarico';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
+import { formatDataIt } from '@/lib/interventi/manuali/formatDataIt';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 export function CodaRichiesteManuali({
@@ -67,7 +68,7 @@ export function CodaRichiesteManuali({
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3">
                   <button type="button" onClick={() => setAperta((a) => (a === r.id ? null : r.id))} className="flex items-center gap-2 text-left">
                     <span className="text-sm font-semibold text-[var(--brand-text-main)]">{r.staff_name ?? r.staff_id} · {etichettaCommittente(r.committente)}</span>
-                    <span className="text-xs text-[var(--brand-text-muted)]">{r.data}</span>
+                    <span className="text-xs text-[var(--brand-text-muted)]">{formatDataIt(r.data)}</span>
                   </button>
                   <div className="flex items-center gap-2">
                     {presa.etichetta && (

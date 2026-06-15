@@ -4,15 +4,25 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
+import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import type { RigaRichiesta } from '@/lib/interventi/manuali/types';
 
 const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs';
 
 function toCsv(righe: RigaRichiesta[]): string {
-  const head = ['Data', 'Operatore', 'Committente', 'Stato', 'Note', 'Motivo rifiuto', 'Creato'];
+  const head = ['Data', 'Operatore', 'Committente', 'Stato', 'Approvatore', 'Note', 'Motivo rifiuto', 'Creato'];
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = righe.map((r) =>
-    [r.data, r.staff_name ?? r.staff_id, r.committente, r.stato, r.note, r.motivo_rifiuto, r.created_at]
+    [
+      formatDataIt(r.data),
+      r.staff_name ?? r.staff_id,
+      etichettaCommittente(r.committente),
+      r.stato,
+      r.deciso_da_name ?? '',
+      r.note,
+      r.motivo_rifiuto,
+      formatDataOraIt(r.created_at),
+    ]
       .map(esc)
       .join(','),
   );
@@ -140,16 +150,18 @@ export function RegistroAutorizzazioni() {
                 <th className="px-3 py-2 text-left font-semibold">Operatore</th>
                 <th className="px-3 py-2 text-left font-semibold">Committente</th>
                 <th className="px-3 py-2 text-left font-semibold">Stato</th>
+                <th className="px-3 py-2 text-left font-semibold">Approvatore</th>
                 <th className="px-3 py-2 text-left font-semibold">Motivo</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--brand-border)]">
               {filtrate.map((r) => (
                 <tr key={r.id}>
-                  <td className="px-3 py-2">{r.data}</td>
+                  <td className="px-3 py-2">{formatDataIt(r.data)}</td>
                   <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
                   <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                   <td className="px-3 py-2">{r.stato}</td>
+                  <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
                   <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
                 </tr>
               ))}

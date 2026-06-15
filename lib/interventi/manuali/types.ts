@@ -36,4 +36,10 @@ export type RigaRichiesta = {
   note: string | null;
   motivo_rifiuto: string | null;
   created_at: string;
+  /** uuid del backoffice che ha approvato/rifiutato (null finché in attesa). */
+  deciso_da?: string | null;
+  /** Nome del backoffice approvatore, risolto lato server dalla GET. */
+  deciso_da_name?: string | null;
+  /** Timestamp della decisione (approvazione/rifiuto). */
+  deciso_at?: string | null;
 };
