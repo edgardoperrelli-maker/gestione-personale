@@ -27,6 +27,8 @@ import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
 import DatePicker from '@/components/ui/DatePicker';
+import PhaseStrip from './PhaseStrip';
+import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -1064,6 +1066,20 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const excelGeocoded = excelTasks.filter((t) => t.lat != null && t.lng != null).length;
   const isGeocoding = geocodingProgress !== null && geocodingProgress.done < geocodingProgress.total;
 
+  const currentPhase = useMemo(
+    () =>
+      computePlanningPhase({
+        setupDone,
+        isEditMode,
+        totalTasks: allTasks.length,
+        appointmentCount: filteredAppointmentTasks.length,
+        geocoded: geocodificati,
+        isGeocoding,
+        hasDistribution: distribution !== null,
+        currentPianoId: !!currentPianoId,
+      }),
+    [setupDone, isEditMode, allTasks.length, filteredAppointmentTasks.length, geocodificati, isGeocoding, distribution, currentPianoId],
+  );
 
   // ─── Lookup supabase ────────────────────────────────────────────────────────
 
@@ -2560,6 +2576,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           </div>
         );
       })()}
+      {(setupDone || isEditMode) && <PhaseStrip current={currentPhase} />}
       {/* Header + filtri */}
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
         <div className="flex flex-wrap items-center gap-3">
