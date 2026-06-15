@@ -3,6 +3,9 @@
 import { useState, useEffect } from 'react';
 import { geocodeTask } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
+import CostCenterRangesEditor from '@/components/impostazioni/CostCenterRangesEditor';
+import { COST_CENTERS } from '@/constants/cost-centers';
+import type { CostCenterRange } from '@/lib/costCenter';
 
 type Props = {
   onClose: () => void;
@@ -35,6 +38,8 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
   const [homeAddress, setHomeAddress] = useState<string | null>(null);
   const [homeCap, setHomeCap] = useState<string | null>(null);
   const [homeCity, setHomeCity] = useState<string | null>(null);
+  const [costCenter, setCostCenter] = useState<string>('');
+  const [costCenterRanges, setCostCenterRanges] = useState<CostCenterRange[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
@@ -128,6 +133,8 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
         homeLat,
         homeLng,
         homeTerritoryId: homeTerritoryId ?? null,
+        costCenter: costCenter || null,
+        costCenterRanges,
       };
 
       const res = await fetch('/api/admin/personale', {
@@ -230,6 +237,26 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
             <p className="mt-1 text-[11px] text-[var(--brand-text-muted)]">
               Lazio Centro, Lazio Est, ACEA e Aurelia sono considerati la stessa area Lazio.
             </p>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              Centro di costo (predefinito)
+            </label>
+            <select
+              value={costCenter}
+              onChange={(e) => setCostCenter(e.target.value)}
+              className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+            >
+              <option value="">— Nessuno —</option>
+              {COST_CENTERS.map((cc) => <option key={cc} value={cc}>{cc}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              Centri di costo a periodo (override)
+            </label>
+            <CostCenterRangesEditor value={costCenterRanges} onChange={setCostCenterRanges} />
           </div>
 
           {/* Magazzino */}
