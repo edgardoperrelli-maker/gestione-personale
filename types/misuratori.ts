@@ -24,6 +24,16 @@ export const STATO_COLOR: Record<StatoMisuratore, string> = {
   consegnato_committente:   'bg-green-100 text-green-700',
 };
 
+/**
+ * Tinta di sfondo riga a tema neon Aurea (OKLCH ad alta croma → resa "fluo" sul
+ * navy, non smorta). Solo gli stati con evidenza richiesta; gli altri restano neutri.
+ */
+export const STATO_ROW_TINT: Partial<Record<StatoMisuratore, string>> = {
+  scaricato_deposito:       'oklch(0.80 0.20 60 / 0.22)',   // arancione fluo
+  in_consegna_committente:  'oklch(0.80 0.16 215 / 0.22)',  // blu neon (brand primary)
+  consegnato_committente:   'oklch(0.74 0.21 145 / 0.22)',  // verde neon (brand green)
+};
+
 export interface MisuratoreRimosso {
   id: string;
   intervento_id: string | null;
