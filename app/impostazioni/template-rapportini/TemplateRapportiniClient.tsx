@@ -14,6 +14,7 @@ import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/component
 import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 import SchedeTipo from './SchedeTipo';
+import SezioneAccordion from './SezioneAccordion';
 import {
   schedaDiTemplate,
   filtraTemplatePerScheda,
@@ -450,33 +451,34 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           </div>
         ) : (
           <>
-            {/* ── Nome template ─────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Nome template</h3>
+            {/* ── Impostazioni base ─────────────────────────────────────────── */}
+            <SezioneAccordion title="Impostazioni base" defaultOpen>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Nome template</label>
               <input
                 type="text"
                 value={nome}
                 onChange={(e) => setNome(e.target.value)}
-                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
+                className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
                 placeholder="es. Rapportino standard"
               />
-            </div>
 
-            {/* ── Committente ───────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Committente</h3>
-              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-                Associa il template a un committente per gli interventi manuali. &quot;Nessuno&quot; = template generico (Standard).
-              </p>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo template</label>
-              <select
-                value={tipo}
-                onChange={(e) => setTipo(e.target.value as 'standard' | 'risanamento')}
-                className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-              >
-                <option value="standard">Standard</option>
-                <option value="risanamento">Risanamento colonne</option>
-              </select>
+              {scheda === 'classici' && (
+                <>
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo rapportino</label>
+                  <select
+                    value={tipo}
+                    onChange={(e) => setTipo(e.target.value as 'standard' | 'risanamento')}
+                    className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  >
+                    <option value="standard">Standard</option>
+                    <option value="risanamento">Risanamento colonne</option>
+                  </select>
+                </>
+              )}
+
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                Committente{scheda === 'manuali' && <span className="text-[var(--danger)]"> *</span>}
+              </label>
               <select
                 value={committente}
                 onChange={(e) => setCommittente(e.target.value as Committente | '')}
@@ -488,11 +490,16 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <option value="altro">Altro</option>
                 <option value="lim_massive">Limitazioni massive</option>
               </select>
-            </div>
+              <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                {scheda === 'manuali'
+                  ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica i campi di questo template.'
+                  : 'Opzionale: associa il template a un committente (fallback al default se assente).'}
+              </p>
+            </SezioneAccordion>
 
             {/* ── Card nella lista interventi ──────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Card nella lista interventi</h3>
+            {scheda === 'classici' && (
+            <SezioneAccordion title="Titolo della card voce">
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
                 Se tutti vuoti → &quot;Voce N&quot;. Lista vuota = comportamento storico (Nominativo, poi PDR).
@@ -530,11 +537,12 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               <AnteprimaBox>
                 <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
               </AnteprimaBox>
-            </div>
+            </SezioneAccordion>
+            )}
 
             {/* ── Dettaglio card ────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettaglio card</h3>
+            {scheda === 'classici' && (
+            <SezioneAccordion title="Dettaglio card">
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata &quot;Punto esatto&quot;.
               </p>
@@ -551,11 +559,11 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
                 <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
               </AnteprimaBox>
-            </div>
+            </SezioneAccordion>
+            )}
 
             {/* ── Dettaglio anagrafica ──────────────────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Dettaglio anagrafica</h3>
+            <SezioneAccordion title={scheda === 'manuali' ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
                 Nessuna selezione = mostra tutti gli 11 campi di default.
@@ -592,11 +600,10 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               <AnteprimaBox>
                 <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
               </AnteprimaBox>
-            </div>
+            </SezioneAccordion>
 
             {/* ── Lista azioni da fare ─────────────────────────────────────────────────────── */}
-            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-              <h3 className="mb-4 font-semibold text-[var(--brand-text-main)]">Lista azioni da fare</h3>
+            <SezioneAccordion title="Azioni da fare" defaultOpen>
 
               {campi.length === 0 && (
                 <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessun campo. Aggiungine uno.</p>
@@ -766,12 +773,11 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               <AnteprimaBox>
                 <VoceCampi campi={campi} voce={anteprimaVoce} disabilitato onChange={() => {}} />
               </AnteprimaBox>
-            </div>
+            </SezioneAccordion>
 
             {/* ── Priorità nome foto (solo se ci sono campi foto) ───────────────── */}
             {haCampiFoto && (
-              <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-                <h3 className="mb-1 font-semibold text-[var(--brand-text-main)]">Priorità nome foto</h3>
+              <SezioneAccordion title="Foto — priorità nome file">
                 <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                   Le foto vengono rinominate come <b>&lt;identificativo&gt;_&lt;tipo foto&gt;</b>. Scegli quale
                   identificativo usare (il <b>primo non vuoto</b> della lista, in ordine).
@@ -814,7 +820,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
                   <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
                 </div>
-              </div>
+              </SezioneAccordion>
             )}
 
             {/* ── Azioni ────────────────────────────────────────────────────── */}
