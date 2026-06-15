@@ -132,6 +132,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   }
 
   function cambiaScheda(s: SchedaTemplate) {
+    skipAutosave.current = true;
     setScheda(s);
     setSelectedId(null);
     setIsNew(false);
