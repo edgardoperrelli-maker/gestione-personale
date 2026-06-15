@@ -65,6 +65,7 @@ type Props = {
   readOnly: boolean;
   infoCampiManuale?: TemplateInfoCampo[];
   templatesPerCommittente?: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
+  infoCampiPerCommittente?: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
 };
@@ -95,6 +96,7 @@ export default function RapportinoForm({
   readOnly: readOnlyIniziale,
   infoCampiManuale = [],
   templatesPerCommittente = {},
+  infoCampiPerCommittente = {},
   tipo,
   righe: righeRisanamento,
 }: Props) {
@@ -430,6 +432,7 @@ export default function RapportinoForm({
           token={token}
           infoCampi={infoCampiManuale}
           campiPerCommittente={templatesPerCommittente}
+          infoCampiPerCommittente={infoCampiPerCommittente}
           voci={voci}
           onApriAssegnato={(voceId) => {
             setModaleAperta(false);

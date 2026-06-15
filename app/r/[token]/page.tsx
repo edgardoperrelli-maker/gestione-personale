@@ -195,15 +195,21 @@ export default async function RapportinoPublicPage({
   }
 
   // Template attivi per committente → alimentano la modale "intervento manuale".
+  // Si legge ANCHE info_campi: l'anagrafica del "+" è guidata dal template manuale scelto
+  // (coerente con l'editor "Anagrafica da compilare"), non dall'anagrafica del rapportino.
   const { data: tplManuali } = await supabaseAdmin
     .from('rapportino_template')
-    .select('committente, campi')
+    .select('committente, campi, info_campi')
     .eq('active', true)
     .eq('solo_manuale', true);
   const templatesPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
-  for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown }>) {
+  const infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>> = {};
+  for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown; info_campi: unknown }>) {
     if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro' || t.committente === 'lim_massive') {
       templatesPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
+      if (Array.isArray(t.info_campi) && t.info_campi.length > 0) {
+        infoCampiPerCommittente[t.committente] = t.info_campi as TemplateInfoCampo[];
+      }
     }
   }
 
@@ -220,6 +226,7 @@ export default async function RapportinoPublicPage({
         readOnly={stato === 'inviato'}
         infoCampiManuale={infoCampiLive}
         templatesPerCommittente={templatesPerCommittente}
+        infoCampiPerCommittente={infoCampiPerCommittente}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
       />

@@ -27,15 +27,19 @@ export function ModaleInterventoManuale({
   token,
   infoCampi,
   campiPerCommittente,
+  infoCampiPerCommittente = {},
   voci,
   onApriAssegnato,
   onClose,
   onCreata,
 }: {
   token: string;
+  /** Anagrafica del rapportino: fallback quando il template manuale non ne definisce una. */
   infoCampi: TemplateInfoCampo[];
   /** Campi esito (template) per committente; se non noto si usa []. */
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
+  /** Anagrafica del template manuale per committente (guida lo step anagrafica del "+"). */
+  infoCampiPerCommittente?: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   voci: VoceMatricola[];
   onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
@@ -50,7 +54,12 @@ export function ModaleInterventoManuale({
   const [errore, setErrore] = useState<string | null>(null);
   const [cercaFatta, setCercaFatta] = useState(false);
 
-  const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
+  // Anagrafica guidata dal template manuale del committente scelto (editor "Anagrafica da
+  // compilare"); se quel template non la definisce, fallback all'anagrafica del rapportino.
+  const campiAnag = useMemo(
+    () => anagraficaCampi((committente && infoCampiPerCommittente[committente]) || infoCampi),
+    [committente, infoCampiPerCommittente, infoCampi],
+  );
   const campiEsito = committente ? campiPerCommittente[committente] ?? [] : [];
 
   // Slot foto del template selezionato e validazione obbligatorie
