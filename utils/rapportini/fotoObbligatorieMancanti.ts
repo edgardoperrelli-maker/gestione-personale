@@ -15,7 +15,7 @@ function fotoVuota(valore: unknown): boolean {
  * I segnaposto `blob-locale:` NON contano: la foto c'è, sta solo salendo.
  */
 export function contaFotoObbligatorieMancanti(
-  voci: Array<{ risposte: Record<string, unknown> | null }>,
+  voci: Array<{ risposte: Record<string, unknown> | null; manuale?: boolean }>,
   campi: TemplateCampo[],
 ): number {
   const obbligatorie = campi.filter(
@@ -24,6 +24,7 @@ export function contaFotoObbligatorieMancanti(
   if (obbligatorie.length === 0) return 0;
   let n = 0;
   for (const v of voci) {
+    if (v.manuale) continue; // creata dal "+": le foto sono già nella richiesta, non nel template pianificato
     const risposte = v.risposte ?? {};
     if (haEsitoNegativo(risposte, campi)) continue; // esito negativo → foto non obbligatorie
     for (const c of obbligatorie) {

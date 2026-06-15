@@ -268,7 +268,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
     [voci, campi, titoloCampi],
   );

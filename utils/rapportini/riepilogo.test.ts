@@ -41,6 +41,11 @@ describe('riepilogoRapportino', () => {
     expect(riepilogoRapportino([{ risposte: {} }], campi).daFare).toBe(1);
     expect(riepilogoRapportino([], campi).daFare).toBe(0);
   });
+  it('voce manuale (creata dal +) → eseguito, mai daFare', () => {
+    const r = riepilogoRapportino([{ risposte: {}, manuale: true }, { risposte: {} }], campi);
+    expect(r.eseguiti).toBe(1);
+    expect(r.daFare).toBe(1);
+  });
   it('le voci annullate non contano in daFare (invio possibile)', () => {
     const campi = [{ chiave: 'esito', etichetta: 'Esito', tipo: 'crocetta' as const, ordine: 0 }];
     const r = riepilogoRapportino(

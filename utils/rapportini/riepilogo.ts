@@ -31,7 +31,7 @@ export function statoVoce(
 
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
-  voci: { risposte: Record<string, unknown>; annullato?: boolean }[],
+  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean }[],
   campi: TemplateCampo[],
 ): RiepilogoRapportino {
   let eseguiti = 0;
@@ -41,6 +41,8 @@ export function riepilogoRapportino(
   for (const v of voci) {
     // Le voci annullate non contribuiscono a daFare: il rapportino rimane inviabile
     if (v.annullato) { annullati += 1; continue; }
+    // Voci create dal "+" (manuali): già complete con esito e foto → contano come eseguite, mai "da fare".
+    if (v.manuale) { eseguiti += 1; continue; }
     const s = statoVoce(v.risposte, campi);
     if (s === 'eseguito') eseguiti += 1;
     else if (s === 'non_eseguito') nonEseguiti += 1;
