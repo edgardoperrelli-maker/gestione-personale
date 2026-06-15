@@ -36,13 +36,17 @@ export function CercaMatricolaLimitazione({
     setAltroOperatore(null); setMisuratore(null);
   };
 
+  // Le voci RIFIUTATE non sono task attivi: vanno rifatte da capo, quindi non devono
+  // né riaprirsi in automatico né comparire tra i suggerimenti "già nel tuo rapportino".
+  const vociAttive = voci.filter((x) => x.approvazione_stato !== 'rifiutato');
+
   const cerca = async (valore: string) => {
     const v = valore.trim();
     if (!v) return;
     reset();
 
-    // 1) Già tuo → apri in automatico quella voce
-    const own = matchVociMatricola(voci, v);
+    // 1) Già tuo (e non rifiutato) → apri in automatico quella voce
+    const own = matchVociMatricola(vociAttive, v);
     if (own) { onApriAssegnato(own.id); return; }
 
     setCercando(true);
@@ -55,7 +59,7 @@ export function CercaMatricolaLimitazione({
       setAltroOperatore(j.altroOperatore);
       const simili = matricoleSimili(
         v,
-        voci.filter((x): x is VoceMatricola & { matricola: string } => x.matricola != null && x.matricola !== ''),
+        vociAttive.filter((x): x is VoceMatricola & { matricola: string } => x.matricola != null && x.matricola !== ''),
         5,
       );
       setSuggVoci(simili);

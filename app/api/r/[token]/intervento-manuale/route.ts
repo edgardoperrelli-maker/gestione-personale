@@ -13,6 +13,7 @@ import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interv
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
+import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 
 export const runtime = 'nodejs';
 
@@ -305,6 +306,39 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         // cleanup fallito: non mascheriamo l'errore originale
       }
       return NextResponse.json({ error: insErr.message }, { status: 500 });
+    }
+  }
+
+  // === Sostituzione del rifiutato ===
+  // Se per questa matricola esisteva, nello stesso rapportino, una richiesta RIFIUTATA,
+  // la rimuoviamo (voce + richiesta + foto) così resta UNA sola riga, quella appena
+  // creata, che torna "in attesa". Best-effort: non fa fallire la nuova richiesta.
+  const matricolaNuova = normMatricola(anagrafica.matricola);
+  if (matricolaNuova) {
+    try {
+      const { data: vociRifiutate } = await supabaseAdmin
+        .from('rapportino_voci')
+        .select('id, matricola, richiesta_id')
+        .eq('rapportino_id', rap.id)
+        .eq('manuale', true)
+        .eq('approvazione_stato', 'rifiutato');
+      const daRimuovere = ((vociRifiutate ?? []) as Array<{ id: string; matricola: string | null; richiesta_id: string | null }>)
+        .filter((rv) => rv.id !== voceRow!.id && normMatricola(rv.matricola) === matricolaNuova);
+      for (const rv of daRimuovere) {
+        if (rv.richiesta_id) {
+          const { data: fotoRows } = await supabaseAdmin
+            .from('interventi_manuali_foto')
+            .select('storage_path')
+            .eq('richiesta_id', rv.richiesta_id);
+          const paths = ((fotoRows ?? []) as Array<{ storage_path: string }>).map((f) => f.storage_path);
+          if (paths.length > 0) await supabaseAdmin.storage.from('interventi-foto').remove(paths);
+          await supabaseAdmin.from('interventi_manuali_foto').delete().eq('richiesta_id', rv.richiesta_id);
+          await supabaseAdmin.from('interventi_manuali').delete().eq('id', rv.richiesta_id);
+        }
+        await supabaseAdmin.from('rapportino_voci').delete().eq('id', rv.id);
+      }
+    } catch (e) {
+      console.error('[intervento-manuale] sostituzione rifiutato fallita:', e instanceof Error ? e.message : String(e));
     }
   }
 

@@ -1,6 +1,6 @@
 import { normMatricola } from './matricoleSimili';
 
-export type VoceMatricola = { id: string; matricola?: string | null; via?: string | null; comune?: string | null };
+export type VoceMatricola = { id: string; matricola?: string | null; via?: string | null; comune?: string | null; approvazione_stato?: string | null };
 
 /** Prima voce con matricola normalizzata uguale a `q` (match esatto), o null. Ignora voci senza matricola. */
 export function matchVociMatricola<T extends VoceMatricola>(voci: T[], q: string): T | null {
