@@ -10,6 +10,7 @@ import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/man
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
+import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
@@ -77,8 +78,8 @@ export function ModaleInterventoManuale({
       }
       const res = await fetch(`/api/r/${token}/intervento-manuale`, { method: 'POST', body: fd });
       if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `HTTP ${res.status}`);
+        const j = (await res.json().catch(() => ({}))) as { error?: string; dettaglio?: string; mancanti?: string[] };
+        throw new Error(messaggioErroreManuale(j, res.status));
       }
       onCreata();
     } catch (e) {
