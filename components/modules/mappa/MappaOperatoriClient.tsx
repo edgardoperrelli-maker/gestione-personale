@@ -2767,7 +2767,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
             {/* Pannello distribuzione operatori — >=1 per pianificare anche un solo civico (es. risanamento singolo) */}
             {excelGeocoded >= 1 && !isGeocoding && (
-              <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2.5">
+              <div className={`rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2.5 ${currentPhase === 6 ? 'opacity-80' : ''}`}>
                 {/* Intestazione + toggle */}
                 <div className="flex items-center justify-between">
                   <span className="text-xs font-semibold text-[var(--brand-text-main)]">Distribuisci tra operatori</span>
@@ -3032,7 +3032,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           <div ref={mapRef} className="h-[520px] w-full rounded-2xl" />
         </div>
 
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm overflow-y-auto max-h-[540px]">
+        <div className={`rounded-2xl border bg-[var(--brand-surface)] p-4 shadow-sm overflow-y-auto max-h-[540px] ${
+          currentPhase >= 4 ? 'border-[var(--brand-primary-border)]' : 'border-[var(--brand-border)]'
+        }`}>
           {/* ── Distribuzione operatori ── */}
           {excelMode && distribution ? (
             <>
