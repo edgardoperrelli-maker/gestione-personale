@@ -15,8 +15,9 @@ export function validaManualeClient(args: {
   campiTemplate: TemplateCampo[];
   slotFotoPresenti: Record<string, boolean>;
   risposte?: Record<string, unknown>;
+  committente?: string;
 }): EsitoValidazione {
-  if (!anagraficaValida(args.anagrafica as AnagraficaManuale)) {
+  if (!anagraficaValida(args.anagrafica as AnagraficaManuale, args.committente)) {
     return { ok: false, motivo: 'Indicare almeno un identificativo (PDR, ODL o matricola) e un campo indirizzo (via o comune).' };
   }
   const esito = haEsitoNegativo(args.risposte ?? {}, args.campiTemplate)

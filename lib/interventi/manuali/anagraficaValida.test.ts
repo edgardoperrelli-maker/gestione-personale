@@ -29,4 +29,12 @@ describe('anagraficaValida', () => {
   it('non valida: campi presenti ma tutti stringhe vuote', () => {
     expect(anagraficaValida({ pdr: '', odl: '  ', matricola: '', via: '', comune: '  ' })).toBe(false);
   });
+
+  it('lim_massive: la sola matricola basta (indirizzo facoltativo)', () => {
+    expect(anagraficaValida({ matricola: 'AA731024' }, 'lim_massive')).toBe(true);
+  });
+
+  it('lim_massive: senza identificativo resta non valida', () => {
+    expect(anagraficaValida({ comune: 'Roma' }, 'lim_massive')).toBe(false);
+  });
 });

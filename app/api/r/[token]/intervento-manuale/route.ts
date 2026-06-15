@@ -44,7 +44,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: 'committente_non_valido' }, { status: 400 });
 
   const anagrafica = rawDati.anagrafica ?? {};
-  if (!anagraficaValida(anagrafica))
+  if (!anagraficaValida(anagrafica, committente))
     return NextResponse.json(
       { error: 'campi_mancanti', dettaglio: 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).' },
       { status: 422 },
