@@ -5,11 +5,15 @@ import { geocodeTask } from '@/utils/routing';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffValidOnDay } from '@/lib/staff';
 import NewOperatorModal from './NewOperatorModal';
 import StoricoTrasferte from './StoricoTrasferte';
+import CostCenterRangesEditor from '@/components/impostazioni/CostCenterRangesEditor';
+import { COST_CENTERS } from '@/constants/cost-centers';
+import type { CostCenterRange } from '@/lib/costCenter';
 import type { Staff, Territory } from '@/types';
 
 type Props = {
   initialStaff: Staff[];
   territories: Territory[];
+  initialRanges: Record<string, CostCenterRange[]>;
 };
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
@@ -24,8 +28,9 @@ function validityLabel(staff: Staff, today: string) {
   return 'Fuori validita';
 }
 
-export default function PersonaleClient({ initialStaff, territories }: Props) {
+export default function PersonaleClient({ initialStaff, territories, initialRanges }: Props) {
   const [rows, setRows] = useState<Staff[]>(initialStaff);
+  const [rangesByStaff, setRangesByStaff] = useState<Record<string, CostCenterRange[]>>(initialRanges);
   const [query, setQuery] = useState('');
   const [validityFilter, setValidityFilter] = useState<'all' | 'valid' | 'invalid'>('all');
   const [savingId, setSavingId] = useState<string | null>(null);
@@ -148,6 +153,8 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
           homeLat,
           homeLng,
           homeTerritoryId: row.home_territory_id ?? null,
+          costCenter: row.cost_center ?? null,
+          costCenterRanges: rangesByStaff[row.id] ?? [],
         }),
       });
       const json = await res.json() as { error?: string; staff?: Staff };
@@ -418,6 +425,29 @@ export default function PersonaleClient({ initialStaff, territories }: Props) {
                     <p className="mt-1 text-[11px] text-[var(--brand-text-muted)]">
                       Lazio Centro, Lazio Est, ACEA e Aurelia sono considerati la stessa area Lazio per le trasferte.
                     </p>
+                  </div>
+
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                      Centro di costo (predefinito)
+                    </label>
+                    <select
+                      value={row.cost_center ?? ''}
+                      onChange={(e) => updateRow(row.id, { cost_center: e.target.value || null })}
+                      className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
+                    >
+                      <option value="">— Nessuno —</option>
+                      {COST_CENTERS.map((cc) => <option key={cc} value={cc}>{cc}</option>)}
+                    </select>
+                  </div>
+                  <div className="mt-4">
+                    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                      Centri di costo a periodo (override)
+                    </label>
+                    <CostCenterRangesEditor
+                      value={rangesByStaff[row.id] ?? []}
+                      onChange={(r) => setRangesByStaff((prev) => ({ ...prev, [row.id]: r }))}
+                    />
                   </div>
 
                   <StoricoTrasferte staffId={row.id} />
