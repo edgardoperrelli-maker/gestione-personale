@@ -27,7 +27,8 @@ import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
-import { contaFotoObbligatorieMancanti } from '@/utils/rapportini/fotoObbligatorieMancanti';
+import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
+import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -119,6 +120,7 @@ export default function RapportinoForm({
   const [modaleAperta, setModaleAperta] = useState(false);
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
+  const [fotoMancanti, setFotoMancanti] = useState<FotoMancanteVoce[] | null>(null); // avviso pre-invio
 
   const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
@@ -305,12 +307,8 @@ export default function RapportinoForm({
     else setIndiceCorrente((i) => i + 1);
   }, [voci, indiceCorrente, disabilitato, flushVoce]);
 
-  const handleInvia = useCallback(async () => {
-    if (disabilitato || inviando || !inviabile) return;
-    const fotoMancanti = contaFotoObbligatorieMancanti(voci, campi);
-    if (fotoMancanti > 0 && !window.confirm(`Mancano ${fotoMancanti} foto obbligatorie (mai scattate). Inviare comunque?`)) {
-      return;
-    }
+  /** Esegue l'invio vero e proprio (online o coda offline). Il controllo foto è a monte. */
+  const eseguiInvio = useCallback(async () => {
     // L'invio richiede rete in questa fase: i dati compilati sono già salvati/sincronizzati,
     // ma la chiusura del rapportino (con i suoi controlli) va fatta online.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -343,7 +341,16 @@ export default function RapportinoForm({
     } finally {
       if (mountedRef.current) setInviando(false);
     }
-  }, [disabilitato, inviando, inviabile, token, voci, campi]);
+  }, [token]);
+
+  const handleInvia = useCallback(() => {
+    if (disabilitato || inviando || !inviabile) return;
+    // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
+    // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
+    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi);
+    if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
+    void eseguiInvio();
+  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, eseguiInvio]);
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
 
@@ -448,6 +455,14 @@ export default function RapportinoForm({
             setModaleAperta(false);
             window.location.reload();
           }}
+        />
+      )}
+      {fotoMancanti && fotoMancanti.length > 0 && (
+        <ModaleFotoMancanti
+          voci={fotoMancanti}
+          onControlla={(index) => { setFotoMancanti(null); onApri(index); }}
+          onInviaComunque={() => { setFotoMancanti(null); void eseguiInvio(); }}
+          onChiudi={() => setFotoMancanti(null)}
         />
       )}
     </div>

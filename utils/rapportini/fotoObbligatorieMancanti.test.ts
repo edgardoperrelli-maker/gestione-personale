@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { contaFotoObbligatorieMancanti } from './fotoObbligatorieMancanti';
+import { contaFotoObbligatorieMancanti, fotoObbligatorieMancantiDettaglio } from './fotoObbligatorieMancanti';
 
 const campi = [
   { tipo: 'foto', chiave: 'a', etichetta: 'A', obbligatoria: true },
@@ -39,5 +39,25 @@ describe('contaFotoObbligatorieMancanti', () => {
       { chiave: 'assente', etichetta: 'Assente', tipo: 'crocetta', ordine: 2 },
     ] as never;
     expect(contaFotoObbligatorieMancanti([{ risposte: { assente: true } }], campiNeg)).toBe(0);
+  });
+});
+
+describe('fotoObbligatorieMancantiDettaglio', () => {
+  it('elenca per task il titolo e le tipologie di foto mancanti', () => {
+    const voci = [
+      { nominativo: 'Rossi', risposte: { a: PATH } },   // manca B
+      { nominativo: 'Bianchi', risposte: {} },          // mancano A, B
+    ];
+    expect(fotoObbligatorieMancantiDettaglio(voci, campi, ['nominativo'])).toEqual([
+      { index: 0, titolo: 'Rossi', tipi: ['B'] },
+      { index: 1, titolo: 'Bianchi', tipi: ['A', 'B'] },
+    ]);
+  });
+  it('salta voci manuali ed esito negativo; voci complete non compaiono', () => {
+    const voci = [
+      { nominativo: 'OK', risposte: { a: PATH, b: PATH } }, // completa
+      { nominativo: 'Man', risposte: {}, manuale: true },   // manuale
+    ];
+    expect(fotoObbligatorieMancantiDettaglio(voci, campi, ['nominativo'])).toEqual([]);
   });
 });
