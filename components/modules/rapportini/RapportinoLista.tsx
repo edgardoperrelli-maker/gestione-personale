@@ -114,7 +114,7 @@ export function RapportinoLista({
   ricerca?: string;
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
-  const [mancantiAperto, setMancantiAperto] = useState(true);
+  const [tentatoInvio, setTentatoInvio] = useState(false);
   const visibili = righeCercate.filter((r) =>
     filtro === 'tutti' ? true : filtro === 'dafare' ? r.stato === 'da_fare' : r.stato !== 'da_fare',
   );
@@ -126,15 +126,15 @@ export function RapportinoLista({
 
   return (
     <div className="flex h-dvh flex-col">
-      <div className="shrink-0 px-3 pt-3">
+      <div className="shrink-0 px-3 pt-2">
         <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} />
-        <div className="mt-3 flex gap-1.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
+        <div className="mt-2 flex gap-1.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
           {FILTRI.map(([k, lbl]) => (
             <button
               key={k}
               type="button"
               onClick={() => onFiltro(k)}
-              className={`flex min-h-[38px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-2 text-sm font-semibold transition ${
+              className={`flex min-h-[32px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold transition ${
                 filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
@@ -180,39 +180,37 @@ export function RapportinoLista({
             </>
           ) : (
             <>
-              {!readOnly && mancanti.length > 0 && (
+              {!readOnly && tentatoInvio && mancanti.length > 0 && (
                 <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2">
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="mb-1 flex items-center justify-between gap-2">
                     <p className="text-xs font-bold text-[var(--danger)]">
-                      Per inviare, completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}{mancantiAperto ? ':' : ''}
+                      ⚠️ Non puoi inviare: completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}
                     </p>
                     <button
                       type="button"
-                      onClick={() => setMancantiAperto((v) => !v)}
-                      aria-label={mancantiAperto ? 'Chiudi elenco' : 'Mostra elenco'}
+                      onClick={() => setTentatoInvio(false)}
+                      aria-label="Chiudi avviso"
                       className="shrink-0 rounded-md px-2 py-0.5 text-sm font-bold leading-none text-[var(--danger)] hover:bg-[var(--danger)]/15"
                     >
-                      {mancantiAperto ? '✕' : '▸'}
+                      ✕
                     </button>
                   </div>
-                  {mancantiAperto && (
-                    <div className="mt-1 max-h-[30vh] space-y-0.5 overflow-y-auto">
-                      {mancanti.map((m) => (
-                        <button
-                          key={m.index}
-                          type="button"
-                          onClick={() => onApri(m.index)}
-                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
-                        >
-                          <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
-                            <span className="font-bold">Intervento {m.index + 1}</span>
-                            {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
-                          </span>
-                          <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
-                        </button>
-                      ))}
-                    </div>
-                  )}
+                  <div className="max-h-[30vh] space-y-0.5 overflow-y-auto">
+                    {mancanti.map((m) => (
+                      <button
+                        key={m.index}
+                        type="button"
+                        onClick={() => onApri(m.index)}
+                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
+                      >
+                        <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
+                          <span className="font-bold">Intervento {m.index + 1}</span>
+                          {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
+                        </span>
+                        <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
+                      </button>
+                    ))}
+                  </div>
                 </div>
               )}
               {!readOnly && inviabile && (
@@ -221,8 +219,8 @@ export function RapportinoLista({
               {!readOnly && (
                 <button
                   type="button"
-                  onClick={onInvia}
-                  disabled={!inviabile || inviando}
+                  onClick={() => { if (inviabile) { onInvia(); } else { setTentatoInvio(true); } }}
+                  disabled={inviando}
                   className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[oklch(0.16_0.06_245)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
                   {inviando ? 'Invio in corso…' : 'Invia rapportino'}
