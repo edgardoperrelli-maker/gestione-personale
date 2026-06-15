@@ -31,6 +31,10 @@ describe('valoreCampo', () => {
     expect(valoreCampo({ note: '  ciao ' }, campi[3])).toBe('ciao');
     expect(valoreCampo({}, campi[1])).toBe('');
   });
+  it('booleano true → "X" anche su campo non-crocetta (voci manuali dal +)', () => {
+    expect(valoreCampo({ saracinesca: true }, campi[1])).toBe('X');
+    expect(valoreCampo({ saracinesca: false }, campi[1])).toBe('');
+  });
 });
 
 describe('campiEsportabili', () => {
@@ -71,5 +75,27 @@ describe('costruisciDatiPdf', () => {
   it('numerazione globale eseguiti/non eseguiti', () => {
     expect(dati.eseguiti.map((r) => r.n)).toEqual([1, 2]);
     expect(dati.nonEseguiti.map((r) => r.n)).toEqual([3, 4]);
+  });
+});
+
+describe('costruisciDatiPdf — voci manuali (dal +)', () => {
+  // Nel template pianificato 'sostituzione_valvola' è un select SI/NO; le voci manuali
+  // la salvano come booleano true e con chiavi diverse dal pianificato.
+  const campiM: TemplateCampo[] = [
+    { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+  ];
+  const voci = [
+    { matricola: 'M1', via: 'Via A', risposte: { sostituzione_valvola: 'SI' } },                  // task
+    { matricola: 'M2', via: 'Via B', manuale: true, risposte: { sostituzione_valvola: true } },   // manuale (booleano)
+    { matricola: 'M3', via: 'Via C', manuale: true, risposte: { lettura: '5' } },                 // manuale senza esito
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiM, infoCampi: null });
+
+  it('ogni voce manuale finisce in "Eseguiti" (riga presente nel PDF)', () => {
+    expect(dati.eseguiti.length).toBe(3);
+    expect(dati.nonEseguiti.length).toBe(0);
+  });
+  it('il conteggio lavorazione include sia "SI" sia il booleano true', () => {
+    expect(dati.lavorazioni).toEqual([{ etichetta: 'SOSTITUZIONE VALVOLA', count: 2 }]);
   });
 });

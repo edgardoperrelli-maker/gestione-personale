@@ -5,6 +5,8 @@ import { campiEsportabili, type TemplateCampo } from './buildVoci';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
+  /** Voce creata dal "+": è sempre completa (come nel riepilogo/lista) → va in "Eseguiti". */
+  manuale?: boolean;
 }
 
 /** Colonna del PDF: campo anagrafico (info_snapshot) o campo compilabile (campi_snapshot). */
@@ -45,7 +47,9 @@ function isMarcatoreAssente(chiave: string, etichetta: string): boolean {
  * - select: valorizzata e non negativa (es. "SI") — copre la saracinesca dei template ACEA
  */
 function lavorazioneFatta(campo: TemplateCampo, valore: unknown): boolean {
-  if (campo.tipo === 'crocetta') return valore === true;
+  // Booleano true = crocetta spuntata. Le voci manuali dal "+" salvano la lavorazione come
+  // `true` anche se nel template pianificato lo stesso campo è dichiarato 'select': conta lo stesso.
+  if (valore === true) return true;
   if (campo.tipo === 'select') {
     const s = typeof valore === 'string' ? valore.trim() : '';
     return s !== '' && !NEG_SELECT.test(s);
@@ -56,8 +60,11 @@ function lavorazioneFatta(campo: TemplateCampo, valore: unknown): boolean {
 /** Valore di un campo compilabile del template per una voce, formattato per la cella. */
 export function valoreCampo(risposte: Record<string, unknown>, campo: TemplateCampo): string {
   const v = risposte?.[campo.chiave];
-  if (campo.tipo === 'crocetta') return v === true ? 'X' : '';
-  if (v == null) return '';
+  // Booleano: "X"/vuoto su qualsiasi tipo (le voci manuali salvano la crocetta come true
+  // anche dove il template pianificato dichiara 'select').
+  if (v === true) return 'X';
+  if (v === false || v == null) return '';
+  if (campo.tipo === 'crocetta') return '';
   return String(v).trim();
 }
 
@@ -99,7 +106,10 @@ export function costruisciDatiPdf(params: {
       ...campiOrd.map((c) => valoreCampo(v.risposte, c)),
     ];
     const riga: RigaPdf = { n: i + 1, valori };
-    const stato = statoVoce(v.risposte, campi);
+    // Le voci manuali (dal "+") sono sempre complete → "Eseguiti", coerente con riepilogo/lista.
+    // Senza questo, la loro `risposte` (chiavi del template manuale, diverse dal pianificato)
+    // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali.
+    const stato = v.manuale ? 'eseguito' : statoVoce(v.risposte, campi);
     if (stato === 'eseguito') eseguiti.push(riga);
     else if (stato === 'non_eseguito') nonEseguiti.push(riga);
     // 'da_fare' ignorato: dopo l'invio non esiste (gate daFare === 0)
