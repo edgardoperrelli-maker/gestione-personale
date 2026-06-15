@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
@@ -113,6 +114,7 @@ export function RapportinoLista({
   ricerca?: string;
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
+  const [mancantiAperto, setMancantiAperto] = useState(true);
   const visibili = righeCercate.filter((r) =>
     filtro === 'tutti' ? true : filtro === 'dafare' ? r.stato === 'da_fare' : r.stato !== 'da_fare',
   );
@@ -180,25 +182,37 @@ export function RapportinoLista({
             <>
               {!readOnly && mancanti.length > 0 && (
                 <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2">
-                  <p className="mb-1 text-xs font-bold text-[var(--danger)]">
-                    Per inviare, completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}:
-                  </p>
-                  <div className="space-y-0.5">
-                    {mancanti.map((m) => (
-                      <button
-                        key={m.index}
-                        type="button"
-                        onClick={() => onApri(m.index)}
-                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
-                      >
-                        <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
-                          <span className="font-bold">Intervento {m.index + 1}</span>
-                          {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
-                        </span>
-                        <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
-                      </button>
-                    ))}
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-xs font-bold text-[var(--danger)]">
+                      Per inviare, completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}{mancantiAperto ? ':' : ''}
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => setMancantiAperto((v) => !v)}
+                      aria-label={mancantiAperto ? 'Chiudi elenco' : 'Mostra elenco'}
+                      className="shrink-0 rounded-md px-2 py-0.5 text-sm font-bold leading-none text-[var(--danger)] hover:bg-[var(--danger)]/15"
+                    >
+                      {mancantiAperto ? '✕' : '▸'}
+                    </button>
                   </div>
+                  {mancantiAperto && (
+                    <div className="mt-1 max-h-[30vh] space-y-0.5 overflow-y-auto">
+                      {mancanti.map((m) => (
+                        <button
+                          key={m.index}
+                          type="button"
+                          onClick={() => onApri(m.index)}
+                          className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
+                        >
+                          <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
+                            <span className="font-bold">Intervento {m.index + 1}</span>
+                            {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
+                          </span>
+                          <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
               {!readOnly && inviabile && (
