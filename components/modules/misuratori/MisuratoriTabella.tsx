@@ -96,9 +96,12 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
             <tr
               key={row.id}
               className="transition-colors hover:bg-[var(--brand-surface)]"
-              style={STATO_ROW_TINT[row.stato] ? { backgroundColor: STATO_ROW_TINT[row.stato] } : undefined}
+              style={STATO_ROW_TINT[row.stato] ? { backgroundColor: STATO_ROW_TINT[row.stato]!.bg } : undefined}
             >
-              <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{row.odl ?? '—'}</td>
+              <td
+                className="px-3 py-2 font-mono text-xs whitespace-nowrap"
+                style={STATO_ROW_TINT[row.stato] ? { boxShadow: `inset 4px 0 0 0 ${STATO_ROW_TINT[row.stato]!.accent}` } : undefined}
+              >{row.odl ?? '—'}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatItalian(row.data_esecuzione)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{row.esecutore ?? '—'}</td>
               <td className="px-3 py-2 max-w-[180px] truncate">{row.indirizzo ?? '—'}</td>
@@ -113,6 +116,7 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
                   value={row.stato}
                   onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
                   title={isAdminPlus ? undefined : 'Solo Admin Plus può riportare indietro lo stato'}
+                  style={STATO_ROW_TINT[row.stato] ? { color: STATO_ROW_TINT[row.stato]!.accent, borderColor: STATO_ROW_TINT[row.stato]!.accent, fontWeight: 600 } : undefined}
                   className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
                 >
                   {STATI_MISURATORE.map((s, i) => (

@@ -25,13 +25,15 @@ export const STATO_COLOR: Record<StatoMisuratore, string> = {
 };
 
 /**
- * Tinta di sfondo riga a tema neon Aurea (OKLCH ad alta croma → resa "fluo" sul
- * navy, non smorta). Solo gli stati con evidenza richiesta; gli altri restano neutri.
+ * Stile riga a tema neon: fondo soft + colore pieno saturo per barra/etichetta.
+ * Usa gli esadecimali neon già impiegati nel progetto (Live: blu #38bdf8 "in corso",
+ * verde #22c55e "Fatto") + arancione neon #fb923c. Solo gli stati con evidenza
+ * richiesta; gli altri restano neutri.
  */
-export const STATO_ROW_TINT: Partial<Record<StatoMisuratore, string>> = {
-  scaricato_deposito:       'oklch(0.80 0.20 60 / 0.22)',   // arancione fluo
-  in_consegna_committente:  'oklch(0.80 0.16 215 / 0.22)',  // blu neon (brand primary)
-  consegnato_committente:   'oklch(0.74 0.21 145 / 0.22)',  // verde neon (brand green)
+export const STATO_ROW_TINT: Partial<Record<StatoMisuratore, { bg: string; accent: string }>> = {
+  scaricato_deposito:       { bg: 'rgba(251, 146, 60, 0.18)', accent: '#fb923c' }, // arancione neon
+  in_consegna_committente:  { bg: 'rgba(56, 189, 248, 0.18)', accent: '#38bdf8' }, // blu neon (sky)
+  consegnato_committente:   { bg: 'rgba(34, 197, 94, 0.18)',  accent: '#22c55e' }, // verde neon
 };
 
 export interface MisuratoreRimosso {
