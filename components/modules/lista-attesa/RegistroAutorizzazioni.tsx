@@ -10,7 +10,7 @@ import type { RigaRichiesta } from '@/lib/interventi/manuali/types';
 const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs';
 
 function toCsv(righe: RigaRichiesta[]): string {
-  const head = ['Data', 'Operatore', 'Committente', 'Stato', 'Approvatore', 'Note', 'Motivo rifiuto', 'Creato'];
+  const head = ['Data', 'Operatore', 'Committente', 'Stato', 'Approvatore', 'Approvato il', 'Note', 'Motivo rifiuto', 'Creato'];
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
   const rows = righe.map((r) =>
     [
@@ -19,6 +19,7 @@ function toCsv(righe: RigaRichiesta[]): string {
       etichettaCommittente(r.committente),
       r.stato,
       r.deciso_da_name ?? '',
+      formatDataOraIt(r.deciso_at),
       r.note,
       r.motivo_rifiuto,
       formatDataOraIt(r.created_at),
@@ -151,6 +152,7 @@ export function RegistroAutorizzazioni() {
                 <th className="px-3 py-2 text-left font-semibold">Committente</th>
                 <th className="px-3 py-2 text-left font-semibold">Stato</th>
                 <th className="px-3 py-2 text-left font-semibold">Approvatore</th>
+                <th className="px-3 py-2 text-left font-semibold">Approvato il</th>
                 <th className="px-3 py-2 text-left font-semibold">Motivo</th>
               </tr>
             </thead>
@@ -162,6 +164,7 @@ export function RegistroAutorizzazioni() {
                   <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                   <td className="px-3 py-2">{r.stato}</td>
                   <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
+                  <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
                   <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
                 </tr>
               ))}

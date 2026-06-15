@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { parseFiltroLista } from '@/lib/interventi/manuali/listaQuery';
+import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 
 export const runtime = 'nodejs';
 
@@ -24,13 +25,15 @@ export async function GET(req: Request) {
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Risolvi uuid→nome del backoffice che ha approvato/rifiutato (per il registro).
+  // L'identità degli utenti vive in auth.users (la tabella profiles non è popolata):
+  // lo username deriva dall'email `u_<username>@local.it`, come nel resto dell'app.
   const righe = (data ?? []) as Array<{ deciso_da: string | null }>;
-  const decisoIds = [...new Set(righe.map((r) => r.deciso_da).filter((v): v is string => !!v))];
+  const decisoIds = new Set(righe.map((r) => r.deciso_da).filter((v): v is string => !!v));
   const nomi: Record<string, string> = {};
-  if (decisoIds.length > 0) {
-    const { data: profs } = await supabaseAdmin.from('profiles').select('id, username').in('id', decisoIds);
-    for (const p of (profs ?? []) as Array<{ id: string; username: string | null }>) {
-      nomi[p.id] = p.username ?? p.id;
+  if (decisoIds.size > 0) {
+    const { data: authData } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 500 });
+    for (const u of authData?.users ?? []) {
+      if (decisoIds.has(u.id)) nomi[u.id] = usernameFromEmail(u.email) || u.id;
     }
   }
   const conNomi = righe.map((r) => ({ ...r, deciso_da_name: r.deciso_da ? (nomi[r.deciso_da] ?? null) : null }));
