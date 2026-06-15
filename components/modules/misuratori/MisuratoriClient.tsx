@@ -21,7 +21,7 @@ const FILTERS_EMPTY: Filters = {
   esecutore: '',
 };
 
-export default function MisuratoriClient() {
+export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean }) {
   const [rows, setRows]         = useState<MisuratoreRimosso[]>([]);
   const [filters, setFilters]   = useState<Filters>(FILTERS_EMPTY);
   const [loading, setLoading]   = useState(false);
@@ -68,8 +68,10 @@ export default function MisuratoriClient() {
           body: JSON.stringify(patch),
         });
         if (!res.ok) {
-          // Rollback: ricarica dati
+          // Rollback: ricarica dati + mostra il motivo (es. 403 regressione vietata)
+          const msg = (await res.json().catch(() => ({})) as { error?: string }).error;
           await fetchData(filters);
+          if (msg) alert(msg);
         }
       } catch {
         await fetchData(filters);
@@ -217,7 +219,7 @@ export default function MisuratoriClient() {
           <p className="text-xs text-[var(--brand-text-muted)]">
             {rows.length} {rows.length === 1 ? 'misuratore' : 'misuratori'}
           </p>
-          <MisuratoriTabella rows={rows} onPatch={handlePatch} />
+          <MisuratoriTabella rows={rows} onPatch={handlePatch} isAdminPlus={isAdminPlus} />
         </>
       )}
     </div>

@@ -1,7 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
-import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
+import { getAllowedModulesForUser, resolveUserRole, resolveAssignableRole } from '@/lib/moduleAccess';
 import AuthGate from '@/components/AuthGate';
 import MisuratoriClient from '@/components/modules/misuratori/MisuratoriClient';
 
@@ -17,10 +17,11 @@ export default async function MisuratoriPage() {
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
   const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
   if (!allowedModules.includes('misuratori')) redirect('/hub');
+  const isAdminPlus = resolveAssignableRole(profile?.role, user.app_metadata?.role) === 'admin_plus';
 
   return (
     <AuthGate>
-      <MisuratoriClient />
+      <MisuratoriClient isAdminPlus={isAdminPlus} />
     </AuthGate>
   );
 }

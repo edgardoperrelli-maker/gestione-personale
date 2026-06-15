@@ -8,9 +8,11 @@ type SortKey = 'data_esecuzione' | 'stato' | 'comune';
 interface Props {
   rows: MisuratoreRimosso[];
   onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string }) => Promise<void>;
+  /** Solo admin_plus può riportare indietro lo stato; gli altri possono solo avanzarlo. */
+  isAdminPlus: boolean;
 }
 
-export default function MisuratoriTabella({ rows, onPatch }: Props) {
+export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
   const [sortAsc, setSortAsc]         = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -91,7 +93,11 @@ export default function MisuratoriTabella({ rows, onPatch }: Props) {
         </thead>
         <tbody className="divide-y divide-[var(--brand-border)] bg-[var(--brand-bg)]">
           {sorted.map(row => (
-            <tr key={row.id} className="hover:bg-[var(--brand-surface)] transition-colors">
+            <tr
+              key={row.id}
+              className="transition-colors hover:bg-[var(--brand-surface)]"
+              style={row.stato === 'scaricato_deposito' ? { backgroundColor: 'rgba(249, 115, 22, 0.13)' } : undefined}
+            >
               <td className="px-3 py-2 font-mono text-xs whitespace-nowrap">{row.odl ?? '—'}</td>
               <td className="px-3 py-2 whitespace-nowrap">{formatItalian(row.data_esecuzione)}</td>
               <td className="px-3 py-2 whitespace-nowrap">{row.esecutore ?? '—'}</td>
@@ -106,10 +112,17 @@ export default function MisuratoriTabella({ rows, onPatch }: Props) {
                   aria-label={`Stato misuratore ${row.matricola}`}
                   value={row.stato}
                   onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
+                  title={isAdminPlus ? undefined : 'Solo Admin Plus può riportare indietro lo stato'}
                   className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
                 >
-                  {STATI_MISURATORE.map(s => (
-                    <option key={s} value={s}>{STATO_LABEL[s]}</option>
+                  {STATI_MISURATORE.map((s, i) => (
+                    <option
+                      key={s}
+                      value={s}
+                      disabled={!isAdminPlus && i < STATI_MISURATORE.indexOf(row.stato)}
+                    >
+                      {STATO_LABEL[s]}
+                    </option>
                   ))}
                 </select>
               </td>
