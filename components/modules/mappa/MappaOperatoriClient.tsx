@@ -3028,7 +3028,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       {/* Mappa + pannello laterale */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
+        <div className="isolate rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
           <div ref={mapRef} className="h-[520px] w-full rounded-2xl" />
         </div>
 
