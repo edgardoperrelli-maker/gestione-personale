@@ -18,12 +18,12 @@ import CronoGridView from './CronoGridView';
 import CronoSplitView from './CronoSplitView';
 import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
-import AppointmentCountStrip from './AppointmentCountStrip';
 import AssenzaDialog from './AssenzaDialog';
 import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
 import type { CostCenterRange } from '@/lib/costCenter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
+import { countAppointmentsByDay } from '@/lib/appuntamenti';
 import {
   addDays,
   capitalize,
@@ -215,6 +215,11 @@ export default function CronoprogrammaWorkspace() {
     for (let i = 0; i < daysArray.length; i += 7) w.push(daysArray.slice(i, i + 7));
     return w;
   }, [daysArray]);
+
+  const appointmentCountByIso = useMemo(
+    () => countAppointmentsByDay(appointments, daysArray.map(fmtDay)),
+    [appointments, daysArray]
+  );
 
   const dayMap = useMemo(() => indexDays(days), [days]);
   const dayIdMap = useMemo(() => indexDayIds(days), [days]);
@@ -949,10 +954,6 @@ export default function CronoprogrammaWorkspace() {
         )}
       </motion.div>
 
-      <motion.div variants={staggerItem}>
-        <AppointmentCountStrip days={daysArray.slice(0, 7)} appointments={appointments} />
-      </motion.div>
-
       {plannerView === 'grid' && (
         <motion.div variants={staggerItem}>
           <CronoGridView
@@ -993,6 +994,7 @@ export default function CronoprogrammaWorkspace() {
             taskCountMap={taskCountMap}
             assenzeByDay={assenze}
             onEditAssenza={openEditAssenza}
+            appointmentCountByIso={appointmentCountByIso}
           />
         </motion.div>
       )}

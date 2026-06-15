@@ -45,6 +45,7 @@ export default function CronoCalendarView({
   taskCountMap,
   assenzeByDay,
   onEditAssenza,
+  appointmentCountByIso,
 }: {
   weeks: Date[][];
   anchor: Date;
@@ -71,6 +72,7 @@ export default function CronoCalendarView({
   taskCountMap?: Record<string,number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
+  appointmentCountByIso?: Record<string, number>;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
 
@@ -107,6 +109,7 @@ export default function CronoCalendarView({
               taskCountMap={taskCountMap}
               assenzeByDay={assenzeByDay}
               onEditAssenza={onEditAssenza}
+              appointmentCountByIso={appointmentCountByIso}
             />
           ))}
         </div>
@@ -141,6 +144,7 @@ function DayCell(props: {
   taskCountMap?: Record<string,number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
+  appointmentCountByIso?: Record<string, number>;
 }) {
   const {
     d,
@@ -249,6 +253,15 @@ function DayCell(props: {
               A-Z
             </button>
           )}
+          {(() => {
+            const n = props.appointmentCountByIso?.[iso] ?? 0;
+            if (n <= 0) return null;
+            return (
+              <span className="text-[10px] font-semibold" style={{ color: 'var(--brand-primary)' }} title={`${n} appuntamenti`}>
+                {n} App.
+              </span>
+            );
+          })()}
         </div>
         <div className="flex items-center gap-2">
           <button
