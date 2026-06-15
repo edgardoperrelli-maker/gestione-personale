@@ -7,7 +7,7 @@ import { PLANNING_PHASES, type PlanningPhase } from '@/lib/mappa/planningPhase';
  */
 export default function PhaseStrip({ current }: { current: PlanningPhase }) {
   return (
-    <div className="flex items-center gap-1 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 shadow-sm">
+    <div className="flex items-center gap-1 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 shadow-sm" role="group" aria-label="Fasi della pianificazione">
       {PLANNING_PHASES.map((p, i) => {
         const done = p.id < current;
         const active = p.id === current;
@@ -18,6 +18,7 @@ export default function PhaseStrip({ current }: { current: PlanningPhase }) {
                 className={`h-px min-w-[6px] flex-1 ${
                   p.id <= current ? 'bg-[var(--brand-primary)]/40' : 'bg-[var(--brand-border)]'
                 }`}
+                aria-hidden="true"
               />
             )}
             <div
@@ -30,7 +31,8 @@ export default function PhaseStrip({ current }: { current: PlanningPhase }) {
               }`}
             >
               <span className="flex h-4 w-4 items-center justify-center rounded-full text-[10px]">
-                {done ? '✓' : p.id}
+                <span aria-hidden="true">{done ? '✓' : p.id}</span>
+                <span className="sr-only">{done ? 'Completato' : `Fase ${p.id}`}</span>
               </span>
               <span>{p.label}</span>
             </div>
