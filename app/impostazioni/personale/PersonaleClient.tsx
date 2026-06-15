@@ -68,12 +68,13 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
     window.setTimeout(() => setFeedback(null), 3500);
   };
 
-  const handleOperatorCreated = (newStaff: Staff) => {
+  const handleOperatorCreated = (newStaff: Staff, ranges: CostCenterRange[]) => {
     setRows((prev) =>
       [...prev, newStaff].sort((a, b) =>
         a.display_name.localeCompare(b.display_name, 'it', { sensitivity: 'base' })
       )
     );
+    setRangesByStaff((prev) => ({ ...prev, [newStaff.id]: ranges }));
     setShowNewModal(false);
   };
 

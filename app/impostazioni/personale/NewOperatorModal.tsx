@@ -9,7 +9,7 @@ import type { CostCenterRange } from '@/lib/costCenter';
 
 type Props = {
   onClose: () => void;
-  onCreated: (newStaff: Staff) => void;
+  onCreated: (newStaff: Staff, ranges: CostCenterRange[]) => void;
   territories: Territory[];
 };
 
@@ -151,7 +151,7 @@ export default function NewOperatorModal({ onClose, onCreated, territories }: Pr
 
       // Success: call callback and close modal
       if (json.staff) {
-        onCreated(json.staff);
+        onCreated(json.staff, costCenterRanges);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Errore geocodificazione.');
