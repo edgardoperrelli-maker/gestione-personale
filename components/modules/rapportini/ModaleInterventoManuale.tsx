@@ -11,6 +11,7 @@ import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/vali
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
 import { seedRisposteDaAnagrafica } from '@/lib/interventi/manuali/seedRisposteDaAnagrafica';
+import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
@@ -163,7 +164,7 @@ export function ModaleInterventoManuale({
             </div>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">Indietro</button>
-              <button type="button" onClick={() => { setRisposte((prev) => seedRisposteDaAnagrafica(prev, anagrafica, campiEsito)); setStep(3); }} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]">Avanti</button>
+              <button type="button" onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]">Avanti</button>
             </div>
           </div>
         )}

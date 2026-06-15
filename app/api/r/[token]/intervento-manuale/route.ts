@@ -7,6 +7,7 @@ import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/m
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
+import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
@@ -69,6 +70,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const templateRow = (templates ?? []).find((t) => t.id === templateId);
   const campiTemplate = ((templateRow as { campi?: unknown })?.campi ?? []) as TemplateCampo[];
   const slotFoto = campiFoto(campiTemplate);
+
+  // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
+  // `eseguito` all'opzione positiva del template (così la colonna Eseguito si popola e i
+  // conteggi si allineano). Vale anche per il ramo offline (stesso payload ri-giocato qui).
+  dati.risposte = esitoPositivoDefault(campiTemplate, dati.risposte);
 
   // Raccoglie le parti file "foto:<slot>" dalla FormData.
   const fileBySlot = new Map<string, File>();
