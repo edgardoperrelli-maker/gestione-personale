@@ -13,6 +13,13 @@ import {
 import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
 import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
+import SchedeTipo from './SchedeTipo';
+import {
+  schedaDiTemplate,
+  filtraTemplatePerScheda,
+  erroreCommittenteManuale,
+  type SchedaTemplate,
+} from '@/lib/rapportini/templateScheda';
 
 const SCOPE_FOTO: { v: 'misuratore' | 'fase' | 'accessoria'; label: string }[] = [
   { v: 'misuratore', label: 'Misuratore (prima/dopo)' },
@@ -73,7 +80,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<Committente | ''>('');
-  const [soloManuale, setSoloManuale] = useState(false);
+  const [scheda, setScheda] = useState<SchedaTemplate>('classici');
+  const soloManuale = scheda === 'manuali';
   const [tipo, setTipo] = useState<'standard' | 'risanamento'>('standard');
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
@@ -100,7 +108,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(tpl.id);
     setNome(tpl.nome);
     setCommittente(tpl.committente ?? '');
-    setSoloManuale(tpl.solo_manuale ?? false);
+    setScheda(schedaDiTemplate(tpl));
     setTipo(tpl.tipo ?? 'standard');
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
@@ -115,12 +123,17 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(null);
     setNome('');
     setCommittente('');
-    setSoloManuale(false);
     setTipo('standard');
     setCampi([]);
     setInfoCampi([]);
     setTitoloCampi([]);
     setFotoIdPriority([]);
+  }
+
+  function cambiaScheda(s: SchedaTemplate) {
+    setScheda(s);
+    setSelectedId(null);
+    setIsNew(false);
   }
 
   async function reloadTemplates() {
@@ -229,6 +242,9 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       if (!c.etichetta.trim()) { showFeedback('error', 'Tutti i campi devono avere un\'etichetta'); return; }
     }
 
+    const errComm = erroreCommittenteManuale({ solo_manuale: soloManuale, committente: committente || null });
+    if (errComm) { showFeedback('error', errComm); return; }
+
     setSaving(true);
     try {
       const payload = {
@@ -297,7 +313,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     if (isNew || !selectedId) return; // i nuovi si salvano con "Crea template"
     const valido =
       nome.trim() !== '' && campi.length > 0 && campi.every((c) => c.etichetta.trim() !== '');
-    if (!valido) { setAutoState('idle'); return; }
+    const committenteOk = !erroreCommittenteManuale({ solo_manuale: soloManuale, committente: committente || null });
+    if (!valido || !committenteOk) { setAutoState('idle'); return; }
 
     setAutoState('saving');
     const id = selectedId;
@@ -330,13 +347,14 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, soloManuale, tipo, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
+  }, [nome, committente, scheda, soloManuale, tipo, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
 
   // Nessun template selezionato all'apertura: l'utente sceglie a mano.
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const selectedTpl = templates.find((t) => t.id === selectedId);
+  const templatesVisibili = filtraTemplatePerScheda(templates, scheda);
   const isEditing = isNew || selectedTpl != null;
 
   const anteprimaDettaglio = partitionInfoCampi(infoCampi).dettaglio;
@@ -374,9 +392,11 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           </button>
         </div>
 
-        {templates.length === 0 && !isNew ? (
+        <SchedeTipo attiva={scheda} onChange={cambiaScheda} />
+
+        {templatesVisibili.length === 0 && !isNew ? (
           <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-center text-sm text-[var(--brand-text-muted)]">
-            Nessun template. Creane uno.
+            {scheda === 'manuali' ? 'Nessun template per interventi manuali. Creane uno.' : 'Nessun template classico. Creane uno.'}
           </div>
         ) : (
           <div className="space-y-2">
@@ -385,7 +405,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <p className="font-semibold text-[var(--brand-primary)]">Nuovo template…</p>
               </div>
             )}
-            {templates.map((tpl) => (
+            {templatesVisibili.map((tpl) => (
               <div
                 key={tpl.id}
                 onClick={() => loadTemplate(tpl)}
@@ -468,20 +488,6 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <option value="altro">Altro</option>
                 <option value="lim_massive">Limitazioni massive</option>
               </select>
-              <label className="mt-3 flex items-start gap-2 text-sm text-[var(--brand-text-main)]">
-                <input
-                  type="checkbox"
-                  checked={soloManuale}
-                  onChange={(e) => setSoloManuale(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
-                />
-                <span>
-                  Solo interventi manuali
-                  <span className="mt-0.5 block text-xs text-[var(--brand-text-muted)]">
-                    Se attivo, questo template è usato solo per gli interventi manuali (con foto) e non compare nella generazione dei rapportini pianificati.
-                  </span>
-                </span>
-              </label>
             </div>
 
             {/* ── Card nella lista interventi ──────────────────────────────────────── */}
