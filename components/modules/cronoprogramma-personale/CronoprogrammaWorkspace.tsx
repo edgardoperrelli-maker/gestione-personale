@@ -18,8 +18,7 @@ import CronoGridView from './CronoGridView';
 import CronoSplitView from './CronoSplitView';
 import CronoCalendarView from './CronoCalendarView';
 import CronoTableView, { type TableRow } from './CronoTableView';
-import AppointmentDayCards from '@/components/modules/appuntamenti/AppointmentDayCards';
-import AppointmentModal from '@/components/modules/appuntamenti/AppointmentModal';
+import AppointmentCountStrip from './AppointmentCountStrip';
 import AssenzaDialog from './AssenzaDialog';
 import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
 import { staggerContainer, staggerItem } from '@/lib/animations';
@@ -88,9 +87,6 @@ export default function CronoprogrammaWorkspace() {
   const [dropChoiceDialog, setDropChoiceDialog] = useState<{ preferred: 'move' | 'copy' } | null>(null);
 
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [showAppointmentModal, setShowAppointmentModal] = useState(false);
-  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
-  const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
   const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
   const [taskCountMap, setTaskCountMap] = useState<Record<string,number>>({});
@@ -443,32 +439,6 @@ export default function CronoprogrammaWorkspace() {
       }
       return next;
     });
-  };
-
-  const handleAppointmentDrop = async (appointmentId: string, newDate: string) => {
-    const res = await fetch('/api/appointments', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ id: appointmentId, data: newDate }),
-    });
-    const json = await res.json() as { appointment?: Appointment; error?: string };
-    if (!res.ok || !json.appointment) return;
-    setAppointments((prev) =>
-      prev.map((a) => (a.id === appointmentId ? json.appointment! : a))
-    );
-  };
-
-  const handleAppointmentDelete = (id: string) => {
-    setAppointments((prev) => prev.filter((a) => a.id !== id));
-    setSelectedAppointment(null);
-  };
-
-  const handleAppointmentCreated = (newAppt: Appointment) => {
-    setAppointments((prev) =>
-      [...prev, newAppt].sort((a, b) => a.data.localeCompare(b.data))
-    );
-    setShowAppointmentModal(false);
-    setNewAppointmentDate(undefined);
   };
 
   const openEditDialog = (a: Assignment) => {
@@ -945,10 +915,6 @@ export default function CronoprogrammaWorkspace() {
           onPlannerViewChange={setPlannerView}
           onInsertRep={() => setOpenInsertRep(true)}
           onNewAssenza={() => openNewAssenza()}
-          onNewAppointment={() => {
-            setNewAppointmentDate(undefined);
-            setShowAppointmentModal(true);
-          }}
           onExport={() => setOpenExport(true)}
         />
 
@@ -967,19 +933,7 @@ export default function CronoprogrammaWorkspace() {
       </motion.div>
 
       <motion.div variants={staggerItem}>
-        <AppointmentDayCards
-          days={daysArray.slice(0, 7)}
-          appointments={appointments}
-          onAppointmentClick={(a) => {
-            setSelectedAppointment(a);
-            setShowAppointmentModal(false);
-          }}
-          onAppointmentDrop={handleAppointmentDrop}
-          onNewAppointment={(date) => {
-            setNewAppointmentDate(date);
-            setShowAppointmentModal(true);
-          }}
-        />
+        <AppointmentCountStrip days={daysArray.slice(0, 7)} appointments={appointments} />
       </motion.div>
 
       {plannerView === 'grid' && (
@@ -1217,29 +1171,6 @@ export default function CronoprogrammaWorkspace() {
         </div>
       )}
 
-      {/* Modal dettaglio appuntamento */}
-      {selectedAppointment && (
-        <AppointmentModal
-          mode="view"
-          appointment={selectedAppointment}
-          onClose={() => setSelectedAppointment(null)}
-          onDelete={handleAppointmentDelete}
-        />
-      )}
-
-      {/* Modal crea appuntamento */}
-      {showAppointmentModal && (
-        <AppointmentModal
-          mode="create"
-          defaultDate={newAppointmentDate}
-          territories={territories}
-          onClose={() => {
-            setShowAppointmentModal(false);
-            setNewAppointmentDate(undefined);
-          }}
-          onCreate={handleAppointmentCreated}
-        />
-      )}
     </motion.div>
   );
 }

@@ -13,7 +13,6 @@ export default function CronoToolbar({
   onPlannerViewChange,
   onInsertRep,
   onNewAssenza,
-  onNewAppointment,
   onExport,
 }: {
   title: string;
@@ -25,7 +24,6 @@ export default function CronoToolbar({
   onPlannerViewChange: (v: PlannerView) => void;
   onInsertRep: () => void;
   onNewAssenza: () => void;
-  onNewAppointment: () => void;
   onExport: () => void;
 }) {
   return (
@@ -69,9 +67,6 @@ export default function CronoToolbar({
           </Button>
           <Button onClick={onInsertRep} size="sm">
             Inserisci reperibile
-          </Button>
-          <Button onClick={onNewAppointment} size="sm" variant="soft">
-            + Appuntamento
           </Button>
           <Button onClick={onExport} variant="outline" size="sm">
             Esporta
