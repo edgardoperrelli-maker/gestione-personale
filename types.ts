@@ -16,6 +16,7 @@ export type Staff = {
   home_lng?: number | null;
   /** NULL = Lazio. Se impostato, niente hotel per quel territorio. */
   home_territory_id?: string | null;
+  cost_center?: string | null;
 };
 export type Activity = { id:string; name:string; active?:boolean };
 export type Territory = {
