@@ -1044,6 +1044,7 @@ export default function CronoprogrammaWorkspace() {
                 staffList={availableStaffForDay}
                 actList={workActivities}
                 terrList={territories}
+                costCenterRangesByStaff={costCenterRangesByStaff}
                 onClose={() => setDialogOpenForDay(null)}
                 onCreated={(row: Assignment, close = true) => {
                   const bucket = row.day_id;

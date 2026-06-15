@@ -5,16 +5,14 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import type { CostCenter } from '@/constants/cost-centers';
-
-
-
-import { COST_CENTERS } from '@/constants/cost-centers';
+import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
 
 export default function NewAssignmentDialog({
-  dayId, iso, staffList, actList, terrList, onClose, onCreated
+  dayId, iso, staffList, actList, terrList, costCenterRangesByStaff, onClose, onCreated
 }:{
   dayId: string; iso: string;
   staffList: Staff[]; actList: Activity[]; terrList: Territory[];
+  costCenterRangesByStaff: Record<string, CostCenterRange[]>;
   onClose: () => void;
   onCreated: (row: Assignment, close?: boolean) => void;
 }) {
@@ -44,13 +42,11 @@ const [saving, setSaving]           = useState<boolean>(false);
 const [useRange, setUseRange] = useState(false);
 const [fromIso, setFromIso] = useState(iso);
 const [toIso, setToIso]     = useState(iso);
-const [costCenter, setCostCenter] = useState<CostCenter | ''>(''); // tipizzato
-
 useEffect(() => {
   setErr(undefined);
-}, [staffId, activityId, territoryId, reperibile, notes, costCenter]);
+}, [staffId, activityId, territoryId, reperibile, notes]);
 
-const canSave = !!staffId && !!costCenter && !saving; // unica dichiarazione
+const canSave = !!staffId && !saving; // unica dichiarazione
 
   const terrSorted = useMemo(() => {
     const baseIso = useRange ? (fromIso || iso) : iso;
@@ -124,7 +120,10 @@ async function ensureDay(isoStr: string): Promise<string | null> {
 
 
   // inserisce una assignment e normalizza
-  async function createOne(targetDayId: string): Promise<Assignment | null> {
+  async function createOne(targetDayId: string, isoForDay: string): Promise<Assignment | null> {
+    const def = staffList.find((s) => s.id === staffId)?.cost_center ?? null;
+    const ranges = costCenterRangesByStaff[staffId] ?? [];
+    const cc = resolveCostCenter(def, ranges, isoForDay);
 const ins = await sb
   .from('assignments')
   .insert({
@@ -134,7 +133,7 @@ const ins = await sb
     territory_id: territoryId || null,
     reperibile:   !!reperibile,
     notes:        notes ?? null,
-    cost_center:  costCenter as CostCenter,
+    cost_center:  cc,
   })
   .select('id, day_id')
   .single();
@@ -155,7 +154,7 @@ if (ins.error || !ins.data) {
       day_id: ins.data.day_id,
       reperibile: !!reperibile,
       notes: notes ?? null,
-      cost_center: (costCenter as string).trim() as CostCenter,
+      cost_center: cc as CostCenter | null,
 
       staff: staffId ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' } : null,
       activity: activityId ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' } : null,
@@ -165,7 +164,7 @@ if (ins.error || !ins.data) {
 
   // se NON uso range: comportamento identico a prima
   if (!useRange) {
-    const row = await createOne(dayId);
+    const row = await createOne(dayId, iso);
     if (!row) { setSaving(false); setErr('Errore nel salvataggio.'); return; }
     onCreated(row, true);
     setSaving(false);
@@ -200,7 +199,7 @@ if (ins.error || !ins.data) {
   for (const isoX of iterDays(a, b)) {
     const targetDayId = await ensureDay(isoX);
     if (!targetDayId) continue;
-    const row = await createOne(targetDayId);
+    const row = await createOne(targetDayId, isoX);
     if (!row) continue;
     const rowWithIso = row as Assignment & { __iso?: string };
     rowWithIso.__iso = isoX;
@@ -262,22 +261,6 @@ if (ins.error || !ins.data) {
                 ))}
               </select>
             </label>
-<label className="text-sm">
-  <span className="block text-[var(--brand-text-muted)] mb-1">Centro di costo *</span>
-  <select
-    className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
-    value={costCenter}
-    onChange={(e)=>setCostCenter(e.target.value as CostCenter)}
-    disabled={saving}
-    required
-  >
-    <option value="">— Seleziona —</option>
-    {COST_CENTERS.map(cc=>(
-      <option key={cc} value={cc}>{cc}</option>
-    ))}
-  </select>
-</label>
-
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
               <select
