@@ -3,7 +3,7 @@ import { useState, useMemo, useEffect } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
-import { COST_CENTERS } from '@/constants/cost-centers';
+import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
 
 export default function EditAssignmentDialog({
   assignment,
@@ -11,6 +11,7 @@ export default function EditAssignmentDialog({
   staffList,
   actList,
   terrList,
+  costCenterRangesByStaff,
   onClose,
   onSaved,
   onDeleted,
@@ -20,6 +21,7 @@ export default function EditAssignmentDialog({
   staffList: Staff[];
   actList: Activity[];
   terrList: Territory[];
+  costCenterRangesByStaff: Record<string, CostCenterRange[]>;
   onClose: () => void;
   onSaved: (updated: Assignment, close?: boolean) => void;
   onDeleted: (a: Assignment) => void;
@@ -36,10 +38,8 @@ export default function EditAssignmentDialog({
   const [terrId, setTerrId] = useState<string>(assignment?.territory?.id ?? '');
   const [rep, setRep] = useState<boolean>(!!assignment?.reperibile);
   const [notes, setNotes] = useState<string>(assignment?.notes ?? '');
-  const [costCenter, setCostCenter] = useState<string>(assignment.cost_center ?? '');
-  useEffect(() => { setCostCenter(assignment.cost_center ?? ''); }, [assignment]);
 
-  useEffect(() => { setErr(undefined); }, [staffId, actId, terrId, rep, notes, costCenter]);
+  useEffect(() => { setErr(undefined); }, [staffId, actId, terrId, rep, notes]);
   useEffect(() => {
     const p = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -70,13 +70,17 @@ export default function EditAssignmentDialog({
     return available.sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' }));
   }, [iso, terrId, terrList, todayIso]);
 
-  const canSave = !!staffId && !!costCenter && !saving;
+  const canSave = !!staffId && !saving;
 
   // SAVE
   async function save() {
     if (!canSave) return;
     setSaving(true);
     setErr(undefined);
+
+    const def = staffList.find((s) => s.id === staffId)?.cost_center ?? null;
+    const ranges = costCenterRangesByStaff[staffId] ?? [];
+    const cc = resolveCostCenter(def, ranges, iso);
 
     if (terrId) {
       const selectedTerritory = terrList.find((territory) => territory.id === terrId);
@@ -100,7 +104,7 @@ export default function EditAssignmentDialog({
         staff_id: staffId || null,
         activity_id: actId || null,
         territory_id: terrId || null,
-        cost_center: costCenter || null,
+        cost_center: cc,
         reperibile: rep,
         notes: notes || null,
         updated_at: new Date().toISOString(),
@@ -165,22 +169,6 @@ export default function EditAssignmentDialog({
                 <option value="">— Seleziona —</option>
                 {staffSorted.map((s) => (
                   <option key={s.id} value={s.id}>{s.display_name}</option>
-                ))}
-              </select>
-            </label>
-
-            <label className="text-sm">
-              <span className="block text-[var(--brand-text-muted)] mb-1">Centro di costo *</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
-                value={costCenter}
-                onChange={(e) => setCostCenter(e.target.value)}
-                disabled={saving}
-                required
-              >
-                <option value="">— Seleziona —</option>
-                {COST_CENTERS.map((cc) => (
-                  <option key={cc} value={cc}>{cc}</option>
                 ))}
               </select>
             </label>

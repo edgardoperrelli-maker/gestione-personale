@@ -1113,6 +1113,7 @@ export default function CronoprogrammaWorkspace() {
                 staffList={availableStaffForEdit}
                 actList={workActivities}
                 terrList={territories}
+                costCenterRangesByStaff={costCenterRangesByStaff}
                 onClose={() => setEditAssignment(null)}
                 onSaved={(updated, close = true) => {
                   setAssignments((prev) => {
