@@ -310,6 +310,29 @@ Sostituisci con:
   const soloManuale = scheda === 'manuali';
 ```
 
+- [ ] **Step 2b: Rimuovi la checkbox "Solo interventi manuali"**
+
+Lo stato `setSoloManuale` non esiste più, quindi va rimosso il suo unico altro uso: la checkbox dentro la card "Committente" (righe ~471-484). Trova ed elimina interamente questo blocco:
+
+```tsx
+              <label className="mt-3 flex items-start gap-2 text-sm text-[var(--brand-text-main)]">
+                <input
+                  type="checkbox"
+                  checked={soloManuale}
+                  onChange={(e) => setSoloManuale(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span>
+                  Solo interventi manuali
+                  <span className="mt-0.5 block text-xs text-[var(--brand-text-muted)]">
+                    Se attivo, questo template è usato solo per gli interventi manuali (con foto) e non compare nella generazione dei rapportini pianificati.
+                  </span>
+                </span>
+              </label>
+```
+
+(Il valore `solo_manuale` ora deriva dalla scheda attiva, non da una checkbox. La card "Committente" verrà comunque ristrutturata nel Task 5; questa rimozione serve solo a far compilare il commit del Task 4.)
+
 - [ ] **Step 3: Allinea la scheda al caricamento di un template**
 
 In `loadTemplate` (riga ~96-109) trova:
@@ -471,7 +494,7 @@ Si avvolgono le sezioni dell'editor in `SezioneAccordion`, si nascondono quelle 
 
 - [ ] **Step 1: Unisci "Nome" e "Committente" nella sezione accordion "Impostazioni base"**
 
-Trova il blocco "Nome template" (riga ~434-443) e il blocco "Committente" (riga ~446-485) — sono due `<div className="rounded-2xl border ...">` consecutivi. **Sostituisci entrambi** con un unico accordion. Dentro: il campo nome, il selettore Tipo **solo per i classici**, il committente (obbligatorio per i manuali), niente più checkbox `soloManuale`:
+Trova il blocco "Nome template" (riga ~434-443) e il blocco "Committente" (`<div className="rounded-2xl border ...">` con `<h3>Committente</h3>`, da cui la checkbox "Solo interventi manuali" è già stata rimossa nel Task 4) — sono due `<div>` consecutivi. **Sostituisci entrambi** con un unico accordion. Dentro: il campo nome, il selettore Tipo **solo per i classici**, il committente (obbligatorio per i manuali), niente più checkbox `soloManuale`:
 
 ```tsx
             {/* ── Impostazioni base ─────────────────────────────────────────── */}
