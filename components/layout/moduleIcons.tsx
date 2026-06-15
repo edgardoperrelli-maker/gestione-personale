@@ -61,6 +61,13 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="M18 15.5v1.5l1 1" />
     </svg>
   ),
+  appuntamenti: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+      <rect x="3" y="4" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 2v4M16 2v4" />
+      <circle cx="12" cy="14.5" r="2" />
+    </svg>
+  ),
   misuratori: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
       <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18" />

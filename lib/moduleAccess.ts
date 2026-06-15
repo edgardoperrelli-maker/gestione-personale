@@ -17,6 +17,7 @@ export type AppModuleKey =
   | 'sopralluoghi'
   | 'live'
   | 'lista-attesa'
+  | 'appuntamenti'
   | 'misuratori'
   | 'impostazioni';
 
@@ -110,6 +111,14 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     matchPrefixes: ['/hub/lista-attesa'],
     adminOnly: true,
+  },
+  {
+    key: 'appuntamenti',
+    href: '/hub/appuntamenti',
+    label: 'Appuntamenti',
+    description: 'Gestione e pianificazione appuntamenti',
+    section: 'modules',
+    matchPrefixes: ['/hub/appuntamenti'],
   },
   {
     key: 'misuratori',
