@@ -191,6 +191,25 @@ describe('sincronizzaRapportini — voce annullata', () => {
   });
 });
 
+describe('sincronizzaRapportini — preserva le voci manuali (dal +)', () => {
+  it('una rigenerazione/salvataggio del piano NON cancella le voci manuali', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [
+        { id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} },
+        { id: 'vman', rapportino_id: 'rap1', task_id: null, manuale: true, approvazione_stato: 'in_attesa', richiesta_id: 'req1', risposte: { esito: 'OK' }, raw_json: { _nuovo: true } },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const manuale = tables.rapportino_voci.find((v) => v.id === 'vman');
+    expect(manuale).toBeTruthy();                        // non cancellata
+    expect(manuale?.risposte).toEqual({ esito: 'OK' });  // dati intatti
+    expect(tables.rapportino_voci.filter((v) => v.task_id === 't1').length).toBe(1); // task ricostruito
+  });
+});
+
 describe('sincronizzaRapportini — fallback FK su race', () => {
   it("se l'insert voci va in FK violation, salva le voci SENZA collegamento e non fallisce", async () => {
     const { db, tables } = makeFakeDb(seedBase({

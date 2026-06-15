@@ -146,8 +146,11 @@ export async function sincronizzaRapportini(
       await db.from('rapportini').update(patch).eq('id', rapId);
     }
 
+    // IMPORTANTE: le voci MANUALI (create dal "+") NON derivano dai task del piano e NON
+    // vanno ricostruite. Si leggono/cancellano solo le voci da-task (manuale=false): la
+    // rigenerazione/salvataggio del piano altrimenti perderebbe gli interventi dal "+".
     const { data: existingVoci } = await db.from('rapportino_voci')
-      .select('task_id, risposte, raw_json').eq('rapportino_id', rapId);
+      .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('manuale', false);
     const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
     const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
     const prevNuovoByTask = new Map<string, boolean>(
@@ -158,7 +161,7 @@ export async function sincronizzaRapportini(
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
     const merged = mergeVoci(fromTasks, existingAsVoci);
 
-    await db.from('rapportino_voci').delete().eq('rapportino_id', rapId);
+    await db.from('rapportino_voci').delete().eq('rapportino_id', rapId).eq('manuale', false);
     if (merged.length) {
       const vociRows = merged.map(({ annullato, ...v }) => {
         const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };
