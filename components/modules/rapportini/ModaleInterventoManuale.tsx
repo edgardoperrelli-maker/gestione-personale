@@ -28,6 +28,7 @@ export function ModaleInterventoManuale({
   infoCampi,
   campiPerCommittente,
   infoCampiPerCommittente = {},
+  campiStandard,
   voci,
   onApriAssegnato,
   onClose,
@@ -36,10 +37,12 @@ export function ModaleInterventoManuale({
   token: string;
   /** Anagrafica del rapportino: fallback quando il template manuale non ne definisce una. */
   infoCampi: TemplateInfoCampo[];
-  /** Campi esito (template) per committente; se non noto si usa []. */
+  /** Override per committente: campi esito del template manuale (se valorizzati). */
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
-  /** Anagrafica del template manuale per committente (guida lo step anagrafica del "+"). */
+  /** Anagrafica del template manuale per committente (override dell'anagrafica del "+"). */
   infoCampiPerCommittente?: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
+  /** Campi "standard" (del template del rapportino): comandano quando non c'è override. */
+  campiStandard: TemplateCampo[];
   voci: VoceMatricola[];
   onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
@@ -60,7 +63,10 @@ export function ModaleInterventoManuale({
     () => anagraficaCampi((committente && infoCampiPerCommittente[committente]) || infoCampi),
     [committente, infoCampiPerCommittente, infoCampi],
   );
-  const campiEsito = committente ? campiPerCommittente[committente] ?? [] : [];
+  // Lo STANDARD (template del rapportino) comanda; il template manuale del committente fa
+  // override SOLO se valorizzato. Vuoto ⇒ eredita lo standard → "modifico lo standard, segue il +".
+  const override = committente ? campiPerCommittente[committente] : undefined;
+  const campiEsito = committente ? (override && override.length > 0 ? override : campiStandard) : [];
 
   // Slot foto del template selezionato e validazione obbligatorie
   const slotFoto = campiFoto(campiEsito);

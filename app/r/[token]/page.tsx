@@ -178,13 +178,19 @@ export default async function RapportinoPublicPage({
   // (migrazione non applicata → select in errore), si resta sullo snapshot congelato + titolo storico.
   let infoCampiLive = (rap.info_snapshot ?? []) as TemplateInfoCampo[];
   let titoloCampi: InfoChiave[] = [];
+  // Campi "standard" che comandano il "+": quelli del template del rapportino, letti LIVE
+  // (così modificando lo standard il "+" segue). Il template manuale è solo un override.
+  let campiStandardLive = campiSnapshot;
   if (rap.template_id) {
     const { data: tpl } = await supabaseAdmin
       .from('rapportino_template')
-      .select('titolo_campi, info_campi')
+      .select('campi, titolo_campi, info_campi')
       .eq('id', rap.template_id)
       .maybeSingle();
     if (tpl) {
+      if (Array.isArray(tpl.campi) && tpl.campi.length > 0) {
+        campiStandardLive = (tpl.campi as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine);
+      }
       if (Array.isArray(tpl.info_campi) && tpl.info_campi.length > 0) {
         infoCampiLive = tpl.info_campi as TemplateInfoCampo[];
       }
@@ -227,6 +233,7 @@ export default async function RapportinoPublicPage({
         infoCampiManuale={infoCampiLive}
         templatesPerCommittente={templatesPerCommittente}
         infoCampiPerCommittente={infoCampiPerCommittente}
+        campiStandardManuale={campiStandardLive}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
       />

@@ -66,6 +66,8 @@ type Props = {
   infoCampiManuale?: TemplateInfoCampo[];
   templatesPerCommittente?: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
   infoCampiPerCommittente?: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
+  /** Campi "standard" (del template del rapportino) usati dal "+" quando il template manuale non override. */
+  campiStandardManuale?: TemplateCampo[];
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
 };
@@ -97,6 +99,7 @@ export default function RapportinoForm({
   infoCampiManuale = [],
   templatesPerCommittente = {},
   infoCampiPerCommittente = {},
+  campiStandardManuale,
   tipo,
   righe: righeRisanamento,
 }: Props) {
@@ -433,6 +436,7 @@ export default function RapportinoForm({
           infoCampi={infoCampiManuale}
           campiPerCommittente={templatesPerCommittente}
           infoCampiPerCommittente={infoCampiPerCommittente}
+          campiStandard={campiStandardManuale ?? campiSnapshot}
           voci={voci}
           onApriAssegnato={(voceId) => {
             setModaleAperta(false);
