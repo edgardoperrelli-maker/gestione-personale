@@ -3370,7 +3370,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           ) : excelMode ? (
             /* ── Lista attività Excel (con edit per non geocodificate) ── */
             <>
-              <div className="sticky top-0 z-10 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] pb-3">
+              <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 pt-4 pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-[var(--warning)]">Attivita da Excel</div>
                   <span className="text-[10px] font-medium text-[var(--brand-text-subtle)]">
