@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { COST_CENTERS } from '@/constants/cost-centers';
 
 function normalizeNullableString(value: unknown): string | null {
   const trimmed = String(value ?? '').trim();
@@ -19,6 +20,32 @@ function normalizeNullableNumber(value: unknown): number | null {
   if (value === null || value === undefined || value === '') return null;
   const num = Number(value);
   return Number.isFinite(num) ? num : Number.NaN;
+}
+
+function normalizeCostCenter(value: unknown): string | null {
+  const v = String(value ?? '').trim();
+  if (!v) return null;
+  return (COST_CENTERS as string[]).includes(v) ? v : '__invalid__';
+}
+
+type RangeInput = { cost_center?: unknown; valid_from?: unknown; valid_to?: unknown };
+function normalizeRanges(
+  input: unknown
+): { ok: true; rows: { cost_center: string; valid_from: string; valid_to: string | null }[] } | { ok: false } {
+  if (input === undefined) return { ok: true, rows: [] };
+  if (!Array.isArray(input)) return { ok: false };
+  const rows: { cost_center: string; valid_from: string; valid_to: string | null }[] = [];
+  for (const raw of input as RangeInput[]) {
+    const cc = String(raw?.cost_center ?? '').trim();
+    const from = String(raw?.valid_from ?? '').trim();
+    const to = String(raw?.valid_to ?? '').trim();
+    if (!(COST_CENTERS as string[]).includes(cc)) return { ok: false };
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(from)) return { ok: false };
+    if (to && !/^\d{4}-\d{2}-\d{2}$/.test(to)) return { ok: false };
+    if (to && from > to) return { ok: false };
+    rows.push({ cost_center: cc, valid_from: from, valid_to: to || null });
+  }
+  return { ok: true, rows };
 }
 
 async function requireAdmin(): Promise<true | NextResponse> {
@@ -58,6 +85,8 @@ export async function PATCH(req: NextRequest) {
     homeLat?: number | null;
     homeLng?: number | null;
     homeTerritoryId?: string | null;
+    costCenter?: string | null;
+    costCenterRanges?: unknown;
   };
 
   const id = String(body.id ?? '').trim();
@@ -89,6 +118,15 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'Indirizzo casa compilato ma geocodificazione fallita.' }, { status: 400 });
   }
 
+  const cc = normalizeCostCenter(body.costCenter);
+  if (cc === '__invalid__') {
+    return NextResponse.json({ error: 'Centro di costo non valido.' }, { status: 400 });
+  }
+  const rangesRes = normalizeRanges(body.costCenterRanges);
+  if (!rangesRes.ok) {
+    return NextResponse.json({ error: 'Periodi centro di costo non validi.' }, { status: 400 });
+  }
+
   const patch = {
     valid_from: validFrom,
     valid_to: validTo,
@@ -103,17 +141,27 @@ export async function PATCH(req: NextRequest) {
     home_lat: homeLat,
     home_lng: homeLng,
     home_territory_id: body.homeTerritoryId !== undefined ? (body.homeTerritoryId ?? null) : undefined,
+    cost_center: cc,
   };
 
   const { data, error } = await supabaseAdmin
     .from('staff')
     .update(patch)
     .eq('id', id)
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id, cost_center')
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (body.costCenterRanges !== undefined) {
+    await supabaseAdmin.from('staff_cost_center_ranges').delete().eq('staff_id', id);
+    if (rangesRes.rows.length > 0) {
+      await supabaseAdmin.from('staff_cost_center_ranges').insert(
+        rangesRes.rows.map((r) => ({ staff_id: id, cost_center: r.cost_center, valid_from: r.valid_from, valid_to: r.valid_to }))
+      );
+    }
   }
 
   return NextResponse.json({ ok: true, staff: data });
@@ -138,6 +186,8 @@ export async function POST(req: NextRequest) {
     homeLat?: number | null;
     homeLng?: number | null;
     homeTerritoryId?: string | null;
+    costCenter?: string | null;
+    costCenterRanges?: unknown;
   };
 
   // Validazione displayName
@@ -172,6 +222,15 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: 'Indirizzo casa compilato ma geocodificazione fallita.' }, { status: 400 });
   }
 
+  const cc = normalizeCostCenter(body.costCenter);
+  if (cc === '__invalid__') {
+    return NextResponse.json({ error: 'Centro di costo non valido.' }, { status: 400 });
+  }
+  const rangesRes = normalizeRanges(body.costCenterRanges);
+  if (!rangesRes.ok) {
+    return NextResponse.json({ error: 'Periodi centro di costo non validi.' }, { status: 400 });
+  }
+
   // Insert
   const { data, error } = await supabaseAdmin
     .from('staff')
@@ -190,12 +249,19 @@ export async function POST(req: NextRequest) {
       home_lat: homeLat,
       home_lng: homeLng,
       home_territory_id: body.homeTerritoryId ?? null,
+      cost_center: cc,
     })
-    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id')
+    .select('id, display_name, valid_from, valid_to, start_address, start_cap, start_city, start_lat, start_lng, home_address, home_cap, home_city, home_lat, home_lng, home_territory_id, cost_center')
     .single();
 
   if (error) {
     return NextResponse.json({ error: error.message }, { status: 500 });
+  }
+
+  if (rangesRes.rows.length > 0) {
+    await supabaseAdmin.from('staff_cost_center_ranges').insert(
+      rangesRes.rows.map((r) => ({ staff_id: data.id, cost_center: r.cost_center, valid_from: r.valid_from, valid_to: r.valid_to }))
+    );
   }
 
   return NextResponse.json({ ok: true, staff: data });
