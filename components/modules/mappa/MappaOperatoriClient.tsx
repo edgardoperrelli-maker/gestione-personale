@@ -2961,59 +2961,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           >
                             Azzera
                           </button>
-                          {/* Scelta modello rapportino PRIMA del salvataggio/generazione:
-                              il salvataggio auto-genera i rapportini, quindi il template va
-                              scelto a monte. Obbligatorio e bloccante quando esistono modelli. */}
-                          <label className="flex items-center gap-1.5 text-xs text-[var(--brand-text-muted)]">
-                            <span className="font-medium">Modello:</span>
-                            <select
-                              value={rapTemplateId}
-                              onChange={(e) => setRapTemplateId(e.target.value)}
-                              title="Modello rapportino"
-                              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
-                            >
-                              {rapTemplates.length === 0
-                                ? <option value="">Nessun modello</option>
-                                : <option value="">— Seleziona modello —</option>}
-                              {rapTemplates.map((t) => (
-                                <option key={t.id} value={t.id}>
-                                  {t.nome}{t.is_default ? ' (default)' : ''}
-                                </option>
-                              ))}
-                            </select>
-                          </label>
-                          <button
-                            type="button"
-                            onClick={saveDistribution}
-                            disabled={savingDistribution || (rapTemplates.length > 0 && !rapTemplateId)}
-                            title={rapTemplates.length > 0 && !rapTemplateId ? 'Seleziona prima un modello rapportino' : undefined}
-                            className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
-                              savedDistribution
-                                ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
-                                : 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
-                            } disabled:opacity-50`}
-                          >
-                            {savingDistribution
-                              ? 'Salvataggio...'
-                              : savedDistribution && currentPianoId
-                                ? '✓ Salvata'
-                                : 'Salva distribuzione'}
-                          </button>
-                          {currentPianoId && (
-                            <button
-                              type="button"
-                              onClick={generaRapportini}
-                              disabled={rapGenerating || !rapTemplateId}
-                              title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
-                              className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
-                            >
-                              {rapGenerating
-                                ? 'Genero…'
-                                : rapStato.length > 0
-                                  ? '↻ Rigenera rapportini'
-                                  : '📋 Genera rapportini'}
-                            </button>
-                          )}
                         </>
                       )}
                     </div>
@@ -3649,6 +3596,69 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           )}
         </div>
       </div>
+
+      {distribution !== null && (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-4 py-3 shadow-sm">
+          <span className="flex items-center gap-2 text-sm font-semibold text-[var(--brand-text-main)]">
+            Conferma piano
+          </span>
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Scelta modello rapportino PRIMA del salvataggio/generazione:
+                il salvataggio auto-genera i rapportini, quindi il template va
+                scelto a monte. Obbligatorio e bloccante quando esistono modelli. */}
+            <label className="flex items-center gap-1.5 text-xs text-[var(--brand-text-muted)]">
+              <span className="font-medium">Modello:</span>
+              <select
+                value={rapTemplateId}
+                onChange={(e) => setRapTemplateId(e.target.value)}
+                title="Modello rapportino"
+                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
+              >
+                {rapTemplates.length === 0
+                  ? <option value="">Nessun modello</option>
+                  : <option value="">— Seleziona modello —</option>}
+                {rapTemplates.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.nome}{t.is_default ? ' (default)' : ''}
+                  </option>
+                ))}
+              </select>
+            </label>
+            <button
+              type="button"
+              onClick={saveDistribution}
+              disabled={savingDistribution || (rapTemplates.length > 0 && !rapTemplateId)}
+              title={rapTemplates.length > 0 && !rapTemplateId ? 'Seleziona prima un modello rapportino' : undefined}
+              className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
+                savedDistribution
+                  ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
+                  : 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
+              } disabled:opacity-50`}
+            >
+              {savingDistribution
+                ? 'Salvataggio...'
+                : savedDistribution && currentPianoId
+                  ? '✓ Salvata'
+                  : 'Salva distribuzione'}
+            </button>
+            {currentPianoId && (
+              <button
+                type="button"
+                onClick={generaRapportini}
+                disabled={rapGenerating || !rapTemplateId}
+                title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
+                className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
+              >
+                {rapGenerating
+                  ? 'Genero…'
+                  : rapStato.length > 0
+                    ? '↻ Rigenera rapportini'
+                    : '📋 Genera rapportini'}
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       <ManualAssignmentsModal
         open={assignModalOpen}
