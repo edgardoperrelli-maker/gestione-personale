@@ -135,4 +135,16 @@ describe('costruisciDatiPdf — blindatura barra "Eseguito" voci manuali (regres
     const rigaM2 = dati.eseguiti.find((r) => r.valori[idxLettura] === '5');
     expect(rigaM2?.valori[idxEseguito]).toBe('X');
   });
+
+  it('le voci RIFIUTATE sono scartate da stats, liste e lavorazioni', () => {
+    const vociR = [
+      { matricola: 'A', via: 'V', manuale: true, approvazione_stato: 'approvato', risposte: { eseguito: 'SI' } },
+      { matricola: 'B', via: 'V', manuale: true, approvazione_stato: 'rifiutato', risposte: {} },
+      { matricola: 'C', via: 'V', manuale: true, approvazione_stato: 'rifiutato', risposte: { eseguito: 'SI' } },
+    ];
+    const d = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci: vociR, campi: campiP, infoCampi: null });
+    expect(d.stats).toEqual({ totali: 1, eseguiti: 1, nonEseguiti: 0 });
+    expect(d.eseguiti.length).toBe(1);
+    expect(d.lavorazioni.find((l) => l.etichetta === 'Eseguito')?.count).toBe(1);
+  });
 });

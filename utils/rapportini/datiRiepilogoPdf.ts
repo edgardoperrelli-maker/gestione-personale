@@ -8,6 +8,8 @@ export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
   /** Voce creata dal "+": è sempre completa (come nel riepilogo/lista) → va in "Eseguiti". */
   manuale?: boolean;
+  /** Stato approvazione ufficio: le voci `rifiutato` sono scartate dal PDF e dai conteggi. */
+  approvazione_stato?: string | null;
 }
 
 /** Colonna del PDF: campo anagrafico (info_snapshot) o campo compilabile (campi_snapshot). */
@@ -77,7 +79,10 @@ export function costruisciDatiPdf(params: {
   campi: TemplateCampo[];
   infoCampi?: TemplateInfoCampo[] | null;
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci, campi, infoCampi } = params;
+  const { staffName, dataLabel, voci: vociInput, campi, infoCampi } = params;
+  // Le voci RIFIUTATE dall'ufficio sono scartate dal PDF: non sono interventi validi → fuori da
+  // stats, lavorazioni e liste (coerente con `riepilogoRapportino`). Tutto il resto usa `voci`.
+  const voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
   const riep = riepilogoRapportino(voci, campi);
 
   // Stesse colonne del rapportino digitale/Excel:
