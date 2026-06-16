@@ -5,6 +5,7 @@ import { persistiVoce, reidrataVoci } from '@/lib/offline/persistVoce';
 import { accodaFoto } from '@/lib/offline/persistFoto';
 import { accodaManuale } from '@/lib/offline/persistManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
+import { aggiornaCensimento, leggiCensimentoLocale } from '@/lib/offline/censimento';
 import { dbLavoro, dbOutbox } from '@/lib/offline/db';
 
 declare global {
@@ -15,6 +16,8 @@ declare global {
       accodaFoto: typeof accodaFoto;
       accodaManuale: typeof accodaManuale;
       sincronizzaToken: typeof sincronizzaToken;
+      aggiornaCensimento: typeof aggiornaCensimento;
+      leggiCensimentoLocale: typeof leggiCensimentoLocale;
       codaPerToken: (token: string) => Promise<Array<{ id: string; type: string; stato: string }>>;
       risposteLavoro: (token: string, voceId: string) => Promise<Record<string, unknown> | undefined>;
     };
@@ -31,6 +34,8 @@ export default function HarnessClient() {
       accodaFoto,
       accodaManuale,
       sincronizzaToken,
+      aggiornaCensimento,
+      leggiCensimentoLocale,
       codaPerToken: async (token: string) =>
         (await dbOutbox.perToken(token)).map((i) => ({ id: i.id, type: i.type, stato: i.stato })),
       risposteLavoro: async (token: string, voceId: string) =>

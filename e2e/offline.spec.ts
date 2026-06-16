@@ -116,3 +116,39 @@ test('intervento manuale offline → in coda → al sync arriva a /intervento-ma
   await expect.poll(() => manualeUpload).toBeGreaterThan(0);
   await expect.poll(async () => (await page.evaluate((t) => window.__offline!.codaPerToken(t), TOKM)).length).toBe(0);
 });
+
+test('censimento: aggiorna scarica e cachea; versione invariata non riscarica', async ({ page }) => {
+  const TOKC = 'e2e-censimento';
+  let chiamate = 0;
+  await page.route('**/api/r/**/censimento**', async (route) => {
+    chiamate += 1;
+    const url = new URL(route.request().url());
+    const v = url.searchParams.get('v') ?? '';
+    if (v === '2:200') {
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ unchanged: true, versione: '2:200' }) });
+    } else {
+      await route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({ unchanged: false, versione: '2:200', righe: [{ matricola: 'M1' }, { matricola: 'M2' }] }),
+      });
+    }
+  });
+
+  await page.goto('/offline-e2e');
+  await expect(page.getByTestId('harness')).toHaveText('pronto');
+
+  // 1) Prima volta (nessuna cache): scarica e salva.
+  await page.evaluate((t) => window.__offline!.aggiornaCensimento(t), TOKC);
+  await expect.poll(() => chiamate).toBe(1);
+  let locale = await page.evaluate(() => window.__offline!.leggiCensimentoLocale());
+  expect(locale?.versione).toBe('2:200');
+  expect(locale?.righe.map((r) => r.matricola)).toEqual(['M1', 'M2']);
+
+  // 2) Seconda volta (stessa versione): il server risponde unchanged, la cache resta.
+  await page.evaluate((t) => window.__offline!.aggiornaCensimento(t), TOKC);
+  await expect.poll(() => chiamate).toBe(2);
+  locale = await page.evaluate(() => window.__offline!.leggiCensimentoLocale());
+  expect(locale?.versione).toBe('2:200');
+  expect(locale?.righe.length).toBe(2);
+});
