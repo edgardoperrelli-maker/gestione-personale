@@ -19,7 +19,7 @@ export type StatoSync = {
  * Si aggiorna a intervallo, agli eventi online/offline, e al ritorno in primo piano.
  * Espone `sincronizzaOra` per il pulsante manuale.
  */
-export function useStatoSync(token: string): StatoSync & { sincronizzaOra: () => void } {
+export function useStatoSync(token: string): StatoSync & { sincronizzaOra: () => Promise<void> } {
   const [stato, setStato] = useState<StatoSync>({ inAttesa: 0, bloccati: 0, bloccatiItems: [], perVoce: {}, online: true });
 
   const aggiorna = useCallback(async () => {
@@ -42,9 +42,10 @@ export function useStatoSync(token: string): StatoSync & { sincronizzaOra: () =>
     }
   }, [token]);
 
-  const sincronizzaOra = useCallback(() => {
-    void sincronizzaToken(token).then(() => aggiorna());
-  }, [token, aggiorna]);
+  const sincronizzaOra = useCallback(
+    () => sincronizzaToken(token).then(() => aggiorna()),
+    [token, aggiorna],
+  );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
