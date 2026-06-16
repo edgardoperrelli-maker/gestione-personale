@@ -121,7 +121,7 @@ così sul PC di lavoro **non serve `npm install`** (utile se il proxy aziendale 
 | Col | Campo | Valore |
 |-----|-------|--------|
 | BM | Esecutore | cognome operatore |
-| BN | data | data esecuzione (`chiuso_at`) |
+| BN | data | data esecuzione (`interventi.data`) |
 | BO | esito | `"eseguito"` se positivo · `"No"` se negativo |
 | BQ | sigillo posato | numero sigillo |
 
@@ -159,12 +159,16 @@ compilata a mano con un valore **diverso**, **non la tocca** e annota il conflit
 - Env var del segreto impostata sull'app (Vercel).
 - **Attività pianificata** Windows alle 21:00 che lancia `node agente.js`.
 
-## Da confermare in fase di build (dettagli, non ostacoli)
-1. **Fonte del sigillo:** campo del template nella voce `risposte` oppure `interventi.sigillo_numero`.
-2. **Discriminante "limitazione massiva"** sugli `interventi` (committente mappato ad `acea` +
-   `intervento_tipo`/activity = 'LIMITAZIONI MASSIVE'; cfr. `20260612120000_committente_lim_massive_checks.sql`).
-3. **Formato cognome esecutore** (`staff`) allineato a com'è scritto in col BM (maiuscolo, solo cognome).
-4. **Diciture esatte** se in futuro servisse più del binario eseguito/No.
+## Dettagli risolti (verificati sul prod 2026-06-16)
+1. **Fonte del sigillo:** ✅ `rapportino_voci.risposte->>'sigillo'` (es. `AA730957`), voce legata via
+   `rapportino_voci.intervento_id = interventi.id`. `interventi.sigillo_numero` è **sempre null** → non usarlo.
+2. **Aggancio:** ✅ per **ODL** diretto (`interventi.odl`), indipendente dal tipo. Le limitazioni pianificate sono
+   `origine='pianificato'`, `committente='acea'` (tipo sporco: "LIMITAZIONE MASSIVA"/"LIMITAZIONI MASSIVE"); le **extra**
+   sono `committente='lim_massive'`, `origine='manuale'` (odl spesso null → si agganciano per matricola).
+3. **Esecutore:** ✅ `staff.display_name` = "COGNOME NOME" maiuscolo → **primo token** (es. `CIARALLO SIMONE`→`CIARALLO`).
+4. **Eseguito/No:** ✅ `stato='completato'` = lavorato; `esito='eseguito_positivo'`→"eseguito", altrimenti→"No"
+   (il motivo sta in `esito_motivo`, va nel log).
+5. **data esecuzione (BN):** si usa `interventi.data` (tipo `date`, senza fuso) — non `chiuso_at` (timestamptz).
 
 ## Testing
 - **Funzioni pure (vitest):** normalizzazione/aggancio ODL e matricola; rilevazione colonne per intestazione;
