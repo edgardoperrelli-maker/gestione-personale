@@ -282,7 +282,9 @@ export default function RapportinoForm({
 
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
 
-  const riepilogo = useMemo(() => riepilogoRapportino(voci, campi), [voci, campi]);
+  // I task-via "BONIFICHE EXTRA" sono contenitori (niente esito proprio): esclusi dalla
+  // completezza così non bloccano l'invio né compaiono tra i "campi mancanti".
+  const riepilogo = useMemo(() => riepilogoRapportino(voci.filter((v) => !isTaskVia(v)), campi), [voci, campi]);
   const inviabile = riepilogo.daFare === 0 && voci.length > 0;
 
   const righe: RigaVoce[] = useMemo(
@@ -301,7 +303,7 @@ export default function RapportinoForm({
     () =>
       voci
         .map((v, idx) => ({ index: idx, v }))
-        .filter(({ v }) => !v.annullato)
+        .filter(({ v }) => !v.annullato && !isTaskVia(v))
         .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campi) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
     [voci, campi, titoloCampi],
@@ -363,11 +365,11 @@ export default function RapportinoForm({
   const handleInvia = useCallback(() => {
     if (disabilitato || inviando || !inviabile) return;
     // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
-    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi);
+    const campiObbl = campiObbligatoriMancantiVoci(voci.filter((v) => !isTaskVia(v)), campi, titoloCampi);
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
-    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi);
+    const mancanti = fotoObbligatorieMancantiDettaglio(voci.filter((v) => !isTaskVia(v)), campi, titoloCampi);
     if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
     void eseguiInvio();
   }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, eseguiInvio]);
