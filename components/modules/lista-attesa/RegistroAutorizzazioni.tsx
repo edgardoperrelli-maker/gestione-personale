@@ -1,11 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
-import type { RigaRichiesta } from '@/lib/interventi/manuali/types';
+import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { RecuperoFotoRichiesta } from './RecuperoFotoRichiesta';
+import type { RigaRichiesta, CommittenteManuale } from '@/lib/interventi/manuali/types';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs';
 
@@ -30,9 +33,10 @@ function toCsv(righe: RigaRichiesta[]): string {
   return [head.join(','), ...rows].join('\r\n');
 }
 
-export function RegistroAutorizzazioni() {
+export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> }) {
   const [righe, setRighe] = useState<RigaRichiesta[]>([]);
   const [loading, setLoading] = useState(true);
+  const [apertaId, setApertaId] = useState<string | null>(null);
   const [filtri, setFiltri] = useState<FiltriRegistro>({ operatore: '', stato: '', committente: '', from: '', to: '' });
 
   const carica = useCallback(async () => {
@@ -154,19 +158,34 @@ export function RegistroAutorizzazioni() {
                 <th className="px-3 py-2 text-left font-semibold">Approvatore</th>
                 <th className="px-3 py-2 text-left font-semibold">Approvato il</th>
                 <th className="px-3 py-2 text-left font-semibold">Motivo</th>
+                <th className="px-3 py-2 text-left font-semibold">Foto</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--brand-border)]">
               {filtrate.map((r) => (
-                <tr key={r.id}>
-                  <td className="px-3 py-2">{formatDataIt(r.data)}</td>
-                  <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
-                  <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
-                  <td className="px-3 py-2">{r.stato}</td>
-                  <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
-                  <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
-                  <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
-                </tr>
+                <Fragment key={r.id}>
+                  <tr>
+                    <td className="px-3 py-2">{formatDataIt(r.data)}</td>
+                    <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
+                    <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
+                    <td className="px-3 py-2">{r.stato}</td>
+                    <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
+                    <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
+                    <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
+                    <td className="px-3 py-2">
+                      <button type="button" onClick={() => setApertaId((a) => (a === r.id ? null : r.id))} className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs font-semibold text-[var(--brand-text-muted)]">
+                        {apertaId === r.id ? 'Chiudi' : '📷 Foto'}
+                      </button>
+                    </td>
+                  </tr>
+                  {apertaId === r.id && (
+                    <tr>
+                      <td colSpan={8} className="bg-[var(--brand-surface-muted)] px-3 py-3">
+                        <RecuperoFotoRichiesta richiestaId={r.id} slotFoto={campiFoto(campiPerCommittente[r.committente] ?? [])} />
+                      </td>
+                    </tr>
+                  )}
+                </Fragment>
               ))}
             </tbody>
           </table>

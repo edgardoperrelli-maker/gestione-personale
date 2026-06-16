@@ -67,7 +67,7 @@ export default async function ListaAttesaPage() {
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Ordini manuali generati dagli operatori: coda da approvare e storico.</p>
       </header>
       <CodaRichiesteManuali infoCampi={infoCampi} campiPerCommittente={campiPerCommittente} userId={user.id} adminNomi={adminNomi} />
-      <RegistroAutorizzazioni />
+      <RegistroAutorizzazioni campiPerCommittente={campiPerCommittente} />
     </main>
   );
 }
