@@ -42,6 +42,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     anagrafica?: Record<string, unknown>;
     risposte?: Record<string, unknown>;
     note?: string;
+    parentVoceId?: string;
   };
 
   const committente = rawDati.committente as CommittenteManuale | undefined;
@@ -68,6 +69,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     anagrafica,
     risposte: rawDati.risposte ?? {},
   };
+
+  // Collegamento opzionale al task-via padre (BONIFICHE EXTRA). Assente ⇒ insert come oggi.
+  const parentVoceId = typeof rawDati.parentVoceId === 'string' && rawDati.parentVoceId.trim() !== ''
+    ? rawDati.parentVoceId.trim()
+    : null;
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   const { data: templates } = await supabaseAdmin
@@ -264,6 +270,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       stato: corsia === 'liberi' ? 'auto_liberi' : 'in_attesa',
       corsia,
       intervento_id: interventoId,
+      parent_voce_id: parentVoceId,
     })
     .select('id')
     .single();

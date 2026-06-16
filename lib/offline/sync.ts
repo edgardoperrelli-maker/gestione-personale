@@ -85,6 +85,7 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         anagrafica: item.payload.anagrafica,
         risposte: item.payload.risposte,
         note: item.payload.note ?? null,
+        parentVoceId: item.payload.parentVoceId ?? null,
       }));
       for (const ref of item.payload.fotoBlobRefs) {
         const blob = await dbBlob.leggi(ref.blobId);

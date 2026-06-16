@@ -7,6 +7,7 @@ export type DatiManualeOffline = {
   anagrafica: Record<string, unknown>;
   risposte: Record<string, unknown>;
   note?: string | null;
+  parentVoceId?: string | null;
   /** Foto per slot: chiave campo → File scelto. */
   fotoFiles: Record<string, File>;
 };
@@ -42,6 +43,7 @@ export async function accodaManuale(
         anagrafica: dati.anagrafica,
         risposte: dati.risposte,
         note: dati.note ?? null,
+        parentVoceId: dati.parentVoceId ?? null,
         fotoBlobRefs,
       },
       now,

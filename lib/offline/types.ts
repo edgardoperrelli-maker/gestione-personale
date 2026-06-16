@@ -20,6 +20,7 @@ export type PayloadManuale = {
   anagrafica: Record<string, unknown>;
   risposte: Record<string, unknown>;
   note?: string | null;
+  parentVoceId?: string | null;
   fotoBlobRefs: Array<{ chiave: string; blobId: string }>;
 };
 export type PayloadInvia = Record<string, never>;
