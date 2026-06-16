@@ -1,12 +1,13 @@
 'use client';
 
-import { type DragEvent, useMemo } from 'react';
+import { type DragEvent, useMemo, useState } from 'react';
 import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { TIPO_META, labelDisponibilita, type Disponibilita } from '@/lib/disponibilita';
+import { loadCollapsed, saveCollapsed } from '@/lib/cronoCollapse';
 import {
   eqDate,
   filterAssignments,
@@ -73,8 +74,20 @@ export default function CronoCalendarView({
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
   appointmentCountByIso?: Record<string, number>;
+  collapsedTerritori?: Set<string>;
+  onToggleTerritorio?: (key: string) => void;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
+
+  const [collapsedTerritori, setCollapsedTerritori] = useState<Set<string>>(() => new Set(loadCollapsed()));
+  const toggleTerritorio = (key: string) =>
+    setCollapsedTerritori((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      saveCollapsed([...next]);
+      return next;
+    });
 
   return (
     <div className="grid gap-4">
@@ -110,6 +123,8 @@ export default function CronoCalendarView({
               assenzeByDay={assenzeByDay}
               onEditAssenza={onEditAssenza}
               appointmentCountByIso={appointmentCountByIso}
+              collapsedTerritori={collapsedTerritori}
+              onToggleTerritorio={toggleTerritorio}
             />
           ))}
         </div>
@@ -145,6 +160,8 @@ function DayCell(props: {
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
   appointmentCountByIso?: Record<string, number>;
+  collapsedTerritori?: Set<string>;
+  onToggleTerritorio?: (key: string) => void;
 }) {
   const {
     d,
@@ -313,35 +330,43 @@ function DayCell(props: {
               }
               return groups.map((g) => {
                 const s = getTerritoryStyle(g.terrName || null);
+                const key = g.terrId ?? '__none__';
+                const collapsed = props.collapsedTerritori?.has(key) ?? false;
                 return (
-                  <div key={g.terrId ?? '__none__'}>
-                    <div
-                      className="mb-1 flex items-center gap-1.5 rounded-md px-1.5 py-0.5"
+                  <div key={key}>
+                    <button
+                      type="button"
+                      onClick={() => props.onToggleTerritorio?.(key)}
+                      className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left"
                       style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
+                      title={collapsed ? 'Espandi territorio' : 'Comprimi territorio'}
                     >
+                      <span className="text-[9px] leading-none" style={{ color: s.text }}>{collapsed ? '▸' : '▾'}</span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
                       <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
-                        {g.terrName || 'Senza territorio'}
+                        {g.terrName || 'Senza territorio'}{collapsed ? ` (${g.items.length})` : ''}
                       </span>
-                    </div>
-                    <div className="space-y-1">
-                      {g.items.map((a) => (
-                        <div
-                          key={a.id}
-                          draggable
-                          className="cursor-grab active:cursor-grabbing"
-                          onDragStart={(e) =>
-                            writeAssignmentDragData(e.dataTransfer, {
-                              id: a.id,
-                              fromDay: iso,
-                              fromTerritoryId: a.territory?.id ?? null,
-                            })
-                          }
-                        >
-                          <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
-                        </div>
-                      ))}
-                    </div>
+                    </button>
+                    {!collapsed && (
+                      <div className="space-y-1">
+                        {g.items.map((a) => (
+                          <div
+                            key={a.id}
+                            draggable
+                            className="cursor-grab active:cursor-grabbing"
+                            onDragStart={(e) =>
+                              writeAssignmentDragData(e.dataTransfer, {
+                                id: a.id,
+                                fromDay: iso,
+                                fromTerritoryId: a.territory?.id ?? null,
+                              })
+                            }
+                          >
+                            <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
+                          </div>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               });
