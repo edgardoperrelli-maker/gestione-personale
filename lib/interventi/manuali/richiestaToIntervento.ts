@@ -26,7 +26,8 @@ export type InterventoManualeRecord = {
   intervento_tipo: string | null;
   data: string;
   staff_id: string;
-  stato: 'assegnato';
+  stato: 'completato';
+  esito: 'eseguito_positivo';
   piano_id: string | null;
   territorio_id: string | null;
   origine: 'manuale';
@@ -67,7 +68,8 @@ export function richiestaToIntervento(
     intervento_tipo: trimOrNull(a.attivita),
     data: ctx.data,
     staff_id: ctx.staff_id,
-    stato: 'assegnato',
+    stato: 'completato',
+    esito: 'eseguito_positivo',
     piano_id: ctx.piano_id ?? null,
     territorio_id: ctx.territorio_id ?? null,
     origine: 'manuale',

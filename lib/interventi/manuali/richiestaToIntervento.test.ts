@@ -30,12 +30,18 @@ describe('richiestaToIntervento', () => {
       intervento_tipo: 'Sostituzione',
       data: '2026-06-06',
       staff_id: 's1',
-      stato: 'assegnato',
+      stato: 'completato',
+      esito: 'eseguito_positivo',
       piano_id: 'p1',
       territorio_id: 'terr1',
       origine: 'manuale',
       created_from_mappa: false,
     });
+  });
+  it('crea l’intervento già completato a esito positivo (il + è sempre positivo)', () => {
+    const r = richiestaToIntervento(dati, ctx);
+    expect(r.stato).toBe('completato');
+    expect(r.esito).toBe('eseguito_positivo');
   });
   it('odl vuoto/spazi → null', () => {
     const d = { ...dati, anagrafica: { ...dati.anagrafica, odl: '   ' } };
