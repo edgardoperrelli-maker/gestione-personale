@@ -82,7 +82,8 @@ export function ModaleInterventoManuale({
   const handleInvia = async () => {
     if (!committente) return;
     const mancanti = campiObbligatoriMancanti(campiEsito, risposte);
-    if (mancanti.length > 0 && !window.confirm(`Mancano ${mancanti.length} campi obbligatori da compilare: ${mancanti.join(', ')}. Inviare comunque?`)) {
+    if (mancanti.length > 0) {
+      setErrore(`Compila i campi obbligatori: ${mancanti.join(', ')}.`);
       return;
     }
     setInviando(true);
