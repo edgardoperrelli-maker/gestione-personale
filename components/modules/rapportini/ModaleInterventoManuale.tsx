@@ -37,6 +37,9 @@ export function ModaleInterventoManuale({
   onApriAssegnato,
   onClose,
   onCreata,
+  committenteIniziale,
+  anagraficaIniziale,
+  parentVoceId,
 }: {
   token: string;
   /** Anagrafica del rapportino: fallback quando il template manuale non ne definisce una. */
@@ -52,10 +55,14 @@ export function ModaleInterventoManuale({
   onClose: () => void;
   /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync. */
   onCreata: (stato: 'inviata' | 'in-coda') => void;
+  /** Pre-compilazione (task-via): committente pre-selezionato, anagrafica iniziale, link al task padre. */
+  committenteIniziale?: CommittenteManuale;
+  anagraficaIniziale?: AnagraficaManuale;
+  parentVoceId?: string | null;
 }) {
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
-  const [committente, setCommittente] = useState<CommittenteManuale | null>(null);
-  const [anagrafica, setAnagrafica] = useState<AnagraficaManuale>({});
+  const [step, setStep] = useState<1 | 2 | 3 | 4>(committenteIniziale ? 2 : 1);
+  const [committente, setCommittente] = useState<CommittenteManuale | null>(committenteIniziale ?? null);
+  const [anagrafica, setAnagrafica] = useState<AnagraficaManuale>(anagraficaIniziale ?? {});
   const [risposte, setRisposte] = useState<Record<string, unknown>>({});
   const [foto, setFoto] = useState<Record<string, File>>({});
   const [inviando, setInviando] = useState(false);
@@ -93,7 +100,7 @@ export function ModaleInterventoManuale({
     setErrore(null);
 
     // Offline-first: accoda in IndexedDB (la pratica non si perde MAI), poi sincronizza.
-    const esito = await accodaManuale(token, { committente, anagrafica, risposte, fotoFiles: foto }, Date.now());
+    const esito = await accodaManuale(token, { committente, anagrafica, risposte, fotoFiles: foto, parentVoceId: parentVoceId ?? null }, Date.now());
     if (esito) {
       const online = typeof navigator === 'undefined' || navigator.onLine !== false;
       void sincronizzaToken(token);
@@ -105,7 +112,7 @@ export function ModaleInterventoManuale({
     // Fallback (IndexedDB non disponibile): invio diretto online, come da comportamento storico.
     try {
       const fd = new FormData();
-      fd.append('dati', JSON.stringify({ committente, anagrafica, risposte }));
+      fd.append('dati', JSON.stringify({ committente, anagrafica, risposte, parentVoceId: parentVoceId ?? null }));
       for (const c of slotFoto) {
         const f = foto[c.chiave];
         if (f) fd.append(`foto:${c.chiave}`, f, f.name);
