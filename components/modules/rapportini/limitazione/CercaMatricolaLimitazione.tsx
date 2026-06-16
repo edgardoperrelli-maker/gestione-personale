@@ -69,7 +69,9 @@ export function CercaMatricolaLimitazione({
     setCercando(true);
     try {
       const res = await fetch(`/api/r/${token}/cerca-limitazione?q=${encodeURIComponent(v)}`);
-      if (!res.ok) { setErrore('Ricerca non riuscita.'); setSuggVoci(simili); setOffline(true); setCercato(true); return; }
+      // Online ma server in errore (es. link scaduto/non più modificabile): NON è "offline".
+      // Mostra l'errore reale e rivela comunque l'inserimento a mano (niente vicolo cieco).
+      if (!res.ok) { setErrore('Ricerca non riuscita.'); setSuggVoci(simili); setCercato(true); return; }
       const j = (await res.json()) as
         | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null }
         | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null };
