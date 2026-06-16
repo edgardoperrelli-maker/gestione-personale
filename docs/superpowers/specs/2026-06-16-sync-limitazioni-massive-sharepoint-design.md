@@ -29,6 +29,15 @@ tabella canonica `interventi` con `odl`, `matricola_contatore`, `esito`, `sigill
 - Se qualcuno tiene il **file aperto** al momento della scrittura, l'agente salta e riprova al giro successivo.
 - L'automazione **dipende da quel singolo PC** (l'alternativa cloud "sempre attiva" richiederebbe l'IT/Azure).
 
+### Validazioni sul campo (2026-06-16)
+Verificato direttamente sul **PC di lavoro** e sul file campione:
+- **Node portable** (`v24.16.0`, zip senza admin) **gira** → nessun criterio aziendale (AppLocker/WDAC) lo blocca.
+- **Cartella SharePoint raggiungibile** dal percorso reale; l'agente vede i file.
+- **`exceljs` round-trip fedele**: riscrivendo il file ACEA, 2020 righe × 73 colonne restano identiche, le scritture
+  BM/BN/BO/BQ vanno a segno, le "icone" della col A sono **testo** (non immagini) → nessuna perdita di formato.
+- **Attenzione (nuovo):** la cartella può contenere **anche file non-master** (trovato un export
+  `INTERVENTI_<date>.xlsx` accanto a `ZAGAROLO.xlsx`). L'agente deve selezionare i master **per firma di colonne**, vedi sotto.
+
 ## Architettura
 
 ```
@@ -75,8 +84,10 @@ Due componenti nuovi: **A) endpoint cloud** (logica dati) e **B) agente locale**
   nel cloud e l'agente sul PC tiene solo il segreto.
 
 ## Componente B — Agente locale Node.js
-File standalone (nel repo sotto `tools/limitazioni-sync/`, copiato/installato sul PC). Runtime: **Node.js**
-(installazione una tantum sul PC). Riusa `exceljs` già in dipendenza.
+File standalone (nel repo sotto `tools/limitazioni-sync/`, copiato sul PC). Runtime: **Node.js portable**
+(zip estratto in cartella utente, **senza admin** — verificato v24.16.0). Usa `exceljs`.
+**Distribuzione:** si spedisce l'agente **con il suo `node_modules` già dentro** (preparato qui dove `npm` funziona),
+così sul PC di lavoro **non serve `npm install`** (utile se il proxy aziendale blocca il registry).
 
 **Configurazione** (file `config.json` accanto all'agente, non versionato):
 ```jsonc
@@ -91,7 +102,9 @@ File standalone (nel repo sotto `tools/limitazioni-sync/`, copiato/installato su
 
 **Passi di un giro:**
 1. `GET` all'endpoint con il segreto → elenco lavori della finestra.
-2. Elenca i `*.xlsx` della cartella (esclude `_backup/` e file temporanei `~$…`).
+2. Elenca i `*.xlsx` della cartella (esclude `_backup/` e file temporanei `~$…`). **Seleziona solo i file-master**:
+   un file è valido solo se la sua intestazione contiene la **firma di colonne ACEA** (ORDINE, MATRICOLA, esito,
+   sigillo posato). Gli altri `.xlsx` presenti (es. export `INTERVENTI_<date>.xlsx`) vengono **ignorati e annotati nel log**.
 3. Per ogni file: carica con `exceljs`, **trova la riga di intestazione** e mappa le colonne **per nome**
    (alias: "ORDINE"→odl, "MATRICOLA"→matricola, "Esecutore", "data prevista", "esito",
    "sigillo posato", "Località"→comune, "Via"/"INDIRIZZO"). Robusto a spostamenti di colonna ACEA.
@@ -140,7 +153,7 @@ compilata a mano con un valore **diverso**, **non la tocca** e annota il conflit
   extra aggiunte, conflitti, non collocati, file saltati.
 
 ## Prerequisiti operativi (passi manuali una tantum)
-- Node.js installato sul PC di lavoro.
+- Node.js **portable** (zip, nessun admin) sul PC di lavoro — *verificato 2026-06-16: v24.16.0 gira senza blocchi*.
 - File della libreria SharePoint **sincronizzato** come cartella locale (già confermato).
 - `config.json` compilato (percorso cartella, URL endpoint, segreto).
 - Env var del segreto impostata sull'app (Vercel).
