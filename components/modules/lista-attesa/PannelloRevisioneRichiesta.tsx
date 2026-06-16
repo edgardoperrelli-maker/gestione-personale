@@ -6,9 +6,17 @@ import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
-import { formatDataIt } from '@/lib/interventi/manuali/formatDataIt';
+import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
+
+type DuplicatoMatricola = {
+  id: string;
+  data: string | null;
+  staff_name: string | null;
+  deciso_at: string | null;
+  deciso_da_name: string | null;
+};
 
 const campoCompactCls =
   'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none';
@@ -30,6 +38,7 @@ export function PannelloRevisioneRichiesta({
   const [motivo, setMotivo] = useState('');
   const [busy, setBusy] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [dupAvviso, setDupAvviso] = useState<{ matricola: string; duplicati: DuplicatoMatricola[] } | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null }>>([]);
   useEffect(() => {
@@ -41,14 +50,22 @@ export function PannelloRevisioneRichiesta({
     return () => { attivo = false; };
   }, [riga.id]);
 
-  const approva = async () => {
+  const approva = async (forza = false) => {
     setBusy(true); setErrore(null);
     try {
       const dati_correnti: DatiInterventoManuale = { committente: iniziali.committente, anagrafica, risposte };
       const res = await fetch(`/api/admin/interventi-manuali/${riga.id}/approva`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dati_correnti }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dati_correnti, confermaDuplicato: forza }),
       });
+      if (res.status === 409) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; duplicati?: DuplicatoMatricola[] };
+        if (j.error === 'matricola_duplicata') {
+          setDupAvviso({ matricola: j.matricola ?? '', duplicati: j.duplicati ?? [] });
+          return;
+        }
+      }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setDupAvviso(null);
       onDecisa();
     } catch (e) { setErrore(e instanceof Error ? e.message : 'Errore'); } finally { setBusy(false); }
   };
@@ -115,9 +132,31 @@ export function PannelloRevisioneRichiesta({
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
 
+      {dupAvviso && (
+        <div className="space-y-2 rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-3">
+          <p className="text-sm font-bold text-[var(--warning)]">
+            &#9888; Matricola {dupAvviso.matricola} già approvata ({dupAvviso.duplicati.length})
+          </p>
+          <ul className="space-y-1 text-xs text-[var(--brand-text-main)]">
+            {dupAvviso.duplicati.map((d) => (
+              <li key={d.id}>
+                &bull; {formatDataIt(d.data)}
+                {d.staff_name ? ` · ${d.staff_name}` : ''}
+                {d.deciso_at ? ` · approvato il ${formatDataOraIt(d.deciso_at)}` : ''}
+                {d.deciso_da_name ? ` da ${d.deciso_da_name}` : ''}
+              </li>
+            ))}
+          </ul>
+          <div className="flex gap-2">
+            <button type="button" onClick={() => setDupAvviso(null)} disabled={busy} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-muted)] disabled:opacity-50">Annulla</button>
+            <button type="button" onClick={() => void approva(true)} disabled={busy} className="rounded-lg border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-1.5 text-xs font-bold text-[var(--warning)] disabled:opacity-50">Approva comunque</button>
+          </div>
+        </div>
+      )}
+
       <div className="flex gap-2">
         <button type="button" onClick={rifiuta} disabled={busy} className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2.5 font-bold text-[var(--danger)] disabled:opacity-50">Rifiuta</button>
-        <button type="button" onClick={approva} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
+        <button type="button" onClick={() => void approva()} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
       </div>
     </div>
   );
