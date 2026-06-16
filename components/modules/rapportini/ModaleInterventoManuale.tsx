@@ -17,6 +17,8 @@ import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErrore
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
+import { accodaManuale } from '@/lib/offline/persistManuale';
+import { sincronizzaToken } from '@/lib/offline/sync';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
@@ -48,7 +50,8 @@ export function ModaleInterventoManuale({
   voci: VoceMatricola[];
   onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
-  onCreata: () => void;
+  /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync. */
+  onCreata: (stato: 'inviata' | 'in-coda') => void;
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(1);
   const [committente, setCommittente] = useState<CommittenteManuale | null>(null);
@@ -88,6 +91,18 @@ export function ModaleInterventoManuale({
     }
     setInviando(true);
     setErrore(null);
+
+    // Offline-first: accoda in IndexedDB (la pratica non si perde MAI), poi sincronizza.
+    const esito = await accodaManuale(token, { committente, anagrafica, risposte, fotoFiles: foto }, Date.now());
+    if (esito) {
+      const online = typeof navigator === 'undefined' || navigator.onLine !== false;
+      void sincronizzaToken(token);
+      setInviando(false);
+      onCreata(online ? 'inviata' : 'in-coda');
+      return;
+    }
+
+    // Fallback (IndexedDB non disponibile): invio diretto online, come da comportamento storico.
     try {
       const fd = new FormData();
       fd.append('dati', JSON.stringify({ committente, anagrafica, risposte }));
@@ -100,7 +115,7 @@ export function ModaleInterventoManuale({
         const j = (await res.json().catch(() => ({}))) as { error?: string; dettaglio?: string; mancanti?: string[] };
         throw new Error(messaggioErroreManuale(j, res.status));
       }
-      onCreata();
+      onCreata('inviata');
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Invio non riuscito');
     } finally {

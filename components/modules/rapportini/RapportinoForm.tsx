@@ -123,6 +123,7 @@ export default function RapportinoForm({
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
   const [fotoMancanti, setFotoMancanti] = useState<FotoMancanteVoce[] | null>(null); // avviso pre-invio
+  const [avvisoManuale, setAvvisoManuale] = useState<string | null>(null);
 
   const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
@@ -393,6 +394,12 @@ export default function RapportinoForm({
     <RapportinoFotoCtx.Provider value={uploadFotoVoce}>
     <div className="mx-auto max-w-[480px]">
       <OfflineStatusPill token={token} />
+      {avvisoManuale && (
+        <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3 text-sm text-[var(--brand-text-main)]">
+          <span>{avvisoManuale}</span>
+          <button type="button" onClick={() => setAvvisoManuale(null)} className="shrink-0 text-xs font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
+        </div>
+      )}
       {bannerSospese}
       {tipo === 'risanamento' ? (
         <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
@@ -460,9 +467,16 @@ export default function RapportinoForm({
             if (idx >= 0) { window.alert('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
           }}
           onClose={() => setModaleAperta(false)}
-          onCreata={() => {
+          onCreata={(stato) => {
             setModaleAperta(false);
-            window.location.reload();
+            if (stato === 'inviata') {
+              window.location.reload();
+            } else {
+              // Offline: la pratica è in coda. Niente reload (la cache non mostrerebbe la
+              // nuova voce); conferma all'operatore e tenta una sync appena possibile.
+              setAvvisoManuale('Richiesta salvata: verrà inviata alla sincronizzazione.');
+              void sincronizzaToken(token);
+            }
           }}
         />
       )}
