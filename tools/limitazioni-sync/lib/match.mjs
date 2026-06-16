@@ -11,8 +11,16 @@ export function buildIndice(lavori) {
   const byOdl = new Map();
   const byComuneMatricola = new Map();
   for (const l of lavori ?? []) {
-    if (l.odl) byOdl.set(norm(l.odl), l);
-    if (l.matricola) byComuneMatricola.set(norm(l.comune) + '|' + norm(l.matricola), l);
+    if (l.odl) {
+      const k = norm(l.odl);
+      if (byOdl.has(k)) console.warn(`[lim-sync] ODL duplicata nell'indice: ${l.odl}`);
+      byOdl.set(k, l);
+    }
+    if (l.matricola) {
+      const k = norm(l.comune) + '|' + norm(l.matricola);
+      if (byComuneMatricola.has(k)) console.warn(`[lim-sync] matricola duplicata nell'indice: ${l.comune}|${l.matricola}`);
+      byComuneMatricola.set(k, l);
+    }
   }
   return { byOdl, byComuneMatricola };
 }
@@ -21,8 +29,9 @@ export function buildIndice(lavori) {
 export function agganciaRiga(rigaFile, indice, comuneFile) {
   const perOdl = rigaFile.odl ? indice.byOdl.get(norm(rigaFile.odl)) : undefined;
   if (perOdl) return { lavoro: perOdl, via: 'odl' };
-  const key = norm(comuneFile) + '|' + norm(rigaFile.matricola);
-  const perMat = rigaFile.matricola ? indice.byComuneMatricola.get(key) : undefined;
+  const perMat = rigaFile.matricola
+    ? indice.byComuneMatricola.get(norm(comuneFile) + '|' + norm(rigaFile.matricola))
+    : undefined;
   if (perMat) return { lavoro: perMat, via: 'matricola' };
   return null;
 }

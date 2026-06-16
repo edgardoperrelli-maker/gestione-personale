@@ -8,5 +8,8 @@ export async function fetchLavori({ endpointUrl, exportKey, from, to }, fetchImp
     throw new Error(`Endpoint ${res.status}: ${corpo}`);
   }
   const json = await res.json();
-  return Array.isArray(json.righe) ? json.righe : [];
+  if (!Array.isArray(json.righe)) {
+    throw new Error(`Risposta endpoint inattesa (manca 'righe'): ${JSON.stringify(json).slice(0, 200)}`);
+  }
+  return json.righe;
 }

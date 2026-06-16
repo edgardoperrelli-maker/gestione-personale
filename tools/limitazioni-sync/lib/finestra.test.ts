@@ -9,4 +9,7 @@ describe('finestra', () => {
   it('finestra di 1 giorno = solo oggi', () => {
     expect(finestra('2026-06-16', 1)).toEqual({ from: '2026-06-16', to: '2026-06-16' });
   });
+  it('attraversa il confine di mese (UTC-safe)', () => {
+    expect(finestra('2026-07-01', 15)).toEqual({ from: '2026-06-17', to: '2026-07-01' });
+  });
 });

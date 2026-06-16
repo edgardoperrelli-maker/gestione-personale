@@ -26,4 +26,10 @@ describe('fetchLavori', () => {
       fetchLavori({ endpointUrl: 'https://x', exportKey: 'k', from: 'a', to: 'b' }, fakeFetch as unknown as typeof fetch),
     ).rejects.toThrow('401');
   });
+  it('lancia se la risposta non ha righe array', async () => {
+    const fakeFetch = async () => ({ ok: true, json: async () => ({ data: [] }) });
+    await expect(
+      fetchLavori({ endpointUrl: 'https://x', exportKey: 'k', from: 'a', to: 'b' }, fakeFetch as unknown as typeof fetch),
+    ).rejects.toThrow('inattesa');
+  });
 });
