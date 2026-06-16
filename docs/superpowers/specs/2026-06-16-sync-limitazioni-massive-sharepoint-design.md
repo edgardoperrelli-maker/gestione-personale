@@ -168,6 +168,7 @@ compilata a mano con un valore **diverso**, **non la tocca** e annota il conflit
 3. **Esecutore:** ✅ `staff.display_name` = "COGNOME NOME" maiuscolo → **primo token** (es. `CIARALLO SIMONE`→`CIARALLO`).
 4. **Eseguito/No:** ✅ `stato='completato'` = lavorato; `esito='eseguito_positivo'`→"eseguito", altrimenti→"No"
    (il motivo sta in `esito_motivo`, va nel log).
+   > ⚠️ **Superato (dal modulo Agente):** l'endpoint **aggiunge** `esitoOk: boolean|null` (`esitoOk=true` ⟷ `esito==='eseguito_positivo'`) mantenendo `esito` testuale per retro-compat; il **testo** scritto in cella diventa configurabile (`esito_positivo`/`esito_negativo`). Vedi `2026-06-16-modulo-agente-design.md` §1b/§1c.
 5. **data esecuzione (BN):** si usa `interventi.data` (tipo `date`, senza fuso) — non `chiuso_at` (timestamptz).
 
 ## Testing

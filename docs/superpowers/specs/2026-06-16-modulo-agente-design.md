@@ -42,7 +42,7 @@ create table if not exists agente_config (
   dry_run boolean not null default true,
   finestra_giorni smallint not null default 15,
   -- mappa di scrittura configurabile (globale): campo app → nome colonna, on/off
-  mappatura jsonb not null default '[{"campo":"esecutore","colonna":"Esecutore","abilitato":true},{"campo":"data","colonna":"data prevista","abilitato":true},{"campo":"esito","colonna":"esito","abilitato":true},{"campo":"sigillo","colonna":"sigillo posato","abilitato":true},{"campo":"marcatore","colonna":"","abilitato":true}]'::jsonb,
+  mappatura jsonb not null default '[{"campo":"esecutore","colonna":"Esecutore","abilitato":true},{"campo":"data","colonna":"data prevista","abilitato":true},{"campo":"esito","colonna":"esito","abilitato":true},{"campo":"sigillo","colonna":"sigillo posato","abilitato":true},{"campo":"marcatore","colonna":"","auto":true,"abilitato":true}]'::jsonb,
   esito_positivo text not null default 'eseguito',
   esito_negativo text not null default 'No',
   ultimo_giro_il timestamptz,
@@ -73,6 +73,7 @@ create table if not exists agente_file_colonne (
   is_master boolean not null default false,
   colonne text[] not null default '{}',
   colonne_nuove text[] not null default '{}',
+  colonne_sparite text[] not null default '{}',
   rilevato_il timestamptz not null default now()
 );
 
@@ -90,12 +91,24 @@ create policy agente_file_colonne_all_auth on agente_file_colonne for all to aut
 - `campo` ∈ `esecutore | data | esito | sigillo` (default attivi) + `matricola | via | pdr | nominativo | comune | marcatore` (extra, default off salvo `marcatore`).
 - `colonna` = **nome intestazione** (es. `"esito"`, `"sigillo posato"`) scelto tra quelli rilevati. `abilitato` = scrive o no.
 - L'agente, per ogni regola abilitata, trova la colonna nel file **per nome** (case-insensitive, trim) e scrive il valore del `campo`.
-  Valori dal lavoro (`RigaLimMassive`): `esecutore`, `data_esecuzione` (→ data Excel, fix date), `matricola`, `via`, `pdr`, `nominativo`, `comune`, `sigillo`, `esito` (vedi sotto). `marcatore` = testo "AGGIUNTA APP" **solo sulle righe extra** (se `colonna` è vuota usa la colonna libera auto-rilevata, come oggi; altrimenti la colonna nominata).
+  Valori dal lavoro (`RigaLimMassive`): `esecutore`, `data_esecuzione` (→ data Excel, fix date), `matricola`, `via`, `pdr`, `nominativo`, `comune`, `sigillo`, `esito` (vedi sotto). `marcatore` = testo "AGGIUNTA APP" **solo sulle righe extra** (regola con `auto:true` → colonna libera auto-rilevata; con `colonna` nominata → quella; scrive solo se la cella è vuota — §1c).
 - **Aggancio invariato:** ODL/matricola/comune restano **auto-rilevati** (servono a trovare riga + comune del file); NON sono nella mappa.
 
-**Testi esito configurabili.** `esito_positivo` (default "eseguito") + `esito_negativo` (default "No"). L'endpoint export smette di pre-formattare il testo: restituisce **`esitoOk: boolean|null`** (true=positivo, false=lavorato-negativo, null=non lavorato). L'agente scrive `esitoPositivo`/`esitoNegativo` in base a `esitoOk` (null → non scrive). *(Modifica all'endpoint già in produzione; l'agente è l'unico consumatore. `buildRigaLimMassive` aggiunge anche `pdr` e `nominativo`, oggi assenti nell'output.)*
+**Testi esito configurabili.** `esito_positivo` (default "eseguito") + `esito_negativo` (default "No"). L'endpoint export **aggiunge** `esitoOk: boolean|null` (true=positivo, false=lavorato-negativo, null=non lavorato) **mantenendo** `esito` testuale (retro-compat — vedi §1c). L'agente nuovo scrive `esitoPositivo`/`esitoNegativo` in base a `esitoOk` (null → non scrive). `pdr`/`nominativo` aggiunti all'output (colonne di `interventi`).
 
-**Rilevamento colonne (automatico a ogni tick, per-file).** A ogni tick l'agente legge le **intestazioni** dei file master e le manda nel body: `{ files: [{ nome, isMaster, colonne: [...] }] }`. L'endpoint tick fa upsert in `agente_file_colonne` e calcola `colonne_nuove` = diff con lo snapshot precedente (funzione pura `diffColonne`). Il modulo mostra le colonne ed **evidenzia nuove/sparite**, e popola i menu della mappa coi nomi reali. Best-effort: se la cartella non è raggiungibile, il tick fa comunque heartbeat + decisione.
+**Rilevamento colonne (per-file).** L'agente legge le **intestazioni** dei file master e le manda nel body del tick: `{ files: [{ nome, isMaster, colonne: [...] }] }` (frequenza: vedi §1c, non a ogni tick). L'endpoint tick fa upsert in `agente_file_colonne` e calcola `colonne_nuove`/`colonne_sparite` = diff con lo snapshot precedente (funzione pura `diffColonne`; primo snapshot = baseline → nuove vuote). Il modulo mostra le colonne ed **evidenzia nuove/sparite**, e popola i menu della mappa coi nomi reali. Best-effort: se la cartella non è raggiungibile, il tick fa comunque heartbeat + decisione.
+
+## 1c. Robustezza, edge-case e rollout (dalla verifica adversarial)
+- **Endpoint export ADDITIVO (zero rotture in produzione):** `buildRigaLimMassive` **aggiunge** `esitoOk: boolean|null`, `pdr`, `nominativo` (colonne `interventi` → in SELECT) e **mantiene** `esito` testuale. L'agente nuovo usa `esitoOk`+testi-config; quello già installato continua su `esito` finché non lo ricopi. Nessuna sequenza obbligata, nessun `true`/`false` in cella. I 8 test esistenti di `exportLimMassive` restano; se ne **aggiungono** per `esitoOk`/`pdr`/`nominativo`.
+- **Firma-master = solo `odl`+`matricola`:** `isFileMaster` non dipende più da `esito`/`sigillo` (ora mappabili) → un file è master se ha ORDINE+MATRICOLA. Niente doppia risoluzione ALIAS+mappa sullo stesso campo.
+- **Match per nome robusto:** la `norm` del match-per-nome = uniforma maiuscole + `NFD` (toglie accenti) + collapse spazi (`/\s+/g`) + rimozione NBSP. Stessa funzione per i menu (`scanColonne`) e per la scrittura. Test con header che differiscono per accento/NBSP/doppi spazi.
+- **Colonna mappata assente nel file:** regola **saltata** e segnalata nel report (mai scrivere in coda). Intestazioni **duplicate**: vince la prima (come oggi) + warning nel modulo. Mappa globale → assume nomi omogenei; il modulo avvisa se un campo mappa un nome assente in qualche file.
+- **Marcatore sicuro:** regola `marcatore` con `auto:true` → colonna libera auto (`colonnaMarker`); con `colonna` nominata → quella. Scrive solo su righe extra, **solo se la cella è vuota** (passa da `decidiScrittura`). `validaMappatura` rifiuta la collisione marcatore↔colonna di un'altra regola abilitata.
+- **Data coerente pianificate/extra:** anche le righe **extra** scrivono la data come **data Excel** (`aDataExcel`), non stringa grezza. Test round-trip `giornoDa(aDataExcel(iso))===iso`.
+- **`scanColonne` economico:** legge le intestazioni **solo quando serve** (quando `eseguiOra`, oppure max 1×/giorno via `mtime`), non a ogni tick orario (evita di aprire/scaricare i file OneDrive 24×); `try/catch` per-file che **non blocca mai** l'heartbeat; usa la **stessa** selezione file di `eseguiGiro` (estensione, no `~$`/`_backup`/`_log`); i file scartati come non-master vanno nel report col motivo.
+- **Aggancio comune-mismatch:** il report/modulo conta le matricole **non agganciate per comune diverso** (basename ≠ comune), così te ne accorgi.
+- **Rivendicazione:** resta al tick (semplice, anti-doppione). Un crash tra tick e report fa perdere il giro del giorno, ma la **finestra di 15 giorni** recupera al giro successivo (tradeoff accettato).
+- **`esitoOk=null`** è un ramo difensivo: in pratica non arriva (l'endpoint invia solo `stato='completato'`).
 
 ## 2. Funzioni PURE (testabili, niente I/O)
 Nuovo `lib/agente/decisione.ts`:
@@ -146,7 +159,7 @@ L'helper chiave si riusa da `app/api/export/limitazioni-massive/route.ts` → es
   3. altrimenti: `finestra` → `fetchLavori` → `eseguiGiro({ cartella, lavori, dryRun, stamp, mappatura, esitoPositivo, esitoNegativo })` → `inviaReport`.
   - Orario/dryRun/**mappa**/**testi esito** vengono **dall'app**; `config.json` resta solo statico (URL, chiave, cartella).
 - **Orchestratore guidato dalla mappa**: `eseguiGiro` non usa più i `campi` fissi; per ogni regola `abilitato` trova la colonna **per nome** e scrive il valore del campo; l'esito = `esitoPositivo`/`esitoNegativo` secondo `esitoOk`; `marcatore` solo sulle righe extra; colonna data resta date-aware (fix date).
-- **Endpoint export** (`buildRigaLimMassive`): ritorna `esitoOk: boolean|null` al posto di `esito` testuale, e aggiunge `pdr`/`nominativo` all'output. Aggiornare i test puri di `exportLimMassive`.
+- **Endpoint export** (`buildRigaLimMassive`): **aggiunge** `esitoOk: boolean|null`, `pdr`, `nominativo` (colonne `interventi`, in SELECT) e **mantiene** `esito` testuale (retro-compat, §1c). I 8 test esistenti restano; aggiungerne per i nuovi campi.
 - **Fix date (incluso qui):** nell'orchestratore, per il campo `data` usare confronto **date-aware** e scrivere una vera data Excel:
   - nuovo `lib/dataCella.mjs`: `giornoDa(v)` (Date|string|number → "YYYY-MM-DD", fuso Rome) e `aDataExcel(iso)` (→ `Date`);
   - `decidiScritturaData(cellaEsistente, nuovoIso)`: vuota→`scrivi`(Date); stesso giorno→`salta`; giorno diverso→`conflitto`. L'orchestratore usa questa per la colonna data, `decidiScrittura` per le altre.
