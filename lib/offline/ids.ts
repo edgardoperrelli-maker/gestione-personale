@@ -7,3 +7,11 @@
 export function idOutboxVoce(token: string, voceId: string): string {
   return `voce:${token}:${voceId}`;
 }
+
+/**
+ * Id canonico di un elemento outbox di tipo 'manuale'. Idempotente per `richiestaId`
+ * (la stessa richiesta non crea doppioni in coda; il server deduplica con lo stesso id).
+ */
+export function idOutboxManuale(token: string, richiestaId: string): string {
+  return `manuale:${token}:${richiestaId}`;
+}
