@@ -28,6 +28,7 @@ import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 import { FabSync } from '@/components/offline/FabSync';
+import { ModaleSincronizza } from '@/components/offline/ModaleSincronizza';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
@@ -125,6 +126,7 @@ export default function RapportinoForm({
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [ricerca, setRicerca] = useState('');
   const [modaleAperta, setModaleAperta] = useState(false);
+  const [modaleSyncAperta, setModaleSyncAperta] = useState(false);
   const [prefillManuale, setPrefillManuale] = useState<{ committenteIniziale: CommittenteManuale; anagraficaIniziale: AnagraficaManuale; parentVoceId: string } | null>(null);
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
@@ -483,12 +485,15 @@ export default function RapportinoForm({
         <FabSync
           inAttesa={inAttesa}
           online={online}
-          onSync={sincronizzaOra}
+          onApri={() => setModaleSyncAperta(true)}
           // Sopra la lente (9.5rem) quando c'è; nel risanamento (niente lente) sopra il "+" (5.5rem).
           bottom={tipo !== 'risanamento'
             ? 'calc(13.5rem + env(safe-area-inset-bottom))'
             : 'calc(9.5rem + env(safe-area-inset-bottom))'}
         />
+      )}
+      {modaleSyncAperta && (
+        <ModaleSincronizza token={token} onChiudi={() => setModaleSyncAperta(false)} />
       )}
       {modaleAperta && (
         <ModaleInterventoManuale
