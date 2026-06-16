@@ -55,4 +55,13 @@ describe('riepilogoRapportino', () => {
     expect(r.daFare).toBe(0);
     expect(r.annullati).toBe(1);
   });
+  it('le voci RIFIUTATE sono scartate: fuori da eseguiti E dai totali', () => {
+    const r = riepilogoRapportino([
+      { risposte: { eseguito: 'SI' }, manuale: true, approvazione_stato: 'approvato' },
+      { risposte: {}, manuale: true, approvazione_stato: 'rifiutato' },
+      { risposte: {}, manuale: true, approvazione_stato: 'rifiutato' },
+    ], campi);
+    expect(r.eseguiti).toBe(1);
+    expect(r.totali).toBe(1);
+  });
 });

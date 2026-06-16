@@ -31,14 +31,17 @@ export function statoVoce(
 
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
-  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean }[],
+  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean; approvazione_stato?: string | null }[],
   campi: TemplateCampo[],
 ): RiepilogoRapportino {
+  // Le voci RIFIUTATE dall'ufficio sono SCARTATE: non sono interventi validi e non entrano in
+  // alcun conteggio, nemmeno nei totali (diverso da `annullato`, che resta nei totali).
+  const attive = voci.filter((v) => v.approvazione_stato !== 'rifiutato');
   let eseguiti = 0;
   let nonEseguiti = 0;
   let daFare = 0;
   let annullati = 0;
-  for (const v of voci) {
+  for (const v of attive) {
     // Le voci annullate non contribuiscono a daFare: il rapportino rimane inviabile
     if (v.annullato) { annullati += 1; continue; }
     // Voci create dal "+" (manuali): già complete con esito e foto → contano come eseguite, mai "da fare".
@@ -53,8 +56,8 @@ export function riepilogoRapportino(
     .map((c) => ({
       chiave: c.chiave,
       etichetta: c.etichetta,
-      count: voci.filter((v) => v.risposte[c.chiave] === true).length,
+      count: attive.filter((v) => v.risposte[c.chiave] === true).length,
     }))
     .filter((l) => l.count > 0);
-  return { eseguiti, nonEseguiti, daFare, annullati, totali: voci.length, lavorazioni };
+  return { eseguiti, nonEseguiti, daFare, annullati, totali: attive.length, lavorazioni };
 }
