@@ -3,9 +3,12 @@
 import { useState } from 'react';
 
 /**
- * Pulsante flottante "Sincronizza" (due frecce che si rincorrono) per le pagine operatore.
- * Sta nella pila dei FAB, sopra la lente e il "+". Gira durante l'invio; mostra il conteggio
- * in coda come badge. Premibile anche a coda vuota (rassicurazione di fine giornata).
+ * Pulsante flottante "Sincronizza e aggiorna" (due frecce che si rincorrono) per le pagine
+ * operatore. Sta nella pila dei FAB, sopra la lente e il "+". Gira durante l'invio; mostra il
+ * conteggio in coda come badge. Premibile anche a coda vuota (rassicurazione di fine giornata).
+ * Oltre a sincronizzare la coda, RICARICA la pagina così l'operatore vede gli ultimi dati dal
+ * server (es. interventi aggiunti dall'ufficio). La reidratazione ripristina le modifiche locali
+ * da IndexedDB → nessuna perdita; offline la ricarica serve la cache (innocuo).
  * `bottom` è passato come stringa (calc con safe-area) per impilarlo sopra gli altri FAB.
  */
 export function FabSync({
@@ -27,7 +30,9 @@ export function FabSync({
     try {
       await onSync();
     } finally {
-      setGirando(false);
+      // Sincronizza E aggiorna: ricarica per riallineare la pagina al server. La reidratazione
+      // (RapportinoForm) ripristina le modifiche locali → niente perdita anche offline.
+      if (typeof window !== 'undefined') window.location.reload();
     }
   };
 
@@ -36,8 +41,8 @@ export function FabSync({
       type="button"
       onClick={click}
       disabled={girando}
-      aria-label="Sincronizza ora"
-      title={online ? 'Sincronizza ora' : 'Offline: i dati sono salvati, partiranno alla connessione'}
+      aria-label="Sincronizza e aggiorna"
+      title={online ? 'Sincronizza e aggiorna la pagina' : 'Offline: i dati sono salvati. Premi per aggiornare (online partiranno)'}
       style={{ bottom }}
       className="fixed right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] shadow-lg transition active:scale-95 disabled:opacity-60"
     >
