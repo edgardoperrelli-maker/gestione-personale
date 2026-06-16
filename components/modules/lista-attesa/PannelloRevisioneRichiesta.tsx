@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
@@ -8,6 +8,8 @@ import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
+import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 
 type DuplicatoMatricola = {
@@ -41,14 +43,14 @@ export function PannelloRevisioneRichiesta({
   const [dupAvviso, setDupAvviso] = useState<{ matricola: string; duplicati: DuplicatoMatricola[] } | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null }>>([]);
-  useEffect(() => {
-    let attivo = true;
-    fetch(`/api/admin/interventi-manuali/${riga.id}/foto`)
-      .then((r) => (r.ok ? r.json() : { foto: [] }))
-      .then((j: { foto?: Array<{ id: string; etichetta: string; url: string | null }> }) => { if (attivo) setFoto(j.foto ?? []); })
-      .catch(() => { /* foto opzionali: errore silenzioso */ });
-    return () => { attivo = false; };
+  const caricaFoto = useCallback(async () => {
+    try {
+      const r = await fetch(`/api/admin/interventi-manuali/${riga.id}/foto`, { cache: 'no-store' });
+      const j = (r.ok ? await r.json() : { foto: [] }) as { foto?: Array<{ id: string; etichetta: string; url: string | null }> };
+      setFoto(j.foto ?? []);
+    } catch { /* foto opzionali: errore silenzioso */ }
   }, [riga.id]);
+  useEffect(() => { void caricaFoto(); }, [caricaFoto]);
 
   const approva = async (forza = false) => {
     setBusy(true); setErrore(null);
@@ -120,6 +122,9 @@ export function PannelloRevisioneRichiesta({
           </div>
         </div>
       )}
+
+      {/* Carica foto di recupero (ufficio) */}
+      <CaricaFotoRichiesta richiestaId={riga.id} slotFoto={campiFoto(campiEsito)} onCaricato={caricaFoto} />
 
       {/* Motivo rifiuto (compatto) */}
       <input
