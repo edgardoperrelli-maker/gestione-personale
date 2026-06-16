@@ -1,10 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ScannerMisuratore } from '@/components/modules/rapportini/risanamento/ScannerMisuratore';
 import type { CensitoMisuratore } from '@/lib/limitazione/autofillAnagrafica';
 import { matchVociMatricola, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
+import { aggiornaCensimento, leggiCensimentoLocale } from '@/lib/offline/censimento';
+import { cercaCensimentoLocale } from '@/lib/limitazione/cercaCensimentoLocale';
 
 export function CercaMatricolaLimitazione({
   token,
@@ -31,10 +33,17 @@ export function CercaMatricolaLimitazione({
   const [cercato, setCercato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
+  const [daVerificare, setDaVerificare] = useState(false);
+
+  // All'apertura della ricerca (online) allinea la cache locale del censimento: così
+  // l'autofill funziona offline. Best-effort, no-op offline. Riuso cross-giorno (chiave stabile).
+  useEffect(() => {
+    void aggiornaCensimento(token);
+  }, [token]);
 
   const reset = () => {
     setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]);
-    setAltroOperatore(null); setMisuratore(null); setOffline(false);
+    setAltroOperatore(null); setMisuratore(null); setOffline(false); setDaVerificare(false);
   };
 
   // Le voci RIFIUTATE non sono task attivi: vanno rifatte da capo, quindi non devono
@@ -57,11 +66,15 @@ export function CercaMatricolaLimitazione({
       5,
     );
 
-    // OFFLINE: niente censimento dal server → mostra subito la via "Inserisci a mano".
+    // OFFLINE: cerca nella cache locale del censimento (se scaricata). Autofill come online;
+    // l'assegnazione "ad altro operatore" è stato del giorno (non nel censimento) → verifica alla sync.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      const locale = await leggiCensimentoLocale();
+      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : { trovato: false as const, suggerimenti: [] as CensitoMisuratore[] };
       setSuggVoci(simili);
-      setSuggerimenti([]);
       setOffline(true);
+      if (esito.trovato) { setMisuratore(esito.misuratore); setDaVerificare(true); }
+      else setSuggerimenti(esito.suggerimenti);
       setCercato(true);
       return;
     }
@@ -85,9 +98,13 @@ export function CercaMatricolaLimitazione({
       }
       setCercato(true);
     } catch {
-      // Errore di rete: NON un vicolo cieco → rivela l'inserimento a mano.
+      // Errore di rete: prova comunque la cache locale, poi rivela l'inserimento a mano.
+      const locale = await leggiCensimentoLocale();
+      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : { trovato: false as const, suggerimenti: [] as CensitoMisuratore[] };
       setSuggVoci(simili);
       setOffline(true);
+      if (esito.trovato) { setMisuratore(esito.misuratore); setDaVerificare(true); }
+      else setSuggerimenti(esito.suggerimenti);
       setCercato(true);
     } finally {
       setCercando(false);
@@ -122,10 +139,17 @@ export function CercaMatricolaLimitazione({
 
       {cercato && (
         <div className="space-y-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-          {misuratore && altroOperatore ? (
-            <button type="button" onClick={() => onTrovato(misuratore)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
-              Procedi comunque (compila i dati)
-            </button>
+          {misuratore && (altroOperatore || daVerificare) ? (
+            <>
+              {daVerificare && (
+                <p className="rounded-lg border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] px-3 py-2 text-xs font-semibold text-[var(--warning-fg,#92400e)]">
+                  Offline: dati dal censimento locale. L&apos;assegnazione verrà verificata alla sincronizzazione.
+                </p>
+              )}
+              <button type="button" onClick={() => onTrovato(misuratore)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
+                Procedi (compila i dati)
+              </button>
+            </>
           ) : (
             <>
               {suggVoci.length > 0 && (
@@ -160,7 +184,7 @@ export function CercaMatricolaLimitazione({
               )}
               {offline && (
                 <p className="rounded-lg border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] px-3 py-2 text-xs font-semibold text-[var(--warning-fg,#92400e)]">
-                  Offline: censimento non disponibile. Inserisci i dati a mano: verranno verificati alla sincronizzazione.
+                  Offline: ricerca dal censimento locale. Se non trovi la matricola inseriscila a mano (verrà verificata alla sincronizzazione).
                 </p>
               )}
               {suggVoci.length === 0 && suggerimenti.length === 0 && !offline && (
