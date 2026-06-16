@@ -136,17 +136,23 @@ export default async function RapportinoPublicPage({
     .map((v) => (v as { richiesta_id?: string | null }).richiesta_id)
     .filter((x): x is string => Boolean(x));
   const motivoByRichiesta: Record<string, string | null> = {};
+  // Richieste "+" figlie di un task-via (parent_voce_id valorizzato): le loro voci NON
+  // vanno nella lista principale — si vedono solo sotto il task-via (TaskViaFocus).
+  const childRequestIds = new Set<string>();
   if (richiesteIds.length > 0) {
     const { data: reqRows } = await supabaseAdmin
       .from('interventi_manuali')
-      .select('id, motivo_rifiuto')
+      .select('id, motivo_rifiuto, parent_voce_id')
       .in('id', richiesteIds);
-    for (const r of (reqRows ?? []) as Array<{ id: string; motivo_rifiuto: string | null }>) {
+    for (const r of (reqRows ?? []) as Array<{ id: string; motivo_rifiuto: string | null; parent_voce_id: string | null }>) {
       motivoByRichiesta[r.id] = r.motivo_rifiuto;
+      if (r.parent_voce_id) childRequestIds.add(r.id);
     }
   }
 
-  const voci: FormVoce[] = ((vociRows ?? []) as VoceRow[]).map((v) => ({
+  const voci: FormVoce[] = ((vociRows ?? []) as VoceRow[])
+    .filter((v) => !(v.richiesta_id && childRequestIds.has(v.richiesta_id)))
+    .map((v) => ({
     id: v.id,
     taskId: v.task_id ?? undefined,
     ordine: v.ordine,
