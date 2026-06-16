@@ -2,136 +2,124 @@
 
 Data: 2026-06-16
 Base: `origin/main` `4e51bf2` (worktree allineato dopo lavoro di sessione concorrente)
-Stato: approvato (decisioni), spec aggiornata post-audit
+Stato: approvato (decisioni), spec aggiornata post-audit — approccio conservativo
 
-## Contesto e problema
+## Obiettivo (minimale)
 
-Nei template rapportini ogni campo (azione) ha un flag opzionale `obbligatoria?: boolean`. Vogliamo poter marcare
-"Obbligatoria" **ogni campo non-foto su tutti i template** e far sì che un campo obbligatorio vuoto **blocchi
-l'invio con avviso** (asterisco + voce nella lista "cosa manca"), **come già avviene per le note su esito negativo**.
+Poter marcare "Obbligatoria" **ogni campo non-foto su tutti i template** e fare in modo che un campo obbligatorio
+vuoto **blocchi l'invio del rapportino con avviso** (asterisco sul campo + elenco di cosa manca).
 
-### Stato attuale (audit su `4e51bf2`)
+**Vincoli dell'utente (non negoziabili):**
+1. Il task deve **solo** rendere un'azione obbligabile e farla valere.
+2. **Non deve rompere logiche o salvataggi** esistenti.
+3. **Non deve in alcun modo alterare il flusso delle foto**.
 
-Una sessione concorrente ha già implementato parte del lavoro. Stato verificato:
+Per rispettarli, l'implementazione è **puramente additiva e isolata**: nessuna modifica alle funzioni core di stato
+voce (`voceColore.ts`, `voceMancante.ts`), nessuna modifica ai path di salvataggio, nessuna modifica alla pipeline foto.
 
-| # | Area | Stato | Dettaglio |
-|---|------|-------|-----------|
-| 1 | Editor — checkbox "Obbligatoria" su tutti i template | 🟡 Parziale | `TemplateRapportiniClient.tsx:704` ancora `{soloManuale && campo.tipo !== 'foto' && …}` |
-| 2 | Helper `campiObbligatoriMancanti` | 🟢 Fatto | `lib/interventi/manuali/campiObbligatoriMancanti.ts` — esclude foto, tutti i tipi |
-| 3 | Modale "+" bloccante | 🟢 **Fatto (concorrente, `08a4792`)** | blocco con elenco campi mancanti |
-| 4 | Rapportino standard (blocco+"cosa manca") | 🔴 Da fare | `voceColore.ts`/`voceMancante.ts` ignorano il flag non-foto |
-| 5 | Asterisco `*` sui campi non-foto | 🟡 Parziale | `CampoInput.tsx:166` mostra `*` solo per le foto (in `CampoFotoInput`) |
-| 6 | Risanamento (blocco campi non-foto) | 🔴 Da fare | `righeIncomplete.ts` valida solo le foto |
+## Stato attuale (audit su `4e51bf2`)
 
-Modello di riferimento (nota obbligatoria su esito negativo, `utils/rapportini/voceColore.ts`): se la nota manca,
-`voceEsitoColore` ritorna `'neutro'` → la voce conta come "da fare" → `daFare > 0` → `RapportinoForm` rende
-`inviabile = false` (blocco). `voceMancante.ts` espone il motivo per asterisco e lista "cosa manca".
+| # | Area | Stato |
+|---|------|-------|
+| 1 | Editor — checkbox "Obbligatoria" su tutti i template | 🟡 solo manuali (`TemplateRapportiniClient.tsx:704`) |
+| 2 | Helper `campiObbligatoriMancanti` (esclude foto, tutti i tipi) | 🟢 esiste in `lib/interventi/manuali/` |
+| 3 | Modale "+" bloccante | 🟢 fatta da sessione concorrente (`08a4792`) |
+| 4 | Blocco nel rapportino standard pianificato | 🔴 da fare |
+| 5 | Asterisco `*` sui campi non-foto | 🟡 solo foto (`CampoInput.tsx`, in `CampoFotoInput`) |
+| 6 | Blocco nel risanamento | 🔴 da fare (solo foto oggi) |
 
-## VINCOLO NON NEGOZIABILE — non perdere il flusso foto
+## Approccio: check separato all'invio (come le foto), NON in `voceColore`
 
-Questo task **non deve in alcun modo alterare il flusso delle foto**. Tutto il comportamento foto esistente resta
-identico: validazione foto obbligatorie (`validaFotoObbligatorie`, `utils/rapportini/fotoObbligatorieMancanti.ts`,
-`ModaleFotoMancanti`), blocco foto, naming (`fotoNaming`), salvataggio/merge foto, e la regola
-"foto non obbligatorie su esito negativo".
+Il blocco delle **foto obbligatorie** nel rapportino standard non passa da `voceColore`: è un check separato in
+`RapportinoForm` (`fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi)` → avviso pre-invio). Si replica lo
+stesso schema, isolato, per i campi non-foto obbligatori. Così **non si tocca** lo stato/colore della voce, il
+conteggio `daFare`, l'inviabilità calcolata, né alcun salvataggio.
 
-**Garanzie di isolamento (verificate in fase di review):**
-- L'helper sui campi obbligatori filtra sempre `tipo !== 'foto'`: **nessun campo foto entra mai** nella nuova logica.
-- `voceEsitoColore` non gestisce le foto (gestisce esiti crocetta/select): il check campi obbligatori è **additivo**
-  e non tocca la pipeline foto.
-- `fotoObbligatorieMancantiDettaglio` continua a basarsi su `haEsitoNegativo` (non su `voceEsitoColore`): la nuova
-  logica non cambia quali voci la funzione foto considera/salta.
-- In `righeIncomplete` (risanamento) la validazione **foto resta intatta**; si **aggiunge** solo un controllo per i
-  campi non-foto, senza modificare i blocchi foto esistenti.
-- In `CampoInput` l'asterisco per i non-foto va in un punto **separato** dalla sotto-funzione `CampoFotoInput`.
-- Il blocco standard (voce `neutro` per campo obbligatorio mancante) **precede** il check foto ma non lo sostituisce:
-  quando i campi obbligatori sono OK, il flusso foto (`ModaleFotoMancanti`, ecc.) procede **esattamente come oggi**.
-- I test esistenti delle foto (`validaFotoObbligatorie.test`, `fotoObbligatorieMancanti.test`, i casi foto di
-  `righeIncomplete`) devono restare **verdi e invariati**.
+### A. Helper (riuso)
+- Si **riusa** `campiObbligatoriMancanti(campi, risposte)` esistente (`lib/interventi/manuali/campiObbligatoriMancanti.ts`,
+  filtra già `tipo !== 'foto'`).
+- Si **aggiunge** `campiObbligatoriMancantiVoci(voci, campi)` — parallelo a `fotoObbligatorieMancantiDettaglio`:
+  scorre le voci (saltando le manuali come fa la controparte foto) e restituisce, per ogni voce con campi obbligatori
+  vuoti, il titolo voce + l'elenco delle etichette mancanti. Funzione pura, testabile.
 
-## Decisioni (approvate)
+### B. Rapportino standard pianificato — `components/modules/rapportini/RapportinoForm.tsx`
+- Nell'handler di invio, **prima** del check foto già esistente, si aggiunge:
+  `const campiMancanti = campiObbligatoriMancantiVoci(voci, campi); if (campiMancanti.length) { mostra avviso; return; }`
+  → **blocca** l'invio finché i campi obbligatori non sono compilati, mostrando l'elenco (riuso del pattern modale/avviso
+  già usato per le foto, es. un `ModaleCampiMancanti` analogo o un riuso di `ModaleFotoMancanti` generalizzato).
+- Non si toccano `inviabile`, `riepilogo.daFare`, `voceColore`, `voceMancante`, né il salvataggio voci.
 
-- **Comportamento**: blocco + avviso, riusando il meccanismo delle note.
-- **Campi "note"**: il flag esplicito vince — un campo nota marcato `obbligatoria` è sempre obbligatorio; senza spunta
-  mantiene la regola attuale (obbligatorio solo su esito negativo).
-- **Risanamento**: incluso.
-- **Modale "+"**: già fatta dalla sessione concorrente (`08a4792`) → **fuori scope** di questo task; si riusa il suo
-  helper, non se ne crea un altro.
+### C. Asterisco — `components/modules/rapportini/CampoInput.tsx`
+- Si aggiunge l'asterisco rosso `*` accanto all'etichetta dei campi **non-foto** con `obbligatoria=true`, in un punto
+  **separato** dalla sotto-funzione `CampoFotoInput` (che resta invariata). Modifica puramente visiva.
 
-## Architettura
+### D. Risanamento — `utils/rapportini/righeIncomplete.ts` (additivo)
+- Si **aggiunge** (senza toccare i blocchi foto esistenti) la validazione dei campi non-foto obbligatori, riusando
+  `campiObbligatoriMancanti`: per ogni riga (misuratore) sui campi scope `misuratore`, per ogni civico con righe sui
+  campi scope `fase`. I campi mancanti confluiscono in `DettaglioIncompleto.campiMancanti`.
+- `RisanamentoView.tsx` usa già `righeIncomplete` → blocco client automatico; si generalizza solo il testo del
+  messaggio ("Mancano foto obbligatorie" → "Mancano foto/campi obbligatori"). `app/api/r/[token]/invia/route.ts` usa
+  già `righeIncomplete` → blocco server (409) automatico, nessuna modifica.
 
-### Helper condiviso (riuso, niente duplicati)
-Si **riusa** `campiObbligatoriMancanti` esistente (`lib/interventi/manuali/campiObbligatoriMancanti.ts`), che già
-filtra `tipo !== 'foto'` e gestisce crocetta/numero/testo/select. Si **aggiunge** accanto un
-`campiObbligatoriCompilati(risposte, campi): boolean` (= `campiObbligatoriMancanti(...).length === 0`) nello stesso
-modulo (o in `utils/rapportini/`), così standard e risanamento usano la stessa fonte di verità della modale "+".
+### E. Editor — `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx:704`
+- `{soloManuale && campo.tipo !== 'foto' && (…)}` → `{campo.tipo !== 'foto' && (…)}` → checkbox "Obbligatoria" per ogni
+  campo non-foto su tutti i template (nella sezione accordion "Azioni da fare").
 
-### Contesto A — Rapportino standard pianificato
-- `utils/rapportini/voceColore.ts` → `voceEsitoColore`: in testa,
-  `if (!campiObbligatoriCompilati(risposte, campi)) return 'neutro';`. Additivo, non tocca la logica esistente né le foto.
-- `utils/rapportini/voceMancante.ts` → `motivoVoceIncompleta`: nuovo motivo `'campi_obbligatori_mancanti'`,
-  con priorità: se mancano campi obbligatori → quel motivo; altrimenti logica esistente (`nota_mancante`/`senza_esito`).
-- `components/modules/rapportini/CampoInput.tsx`: asterisco rosso per i campi **non-foto** con `obbligatoria=true`
-  (punto separato da `CampoFotoInput`, che resta invariato).
-- Lista "cosa manca" (`RapportinoLista.tsx`/`VoceCard.tsx`): testo per il nuovo motivo (es. "Compila i campi obbligatori").
+## Cosa NON si tocca (garanzie)
 
-### Contesto B — Risanamento (vista gerarchica)
-- `utils/rapportini/righeIncomplete.ts`: **aggiunta** (senza toccare la parte foto) della validazione dei campi
-  non-foto obbligatori, riusando `campiObbligatoriMancanti`: per ogni riga (misuratore) sui campi scope `misuratore`,
-  per ogni civico con righe sui campi scope `fase`. I campi mancanti confluiscono in `DettaglioIncompleto.campiMancanti`.
-- `components/modules/rapportini/risanamento/RisanamentoView.tsx`: usa già `righeIncomplete` → blocco client automatico;
-  si generalizza solo il testo del messaggio ("Mancano foto obbligatorie" → "Mancano foto/campi obbligatori").
-- `app/api/r/[token]/invia/route.ts`: usa già `righeIncomplete` → blocco server (409) automatico, nessuna modifica.
-
-### Editor
-- `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx:704`:
-  `{soloManuale && campo.tipo !== 'foto' && (…)}` → `{campo.tipo !== 'foto' && (…)}` → checkbox "Obbligatoria" per ogni
-  campo non-foto su tutti i template. (Il blocco vive nella sezione accordion "Azioni da fare" del redesign.)
+- **`utils/rapportini/voceColore.ts`** (`voceEsitoColore`, `haEsitoNegativo`) — invariato.
+- **`utils/rapportini/voceMancante.ts`** (`motivoVoceIncompleta`) — invariato.
+- **Stato voce / `daFare` / `inviabile` / colori** — invariati (il blocco è un gate aggiuntivo all'invio, non un
+  cambio di stato).
+- **Salvataggi** (`/voce`, `/foto-campo`, sincronizzazione, merge risposte) — invariati.
+- **Pipeline foto** (`validaFotoObbligatorie`, `fotoObbligatorieMancanti*`, `ModaleFotoMancanti`, naming, salvataggio,
+  "foto non obbligatorie su esito negativo") — invariata. La nuova logica filtra sempre `tipo !== 'foto'`.
+- **`ModaleInterventoManuale.tsx`** — invariata (già bloccante da `08a4792`).
 
 ## File toccati
 
-| File | Modifica |
-|---|---|
-| `lib/interventi/manuali/campiObbligatoriMancanti.ts` (o `utils/rapportini/`) | aggiungere `campiObbligatoriCompilati` (+ test) |
-| `utils/rapportini/voceColore.ts` | `voceEsitoColore`: priorità campi obbligatori → neutro (+ test) |
-| `utils/rapportini/voceMancante.ts` | nuovo motivo `campi_obbligatori_mancanti` (+ test) |
-| `utils/rapportini/righeIncomplete.ts` | **aggiunge** validazione campi non-foto (foto invariate) (+ test) |
-| `components/modules/rapportini/CampoInput.tsx` | asterisco per non-foto obbligatori (foto invariate) |
-| `components/modules/rapportini/RapportinoLista.tsx` (e/o `VoceCard.tsx`) | testo nuovo motivo |
-| `components/modules/rapportini/risanamento/RisanamentoView.tsx` | testo messaggio generalizzato |
-| `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx` | checkbox su tutti i template |
+| File | Modifica | Tipo |
+|---|---|---|
+| `utils/rapportini/campiObbligatoriVoci.ts` (nuovo) | `campiObbligatoriMancantiVoci` (+ test) | additivo |
+| `components/modules/rapportini/RapportinoForm.tsx` | check + blocco all'invio (prima del check foto) | additivo |
+| `components/modules/rapportini/ModaleCampiMancanti.tsx` (nuovo) o riuso generalizzato | avviso elenco campi | additivo |
+| `components/modules/rapportini/CampoInput.tsx` | asterisco per non-foto obbligatori | additivo, visivo |
+| `utils/rapportini/righeIncomplete.ts` | aggiunge validazione campi non-foto (foto invariate) (+ test) | additivo |
+| `components/modules/rapportini/risanamento/RisanamentoView.tsx` | testo messaggio generalizzato | testo |
+| `app/impostazioni/template-rapportini/TemplateRapportiniClient.tsx` | checkbox su tutti i template | 1 riga |
 
-Nessuna modifica a `ModaleInterventoManuale.tsx` (già bloccante da `08a4792`). Nessuna modifica alle funzioni foto.
-**Nessuna SQL.**
+Nessuna SQL. Nessuna modifica a DB/API payload (l'API risanamento cambia solo perché chiama la `righeIncomplete` estesa).
 
 ## Edge case e regressioni
 
-- **Template classici esistenti**: nessun campo non-foto ha oggi `obbligatoria=true` → `campiObbligatoriCompilati`
-  ritorna sempre `true` → `voceEsitoColore` invariato → **zero regressioni** sui rapportini pianificati in corso.
-- **Foto**: invariate per costruzione (filtro `tipo !== 'foto'`, isolamento descritto sopra).
-- **Campi note non marcati obbligatoria**: regola invariata (obbligatori solo su esito negativo).
-- **Modale "+"**: già bloccante (concorrente), non toccata.
+- **Template esistenti senza campi non-foto obbligatori**: `campiObbligatoriMancanti*` ritorna sempre vuoto → nessun
+  blocco aggiuntivo → **zero regressioni** su rapportini standard/risanamento in corso.
+- **Foto**: invariate (filtro `tipo !== 'foto'` + isolamento).
+- **Campi note**: il flag esplicito vince (un nota marcato `obbligatoria` entra nel check, come gli altri non-foto);
+  i nota non marcati restano gestiti dalla logica nota-su-negativo esistente (non toccata).
 
 ## Criteri di accettazione
 
 1. Editor: il checkbox "Obbligatoria" appare per ogni campo non-foto su template classici **e** manuali.
-2. Rapportino standard: campo obbligatorio vuoto → voce "da fare", asterisco sul campo, voce in "cosa manca",
-   invio bloccato finché non compilato.
+2. Rapportino standard: campo obbligatorio vuoto → asterisco sul campo + **invio bloccato** con elenco "cosa manca",
+   finché non compilato.
 3. Risanamento: campi non-foto obbligatori vuoti bloccano l'invio (client **e** server 409) e compaiono nell'elenco.
-4. Campo nota marcato `obbligatoria` → sempre obbligatorio; non marcato → solo su esito negativo (invariato).
-5. **Il flusso foto è identico a prima**: i test foto restano verdi; con campi obbligatori OK, blocco/avviso/naming/
-   salvataggio foto si comportano esattamente come su `4e51bf2`.
+4. **Foto invariate**: i test foto restano verdi; con campi obbligatori OK, blocco/avviso/naming/salvataggio foto si
+   comportano esattamente come su `4e51bf2`.
+5. **Logiche/salvataggi invariati**: `voceColore`, `voceMancante`, stato voce, `daFare`, salvataggi non sono toccati;
+   i loro test restano verdi.
 6. Zero regressioni su template esistenti senza campi obbligatori non-foto.
 
 ## Verifica
 
-- vitest mirato sui nuovi/estesi helper puri (`campiObbligatori*`, `voceColore`, `voceMancante`, `righeIncomplete`),
-  **inclusi** i test foto esistenti che devono restare verdi.
+- vitest mirato: nuovi helper (`campiObbligatoriMancantiVoci`), `righeIncomplete` esteso, **+ i test esistenti di
+  foto / voceColore / voceMancante che devono restare verdi e invariati**.
 - eslint sui file toccati; `npx tsc --noEmit` (baseline e2e/playwright già rossa — gate mirati).
 - smoke browser: template classico/manuale/risanamento con un campo non-foto obbligatorio → invio bloccato finché
-  vuoto; verificare che un rapportino con foto obbligatorie continui a comportarsi come oggi.
+  vuoto; un rapportino con foto obbligatorie continua a comportarsi come oggi.
 
 ## Note operative
 
-Worktree isolato `.claude/worktrees/campi-obbligatori-tutti-template`, base allineata a `origin/main` `4e51bf2`
-(rebase dopo il lavoro della sessione concorrente). Al merge finale: verificare lo stato reale di `origin/main`
-(`git ls-remote`) prima del push, per via dei ref in movimento.
+Worktree isolato `.claude/worktrees/campi-obbligatori-tutti-template`, base `origin/main` `4e51bf2`. Al merge finale:
+verificare lo stato reale di `origin/main` (`git ls-remote`) prima del push, per via dei ref in movimento (sessione
+concorrente attiva).
