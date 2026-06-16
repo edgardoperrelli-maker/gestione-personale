@@ -1,11 +1,12 @@
 import type { OutboxItem, Snapshot, LavoroVoce } from './types';
 
 const DB_NAME = 'rapportini-offline';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 const STORE_SNAPSHOT = 'snapshot';
 const STORE_LAVORO = 'lavoro';
 const STORE_OUTBOX = 'outbox';
 const STORE_BLOB = 'blob';
+const STORE_CENSIMENTO = 'censimento';
 
 function apriDb(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
@@ -19,6 +20,7 @@ function apriDb(): Promise<IDBDatabase> {
         s.createIndex('per_token', 'token', { unique: false });
       }
       if (!db.objectStoreNames.contains(STORE_BLOB)) db.createObjectStore(STORE_BLOB, { keyPath: 'id' });
+      if (!db.objectStoreNames.contains(STORE_CENSIMENTO)) db.createObjectStore(STORE_CENSIMENTO, { keyPath: 'chiave' });
     };
     req.onsuccess = () => resolve(req.result);
     req.onerror = () => reject(req.error);
@@ -82,6 +84,14 @@ export const dbBlob = {
     return r?.blob;
   },
   rimuovi: (id: string) => tx(STORE_BLOB, 'readwrite', (s) => s.delete(id)),
+};
+
+/* ── Cache censimento (chiave stabile, non il token) ──────────────────────── */
+export type CensitoCacheRecord = { chiave: string; versione: string; righe: unknown[]; scaricatoIl: number };
+export const dbCensimento = {
+  salva: (rec: CensitoCacheRecord) => tx(STORE_CENSIMENTO, 'readwrite', (s) => s.put(rec)),
+  leggi: (chiave: string) =>
+    tx<CensitoCacheRecord | undefined>(STORE_CENSIMENTO, 'readonly', (s) => s.get(chiave) as IDBRequest<CensitoCacheRecord | undefined>),
 };
 
 /** Disponibilità di IndexedDB (false in SSR o browser senza supporto). */
