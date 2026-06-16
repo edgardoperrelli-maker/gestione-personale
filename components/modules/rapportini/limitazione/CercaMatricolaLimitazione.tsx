@@ -30,10 +30,11 @@ export function CercaMatricolaLimitazione({
   const [misuratore, setMisuratore] = useState<CensitoMisuratore | null>(null);
   const [cercato, setCercato] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
+  const [offline, setOffline] = useState(false);
 
   const reset = () => {
     setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]);
-    setAltroOperatore(null); setMisuratore(null);
+    setAltroOperatore(null); setMisuratore(null); setOffline(false);
   };
 
   // Le voci RIFIUTATE non sono task attivi: vanno rifatte da capo, quindi non devono
@@ -49,19 +50,30 @@ export function CercaMatricolaLimitazione({
     const own = matchVociMatricola(vociAttive, v);
     if (own) { onApriAssegnato(own.id); return; }
 
+    // Suggerimenti "simili" calcolati in locale (servono anche offline).
+    const simili = matricoleSimili(
+      v,
+      vociAttive.filter((x): x is VoceMatricola & { matricola: string } => x.matricola != null && x.matricola !== ''),
+      5,
+    );
+
+    // OFFLINE: niente censimento dal server → mostra subito la via "Inserisci a mano".
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      setSuggVoci(simili);
+      setSuggerimenti([]);
+      setOffline(true);
+      setCercato(true);
+      return;
+    }
+
     setCercando(true);
     try {
       const res = await fetch(`/api/r/${token}/cerca-limitazione?q=${encodeURIComponent(v)}`);
-      if (!res.ok) { setErrore('Ricerca non riuscita.'); return; }
+      if (!res.ok) { setErrore('Ricerca non riuscita.'); setSuggVoci(simili); setOffline(true); setCercato(true); return; }
       const j = (await res.json()) as
         | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null }
         | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null };
       setAltroOperatore(j.altroOperatore);
-      const simili = matricoleSimili(
-        v,
-        vociAttive.filter((x): x is VoceMatricola & { matricola: string } => x.matricola != null && x.matricola !== ''),
-        5,
-      );
       setSuggVoci(simili);
       if (j.trovato) {
         setMisuratore(j.misuratore);
@@ -71,7 +83,10 @@ export function CercaMatricolaLimitazione({
       }
       setCercato(true);
     } catch {
-      setErrore('Errore di rete.');
+      // Errore di rete: NON un vicolo cieco → rivela l'inserimento a mano.
+      setSuggVoci(simili);
+      setOffline(true);
+      setCercato(true);
     } finally {
       setCercando(false);
     }
@@ -141,7 +156,12 @@ export function CercaMatricolaLimitazione({
                   </ul>
                 </>
               )}
-              {suggVoci.length === 0 && suggerimenti.length === 0 && (
+              {offline && (
+                <p className="rounded-lg border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] px-3 py-2 text-xs font-semibold text-[var(--warning-fg,#92400e)]">
+                  Offline: censimento non disponibile. Inserisci i dati a mano: verranno verificati alla sincronizzazione.
+                </p>
+              )}
+              {suggVoci.length === 0 && suggerimenti.length === 0 && !offline && (
                 <p className="text-sm font-medium text-[var(--brand-text-main)]">Matricola non censita.</p>
               )}
               <button type="button" onClick={() => onManuale(q.trim())} className="w-full rounded-lg border border-dashed border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
