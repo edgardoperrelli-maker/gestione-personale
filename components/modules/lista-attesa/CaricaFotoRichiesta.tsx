@@ -13,6 +13,7 @@ export function CaricaFotoRichiesta({
   slotFoto: TemplateCampo[];
   onCaricato: () => void;
 }) {
+  const [aperto, setAperto] = useState(false);
   const [foto, setFoto] = useState<Record<string, File>>({});
   const [inviando, setInviando] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -42,32 +43,45 @@ export function CaricaFotoRichiesta({
 
   return (
     <div className="space-y-2">
-      <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Carica foto (recupero)</p>
-      {slotFoto.map((c) => (
-        <CampoFoto
-          key={c.chiave}
-          campo={c}
-          file={foto[c.chiave] ?? null}
-          disabilitato={inviando}
-          onChange={(f) =>
-            setFoto((prev) => {
-              const next = { ...prev };
-              if (f) next[c.chiave] = f;
-              else delete next[c.chiave];
-              return next;
-            })
-          }
-        />
-      ))}
-      {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
       <button
         type="button"
-        onClick={() => void carica()}
-        disabled={inviando || nSel === 0}
-        className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50"
+        onClick={() => setAperto((a) => !a)}
+        className="flex w-full items-center justify-between rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-muted)]"
       >
-        {inviando ? 'Caricamento…' : `Carica ${nSel || ''} foto`}
+        <span>📷 Carica foto (recupero){nSel ? ` · ${nSel} pronte` : ''}</span>
+        <span>{aperto ? '▲' : '▼'}</span>
       </button>
+      {aperto && (
+        <>
+          <div className="grid grid-cols-2 gap-2">
+            {slotFoto.map((c) => (
+              <CampoFoto
+                key={c.chiave}
+                campo={c}
+                file={foto[c.chiave] ?? null}
+                disabilitato={inviando}
+                onChange={(f) =>
+                  setFoto((prev) => {
+                    const next = { ...prev };
+                    if (f) next[c.chiave] = f;
+                    else delete next[c.chiave];
+                    return next;
+                  })
+                }
+              />
+            ))}
+          </div>
+          {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
+          <button
+            type="button"
+            onClick={() => void carica()}
+            disabled={inviando || nSel === 0}
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50"
+          >
+            {inviando ? 'Caricamento…' : `Carica ${nSel || ''} foto`}
+          </button>
+        </>
+      )}
     </div>
   );
 }

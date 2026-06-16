@@ -99,10 +99,10 @@ export function PannelloRevisioneRichiesta({
         </div>
       )}
 
-      {/* Esiti */}
-      {campiEsito.length > 0 && (
-        <div className="space-y-2">
-          {campiEsito.map((campo) => (
+      {/* Esiti — solo campi NON foto (le foto stanno nella galleria + uploader sotto), su 2 colonne */}
+      {campiEsito.some((c) => c.tipo !== 'foto') && (
+        <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+          {campiEsito.filter((c) => c.tipo !== 'foto').map((campo) => (
             <CampoInput key={campo.chiave} campo={campo} valore={risposte[campo.chiave]} disabilitato={busy} onChange={(v) => setRisposte((p) => ({ ...p, [campo.chiave]: v }))} />
           ))}
         </div>
