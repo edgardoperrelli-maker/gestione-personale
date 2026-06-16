@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { formatDataIt, formatDataOraIt } from './formatDataIt';
+import { formatDataIt, formatDataOraIt, formatOraIt } from './formatDataIt';
 
 describe('formatDataIt', () => {
   it('formatta una data YYYY-MM-DD in GG/MM/AAAA', () => {
@@ -16,6 +16,21 @@ describe('formatDataIt', () => {
   });
   it('fallback al valore grezzo se non riconosciuto', () => {
     expect(formatDataIt('non-una-data')).toBe('non-una-data');
+  });
+});
+
+describe('formatOraIt', () => {
+  it('formatta solo l ora HH:mm (ora di Roma)', () => {
+    // 2026-06-15T10:30:00Z → estate (UTC+2) → 12:30 a Roma
+    expect(formatOraIt('2026-06-15T10:30:00Z')).toBe('12:30');
+  });
+  it('stringa vuota se assente', () => {
+    expect(formatOraIt(null)).toBe('');
+    expect(formatOraIt(undefined)).toBe('');
+    expect(formatOraIt('')).toBe('');
+  });
+  it('fallback al valore grezzo se non parsabile', () => {
+    expect(formatOraIt('non-una-data')).toBe('non-una-data');
   });
 });
 

@@ -6,7 +6,7 @@ import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
-import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
+import { formatDataIt, formatDataOraIt, formatOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
@@ -85,7 +85,7 @@ export function PannelloRevisioneRichiesta({
 
   return (
     <div className="space-y-2.5 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
-      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">{riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {formatDataIt(riga.data)}</p>
+      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">{riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {formatDataIt(riga.data)} · inviata {formatOraIt(riga.created_at)}</p>
 
       {/* Anagrafica compatta: 2 colonne */}
       {campiAnag.length > 0 && (
