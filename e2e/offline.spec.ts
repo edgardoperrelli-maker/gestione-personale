@@ -84,3 +84,35 @@ test('foto offline → al sync la voce riceve il PATH reale (non il placeholder)
   const lavoro = await page.evaluate((t) => window.__offline!.risposteLavoro(t, 'v1'), TOKF);
   expect(lavoro?.foto).toBe(FOTO_PATH);
 });
+
+test('intervento manuale offline → in coda → al sync arriva a /intervento-manuale', async ({ page, context }) => {
+  const TOKM = 'e2e-manuale';
+  let manualeUpload = 0;
+  await page.route('**/api/r/**/intervento-manuale', async (route) => {
+    manualeUpload += 1;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
+  });
+
+  await page.goto('/offline-e2e');
+  await expect(page.getByTestId('harness')).toHaveText('pronto');
+
+  // OFFLINE: accoda una richiesta manuale con una foto.
+  await context.setOffline(true);
+  await page.evaluate(async (t) => {
+    const file = new File([new Blob(['fake'], { type: 'image/jpeg' })], 'f.jpg', { type: 'image/jpeg' });
+    await window.__offline!.accodaManuale(
+      t,
+      { committente: 'acea', anagrafica: { nominativo: 'Rossi' }, risposte: { esito: 'ok' }, fotoFiles: { foto1: file } },
+      Date.now(),
+    );
+  }, TOKM);
+  const coda = await page.evaluate((t) => window.__offline!.codaPerToken(t), TOKM);
+  expect(coda.some((i) => i.type === 'manuale')).toBe(true);
+  expect(manualeUpload).toBe(0);
+
+  // ONLINE: sincronizza → la richiesta parte e la coda si svuota.
+  await context.setOffline(false);
+  await page.evaluate((t) => window.__offline!.sincronizzaToken(t), TOKM);
+  await expect.poll(() => manualeUpload).toBeGreaterThan(0);
+  await expect.poll(async () => (await page.evaluate((t) => window.__offline!.codaPerToken(t), TOKM)).length).toBe(0);
+});

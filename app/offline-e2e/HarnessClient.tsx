@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import { persistiVoce, reidrataVoci } from '@/lib/offline/persistVoce';
 import { accodaFoto } from '@/lib/offline/persistFoto';
+import { accodaManuale } from '@/lib/offline/persistManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
 import { dbLavoro, dbOutbox } from '@/lib/offline/db';
 
@@ -12,6 +13,7 @@ declare global {
       persistiVoce: typeof persistiVoce;
       reidrataVoci: typeof reidrataVoci;
       accodaFoto: typeof accodaFoto;
+      accodaManuale: typeof accodaManuale;
       sincronizzaToken: typeof sincronizzaToken;
       codaPerToken: (token: string) => Promise<Array<{ id: string; type: string; stato: string }>>;
       risposteLavoro: (token: string, voceId: string) => Promise<Record<string, unknown> | undefined>;
@@ -27,6 +29,7 @@ export default function HarnessClient() {
       persistiVoce,
       reidrataVoci,
       accodaFoto,
+      accodaManuale,
       sincronizzaToken,
       codaPerToken: async (token: string) =>
         (await dbOutbox.perToken(token)).map((i) => ({ id: i.id, type: i.type, stato: i.stato })),
