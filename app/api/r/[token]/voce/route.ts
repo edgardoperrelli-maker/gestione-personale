@@ -9,7 +9,7 @@ export const runtime = 'nodejs';
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
-  const { voceId, risposte } = await req.json();
+  const { voceId, taskId, risposte } = await req.json();
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
     .select('id, stato, data, campi_snapshot, staff_id, riaperto_at')
@@ -21,19 +21,33 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // 'scaduto' resta bloccato (l'ufficio può riaprire).
   if (stato === 'scaduto')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
-  const { data: voce } = await supabaseAdmin
+  const colonne = 'id, intervento_id, raw_json, risposte';
+  let { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id, raw_json, risposte')
+    .select(colonne)
     .eq('id', voceId)
     .eq('rapportino_id', rap.id)
     .maybeSingle();
+  // Riaggancio per chiave stabile: se l'`id` non esiste più (rapportino rigenerato dall'ufficio →
+  // delete+insert → id nuovi) ma il client ha mandato il `taskId`, ritrova la voce per task_id.
+  // Così i salvataggi in coda dell'operatore non vengono persi (niente 400 "voce_non_valida").
+  if (!voce && typeof taskId === 'string' && taskId) {
+    ({ data: voce } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select(colonne)
+      .eq('task_id', taskId)
+      .eq('rapportino_id', rap.id)
+      .maybeSingle());
+  }
   if (!voce) return NextResponse.json({ error: 'voce_non_valida' }, { status: 400 });
+  // L'id effettivo della voce (può differire da quello inviato dal client dopo una rigenerazione).
+  const voceIdReale = (voce as { id: string }).id;
 
   const esistenti = ((voce as { risposte: Record<string, unknown> | null }).risposte ?? {});
   const merged = mergeRisposte(esistenti, (risposte ?? {}) as Record<string, unknown>, {
     soloCompletamentoFoto: stato === 'inviato',
   });
-  const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte: merged }).eq('id', voceId);
+  const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte: merged }).eq('id', voceIdReale);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
   // Propagazione live SOLO sui salvataggi di un rapportino ancora modificabile:
@@ -62,7 +76,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       });
       if (found) {
         interventoId = found;
-        await supabaseAdmin.from('rapportino_voci').update({ intervento_id: found }).eq('id', voceId);
+        await supabaseAdmin.from('rapportino_voci').update({ intervento_id: found }).eq('id', voceIdReale);
       }
     }
 

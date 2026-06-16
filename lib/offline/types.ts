@@ -3,7 +3,10 @@
 export type OutboxType = 'voce' | 'foto' | 'agenda' | 'manuale' | 'invia';
 export type OutboxStato = 'in_attesa' | 'in_invio' | 'errore' | 'bloccato';
 
-export type PayloadVoce = { voceId: string; risposte: Record<string, unknown> };
+// `taskId` (chiave stabile della voce, opzionale per retro-compatibilità con item già in coda):
+// permette al server di riagganciare il salvataggio anche se l'`id` della voce è ruotato per
+// una rigenerazione del rapportino dall'ufficio (delete+insert → id nuovi).
+export type PayloadVoce = { voceId: string; risposte: Record<string, unknown>; taskId?: string };
 export type PayloadFoto = { voceId: string; chiave: string; blobId: string; clientKey: string };
 export type PayloadAgenda = {
   interventoId: string;
@@ -36,6 +39,8 @@ export type LavoroVoce = {
   chiave: string;
   token: string;
   voceId: string;
+  /** Chiave stabile della voce (sopravvive alle rigenerazioni del rapportino). Opzionale: i record salvati prima dell'introduzione non l'hanno. */
+  taskId?: string;
   risposte: Record<string, unknown>;
   aggiornatoIl: number;
 };

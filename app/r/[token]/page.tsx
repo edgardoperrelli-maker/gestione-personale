@@ -15,6 +15,7 @@ export const dynamic = 'force-dynamic';
 
 type VoceRow = {
   id: string;
+  task_id: string | null;
   ordine: number;
   nominativo: string | null;
   matricola: string | null;
@@ -116,7 +117,7 @@ export default async function RapportinoPublicPage({
 
   const { data: vociRows } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id')
+    .select('id, task_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id')
     .eq('rapportino_id', rap.id)
     .order('ordine');
 
@@ -147,6 +148,7 @@ export default async function RapportinoPublicPage({
 
   const voci: FormVoce[] = ((vociRows ?? []) as VoceRow[]).map((v) => ({
     id: v.id,
+    taskId: v.task_id ?? undefined,
     ordine: v.ordine,
     nominativo: v.nominativo ?? undefined,
     matricola: v.matricola ?? undefined,

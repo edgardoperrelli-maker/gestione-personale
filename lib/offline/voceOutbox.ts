@@ -7,6 +7,7 @@ export function costruisciVoceOutbox(
   voceId: string,
   risposte: Record<string, unknown>,
   now: number,
+  taskId?: string,
 ): Extract<OutboxItem, { type: 'voce' }> {
   return {
     id: idOutboxVoce(token, voceId),
@@ -15,7 +16,7 @@ export function costruisciVoceOutbox(
     createdAt: now,
     tentativi: 0,
     stato: 'in_attesa',
-    payload: { voceId, risposte },
+    payload: { voceId, risposte, taskId },
   };
 }
 

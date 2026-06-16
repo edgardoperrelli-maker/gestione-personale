@@ -10,7 +10,11 @@ describe('costruisciVoceOutbox', () => {
     expect(item.token).toBe('tok');
     expect(item.createdAt).toBe(1234);
     expect(item.stato).toBe('in_attesa');
-    expect(item.payload).toEqual({ voceId: 'v1', risposte: { a: 1 } });
+    expect(item.payload).toEqual({ voceId: 'v1', risposte: { a: 1 }, taskId: undefined });
+  });
+  it('porta il taskId nel payload (chiave stabile per riagganciare dopo una rigenerazione)', () => {
+    const item = costruisciVoceOutbox('tok', 'v1', { a: 1 }, 1234, 'task-9');
+    expect(item.payload).toEqual({ voceId: 'v1', risposte: { a: 1 }, taskId: 'task-9' });
   });
 });
 

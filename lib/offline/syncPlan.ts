@@ -45,5 +45,9 @@ export function classificaEsito(status: number): EsitoSync {
   if (status === 403) return { esito: 'bloccato', motivo: 'Giornata già chiusa' };
   if (status === 409) return { esito: 'bloccato', motivo: 'Link scaduto o non più modificabile' };
   if (status === 422) return { esito: 'bloccato', motivo: 'Dati non validi' };
+  // 400: la voce/intervento non è più presente lato server (tipicamente il rapportino è stato
+  // rigenerato dall'ufficio → l'id è cambiato). Col fallback per task_id su /voce questo scatta
+  // ormai solo quando il task è stato davvero rimosso dal piano: messaggio azionabile.
+  if (status === 400) return { esito: 'bloccato', motivo: 'Intervento non più disponibile — riapri il link' };
   return { esito: 'bloccato', motivo: 'Richiesta non valida' };
 }

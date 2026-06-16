@@ -50,4 +50,11 @@ describe('classificaEsito', () => {
     expect(classificaEsito(400).esito).toBe('bloccato');
     expect(classificaEsito(404).esito).toBe('bloccato');
   });
+  it('400 ha un motivo dedicato (voce non più presente → riapri), non il generico', () => {
+    const e = classificaEsito(400);
+    expect(e).toEqual({ esito: 'bloccato', motivo: 'Intervento non più disponibile — riapri il link' });
+  });
+  it('404 resta sul motivo generico "Richiesta non valida"', () => {
+    expect(classificaEsito(404)).toEqual({ esito: 'bloccato', motivo: 'Richiesta non valida' });
+  });
 });

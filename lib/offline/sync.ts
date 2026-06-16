@@ -17,10 +17,13 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
       const lavori = await dbLavoro.perToken(item.token);
       const lavoro = lavori.find((l) => l.voceId === item.payload.voceId);
       const risposte = lavoro?.risposte ?? item.payload.risposte;
+      // taskId (chiave stabile): se il rapportino è stato rigenerato dall'ufficio l'`id` della
+      // voce è cambiato → il server ripiega su task_id per riagganciare il salvataggio.
+      const taskId = lavoro?.taskId ?? item.payload.taskId;
       const r = await fetch(`/api/r/${item.token}/voce`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voceId: item.payload.voceId, risposte }),
+        body: JSON.stringify({ voceId: item.payload.voceId, taskId, risposte }),
       });
       return { status: r.status };
     }
@@ -60,11 +63,12 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
           if (path) {
             const lavori = await dbLavoro.perToken(item.token);
             const lavoro = lavori.find((l) => l.voceId === item.payload.voceId);
+            const taskId = lavoro?.taskId; // preserva la chiave stabile per il riaggancio lato server
             const risposte = { ...(lavoro?.risposte ?? {}), [item.payload.chiave]: path };
-            await dbLavoro.salva({ chiave: `${item.token}:${item.payload.voceId}`, token: item.token, voceId: item.payload.voceId, risposte, aggiornatoIl: Date.now() });
+            await dbLavoro.salva({ chiave: `${item.token}:${item.payload.voceId}`, token: item.token, voceId: item.payload.voceId, taskId, risposte, aggiornatoIl: Date.now() });
             // Ri-accoda il salvataggio della voce col path reale, usando l'id canonico
             // (così coincide con la voce accodata dal form → coalescing via chiave IndexedDB).
-            await dbOutbox.put({ id: idOutboxVoce(item.token, item.payload.voceId), type: 'voce', token: item.token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: { voceId: item.payload.voceId, risposte } });
+            await dbOutbox.put({ id: idOutboxVoce(item.token, item.payload.voceId), type: 'voce', token: item.token, createdAt: Date.now(), tentativi: 0, stato: 'in_attesa', payload: { voceId: item.payload.voceId, risposte, taskId } });
           }
           await dbBlob.rimuovi(item.payload.blobId);
         } catch {

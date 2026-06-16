@@ -4,8 +4,10 @@ const TOK = 'e2e-tok';
 
 test('compila offline → torna online → sincronizza', async ({ page, context }) => {
   const postChiamate: string[] = [];
+  const postBodies: Array<{ voceId?: string; taskId?: string; risposte?: Record<string, unknown> }> = [];
   await page.route('**/api/r/**/voce', async (route) => {
     postChiamate.push(route.request().url());
+    postBodies.push(JSON.parse(route.request().postData() ?? '{}'));
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 
@@ -13,10 +15,13 @@ test('compila offline → torna online → sincronizza', async ({ page, context 
   await expect(page.getByTestId('harness')).toHaveText('pronto');
 
   await page.evaluate(async (t) => {
-    await window.__offline!.persistiVoce(t, 'v1', { a: 1 }, Date.now());
+    await window.__offline!.persistiVoce(t, 'v1', { a: 1 }, Date.now(), 'task-1');
     await window.__offline!.sincronizzaToken(t);
   }, TOK);
   await expect.poll(() => postChiamate.length).toBeGreaterThan(0);
+  // Il salvataggio invia anche la chiave stabile taskId (riaggancio dopo rigenerazione lato ufficio).
+  expect(postBodies[0]?.voceId).toBe('v1');
+  expect(postBodies[0]?.taskId).toBe('task-1');
   let coda = await page.evaluate((t) => window.__offline!.codaPerToken(t), TOK);
   expect(coda.length).toBe(0);
 
@@ -40,14 +45,14 @@ test('foto offline → al sync la voce riceve il PATH reale (non il placeholder)
   const TOKF = 'e2e-foto';
   const FOTO_PATH = 'rapportini/r/REALE.jpg';
   let fotoUpload = 0;
-  let voceBody: { voceId?: string; risposte?: Record<string, unknown> } | null = null;
+  const voceBodies: Array<{ voceId?: string; risposte?: Record<string, unknown> }> = [];
 
   await page.route('**/api/r/**/foto-campo', async (route) => {
     fotoUpload += 1;
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ path: FOTO_PATH }) });
   });
   await page.route('**/api/r/**/voce', async (route) => {
-    voceBody = JSON.parse(route.request().postData() ?? '{}');
+    voceBodies.push(JSON.parse(route.request().postData() ?? '{}'));
     await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true }) });
   });
 
@@ -72,6 +77,7 @@ test('foto offline → al sync la voce riceve il PATH reale (non il placeholder)
   await expect.poll(() => fotoUpload).toBeGreaterThan(0);
   await expect.poll(async () => (await page.evaluate((t) => window.__offline!.codaPerToken(t), TOKF)).length).toBe(0);
   // ...e la voce inviata al server contiene il PATH REALE, non il placeholder (regressione bug 2b).
+  const voceBody = voceBodies[voceBodies.length - 1];
   expect(voceBody?.risposte?.foto).toBe(FOTO_PATH);
   expect(String(voceBody?.risposte?.foto)).not.toMatch(/^blob-locale:/);
   // dbLavoro locale aggiornato col path reale.

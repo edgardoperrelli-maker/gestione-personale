@@ -34,6 +34,8 @@ import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 
 export type Voce = {
   id: string;
+  /** Chiave stabile della voce (sopravvive alle rigenerazioni del rapportino dall'ufficio). */
+  taskId?: string;
   ordine: number;
   nominativo?: string;
   matricola?: string;
@@ -134,12 +136,19 @@ export default function RapportinoForm({
   const voceIdUploadRef = useRef<string | undefined>(undefined);
   /** Valore precedente di `inAttesa`: per rilevare quando la coda si svuota. */
   const prevInAttesaRef = useRef(0);
+  /** Mappa id-voce → taskId (chiave stabile) per accodare i salvataggi resilienti alle rigenerazioni. */
+  const taskIdPerVoceRef = useRef<Record<string, string | undefined>>({});
 
   useEffect(() => {
     vociOrdinate.forEach((v) => {
       latestRisposteRef.current[v.id] = v.risposte;
     });
   }, [vociOrdinate]);
+
+  // Tiene aggiornata la mappa id→taskId per TUTTE le voci a video (incluse le manuali aggiunte a runtime).
+  useEffect(() => {
+    voci.forEach((v) => { taskIdPerVoceRef.current[v.id] = v.taskId; });
+  }, [voci]);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -182,7 +191,7 @@ export default function RapportinoForm({
       const perVoce = new Map(lavori.map((l) => [l.voceId, l.risposte]));
       for (const voceId of daRiparare) {
         const risposte = perVoce.get(voceId);
-        if (risposte) void persistiVoce(token, voceId, risposte, Date.now());
+        if (risposte) void persistiVoce(token, voceId, risposte, Date.now(), taskIdPerVoceRef.current[voceId]);
       }
       void sincronizzaToken(token);
     });
@@ -219,7 +228,7 @@ export default function RapportinoForm({
       );
       clearTimeout(timersRef.current[voceId]);
       timersRef.current[voceId] = setTimeout(() => {
-        void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now())
+        void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now(), taskIdPerVoceRef.current[voceId])
           .then(() => sincronizzaToken(token));
       }, DEBOUNCE_MS);
     },
@@ -231,7 +240,7 @@ export default function RapportinoForm({
     (voceId: string) => {
       if (disabilitato) return;
       clearTimeout(timersRef.current[voceId]);
-      void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now())
+      void persistiVoce(token, voceId, latestRisposteRef.current[voceId] ?? {}, Date.now(), taskIdPerVoceRef.current[voceId])
         .then(() => sincronizzaToken(token));
     },
     [disabilitato, token],
@@ -256,7 +265,7 @@ export default function RapportinoForm({
       const risposteCorrenti = { ...(latestRisposteRef.current[voceId] ?? {}), [chiave]: placeholder };
       latestRisposteRef.current[voceId] = risposteCorrenti;
       setVoci((prev) => prev.map((v) => (v.id === voceId ? { ...v, risposte: risposteCorrenti } : v)));
-      await persistiVoce(token, voceId, risposteCorrenti, now);
+      await persistiVoce(token, voceId, risposteCorrenti, now, taskIdPerVoceRef.current[voceId]);
       void sincronizzaToken(token);
       return placeholder;
     },
