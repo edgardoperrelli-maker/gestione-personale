@@ -2,6 +2,7 @@
 import { riepilogoRapportino, statoVoce } from './riepilogo';
 import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
 import { campiEsportabili, type TemplateCampo } from './buildVoci';
+import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
@@ -88,13 +89,25 @@ export function costruisciDatiPdf(params: {
     ...campiOrd.map((c) => ({ etichetta: c.etichetta, crocetta: c.tipo === 'crocetta' })),
   ];
 
+  // Blindatura del campo esecutivo "eseguito" per le voci manuali (dal "+"): una voce manuale è
+  // SEMPRE a esito positivo (vedi `riepilogoRapportino` e lo `stato` qui sotto). Se però il campo
+  // `eseguito` non è stato salvato — es. il template solo_manuale del committente non lo dichiara,
+  // quindi `esitoPositivoDefault` a creazione è un no-op — la barra "Eseguito" e la cella restavano
+  // vuote pur essendo la voce conteggiata negli ESEGUITI (regressione PLENZICH: 45 vs 32). Qui in
+  // lettura riapplichiamo l'UNICA fonte di verità `esitoPositivoDefault` (i `campi` del rapportino
+  // dichiarano `eseguito`), così barra e cella restano allineate ai totali a prescindere dai dati
+  // salvati. Le voci pianificate restano intatte (un "NO" legittimo non viene toccato).
+  const risposteVoce = voci.map((v) =>
+    v.manuale ? esitoPositivoDefault(campi, v.risposte ?? {}) : (v.risposte ?? {}),
+  );
+
   // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
   // escludendo i marcatori "assente".
   const lavorazioni = campiOrd
     .filter((c) => (c.tipo === 'crocetta' || c.tipo === 'select') && !isMarcatoreAssente(c.chiave, c.etichetta))
     .map((c) => ({
       etichetta: c.etichetta,
-      count: voci.filter((v) => lavorazioneFatta(c, v.risposte?.[c.chiave])).length,
+      count: risposteVoce.filter((r) => lavorazioneFatta(c, r[c.chiave])).length,
     }))
     .filter((l) => l.count > 0);
 
@@ -102,15 +115,16 @@ export function costruisciDatiPdf(params: {
   const nonEseguiti: RigaPdf[] = [];
 
   voci.forEach((v, i) => {
+    const rsp = risposteVoce[i];
     const valori = [
       ...info.map((c) => valoreInfo(v, c.chiave)),
-      ...campiOrd.map((c) => valoreCampo(v.risposte, c)),
+      ...campiOrd.map((c) => valoreCampo(rsp, c)),
     ];
     const riga: RigaPdf = { n: i + 1, valori };
     // Le voci manuali (dal "+") sono sempre complete → "Eseguiti", coerente con riepilogo/lista.
     // Senza questo, la loro `risposte` (chiavi del template manuale, diverse dal pianificato)
     // dava 'da_fare' e la riga spariva dal PDF pur essendo conteggiata nei totali.
-    const stato = v.manuale ? 'eseguito' : statoVoce(v.risposte, campi);
+    const stato = v.manuale ? 'eseguito' : statoVoce(rsp, campi);
     if (stato === 'eseguito') eseguiti.push(riga);
     else if (stato === 'non_eseguito') nonEseguiti.push(riga);
     // 'da_fare' ignorato: dopo l'invio non esiste (gate daFare === 0)

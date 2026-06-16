@@ -12,6 +12,8 @@ export default defineConfig({
   test: {
     environment: 'node',
     include: ['**/*.test.ts'],
-    exclude: ['node_modules', '.next'],
+    // `.claude/worktrees` contiene checkout git di sessioni passate: NON vanno raccolti,
+    // altrimenti copie stale dei test inquinano la run (falsi rossi/verdi) e mascherano le regressioni.
+    exclude: ['node_modules', '.next', '**/.claude/**'],
   },
 });

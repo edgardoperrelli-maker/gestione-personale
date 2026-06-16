@@ -100,3 +100,39 @@ describe('costruisciDatiPdf — voci manuali (dal +)', () => {
     expect(dati.lavorazioni).toEqual([{ etichetta: 'SOSTITUZIONE VALVOLA', count: 2 }]);
   });
 });
+
+describe('costruisciDatiPdf — blindatura barra "Eseguito" voci manuali (regressione PLENZICH: 45 ≠ 32)', () => {
+  // Template tipo PLENZICH: "eseguito" è un SELECT (SI/NO), non una crocetta.
+  // Una voce manuale (dal "+") è SEMPRE eseguita, ma se il template solo_manuale del committente
+  // non dichiara il campo `eseguito`, il default a creazione (esitoPositivoDefault) non scatta e la
+  // voce viene salvata SENZA `eseguito`. Deve comunque contare nella barra "Eseguito" e mostrare "X".
+  const campiP: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+    { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI'], ordine: 2 },
+    { chiave: 'lettura', etichetta: 'LETTURA', tipo: 'testo', ordine: 3 },
+  ];
+  const voci = [
+    { matricola: 'P1', via: 'Via 1', risposte: { eseguito: 'SI' } },                                            // pianificata eseguita
+    { matricola: 'P2', via: 'Via 2', risposte: { eseguito: 'NO' } },                                            // pianificata NON eseguita
+    { matricola: 'M1', via: 'Via 3', manuale: true, risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } }, // manuale col campo
+    { matricola: 'M2', via: 'Via 4', manuale: true, risposte: { lettura: '5' } },                               // manuale SENZA `eseguito` ← bug
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiP, infoCampi: null });
+
+  it('stato: le manuali sono eseguite anche senza il campo `eseguito` salvato', () => {
+    expect(dati.stats).toEqual({ totali: 4, eseguiti: 3, nonEseguiti: 1 });
+  });
+  it('la barra "Eseguito" conta TUTTE le eseguite (= stats.eseguiti), non solo quelle col campo valorizzato', () => {
+    const eseguito = dati.lavorazioni.find((l) => l.etichetta === 'Eseguito');
+    expect(eseguito?.count).toBe(3);
+    expect(eseguito?.count).toBe(dati.stats.eseguiti);
+    // SOSTITUZIONE VALVOLA non deve gonfiarsi con le manuali: conta solo dove davvero svolta.
+    expect(dati.lavorazioni.find((l) => l.etichetta === 'SOSTITUZIONE VALVOLA')?.count).toBe(1);
+  });
+  it('la cella "Eseguito" della voce manuale senza campo mostra "X" (coerente col conteggio)', () => {
+    const idxEseguito = dati.colonne.findIndex((c) => c.etichetta === 'Eseguito');
+    const idxLettura = dati.colonne.findIndex((c) => c.etichetta === 'LETTURA');
+    const rigaM2 = dati.eseguiti.find((r) => r.valori[idxLettura] === '5');
+    expect(rigaM2?.valori[idxEseguito]).toBe('X');
+  });
+});

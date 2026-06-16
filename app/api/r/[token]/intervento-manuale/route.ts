@@ -110,7 +110,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
   // `eseguito` all'opzione positiva del template (così la colonna Eseguito si popola e i
   // conteggi si allineano). Vale anche per il ramo offline (stesso payload ri-giocato qui).
-  dati.risposte = esitoPositivoDefault(campiEffettivi, dati.risposte);
+  // Robustezza: `esitoPositivoDefault` tocca SOLO il campo `eseguito`. Se l'override
+  // (template solo_manuale del committente) non lo dichiara, lo cerchiamo comunque nello
+  // standard del rapportino — altrimenti la voce nasce con `eseguito` mancante e falsa il
+  // conteggio "Eseguito" (regressione PLENZICH 45 vs 32). I `campiEffettivi` usati altrove
+  // (foto obbligatorie, ecc.) restano invariati.
+  const campiPerEsito = campiEffettivi.some((c) => c.tipo === 'select' && c.chiave === 'eseguito')
+    ? campiEffettivi
+    : [...campiEffettivi, ...standardCampi];
+  dati.risposte = esitoPositivoDefault(campiPerEsito, dati.risposte);
 
   // Raccoglie TUTTE le parti "foto:<chiave>" ricevute (anche slot non previsti dal
   // template): il server non scarta mai una foto. La validazione obbligatorie resta
