@@ -9,7 +9,7 @@ import { decidiScrittura } from './lib/scrittura.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
 
-const MARKER = 'AGGIUNTA APP';
+export const MARKER = 'AGGIUNTA APP';
 
 /** Comune prevalente fra le righe dati (per agganciare le matricole al comune giusto). */
 function comunePrevalente(ws, rIntest, colComune) {
@@ -29,6 +29,11 @@ export async function eseguiGiro({ cartella, lavori, dryRun, stamp }) {
   const indice = buildIndice(lavori);
   const idConsumati = new Set();
   const comuniConFile = new Set();
+
+  if (!fs.existsSync(cartella)) {
+    report.erroreGlobale = `Cartella non trovata: ${cartella}`;
+    return report;
+  }
 
   const files = fs
     .readdirSync(cartella)
@@ -136,7 +141,11 @@ async function main() {
   const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '');
   const lavori = await fetchLavori({ endpointUrl: cfg.endpointUrl, exportKey: cfg.exportKey, from, to });
   const report = await eseguiGiro({ cartella: cfg.cartella, lavori, dryRun: !!cfg.dryRun, stamp });
-  scriviLog(cfg.cartella, stamp, report);
+  try {
+    scriviLog(cfg.cartella, stamp, report);
+  } catch (e) {
+    console.error(`[lim-sync] impossibile scrivere il log: ${e instanceof Error ? e.message : e}`);
+  }
   console.log(`[${stamp}] lavori=${lavori.length} dryRun=${!!cfg.dryRun}`);
   console.log(JSON.stringify(report, null, 2));
 }

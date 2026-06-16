@@ -4,7 +4,7 @@ import os from 'node:os';
 import fs from 'node:fs';
 import path from 'node:path';
 import ExcelJS from 'exceljs';
-import { eseguiGiro } from './agente.mjs';
+import { eseguiGiro, MARKER } from './agente.mjs';
 
 // crea ZAGAROLO.xlsx con intestazione ACEA (riga 1) + 2 righe pianificate
 async function creaFile(file: string) {
@@ -60,7 +60,7 @@ describe('eseguiGiro', () => {
     const ultima = ws.getRow(ws.rowCount);
     expect(ultima.getCell(9).value).toBe('202315612361');      // matricola
     expect(ultima.getCell(67).value).toBe('No');               // esito
-    expect(ultima.getCell(71).value).toBe('AGGIUNTA APP');     // BS marker (idx0 70 → cell 71)
+    expect(ultima.getCell(71).value).toBe(MARKER);             // BS marker (idx0 70 → cell 71)
     // report coerente
     expect(report.file[0].aggiornate).toBe(1);
     expect(report.file[0].extraAggiunte).toBe(1);
