@@ -40,7 +40,10 @@ export function CampoInput({
           onChange={(e) => onChange(e.target.checked)}
           className="h-6 w-6 shrink-0 accent-[var(--brand-primary)]"
         />
-        <span className="text-sm font-semibold">{campo.etichetta}</span>
+        <span className="text-sm font-semibold">
+          {campo.etichetta}
+          {campo.obbligatoria && <span className="ml-1 text-[var(--danger)]">*</span>}
+        </span>
       </label>
     );
   }
@@ -48,6 +51,7 @@ export function CampoInput({
   const labelEl = (
     <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
       {campo.etichetta}
+      {campo.obbligatoria && <span className="ml-1 font-bold text-[var(--danger)]">*</span>}
     </label>
   );
 
