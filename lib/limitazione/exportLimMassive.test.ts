@@ -28,6 +28,9 @@ describe('buildRigaLimMassive', () => {
       esito: 'eseguito', esito_motivo: null, sigillo: 'AA728566', manuale: false,
     });
   });
+  it('display_name null → esecutore vuoto', () => {
+    expect(buildRigaLimMassive({ ...base, display_name: null }).esecutore).toBe('');
+  });
   it('riga manuale negativa → manuale true, esito No, motivo nel campo', () => {
     const r = buildRigaLimMassive({
       ...base, odl: null, esito: null, esito_motivo: 'Nessun passaggio',

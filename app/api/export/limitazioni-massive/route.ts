@@ -13,9 +13,12 @@ export const runtime = 'nodejs';
 function chiaveValida(req: Request): boolean {
   const atteso = process.env.LIM_MASSIVE_EXPORT_KEY ?? '';
   const fornito = req.headers.get('x-export-key') ?? '';
-  if (!atteso || fornito.length !== atteso.length) return false;
+  if (!atteso) return false;
+  const a = Buffer.from(atteso);
+  const f = Buffer.from(fornito);
+  if (f.length !== a.length) return false;
   try {
-    return timingSafeEqual(Buffer.from(fornito), Buffer.from(atteso));
+    return timingSafeEqual(f, a);
   } catch {
     return false;
   }
@@ -34,6 +37,7 @@ type InterventoRow = {
   committente: string | null;
   origine: string | null;
   staff_id: string | null;
+  intervento_tipo: string | null;
 };
 
 export async function GET(req: Request) {
@@ -55,7 +59,7 @@ export async function GET(req: Request) {
       const { data, error } = await supabaseAdmin
         .from('interventi')
         .select(
-          'id, odl, matricola_contatore, comune, indirizzo, esito, esito_motivo, stato, data, committente, origine, staff_id',
+          'id, odl, matricola_contatore, comune, indirizzo, esito, esito_motivo, stato, data, committente, origine, staff_id, intervento_tipo',
         )
         .eq('stato', 'completato')
         .gte('data', from)
@@ -78,10 +82,11 @@ export async function GET(req: Request) {
     }
 
     // 3) mappa intervento_id → sigillo (rapportino_voci.risposte->>'sigillo')
+    const IN_CHUNK = 200; // sotto il limite tipico di lunghezza URL per .in()
     const ids = interventi.map((i) => i.id);
     const sigilloById = new Map<string, string>();
-    for (let i = 0; i < ids.length; i += 200) {
-      const chunk = ids.slice(i, i + 200);
+    for (let i = 0; i < ids.length; i += IN_CHUNK) {
+      const chunk = ids.slice(i, i + IN_CHUNK);
       const { data: voci } = await supabaseAdmin
         .from('rapportino_voci')
         .select('intervento_id, risposte')
