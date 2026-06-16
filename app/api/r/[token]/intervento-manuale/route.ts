@@ -10,6 +10,8 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { risolviCampiManuali } from '@/lib/interventi/manuali/risolviCampiManuali';
+import { partiFotoRicevute, etichettaSlotFoto } from '@/lib/interventi/manuali/fotoRicevute';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -25,7 +27,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const { token } = await params;
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, staff_id, staff_name, data, piano_id, stato, riaperto_at')
+    .select('id, staff_id, staff_name, data, piano_id, stato, riaperto_at, template_id')
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -74,28 +76,46 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const templateId = risolviTemplateCommittente(committente, (templates ?? []) as TemplateRow[]);
   if (!templateId) return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
 
-  // Individua i campi foto del template selezionato.
+  // Override = campi del template solo_manuale del committente.
   const templateRow = (templates ?? []).find((t) => t.id === templateId);
-  const campiTemplate = ((templateRow as { campi?: unknown })?.campi ?? []) as TemplateCampo[];
-  const slotFoto = campiFoto(campiTemplate);
+  const overrideCampi = ((templateRow as { campi?: unknown })?.campi ?? []) as TemplateCampo[];
+
+  // Standard = campi del template del rapportino, letti LIVE (eredità come il client:
+  // override vuoto → si eredita lo standard). È questo allineamento che evita di scartare
+  // le foto quando il template manuale è vuoto/sballato.
+  let standardCampi: TemplateCampo[] = [];
+  let standardPriority: FotoIdCampo[] = [];
+  if (rap.template_id) {
+    const { data: tplStd } = await supabaseAdmin
+      .from('rapportino_template')
+      .select('campi, foto_id_priority')
+      .eq('id', rap.template_id)
+      .maybeSingle();
+    if (tplStd) {
+      standardCampi = ((tplStd.campi ?? []) as TemplateCampo[]);
+      standardPriority = ((tplStd.foto_id_priority ?? []) as FotoIdCampo[]);
+    }
+  }
+  const ereditaStandard = !(overrideCampi.length > 0);
+  const campiEffettivi = risolviCampiManuali(overrideCampi, standardCampi);
+  const slotFoto = campiFoto(campiEffettivi);
 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
   // `eseguito` all'opzione positiva del template (così la colonna Eseguito si popola e i
   // conteggi si allineano). Vale anche per il ramo offline (stesso payload ri-giocato qui).
-  dati.risposte = esitoPositivoDefault(campiTemplate, dati.risposte);
+  dati.risposte = esitoPositivoDefault(campiEffettivi, dati.risposte);
 
-  // Raccoglie le parti file "foto:<slot>" dalla FormData.
-  const fileBySlot = new Map<string, File>();
-  for (const c of slotFoto) {
-    const parte = form.get(`foto:${c.chiave}`);
-    if (parte instanceof File && parte.size > 0) fileBySlot.set(c.chiave, parte);
-  }
+  // Raccoglie TUTTE le parti "foto:<chiave>" ricevute (anche slot non previsti dal
+  // template): il server non scarta mai una foto. La validazione obbligatorie resta
+  // sui campi effettivi.
+  const received = partiFotoRicevute(form);
 
   // Valida le foto obbligatorie → 422 se mancano.
-  const esito = haEsitoNegativo(dati.risposte, campiTemplate)
+  const presentiSet = new Set(received.map((r) => r.chiave));
+  const esito = haEsitoNegativo(dati.risposte, campiEffettivi)
     ? { ok: true, mancanti: [] as string[] }
-    : validaFotoObbligatorie(campiTemplate, Object.fromEntries(
-        slotFoto.map((c) => [c.chiave, fileBySlot.has(c.chiave)]),
+    : validaFotoObbligatorie(campiEffettivi, Object.fromEntries(
+        slotFoto.map((c) => [c.chiave, presentiSet.has(c.chiave)]),
       ));
   if (!esito.ok) {
     return NextResponse.json(
@@ -134,11 +154,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     indirizzo: anagrafica.via as string | undefined,
   };
 
-  const fotoPriority = ((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[];
+  const fotoPriority = ereditaStandard
+    ? standardPriority
+    : (((templateRow as { foto_id_priority?: string[] | null } | undefined)?.foto_id_priority ?? []) as FotoIdCampo[]);
 
   // I2: check MIME server-side per ogni foto prima dell'upload.
-  for (const [, f] of fileBySlot) {
-    if (!f.type.startsWith('image/'))
+  for (const { file } of received) {
+    if (!file.type.startsWith('image/'))
       return NextResponse.json({ error: 'tipo_file_non_valido' }, { status: 400 });
   }
 
@@ -155,13 +177,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const fotoCaricate: FotoCaricata[] = [];
   const pathCaricati: string[] = [];
 
-  for (const c of slotFoto) {
-    const f = fileBySlot.get(c.chiave);
-    if (!f) continue; // slot facoltativo non compilato
-
+  for (const { chiave, file: f } of received) {
     const ext = (f.name.split('.').pop() ?? 'jpg').toLowerCase();
     // I1: storage_path usa identificativoFoto, non l'UUID della richiesta.
-    const storagePath = `${richiestaId}/${c.chiave}_${identificativoFoto(ids, fotoPriority)}.${ext}`;
+    const storagePath = `${richiestaId}/${chiave}_${identificativoFoto(ids, fotoPriority)}.${ext}`;
     const buf = Buffer.from(await f.arrayBuffer());
 
     const { error: upErr } = await supabaseAdmin.storage
@@ -176,12 +195,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       return NextResponse.json({ error: 'upload_foto_fallito' }, { status: 502 });
     }
 
+    // Etichetta dal template effettivo se nota, altrimenti la chiave (mai scartare).
+    const etichetta = etichettaSlotFoto(chiave, campiEffettivi);
     pathCaricati.push(storagePath);
     fotoCaricate.push({
       storagePath,
-      chiave: c.chiave,
-      etichetta: c.etichetta,
-      fileName: nomeFotoFile(c.etichetta, ids, ext, fotoPriority),
+      chiave,
+      etichetta,
+      fileName: nomeFotoFile(etichetta, ids, ext, fotoPriority),
       mimeType: f.type || 'image/jpeg',
       size: f.size,
     });
