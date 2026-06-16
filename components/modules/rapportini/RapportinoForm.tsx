@@ -25,6 +25,7 @@ import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
+import { FabSync } from '@/components/offline/FabSync';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
@@ -128,7 +129,7 @@ export default function RapportinoForm({
   const [avvisoManuale, setAvvisoManuale] = useState<string | null>(null);
   const [campiMancanti, setCampiMancanti] = useState<CampoMancanteVoce[] | null>(null); // blocco pre-invio
 
-  const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, sincronizzaOra } = useStatoSync(token);
+  const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, online, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
 
   const disabilitato = readOnly || bloccato || inviato;
@@ -457,6 +458,17 @@ export default function RapportinoForm({
         <FabInterventoManuale
           abilitato={fabAbilitato({ readOnly, bloccato, inviato })}
           onClick={() => setModaleAperta(true)}
+        />
+      )}
+      {vista === 'lista' && (
+        <FabSync
+          inAttesa={inAttesa}
+          online={online}
+          onSync={sincronizzaOra}
+          // Sopra la lente (9.5rem) quando c'è; nel risanamento (niente lente) sopra il "+" (5.5rem).
+          bottom={tipo !== 'risanamento'
+            ? 'calc(13.5rem + env(safe-area-inset-bottom))'
+            : 'calc(9.5rem + env(safe-area-inset-bottom))'}
         />
       )}
       {modaleAperta && (
