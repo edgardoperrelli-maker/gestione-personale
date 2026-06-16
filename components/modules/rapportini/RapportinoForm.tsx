@@ -29,6 +29,8 @@ import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
 import { ModaleFotoMancanti } from './ModaleFotoMancanti';
+import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
+import { ModaleCampiMancanti } from './ModaleCampiMancanti';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -124,6 +126,7 @@ export default function RapportinoForm({
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
   const [fotoMancanti, setFotoMancanti] = useState<FotoMancanteVoce[] | null>(null); // avviso pre-invio
   const [avvisoManuale, setAvvisoManuale] = useState<string | null>(null);
+  const [campiMancanti, setCampiMancanti] = useState<CampoMancanteVoce[] | null>(null); // blocco pre-invio
 
   const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
@@ -355,6 +358,9 @@ export default function RapportinoForm({
 
   const handleInvia = useCallback(() => {
     if (disabilitato || inviando || !inviabile) return;
+    // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
+    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi);
+    if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
     const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi);
@@ -478,6 +484,13 @@ export default function RapportinoForm({
               void sincronizzaToken(token);
             }
           }}
+        />
+      )}
+      {campiMancanti && campiMancanti.length > 0 && (
+        <ModaleCampiMancanti
+          voci={campiMancanti}
+          onControlla={(index) => { setCampiMancanti(null); onApri(index); }}
+          onChiudi={() => setCampiMancanti(null)}
         />
       )}
       {fotoMancanti && fotoMancanti.length > 0 && (
