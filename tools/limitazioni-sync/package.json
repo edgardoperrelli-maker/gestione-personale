@@ -1,0 +1,10 @@
+{
+  "name": "limitazioni-sync",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Agente locale: aggiorna i file ACEA limitazioni massive su SharePoint da /api/export/limitazioni-massive",
+  "dependencies": {
+    "exceljs": "^4.4.0"
+  }
+}
