@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { PannelloRevisioneRichiesta } from './PannelloRevisioneRichiesta';
@@ -8,7 +8,10 @@ import { useRichiesteManualiFeed } from '@/lib/interventi/manuali/useRichiesteMa
 import { statoPresaInCarico } from '@/lib/interventi/manuali/etichettaPresaInCarico';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { formatDataIt, formatOraIt } from '@/lib/interventi/manuali/formatDataIt';
+import { datiAnagraficaCoda, filtraCoda } from '@/lib/interventi/manuali/filtraCoda';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+
+const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)]';
 
 export function CodaRichiesteManuali({
   infoCampi,
@@ -24,6 +27,27 @@ export function CodaRichiesteManuali({
   const { richieste, count, live, refresh } = useRichiesteManualiFeed();
   const [aperta, setAperta] = useState<string | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
+  const [ricerca, setRicerca] = useState('');
+  const [filtroOperatore, setFiltroOperatore] = useState('');
+  const [filtroCommittente, setFiltroCommittente] = useState('');
+  const [filtroAttivita, setFiltroAttivita] = useState('');
+
+  const operatori = useMemo(() => {
+    const m = new Map<string, string>();
+    richieste.forEach((r) => { if (r.staff_id) m.set(r.staff_id, r.staff_name ?? r.staff_id); });
+    return [...m.entries()].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
+  }, [richieste]);
+  const committenti = useMemo(() => [...new Set(richieste.map((r) => r.committente))].sort(), [richieste]);
+  const attivita = useMemo(
+    () => [...new Set(richieste.map((r) => datiAnagraficaCoda(r).attivita).filter(Boolean))].sort(),
+    [richieste],
+  );
+
+  const filtrate = useMemo(
+    () => filtraCoda(richieste, { ricerca, operatore: filtroOperatore, committente: filtroCommittente, attivita: filtroAttivita }),
+    [richieste, ricerca, filtroOperatore, filtroCommittente, filtroAttivita],
+  );
+  const filtroAttivo = ricerca.trim() !== '' || filtroOperatore !== '' || filtroCommittente !== '' || filtroAttivita !== '';
 
   const prendi = async (id: string, override = false) => {
     setBusyId(id);
@@ -46,7 +70,7 @@ export function CodaRichiesteManuali({
     <section className="space-y-3">
       <div className="flex items-center justify-between">
         <h2 className="text-base font-bold text-[var(--brand-text-main)]">
-          Richieste manuali · in attesa ({count})
+          Richieste manuali · in attesa ({filtroAttivo ? `${filtrate.length} di ${count}` : count})
           <span
             className={`ml-2 inline-block h-2 w-2 rounded-full align-middle ${live ? 'bg-[var(--success)]' : 'bg-[var(--brand-text-muted)]'}`}
             title={live ? 'Realtime attivo' : 'Realtime non attivo (polling)'}
@@ -56,19 +80,51 @@ export function CodaRichiesteManuali({
           Aggiorna
         </button>
       </div>
+
+      {/* Ricerca + filtri */}
+      <div className="flex flex-wrap items-center gap-2">
+        <input
+          type="search"
+          value={ricerca}
+          onChange={(e) => setRicerca(e.target.value)}
+          placeholder="Cerca via, matricola, ODS…"
+          className={`${selCls} min-w-[200px] flex-1 placeholder:text-[var(--brand-text-subtle)]`}
+        />
+        <select className={selCls} value={filtroOperatore} onChange={(e) => setFiltroOperatore(e.target.value)}>
+          <option value="">Tutti gli operatori</option>
+          {operatori.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </select>
+        <select className={selCls} value={filtroCommittente} onChange={(e) => setFiltroCommittente(e.target.value)}>
+          <option value="">Tutti i committenti</option>
+          {committenti.map((c) => <option key={c} value={c}>{etichettaCommittente(c)}</option>)}
+        </select>
+        <select className={selCls} value={filtroAttivita} onChange={(e) => setFiltroAttivita(e.target.value)}>
+          <option value="">Tutte le attività</option>
+          {attivita.map((a) => <option key={a} value={a}>{a}</option>)}
+        </select>
+      </div>
+
       {richieste.length === 0 ? (
         <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
+      ) : filtrate.length === 0 ? (
+        <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta per i filtri selezionati.</p>
       ) : (
         <ul className="space-y-2">
-          {richieste.map((r) => {
+          {filtrate.map((r) => {
             const presa = statoPresaInCarico(r.preso_in_carico_da, userId, adminNomi);
             const busy = busyId === r.id;
+            const dati = datiAnagraficaCoda(r);
             return (
               <li key={r.id} className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
                 <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-                  <button type="button" onClick={() => setAperta((a) => (a === r.id ? null : r.id))} className="flex items-center gap-2 text-left">
+                  <button type="button" onClick={() => setAperta((a) => (a === r.id ? null : r.id))} className="flex flex-col items-start gap-0.5 text-left">
                     <span className="text-sm font-semibold text-[var(--brand-text-main)]">{r.staff_name ?? r.staff_id} · {etichettaCommittente(r.committente)}</span>
-                    <span className="text-xs text-[var(--brand-text-muted)]">{formatDataIt(r.data)} · inviata {formatOraIt(r.created_at)}</span>
+                    {(dati.via || dati.matricola) && (
+                      <span className="text-xs text-[var(--brand-text-main)]">
+                        {[dati.via, dati.matricola && `matr. ${dati.matricola}`].filter(Boolean).join(' · ')}
+                      </span>
+                    )}
+                    <span className="text-[11px] text-[var(--brand-text-muted)]">{formatDataIt(r.data)} · inviata {formatOraIt(r.created_at)}</span>
                   </button>
                   <div className="flex items-center gap-2">
                     {presa.etichetta && (
