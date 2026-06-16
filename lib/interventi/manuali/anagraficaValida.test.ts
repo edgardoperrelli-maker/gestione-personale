@@ -30,12 +30,12 @@ describe('anagraficaValida', () => {
     expect(anagraficaValida({ pdr: '', odl: '  ', matricola: '', via: '', comune: '  ' })).toBe(false);
   });
 
-  it('lim_massive: identificativo + via bastano (comune/cap facoltativi)', () => {
-    expect(anagraficaValida({ matricola: 'AA731024', via: 'Corso Garibaldi 131' }, 'lim_massive')).toBe(true);
+  it('lim_massive: basta un identificativo (matricola), indirizzo non obbligatorio', () => {
+    expect(anagraficaValida({ matricola: 'AA731024' }, 'lim_massive')).toBe(true);
   });
 
-  it('lim_massive: senza via non valida (anche con matricola e comune)', () => {
-    expect(anagraficaValida({ matricola: 'AA731024', comune: 'Zagarolo' }, 'lim_massive')).toBe(false);
+  it('lim_massive: matricola + comune (senza via) è valida', () => {
+    expect(anagraficaValida({ matricola: 'AA731024', comune: 'Zagarolo' }, 'lim_massive')).toBe(true);
   });
 
   it('lim_massive: senza identificativo resta non valida', () => {

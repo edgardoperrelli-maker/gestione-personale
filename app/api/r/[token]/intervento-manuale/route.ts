@@ -49,11 +49,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: 'committente_non_valido' }, { status: 400 });
 
   const anagrafica = rawDati.anagrafica ?? {};
-  if (!anagraficaValida(anagrafica, committente))
-    return NextResponse.json(
-      { error: 'campi_mancanti', dettaglio: 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).' },
-      { status: 422 },
-    );
+  if (!anagraficaValida(anagrafica, committente)) {
+    const dettaglio = committente === 'lim_massive'
+      ? 'Indicare almeno un identificativo (matricola, PDR o ODL).'
+      : 'Indicare almeno un identificativo (PDR, ODL o matricola) e almeno un campo indirizzo (via o comune).';
+    return NextResponse.json({ error: 'campi_mancanti', dettaglio }, { status: 422 });
+  }
 
   // Attività di default per committente (es. lim_massive → "LIMITAZIONI MASSIVE"): il personale
   // non la scrive. Autorevole anche per l'offline (stesso payload ri-giocato qui). Solo se vuota.
