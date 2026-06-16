@@ -700,8 +700,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                       </div>
                     )}
 
-                    {/* Row 2c: obbligatoria (campi non-foto, solo template manuale) */}
-                    {soloManuale && campo.tipo !== 'foto' && (
+                    {/* Row 2c: obbligatoria (campi non-foto, tutti i template) */}
+                    {campo.tipo !== 'foto' && (
                       <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
                         <input
                           type="checkbox"
