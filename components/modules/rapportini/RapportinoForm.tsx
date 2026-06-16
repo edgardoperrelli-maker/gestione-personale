@@ -11,8 +11,10 @@ import { VoceFocus } from './VoceFocus';
 import { FabInterventoManuale } from './FabInterventoManuale';
 import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
+import { TaskViaFocus } from './TaskViaFocus';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
-import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
@@ -123,6 +125,7 @@ export default function RapportinoForm({
   const [filtro, setFiltro] = useState<Filtro>('tutti');
   const [ricerca, setRicerca] = useState('');
   const [modaleAperta, setModaleAperta] = useState(false);
+  const [prefillManuale, setPrefillManuale] = useState<{ committenteIniziale: CommittenteManuale; anagraficaIniziale: AnagraficaManuale; parentVoceId: string } | null>(null);
   const [bloccoSospese, setBloccoSospese] = useState<number | null>(null);
   const [bloccatoInvia, setBloccatoInvia] = useState(false); // 409 terminale all'invio (link scaduto/già inviato)
   const [fotoMancanti, setFotoMancanti] = useState<FotoMancanteVoce[] | null>(null); // avviso pre-invio
@@ -410,6 +413,20 @@ export default function RapportinoForm({
       {bannerSospese}
       {tipo === 'risanamento' ? (
         <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
+      ) : vista === 'focus' && voci[indiceCorrente] && isTaskVia(voci[indiceCorrente]) ? (
+        <TaskViaFocus
+          voce={voci[indiceCorrente]}
+          token={token}
+          onClose={onClose}
+          onAggiungi={(v) => {
+            setPrefillManuale({
+              committenteIniziale: 'italgas',
+              anagraficaIniziale: { via: v.via ?? '' },
+              parentVoceId: v.taskId ?? v.id,
+            });
+            setModaleAperta(true);
+          }}
+        />
       ) : vista === 'focus' && voci[indiceCorrente] ? (
         <VoceFocus
           voce={voci[indiceCorrente]}
@@ -478,15 +495,20 @@ export default function RapportinoForm({
           campiPerCommittente={templatesPerCommittente}
           infoCampiPerCommittente={infoCampiPerCommittente}
           campiStandard={campiStandardManuale ?? campiSnapshot}
+          committenteIniziale={prefillManuale?.committenteIniziale}
+          anagraficaIniziale={prefillManuale?.anagraficaIniziale}
+          parentVoceId={prefillManuale?.parentVoceId}
           voci={voci}
           onApriAssegnato={(voceId) => {
             setModaleAperta(false);
+            setPrefillManuale(null);
             const idx = voci.findIndex((v) => v.id === voceId);
             if (idx >= 0) { window.alert('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
           }}
-          onClose={() => setModaleAperta(false)}
+          onClose={() => { setModaleAperta(false); setPrefillManuale(null); }}
           onCreata={(stato) => {
             setModaleAperta(false);
+            setPrefillManuale(null);
             if (stato === 'inviata') {
               window.location.reload();
             } else {
