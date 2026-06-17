@@ -74,7 +74,7 @@ export async function GET(req: Request) {
         const rows = (batch ?? []) as unknown as InterventoStoricoRow[];
         for (const r of rows) righe.push(interventoToRigaStorico(r, staffNames));
         if (rows.length < PAGE_DB) break;
-        if (offset + PAGE_DB >= MAX_RIGHE) troncato = true;
+        if (offset + PAGE_DB >= MAX_RIGHE) { troncato = true; break; }
       }
     }
 
@@ -94,6 +94,7 @@ export async function GET(req: Request) {
       if (f.esecutore) q = q.eq('staff_id', f.esecutore);
       const { data: manRows, error } = await q;
       if (error) throw error;
+      if ((manRows?.length ?? 0) >= MAX_RIGHE) troncato = true;
       const norm = ((manRows ?? []) as unknown as ManualeStoricoRow[]).map((r) => manualeToRigaStorico(r, staffNames));
       const filtrate = filtraManualiInMemoria(norm, qPulita, f.comune);
       righe.push(...filtrate);
