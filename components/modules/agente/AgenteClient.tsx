@@ -13,6 +13,8 @@ export type AgenteClientProps = {
   files: AgenteFileColonneRow[];
   stato: { online: boolean; allerta: string | null };
   minutiDaContatto: number | null;
+  forzaGiro: boolean;
+  forzaScan: boolean;
 };
 
 /** Forma modificabile della config nel form (sottoinsieme salvabile). */
@@ -32,7 +34,7 @@ const cardStyle = {
   backgroundColor: 'var(--brand-surface)',
 } as const;
 
-export default function AgenteClient({ config, runs, files, stato, minutiDaContatto }: AgenteClientProps) {
+export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan }: AgenteClientProps) {
   const router = useRouter();
   const [form, setForm] = useState<ConfigForm>({
     enabled: config.enabled,
@@ -216,6 +218,32 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             · ultimo contatto {formattaContatto(minutiDaContatto)}
           </span>
         </div>
+        {(forzaGiro || forzaScan) && (
+          <div
+            className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+            style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
+          >
+            <span>⏳ In attesa del prossimo contatto dell&apos;agente:</span>
+            {forzaGiro && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
+                giro forzato
+              </span>
+            )}
+            {forzaScan && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
+                re-scan colonne
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={() => router.refresh()}
+              className="ml-auto rounded-lg border px-2 py-0.5 text-xs font-medium"
+              style={{ borderColor: 'var(--brand-border)' }}
+            >
+              ↻ Aggiorna stato
+            </button>
+          </div>
+        )}
         {stato.allerta && (
           <div
             className="rounded-xl border px-3 py-2 text-sm"

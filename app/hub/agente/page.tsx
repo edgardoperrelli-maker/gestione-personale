@@ -67,6 +67,9 @@ export default async function AgentePage() {
   const config = (configRow ?? CONFIG_DEFAULT) as AgenteConfigRow;
   const runs = (runRows ?? []) as AgenteRunRow[];
   const files = (fileRows ?? []) as AgenteFileColonneRow[];
+  // flag one-shot (non nel tipo config): mostrati come "in attesa" finché l'agente non ticka
+  const forzaGiro = (configRow as { forza_giro?: boolean } | null)?.forza_giro === true;
+  const forzaScan = (configRow as { forza_scan?: boolean } | null)?.forza_scan === true;
 
   const now = new Date();
   const { oggi, oraCorrente, weekday } = partiRoma(now);
@@ -87,6 +90,8 @@ export default async function AgentePage() {
       files={files}
       stato={stato}
       minutiDaContatto={minutiDa(config.ultimo_contatto_il, now)}
+      forzaGiro={forzaGiro}
+      forzaScan={forzaScan}
     />
   );
 }
