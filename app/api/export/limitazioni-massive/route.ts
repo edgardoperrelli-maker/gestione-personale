@@ -74,6 +74,7 @@ export async function GET(req: Request) {
     const ids = interventi.map((i) => i.id);
     const sigilloById = new Map<string, string>();
     const saracinescaById = new Map<string, string>();
+    const noteById = new Map<string, string>();
     for (let i = 0; i < ids.length; i += IN_CHUNK) {
       const chunk = ids.slice(i, i + IN_CHUNK);
       const { data: voci } = await supabaseAdmin
@@ -101,6 +102,10 @@ export async function GET(req: Request) {
             : '';
         const sar = sv1.trim() || sv2.trim();
         if (sar && !saracinescaById.has(v.intervento_id)) saracinescaById.set(v.intervento_id, sar);
+        // note: nota del rapportino (usata sui soli negativi, vedi buildRigaLimMassive)
+        const nota =
+          v.risposte && typeof v.risposte['note'] === 'string' ? (v.risposte['note'] as string) : '';
+        if (nota.trim() && !noteById.has(v.intervento_id)) noteById.set(v.intervento_id, nota);
       }
     }
 
@@ -123,6 +128,7 @@ export async function GET(req: Request) {
         pdr: i.pdr,
         nominativo: i.nominativo,
         saracinesca: saracinescaById.get(i.id) ?? null,
+        note: noteById.get(i.id) ?? null,
       } satisfies RigaDb),
     );
 

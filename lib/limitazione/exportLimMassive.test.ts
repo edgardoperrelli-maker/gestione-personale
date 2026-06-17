@@ -18,7 +18,7 @@ const base: RigaDb = {
   comune: 'ZAGAROLO', indirizzo: 'VIA CANCELLATA GRANDE 32', esito: 'eseguito_positivo',
   esito_motivo: null, stato: 'completato', data: '2026-06-03',
   committente: 'acea', origine: 'pianificato', display_name: 'CIARALLO SIMONE', sigillo: 'AA728566',
-  pdr: ' 00123456789 ', nominativo: ' Rossi Mario ', saracinesca: 'SI',
+  pdr: ' 00123456789 ', nominativo: ' Rossi Mario ', saracinesca: 'SI', note: null,
 };
 
 describe('buildRigaLimMassive', () => {
@@ -27,7 +27,7 @@ describe('buildRigaLimMassive', () => {
       id: 'uuid-1', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO',
       via: 'VIA CANCELLATA GRANDE 32', esecutore: 'CIARALLO', data_esecuzione: '2026-06-03',
       esito: 'eseguito', esito_motivo: null, sigillo: 'AA728566', manuale: false,
-      esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario', saracinesca: 'SI',
+      esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario', saracinesca: 'SI', note: '',
     });
   });
   it('display_name null → esecutore vuoto', () => {
@@ -90,5 +90,22 @@ describe('buildRigaLimMassive — campi additivi esitoOk/pdr/nominativo', () => 
   it('saracinesca: passa il valore trimmato', () => {
     expect(buildRigaLimMassive({ ...base, saracinesca: '  NO  ' }).saracinesca).toBe('NO');
     expect(buildRigaLimMassive({ ...base, saracinesca: null }).saracinesca).toBe('');
+  });
+  it('note: vuota sui positivi (esitoOk true)', () => {
+    expect(buildRigaLimMassive({ ...base, note: 'qualcosa', esito_motivo: 'motivo' }).note).toBe('');
+  });
+  it('note: sui negativi preferisce la nota, poi il motivo', () => {
+    // negativo con nota → usa la nota
+    expect(
+      buildRigaLimMassive({ ...base, esito: 'accesso_negato', note: '  Cane in giardino  ', esito_motivo: 'Accesso negato' }).note,
+    ).toBe('Cane in giardino');
+    // negativo senza nota → ripiega sul motivo
+    expect(
+      buildRigaLimMassive({ ...base, esito: 'accesso_negato', note: null, esito_motivo: 'Accesso negato' }).note,
+    ).toBe('Accesso negato');
+    // negativo senza nota né motivo → ''
+    expect(
+      buildRigaLimMassive({ ...base, esito: 'accesso_negato', note: null, esito_motivo: null }).note,
+    ).toBe('');
   });
 });

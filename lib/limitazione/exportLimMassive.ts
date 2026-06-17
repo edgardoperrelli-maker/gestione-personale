@@ -39,6 +39,7 @@ export type RigaLimMassive = {
   pdr: string;
   nominativo: string;
   saracinesca: string;
+  note: string; // nota da scrivere SOLO quando l'esito è negativo (coalesce note→esito_motivo); '' altrimenti
   manuale: boolean;
 };
 
@@ -60,11 +61,13 @@ export type RigaDb = {
   pdr: string | null;
   nominativo: string | null;
   saracinesca: string | null;
+  note: string | null; // rapportino_voci.risposte->>'note' (fonte primaria della nota)
 };
 
 const t = (v: string | null | undefined): string => String(v ?? '').trim();
 
 export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
+  const esitoOk = esitoOkDaIntervento(r.stato, r.esito);
   return {
     id: t(r.id),
     odl: t(r.odl),
@@ -74,12 +77,14 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     esecutore: cognomeDaDisplayName(r.display_name),
     data_esecuzione: t(r.data),
     esito: esitoFileDaIntervento(r.stato, r.esito),
-    esitoOk: esitoOkDaIntervento(r.stato, r.esito),
+    esitoOk,
     esito_motivo: t(r.esito_motivo) || null,
     sigillo: t(r.sigillo),
     pdr: t(r.pdr),
     nominativo: t(r.nominativo),
     saracinesca: t(r.saracinesca),
+    // nota solo sui negativi (esitoOk === false): prima la nota del rapportino, poi il motivo
+    note: esitoOk === false ? (t(r.note) || t(r.esito_motivo)) : '',
     manuale: r.committente === 'lim_massive' || r.origine === 'manuale',
   };
 }
