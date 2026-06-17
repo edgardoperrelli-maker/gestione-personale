@@ -6,11 +6,11 @@ const OGGI = '2026-06-17';
 
 describe('parseFiltriStorico', () => {
   it('default vuoto: q vuota, date nulle, page 0', () => {
-    const f = parseFiltriStorico(new URLSearchParams(), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams());
     expect(f).toEqual({ q: '', data: null, dal: null, al: null, esecutore: null, comune: '', committente: null, stato: null, esito: null, page: 0 });
   });
   it('q trimmata; range date validi; valori invalidi → null', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ q: '  200123  ', dal: '2026-06-01', al: 'xx', committente: 'acea', stato: 'completato', esito: 'rinviato', esecutore: ' s1 ', comune: ' Roma ', page: '3' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ q: '  200123  ', dal: '2026-06-01', al: 'xx', committente: 'acea', stato: 'completato', esito: 'rinviato', esecutore: ' s1 ', comune: ' Roma ', page: '3' }));
     expect(f.q).toBe('200123');
     expect(f.dal).toBe('2026-06-01');
     expect(f.al).toBeNull();
@@ -22,7 +22,7 @@ describe('parseFiltriStorico', () => {
     expect(f.page).toBe(3);
   });
   it('committente/stato/esito non riconosciuti → null', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ committente: 'pippo', stato: 'x', esito: 'y' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ committente: 'pippo', stato: 'x', esito: 'y' }));
     expect(f.committente).toBeNull();
     expect(f.stato).toBeNull();
     expect(f.esito).toBeNull();
@@ -31,42 +31,42 @@ describe('parseFiltriStorico', () => {
 
 describe('risolviFinestra', () => {
   it('q presente → nessun vincolo data (tutto lo storico)', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ q: 'abc', dal: '2026-06-01' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ q: 'abc', dal: '2026-06-01' }));
     expect(risolviFinestra(f, OGGI)).toEqual({ eq: null, gte: null, lte: null });
   });
   it('senza q e senza date → giorno corrente', () => {
-    const f = parseFiltriStorico(new URLSearchParams(), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams());
     expect(risolviFinestra(f, OGGI)).toEqual({ eq: OGGI, gte: null, lte: null });
   });
   it('range date → gte/lte', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ dal: '2026-06-01', al: '2026-06-10' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ dal: '2026-06-01', al: '2026-06-10' }));
     expect(risolviFinestra(f, OGGI)).toEqual({ eq: null, gte: '2026-06-01', lte: '2026-06-10' });
   });
 });
 
 describe('interrogaInterventi / interrogaManuali', () => {
   it('di default interroga entrambe', () => {
-    const f = parseFiltriStorico(new URLSearchParams(), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams());
     expect(interrogaInterventi(f)).toBe(true);
     expect(interrogaManuali(f)).toBe(true);
   });
   it('esito impostato → niente manuali (esito è solo interventi)', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ esito: 'rinviato' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ esito: 'rinviato' }));
     expect(interrogaManuali(f)).toBe(false);
     expect(interrogaInterventi(f)).toBe(true);
   });
   it('stato manuale (in_attesa) → niente interventi', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ stato: 'in_attesa' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ stato: 'in_attesa' }));
     expect(interrogaInterventi(f)).toBe(false);
     expect(interrogaManuali(f)).toBe(true);
   });
   it('stato condiviso (annullato) → entrambe', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ stato: 'annullato' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ stato: 'annullato' }));
     expect(interrogaInterventi(f)).toBe(true);
     expect(interrogaManuali(f)).toBe(true);
   });
   it('stato manuale (rifiutato) → niente interventi', () => {
-    const f = parseFiltriStorico(new URLSearchParams({ stato: 'rifiutato' }), OGGI);
+    const f = parseFiltriStorico(new URLSearchParams({ stato: 'rifiutato' }));
     expect(interrogaInterventi(f)).toBe(false);
     expect(interrogaManuali(f)).toBe(true);
   });

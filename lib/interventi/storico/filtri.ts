@@ -34,7 +34,7 @@ export function puliziaQ(q: string | null | undefined): string {
   return (q ?? '').replace(/[,()%*]/g, ' ').trim().replace(/\s+/g, ' ');
 }
 
-export function parseFiltriStorico(params: URLSearchParams, _oggi: string): FiltriStorico {
+export function parseFiltriStorico(params: URLSearchParams): FiltriStorico {
   const committenteRaw = params.get('committente') ?? '';
   const statoRaw = params.get('stato') ?? '';
   const esitoRaw = params.get('esito') ?? '';

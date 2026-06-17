@@ -29,7 +29,7 @@ export async function GET(req: Request) {
 
     const { searchParams } = new URL(req.url);
     const oggi = oggiIso();
-    const f = parseFiltriStorico(searchParams, oggi);
+    const f = parseFiltriStorico(searchParams);
     const finestra = risolviFinestra(f, oggi);
     const qPulita = puliziaQ(f.q);
 
