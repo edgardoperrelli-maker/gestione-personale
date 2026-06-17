@@ -284,6 +284,10 @@ describe('validaConfig', () => {
     expect(validaConfig({ ...cfgOk(), esito_positivo: '' }).ok).toBe(false);
     expect(validaConfig({ ...cfgOk(), esito_positivo: '   ' }).ok).toBe(false);
   });
+  it('esito_negativo vuoto o solo spazi → errore', () => {
+    expect(validaConfig({ ...cfgOk(), esito_negativo: '' }).ok).toBe(false);
+    expect(validaConfig({ ...cfgOk(), esito_negativo: '   ' }).ok).toBe(false);
+  });
   it('esito_negativo non stringa → errore', () => {
     expect(validaConfig({ ...cfgOk(), esito_negativo: 5 }).ok).toBe(false);
   });

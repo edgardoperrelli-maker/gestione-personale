@@ -20,7 +20,8 @@ export function partiRoma(now: Date): PartiRoma {
   const mappa: Record<string, number> = {
     Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6, Sun: 7,
   };
-  const weekday = mappa[wd] ?? 1;
+  const weekday = mappa[wd];
+  if (weekday === undefined) throw new Error(`partiRoma: weekday inatteso "${wd}"`);
 
   return { oggi, oraCorrente, weekday };
 }

@@ -169,7 +169,7 @@ export function validaMappatura(input: unknown): EsitoValidazione<RegolaMappa[]>
   const marcatore = regole.find((r) => r.campo === 'marcatore');
   if (marcatore && marcatore.abilitato && marcatore.auto !== true && marcatore.colonna.trim() !== '') {
     const collisione = regole.some(
-      (r) => r.campo !== 'marcatore' && r.abilitato && r.colonna === marcatore.colonna,
+      (r) => r.campo !== 'marcatore' && r.abilitato && r.colonna.trim() === marcatore.colonna.trim(),
     );
     if (collisione) {
       return {
