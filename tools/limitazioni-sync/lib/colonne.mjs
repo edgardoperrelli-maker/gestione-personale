@@ -12,7 +12,19 @@ const ALIAS = {
   sigillo: ['sigillo posato', 'sigillo'],
 };
 
-const norm = (s) => String(s ?? '').trim().toLowerCase();
+/** Norma robusta per nome-colonna: NFD (toglie accenti), NBSP->spazio, collapse spazi, trim, lowercase.
+ *  Stessa funzione per lo scan dei menu e per la scrittura guidata dalla mappa. */
+export function normNome(s) {
+  return String(s ?? "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
+}
+
+const norm = normNome;
 
 /** headerRow: array di valori della riga di intestazione. Ritorna { chiave: indice0based }. */
 export function rilevaColonne(headerRow) {
@@ -29,13 +41,22 @@ export function rilevaColonne(headerRow) {
   return cols;
 }
 
-/** Un file è "master limitazioni" solo se ha la firma minima di colonne. */
+/** Un file e'“master limitazioni” se ha SOLO ORDINE+MATRICOLA
+ *  (esito/sigillo ora sono campi mappabili). */
 export function isFileMaster(headerRow) {
   const c = rilevaColonne(headerRow);
-  return ['odl', 'matricola', 'esito', 'sigillo'].every((k) => k in c);
+  return ['odl', 'matricola'].every((k) => k in c);
 }
 
-/** Indice (0-based) della colonna marcatore "AGGIUNTA APP": prima colonna con intestazione
+/** Indice 0-based della colonna con intestazione = nome (per normNome, primo match); -1 se assente. */
+export function risolviColonna(headers, nome) {
+  const target = normNome(nome);
+  if (!target) return -1;
+  const cells = (headers ?? []).map(normNome);
+  return cells.indexOf(target);
+}
+
+/** Indice (0-based) della colonna marcatore: prima colonna con intestazione
  *  vuota dopo l'ultima colonna nota; fallback = lunghezza riga (nuova colonna in coda). */
 export function colonnaMarker(headerRow) {
   const cells = (headerRow ?? []).map(norm);
