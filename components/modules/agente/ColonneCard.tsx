@@ -17,7 +17,10 @@ const ETICHETTA_CAMPO: Record<string, string> = {
   pdr: 'PDR',
   nominativo: 'Nominativo',
   comune: 'Comune',
+  saracinesca: 'Saracinesca',
+  note: 'Nota (solo esito negativo)',
   marcatore: 'Marcatore (solo extra)',
+  automazione: 'Automazione (righe toccate)',
 };
 
 export function ColonneCard({

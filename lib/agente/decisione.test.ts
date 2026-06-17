@@ -149,7 +149,7 @@ describe('CAMPI_MAPPABILI', () => {
   it('contiene i campi previsti incluso marcatore', () => {
     expect(CAMPI_MAPPABILI).toEqual([
       'esecutore', 'data', 'esito', 'sigillo', 'matricola',
-      'via', 'pdr', 'nominativo', 'comune', 'saracinesca', 'marcatore',
+      'via', 'pdr', 'nominativo', 'comune', 'saracinesca', 'note', 'marcatore', 'automazione',
     ]);
   });
 });
@@ -158,6 +158,10 @@ describe('validaMappatura', () => {
   it('mappatura valida → ok', () => {
     const m = [regola('esecutore', 'Esecutore'), regola('esito', 'esito')];
     expect(validaMappatura(m)).toEqual({ ok: true, value: m });
+  });
+  it('accetta le regole note e automazione', () => {
+    expect(validaMappatura([regola('note', 'NOTE')]).ok).toBe(true);
+    expect(validaMappatura([regola('automazione', 'AUTOMAZIONE')]).ok).toBe(true);
   });
   it('non è un array → errore', () => {
     expect(validaMappatura('x' as unknown).ok).toBe(false);

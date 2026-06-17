@@ -120,7 +120,7 @@ export type RegolaMappa = {
 
 export const CAMPI_MAPPABILI = [
   'esecutore', 'data', 'esito', 'sigillo', 'matricola',
-  'via', 'pdr', 'nominativo', 'comune', 'saracinesca', 'marcatore',
+  'via', 'pdr', 'nominativo', 'comune', 'saracinesca', 'note', 'marcatore', 'automazione',
 ] as const;
 
 export type EsitoValidazione<T> =
