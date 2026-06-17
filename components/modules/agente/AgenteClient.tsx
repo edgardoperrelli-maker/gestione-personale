@@ -46,6 +46,21 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   });
   const [salvando, setSalvando] = useState(false);
   const [esitoSalva, setEsitoSalva] = useState<{ ok: boolean; msg: string } | null>(null);
+  const [arming, setArming] = useState(false);
+  const [armMsg, setArmMsg] = useState<string | null>(null);
+
+  async function eseguiOra() {
+    setArming(true); setArmMsg(null);
+    try {
+      const res = await fetch('/api/admin/agente/esegui-ora', { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      setArmMsg(res.ok ? 'Giro armato: parte al prossimo contatto dell\'agente (entro l\'ora).' : `Errore: ${j.error ?? res.status}`);
+    } catch (e) {
+      setArmMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally {
+      setArming(false);
+    }
+  }
 
   function patch(p: Partial<ConfigForm>) {
     setForm((prev) => ({ ...prev, ...p }));
@@ -208,6 +223,18 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             ⚠ {stato.allerta}
           </div>
         )}
+        <div className="mt-3 flex items-center gap-3">
+          <button
+            type="button"
+            onClick={eseguiOra}
+            disabled={arming}
+            className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            style={{ backgroundColor: 'var(--brand-primary)' }}
+          >
+            {arming ? 'Armo…' : 'Esegui ora'}
+          </button>
+          {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
+        </div>
       </section>
 
       {/* Card Storico (D6) */}
