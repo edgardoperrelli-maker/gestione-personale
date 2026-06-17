@@ -46,6 +46,26 @@ async function creaFileSaracinesca(file: string) {
   await wb.xlsx.writeFile(file);
 }
 
+// crea ZAGAROLO.xlsx con colonne AUTOMAZIONE (marcatore "SI") e NOTE (nota sui negativi).
+async function creaFileAutomazione(file: string) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Foglio1');
+  const h = ws.getRow(1);
+  h.getCell(6).value = 'ORDINE';        // F  odl
+  h.getCell(9).value = 'MATRICOLA';     // I  matricola
+  h.getCell(58).value = 'INDIRIZZO';    // BF via
+  h.getCell(64).value = 'Località';     // BL comune
+  h.getCell(65).value = 'Esecutore';    // BM
+  h.getCell(67).value = 'esito';        // BO
+  h.getCell(68).value = 'AUTOMAZIONE';  // BP
+  h.getCell(69).value = 'NOTE';         // BQ
+  const r2 = ws.getRow(2);
+  r2.getCell(6).value = '912231020'; r2.getCell(9).value = '20000020750'; r2.getCell(64).value = 'ZAGAROLO';
+  const r3 = ws.getRow(3);
+  r3.getCell(6).value = '999999999'; r3.getCell(9).value = '11111111111'; r3.getCell(64).value = 'ZAGAROLO';
+  await wb.xlsx.writeFile(file);
+}
+
 // mappa di default per i test: i 4 campi classici (per nome) + marcatore auto.
 const MAPPATURA = [
   { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
@@ -191,5 +211,52 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     const ws = wb.worksheets[0];
     expect(ws.getRow(2).getCell(68).value).toBe('NO');      // BP saracinesca
     expect(ws.getRow(2).getCell(67).value).toBe('eseguito'); // BO esito invariato
+  });
+
+  it('automazione: SI sulle righe toccate (pianificate+extra), vuoto sulle non agganciate; nota sui negativi; report.righe popolato', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-auto-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-03', esito: 'eseguito', esitoOk: true,
+          sigillo: 'AA728566', saracinesca: '', note: '', manuale: false },
+        { id: 'b', odl: '', matricola: '202315612361', comune: 'ZAGAROLO', via: 'VIA Y 2',
+          esecutore: 'PASTORELLI', data_esecuzione: '2026-06-04', esito: 'No', esitoOk: false,
+          sigillo: '', saracinesca: '', note: 'Cane in giardino', manuale: true },
+      ],
+      dryRun: false,
+      stamp: '20260617-1000',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // riga 2 pianificata lavorata -> AUTOMAZIONE "SI", esito scritto, NOTE vuota (positivo)
+    expect(ws.getRow(2).getCell(68).value).toBe('SI');
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    expect(ws.getRow(2).getCell(69).value ?? '').toBe('');
+    // riga 3 NON agganciata -> AUTOMAZIONE vuota
+    expect(ws.getRow(3).getCell(68).value ?? '').toBe('');
+    // extra negativa -> AUTOMAZIONE "SI", esito "No", NOTE scritta
+    const ultima = ws.getRow(ws.rowCount);
+    expect(ultima.getCell(68).value).toBe('SI');
+    expect(ultima.getCell(67).value).toBe('No');
+    expect(ultima.getCell(69).value).toBe('Cane in giardino');
+    // report.righe: una "aggiornata" + una "extra"
+    const righe = report.file[0].righe;
+    expect(righe.map((r: { tipo: string }) => r.tipo).sort()).toEqual(['aggiornata', 'extra']);
+    expect(righe.find((r: { tipo: string }) => r.tipo === 'extra').note).toBe('Cane in giardino');
+    expect(righe.find((r: { tipo: string }) => r.tipo === 'aggiornata').matricola).toBe('20000020750');
   });
 });

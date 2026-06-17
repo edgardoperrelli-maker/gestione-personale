@@ -13,6 +13,7 @@ import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
+export const MARKER_AUTOMAZIONE = 'SI';
 
 /** Comune prevalente fra le righe dati (per agganciare le matricole al comune giusto). */
 function comunePrevalente(ws, rIntest, colComune) {
@@ -45,6 +46,7 @@ function valoreCampo(l, campo) {
     case 'nominativo': return l.nominativo;
     case 'comune': return l.comune;
     case 'saracinesca': return l.saracinesca;
+    case 'note': return l.note;
     default: return null;
   }
 }
@@ -71,7 +73,7 @@ export async function eseguiGiro({
   for (const file of files) {
     const fileReport = {
       file: path.basename(file), master: false, aggiornate: 0, extraAggiunte: 0,
-      conflitti: [], colonneAssenti: [], saltato: false, errore: null,
+      conflitti: [], colonneAssenti: [], righe: [], saltato: false, errore: null,
     };
     try {
       const wb = await caricaWorkbook(file);
@@ -87,8 +89,10 @@ export async function eseguiGiro({
       const colonneAssenti = new Set();
       const regoleScrittura = []; // { campo, idx }
       let regolaMarcatore = null;
+      let regolaAutomazione = null;
       for (const regola of regole) {
         if (regola.campo === 'marcatore') { regolaMarcatore = regola; continue; }
+        if (regola.campo === 'automazione') { regolaAutomazione = regola; continue; }
         const idx = risolviColonna(header, regola.colonna);
         if (idx < 0) { colonneAssenti.add(regola.colonna); continue; }
         regoleScrittura.push({ campo: regola.campo, idx });
@@ -103,6 +107,13 @@ export async function eseguiGiro({
           markerCol = risolviColonna(header, regolaMarcatore.colonna);
           if (markerCol < 0) { colonneAssenti.add(regolaMarcatore.colonna); fileReport.colonneAssenti = [...colonneAssenti]; }
         }
+      }
+
+      // indice della colonna automazione: "SI" sulle righe che l'agente tocca (per nome).
+      let automazioneCol = -1;
+      if (regolaAutomazione) {
+        automazioneCol = risolviColonna(header, regolaAutomazione.colonna);
+        if (automazioneCol < 0) { colonneAssenti.add(regolaAutomazione.colonna); fileReport.colonneAssenti = [...colonneAssenti]; }
       }
 
       const comuneFile =
@@ -132,6 +143,26 @@ export async function eseguiGiro({
         return false;
       };
 
+      // scrive "SI" nella colonna automazione (prudente: vuota->scrivi, uguale->salta, diversa->conflitto).
+      const scriviAutomazione = (row) => {
+        if (automazioneCol < 0) return;
+        const cell = row.getCell(automazioneCol + 1);
+        const d = decidiScrittura(cell.value, MARKER_AUTOMAZIONE);
+        if (d.azione === 'scrivi') { cell.value = d.valore; }
+        else if (d.azione === 'conflitto') {
+          fileReport.conflitti.push({ riga: row.number, campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
+        }
+      };
+
+      // riga di dettaglio per lo storico: cosa ha toccato l'agente su questa riga.
+      const rigaReport = (l, riga, tipo) => ({
+        riga, tipo,
+        comune: l.comune ?? '', odl: l.odl ?? '', matricola: l.matricola ?? '', via: l.via ?? '',
+        esecutore: l.esecutore ?? '', esito: valoreEsito(l, esitoPositivo, esitoNegativo) ?? '',
+        sigillo: l.sigillo ?? '', data: l.data_esecuzione ?? '',
+        saracinesca: l.saracinesca ?? '', note: l.note ?? '',
+      });
+
       // 1) righe pianificate
       for (let r = rIntest + 1; r <= ws.rowCount; r++) {
         const row = ws.getRow(r);
@@ -145,7 +176,11 @@ export async function eseguiGiro({
         for (const regola of regoleScrittura) {
           if (scriviCella(row, regola, hit.lavoro)) toccata = true;
         }
-        if (toccata) fileReport.aggiornate++;
+        if (toccata) {
+          fileReport.aggiornate++;
+          scriviAutomazione(row);
+          fileReport.righe.push(rigaReport(hit.lavoro, row.number, 'aggiornata'));
+        }
       }
 
       // 2) extra di questo comune (stessa logica/date-aware delle pianificate)
@@ -164,6 +199,8 @@ export async function eseguiGiro({
           const d = decidiScrittura(mc.value, MARKER);
           if (d.azione === 'scrivi') mc.value = d.valore;
         }
+        scriviAutomazione(row);
+        fileReport.righe.push(rigaReport(l, row.number, 'extra'));
         fileReport.extraAggiunte++;
       }
 
