@@ -192,29 +192,54 @@ function scriviLog(cartella, stamp, report) {
   fs.writeFileSync(path.join(dir, `${stamp}.json`), JSON.stringify(report, null, 2), 'utf8');
 }
 
+/** Legge la data ISO dell'ultimo scan (YYYY-MM-DD) dal file stamp; null se assente. */
+function leggiStampScan(cfgPath) {
+  const stampPath = path.join(path.dirname(cfgPath), 'scanColonne.stamp');
+  try {
+    return fs.readFileSync(stampPath, 'utf8').trim().slice(0, 10);
+  } catch {
+    return null;
+  }
+}
+
+/** Aggiorna il file stamp con la data odierna. */
+function aggiornaStampScan(cfgPath, oggi) {
+  const stampPath = path.join(path.dirname(cfgPath), 'scanColonne.stamp');
+  fs.writeFileSync(stampPath, oggi, 'utf8');
+}
+
 async function main() {
   const cfgPath = path.join(import.meta.dirname, 'config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
   const baseUrl = baseUrlDaEndpoint(cfg.endpointUrl);
+  const oggi = new Date().toISOString().slice(0, 10);
 
-  // 1) Heartbeat + invio colonne: l'app decide se e' il momento di girare.
+  // 1) Throttle scan: apri i file Excel SOLO se e' un giorno nuovo (o primo avvio).
+  //    Evita 24 aperture OneDrive al giorno sulle stesse intestazioni.
+  const ultimoScan = leggiStampScan(cfgPath);
+  const scanNeeded = ultimoScan !== oggi;
+
   let files = [];
-  try {
-    files = await scanColonne(cfg.cartella);
-  } catch (e) {
-    console.error(`[lim-sync] scanColonne fallito (best-effort): ${e instanceof Error ? e.message : e}`);
+  if (scanNeeded) {
+    try {
+      files = await scanColonne(cfg.cartella);
+      aggiornaStampScan(cfgPath, oggi);
+    } catch (e) {
+      console.error(`[lim-sync] scanColonne fallito (best-effort): ${e instanceof Error ? e.message : e}`);
+    }
   }
+
+  // 2) Heartbeat + invio colonne (vuote se non e' un giorno nuovo): l'app decide se girare.
   const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
 
   if (!eseguiOra) {
-    console.log(`[lim-sync] tick: in attesa (eseguiOra=false). File scansionati: ${files.length}.`);
+    console.log(`[lim-sync] tick: in attesa (eseguiOra=false). Scan: ${scanNeeded ? `${files.length} file` : 'throttled'}.`);
     return;
   }
 
-  // 2) E' il momento: scarica i lavori della finestra ed esegui il giro.
+  // 3) E' il momento: scarica i lavori della finestra ed esegui il giro.
   const now = new Date();
-  const oggi = now.toISOString().slice(0, 10);
   const { from, to } = finestra(oggi, finestraGiorni ?? 15);
   const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '');
   const lavori = await fetchLavori({ endpointUrl: cfg.endpointUrl, exportKey: cfg.exportKey, from, to });
