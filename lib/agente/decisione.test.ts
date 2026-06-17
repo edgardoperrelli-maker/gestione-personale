@@ -5,6 +5,7 @@ import {
   statoAgente,
   validaMappatura,
   validaConfig,
+  diffColonne,
   CAMPI_MAPPABILI,
   type ReportAgente,
   type RegolaMappa,
@@ -293,5 +294,36 @@ describe('validaConfig', () => {
       expect(out.value.esito_positivo).toBe('eseguito');
       expect(out.value.esito_negativo).toBe('No');
     }
+  });
+});
+
+describe('diffColonne', () => {
+  it('precedenti vuote → baseline: nuove vuote, sparite vuote', () => {
+    expect(diffColonne([], ['A', 'B', 'C'])).toEqual({ nuove: [], sparite: [] });
+  });
+  it('colonna aggiunta → in nuove', () => {
+    expect(diffColonne(['A', 'B'], ['A', 'B', 'C'])).toEqual({ nuove: ['C'], sparite: [] });
+  });
+  it('colonna rimossa → in sparite', () => {
+    expect(diffColonne(['A', 'B', 'C'], ['A', 'C'])).toEqual({ nuove: [], sparite: ['B'] });
+  });
+  it('aggiunte e sparite insieme', () => {
+    expect(diffColonne(['A', 'B'], ['B', 'C'])).toEqual({ nuove: ['C'], sparite: ['A'] });
+  });
+  it('nessuna differenza → entrambe vuote', () => {
+    expect(diffColonne(['A', 'B'], ['A', 'B'])).toEqual({ nuove: [], sparite: [] });
+  });
+  it('preserva l ordine di "nuove" come in input nuove', () => {
+    expect(diffColonne(['A'], ['A', 'C', 'B'])).toEqual({ nuove: ['C', 'B'], sparite: [] });
+  });
+  it('precedenti non vuote ma nuove vuote → tutte sparite', () => {
+    expect(diffColonne(['A', 'B'], [])).toEqual({ nuove: [], sparite: ['A', 'B'] });
+  });
+  it('non muta gli array in input', () => {
+    const prec = ['A', 'B'];
+    const nuove = ['A', 'B', 'C'];
+    diffColonne(prec, nuove);
+    expect(prec).toEqual(['A', 'B']);
+    expect(nuove).toEqual(['A', 'B', 'C']);
   });
 });

@@ -257,3 +257,24 @@ export function validaConfig(input: unknown): EsitoValidazione<ConfigAgente> {
     },
   };
 }
+
+export type DiffColonne = {
+  nuove: string[];
+  sparite: string[];
+};
+
+/**
+ * Diff tra lo snapshot precedente delle colonne e quello nuovo.
+ * Primo giro (precedenti vuote) = baseline → nuove vuote (niente da evidenziare).
+ */
+export function diffColonne(precedenti: string[], nuove: string[]): DiffColonne {
+  if (precedenti.length === 0) {
+    return { nuove: [], sparite: [] };
+  }
+  const setPrec = new Set(precedenti);
+  const setNuove = new Set(nuove);
+  return {
+    nuove: nuove.filter((c) => !setPrec.has(c)),
+    sparite: precedenti.filter((c) => !setNuove.has(c)),
+  };
+}
