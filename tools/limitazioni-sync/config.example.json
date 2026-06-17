@@ -1,7 +1,5 @@
 {
   "endpointUrl": "https://<TUO-DOMINIO-VERCEL>/api/export/limitazioni-massive",
   "exportKey": "INCOLLA-QUI-LO-STESSO-SEGRETO-DI-VERCEL",
-  "cartella": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE",
-  "finestraGiorni": 15,
-  "dryRun": true
+  "cartella": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE"
 }
