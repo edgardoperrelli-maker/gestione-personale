@@ -287,16 +287,18 @@ async function main() {
   }
 
   // 2) Heartbeat + invio colonne (vuote se non e' un giorno nuovo): l'app decide se girare.
-  let ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+  //    La DECISIONE (eseguiOra) viene SOLO da questo tick: il forza_giro e' gia' consumato qui.
+  const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
 
-  // 2b) "Aggiorna tabella": l'app chiede un re-scan delle colonne e non abbiamo gia' scansionato oggi.
+  // 2b) "Aggiorna tabella": l'app chiede un re-scan e non abbiamo gia' scansionato oggi.
+  //     Un SECONDO tick consegna SOLO le colonne fresche (l'app azzera forza_scan); NON deve
+  //     toccare la decisione del primo tick, altrimenti "mangia" un giro forzato da Esegui ora.
   if (ris.forzaScan && !scanNeeded) {
     try {
-      files = await scanColonne(cfg.cartella);
+      const colonne = await scanColonne(cfg.cartella);
       aggiornaStampScan(cfgPath, oggi);
-      // secondo tick: upserta le colonne fresche; l'app azzera forza_scan.
-      ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
-      console.log(`[lim-sync] re-scan colonne forzato: ${files.length} file.`);
+      await tick({ baseUrl, exportKey: cfg.exportKey, files: colonne });
+      console.log(`[lim-sync] re-scan colonne forzato: ${colonne.length} file.`);
     } catch (e) {
       console.error(`[lim-sync] re-scan forzato fallito: ${e instanceof Error ? e.message : e}`);
     }
