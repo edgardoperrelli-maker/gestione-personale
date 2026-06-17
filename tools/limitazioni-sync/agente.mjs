@@ -44,6 +44,7 @@ function valoreCampo(l, campo) {
     case 'pdr': return l.pdr;
     case 'nominativo': return l.nominativo;
     case 'comune': return l.comune;
+    case 'saracinesca': return l.saracinesca;
     default: return null;
   }
 }

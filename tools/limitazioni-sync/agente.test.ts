@@ -28,6 +28,24 @@ async function creaFile(file: string) {
   await wb.xlsx.writeFile(file);
 }
 
+// crea ZAGAROLO.xlsx con colonna saracinesca aggiuntiva (adiacente, senza buchi)
+async function creaFileSaracinesca(file: string) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('Foglio1');
+  const h = ws.getRow(1);
+  h.getCell(6).value = 'ORDINE';        // F  odl
+  h.getCell(9).value = 'MATRICOLA';     // I  matricola
+  h.getCell(58).value = 'INDIRIZZO';    // BF via
+  h.getCell(64).value = 'Località';     // BL comune
+  h.getCell(65).value = 'Esecutore';    // BM
+  h.getCell(66).value = 'data prevista';// BN
+  h.getCell(67).value = 'esito';        // BO
+  h.getCell(68).value = 'saracinesca';  // BP (adiacente, nessun buco)
+  const r2 = ws.getRow(2);
+  r2.getCell(6).value = '912231020'; r2.getCell(9).value = '20000020750'; r2.getCell(64).value = 'ZAGAROLO';
+  await wb.xlsx.writeFile(file);
+}
+
 // mappa di default per i test: i 4 campi classici (per nome) + marcatore auto.
 const MAPPATURA = [
   { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
@@ -144,5 +162,34 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     const ws = wb.worksheets[0];
     expect(ws.getRow(2).getCell(65).value ?? '').toBe('');     // esecutore OFF -> vuoto
     expect(ws.getRow(2).getCell(67).value).toBe('eseguito');   // esito ON -> scritto
+  });
+
+  it('campo saracinesca mappato -> scrive il valore nella colonna', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-sar-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileSaracinesca(file);
+
+    await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-03', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: 'NO', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260617-0900',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'saracinesca', colonna: 'saracinesca', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    expect(ws.getRow(2).getCell(68).value).toBe('NO');      // BP saracinesca
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito'); // BO esito invariato
   });
 });
