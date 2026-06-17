@@ -41,6 +41,7 @@ type Template = {
   is_default: boolean;
   active: boolean;
   solo_manuale?: boolean;
+  task_via?: boolean;
   tipo?: 'standard' | 'risanamento';
 };
 
@@ -84,6 +85,8 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [scheda, setScheda] = useState<SchedaTemplate>('classici');
   const soloManuale = scheda === 'manuali';
   const [tipo, setTipo] = useState<'standard' | 'risanamento'>('standard');
+  // Flag "task-via" (solo via): i rapportini generati con questo template mostrano il contenitore + "+".
+  const [taskVia, setTaskVia] = useState(false);
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
@@ -111,6 +114,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setCommittente(tpl.committente ?? '');
     setScheda(schedaDiTemplate(tpl));
     setTipo(tpl.tipo ?? 'standard');
+    setTaskVia(Boolean(tpl.task_via));
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
@@ -125,6 +129,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setNome('');
     setCommittente('');
     setTipo('standard');
+    setTaskVia(false);
     setCampi([]);
     setInfoCampi([]);
     setTitoloCampi([]);
@@ -253,6 +258,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         nome: nome.trim(),
         committente: committente || null,
         solo_manuale: soloManuale,
+        task_via: taskVia,
         tipo,
         campi: campi.map((c, i) => ({
           ...c,
@@ -327,6 +333,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           nome: nome.trim(),
           committente: committente || null,
           solo_manuale: soloManuale,
+          task_via: taskVia,
           tipo,
           campi: campi.map((c, i) => ({
             ...c,
@@ -349,7 +356,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, scheda, soloManuale, tipo, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
+  }, [nome, committente, scheda, soloManuale, tipo, taskVia, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
 
   // Nessun template selezionato all'apertura: l'utente sceglie a mano.
 
@@ -496,6 +503,20 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica i campi di questo template.'
                   : 'Opzionale: associa il template a un committente (fallback al default se assente).'}
               </p>
+
+              {scheda === 'classici' && (
+                <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                  <input
+                    type="checkbox"
+                    checked={taskVia}
+                    onChange={(e) => setTaskVia(e.target.checked)}
+                    className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                  />
+                  <span className="text-xs text-[var(--brand-text-muted)]">
+                    <b className="text-[var(--brand-text-main)]">Task-via (solo via)</b> — i rapportini generati con questo template mostrano il contenitore indirizzo con il tasto <b>+</b>: l&apos;operatore crea gli interventi sotto la via. Lascia disattivo per i template normali.
+                  </span>
+                </label>
+              )}
             </SezioneAccordion>
 
             {/* ── Card nella lista interventi ──────────────────────────────────────── */}
