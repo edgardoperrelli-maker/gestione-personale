@@ -1,7 +1,7 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
-import { timingSafeEqual } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { chiaveValida } from '@/lib/apiExportKey';
 import {
   buildRigaLimMassive,
   type RigaDb,
@@ -9,20 +9,6 @@ import {
 } from '@/lib/limitazione/exportLimMassive';
 
 export const runtime = 'nodejs';
-
-function chiaveValida(req: Request): boolean {
-  const atteso = process.env.LIM_MASSIVE_EXPORT_KEY ?? '';
-  const fornito = req.headers.get('x-export-key') ?? '';
-  if (!atteso) return false;
-  const a = Buffer.from(atteso);
-  const f = Buffer.from(fornito);
-  if (f.length !== a.length) return false;
-  try {
-    return timingSafeEqual(f, a);
-  } catch {
-    return false;
-  }
-}
 
 type InterventoRow = {
   id: string;
