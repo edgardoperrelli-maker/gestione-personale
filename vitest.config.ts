@@ -9,9 +9,14 @@ export default defineConfig({
       'server-only': fileURLToPath(new URL('./vitest.server-only-mock.js', import.meta.url)),
     },
   },
+  esbuild: {
+    // Abilita il runtime automatico JSX (React 17+) per i file .tsx importati nei test
+    jsx: 'automatic',
+    jsxImportSource: 'react',
+  },
   test: {
     environment: 'node',
-    include: ['**/*.test.ts'],
+    include: ['**/*.test.ts', '**/*.test.tsx'],
     // `.claude/worktrees` contiene checkout git di sessioni passate: NON vanno raccolti,
     // altrimenti copie stale dei test inquinano la run (falsi rossi/verdi) e mascherano le regressioni.
     exclude: ['node_modules', '.next', '**/.claude/**'],
