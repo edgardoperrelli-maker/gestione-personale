@@ -47,6 +47,7 @@ export async function POST(req: Request) {
 
     const now = new Date();
 
+    // heartbeat best-effort: un errore qui NON deve bloccare la decisione del tick
     // 2) heartbeat
     await supabaseAdmin
       .from('agente_config')
@@ -95,10 +96,11 @@ export async function POST(req: Request) {
 
     // 5) rivendica il giorno (un solo giro/die)
     if (eseguiOra) {
-      await supabaseAdmin
+      const { error: claimErr } = await supabaseAdmin
         .from('agente_config')
         .update({ ultima_rivendicazione_giorno: parti.oggi })
         .eq('id', 1);
+      if (claimErr) throw claimErr;
     }
 
     return NextResponse.json(
