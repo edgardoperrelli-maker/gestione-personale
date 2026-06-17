@@ -19,6 +19,7 @@ export type AppModuleKey =
   | 'lista-attesa'
   | 'appuntamenti'
   | 'misuratori'
+  | 'agente'
   | 'impostazioni';
 
 export type AppModuleDefinition = {
@@ -30,7 +31,7 @@ export type AppModuleDefinition = {
   matchPrefixes?: string[];
   /** Modulo "sensibile": escluso dai default operatore + badge in UI. NON è un gate di accesso. */
   adminOnly?: boolean;
-  /** Gate FORTE di ruolo: l'accesso richiede ruolo admin. Solo `impostazioni`. */
+  /** Gate FORTE di ruolo: l'accesso richiede ruolo admin. Es. `impostazioni`, `agente`. */
   requiresAdminRole?: boolean;
 };
 
@@ -128,6 +129,16 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     matchPrefixes: ['/hub/misuratori'],
     adminOnly: true,
+  },
+  {
+    key: 'agente',
+    href: '/hub/agente',
+    label: 'Agente',
+    description: 'Pianificazione e feedback sync limitazioni massive',
+    section: 'modules',
+    matchPrefixes: ['/hub/agente'],
+    adminOnly: true,
+    requiresAdminRole: true,
   },
   {
     key: 'impostazioni',
