@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { chiaveValida } from '@/lib/apiExportKey';
 import {
   buildRigaLimMassive,
+  saracinescaPulita,
   type RigaDb,
   type RigaLimMassive,
 } from '@/lib/limitazione/exportLimMassive';
@@ -100,7 +101,8 @@ export async function GET(req: Request) {
           v.risposte && typeof v.risposte['sost_valvola'] === 'string'
             ? (v.risposte['sost_valvola'] as string)
             : '';
-        const sar = sv1.trim() || sv2.trim();
+        // scarta foto/link/percorsi (es. sost_valvola = "rapportini/…/x.jpg") e prendi il primo valido
+        const sar = saracinescaPulita(sv1) || saracinescaPulita(sv2);
         if (sar && !saracinescaById.has(v.intervento_id)) saracinescaById.set(v.intervento_id, sar);
         // note: nota del rapportino (usata sui soli negativi, vedi buildRigaLimMassive)
         const nota =

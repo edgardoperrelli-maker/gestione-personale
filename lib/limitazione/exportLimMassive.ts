@@ -66,6 +66,25 @@ export type RigaDb = {
 
 const t = (v: string | null | undefined): string => String(v ?? '').trim();
 
+/**
+ * La saracinesca è un valore breve (SI/NO/testo). In alcuni template la chiave
+ * `sost_valvola` è in realtà un campo FOTO → contiene un percorso/URL (es.
+ * "rapportini/…/x.jpg"): va scartato, altrimenti l'agente scriverebbe il link.
+ */
+export function saracinescaPulita(v: string | null | undefined): string {
+  const s = t(v);
+  if (!s) return '';
+  const low = s.toLowerCase();
+  const sembraFileOLink =
+    low.includes('http') ||
+    low.includes('blob:') ||
+    low.includes('blob-locale') ||
+    s.includes('/') ||
+    s.includes('\\') ||
+    /\.(jpe?g|png|heic|webp|gif|bmp|pdf)$/i.test(s);
+  return sembraFileOLink ? '' : s;
+}
+
 export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
   const esitoOk = esitoOkDaIntervento(r.stato, r.esito);
   return {
@@ -82,7 +101,7 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     sigillo: t(r.sigillo),
     pdr: t(r.pdr),
     nominativo: t(r.nominativo),
-    saracinesca: t(r.saracinesca),
+    saracinesca: saracinescaPulita(r.saracinesca),
     // nota solo sui negativi (esitoOk === false): prima la nota del rapportino, poi il motivo
     note: esitoOk === false ? (t(r.note) || t(r.esito_motivo)) : '',
     manuale: r.committente === 'lim_massive' || r.origine === 'manuale',

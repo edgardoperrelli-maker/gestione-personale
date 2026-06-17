@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, type RigaDb } from './exportLimMassive';
+import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, saracinescaPulita, type RigaDb } from './exportLimMassive';
 
 describe('cognomeDaDisplayName', () => {
   it('prende il primo token (cognome) in maiuscolo', () => {
@@ -90,6 +90,27 @@ describe('buildRigaLimMassive — campi additivi esitoOk/pdr/nominativo', () => 
   it('saracinesca: passa il valore trimmato', () => {
     expect(buildRigaLimMassive({ ...base, saracinesca: '  NO  ' }).saracinesca).toBe('NO');
     expect(buildRigaLimMassive({ ...base, saracinesca: null }).saracinesca).toBe('');
+  });
+  it('saracinesca: scarta un percorso foto (non scrive il link)', () => {
+    expect(
+      buildRigaLimMassive({ ...base, saracinesca: 'rapportini/148db267/2b30f02f.jpg' }).saracinesca,
+    ).toBe('');
+  });
+});
+
+describe('saracinescaPulita', () => {
+  it('tiene i valori veri (SI/NO/testo breve)', () => {
+    expect(saracinescaPulita('SI')).toBe('SI');
+    expect(saracinescaPulita('  NO ')).toBe('NO');
+    expect(saracinescaPulita('inserimento valvola')).toBe('inserimento valvola');
+  });
+  it('scarta foto/percorsi/link', () => {
+    expect(saracinescaPulita('rapportini/148db267-05ca/2b30f02f.jpg')).toBe('');
+    expect(saracinescaPulita('foto.png')).toBe('');
+    expect(saracinescaPulita('https://x/y.jpg')).toBe('');
+    expect(saracinescaPulita('blob-locale:abc')).toBe('');
+    expect(saracinescaPulita('C:\\foto\\x.jpg')).toBe('');
+    expect(saracinescaPulita(null)).toBe('');
   });
   it('note: vuota sui positivi (esitoOk true)', () => {
     expect(buildRigaLimMassive({ ...base, note: 'qualcosa', esito_motivo: 'motivo' }).note).toBe('');
