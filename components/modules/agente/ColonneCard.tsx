@@ -1,5 +1,7 @@
 'use client';
 
+import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import type { RegolaMappa } from '@/lib/agente/decisione';
 import type { AgenteFileColonneRow } from '@/lib/agente/uiTypes';
 import { columnsDaFile, colonneRilevate, uniscoMappaturaColonna, mappaturaCompleta, colonneDuplicate } from '@/lib/agente/colonneView';
@@ -37,6 +39,29 @@ export function ColonneCard({
   onChange: (p: { mappatura?: RegolaMappa[]; esito_positivo?: string; esito_negativo?: string }) => void;
 }) {
   const opzioni = colonneRilevate(files);
+  const router = useRouter();
+  const [mostraColonne, setMostraColonne] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanMsg, setScanMsg] = useState<string | null>(null);
+
+  async function aggiornaTabella() {
+    setScanning(true);
+    setScanMsg(null);
+    try {
+      const res = await fetch('/api/admin/agente/aggiorna-colonne', { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        setScanMsg('Ri-lettura richiesta: le colonne si aggiornano al prossimo contatto dell\'agente (entro l\'ora).');
+        router.refresh();
+      } else {
+        setScanMsg(`Errore: ${j.error ?? res.status}`);
+      }
+    } catch (e) {
+      setScanMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally {
+      setScanning(false);
+    }
+  }
 
   function setColonna(campo: string, colonna: string) {
     onChange({ mappatura: uniscoMappaturaColonna(mappatura, campo, { colonna }) });
@@ -49,13 +74,37 @@ export function ColonneCard({
     <section className="rounded-2xl border p-5 space-y-5" style={cardStyle}>
       <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>Colonne & scrittura</h2>
 
-      {/* Colonne rilevate per file */}
+      {/* Colonne rilevate per file (fisarmonica + Aggiorna tabella) */}
       <div className="space-y-3">
-        <h3 className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Colonne rilevate</h3>
-        {files.length === 0 && (
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <button
+            type="button"
+            onClick={() => setMostraColonne((v) => !v)}
+            className="flex items-center gap-2"
+            aria-expanded={mostraColonne}
+          >
+            <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>{mostraColonne ? '▾' : '▸'}</span>
+            <span className="text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
+              Colonne rilevate ({files.length})
+            </span>
+          </button>
+          <div className="flex items-center gap-2">
+            {scanMsg && <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>{scanMsg}</span>}
+            <button
+              type="button"
+              onClick={aggiornaTabella}
+              disabled={scanning}
+              className="rounded-lg border px-2.5 py-1 text-xs font-semibold disabled:opacity-60"
+              style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
+            >
+              {scanning ? 'Aggiorno…' : '↻ Aggiorna tabella'}
+            </button>
+          </div>
+        </div>
+        {mostraColonne && files.length === 0 && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna scansione ricevuta dall&apos;agente.</p>
         )}
-        {files.map((f) => {
+        {mostraColonne && files.map((f) => {
           const dupSet = new Set(colonneDuplicate(f.colonne).map((c) => c.toLowerCase()));
           return (
             <div key={f.file} className="rounded-xl border p-3" style={{ borderColor: 'var(--brand-border)' }}>
