@@ -142,26 +142,30 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
 
         <div className="flex flex-wrap items-end gap-4">
           <div className="space-y-1">
-            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Ora</label>
-            <input
-              type="time"
-              value={form.ora}
-              onChange={(e) => patch({ ora: e.target.value })}
-              className="rounded-xl border px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            />
+            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
+              Ora
+              <input
+                type="time"
+                value={form.ora}
+                onChange={(e) => patch({ ora: e.target.value })}
+                className="mt-1 block rounded-xl border px-3 py-1.5 text-sm outline-none"
+                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+              />
+            </label>
           </div>
           <div className="space-y-1">
-            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Finestra (giorni)</label>
-            <input
-              type="number"
-              min={1}
-              max={60}
-              value={form.finestra_giorni}
-              onChange={(e) => patch({ finestra_giorni: Number(e.target.value) })}
-              className="w-24 rounded-xl border px-3 py-1.5 text-sm outline-none"
-              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            />
+            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
+              Finestra (giorni)
+              <input
+                type="number"
+                min={1}
+                max={60}
+                value={form.finestra_giorni}
+                onChange={(e) => patch({ finestra_giorni: Number(e.target.value) })}
+                className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm outline-none"
+                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+              />
+            </label>
           </div>
           <div className="space-y-1">
             <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Modalità</label>

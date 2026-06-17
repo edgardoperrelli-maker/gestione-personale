@@ -25,6 +25,20 @@ describe('colonneView', () => {
     expect(out).toEqual(['comune', 'esito', 'sigillo']);
   });
 
+  it('colonneRilevate: dedup case-insensitive — "Esito"/"esito" cross-file produce un solo elemento', () => {
+    const out = colonneRilevate([
+      { file: 'A', is_master: true, colonne: ['Esito', 'sigillo'], colonne_nuove: [], colonne_sparite: [], rilevato_il: '' },
+      { file: 'B', is_master: false, colonne: ['esito', 'comune'], colonne_nuove: [], colonne_sparite: [], rilevato_il: '' },
+    ]);
+    // 'Esito' è visto per primo, quindi è il nome conservato; 'esito' viene scartato
+    const esitoEntries = out.filter((c) => c.toLowerCase() === 'esito');
+    expect(esitoEntries).toHaveLength(1);
+    expect(esitoEntries[0]).toBe('Esito');
+    // l'array complessivo deve restare ordinato e deduplicato
+    // localeCompare pone le maiuscole dopo le minuscole, quindi 'Esito' > 'comune'
+    expect(out).toEqual(['comune', 'Esito', 'sigillo']);
+  });
+
   it('uniscoMappaturaColonna: aggiorna la regola del campo dato', () => {
     const reg = [
       { campo: 'esito', colonna: 'esito', abilitato: true },

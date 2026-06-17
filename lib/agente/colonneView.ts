@@ -18,11 +18,14 @@ export function columnsDaFile(row: AgenteFileColonneRow): ColonnaVista[] {
   return [...presenti, ...sparite];
 }
 
-/** Insieme globale ordinato (asc) e deduplicato di tutte le colonne attualmente rilevate. */
+/** Insieme globale ordinato (asc) e deduplicato (case-insensitive, primo nome visto conservato) di tutte le colonne attualmente rilevate. */
 export function colonneRilevate(files: AgenteFileColonneRow[]): string[] {
-  const set = new Set<string>();
-  for (const f of files) for (const c of f.colonne) set.add(c);
-  return [...set].sort((a, b) => a.localeCompare(b));
+  const seen = new Map<string, string>(); // chiave lowercase → primo nome visto (case originale)
+  for (const f of files) for (const c of f.colonne) {
+    const k = c.toLowerCase();
+    if (!seen.has(k)) seen.set(k, c);
+  }
+  return [...seen.values()].sort((a, b) => a.localeCompare(b));
 }
 
 /**

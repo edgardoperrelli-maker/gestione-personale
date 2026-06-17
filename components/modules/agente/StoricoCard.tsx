@@ -22,7 +22,7 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
       {runs.length === 0 && (
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessun giro registrato.</p>
       )}
-      <ul className="divide-y" style={{ borderColor: 'var(--brand-border)' }}>
+      <ul className="divide-y divide-[var(--brand-border)]">
         {runs.map((run) => {
           const badge = badgeModalita(run.dry_run);
           const open = aperto === run.id;

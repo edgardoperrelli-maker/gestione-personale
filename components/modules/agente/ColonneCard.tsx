@@ -148,24 +148,28 @@ export function ColonneCard({
       {/* Testi esito */}
       <div className="flex flex-wrap items-end gap-4">
         <div className="space-y-1">
-          <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Testo esito positivo</label>
-          <input
-            type="text"
-            value={esitoPositivo}
-            onChange={(e) => onChange({ esito_positivo: e.target.value })}
-            className="rounded-xl border px-3 py-1.5 text-sm outline-none"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-          />
+          <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
+            Testo esito positivo
+            <input
+              type="text"
+              value={esitoPositivo}
+              onChange={(e) => onChange({ esito_positivo: e.target.value })}
+              className="mt-1 block rounded-xl border px-3 py-1.5 text-sm outline-none"
+              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            />
+          </label>
         </div>
         <div className="space-y-1">
-          <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Testo esito negativo</label>
-          <input
-            type="text"
-            value={esitoNegativo}
-            onChange={(e) => onChange({ esito_negativo: e.target.value })}
-            className="rounded-xl border px-3 py-1.5 text-sm outline-none"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-          />
+          <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
+            Testo esito negativo
+            <input
+              type="text"
+              value={esitoNegativo}
+              onChange={(e) => onChange({ esito_negativo: e.target.value })}
+              className="mt-1 block rounded-xl border px-3 py-1.5 text-sm outline-none"
+              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            />
+          </label>
         </div>
       </div>
     </section>
