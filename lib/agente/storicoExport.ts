@@ -21,6 +21,8 @@ export type RigaModificata = {
 export type ConflittoRiga = {
   file: string;
   riga: number | '';
+  odl: string;
+  matricola: string;
   campo: string;
   esistente: string;
   nuovo: string;
@@ -84,6 +86,8 @@ export function conflittiRighe(dettaglio: unknown): ConflittoRiga[] {
       out.push({
         file,
         riga: typeof co.riga === 'number' ? co.riga : '',
+        odl: s(co.odl),
+        matricola: s(co.matricola),
         campo: s(co.campo),
         esistente: s(co.esistente),
         nuovo: s(co.nuovo),

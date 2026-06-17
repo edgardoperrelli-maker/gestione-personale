@@ -10,7 +10,7 @@ const dettaglio = {
       master: true,
       aggiornate: 1,
       extraAggiunte: 1,
-      conflitti: [{ riga: 5, campo: 'data', esistente: '2026-06-01', nuovo: '2026-06-03' }],
+      conflitti: [{ riga: 5, odl: '912231020', matricola: '20000020750', campo: 'data', esistente: '2026-06-01', nuovo: '2026-06-03' }],
       colonneAssenti: [],
       righe: [
         { riga: 2, tipo: 'aggiornata', comune: 'ZAGAROLO', odl: '912231020', matricola: '20000020750', via: 'VIA X', esecutore: 'CIARALLO', esito: 'eseguito', sigillo: 'AA728566', data: '2026-06-03', saracinesca: '', note: '' },
@@ -34,7 +34,7 @@ describe('storicoExport', () => {
   it('conflittiRighe estrae i conflitti per file', () => {
     const c = conflittiRighe(dettaglio);
     expect(c).toHaveLength(1);
-    expect(c[0]).toEqual({ file: 'ZAGAROLO.xlsx', riga: 5, campo: 'data', esistente: '2026-06-01', nuovo: '2026-06-03' });
+    expect(c[0]).toEqual({ file: 'ZAGAROLO.xlsx', riga: 5, odl: '912231020', matricola: '20000020750', campo: 'data', esistente: '2026-06-01', nuovo: '2026-06-03' });
   });
 
   it('nonCollocate unisce extra senza file + comuni non agganciati', () => {

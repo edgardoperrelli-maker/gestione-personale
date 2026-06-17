@@ -297,4 +297,38 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     expect(ws.getRow(2).getCell(65).value).toBe('CIARALLO');           // esecutore a mano intatto
     expect(ws.getRow(2).getCell(68).value).toBe('PARZIALE + esito');   // marcatore parziale con la colonna completata
   });
+
+  it('conflitto: il record riporta odl e matricola (riferimento stabile, non solo la riga)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-conf-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    // pre-compila esecutore con un valore DIVERSO -> genera un conflitto su quella cella
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      wb0.worksheets[0].getRow(2).getCell(65).value = 'ROSSI';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-03', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260617-1200',
+      mappatura: [{ campo: 'esecutore', colonna: 'Esecutore', abilitato: true }],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const conf = report.file[0].conflitti.find((c: { campo: string }) => c.campo === 'esecutore');
+    expect(conf).toBeTruthy();
+    expect(conf.odl).toBe('912231020');
+    expect(conf.matricola).toBe('20000020750');
+    expect(conf.esistente).toBe('ROSSI');
+    expect(conf.nuovo).toBe('CIARALLO');
+  });
 });

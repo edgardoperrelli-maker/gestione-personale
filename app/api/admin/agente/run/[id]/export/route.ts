@@ -70,6 +70,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
   wsC.columns = [
     { header: 'FILE', key: 'file', width: 18 },
     { header: 'RIGA', key: 'riga', width: 7 },
+    { header: 'ODL', key: 'odl', width: 14 },
+    { header: 'MATRICOLA', key: 'matricola', width: 16 },
     { header: 'CAMPO', key: 'campo', width: 14 },
     { header: 'ESISTENTE', key: 'esistente', width: 22 },
     { header: 'NUOVO', key: 'nuovo', width: 22 },

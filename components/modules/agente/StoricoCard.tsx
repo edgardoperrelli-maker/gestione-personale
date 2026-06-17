@@ -87,7 +87,7 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                       <table className="w-full border-collapse text-left">
                         <thead>
                           <tr style={{ color: 'var(--brand-text-muted)' }}>
-                            {['File', 'Riga', 'Tipo', 'Comune', 'Matricola', 'Esecutore', 'Esito', 'Sigillo', 'Data', 'Nota'].map((h) => (
+                            {['File', 'Riga', 'ODL', 'Tipo', 'Comune', 'Matricola', 'Esecutore', 'Esito', 'Sigillo', 'Data', 'Nota'].map((h) => (
                               <th key={h} className="px-2 py-1 font-medium">{h}</th>
                             ))}
                           </tr>
@@ -97,6 +97,7 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                             <tr key={i} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
                               <td className="px-2 py-1">{r.file}</td>
                               <td className="px-2 py-1">{r.riga}</td>
+                              <td className="px-2 py-1">{r.odl}</td>
                               <td className="px-2 py-1">{r.tipo}</td>
                               <td className="px-2 py-1">{r.comune}</td>
                               <td className="px-2 py-1">{r.matricola}</td>

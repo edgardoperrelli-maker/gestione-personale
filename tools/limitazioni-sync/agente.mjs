@@ -130,7 +130,7 @@ export async function eseguiGiro({
           const d = decidiScritturaData(cell.value, l.data_esecuzione);
           if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
           if (d.azione === 'conflitto') {
-            fileReport.conflitti.push({ riga: row.number, campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
+            fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
           }
           return { scritto: false, eraPieno };
         }
@@ -140,19 +140,19 @@ export async function eseguiGiro({
         const d = decidiScrittura(cell.value, valore);
         if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
         if (d.azione === 'conflitto') {
-          fileReport.conflitti.push({ riga: row.number, campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
+          fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
         }
         return { scritto: false, eraPieno };
       };
 
       // scrive il marcatore nella colonna automazione (prudente: vuota->scrivi, uguale->salta, diversa->conflitto).
-      const scriviAutomazione = (row, valore) => {
+      const scriviAutomazione = (row, valore, l) => {
         if (automazioneCol < 0) return;
         const cell = row.getCell(automazioneCol + 1);
         const d = decidiScrittura(cell.value, valore);
         if (d.azione === 'scrivi') { cell.value = d.valore; }
         else if (d.azione === 'conflitto') {
-          fileReport.conflitti.push({ riga: row.number, campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
+          fileReport.conflitti.push({ riga: row.number, odl: l?.odl ?? '', matricola: l?.matricola ?? '', campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
         }
       };
 
@@ -188,7 +188,7 @@ export async function eseguiGiro({
           // SI = riga era vuota e completata interamente; PARZIALE = aveva già dati a mano.
           const parziale = pieneAMano > 0;
           const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
-          scriviAutomazione(row, valoreAuto);
+          scriviAutomazione(row, valoreAuto, hit.lavoro);
           fileReport.righe.push(rigaReport(hit.lavoro, row.number, parziale ? 'parziale' : 'aggiornata'));
         }
       }
@@ -213,7 +213,7 @@ export async function eseguiGiro({
           const d = decidiScrittura(mc.value, MARKER);
           if (d.azione === 'scrivi') mc.value = d.valore;
         }
-        scriviAutomazione(row, completateExtra.length > 0 ? `SI + ${completateExtra.join(' + ')}` : MARKER_AUTOMAZIONE);
+        scriviAutomazione(row, completateExtra.length > 0 ? `SI + ${completateExtra.join(' + ')}` : MARKER_AUTOMAZIONE, l);
         fileReport.righe.push(rigaReport(l, row.number, 'extra'));
         fileReport.extraAggiunte++;
       }
