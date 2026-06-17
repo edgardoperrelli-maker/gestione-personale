@@ -259,4 +259,42 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     expect(righe.find((r: { tipo: string }) => r.tipo === 'extra').note).toBe('Cane in giardino');
     expect(righe.find((r: { tipo: string }) => r.tipo === 'aggiornata').matricola).toBe('20000020750');
   });
+
+  it('riga parziale (campo già a mano): completa i mancanti e scrive PARZIALE (colonne completate)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-parz-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    // pre-compila a mano l'Esecutore sulla riga 2 (resta vuoto l'esito) -> riga parziale
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      wb0.worksheets[0].getRow(2).getCell(65).value = 'CIARALLO';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-03', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260617-1100',
+      mappatura: [
+        { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');           // esito mancante completato
+    expect(ws.getRow(2).getCell(65).value).toBe('CIARALLO');           // esecutore a mano intatto
+    expect(ws.getRow(2).getCell(68).value).toBe('PARZIALE (esito)');   // marcatore parziale con la colonna completata
+  });
 });

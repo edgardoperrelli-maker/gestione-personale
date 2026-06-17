@@ -122,32 +122,34 @@ export async function eseguiGiro({
       comuniConFile.add(comuneFile);
 
       // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
+      // ritorna { scritto, eraPieno }: scritto=ha riempito la cella; eraPieno=la cella aveva già un valore (compilato a mano).
       const scriviCella = (row, regola, l) => {
         const cell = row.getCell(regola.idx + 1);
+        const eraPieno = String(cell.value ?? '').trim() !== '';
         if (regola.campo === 'data') {
           const d = decidiScritturaData(cell.value, l.data_esecuzione);
-          if (d.azione === 'scrivi') { cell.value = d.valore; return true; }
+          if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
           if (d.azione === 'conflitto') {
             fileReport.conflitti.push({ riga: row.number, campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
           }
-          return false;
+          return { scritto: false, eraPieno };
         }
         const valore = regola.campo === 'esito'
           ? valoreEsito(l, esitoPositivo, esitoNegativo)
           : valoreCampo(l, regola.campo);
         const d = decidiScrittura(cell.value, valore);
-        if (d.azione === 'scrivi') { cell.value = d.valore; return true; }
+        if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
         if (d.azione === 'conflitto') {
           fileReport.conflitti.push({ riga: row.number, campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
         }
-        return false;
+        return { scritto: false, eraPieno };
       };
 
-      // scrive "SI" nella colonna automazione (prudente: vuota->scrivi, uguale->salta, diversa->conflitto).
-      const scriviAutomazione = (row) => {
+      // scrive il marcatore nella colonna automazione (prudente: vuota->scrivi, uguale->salta, diversa->conflitto).
+      const scriviAutomazione = (row, valore) => {
         if (automazioneCol < 0) return;
         const cell = row.getCell(automazioneCol + 1);
-        const d = decidiScrittura(cell.value, MARKER_AUTOMAZIONE);
+        const d = decidiScrittura(cell.value, valore);
         if (d.azione === 'scrivi') { cell.value = d.valore; }
         else if (d.azione === 'conflitto') {
           fileReport.conflitti.push({ riga: row.number, campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
@@ -173,13 +175,20 @@ export async function eseguiGiro({
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
         let toccata = false;
+        const completate = []; // intestazioni delle colonne riempite dall'agente (erano vuote)
+        let pieneAMano = 0;    // quante colonne mappate erano già compilate a mano
         for (const regola of regoleScrittura) {
-          if (scriviCella(row, regola, hit.lavoro)) toccata = true;
+          const { scritto, eraPieno } = scriviCella(row, regola, hit.lavoro);
+          if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
+          if (eraPieno) pieneAMano++;
         }
         if (toccata) {
           fileReport.aggiornate++;
-          scriviAutomazione(row);
-          fileReport.righe.push(rigaReport(hit.lavoro, row.number, 'aggiornata'));
+          // riga vuota completata interamente -> "SI"; riga già parziale a mano -> "PARZIALE (colonne completate)"
+          const parziale = pieneAMano > 0;
+          const valoreAuto = parziale ? `PARZIALE (${completate.join(', ')})` : MARKER_AUTOMAZIONE;
+          scriviAutomazione(row, valoreAuto);
+          fileReport.righe.push(rigaReport(hit.lavoro, row.number, parziale ? 'parziale' : 'aggiornata'));
         }
       }
 
@@ -199,7 +208,7 @@ export async function eseguiGiro({
           const d = decidiScrittura(mc.value, MARKER);
           if (d.azione === 'scrivi') mc.value = d.valore;
         }
-        scriviAutomazione(row);
+        scriviAutomazione(row, MARKER_AUTOMAZIONE);
         fileReport.righe.push(rigaReport(l, row.number, 'extra'));
         fileReport.extraAggiunte++;
       }
