@@ -99,7 +99,10 @@ export function ordinaRighe(righe: RigaStorico[]): RigaStorico[] {
     const ca = (a.comune ?? '').toLowerCase();
     const cb = (b.comune ?? '').toLowerCase();
     if (ca !== cb) return ca.localeCompare(cb); // comune asc
-    return (a.indirizzo ?? '').toLowerCase().localeCompare((b.indirizzo ?? '').toLowerCase());
+    const ia = (a.indirizzo ?? '').toLowerCase();
+    const ib = (b.indirizzo ?? '').toLowerCase();
+    if (ia !== ib) return ia.localeCompare(ib); // indirizzo asc
+    return a.id.localeCompare(b.id); // tie-breaker deterministico
   });
 }
 

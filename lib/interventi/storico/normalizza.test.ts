@@ -46,6 +46,10 @@ describe('interventoToRigaStorico', () => {
     const row = { id: 'i2', origine: 'manuale', committente: 'acea', data: '2026-06-10', odl: null, pdr: null, matricola_contatore: null, nominativo: null, indirizzo: null, comune: null, cap: null, intervento_tipo: null, fascia_oraria: null, staff_id: null, stato: 'completato', esito: null, esito_motivo: null } as InterventoStoricoRow;
     expect(interventoToRigaStorico(row, staff).origine).toBe('manuale');
   });
+  it('staff_id presente ma non in mappa → esecutoreNome null', () => {
+    const row = { id: 'i3', origine: 'pianificato', committente: 'acea', data: '2026-06-10', odl: null, pdr: null, matricola_contatore: null, nominativo: null, indirizzo: null, comune: null, cap: null, intervento_tipo: null, fascia_oraria: null, staff_id: 's99', stato: 'assegnato', esito: null, esito_motivo: null } as InterventoStoricoRow;
+    expect(interventoToRigaStorico(row, staff).esecutoreNome).toBeNull();
+  });
 });
 
 describe('manualeToRigaStorico', () => {

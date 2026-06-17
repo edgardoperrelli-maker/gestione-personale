@@ -65,6 +65,11 @@ describe('interrogaInterventi / interrogaManuali', () => {
     expect(interrogaInterventi(f)).toBe(true);
     expect(interrogaManuali(f)).toBe(true);
   });
+  it('stato manuale (rifiutato) → niente interventi', () => {
+    const f = parseFiltriStorico(new URLSearchParams({ stato: 'rifiutato' }), OGGI);
+    expect(interrogaInterventi(f)).toBe(false);
+    expect(interrogaManuali(f)).toBe(true);
+  });
 });
 
 describe('puliziaQ', () => {

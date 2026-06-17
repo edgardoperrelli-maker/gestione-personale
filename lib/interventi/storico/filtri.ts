@@ -30,6 +30,7 @@ function trimOrNull(v: string | null): string | null {
 
 /** Rimuove i caratteri che romperebbero un filtro `.or()/.ilike()` PostgREST. */
 export function puliziaQ(q: string | null | undefined): string {
+  // Rimuove SOLO i caratteri strutturali del filtro PostgREST .or()/.ilike() (virgole/parentesi/%/*). I valori viaggiano come parametri del client Supabase JS (non SQL concatenato), quindi apostrofi e ';' sono volutamente mantenuti (es. "Sant'Angelo").
   return (q ?? '').replace(/[,()%*]/g, ' ').trim().replace(/\s+/g, ' ');
 }
 
@@ -57,7 +58,7 @@ export function risolviFinestra(
   f: FiltriStorico,
   oggi: string,
 ): { eq: string | null; gte: string | null; lte: string | null } {
-  if (f.q) return { eq: null, gte: null, lte: null };
+  if (f.q) return { eq: null, gte: null, lte: null }; // con q attiva si cerca su tutto lo storico (nessun vincolo data)
   if (f.dal || f.al) return { eq: null, gte: f.dal, lte: f.al };
   return { eq: f.data ?? oggi, gte: null, lte: null };
 }
