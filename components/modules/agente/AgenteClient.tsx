@@ -76,14 +76,15 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
     setEsitoSalva(null);
   }
 
-  async function salva() {
+  async function salva(override?: Partial<ConfigForm>) {
     setSalvando(true);
     setEsitoSalva(null);
     try {
+      const payload = override ? { ...form, ...override } : form;
       const res = await fetch('/api/admin/agente/config', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(form),
+        body: JSON.stringify(payload),
       });
       const j = (await res.json().catch(() => ({}))) as { errore?: string; error?: string };
       if (res.ok) {
@@ -186,15 +187,16 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Modalità</label>
             <button
               type="button"
-              onClick={() => patch({ dry_run: !form.dry_run })}
-              className="rounded-xl border px-3 py-1.5 text-sm font-medium transition"
+              onClick={() => { const nuovo = !form.dry_run; patch({ dry_run: nuovo }); void salva({ dry_run: nuovo }); }}
+              disabled={salvando}
+              className="rounded-xl border px-3 py-1.5 text-sm font-medium transition disabled:opacity-60"
               style={{
                 borderColor: 'var(--brand-border)',
                 backgroundColor: form.dry_run ? 'var(--warning-soft)' : 'var(--brand-surface)',
                 color: 'var(--brand-text-main)',
               }}
               aria-pressed={form.dry_run}
-              title="Prova non scrive sui file; Reale scrive"
+              title="Prova non scrive sui file; Reale scrive. Si salva subito."
             >
               {form.dry_run ? 'Prova (dry-run)' : 'Reale'}
             </button>
