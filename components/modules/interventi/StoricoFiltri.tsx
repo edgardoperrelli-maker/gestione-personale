@@ -49,8 +49,8 @@ export default function StoricoFiltri({
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
-        <DatePicker value={filtri.dal} onChange={(iso) => set({ dal: iso })} placeholder="Dal" ariaLabel="Dal" fullWidth />
-        <DatePicker value={filtri.al} onChange={(iso) => set({ al: iso })} placeholder="Al" ariaLabel="Al" fullWidth />
+        <DatePicker value={filtri.dal} onChange={(iso) => set({ dal: iso })} placeholder="Dal" ariaLabel="Dal" fullWidth triggerClassName="border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]" />
+        <DatePicker value={filtri.al} onChange={(iso) => set({ al: iso })} placeholder="Al" ariaLabel="Al" fullWidth triggerClassName="border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]" />
 
         <select className={sel} value={filtri.esecutore} onChange={(e) => set({ esecutore: e.target.value })} aria-label="Esecutore">
           <option value="">Esecutore: tutti</option>

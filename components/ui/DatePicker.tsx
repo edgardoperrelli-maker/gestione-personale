@@ -18,6 +18,8 @@ type DatePickerProps = {
   max?: string;
   placeholder?: string;
   className?: string;
+  /** Classi per bordo/sfondo del trigger (sostituisce il default border/bg). */
+  triggerClassName?: string;
   ariaLabel?: string;
   fullWidth?: boolean;
 };
@@ -30,6 +32,7 @@ export default function DatePicker({
   max,
   placeholder = 'gg/mm/aaaa',
   className = '',
+  triggerClassName = '',
   ariaLabel = 'Seleziona data',
   fullWidth = false,
 }: DatePickerProps) {
@@ -101,7 +104,9 @@ export default function DatePicker({
         aria-expanded={open}
         disabled={disabled}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className={`inline-flex items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] transition focus:outline-none focus:border-[var(--brand-primary)] focus:shadow-[0_0_0_1px_var(--brand-primary)] ${
+        className={`inline-flex items-center justify-between gap-2 rounded-lg ${
+          triggerClassName || 'border border-[var(--brand-border)] bg-[var(--brand-surface)]'
+        } px-3 py-2 text-sm text-[var(--brand-text-main)] transition focus:outline-none focus:border-[var(--brand-primary)] focus:shadow-[0_0_0_1px_var(--brand-primary)] ${
           fullWidth ? 'w-full' : ''
         } ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-[var(--brand-primary-border)]'}`}
       >

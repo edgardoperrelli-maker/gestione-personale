@@ -15,7 +15,7 @@ const MAX_RIGHE = 5000;
 
 // rapportino_voci + rapportino padre embedded (inner: esclude voci senza rapportino).
 const COLONNE =
-  'id, odl, via, comune, matricola, nominativo, pdr, risposte, manuale, rapportini!inner(staff_id, staff_name, data)';
+  'id, odl, via, comune, matricola, nominativo, pdr, attivita, risposte, manuale, rapportini!inner(staff_id, staff_name, data)';
 
 function oggiIso(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);

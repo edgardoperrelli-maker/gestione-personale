@@ -31,6 +31,7 @@ describe('voceToRigaStorico', () => {
   it('mappa campi, risposte e esecutore (embed oggetto)', () => {
     const row: VoceStoricoRow = {
       id: 'v1', odl: '200999', via: 'Via Roma 1', comune: 'Roma', matricola: 'M1', nominativo: 'Tizio', pdr: 'P1',
+      attivita: 'LIMITAZIONI MASSIVE',
       risposte: { eseguito: 'SI', sostituzione_valvola: 'true', mini_bag: 'true', rg_stop: null, note: 'ok ' },
       manuale: false,
       rapportini: { staff_id: 's1', staff_name: 'DE SANTIS', data: '2026-06-10' },
@@ -40,6 +41,7 @@ describe('voceToRigaStorico', () => {
     expect(r.data).toBe('2026-06-10');
     expect(r.esecutore).toBe('DE SANTIS');
     expect(r.via).toBe('Via Roma 1');
+    expect(r.gruppoAttivita).toBe('LIMITAZIONI MASSIVE');
     expect(r.eseguito).toBe('SI');
     expect(r.sostValvola).toBe('SI');
     expect(r.miniBag).toBe('SI');
@@ -73,7 +75,7 @@ describe('voceToRigaStorico', () => {
 
 describe('ordinaRighe', () => {
   const base = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, data: null, esecutore: null, via: null,
+    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   it('ordina per data desc, poi via asc, poi id', () => {

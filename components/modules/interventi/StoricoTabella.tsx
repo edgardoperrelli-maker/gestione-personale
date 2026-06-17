@@ -8,6 +8,7 @@ const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'data', header: 'Data esecuzione' },
   { key: 'esecutore', header: 'Esecutore' },
   { key: 'via', header: 'Via' },
+  { key: 'gruppoAttivita', header: 'Gruppo attività' },
   { key: 'eseguito', header: 'Eseguito', siNo: true },
   { key: 'sostValvola', header: 'Sost. valvola', siNo: true },
   { key: 'miniBag', header: 'Mini bag', siNo: true },

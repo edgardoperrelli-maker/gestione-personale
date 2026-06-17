@@ -39,6 +39,7 @@ export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, st
     data: rapp?.data ?? null,
     esecutore: nz(rapp?.staff_name) ?? (staffId ? staffById.get(staffId) ?? null : null),
     via: nz(row.via),
+    gruppoAttivita: nz(row.attivita),
     eseguito: siNo(r['eseguito']),
     sostValvola: siNo(r['sostituzione_valvola']),
     miniBag: siNo(miniBag),

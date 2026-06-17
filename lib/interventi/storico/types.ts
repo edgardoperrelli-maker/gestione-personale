@@ -10,6 +10,7 @@ export type RigaStorico = {
   data: string | null; // data esecuzione = data del rapportino (YYYY-MM-DD)
   esecutore: string | null;
   via: string | null;
+  gruppoAttivita: string | null;
   eseguito: string; // 'SI' | 'NO' | '—'
   sostValvola: string; // 'SI' | 'NO' | '—'
   miniBag: string; // 'SI' | 'NO' | '—'
@@ -33,6 +34,7 @@ export type VoceStoricoRow = {
   matricola: string | null;
   nominativo: string | null;
   pdr: string | null;
+  attivita: string | null;
   risposte: Record<string, unknown> | null;
   manuale: boolean | null;
   // PostgREST restituisce l'embed to-one come oggetto; gestiamo anche array per robustezza.
