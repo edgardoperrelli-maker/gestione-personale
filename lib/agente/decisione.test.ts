@@ -4,6 +4,7 @@ import {
   riassumiReport,
   statoAgente,
   validaMappatura,
+  validaConfig,
   CAMPI_MAPPABILI,
   type ReportAgente,
   type RegolaMappa,
@@ -192,5 +193,105 @@ describe('validaMappatura', () => {
   it('collisione contro regola disabilitata non conta', () => {
     const m = [regola('esito', 'esito', false), regola('marcatore', 'esito', true, false)];
     expect(validaMappatura(m).ok).toBe(true);
+  });
+});
+
+describe('validaConfig', () => {
+  const cfgOk = () => ({
+    enabled: true,
+    giorni: [1, 2, 3, 4, 5],
+    ora: '21:00',
+    dry_run: true,
+    finestra_giorni: 15,
+    mappatura: [
+      { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+      { campo: 'marcatore', colonna: '', auto: true, abilitato: true },
+    ],
+    esito_positivo: 'eseguito',
+    esito_negativo: 'No',
+  });
+
+  it('config valida → ok con value normalizzato', () => {
+    const out = validaConfig(cfgOk());
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.value.giorni).toEqual([1, 2, 3, 4, 5]);
+      expect(out.value.ora).toBe('21:00');
+      expect(out.value.mappatura).toHaveLength(2);
+    }
+  });
+
+  it('enabled non boolean → errore', () => {
+    expect(validaConfig({ ...cfgOk(), enabled: 'si' }).ok).toBe(false);
+  });
+
+  it('giorni non array → errore', () => {
+    expect(validaConfig({ ...cfgOk(), giorni: 3 }).ok).toBe(false);
+  });
+  it('giorni vuoti → errore', () => {
+    expect(validaConfig({ ...cfgOk(), giorni: [] }).ok).toBe(false);
+  });
+  it('giorno fuori range (0) → errore', () => {
+    expect(validaConfig({ ...cfgOk(), giorni: [0, 1] }).ok).toBe(false);
+  });
+  it('giorno fuori range (8) → errore', () => {
+    expect(validaConfig({ ...cfgOk(), giorni: [1, 8] }).ok).toBe(false);
+  });
+  it('giorno non intero → errore', () => {
+    expect(validaConfig({ ...cfgOk(), giorni: [1, 2.5] }).ok).toBe(false);
+  });
+  it('giorni duplicati → deduplicati e ordinati', () => {
+    const out = validaConfig({ ...cfgOk(), giorni: [3, 1, 3, 2] });
+    expect(out.ok).toBe(true);
+    if (out.ok) expect(out.value.giorni).toEqual([1, 2, 3]);
+  });
+
+  it('ora con formato sbagliato → errore', () => {
+    expect(validaConfig({ ...cfgOk(), ora: '9:00' }).ok).toBe(false);
+    expect(validaConfig({ ...cfgOk(), ora: '24:00' }).ok).toBe(false);
+    expect(validaConfig({ ...cfgOk(), ora: '21:60' }).ok).toBe(false);
+    expect(validaConfig({ ...cfgOk(), ora: 'abc' }).ok).toBe(false);
+  });
+  it('ora 00:00 e 23:59 valide', () => {
+    expect(validaConfig({ ...cfgOk(), ora: '00:00' }).ok).toBe(true);
+    expect(validaConfig({ ...cfgOk(), ora: '23:59' }).ok).toBe(true);
+  });
+
+  it('dry_run non boolean → errore', () => {
+    expect(validaConfig({ ...cfgOk(), dry_run: 1 }).ok).toBe(false);
+  });
+
+  it('finestra_giorni fuori range (0) → errore', () => {
+    expect(validaConfig({ ...cfgOk(), finestra_giorni: 0 }).ok).toBe(false);
+  });
+  it('finestra_giorni fuori range (61) → errore', () => {
+    expect(validaConfig({ ...cfgOk(), finestra_giorni: 61 }).ok).toBe(false);
+  });
+  it('finestra_giorni non intero → errore', () => {
+    expect(validaConfig({ ...cfgOk(), finestra_giorni: 15.5 }).ok).toBe(false);
+  });
+  it('finestra_giorni 1 e 60 valide', () => {
+    expect(validaConfig({ ...cfgOk(), finestra_giorni: 1 }).ok).toBe(true);
+    expect(validaConfig({ ...cfgOk(), finestra_giorni: 60 }).ok).toBe(true);
+  });
+
+  it('mappatura invalida (campo sconosciuto) → errore', () => {
+    expect(validaConfig({ ...cfgOk(), mappatura: [{ campo: 'pippo', colonna: 'X', abilitato: true }] }).ok).toBe(false);
+  });
+
+  it('esito_positivo vuoto → errore', () => {
+    expect(validaConfig({ ...cfgOk(), esito_positivo: '' }).ok).toBe(false);
+    expect(validaConfig({ ...cfgOk(), esito_positivo: '   ' }).ok).toBe(false);
+  });
+  it('esito_negativo non stringa → errore', () => {
+    expect(validaConfig({ ...cfgOk(), esito_negativo: 5 }).ok).toBe(false);
+  });
+  it('esiti con spazi attorno → trim nel value', () => {
+    const out = validaConfig({ ...cfgOk(), esito_positivo: '  eseguito  ', esito_negativo: ' No ' });
+    expect(out.ok).toBe(true);
+    if (out.ok) {
+      expect(out.value.esito_positivo).toBe('eseguito');
+      expect(out.value.esito_negativo).toBe('No');
+    }
   });
 });

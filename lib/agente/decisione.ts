@@ -181,3 +181,79 @@ export function validaMappatura(input: unknown): EsitoValidazione<RegolaMappa[]>
 
   return { ok: true, value: regole };
 }
+
+export type ConfigAgente = {
+  enabled: boolean;
+  giorni: number[];
+  ora: string;
+  dry_run: boolean;
+  finestra_giorni: number;
+  mappatura: RegolaMappa[];
+  esito_positivo: string;
+  esito_negativo: string;
+};
+
+const RE_ORA = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+/** Valida e normalizza l'intera configurazione dell'agente. */
+export function validaConfig(input: unknown): EsitoValidazione<ConfigAgente> {
+  if (typeof input !== 'object' || input === null) {
+    return { ok: false, errore: 'Configurazione assente.' };
+  }
+  const c = input as Record<string, unknown>;
+
+  if (typeof c.enabled !== 'boolean') {
+    return { ok: false, errore: 'Il campo "enabled" deve essere booleano.' };
+  }
+
+  if (!Array.isArray(c.giorni) || c.giorni.length === 0) {
+    return { ok: false, errore: 'Seleziona almeno un giorno.' };
+  }
+  for (const g of c.giorni) {
+    if (typeof g !== 'number' || !Number.isInteger(g) || g < 1 || g > 7) {
+      return { ok: false, errore: 'I giorni devono essere interi da 1 (Lun) a 7 (Dom).' };
+    }
+  }
+  const giorni = Array.from(new Set(c.giorni as number[])).sort((a, b) => a - b);
+
+  if (typeof c.ora !== 'string' || !RE_ORA.test(c.ora)) {
+    return { ok: false, errore: 'Ora non valida: usa il formato HH:MM (00:00–23:59).' };
+  }
+
+  if (typeof c.dry_run !== 'boolean') {
+    return { ok: false, errore: 'Il campo "dry_run" deve essere booleano.' };
+  }
+
+  if (
+    typeof c.finestra_giorni !== 'number' ||
+    !Number.isInteger(c.finestra_giorni) ||
+    c.finestra_giorni < 1 ||
+    c.finestra_giorni > 60
+  ) {
+    return { ok: false, errore: 'La finestra deve essere un intero da 1 a 60 giorni.' };
+  }
+
+  const mapp = validaMappatura(c.mappatura);
+  if (!mapp.ok) return { ok: false, errore: mapp.errore };
+
+  if (typeof c.esito_positivo !== 'string' || c.esito_positivo.trim() === '') {
+    return { ok: false, errore: 'Il testo esito positivo non può essere vuoto.' };
+  }
+  if (typeof c.esito_negativo !== 'string' || c.esito_negativo.trim() === '') {
+    return { ok: false, errore: 'Il testo esito negativo non può essere vuoto.' };
+  }
+
+  return {
+    ok: true,
+    value: {
+      enabled: c.enabled,
+      giorni,
+      ora: c.ora,
+      dry_run: c.dry_run,
+      finestra_giorni: c.finestra_giorni,
+      mappatura: mapp.value,
+      esito_positivo: c.esito_positivo.trim(),
+      esito_negativo: c.esito_negativo.trim(),
+    },
+  };
+}
