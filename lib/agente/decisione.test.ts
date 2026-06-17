@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decideEsecuzione, riassumiReport, type ReportAgente } from './decisione';
+import { decideEsecuzione, riassumiReport, statoAgente, type ReportAgente } from './decisione';
 
 const base = {
   enabled: true,
@@ -80,5 +80,52 @@ describe('riassumiReport', () => {
   it('extraNonCollocate assente → nonCollocate 0', () => {
     const report: ReportAgente = { file: [{ extraAggiunte: 2 }] };
     expect(riassumiReport(report).nonCollocate).toBe(0);
+  });
+});
+
+describe('statoAgente', () => {
+  const base = {
+    minutiDaContatto: 5 as number | null,
+    enabled: true,
+    giorni: [1, 2, 3, 4, 5],
+    ora: '21:00',
+    oraCorrente: '23:30',
+    weekday: 2,
+    ultimoGiroOggi: false,
+  };
+
+  it('contatto recente → online true', () => {
+    expect(statoAgente(base).online).toBe(true);
+  });
+  it('contatto oltre soglia (default 90 min) → online false', () => {
+    expect(statoAgente({ ...base, minutiDaContatto: 120 }).online).toBe(false);
+  });
+  it('minutiDaContatto null (mai contattato) → online false', () => {
+    expect(statoAgente({ ...base, minutiDaContatto: null }).online).toBe(false);
+  });
+  it('soglia online configurabile via onlineMin', () => {
+    expect(statoAgente({ ...base, minutiDaContatto: 120, onlineMin: 180 }).online).toBe(true);
+  });
+
+  it('giorno pianificato, passata ora+grazia, giro non di oggi → allerta valorizzata', () => {
+    // ora 21:00 + 120 min grazia = 23:00; oraCorrente 23:30 > 23:00
+    expect(statoAgente(base).allerta).not.toBeNull();
+  });
+  it('giro già fatto oggi → nessuna allerta', () => {
+    expect(statoAgente({ ...base, ultimoGiroOggi: true }).allerta).toBeNull();
+  });
+  it('giorno NON pianificato → nessuna allerta', () => {
+    expect(statoAgente({ ...base, weekday: 6 }).allerta).toBeNull();
+  });
+  it('non ancora passata ora+grazia → nessuna allerta', () => {
+    // 21:00 + 120 = 23:00; oraCorrente 22:30 < 23:00
+    expect(statoAgente({ ...base, oraCorrente: '22:30' }).allerta).toBeNull();
+  });
+  it('disabilitato → nessuna allerta', () => {
+    expect(statoAgente({ ...base, enabled: false }).allerta).toBeNull();
+  });
+  it('grazia configurabile via graziaMin (0 → allerta già a 21:00)', () => {
+    const s = statoAgente({ ...base, oraCorrente: '21:00', graziaMin: 0 });
+    expect(s.allerta).not.toBeNull();
   });
 });
