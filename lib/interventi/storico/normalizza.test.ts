@@ -1,6 +1,6 @@
 // lib/interventi/storico/normalizza.test.ts
 import { describe, it, expect } from 'vitest';
-import { siNo, voceToRigaStorico, ordinaRighe, slicePagina, filtraSiNo } from './normalizza';
+import { siNo, voceToRigaStorico, ordinaRighe, slicePagina, filtraSiNo, calcolaContatori } from './normalizza';
 import type { VoceStoricoRow, RigaStorico } from './types';
 
 const staff = new Map<string, string>([['s1', 'Mario Rossi']]);
@@ -113,6 +113,29 @@ describe('filtraSiNo', () => {
   it('combinazione AND di più filtri', () => {
     const righe = [r({ id: 'a', eseguito: 'SI', sostValvola: 'SI' }), r({ id: 'b', eseguito: 'SI', sostValvola: '—' })];
     expect(filtraSiNo(righe, { ...noFilt, eseguito: 'SI', sostValvola: 'SI' }).map((x) => x.id)).toEqual(['a']);
+  });
+});
+
+describe('calcolaContatori', () => {
+  const r = (p: Partial<RigaStorico>): RigaStorico => ({
+    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
+  });
+  it('conta esitati/eseguiti/negativi e i SI dei campi', () => {
+    const righe = [
+      r({ eseguito: 'SI', sostValvola: 'SI' }),
+      r({ eseguito: 'SI', miniBag: 'SI', rgStop: 'SI' }),
+      r({ eseguito: 'NO' }),
+      r({ eseguito: '—' }), // non esitato
+    ];
+    expect(calcolaContatori(righe)).toEqual({
+      totale: 4, esitati: 3, eseguiti: 2, negativi: 1, sostValvola: 1, miniBag: 1, rgStop: 1,
+    });
+  });
+  it('insieme vuoto → tutti zero', () => {
+    expect(calcolaContatori([])).toEqual({
+      totale: 0, esitati: 0, eseguiti: 0, negativi: 0, sostValvola: 0, miniBag: 0, rgStop: 0,
+    });
   });
 });
 

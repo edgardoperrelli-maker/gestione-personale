@@ -43,12 +43,12 @@ export default function StoricoTabella({ righe }: { righe: RigaStorico[] }) {
     );
   }
   return (
-    <div className="overflow-x-auto rounded-2xl border border-[var(--brand-border)]">
+    <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-2xl border border-[var(--brand-border)]">
       <table className="min-w-full text-left text-sm">
-        <thead className="bg-[var(--brand-surface-muted)] text-xs uppercase tracking-wide text-[var(--brand-text-muted)]">
+        <thead className="sticky top-0 z-10 text-xs uppercase tracking-wide text-[var(--brand-text-muted)]">
           <tr>
             {COLS.map((c) => (
-              <th key={c.header} className="whitespace-nowrap px-3 py-2 font-medium">{c.header}</th>
+              <th key={c.header} className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 font-medium">{c.header}</th>
             ))}
           </tr>
         </thead>

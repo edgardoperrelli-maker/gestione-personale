@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import StoricoFiltri, { type StatoFiltriUI } from './StoricoFiltri';
 import StoricoTabella from './StoricoTabella';
-import type { RigaStorico } from '@/lib/interventi/storico/types';
+import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/types';
 
 type Staff = { id: string; display_name: string };
 
@@ -12,6 +12,19 @@ const FILTRI_VUOTI: StatoFiltriUI = {
   q: '', dal: '', al: '', esecutore: '', comune: '',
   eseguito: '', sostValvola: '', miniBag: '', rgStop: '',
 };
+
+const CONTATORI_ZERO: ContatoriStorico = {
+  totale: 0, esitati: 0, eseguiti: 0, negativi: 0, sostValvola: 0, miniBag: 0, rgStop: 0,
+};
+
+const CARDS: { key: keyof ContatoriStorico; label: string; tone?: 'ok' | 'no' }[] = [
+  { key: 'esitati', label: 'Interventi esitati' },
+  { key: 'eseguiti', label: 'Eseguiti', tone: 'ok' },
+  { key: 'negativi', label: 'Negativi', tone: 'no' },
+  { key: 'sostValvola', label: 'Sost. valvola' },
+  { key: 'miniBag', label: 'Mini bag' },
+  { key: 'rgStop', label: 'RG stop' },
+];
 
 /** Querystring dei filtri (senza `page`), condivisa da lista ed export. */
 function filtriToParams(f: StatoFiltriUI): URLSearchParams {
@@ -38,6 +51,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
   const [troncato, setTroncato] = useState(false);
   const [pageSize, setPageSize] = useState(100);
   const [page, setPage] = useState(0);
+  const [contatori, setContatori] = useState<ContatoriStorico>(CONTATORI_ZERO);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,17 +72,21 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Errore caricamento.');
       }
-      const data = (await res.json()) as { righe: RigaStorico[]; total: number; troncato: boolean; pageSize: number };
+      const data = (await res.json()) as {
+        righe: RigaStorico[]; total: number; troncato: boolean; pageSize: number; contatori?: ContatoriStorico;
+      };
       setRighe(Array.isArray(data.righe) ? data.righe : []);
       setTotal(typeof data.total === 'number' ? data.total : 0);
       setTroncato(Boolean(data.troncato));
       setPageSize(typeof data.pageSize === 'number' ? data.pageSize : 100);
+      setContatori(data.contatori ?? CONTATORI_ZERO);
     } catch (e) {
       if (e instanceof DOMException && e.name === 'AbortError') return; // richiesta annullata: ignora
       setError(e instanceof Error ? e.message : 'Errore caricamento.');
       setRighe([]);
       setTotal(0);
       setTroncato(false);
+      setContatori(CONTATORI_ZERO);
     } finally {
       if (abortRef.current === controller) setLoading(false);
     }
@@ -105,18 +123,34 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
 
   return (
     <div className="space-y-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {CARDS.map((c) => (
+          <div key={c.key} className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
+            <div className="text-xs text-[var(--brand-text-muted)]">{c.label}</div>
+            <div
+              className={`text-2xl font-semibold ${
+                c.tone === 'ok' ? 'text-[var(--success)]' : c.tone === 'no' ? 'text-[var(--danger)]' : 'text-[var(--brand-primary)]'
+              }`}
+            >
+              {contatori[c.key].toLocaleString('it-IT')}
+            </div>
+          </div>
+        ))}
+      </div>
+
       <StoricoFiltri
         filtri={filtri}
         setFiltri={setFiltri}
         staff={staff}
         onApplica={applica}
         onPulisci={pulisci}
+        onEsporta={esporta}
         loading={loading}
       />
 
       {troncato && (
         <div className="rounded-lg border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
-          Troppi risultati: vengono mostrati i primi {total}. Restringi i filtri per vedere tutto.
+          Troppi risultati: i contatori e la tabella mostrano i primi {total}. Restringi i filtri.
         </div>
       )}
 
@@ -126,9 +160,9 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
         </div>
       )}
 
-      <div className="relative min-h-[120px]">
+      <div className="relative">
         {loading && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center gap-3 rounded-2xl bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
+          <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 rounded-2xl bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
             Caricamento…
           </div>
@@ -137,19 +171,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
-        <div className="flex items-center gap-3">
-          <span className="rounded-lg border border-[var(--brand-border)] px-3 py-1 font-semibold text-[var(--brand-text-main)]">
-            {total.toLocaleString('it-IT')} interventi
-          </span>
-          <button
-            type="button"
-            onClick={esporta}
-            disabled={loading || total === 0}
-            className="rounded-lg border border-[var(--brand-border)] px-3 py-1 font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50"
-          >
-            📥 Esporta Excel
-          </button>
-        </div>
+        <span>{total.toLocaleString('it-IT')} righe</span>
         {totPagine > 1 && (
           <div className="flex items-center gap-2">
             <button

@@ -19,10 +19,6 @@ export default async function InterventiPage() {
 
   return (
     <main className="w-full space-y-4 px-4 py-6">
-      <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
-        Storico interventi
-      </h1>
-
       <StoricoInterventiClient staff={staff} />
     </main>
   );

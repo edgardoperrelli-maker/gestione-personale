@@ -1,6 +1,6 @@
 // lib/interventi/storico/normalizza.ts
 // PURA: normalizzazione righe rapportino_voci → RigaStorico, rese SI/NO, ordinamento.
-import type { RigaStorico, VoceStoricoRow, RapportinoEmbed } from './types';
+import type { RigaStorico, VoceStoricoRow, RapportinoEmbed, ContatoriStorico } from './types';
 import type { SiNoFiltro } from './filtri';
 
 const SI = new Set(['si', 'sì', 'true', 'x', '1', 'vero', 'y', 'yes', '✓']);
@@ -80,6 +80,31 @@ export function ordinaRighe(righe: RigaStorico[]): RigaStorico[] {
     if (va !== vb) return va.localeCompare(vb); // via asc
     return a.id.localeCompare(b.id); // tie-breaker deterministico
   });
+}
+
+/** Contatori aggregati su un insieme di righe già normalizzate/filtrate. */
+export function calcolaContatori(righe: RigaStorico[]): ContatoriStorico {
+  let eseguiti = 0;
+  let negativi = 0;
+  let sostValvola = 0;
+  let miniBag = 0;
+  let rgStop = 0;
+  for (const r of righe) {
+    if (r.eseguito === 'SI') eseguiti += 1;
+    else if (r.eseguito === 'NO') negativi += 1;
+    if (r.sostValvola === 'SI') sostValvola += 1;
+    if (r.miniBag === 'SI') miniBag += 1;
+    if (r.rgStop === 'SI') rgStop += 1;
+  }
+  return {
+    totale: righe.length,
+    esitati: eseguiti + negativi,
+    eseguiti,
+    negativi,
+    sostValvola,
+    miniBag,
+    rgStop,
+  };
 }
 
 export function slicePagina<T>(righe: T[], page: number, pageSize: number): T[] {

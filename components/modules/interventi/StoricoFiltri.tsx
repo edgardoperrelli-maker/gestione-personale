@@ -29,13 +29,14 @@ const SI_NO = [
 ] as const;
 
 export default function StoricoFiltri({
-  filtri, setFiltri, staff, onApplica, onPulisci, loading,
+  filtri, setFiltri, staff, onApplica, onPulisci, onEsporta, loading,
 }: {
   filtri: StatoFiltriUI;
   setFiltri: (f: StatoFiltriUI) => void;
   staff: Staff[];
   onApplica: () => void;
   onPulisci: () => void;
+  onEsporta: () => void;
   loading: boolean;
 }) {
   const set = (patch: Partial<StatoFiltriUI>) => setFiltri({ ...filtri, ...patch });
@@ -88,14 +89,14 @@ export default function StoricoFiltri({
         ))}
       </div>
 
-      <div className="flex gap-2">
+      <div className="flex flex-wrap gap-2">
         <button
           type="button"
           onClick={onApplica}
           disabled={loading}
           className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
         >
-          Applica filtri
+          Cerca
         </button>
         <button
           type="button"
@@ -104,6 +105,14 @@ export default function StoricoFiltri({
           className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60"
         >
           Pulisci
+        </button>
+        <button
+          type="button"
+          onClick={onEsporta}
+          disabled={loading}
+          className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-60"
+        >
+          📥 Esporta Excel
         </button>
       </div>
     </div>

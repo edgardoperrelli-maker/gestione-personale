@@ -41,10 +41,22 @@ export type VoceStoricoRow = {
   rapportini: RapportinoEmbed | RapportinoEmbed[] | null;
 };
 
+/** Contatori aggregati sull'insieme filtrato (o intero DB se nessun filtro). */
+export type ContatoriStorico = {
+  totale: number; // tutte le righe
+  esitati: number; // eseguito SI o NO (interventi gestiti)
+  eseguiti: number; // eseguito SI
+  negativi: number; // eseguito NO
+  sostValvola: number; // sost. valvola SI
+  miniBag: number; // mini bag SI
+  rgStop: number; // rg stop SI
+};
+
 /** Risposta dell'endpoint storico. */
 export type RispostaStorico = {
   righe: RigaStorico[];
   total: number;
   troncato: boolean;
   pageSize: number;
+  contatori: ContatoriStorico;
 };

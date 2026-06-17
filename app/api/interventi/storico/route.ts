@@ -4,7 +4,7 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { requireUser } from '@/lib/apiAuth';
 import { parseFiltriStorico } from '@/lib/interventi/storico/filtri';
-import { slicePagina } from '@/lib/interventi/storico/normalizza';
+import { slicePagina, calcolaContatori } from '@/lib/interventi/storico/normalizza';
 import { caricaRigheStorico, caricaStaff } from '@/lib/interventi/storico/caricaStorico';
 import type { RispostaStorico } from '@/lib/interventi/storico/types';
 
@@ -29,9 +29,10 @@ export async function GET(req: Request) {
     const { righe, troncato } = await caricaRigheStorico(supabase, f, staffById, MAX_RIGHE);
 
     const total = righe.length;
+    const contatori = calcolaContatori(righe);
     const pageRighe = slicePagina(righe, f.page, PAGE_SIZE);
 
-    const risposta: RispostaStorico = { righe: pageRighe, total, troncato, pageSize: PAGE_SIZE };
+    const risposta: RispostaStorico = { righe: pageRighe, total, troncato, pageSize: PAGE_SIZE, contatori };
     return NextResponse.json(risposta);
   } catch (e) {
     return NextResponse.json(
