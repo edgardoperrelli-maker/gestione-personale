@@ -73,6 +73,7 @@ export async function GET(req: Request) {
     const IN_CHUNK = 200; // sotto il limite tipico di lunghezza URL per .in()
     const ids = interventi.map((i) => i.id);
     const sigilloById = new Map<string, string>();
+    const saracinescaById = new Map<string, string>();
     for (let i = 0; i < ids.length; i += IN_CHUNK) {
       const chunk = ids.slice(i, i + IN_CHUNK);
       const { data: voci } = await supabaseAdmin
@@ -89,6 +90,14 @@ export async function GET(req: Request) {
             ? (v.risposte['sigillo'] as string)
             : '';
         if (sig && !sigilloById.has(v.intervento_id)) sigilloById.set(v.intervento_id, sig);
+        // saracinesca: primo non vuoto tra sostituzione_valvola e sost_valvola (due template)
+        const sar =
+          v.risposte && typeof v.risposte['sostituzione_valvola'] === 'string' && (v.risposte['sostituzione_valvola'] as string).trim()
+            ? (v.risposte['sostituzione_valvola'] as string)
+            : v.risposte && typeof v.risposte['sost_valvola'] === 'string'
+              ? (v.risposte['sost_valvola'] as string)
+              : '';
+        if (sar && !saracinescaById.has(v.intervento_id)) saracinescaById.set(v.intervento_id, sar);
       }
     }
 
@@ -110,6 +119,7 @@ export async function GET(req: Request) {
         sigillo: sigilloById.get(i.id) ?? null,
         pdr: i.pdr,
         nominativo: i.nominativo,
+        saracinesca: saracinescaById.get(i.id) ?? null,
       } satisfies RigaDb),
     );
 
