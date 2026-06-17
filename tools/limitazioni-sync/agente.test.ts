@@ -78,6 +78,7 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     const ultima = ws.getRow(ws.rowCount);
     expect(ultima.getCell(9).value).toBe('202315612361');
     expect(ultima.getCell(67).value).toBe('No');
+    expect(giornoDa(ultima.getCell(66).value)).toBe('2026-06-04');    // BN: data extra come data Excel
     expect(ultima.getCell(71).value).toBe(MARKER);                    // BS marker (auto, prima vuota dopo le note)
     // marcatore SOLO sugli extra: la riga 2 pianificata non ha il marcatore
     expect(ws.getRow(2).getCell(71).value ?? '').toBe('');

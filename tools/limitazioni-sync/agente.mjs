@@ -182,6 +182,11 @@ export async function eseguiGiro({
     .filter((l) => !comuniConFile.has(norm(l.comune)))
     .map((l) => ({ id: l.id, comune: l.comune, matricola: l.matricola, esecutore: l.esecutore }));
 
+  // comuni dei lavori che non corrispondono a nessun file master (visibilità mismatch)
+  report.comuniNonAgganciati = [...new Set(
+    (lavori ?? []).map((l) => l.comune).filter(Boolean),
+  )].filter((c) => !comuniConFile.has(norm(c)));
+
   return report;
 }
 
