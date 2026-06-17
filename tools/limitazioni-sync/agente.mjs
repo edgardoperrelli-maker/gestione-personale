@@ -1,13 +1,16 @@
 // tools/limitazioni-sync/agente.mjs
-// Orchestrazione: scarica i lavori → per ogni file-master aggancia/scrive/aggiunge → backup/salva → log.
+// Orchestrazione: scarica i lavori -> per ogni file-master aggancia/scrive/aggiunge -> backup/salva -> log.
 import fs from 'node:fs';
 import path from 'node:path';
 import { caricaWorkbook, trovaRigaIntestazione, backupFile, salva } from './lib/excelIO.mjs';
-import { rilevaColonne, colonnaMarker } from './lib/colonne.mjs';
+import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
 import { decidiScrittura } from './lib/scrittura.mjs';
+import { decidiScritturaData } from './lib/dataCella.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
+import { scanColonne } from './lib/scanColonne.mjs';
+import { tick, inviaReport, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 
@@ -24,8 +27,32 @@ function comunePrevalente(ws, rIntest, colComune) {
   return best;
 }
 
-export async function eseguiGiro({ cartella, lavori, dryRun, stamp }) {
+/** Valore testuale dell'esito da scrivere, da esitoOk (true=positivo, false=negativo, null=non scrive). */
+function valoreEsito(l, esitoPositivo, esitoNegativo) {
+  if (l.esitoOk === true) return esitoPositivo;
+  if (l.esitoOk === false) return esitoNegativo;
+  return null; // non lavorato -> non scrive
+}
+
+/** Valore (non-esito, non-data) del campo mappato dal lavoro. */
+function valoreCampo(l, campo) {
+  switch (campo) {
+    case 'esecutore': return l.esecutore;
+    case 'sigillo': return l.sigillo;
+    case 'matricola': return l.matricola;
+    case 'via': return l.via;
+    case 'pdr': return l.pdr;
+    case 'nominativo': return l.nominativo;
+    case 'comune': return l.comune;
+    default: return null;
+  }
+}
+
+export async function eseguiGiro({
+  cartella, lavori, dryRun, stamp, mappatura, esitoPositivo, esitoNegativo,
+}) {
   const report = { generatoIl: stamp, dryRun: !!dryRun, file: [], extraNonCollocate: [] };
+  const regole = (mappatura ?? []).filter((m) => m && m.abilitato);
   const indice = buildIndice(lavori);
   const idConsumati = new Set();
   const comuniConFile = new Set();
@@ -43,21 +70,66 @@ export async function eseguiGiro({ cartella, lavori, dryRun, stamp }) {
   for (const file of files) {
     const fileReport = {
       file: path.basename(file), master: false, aggiornate: 0, extraAggiunte: 0,
-      conflitti: [], saltato: false, errore: null,
+      conflitti: [], colonneAssenti: [], saltato: false, errore: null,
     };
     try {
       const wb = await caricaWorkbook(file);
       const ws = wb.worksheets[0];
       const rIntest = trovaRigaIntestazione(ws);
-      if (rIntest < 0) { report.file.push(fileReport); continue; } // non master → ignora
+      if (rIntest < 0) { report.file.push(fileReport); continue; } // non master -> ignora
       fileReport.master = true;
 
       const header = (ws.getRow(rIntest).values || []).slice(1);
-      const col = rilevaColonne(header);
+      const col = rilevaColonne(header); // SOLO aggancio (odl/matricola/comune/via)
+
+      // risolvi una volta per file le colonne mappate (esclusa la regola marcatore).
+      const colonneAssenti = new Set();
+      const regoleScrittura = []; // { campo, idx }
+      let regolaMarcatore = null;
+      for (const regola of regole) {
+        if (regola.campo === 'marcatore') { regolaMarcatore = regola; continue; }
+        const idx = risolviColonna(header, regola.colonna);
+        if (idx < 0) { colonneAssenti.add(regola.colonna); continue; }
+        regoleScrittura.push({ campo: regola.campo, idx });
+      }
+      fileReport.colonneAssenti = [...colonneAssenti];
+
+      // indice della colonna marcatore (solo per le righe extra).
+      let markerCol = -1;
+      if (regolaMarcatore) {
+        if (regolaMarcatore.auto) markerCol = colonnaMarker(header);
+        else {
+          markerCol = risolviColonna(header, regolaMarcatore.colonna);
+          if (markerCol < 0) { colonneAssenti.add(regolaMarcatore.colonna); fileReport.colonneAssenti = [...colonneAssenti]; }
+        }
+      }
+
       const comuneFile =
         (col.comune != null ? comunePrevalente(ws, rIntest, col.comune) : '') ||
         norm(path.basename(file, '.xlsx'));
       comuniConFile.add(comuneFile);
+
+      // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
+      const scriviCella = (row, regola, l) => {
+        const cell = row.getCell(regola.idx + 1);
+        if (regola.campo === 'data') {
+          const d = decidiScritturaData(cell.value, l.data_esecuzione);
+          if (d.azione === 'scrivi') { cell.value = d.valore; return true; }
+          if (d.azione === 'conflitto') {
+            fileReport.conflitti.push({ riga: row.number, campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
+          }
+          return false;
+        }
+        const valore = regola.campo === 'esito'
+          ? valoreEsito(l, esitoPositivo, esitoNegativo)
+          : valoreCampo(l, regola.campo);
+        const d = decidiScrittura(cell.value, valore);
+        if (d.azione === 'scrivi') { cell.value = d.valore; return true; }
+        if (d.azione === 'conflitto') {
+          fileReport.conflitti.push({ riga: row.number, campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
+        }
+        return false;
+      };
 
       // 1) righe pianificate
       for (let r = rIntest + 1; r <= ws.rowCount; r++) {
@@ -68,42 +140,30 @@ export async function eseguiGiro({ cartella, lavori, dryRun, stamp }) {
         const hit = agganciaRiga({ odl, matricola }, indice, comuneFile);
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
-        const campi = [
-          ['esecutore', hit.lavoro.esecutore],
-          ['data', hit.lavoro.data_esecuzione],
-          ['esito', hit.lavoro.esito],
-          ['sigillo', hit.lavoro.sigillo],
-        ];
         let toccata = false;
-        for (const [chiave, valore] of campi) {
-          if (col[chiave] == null) continue;
-          const cell = row.getCell(col[chiave] + 1);
-          const d = decidiScrittura(cell.value, valore);
-          if (d.azione === 'scrivi') { cell.value = d.valore; toccata = true; }
-          else if (d.azione === 'conflitto') {
-            fileReport.conflitti.push({ riga: r, campo: chiave, esistente: d.esistente, nuovo: d.valore });
-          }
+        for (const regola of regoleScrittura) {
+          if (scriviCella(row, regola, hit.lavoro)) toccata = true;
         }
         if (toccata) fileReport.aggiornate++;
       }
 
-      // 2) extra di questo comune
+      // 2) extra di questo comune (stessa logica/date-aware delle pianificate)
       const extraComune = trovaExtra(lavori, idConsumati).filter((l) => norm(l.comune) === comuneFile);
-      if (extraComune.length) {
-        const markerCol = colonnaMarker(header);
-        for (const l of extraComune) {
-          idConsumati.add(l.id);
-          const row = ws.addRow([]);
-          const set = (c, v) => { if (c != null && v) row.getCell(c + 1).value = v; };
-          set(col.matricola, l.matricola);
-          set(col.via, l.via);
-          set(col.esecutore, l.esecutore);
-          set(col.data, l.data_esecuzione);
-          set(col.esito, l.esito);
-          set(col.sigillo, l.sigillo);
-          row.getCell(markerCol + 1).value = MARKER;
-          fileReport.extraAggiunte++;
+      for (const l of extraComune) {
+        idConsumati.add(l.id);
+        const row = ws.addRow([]);
+        // aggancio fields scritti sempre sulle righe extra (matricola e via per identificare la riga)
+        if (col.matricola != null && l.matricola) row.getCell(col.matricola + 1).value = l.matricola;
+        if (col.via != null && l.via) row.getCell(col.via + 1).value = l.via;
+        // poi i campi mappati
+        for (const regola of regoleScrittura) scriviCella(row, regola, l);
+        // marcatore: solo extra, solo cella vuota.
+        if (markerCol >= 0) {
+          const mc = row.getCell(markerCol + 1);
+          const d = decidiScrittura(mc.value, MARKER);
+          if (d.azione === 'scrivi') mc.value = d.valore;
         }
+        fileReport.extraAggiunte++;
       }
 
       if (!dryRun && (fileReport.aggiornate > 0 || fileReport.extraAggiunte > 0)) {
@@ -135,18 +195,48 @@ function scriviLog(cartella, stamp, report) {
 async function main() {
   const cfgPath = path.join(import.meta.dirname, 'config.json');
   const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  const baseUrl = baseUrlDaEndpoint(cfg.endpointUrl);
+
+  // 1) Heartbeat + invio colonne: l'app decide se e' il momento di girare.
+  let files = [];
+  try {
+    files = await scanColonne(cfg.cartella);
+  } catch (e) {
+    console.error(`[lim-sync] scanColonne fallito (best-effort): ${e instanceof Error ? e.message : e}`);
+  }
+  const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+  const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
+
+  if (!eseguiOra) {
+    console.log(`[lim-sync] tick: in attesa (eseguiOra=false). File scansionati: ${files.length}.`);
+    return;
+  }
+
+  // 2) E' il momento: scarica i lavori della finestra ed esegui il giro.
   const now = new Date();
   const oggi = now.toISOString().slice(0, 10);
-  const { from, to } = finestra(oggi, cfg.finestraGiorni ?? 15);
+  const { from, to } = finestra(oggi, finestraGiorni ?? 15);
   const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '');
   const lavori = await fetchLavori({ endpointUrl: cfg.endpointUrl, exportKey: cfg.exportKey, from, to });
-  const report = await eseguiGiro({ cartella: cfg.cartella, lavori, dryRun: !!cfg.dryRun, stamp });
+  const report = await eseguiGiro({
+    cartella: cfg.cartella, lavori, dryRun: !!dryRun, stamp,
+    mappatura, esitoPositivo, esitoNegativo,
+  });
+
   try {
     scriviLog(cfg.cartella, stamp, report);
   } catch (e) {
     console.error(`[lim-sync] impossibile scrivere il log: ${e instanceof Error ? e.message : e}`);
   }
-  console.log(`[${stamp}] lavori=${lavori.length} dryRun=${!!cfg.dryRun}`);
+
+  // 3) Feedback all'app.
+  try {
+    await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
+  } catch (e) {
+    console.error(`[lim-sync] inviaReport fallito: ${e instanceof Error ? e.message : e}`);
+  }
+
+  console.log(`[${stamp}] lavori=${lavori.length} dryRun=${!!dryRun}`);
   console.log(JSON.stringify(report, null, 2));
 }
 
