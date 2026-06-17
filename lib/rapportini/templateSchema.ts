@@ -41,4 +41,6 @@ export const TemplateSchema = z.object({
   tipo: z.enum(['standard', 'risanamento']).optional().default('standard'),
   active: z.boolean().optional().default(true),
   solo_manuale: z.boolean().optional().default(false),
+  /** Template "task-via" (solo via): i rapportini generati con questo template mostrano il contenitore + "+". */
+  task_via: z.boolean().optional().default(false),
 });

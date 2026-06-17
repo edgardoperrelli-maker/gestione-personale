@@ -208,6 +208,15 @@ export default async function RapportinoPublicPage({
     }
   }
 
+  // Flag "task-via" del template (query separata e resiliente: default false se la colonna
+  // non esiste ancora). I rapportini di un template task-via mostrano il contenitore + "+".
+  let taskVia = false;
+  if (rap.template_id) {
+    const { data: tplFlag } = await supabaseAdmin
+      .from('rapportino_template').select('task_via').eq('id', rap.template_id).maybeSingle();
+    taskVia = Boolean((tplFlag as { task_via?: boolean } | null)?.task_via);
+  }
+
   // Template attivi per committente → alimentano la modale "intervento manuale".
   // Si legge ANCHE info_campi: l'anagrafica del "+" è guidata dal template manuale scelto
   // (coerente con l'editor "Anagrafica da compilare"), non dall'anagrafica del rapportino.
@@ -242,6 +251,7 @@ export default async function RapportinoPublicPage({
         templatesPerCommittente={templatesPerCommittente}
         infoCampiPerCommittente={infoCampiPerCommittente}
         campiStandardManuale={campiStandardLive}
+        taskVia={taskVia}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
       />

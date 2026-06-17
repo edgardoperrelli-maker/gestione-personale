@@ -12,7 +12,6 @@ import { FabInterventoManuale } from './FabInterventoManuale';
 import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { TaskViaFocus } from './TaskViaFocus';
-import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
@@ -77,6 +76,8 @@ type Props = {
   infoCampiPerCommittente?: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   /** Campi "standard" (del template del rapportino) usati dal "+" quando il template manuale non override. */
   campiStandardManuale?: TemplateCampo[];
+  /** true = rapportino "task-via" (template solo via): le voci aprono il contenitore + "+". */
+  taskVia?: boolean;
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
 };
@@ -109,6 +110,7 @@ export default function RapportinoForm({
   templatesPerCommittente = {},
   infoCampiPerCommittente = {},
   campiStandardManuale,
+  taskVia = false,
   tipo,
   righe: righeRisanamento,
 }: Props) {
@@ -284,9 +286,9 @@ export default function RapportinoForm({
 
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
 
-  // I task-via "BONIFICHE EXTRA" sono contenitori (niente esito proprio): esclusi dalla
-  // completezza così non bloccano l'invio né compaiono tra i "campi mancanti".
-  const riepilogo = useMemo(() => riepilogoRapportino(voci.filter((v) => !isTaskVia(v)), campi), [voci, campi]);
+  // Rapportino "task-via" (template solo via): le voci sono contenitori (niente esito proprio),
+  // escluse dalla completezza così non bloccano l'invio né compaiono tra i "campi mancanti".
+  const riepilogo = useMemo(() => riepilogoRapportino(taskVia ? [] : voci, campi), [voci, campi, taskVia]);
   const inviabile = riepilogo.daFare === 0 && voci.length > 0;
 
   const righe: RigaVoce[] = useMemo(
@@ -305,10 +307,10 @@ export default function RapportinoForm({
     () =>
       voci
         .map((v, idx) => ({ index: idx, v }))
-        .filter(({ v }) => !v.annullato && !isTaskVia(v))
+        .filter(({ v }) => !v.annullato && !taskVia)
         .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campi) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
-    [voci, campi, titoloCampi],
+    [voci, campi, titoloCampi, taskVia],
   );
 
   /* ── Navigazione ──────────────────────────────────────────────────────────── */
@@ -367,14 +369,14 @@ export default function RapportinoForm({
   const handleInvia = useCallback(() => {
     if (disabilitato || inviando || !inviabile) return;
     // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
-    const campiObbl = campiObbligatoriMancantiVoci(voci.filter((v) => !isTaskVia(v)), campi, titoloCampi);
+    const campiObbl = campiObbligatoriMancantiVoci((taskVia ? [] : voci), campi, titoloCampi);
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
-    const mancanti = fotoObbligatorieMancantiDettaglio(voci.filter((v) => !isTaskVia(v)), campi, titoloCampi);
+    const mancanti = fotoObbligatorieMancantiDettaglio((taskVia ? [] : voci), campi, titoloCampi);
     if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
     void eseguiInvio();
-  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, eseguiInvio]);
+  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, taskVia, eseguiInvio]);
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
 
@@ -417,7 +419,7 @@ export default function RapportinoForm({
       {bannerSospese}
       {tipo === 'risanamento' ? (
         <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
-      ) : vista === 'focus' && voci[indiceCorrente] && isTaskVia(voci[indiceCorrente]) ? (
+      ) : vista === 'focus' && voci[indiceCorrente] && taskVia ? (
         <TaskViaFocus
           voce={voci[indiceCorrente]}
           token={token}
