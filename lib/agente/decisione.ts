@@ -110,3 +110,74 @@ export function statoAgente(input: StatoAgenteInput): StatoAgente {
 
   return { online, allerta };
 }
+
+export type RegolaMappa = {
+  campo: string;
+  colonna: string;
+  auto?: boolean;
+  abilitato: boolean;
+};
+
+export const CAMPI_MAPPABILI = [
+  'esecutore', 'data', 'esito', 'sigillo', 'matricola',
+  'via', 'pdr', 'nominativo', 'comune', 'marcatore',
+] as const;
+
+export type EsitoValidazione<T> =
+  | { ok: true; value: T }
+  | { ok: false; errore: string };
+
+/** Valida la lista di regole di scrittura (mappa globale). */
+export function validaMappatura(input: unknown): EsitoValidazione<RegolaMappa[]> {
+  if (!Array.isArray(input)) {
+    return { ok: false, errore: 'La mappatura deve essere una lista.' };
+  }
+  const visti = new Set<string>();
+  const regole: RegolaMappa[] = [];
+  for (const r of input) {
+    if (typeof r !== 'object' || r === null) {
+      return { ok: false, errore: 'Ogni regola deve essere un oggetto.' };
+    }
+    const reg = r as Record<string, unknown>;
+    if (typeof reg.campo !== 'string' || !(CAMPI_MAPPABILI as readonly string[]).includes(reg.campo)) {
+      return { ok: false, errore: `Campo non valido: ${String(reg.campo)}.` };
+    }
+    if (typeof reg.colonna !== 'string') {
+      return { ok: false, errore: `Colonna non valida per il campo ${reg.campo}.` };
+    }
+    if (typeof reg.abilitato !== 'boolean') {
+      return { ok: false, errore: `Campo "abilitato" non booleano per ${reg.campo}.` };
+    }
+    if (reg.auto !== undefined && typeof reg.auto !== 'boolean') {
+      return { ok: false, errore: `Campo "auto" non booleano per ${reg.campo}.` };
+    }
+    if (visti.has(reg.campo)) {
+      return { ok: false, errore: `Campo duplicato nella mappatura: ${reg.campo}.` };
+    }
+    visti.add(reg.campo);
+    const regola: RegolaMappa = {
+      campo: reg.campo,
+      colonna: reg.colonna,
+      abilitato: reg.abilitato,
+    };
+    if (reg.auto !== undefined) regola.auto = reg.auto as boolean;
+    regole.push(regola);
+  }
+
+  // anti-collisione: marcatore abilitato con colonna nominata (auto !== true)
+  // non può usare la stessa colonna di un'altra regola abilitata.
+  const marcatore = regole.find((r) => r.campo === 'marcatore');
+  if (marcatore && marcatore.abilitato && marcatore.auto !== true && marcatore.colonna.trim() !== '') {
+    const collisione = regole.some(
+      (r) => r.campo !== 'marcatore' && r.abilitato && r.colonna === marcatore.colonna,
+    );
+    if (collisione) {
+      return {
+        ok: false,
+        errore: `Il marcatore non può usare la colonna "${marcatore.colonna}" già usata da un'altra regola.`,
+      };
+    }
+  }
+
+  return { ok: true, value: regole };
+}

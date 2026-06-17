@@ -1,5 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { decideEsecuzione, riassumiReport, statoAgente, type ReportAgente } from './decisione';
+import {
+  decideEsecuzione,
+  riassumiReport,
+  statoAgente,
+  validaMappatura,
+  CAMPI_MAPPABILI,
+  type ReportAgente,
+  type RegolaMappa,
+} from './decisione';
 
 const base = {
   enabled: true,
@@ -127,5 +135,62 @@ describe('statoAgente', () => {
   it('grazia configurabile via graziaMin (0 → allerta già a 21:00)', () => {
     const s = statoAgente({ ...base, oraCorrente: '21:00', graziaMin: 0 });
     expect(s.allerta).not.toBeNull();
+  });
+});
+
+const regola = (campo: string, colonna: string, abilitato = true, auto?: boolean): RegolaMappa =>
+  auto === undefined
+    ? { campo, colonna, abilitato }
+    : { campo, colonna, abilitato, auto };
+
+describe('CAMPI_MAPPABILI', () => {
+  it('contiene i campi previsti incluso marcatore', () => {
+    expect(CAMPI_MAPPABILI).toEqual([
+      'esecutore', 'data', 'esito', 'sigillo', 'matricola',
+      'via', 'pdr', 'nominativo', 'comune', 'marcatore',
+    ]);
+  });
+});
+
+describe('validaMappatura', () => {
+  it('mappatura valida → ok', () => {
+    const m = [regola('esecutore', 'Esecutore'), regola('esito', 'esito')];
+    expect(validaMappatura(m)).toEqual({ ok: true, value: m });
+  });
+  it('non è un array → errore', () => {
+    expect(validaMappatura('x' as unknown).ok).toBe(false);
+  });
+  it('campo sconosciuto → errore', () => {
+    expect(validaMappatura([regola('pippo', 'X')]).ok).toBe(false);
+  });
+  it('colonna non stringa → errore', () => {
+    expect(validaMappatura([{ campo: 'esito', colonna: 1, abilitato: true } as unknown as RegolaMappa]).ok).toBe(false);
+  });
+  it('abilitato non boolean → errore', () => {
+    expect(validaMappatura([{ campo: 'esito', colonna: 'esito', abilitato: 'si' } as unknown as RegolaMappa]).ok).toBe(false);
+  });
+  it('auto non boolean → errore', () => {
+    expect(validaMappatura([{ campo: 'marcatore', colonna: '', abilitato: true, auto: 'x' } as unknown as RegolaMappa]).ok).toBe(false);
+  });
+  it('campo duplicato → errore', () => {
+    const m = [regola('esito', 'esito'), regola('esito', 'altra')];
+    expect(validaMappatura(m).ok).toBe(false);
+  });
+  it('marcatore con colonna nominata uguale a quella di altra regola abilitata → errore', () => {
+    const m = [regola('esito', 'esito'), regola('marcatore', 'esito', true, false)];
+    const out = validaMappatura(m);
+    expect(out.ok).toBe(false);
+  });
+  it('marcatore auto:true ignora la collisione (colonna libera auto-rilevata)', () => {
+    const m = [regola('esito', 'esito'), regola('marcatore', '', true, true)];
+    expect(validaMappatura(m).ok).toBe(true);
+  });
+  it('marcatore disabilitato non collide', () => {
+    const m = [regola('esito', 'esito'), regola('marcatore', 'esito', false, false)];
+    expect(validaMappatura(m).ok).toBe(true);
+  });
+  it('collisione contro regola disabilitata non conta', () => {
+    const m = [regola('esito', 'esito', false), regola('marcatore', 'esito', true, false)];
+    expect(validaMappatura(m).ok).toBe(true);
   });
 });
