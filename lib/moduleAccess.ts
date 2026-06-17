@@ -20,6 +20,7 @@ export type AppModuleKey =
   | 'appuntamenti'
   | 'misuratori'
   | 'agente'
+  | 'performance'
   | 'impostazioni';
 
 export type AppModuleDefinition = {
@@ -137,6 +138,15 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Pianificazione e feedback sync limitazioni massive',
     section: 'modules',
     matchPrefixes: ['/hub/agente'],
+    adminOnly: true,
+  },
+  {
+    key: 'performance',
+    href: '/hub/performance',
+    label: 'Performance operatori',
+    description: 'KPI interventi per operatore (solo Admin Plus)',
+    section: 'modules',
+    matchPrefixes: ['/hub/performance'],
     adminOnly: true,
   },
   {
