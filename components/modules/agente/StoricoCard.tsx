@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { badgeModalita, formattaIstante, type AgenteRunRow } from '@/lib/agente/uiTypes';
+import { righeModificate } from '@/lib/agente/storicoExport';
 
 const cardStyle = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
 
@@ -26,6 +27,7 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
         {runs.map((run) => {
           const badge = badgeModalita(run.dry_run);
           const open = aperto === run.id;
+          const righe = open ? righeModificate(run.dettaglio) : [];
           return (
             <li key={run.id} className="py-3">
               <button
@@ -66,9 +68,54 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                   {run.errore && (
                     <p className="mb-2 font-medium" style={{ color: 'var(--danger)' }}>{run.errore}</p>
                   )}
-                  <pre className="overflow-auto whitespace-pre-wrap break-words" style={{ color: 'var(--brand-text-muted)' }}>
-                    {JSON.stringify(run.dettaglio ?? {}, null, 2)}
-                  </pre>
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="font-medium" style={{ color: 'var(--brand-text-main)' }}>
+                      Righe modificate ({righe.length})
+                    </span>
+                    <a
+                      href={`/api/admin/agente/run/${run.id}/export`}
+                      className="rounded-lg px-2.5 py-1 text-xs font-semibold"
+                      style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
+                    >
+                      ⬇ Esporta Excel
+                    </a>
+                  </div>
+                  {righe.length === 0 ? (
+                    <p style={{ color: 'var(--brand-text-muted)' }}>Nessuna riga modificata in questo giro.</p>
+                  ) : (
+                    <div className="overflow-auto" style={{ maxHeight: '20rem' }}>
+                      <table className="w-full border-collapse text-left">
+                        <thead>
+                          <tr style={{ color: 'var(--brand-text-muted)' }}>
+                            {['File', 'Riga', 'Tipo', 'Comune', 'Matricola', 'Esecutore', 'Esito', 'Sigillo', 'Data', 'Nota'].map((h) => (
+                              <th key={h} className="px-2 py-1 font-medium">{h}</th>
+                            ))}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {righe.slice(0, 200).map((r, i) => (
+                            <tr key={i} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                              <td className="px-2 py-1">{r.file}</td>
+                              <td className="px-2 py-1">{r.riga}</td>
+                              <td className="px-2 py-1">{r.tipo}</td>
+                              <td className="px-2 py-1">{r.comune}</td>
+                              <td className="px-2 py-1">{r.matricola}</td>
+                              <td className="px-2 py-1">{r.esecutore}</td>
+                              <td className="px-2 py-1">{r.esito}</td>
+                              <td className="px-2 py-1">{r.sigillo}</td>
+                              <td className="px-2 py-1">{r.data}</td>
+                              <td className="px-2 py-1">{r.note}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {righe.length > 200 && (
+                        <p className="mt-1" style={{ color: 'var(--brand-text-muted)' }}>
+                          …e altre {righe.length - 200}. Scaricale tutte con “Esporta Excel”.
+                        </p>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
             </li>
