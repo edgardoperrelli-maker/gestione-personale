@@ -14,7 +14,7 @@ describe('modulo agente', () => {
     expect(mod?.href).toBe('/hub/agente');
     expect(mod?.section).toBe('modules');
     expect(mod?.adminOnly).toBe(true);
-    expect(mod?.requiresAdminRole).toBe(true);
+    expect(mod?.requiresAdminRole).toBeFalsy(); // assegnabile in Utenze; l'admin-only lo applica la pagina
     expect(mod?.matchPrefixes).toContain('/hub/agente');
   });
 
@@ -31,12 +31,10 @@ describe('modulo agente', () => {
     expect(findModuleByPath('/hub/agente/storico')?.key).toBe('agente');
   });
 
-  it('gate forte: un operatore non accede anche se la chiave è nei moduli', () => {
-    expect(canAccessPath('/hub/agente', ['agente'], 'operatore')).toBe(false);
+  it('è module-gated: canAccessPath segue la chiave nei moduli (l\'admin-only lo applica la pagina)', () => {
     expect(canAccessPath('/hub/agente', ['agente'], 'admin')).toBe(true);
-  });
-
-  it('admin senza la chiave nei moduli non accede', () => {
-    expect(canAccessPath('/hub/agente', [], 'admin')).toBe(false);
+    expect(canAccessPath('/hub/agente', [], 'admin')).toBe(false); // senza la chiave assegnata: no
+    // un operatore con la chiave passa il middleware, ma la pagina /hub/agente redirige i non-admin
+    expect(canAccessPath('/hub/agente', ['agente'], 'operatore')).toBe(true);
   });
 });

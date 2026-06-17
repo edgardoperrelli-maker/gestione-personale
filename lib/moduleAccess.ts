@@ -138,7 +138,6 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     matchPrefixes: ['/hub/agente'],
     adminOnly: true,
-    requiresAdminRole: true,
   },
   {
     key: 'impostazioni',
