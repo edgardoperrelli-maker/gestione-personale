@@ -184,9 +184,10 @@ export async function eseguiGiro({
         }
         if (toccata) {
           fileReport.aggiornate++;
-          // riga vuota completata interamente -> "SI"; riga già parziale a mano -> "PARZIALE (colonne completate)"
+          // marcatore = "<SI|PARZIALE> + <intestazioni delle colonne completate dall'agente>"
+          // SI = riga era vuota e completata interamente; PARZIALE = aveva già dati a mano.
           const parziale = pieneAMano > 0;
-          const valoreAuto = parziale ? `PARZIALE (${completate.join(', ')})` : MARKER_AUTOMAZIONE;
+          const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
           scriviAutomazione(row, valoreAuto);
           fileReport.righe.push(rigaReport(hit.lavoro, row.number, parziale ? 'parziale' : 'aggiornata'));
         }
@@ -200,15 +201,19 @@ export async function eseguiGiro({
         // aggancio fields scritti sempre sulle righe extra (matricola e via per identificare la riga)
         if (col.matricola != null && l.matricola) row.getCell(col.matricola + 1).value = l.matricola;
         if (col.via != null && l.via) row.getCell(col.via + 1).value = l.via;
-        // poi i campi mappati
-        for (const regola of regoleScrittura) scriviCella(row, regola, l);
+        // poi i campi mappati (riga nuova: tutto completato dall'agente)
+        const completateExtra = [];
+        for (const regola of regoleScrittura) {
+          const { scritto } = scriviCella(row, regola, l);
+          if (scritto) completateExtra.push(String(header[regola.idx] ?? regola.colonna));
+        }
         // marcatore: solo extra, solo cella vuota.
         if (markerCol >= 0) {
           const mc = row.getCell(markerCol + 1);
           const d = decidiScrittura(mc.value, MARKER);
           if (d.azione === 'scrivi') mc.value = d.valore;
         }
-        scriviAutomazione(row, MARKER_AUTOMAZIONE);
+        scriviAutomazione(row, completateExtra.length > 0 ? `SI + ${completateExtra.join(' + ')}` : MARKER_AUTOMAZIONE);
         fileReport.righe.push(rigaReport(l, row.number, 'extra'));
         fileReport.extraAggiunte++;
       }

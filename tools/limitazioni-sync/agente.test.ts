@@ -242,15 +242,15 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(file);
     const ws = wb.worksheets[0];
-    // riga 2 pianificata lavorata -> AUTOMAZIONE "SI", esito scritto, NOTE vuota (positivo)
-    expect(ws.getRow(2).getCell(68).value).toBe('SI');
+    // riga 2 pianificata lavorata -> AUTOMAZIONE "SI + <colonne completate>", esito scritto, NOTE vuota (positivo)
+    expect(ws.getRow(2).getCell(68).value).toBe('SI + esito');
     expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
     expect(ws.getRow(2).getCell(69).value ?? '').toBe('');
     // riga 3 NON agganciata -> AUTOMAZIONE vuota
     expect(ws.getRow(3).getCell(68).value ?? '').toBe('');
-    // extra negativa -> AUTOMAZIONE "SI", esito "No", NOTE scritta
+    // extra negativa -> AUTOMAZIONE "SI + <colonne>", esito "No", NOTE scritta
     const ultima = ws.getRow(ws.rowCount);
-    expect(ultima.getCell(68).value).toBe('SI');
+    expect(ultima.getCell(68).value).toBe('SI + esito + NOTE');
     expect(ultima.getCell(67).value).toBe('No');
     expect(ultima.getCell(69).value).toBe('Cane in giardino');
     // report.righe: una "aggiornata" + una "extra"
@@ -295,6 +295,6 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     const ws = wb.worksheets[0];
     expect(ws.getRow(2).getCell(67).value).toBe('eseguito');           // esito mancante completato
     expect(ws.getRow(2).getCell(65).value).toBe('CIARALLO');           // esecutore a mano intatto
-    expect(ws.getRow(2).getCell(68).value).toBe('PARZIALE (esito)');   // marcatore parziale con la colonna completata
+    expect(ws.getRow(2).getCell(68).value).toBe('PARZIALE + esito');   // marcatore parziale con la colonna completata
   });
 });
