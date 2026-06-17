@@ -273,7 +273,21 @@ async function main() {
   }
 
   // 2) Heartbeat + invio colonne (vuote se non e' un giorno nuovo): l'app decide se girare.
-  const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+  let ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+
+  // 2b) "Aggiorna tabella": l'app chiede un re-scan delle colonne e non abbiamo gia' scansionato oggi.
+  if (ris.forzaScan && !scanNeeded) {
+    try {
+      files = await scanColonne(cfg.cartella);
+      aggiornaStampScan(cfgPath, oggi);
+      // secondo tick: upserta le colonne fresche; l'app azzera forza_scan.
+      ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+      console.log(`[lim-sync] re-scan colonne forzato: ${files.length} file.`);
+    } catch (e) {
+      console.error(`[lim-sync] re-scan forzato fallito: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
 
   if (!eseguiOra) {
