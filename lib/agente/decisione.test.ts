@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { decideEsecuzione } from './decisione';
+import { decideEsecuzione, riassumiReport, type ReportAgente } from './decisione';
 
 const base = {
   enabled: true,
@@ -35,5 +35,50 @@ describe('decideEsecuzione', () => {
   });
   it('confronto orario lessicografico zero-pad: 09:30 >= 09:00', () => {
     expect(decideEsecuzione({ ...base, ora: '09:00', oraCorrente: '09:30' })).toBe(true);
+  });
+});
+
+describe('riassumiReport', () => {
+  it('somma lavori/aggiornate/extra/conflitti dai file[] + extraNonCollocate', () => {
+    const report: ReportAgente = {
+      lavori: 12,
+      dryRun: false,
+      file: [
+        { aggiornate: 3, extraAggiunte: 1, conflitti: [{}, {}] },
+        { aggiornate: 2, extraAggiunte: 0, conflitti: [{}] },
+      ],
+      extraNonCollocate: [{}, {}, {}],
+    };
+    expect(riassumiReport(report)).toEqual({
+      lavori: 12,
+      aggiornate: 5,
+      extra: 1,
+      conflitti: 3,
+      nonCollocate: 3,
+    });
+  });
+
+  it('report vuoto → tutti zero', () => {
+    expect(riassumiReport({})).toEqual({
+      lavori: 0, aggiornate: 0, extra: 0, conflitti: 0, nonCollocate: 0,
+    });
+  });
+
+  it('campi opzionali mancanti nei file → trattati come 0/[]', () => {
+    const report: ReportAgente = { file: [{}, { aggiornate: 4 }] };
+    expect(riassumiReport(report)).toEqual({
+      lavori: 0, aggiornate: 4, extra: 0, conflitti: 0, nonCollocate: 0,
+    });
+  });
+
+  it('file assente del tutto → zero', () => {
+    expect(riassumiReport({ lavori: 7 })).toEqual({
+      lavori: 7, aggiornate: 0, extra: 0, conflitti: 0, nonCollocate: 0,
+    });
+  });
+
+  it('extraNonCollocate assente → nonCollocate 0', () => {
+    const report: ReportAgente = { file: [{ extraAggiunte: 2 }] };
+    expect(riassumiReport(report).nonCollocate).toBe(0);
   });
 });
