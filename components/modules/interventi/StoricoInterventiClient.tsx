@@ -9,7 +9,7 @@ import type { RigaStorico } from '@/lib/interventi/storico/types';
 type Staff = { id: string; display_name: string };
 
 const FILTRI_VUOTI: StatoFiltriUI = {
-  q: '', dal: '', al: '', esecutore: '', comune: '', committente: '', stato: '', esito: '',
+  q: '', dal: '', al: '', esecutore: '', comune: '',
 };
 
 export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
@@ -40,9 +40,6 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
       }
       if (f.esecutore) params.set('esecutore', f.esecutore);
       if (f.comune.trim()) params.set('comune', f.comune.trim());
-      if (f.committente) params.set('committente', f.committente);
-      if (f.stato) params.set('stato', f.stato);
-      if (f.esito) params.set('esito', f.esito);
       params.set('page', String(p));
 
       const res = await fetch(`/api/interventi/storico?${params.toString()}`, { signal: controller.signal });

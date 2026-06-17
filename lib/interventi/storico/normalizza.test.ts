@@ -1,121 +1,88 @@
 // lib/interventi/storico/normalizza.test.ts
 import { describe, it, expect } from 'vitest';
-import {
-  anagraficaManuale, interventoToRigaStorico, manualeToRigaStorico,
-  labelStatoStorico, labelEsitoStorico, ordinaRighe, filtraManualiInMemoria, slicePagina,
-} from './normalizza';
-import type { InterventoStoricoRow, ManualeStoricoRow, RigaStorico } from './types';
+import { siNo, voceToRigaStorico, ordinaRighe, slicePagina } from './normalizza';
+import type { VoceStoricoRow, RigaStorico } from './types';
 
 const staff = new Map<string, string>([['s1', 'Mario Rossi']]);
 
-describe('anagraficaManuale', () => {
-  it('dati_correnti vince su dati_operatore', () => {
-    const a = anagraficaManuale({
-      dati_correnti: { anagrafica: { via: 'Via A', odl: '111' } },
-      dati_operatore: { anagrafica: { via: 'Via B', matricola: 'M9', comune: 'Roma' } },
-    });
-    expect(a.via).toBe('Via A');
-    expect(a.odl).toBe('111');
-    expect(a.matricola).toBe('M9');
-    expect(a.comune).toBe('Roma');
+describe('siNo', () => {
+  it('varianti SI', () => {
+    expect(siNo('SI')).toBe('SI');
+    expect(siNo('true')).toBe('SI');
+    expect(siNo('x')).toBe('SI');
+    expect(siNo('1')).toBe('SI');
   });
-  it('jsonb assenti → tutte stringhe vuote', () => {
-    const a = anagraficaManuale({ dati_correnti: null, dati_operatore: null });
-    expect(a.via).toBe('');
-    expect(a.matricola).toBe('');
+  it('varianti NO', () => {
+    expect(siNo('NO')).toBe('NO');
+    expect(siNo('false')).toBe('NO');
+  });
+  it('vuoto/null/undefined → —', () => {
+    expect(siNo(null)).toBe('—');
+    expect(siNo(undefined)).toBe('—');
+    expect(siNo('')).toBe('—');
+    expect(siNo('   ')).toBe('—');
+  });
+  it('valore inatteso → grezzo', () => {
+    expect(siNo('FORSE')).toBe('FORSE');
   });
 });
 
-describe('interventoToRigaStorico', () => {
-  it('mappa i campi e risolve esecutore + label', () => {
-    const row: InterventoStoricoRow = {
-      id: 'i1', origine: 'pianificato', committente: 'acea', data: '2026-06-10',
-      odl: '200999', pdr: 'P1', matricola_contatore: 'M1', nominativo: 'Tizio',
-      indirizzo: 'Via Roma 1', comune: 'Roma', cap: '00100', intervento_tipo: 'Sostituzione',
-      fascia_oraria: '8-12', staff_id: 's1', stato: 'completato', esito: 'eseguito_positivo', esito_motivo: null,
+describe('voceToRigaStorico', () => {
+  it('mappa campi, risposte e esecutore (embed oggetto)', () => {
+    const row: VoceStoricoRow = {
+      id: 'v1', odl: '200999', via: 'Via Roma 1', comune: 'Roma', matricola: 'M1', nominativo: 'Tizio', pdr: 'P1',
+      risposte: { eseguito: 'SI', sostituzione_valvola: 'true', mini_bag: 'true', rg_stop: null, note: 'ok ' },
+      manuale: false,
+      rapportini: { staff_id: 's1', staff_name: 'DE SANTIS', data: '2026-06-10' },
     };
-    const r = interventoToRigaStorico(row, staff);
-    expect(r.origine).toBe('programmato');
-    expect(r.matricola).toBe('M1');
-    expect(r.attivita).toBe('Sostituzione');
-    expect(r.esecutoreNome).toBe('Mario Rossi');
-    expect(r.statoLabel).toBe('Completato');
-    expect(r.esitoLabel).toBe('Eseguito positivo');
+    const r = voceToRigaStorico(row, staff);
+    expect(r.odl).toBe('200999');
+    expect(r.data).toBe('2026-06-10');
+    expect(r.esecutore).toBe('DE SANTIS');
+    expect(r.via).toBe('Via Roma 1');
+    expect(r.eseguito).toBe('SI');
+    expect(r.sostValvola).toBe('SI');
+    expect(r.miniBag).toBe('SI');
+    expect(r.rgStop).toBe('—');
+    expect(r.note).toBe('ok');
   });
-  it('origine=manuale (promosso) resta una sola riga marcata manuale', () => {
-    const row = { id: 'i2', origine: 'manuale', committente: 'acea', data: '2026-06-10', odl: null, pdr: null, matricola_contatore: null, nominativo: null, indirizzo: null, comune: null, cap: null, intervento_tipo: null, fascia_oraria: null, staff_id: null, stato: 'completato', esito: null, esito_motivo: null } as InterventoStoricoRow;
-    expect(interventoToRigaStorico(row, staff).origine).toBe('manuale');
+  it('chiave minibag alternativa + embed come array + fallback esecutore da mappa', () => {
+    const row = {
+      id: 'v2', odl: null, via: null, comune: null, matricola: null, nominativo: null, pdr: null,
+      risposte: { minibag: 'true' }, manuale: true,
+      rapportini: [{ staff_id: 's1', staff_name: null, data: '2026-06-09' }],
+    } as unknown as VoceStoricoRow;
+    const r = voceToRigaStorico(row, staff);
+    expect(r.miniBag).toBe('SI');
+    expect(r.esecutore).toBe('Mario Rossi'); // fallback dalla mappa staff
+    expect(r.data).toBe('2026-06-09');
+    expect(r.eseguito).toBe('—');
+    expect(r.note).toBeNull();
   });
-  it('staff_id presente ma non in mappa → esecutoreNome null', () => {
-    const row = { id: 'i3', origine: 'pianificato', committente: 'acea', data: '2026-06-10', odl: null, pdr: null, matricola_contatore: null, nominativo: null, indirizzo: null, comune: null, cap: null, intervento_tipo: null, fascia_oraria: null, staff_id: 's99', stato: 'assegnato', esito: null, esito_motivo: null } as InterventoStoricoRow;
-    expect(interventoToRigaStorico(row, staff).esecutoreNome).toBeNull();
-  });
-});
-
-describe('manualeToRigaStorico', () => {
-  it('estrae anagrafica dal jsonb, stato/esito/motivo dai campi richiesta', () => {
-    const row: ManualeStoricoRow = {
-      id: 'm1', committente: 'lim_massive', data: '2026-06-11', staff_id: 's1', staff_name: 'Mario R.',
-      stato: 'rifiutato', motivo_rifiuto: 'doppione',
-      dati_correnti: { anagrafica: { via: 'Via B', matricola: 'M2', comune: 'Fiumicino', odl: '300' } },
-      dati_operatore: {},
-    };
-    const r = manualeToRigaStorico(row, staff);
-    expect(r.origine).toBe('manuale');
-    expect(r.indirizzo).toBe('Via B');
-    expect(r.matricola).toBe('M2');
-    expect(r.comune).toBe('Fiumicino');
-    expect(r.statoLabel).toBe('Rifiutato (manuale)');
-    expect(r.esito).toBeNull();
-    expect(r.esitoLabel).toBe('—');
-    expect(r.motivo).toBe('doppione');
-    expect(r.esecutoreNome).toBe('Mario R.');
-  });
-});
-
-describe('label helper', () => {
-  it('labelStatoStorico noti + fallback + null', () => {
-    expect(labelStatoStorico('completato')).toBe('Completato');
-    expect(labelStatoStorico('in_attesa')).toBe('In attesa (manuale)');
-    expect(labelStatoStorico('boh')).toBe('boh');
-    expect(labelStatoStorico(null)).toBe('—');
-  });
-  it('labelEsitoStorico noti + null', () => {
-    expect(labelEsitoStorico('accesso_negato')).toBe('Accesso negato');
-    expect(labelEsitoStorico(null)).toBe('—');
+  it('risposte null → tutti i campi SI/NO a —', () => {
+    const row = {
+      id: 'v3', odl: '1', via: 'X', comune: null, matricola: null, nominativo: null, pdr: null,
+      risposte: null, manuale: false, rapportini: { staff_id: null, staff_name: 'OP', data: '2026-06-01' },
+    } as unknown as VoceStoricoRow;
+    const r = voceToRigaStorico(row, staff);
+    expect(r.eseguito).toBe('—');
+    expect(r.sostValvola).toBe('—');
+    expect(r.esecutore).toBe('OP');
   });
 });
 
 describe('ordinaRighe', () => {
-  it('ordina per data desc, poi comune asc, poi indirizzo asc', () => {
-    const base = (p: Partial<RigaStorico>): RigaStorico => ({
-      id: '', origine: 'programmato', committente: null, data: null, odl: null, pdr: null, matricola: null,
-      nominativo: null, indirizzo: null, comune: null, cap: null, attivita: null, fascia_oraria: null,
-      esecutoreId: null, esecutoreNome: null, stato: null, statoLabel: '—', esito: null, esitoLabel: '—', motivo: null, ...p,
-    });
+  const base = (p: Partial<RigaStorico>): RigaStorico => ({
+    id: '', odl: null, data: null, esecutore: null, via: null,
+    eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
+  });
+  it('ordina per data desc, poi via asc, poi id', () => {
     const out = ordinaRighe([
-      base({ id: 'a', data: '2026-06-01', comune: 'Roma' }),
-      base({ id: 'b', data: '2026-06-10', comune: 'Bari' }),
-      base({ id: 'c', data: '2026-06-10', comune: 'Aosta' }),
+      base({ id: 'a', data: '2026-06-01', via: 'Roma' }),
+      base({ id: 'b', data: '2026-06-10', via: 'Bari' }),
+      base({ id: 'c', data: '2026-06-10', via: 'Aosta' }),
     ]);
     expect(out.map((r) => r.id)).toEqual(['c', 'b', 'a']);
-  });
-});
-
-describe('filtraManualiInMemoria', () => {
-  const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', origine: 'manuale', committente: null, data: null, odl: null, pdr: null, matricola: null,
-    nominativo: null, indirizzo: null, comune: null, cap: null, attivita: null, fascia_oraria: null,
-    esecutoreId: null, esecutoreNome: null, stato: null, statoLabel: '—', esito: null, esitoLabel: '—', motivo: null, ...p,
-  });
-  it('filtra per q su odl/indirizzo/matricola/pdr/nominativo (case-insensitive)', () => {
-    const righe = [r({ id: 'a', odl: '200ABC' }), r({ id: 'b', indirizzo: 'Via Verdi' })];
-    expect(filtraManualiInMemoria(righe, '200abc', '').map((x) => x.id)).toEqual(['a']);
-    expect(filtraManualiInMemoria(righe, 'verdi', '').map((x) => x.id)).toEqual(['b']);
-  });
-  it('filtra per comune (contains)', () => {
-    const righe = [r({ id: 'a', comune: 'Roma' }), r({ id: 'b', comune: 'Fiumicino' })];
-    expect(filtraManualiInMemoria(righe, '', 'fium').map((x) => x.id)).toEqual(['b']);
   });
 });
 

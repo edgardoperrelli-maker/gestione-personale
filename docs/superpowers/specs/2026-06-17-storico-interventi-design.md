@@ -1,8 +1,34 @@
 # Storico interventi (consultazione) — modulo /hub/interventi
 
 **Data:** 2026-06-17
-**Stato:** design approvato (in attesa di review spec)
+**Stato:** design approvato
 **Branch di lavoro previsto:** `feat/storico-interventi`
+
+> ## ⚠️ REVISIONE v2 (2026-06-17, post-feedback utente) — fonte dati cambiata
+>
+> La v1 (sotto) basava lo Storico sulla tabella `interventi`. L'utente ha poi
+> chiesto come colonne: **ODL/ODS · Data esecuzione · Esecutore · Via · Eseguito
+> (SI/NO) · Sost. valvola · Mini bag · RG stop · Note** — e "il resto non
+> interessa". I 4 campi Eseguito/valvola/mini bag/rg stop **non sono colonne di
+> `interventi`**: sono **risposte del rapportino** (`rapportino_voci.risposte`,
+> chiavi `eseguito`, `sostituzione_valvola`, `mini_bag`/`minibag`, `rg_stop`,
+> `note`). Decisioni confermate dall'utente:
+> - **Fonte = `rapportino_voci` + rapportino padre** (`rapportini!inner`), che
+>   include sia programmati sia manuali (voci con `manuale=true`). Niente più
+>   merge `interventi` + `interventi_manuali`.
+> - **Data esecuzione = `rapportini.data`** (giorno del rapportino).
+> - **Crocette non spuntate → `—`** (SI se valorizzato/true); resa via `siNo()`.
+> - Colonne ESATTE = le 9 sopra. Filtri = ricerca (q) + Dal/Al + Esecutore +
+>   Comune (committente/stato/esito rimossi).
+> - Default oggi, ricerca su tutto lo storico, spinner, paginazione, cap
+>   `MAX_RIGHE` con `troncato`: invariati.
+>
+> File aggiornati: `lib/interventi/storico/{types,filtri,normalizza}.ts` (+test),
+> `app/api/interventi/storico/route.ts`, `components/modules/interventi/Storico*.tsx`.
+> Chiavi/valori verificati sul DB di produzione via MCP (eseguito="SI"/"NO";
+> crocette="true"; note testo libero).
+>
+> _Il testo v1 sotto è storico e superato sui punti fonte-dati/colonne._
 
 ## Obiettivo
 

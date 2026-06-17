@@ -2,11 +2,13 @@
 'use client';
 
 import DatePicker from '@/components/ui/DatePicker';
-import { COMMITTENTE_OPZIONI, STATO_OPZIONI, ESITO_OPZIONI } from '@/lib/interventi/storico/types';
 
 export type StatoFiltriUI = {
-  q: string; dal: string; al: string; esecutore: string; comune: string;
-  committente: string; stato: string; esito: string;
+  q: string;
+  dal: string;
+  al: string;
+  esecutore: string;
+  comune: string;
 };
 
 type Staff = { id: string; display_name: string };
@@ -56,21 +58,6 @@ export default function StoricoFiltri({
         </select>
 
         <input className={sel} placeholder="Comune" value={filtri.comune} onChange={(e) => set({ comune: e.target.value })} aria-label="Comune" />
-
-        <select className={sel} value={filtri.committente} onChange={(e) => set({ committente: e.target.value })} aria-label="Committente">
-          <option value="">Committente: tutti</option>
-          {COMMITTENTE_OPZIONI.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-        </select>
-
-        <select className={sel} value={filtri.stato} onChange={(e) => set({ stato: e.target.value })} aria-label="Stato">
-          <option value="">Stato: tutti</option>
-          {STATO_OPZIONI.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-        </select>
-
-        <select className={sel} value={filtri.esito} onChange={(e) => set({ esito: e.target.value })} aria-label="Esito">
-          <option value="">Esito: tutti</option>
-          {ESITO_OPZIONI.map((o) => (<option key={o.value} value={o.value}>{o.label}</option>))}
-        </select>
       </div>
 
       <div className="flex gap-2">
