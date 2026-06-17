@@ -20,6 +20,7 @@ type ConfigRow = {
   esito_negativo: string | null;
   ultima_rivendicazione_giorno: string | null;
   forza_giro: boolean;
+  forza_scan: boolean;
 };
 
 export async function POST(req: Request) {
@@ -39,7 +40,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan',
       )
       .eq('id', 1)
       .single();
@@ -81,6 +82,10 @@ export async function POST(req: Request) {
         };
       });
       await supabaseAdmin.from('agente_file_colonne').upsert(upserts, { onConflict: 'file' });
+      // colonne fresche consegnate: azzera la richiesta di ri-scan ("Aggiorna tabella")
+      if (config.forza_scan === true) {
+        await supabaseAdmin.from('agente_config').update({ forza_scan: false }).eq('id', 1);
+      }
     }
 
     // 4) decisione (fuso Europe/Rome) + forzatura "Esegui ora"
@@ -117,6 +122,7 @@ export async function POST(req: Request) {
         mappatura: config.mappatura ?? [],
         esitoPositivo: config.esito_positivo ?? 'eseguito',
         esitoNegativo: config.esito_negativo ?? 'No',
+        forzaScan: config.forza_scan === true,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
