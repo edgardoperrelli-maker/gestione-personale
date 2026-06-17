@@ -91,12 +91,15 @@ export async function GET(req: Request) {
             : '';
         if (sig && !sigilloById.has(v.intervento_id)) sigilloById.set(v.intervento_id, sig);
         // saracinesca: primo non vuoto tra sostituzione_valvola e sost_valvola (due template)
-        const sar =
-          v.risposte && typeof v.risposte['sostituzione_valvola'] === 'string' && (v.risposte['sostituzione_valvola'] as string).trim()
+        const sv1 =
+          v.risposte && typeof v.risposte['sostituzione_valvola'] === 'string'
             ? (v.risposte['sostituzione_valvola'] as string)
-            : v.risposte && typeof v.risposte['sost_valvola'] === 'string'
-              ? (v.risposte['sost_valvola'] as string)
-              : '';
+            : '';
+        const sv2 =
+          v.risposte && typeof v.risposte['sost_valvola'] === 'string'
+            ? (v.risposte['sost_valvola'] as string)
+            : '';
+        const sar = sv1.trim() || sv2.trim();
         if (sar && !saracinescaById.has(v.intervento_id)) saracinescaById.set(v.intervento_id, sar);
       }
     }
