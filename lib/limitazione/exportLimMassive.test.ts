@@ -18,7 +18,7 @@ const base: RigaDb = {
   comune: 'ZAGAROLO', indirizzo: 'VIA CANCELLATA GRANDE 32', esito: 'eseguito_positivo',
   esito_motivo: null, stato: 'completato', data: '2026-06-03',
   committente: 'acea', origine: 'pianificato', display_name: 'CIARALLO SIMONE', sigillo: 'AA728566',
-  pdr: ' 00123456789 ', nominativo: ' Rossi Mario ',
+  pdr: ' 00123456789 ', nominativo: ' Rossi Mario ', saracinesca: 'SI',
 };
 
 describe('buildRigaLimMassive', () => {
@@ -27,7 +27,7 @@ describe('buildRigaLimMassive', () => {
       id: 'uuid-1', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO',
       via: 'VIA CANCELLATA GRANDE 32', esecutore: 'CIARALLO', data_esecuzione: '2026-06-03',
       esito: 'eseguito', esito_motivo: null, sigillo: 'AA728566', manuale: false,
-      esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario',
+      esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario', saracinesca: 'SI',
     });
   });
   it('display_name null → esecutore vuoto', () => {
@@ -86,5 +86,9 @@ describe('buildRigaLimMassive — campi additivi esitoOk/pdr/nominativo', () => 
     const r = buildRigaLimMassive({ ...base, pdr: null, nominativo: null });
     expect(r.pdr).toBe('');
     expect(r.nominativo).toBe('');
+  });
+  it('saracinesca: passa il valore trimmato', () => {
+    expect(buildRigaLimMassive({ ...base, saracinesca: '  NO  ' }).saracinesca).toBe('NO');
+    expect(buildRigaLimMassive({ ...base, saracinesca: null }).saracinesca).toBe('');
   });
 });

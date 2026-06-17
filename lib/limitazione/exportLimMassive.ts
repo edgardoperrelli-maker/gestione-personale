@@ -38,6 +38,7 @@ export type RigaLimMassive = {
   sigillo: string;
   pdr: string;
   nominativo: string;
+  saracinesca: string;
   manuale: boolean;
 };
 
@@ -58,6 +59,7 @@ export type RigaDb = {
   sigillo: string | null;
   pdr: string | null;
   nominativo: string | null;
+  saracinesca: string | null;
 };
 
 const t = (v: string | null | undefined): string => String(v ?? '').trim();
@@ -77,6 +79,7 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     sigillo: t(r.sigillo),
     pdr: t(r.pdr),
     nominativo: t(r.nominativo),
+    saracinesca: t(r.saracinesca),
     manuale: r.committente === 'lim_massive' || r.origine === 'manuale',
   };
 }
