@@ -12,7 +12,7 @@ export type StatoFiltriUI = {
 type Staff = { id: string; display_name: string };
 
 const sel =
-  'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)]';
+  'rounded-lg border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-2 text-sm text-[var(--brand-text-main)]';
 
 export default function StoricoFiltri({
   filtri, setFiltri, staff, onApplica, onPulisci, loading,
@@ -28,10 +28,18 @@ export default function StoricoFiltri({
 
   return (
     <div className="space-y-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-      <div className="flex items-center gap-2">
+      <div>
+        <label
+          htmlFor="storico-ricerca"
+          className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--brand-text-muted)]"
+        >
+          Cerca nel database
+        </label>
         <input
-          className={`${sel} flex-1`}
-          placeholder="🔍 Cerca ODL / via / matricola / PDR / nominativo… (cerca su tutto lo storico)"
+          id="storico-ricerca"
+          type="search"
+          className={`${sel} w-full`}
+          placeholder="🔍 ODL / via / matricola / PDR / nominativo… (cerca su tutto lo storico)"
           value={filtri.q}
           onChange={(e) => set({ q: e.target.value })}
           aria-label="Ricerca interventi"
