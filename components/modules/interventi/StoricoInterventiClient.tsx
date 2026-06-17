@@ -22,7 +22,12 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const abortRef = useRef<AbortController | null>(null);
+
   const carica = useCallback(async (f: StatoFiltriUI, p: number) => {
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -40,7 +45,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
       if (f.esito) params.set('esito', f.esito);
       params.set('page', String(p));
 
-      const res = await fetch(`/api/interventi/storico?${params.toString()}`);
+      const res = await fetch(`/api/interventi/storico?${params.toString()}`, { signal: controller.signal });
       if (!res.ok) {
         const body = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(body.error ?? 'Errore caricamento.');
@@ -51,12 +56,13 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
       setTroncato(Boolean(data.troncato));
       setPageSize(typeof data.pageSize === 'number' ? data.pageSize : 100);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return; // richiesta annullata: ignora
       setError(e instanceof Error ? e.message : 'Errore caricamento.');
       setRighe([]);
       setTotal(0);
       setTroncato(false);
     } finally {
-      setLoading(false);
+      if (abortRef.current === controller) setLoading(false);
     }
   }, []);
 
@@ -125,6 +131,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
           <div className="flex items-center gap-2">
             <button
               type="button"
+              aria-label="Pagina precedente"
               onClick={() => vaiPagina(Math.max(0, page - 1))}
               disabled={loading || page === 0}
               className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50"
@@ -134,6 +141,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
             <span>Pagina {page + 1} di {totPagine}</span>
             <button
               type="button"
+              aria-label="Pagina successiva"
               onClick={() => vaiPagina(Math.min(totPagine - 1, page + 1))}
               disabled={loading || page >= totPagine - 1}
               className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50"
