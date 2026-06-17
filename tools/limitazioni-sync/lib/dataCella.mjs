@@ -13,6 +13,7 @@ export function giornoDa(v) {
     const d = String(v.getDate()).padStart(2, '0');
     return `${y}-${m}-${d}`;
   }
+  if (typeof v === 'number') return ''; // seriali Excel grezzi non gestiti: trattali come vuoto
   const s = String(v).trim();
   const m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;

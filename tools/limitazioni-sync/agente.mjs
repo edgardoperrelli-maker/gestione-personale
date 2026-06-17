@@ -259,7 +259,7 @@ async function main() {
     console.error(`[lim-sync] impossibile scrivere il log: ${e instanceof Error ? e.message : e}`);
   }
 
-  // 3) Feedback all'app.
+  // 4) Feedback all'app.
   try {
     await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
   } catch (e) {

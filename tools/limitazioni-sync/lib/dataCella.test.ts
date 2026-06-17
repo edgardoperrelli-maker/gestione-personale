@@ -15,6 +15,9 @@ describe('giornoDa', () => {
     expect(giornoDa(null)).toBe('');
     expect(giornoDa('non-una-data')).toBe('');
   });
+  it('un numero grezzo (seriale Excel) → stringa vuota, non un anno assurdo', () => {
+    expect(giornoDa(46185)).toBe('');
+  });
 });
 
 describe('aDataExcel', () => {
