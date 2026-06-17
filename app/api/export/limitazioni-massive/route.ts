@@ -24,6 +24,8 @@ type InterventoRow = {
   origine: string | null;
   staff_id: string | null;
   intervento_tipo: string | null;
+  pdr: string | null;
+  nominativo: string | null;
 };
 
 export async function GET(req: Request) {
@@ -45,7 +47,7 @@ export async function GET(req: Request) {
       const { data, error } = await supabaseAdmin
         .from('interventi')
         .select(
-          'id, odl, matricola_contatore, comune, indirizzo, esito, esito_motivo, stato, data, committente, origine, staff_id, intervento_tipo',
+          'id, odl, matricola_contatore, comune, indirizzo, esito, esito_motivo, stato, data, committente, origine, staff_id, intervento_tipo, pdr, nominativo',
         )
         .eq('stato', 'completato')
         .gte('data', from)
@@ -106,6 +108,8 @@ export async function GET(req: Request) {
         origine: i.origine,
         display_name: i.staff_id ? staffById.get(i.staff_id) ?? null : null,
         sigillo: sigilloById.get(i.id) ?? null,
+        pdr: i.pdr,
+        nominativo: i.nominativo,
       } satisfies RigaDb),
     );
 

@@ -18,6 +18,7 @@ const base: RigaDb = {
   comune: 'ZAGAROLO', indirizzo: 'VIA CANCELLATA GRANDE 32', esito: 'eseguito_positivo',
   esito_motivo: null, stato: 'completato', data: '2026-06-03',
   committente: 'acea', origine: 'pianificato', display_name: 'CIARALLO SIMONE', sigillo: 'AA728566',
+  pdr: ' 00123456789 ', nominativo: ' Rossi Mario ',
 };
 
 describe('buildRigaLimMassive', () => {
@@ -26,6 +27,7 @@ describe('buildRigaLimMassive', () => {
       id: 'uuid-1', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO',
       via: 'VIA CANCELLATA GRANDE 32', esecutore: 'CIARALLO', data_esecuzione: '2026-06-03',
       esito: 'eseguito', esito_motivo: null, sigillo: 'AA728566', manuale: false,
+      esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario',
     });
   });
   it('display_name null → esecutore vuoto', () => {
@@ -56,5 +58,33 @@ describe('esitoFileDaIntervento', () => {
   it('non completato → null (non lavorato)', () => {
     expect(esitoFileDaIntervento('assegnato', 'eseguito_positivo')).toBeNull();
     expect(esitoFileDaIntervento(null, null)).toBeNull();
+  });
+});
+
+describe('buildRigaLimMassive — campi additivi esitoOk/pdr/nominativo', () => {
+  it('esito positivo → esitoOk true, mantiene esito testuale', () => {
+    const r = buildRigaLimMassive(base);
+    expect(r.esitoOk).toBe(true);
+    expect(r.esito).toBe('eseguito');
+  });
+  it('completato non positivo → esitoOk false, esito "No"', () => {
+    const r = buildRigaLimMassive({ ...base, esito: 'accesso_negato' });
+    expect(r.esitoOk).toBe(false);
+    expect(r.esito).toBe('No');
+  });
+  it('non completato → esitoOk null, esito null', () => {
+    const r = buildRigaLimMassive({ ...base, stato: 'assegnato' });
+    expect(r.esitoOk).toBeNull();
+    expect(r.esito).toBeNull();
+  });
+  it('pdr e nominativo trimmati', () => {
+    const r = buildRigaLimMassive(base);
+    expect(r.pdr).toBe('00123456789');
+    expect(r.nominativo).toBe('Rossi Mario');
+  });
+  it('pdr e nominativo null → stringhe vuote', () => {
+    const r = buildRigaLimMassive({ ...base, pdr: null, nominativo: null });
+    expect(r.pdr).toBe('');
+    expect(r.nominativo).toBe('');
   });
 });

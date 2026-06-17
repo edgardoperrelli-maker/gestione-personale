@@ -14,6 +14,15 @@ export function esitoFileDaIntervento(
   return esito === 'eseguito_positivo' ? 'eseguito' : 'No';
 }
 
+/** true=positivo, false=lavorato-ma-negativo, null=non lavorato. Booleano gemello di esitoFileDaIntervento. */
+export function esitoOkDaIntervento(
+  stato: string | null | undefined,
+  esito: string | null | undefined,
+): boolean | null {
+  if (stato !== 'completato') return null;
+  return esito === 'eseguito_positivo' ? true : false;
+}
+
 /** Riga di output dell'endpoint: una limitazione lavorata, già tradotta per il file. */
 export type RigaLimMassive = {
   id: string;
@@ -24,8 +33,11 @@ export type RigaLimMassive = {
   esecutore: string;
   data_esecuzione: string; // 'YYYY-MM-DD'
   esito: 'eseguito' | 'No' | null;
+  esitoOk: boolean | null; // true=positivo, false=lavorato-negativo, null=non lavorato
   esito_motivo: string | null;
   sigillo: string;
+  pdr: string;
+  nominativo: string;
   manuale: boolean;
 };
 
@@ -44,6 +56,8 @@ export type RigaDb = {
   origine: string | null;
   display_name: string | null;
   sigillo: string | null;
+  pdr: string | null;
+  nominativo: string | null;
 };
 
 const t = (v: string | null | undefined): string => String(v ?? '').trim();
@@ -58,8 +72,11 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     esecutore: cognomeDaDisplayName(r.display_name),
     data_esecuzione: t(r.data),
     esito: esitoFileDaIntervento(r.stato, r.esito),
+    esitoOk: esitoOkDaIntervento(r.stato, r.esito),
     esito_motivo: t(r.esito_motivo) || null,
     sigillo: t(r.sigillo),
+    pdr: t(r.pdr),
+    nominativo: t(r.nominativo),
     manuale: r.committente === 'lim_massive' || r.origine === 'manuale',
   };
 }
