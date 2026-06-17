@@ -1,6 +1,7 @@
 // lib/interventi/storico/normalizza.ts
 // PURA: normalizzazione righe rapportino_voci → RigaStorico, rese SI/NO, ordinamento.
 import type { RigaStorico, VoceStoricoRow, RapportinoEmbed } from './types';
+import type { SiNoFiltro } from './filtri';
 
 const SI = new Set(['si', 'sì', 'true', 'x', '1', 'vero', 'y', 'yes', '✓']);
 const NO = new Set(['no', 'false', '0', 'falso', 'n']);
@@ -46,6 +47,27 @@ export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, st
     rgStop: siNo(r['rg_stop']),
     note: nz(typeof noteRaw === 'string' ? noteRaw : null),
   };
+}
+
+/** Match SI/NO sul valore già normalizzato: 'NO' include anche '—' (non risulta SI). */
+function matchSiNo(cell: string, filt: SiNoFiltro): boolean {
+  if (!filt) return true;
+  if (filt === 'SI') return cell === 'SI';
+  return cell !== 'SI';
+}
+
+/** Filtra in memoria le righe per i campi a risposta SI/NO (eseguito, valvola, mini bag, rg stop). */
+export function filtraSiNo(
+  righe: RigaStorico[],
+  f: { eseguito: SiNoFiltro; sostValvola: SiNoFiltro; miniBag: SiNoFiltro; rgStop: SiNoFiltro },
+): RigaStorico[] {
+  return righe.filter(
+    (r) =>
+      matchSiNo(r.eseguito, f.eseguito) &&
+      matchSiNo(r.sostValvola, f.sostValvola) &&
+      matchSiNo(r.miniBag, f.miniBag) &&
+      matchSiNo(r.rgStop, f.rgStop),
+  );
 }
 
 export function ordinaRighe(righe: RigaStorico[]): RigaStorico[] {

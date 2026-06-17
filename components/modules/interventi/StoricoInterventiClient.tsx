@@ -10,7 +10,26 @@ type Staff = { id: string; display_name: string };
 
 const FILTRI_VUOTI: StatoFiltriUI = {
   q: '', dal: '', al: '', esecutore: '', comune: '',
+  eseguito: '', sostValvola: '', miniBag: '', rgStop: '',
 };
+
+/** Querystring dei filtri (senza `page`), condivisa da lista ed export. */
+function filtriToParams(f: StatoFiltriUI): URLSearchParams {
+  const params = new URLSearchParams();
+  if (f.q.trim()) {
+    params.set('q', f.q.trim());
+  } else {
+    if (f.dal) params.set('dal', f.dal);
+    if (f.al) params.set('al', f.al);
+  }
+  if (f.esecutore) params.set('esecutore', f.esecutore);
+  if (f.comune.trim()) params.set('comune', f.comune.trim());
+  if (f.eseguito) params.set('eseguito', f.eseguito);
+  if (f.sostValvola) params.set('sostValvola', f.sostValvola);
+  if (f.miniBag) params.set('miniBag', f.miniBag);
+  if (f.rgStop) params.set('rgStop', f.rgStop);
+  return params;
+}
 
 export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
@@ -31,15 +50,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
     setLoading(true);
     setError(null);
     try {
-      const params = new URLSearchParams();
-      if (f.q.trim()) {
-        params.set('q', f.q.trim());
-      } else {
-        if (f.dal) params.set('dal', f.dal);
-        if (f.al) params.set('al', f.al);
-      }
-      if (f.esecutore) params.set('esecutore', f.esecutore);
-      if (f.comune.trim()) params.set('comune', f.comune.trim());
+      const params = filtriToParams(f);
       params.set('page', String(p));
 
       const res = await fetch(`/api/interventi/storico?${params.toString()}`, { signal: controller.signal });
@@ -63,7 +74,7 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
     }
   }, []);
 
-  // Caricamento iniziale: giorno corrente (filtri vuoti → default oggi lato server).
+  // Caricamento iniziale: nessun filtro → intero DB (paginato).
   useEffect(() => {
     void carica(FILTRI_VUOTI, 0);
   }, [carica]);
@@ -86,6 +97,9 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
   const applica = () => { setPage(0); void carica(filtri, 0); };
   const pulisci = () => { setFiltri(FILTRI_VUOTI); setPage(0); void carica(FILTRI_VUOTI, 0); };
   const vaiPagina = (p: number) => { setPage(p); void carica(filtri, p); };
+  const esporta = () => {
+    window.location.href = `/api/interventi/storico/export?${filtriToParams(filtri).toString()}`;
+  };
 
   const totPagine = Math.max(1, Math.ceil(total / pageSize));
 
@@ -122,8 +136,20 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
         <StoricoTabella righe={righe} />
       </div>
 
-      <div className="flex items-center justify-between text-sm text-[var(--brand-text-muted)]">
-        <span>{total} interventi</span>
+      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
+        <div className="flex items-center gap-3">
+          <span className="rounded-lg border border-[var(--brand-border)] px-3 py-1 font-semibold text-[var(--brand-text-main)]">
+            {total.toLocaleString('it-IT')} interventi
+          </span>
+          <button
+            type="button"
+            onClick={esporta}
+            disabled={loading || total === 0}
+            className="rounded-lg border border-[var(--brand-border)] px-3 py-1 font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-50"
+          >
+            📥 Esporta Excel
+          </button>
+        </div>
         {totPagine > 1 && (
           <div className="flex items-center gap-2">
             <button

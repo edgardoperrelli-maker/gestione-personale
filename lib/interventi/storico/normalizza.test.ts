@@ -1,6 +1,6 @@
 // lib/interventi/storico/normalizza.test.ts
 import { describe, it, expect } from 'vitest';
-import { siNo, voceToRigaStorico, ordinaRighe, slicePagina } from './normalizza';
+import { siNo, voceToRigaStorico, ordinaRighe, slicePagina, filtraSiNo } from './normalizza';
 import type { VoceStoricoRow, RigaStorico } from './types';
 
 const staff = new Map<string, string>([['s1', 'Mario Rossi']]);
@@ -85,6 +85,34 @@ describe('ordinaRighe', () => {
       base({ id: 'c', data: '2026-06-10', via: 'Aosta' }),
     ]);
     expect(out.map((r) => r.id)).toEqual(['c', 'b', 'a']);
+  });
+});
+
+describe('filtraSiNo', () => {
+  const r = (p: Partial<RigaStorico>): RigaStorico => ({
+    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
+  });
+  const noFilt = { eseguito: null, sostValvola: null, miniBag: null, rgStop: null } as const;
+  it('nessun filtro → tutte', () => {
+    const righe = [r({ id: 'a', eseguito: 'SI' }), r({ id: 'b', eseguito: 'NO' })];
+    expect(filtraSiNo(righe, noFilt).length).toBe(2);
+  });
+  it('eseguito SI → solo SI', () => {
+    const righe = [r({ id: 'a', eseguito: 'SI' }), r({ id: 'b', eseguito: 'NO' }), r({ id: 'c', eseguito: '—' })];
+    expect(filtraSiNo(righe, { ...noFilt, eseguito: 'SI' }).map((x) => x.id)).toEqual(['a']);
+  });
+  it('eseguito NO → NO e — (non risulta SI)', () => {
+    const righe = [r({ id: 'a', eseguito: 'SI' }), r({ id: 'b', eseguito: 'NO' }), r({ id: 'c', eseguito: '—' })];
+    expect(filtraSiNo(righe, { ...noFilt, eseguito: 'NO' }).map((x) => x.id)).toEqual(['b', 'c']);
+  });
+  it('mini bag SI (crocetta) → solo i SI', () => {
+    const righe = [r({ id: 'a', miniBag: 'SI' }), r({ id: 'b', miniBag: '—' })];
+    expect(filtraSiNo(righe, { ...noFilt, miniBag: 'SI' }).map((x) => x.id)).toEqual(['a']);
+  });
+  it('combinazione AND di più filtri', () => {
+    const righe = [r({ id: 'a', eseguito: 'SI', sostValvola: 'SI' }), r({ id: 'b', eseguito: 'SI', sostValvola: '—' })];
+    expect(filtraSiNo(righe, { ...noFilt, eseguito: 'SI', sostValvola: 'SI' }).map((x) => x.id)).toEqual(['a']);
   });
 });
 

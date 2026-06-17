@@ -24,8 +24,8 @@ export default async function InterventiPage() {
           Storico interventi
         </h1>
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Tutti gli interventi transitati per l&apos;app (programmati e manuali). Di default il giorno corrente; usa la
-          ricerca per cercare su tutto lo storico.
+          Tutti gli interventi compilati (programmati e manuali). Usa ricerca e filtri per restringere; il contatore e
+          l&apos;export rispettano i filtri attivi (senza filtri: intero database).
         </p>
       </header>
 
