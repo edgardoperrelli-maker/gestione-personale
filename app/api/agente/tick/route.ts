@@ -19,6 +19,7 @@ type ConfigRow = {
   esito_positivo: string | null;
   esito_negativo: string | null;
   ultima_rivendicazione_giorno: string | null;
+  forza_giro: boolean;
 };
 
 export async function POST(req: Request) {
@@ -38,7 +39,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro',
       )
       .eq('id', 1)
       .single();
@@ -82,23 +83,28 @@ export async function POST(req: Request) {
       await supabaseAdmin.from('agente_file_colonne').upsert(upserts, { onConflict: 'file' });
     }
 
-    // 4) decisione (fuso Europe/Rome)
+    // 4) decisione (fuso Europe/Rome) + forzatura "Esegui ora"
     const parti = partiRoma(now);
-    const eseguiOra = decideEsecuzione({
-      enabled: config.enabled,
-      giorni: config.giorni ?? [],
-      ora: config.ora ?? '21:00',
-      weekday: parti.weekday,
-      oraCorrente: parti.oraCorrente,
-      oggi: parti.oggi,
-      ultimaRivendicazione: config.ultima_rivendicazione_giorno,
-    });
+    const forzato = config.forza_giro === true;
+    const eseguiOra =
+      forzato ||
+      decideEsecuzione({
+        enabled: config.enabled,
+        giorni: config.giorni ?? [],
+        ora: config.ora ?? '21:00',
+        weekday: parti.weekday,
+        oraCorrente: parti.oraCorrente,
+        oggi: parti.oggi,
+        ultimaRivendicazione: config.ultima_rivendicazione_giorno,
+      });
 
-    // 5) rivendica il giorno (un solo giro/die)
+    // 5) se si esegue: rivendica il giorno e (se forzato) azzera il flag one-shot
     if (eseguiOra) {
+      const patch: Record<string, unknown> = { ultima_rivendicazione_giorno: parti.oggi };
+      if (forzato) patch.forza_giro = false;
       const { error: claimErr } = await supabaseAdmin
         .from('agente_config')
-        .update({ ultima_rivendicazione_giorno: parti.oggi })
+        .update(patch)
         .eq('id', 1);
       if (claimErr) throw claimErr;
     }
