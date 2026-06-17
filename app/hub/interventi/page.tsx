@@ -100,13 +100,22 @@ function ImportInterventiForm() {
           Carica un Excel del committente: le righe vengono salvate come interventi. Un ri-import dello stesso
           giorno aggiorna le righe esistenti (dedup per committente, ODL e data) invece di duplicarle.
         </p>
-        <Link
-          href="/hub/interventi/lista"
-          className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
-          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
-        >
-          Vedi lista interventi
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/hub/interventi/lista"
+            className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+          >
+            Vedi lista interventi
+          </Link>
+          <Link
+            href="/hub/interventi/storico"
+            className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+          >
+            Storico interventi
+          </Link>
+        </div>
       </header>
 
       <form

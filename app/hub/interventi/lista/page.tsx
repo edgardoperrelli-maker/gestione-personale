@@ -72,13 +72,22 @@ export default async function ListaInterventiPage({
             Elenco degli interventi importati, filtrabile per data, committente, stato e geocodifica.
           </p>
         </div>
-        <Link
-          href="/hub/interventi"
-          className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
-          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
-        >
-          Importa interventi
-        </Link>
+        <div className="flex flex-wrap gap-2">
+          <Link
+            href="/hub/interventi"
+            className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+          >
+            Importa interventi
+          </Link>
+          <Link
+            href="/hub/interventi/storico"
+            className="inline-flex w-fit items-center rounded-2xl border px-4 py-2 text-sm font-medium transition"
+            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+          >
+            Storico interventi
+          </Link>
+        </div>
       </header>
 
       <Suspense fallback={null}>
