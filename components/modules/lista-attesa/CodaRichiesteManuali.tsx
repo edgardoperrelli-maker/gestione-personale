@@ -15,11 +15,13 @@ const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-s
 
 export function CodaRichiesteManuali({
   infoCampi,
+  infoCampiPerCommittente,
   campiPerCommittente,
   userId,
   adminNomi,
 }: {
   infoCampi: TemplateInfoCampo[];
+  infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
   userId: string;
   adminNomi: Record<string, string>;
@@ -147,7 +149,7 @@ export function CodaRichiesteManuali({
                   <div className="px-3 pb-3">
                     <PannelloRevisioneRichiesta
                       riga={r}
-                      infoCampi={infoCampi}
+                      infoCampi={infoCampiPerCommittente[r.committente] ?? infoCampi}
                       campiEsito={campiPerCommittente[r.committente] ?? []}
                       onDecisa={() => { setAperta(null); void refresh(); }}
                     />

@@ -12,7 +12,10 @@ import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 export type DatiListaAttesa = {
   userId: string;
+  /** Anagrafica globale di fallback (template default/primo attivo). */
   infoCampi: TemplateInfoCampo[];
+  /** Anagrafica per-committente (template "+" del committente). Vuoto → usa `infoCampi`. */
+  infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
   adminNomi: Record<string, string>;
 };
@@ -53,10 +56,17 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
   const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
   const tplRows2 = tpl as TemplateRow[];
   const campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
+  const infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>> = {};
   for (const committente of COMMITTENTI_MANUALI) {
     const tplId = risolviTemplateCommittente(committente, tplRows2);
     const tplMatch = tplId ? tpl.find((t) => t.id === tplId) : null;
-    if (tplMatch) campiPerCommittente[committente] = (tplMatch.campi ?? []) as TemplateCampo[];
+    if (tplMatch) {
+      campiPerCommittente[committente] = (tplMatch.campi ?? []) as TemplateCampo[];
+      // Anagrafica del pannello di revisione: guidata dal template "+" del committente
+      // (coerente con la modale +), non da un unico template globale. Vuota → fallback globale.
+      const ic = (tplMatch.info_campi ?? []) as TemplateInfoCampo[];
+      if (Array.isArray(ic) && ic.length > 0) infoCampiPerCommittente[committente] = ic;
+    }
   }
 
   // Mappa uuid→nome per la coda (chi ha preso in carico). L'identità vive in auth.users
@@ -67,5 +77,5 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
     adminNomi[u.id] = usernameFromEmail(u.email) || u.id;
   }
 
-  return { userId: user.id, infoCampi, campiPerCommittente, adminNomi };
+  return { userId: user.id, infoCampi, infoCampiPerCommittente, campiPerCommittente, adminNomi };
 }
