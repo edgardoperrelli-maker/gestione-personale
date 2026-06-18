@@ -8,7 +8,7 @@ import { resolveAssignableRole, canManageUsers } from '@/lib/moduleAccess';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import {
-  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE,
+  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
 } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -102,6 +102,65 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
     } catch (e) {
       console.error('[storico/voce] propagazione fallita:', e instanceof Error ? e.message : String(e));
     }
+  }
+
+  return NextResponse.json({ ok: true });
+}
+
+// DELETE: pulizia completa della riga. Elimina voce + intervento collegato +
+// (se manuale) richiesta e foto, + righe-misuratore + foto dallo storage. Solo admin_plus.
+export async function DELETE(_req: Request, { params }: { params: Promise<{ voceId: string }> }) {
+  const guard = await requireAdminPlus();
+  if (guard instanceof NextResponse) return guard;
+  const { voceId } = await params;
+
+  const { data: voce } = await supabaseAdmin
+    .from('rapportino_voci')
+    .select('id, intervento_id, rapportino_id, richiesta_id, risposte')
+    .eq('id', voceId)
+    .maybeSingle();
+  if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
+  const v = voce as {
+    intervento_id: string | null; rapportino_id: string; richiesta_id: string | null;
+    risposte: Record<string, unknown> | null;
+  };
+
+  const { data: rap } = await supabaseAdmin
+    .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id).maybeSingle();
+  const campiFoto = ((rap?.campi_snapshot ?? []) as TemplateCampo[]).filter((c) => c.tipo === 'foto');
+
+  // Raccoglie i path da rimuovere dallo storage (foto voce + richiesta manuale + righe).
+  const storagePaths = new Set<string>();
+  for (const { path } of estraiFotoPaths(v.risposte, campiFoto)) storagePaths.add(path);
+  if (v.richiesta_id) {
+    const { data: fm } = await supabaseAdmin
+      .from('interventi_manuali_foto').select('storage_path').eq('richiesta_id', v.richiesta_id);
+    for (const f of (fm ?? []) as Array<{ storage_path: string }>) if (f.storage_path) storagePaths.add(f.storage_path);
+  }
+  const { data: righe } = await supabaseAdmin
+    .from('rapportino_righe').select('id, risposte').eq('voce_id', voceId);
+  for (const r of (righe ?? []) as Array<{ risposte: Record<string, unknown> | null }>) {
+    for (const { path } of estraiFotoPaths(r.risposte, campiFoto)) storagePaths.add(path);
+  }
+
+  // 1) storage (best-effort: non blocca la cancellazione DB).
+  if (storagePaths.size > 0) {
+    try { await supabaseAdmin.storage.from('interventi-foto').remove([...storagePaths]); }
+    catch (e) { console.error('[storico/voce DELETE] rimozione foto fallita:', e instanceof Error ? e.message : String(e)); }
+  }
+
+  // 2) DB in ordine sicuro rispetto alle FK.
+  try {
+    if (v.richiesta_id) {
+      await supabaseAdmin.from('interventi_manuali_foto').delete().eq('richiesta_id', v.richiesta_id);
+      await supabaseAdmin.from('interventi_manuali').delete().eq('id', v.richiesta_id);
+    }
+    await supabaseAdmin.from('rapportino_righe').delete().eq('voce_id', voceId);
+    const { error: delVoce } = await supabaseAdmin.from('rapportino_voci').delete().eq('id', voceId);
+    if (delVoce) return NextResponse.json({ error: delVoce.message }, { status: 500 });
+    if (v.intervento_id) await supabaseAdmin.from('interventi').delete().eq('id', v.intervento_id);
+  } catch (e) {
+    return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore eliminazione.' }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

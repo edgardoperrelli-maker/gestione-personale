@@ -122,6 +122,20 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
   const esporta = () => {
     window.location.href = `/api/interventi/storico/export?${filtriToParams(filtri).toString()}`;
   };
+  const cancella = async (voceId: string) => {
+    if (!window.confirm('Eliminare definitivamente questa riga (intervento, eventuali foto e richiesta collegata)? Operazione non reversibile.')) return;
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(b.error ?? 'Errore eliminazione.');
+      }
+      void carica(filtri, page);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Errore eliminazione.');
+    }
+  };
 
   const totPagine = Math.max(1, Math.ceil(total / pageSize));
 
@@ -176,6 +190,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
           isAdminPlus={isAdminPlus}
           onFoto={(id) => setFotoVoceId(id)}
           onModifica={(id) => setModificaVoceId(id)}
+          onCancella={cancella}
         />
       </div>
 

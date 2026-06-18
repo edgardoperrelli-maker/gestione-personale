@@ -37,12 +37,13 @@ function toneClass(v: string): string {
 }
 
 export default function StoricoTabella({
-  righe, isAdminPlus, onFoto, onModifica,
+  righe, isAdminPlus, onFoto, onModifica, onCancella,
 }: {
   righe: RigaStorico[];
   isAdminPlus: boolean;
   onFoto: (voceId: string) => void;
   onModifica: (voceId: string) => void;
+  onCancella: (voceId: string) => void;
 }) {
   if (righe.length === 0) {
     return (
@@ -96,6 +97,17 @@ export default function StoricoTabella({
                       className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
                     >
                       ✎
+                    </button>
+                  )}
+                  {isAdminPlus && (
+                    <button
+                      type="button"
+                      onClick={() => onCancella(r.id)}
+                      title="Elimina riga"
+                      aria-label="Elimina riga"
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                    >
+                      🗑
                     </button>
                   )}
                 </div>
