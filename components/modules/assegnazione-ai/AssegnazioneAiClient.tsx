@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 export type RigaPianificabile = {
@@ -21,6 +21,15 @@ export type FileConfig = {
   committente: string;
   attivita: string;
   template_id: string | null;
+};
+
+export type StoricoRiga = {
+  data_pianificata: string;
+  comune: string;
+  file: string | null;
+  staff_name: string | null;
+  n_interventi: number;
+  creato_il: string;
 };
 
 const cardStyle = {
@@ -50,6 +59,19 @@ export default function AssegnazioneAiClient({
   const [msg, setMsg] = useState<string | null>(null);
   const [procedendo, setProcedendo] = useState(false);
   const [esito, setEsito] = useState<string | null>(null);
+  const [storico, setStorico] = useState<StoricoRiga[]>([]);
+
+  async function caricaStorico() {
+    try {
+      const res = await fetch('/api/admin/agente/assegnazioni');
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setStorico((j.righe ?? []) as StoricoRiga[]);
+    } catch {
+      /* lo storico è informativo: un errore qui non blocca nulla */
+    }
+  }
+
+  useEffect(() => { void caricaStorico(); }, []);
 
   const fileCfgMap = new Map<string, { committente: string; attivita: string }>(
     fileConfig.map((fc) => [fc.file, { committente: fc.committente, attivita: fc.attivita }]),
@@ -89,12 +111,15 @@ export default function AssegnazioneAiClient({
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
         const nr = (j.nonRisolti ?? []) as { esecutore: string; motivo: string; n: number }[];
+        const conf = (j.conflitti ?? []) as { staff_name: string | null; comune: string; data: string; submitted: boolean }[];
         const avvisi = (j.avvisi ?? []) as string[];
         let m = `Creati ${j.pianiCreati ?? 0} piani, ${j.rapportiniCreati ?? 0} rapportini.`;
-        if (nr.length) m += ` Operatori non pianificati: ${nr.map((x) => `${x.esecutore} (${x.motivo}, ${x.n})`).join(', ')}.`;
+        if (conf.length) m += ` Non assegnati (già pianificati): ${conf.map((c) => `${c.staff_name ?? '—'} a ${c.comune} il ${c.data}`).join(', ')}.`;
+        if (nr.length) m += ` Operatori non risolti: ${nr.map((x) => `${x.esecutore} (${x.motivo}, ${x.n})`).join(', ')}.`;
         if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
         setEsito(m);
         setSelezione(new Set<string>());
+        void caricaStorico();
         router.refresh();
       } else {
         setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);
@@ -283,6 +308,53 @@ export default function AssegnazioneAiClient({
                     </tr>
                   );
                 })}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      {/* Storico assegnazioni */}
+      <section className="rounded-2xl border p-5 space-y-3" style={cardStyle}>
+        <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+          Storico assegnazioni
+        </h2>
+
+        {(() => {
+          const delGiorno = storico.filter((s) => s.data_pianificata === data);
+          if (delGiorno.length === 0) return null;
+          return (
+            <div
+              className="rounded-xl border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
+            >
+              ⚠️ Il giorno {data} risulta già assegnato: {delGiorno.map((s) => `${s.staff_name ?? '—'} (${s.comune}, ${s.n_interventi})`).join(', ')}.
+            </div>
+          );
+        })()}
+
+        {storico.length === 0 ? (
+          <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna assegnazione registrata.</p>
+        ) : (
+          <div className="overflow-auto">
+            <table className="w-full border-collapse text-left text-sm">
+              <thead>
+                <tr style={{ color: 'var(--brand-text-muted)' }}>
+                  {['Giorno', 'Comune', 'Operatore', 'N. interventi', 'Creato il'].map((h) => (
+                    <th key={h} className="px-2 py-2 font-medium whitespace-nowrap">{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {storico.map((s, i) => (
+                  <tr key={i} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{s.data_pianificata}</td>
+                    <td className="px-2 py-1.5">{s.comune}</td>
+                    <td className="px-2 py-1.5">{s.staff_name ?? '—'}</td>
+                    <td className="px-2 py-1.5">{s.n_interventi}</td>
+                    <td className="px-2 py-1.5 whitespace-nowrap">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
+                  </tr>
+                ))}
               </tbody>
             </table>
           </div>

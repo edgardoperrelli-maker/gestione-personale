@@ -5,6 +5,9 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { risolviEsecutore } from '@/lib/agente/risolviEsecutore';
 import { raggruppaPerPiano, type RigaRisolta } from '@/lib/agente/raggruppaPerPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
+import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
+import { costruisciLogRows } from '@/lib/agente/costruisciLogRows';
+import { caricaRapportiniEsistenti } from '@/lib/agente/caricaRapportiniEsistenti';
 
 export const runtime = 'nodejs';
 
@@ -54,6 +57,7 @@ export async function POST(req: Request) {
 
     // 4) per ogni file (template/attivita possono differire) raggruppa e crea i piani
     const avvisi: string[] = [];
+    const conflitti: { staff_name: string | null; comune: string; data: string; submitted: boolean }[] = [];
     let pianiCreati = 0; let rapportiniCreati = 0;
     for (const file of files) {
       const cfg = cfgByFile.get(file);
@@ -70,13 +74,31 @@ export async function POST(req: Request) {
             await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
           }
         }
-        // crea piano + operatori
+
+        // pre-check conflitti: pianifica solo gli operatori NON già pianificati in quel comune+giorno
+        const staffIds = p.operatori.map((o) => o.staffId);
+        let rapEsistenti;
+        try {
+          rapEsistenti = await caricaRapportiniEsistenti(supabaseAdmin, p.data, staffIds);
+        } catch (e) {
+          avvisi.push(`Conflitti ${p.comune} ${p.data}: verifica fallita (${e instanceof Error ? e.message : 'errore'}), piano saltato.`);
+          continue;
+        }
+        const { liberi, inConflitto } = partizionaConflitti({
+          operatori: p.operatori.map((o) => ({ staff_id: o.staffId, staff_name: o.staffName })),
+          data: p.data, comune: p.comune, esistenti: rapEsistenti,
+        });
+        for (const c of inConflitto) conflitti.push({ staff_name: c.staff_name, comune: p.comune, data: p.data, submitted: c.submitted });
+        const operatoriLiberi = p.operatori.filter((o) => liberi.some((L) => L.staff_id === o.staffId));
+        if (operatoriLiberi.length === 0) continue; // tutti già pianificati: nessun piano
+
+        // crea piano + operatori (solo i liberi)
         const { data: piano, error: ePiano } = await supabaseAdmin.from('mappa_piani').insert({
           data: p.data, territorio: p.comune, note: null, stato: 'confermato', created_by: userId, updated_by: userId,
         }).select('id').single();
         if (ePiano || !piano) { avvisi.push(`Piano ${p.comune} ${p.data}: ${ePiano?.message ?? 'creazione fallita'}.`); continue; }
         const pianoId = (piano as { id: string }).id;
-        const opRows = p.operatori.map((o) => ({
+        const opRows = operatoriLiberi.map((o) => ({
           piano_id: pianoId, staff_id: o.staffId, staff_name: o.staffName, colore: '#2563EB',
           km: 0, task_count: o.tasks.length, start_address: null, tasks: o.tasks, polyline: [],
         }));
@@ -86,8 +108,10 @@ export async function POST(req: Request) {
           avvisi.push(`Operatori ${p.comune} ${p.data}: ${eOp.message}.`);
           continue;
         }
-        // rapportini (sincronizzaRapportini chiama ensureInterventiForPiano internamente)
-        const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id, overwrite: 'replace' });
+        // rapportini (sincronizzaRapportini chiama ensureInterventiForPiano internamente).
+        // NIENTE overwrite:'replace': i conflitti sono già esclusi a monte; un 409 residuo
+        // (race) deve emergere come avviso, non sovrascrivere in silenzio.
+        const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id });
         if (!res.ok) {
           const { count: nRap } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId);
           if (nRap === 0) {
@@ -100,12 +124,17 @@ export async function POST(req: Request) {
         pianiCreati += 1;
         rapportiniCreati += res.rapportini.length;
         if (res.interventiWarning) avvisi.push(`Interventi ${p.comune} ${p.data}: ${res.interventiWarning}`);
+
+        // storico (best-effort): una riga per operatore pianificato
+        const logRows = costruisciLogRows({ data: p.data, comune: p.comune, file, pianoId, userId, operatori: operatoriLiberi });
+        const { error: eLog } = await supabaseAdmin.from('assegnazione_ai_log').insert(logRows);
+        if (eLog) avvisi.push(`Log ${p.comune} ${p.data}: ${eLog.message}`);
       }
     }
 
     return NextResponse.json({
       ok: true, pianiCreati, rapportiniCreati,
-      nonRisolti: [...nonRisoltiMap.values()], avvisi,
+      nonRisolti: [...nonRisoltiMap.values()], conflitti, avvisi,
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : (err as { message?: string } | null)?.message ?? 'Errore assegna.';
