@@ -1,39 +1,55 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import {
-  aggregatePerformance,
-  type PerfFilters,
-  type PerformanceData,
-  type RawIntervento,
-  type SelectOption,
-} from '@/lib/performance/shape';
+import type { ClientRow, SelectOption } from '@/lib/performance/shape';
 
 const STATO_CONTEGGIABILE = 'completato';
 const PAGE = 1000;
 
-/** Carica gli interventi completati filtrati (paginazione) col client admin (service role). */
-async function fetchInterventi(f: PerfFilters): Promise<RawIntervento[]> {
-  const rows: RawIntervento[] = [];
+interface RawRow {
+  id: string;
+  staff_id: string | null;
+  data: string;
+  territorio_id: string | null;
+  committente: string | null;
+  intervento_tipo: string | null;
+  esito: string | null;
+}
+
+async function fetchInterventi(): Promise<RawRow[]> {
+  const rows: RawRow[] = [];
   for (let from = 0; ; from += PAGE) {
-    let q = supabaseAdmin
+    const { data, error } = await supabaseAdmin
       .from('interventi')
       .select('id, staff_id, data, territorio_id, committente, intervento_tipo, esito')
       .eq('stato', STATO_CONTEGGIABILE)
-      .gte('data', f.dateFrom)
-      .lte('data', f.dateTo);
-    if (f.staffId) q = q.eq('staff_id', f.staffId);
-    if (f.territorioId) q = q.eq('territorio_id', f.territorioId);
-    if (f.committente) q = q.eq('committente', f.committente);
-    const { data, error } = await q.order('data', { ascending: true }).range(from, from + PAGE - 1);
+      .order('data', { ascending: true })
+      .range(from, from + PAGE - 1);
     if (error) { console.error('[performance] fetchInterventi', error); break; }
-    const batch = (data ?? []) as RawIntervento[];
+    const batch = (data ?? []) as RawRow[];
     rows.push(...batch);
     if (batch.length < PAGE) break;
   }
   return rows;
 }
 
-async function loadMaps(): Promise<{ staffName: Map<string, string>; territoryName: Map<string, string> }> {
+async function fetchValvolaSet(): Promise<Set<string>> {
+  const set = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('intervento_id')
+      .eq('risposte->>sostituzione_valvola', 'SI')
+      .not('intervento_id', 'is', null)
+      .range(from, from + PAGE - 1);
+    if (error) { console.error('[performance] fetchValvolaSet', error); break; }
+    const batch = (data ?? []) as Array<{ intervento_id: string | null }>;
+    for (const r of batch) if (r.intervento_id) set.add(r.intervento_id);
+    if (batch.length < PAGE) break;
+  }
+  return set;
+}
+
+async function loadMaps() {
   const [{ data: staff }, { data: terr }] = await Promise.all([
     supabaseAdmin.from('staff').select('id, display_name'),
     supabaseAdmin.from('territories').select('id, name'),
@@ -49,44 +65,45 @@ async function loadMaps(): Promise<{ staffName: Map<string, string>; territoryNa
   return { staffName, territoryName };
 }
 
-export async function loadPerformanceData(f: PerfFilters, selOperator: string | null): Promise<PerformanceData> {
-  const [rows, maps] = await Promise.all([fetchInterventi(f), loadMaps()]);
-  return aggregatePerformance(rows, maps.staffName, maps.territoryName, {
-    dateFrom: f.dateFrom,
-    dateTo: f.dateTo,
-    macroAttivita: f.macroAttivita,
-    selOperator,
-  });
-}
-
-/** Opzioni per i filtri: operatori (con interventi completati), territori, committenti. */
-export async function loadPerformanceFilterOptions(): Promise<{
+export interface PerformanceBundle {
+  rows: ClientRow[];
   operatori: SelectOption[];
   territori: SelectOption[];
   committenti: SelectOption[];
   minDate: string | null;
-}> {
-  const [{ data: staff }, { data: terr }, { data: comm }, { data: minRow }] = await Promise.all([
-    supabaseAdmin.from('staff').select('id, display_name, active').order('display_name', { ascending: true }),
-    supabaseAdmin.from('territories').select('id, name').order('name', { ascending: true }),
-    supabaseAdmin.from('interventi').select('committente').eq('stato', STATO_CONTEGGIABILE).not('committente', 'is', null),
-    supabaseAdmin.from('interventi').select('data').eq('stato', STATO_CONTEGGIABILE).order('data', { ascending: true }).limit(1).maybeSingle(),
-  ]);
+}
 
-  const operatori: SelectOption[] = ((staff ?? []) as Array<{ id: string; display_name: string | null; active: boolean | null }>)
-    .map((s) => ({ value: s.id, label: (s.display_name ?? '').trim() || 'Operatore' }));
+/** Carica tutti gli interventi completati (nomi risolti + flag saracinesca) e le opzioni filtro. */
+export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
+  const [raw, maps, valvolaSet] = await Promise.all([fetchInterventi(), loadMaps(), fetchValvolaSet()]);
 
-  const territori: SelectOption[] = ((terr ?? []) as Array<{ id: string; name: string | null }>)
-    .map((t) => ({ value: t.id, label: (t.name ?? '').trim() || 'Territorio' }));
+  const rows: ClientRow[] = raw.map((r) => ({
+    id: r.id,
+    staffId: r.staff_id ?? '',
+    operatore: (r.staff_id && maps.staffName.get(r.staff_id)) || 'Sconosciuto',
+    data: r.data.slice(0, 10),
+    territorioId: r.territorio_id ?? '',
+    territorio: (r.territorio_id && maps.territoryName.get(r.territorio_id)) || 'Senza territorio',
+    committente: (r.committente ?? '').trim(),
+    intervento_tipo: r.intervento_tipo ?? '',
+    valvola: valvolaSet.has(r.id),
+    esito: r.esito ?? '',
+  }));
 
-  const committentiSet = new Set<string>();
-  for (const c of (comm ?? []) as Array<{ committente: string | null }>) {
-    const v = (c.committente ?? '').trim();
-    if (v) committentiSet.add(v);
+  // Opzioni derivate dai dati (solo ciò che è effettivamente filtrabile).
+  const opMap = new Map<string, string>();
+  const terrMap = new Map<string, string>();
+  const commSet = new Set<string>();
+  let minDate: string | null = null;
+  for (const r of rows) {
+    if (r.staffId) opMap.set(r.staffId, r.operatore);
+    if (r.territorioId) terrMap.set(r.territorioId, r.territorio);
+    if (r.committente) commSet.add(r.committente);
+    if (!minDate || r.data < minDate) minDate = r.data;
   }
-  const committenti: SelectOption[] = Array.from(committentiSet).sort().map((v) => ({ value: v, label: v }));
+  const operatori = Array.from(opMap, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  const territori = Array.from(terrMap, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+  const committenti = Array.from(commSet).sort().map((v) => ({ value: v, label: v }));
 
-  const minDate = (minRow as { data?: string } | null)?.data?.slice(0, 10) ?? null;
-
-  return { operatori, territori, committenti, minDate };
+  return { rows, operatori, territori, committenti, minDate };
 }

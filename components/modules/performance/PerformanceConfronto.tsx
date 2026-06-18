@@ -1,36 +1,40 @@
 'use client';
-import type { ConfrontoOperator } from '@/lib/performance/shape';
+import { useMemo, useState } from 'react';
+import { buildConfronto, filterRows, totali, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
+import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { colorForMacro } from './palette';
 
-export default function PerformanceConfronto({
-  operators, onSelect, selectedId,
-}: {
-  operators: ConfrontoOperator[];
-  onSelect: (id: string) => void;
-  selectedId: string | null;
-}) {
+export default function PerformanceConfronto({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
+  const [f, setF] = useState<PerfFilters>(initial);
+  const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
+  const operators = useMemo(() => buildConfronto(rows), [rows]);
+  const t = totali(rows);
   const max = Math.max(1, ...operators.map((o) => o.total));
+
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-      <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Confronto operatori</h2>
-      <p className="mb-3 text-[11px] text-[var(--brand-text-muted)]">Interventi completati · ordinati per totale · barra divisa per attività · clicca per il dettaglio</p>
+      <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
+        <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Confronto operatori</h2>
+        <span className="text-[12px] text-[var(--brand-text-muted)]">
+          {t.totale.toLocaleString('it-IT')} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
+        </span>
+      </div>
+      <p className="mb-2 text-[11px] text-[var(--brand-text-muted)]">Interventi completati per operatore · barra divisa per attività</p>
+      <PerfFilterBar value={f} onChange={setF} options={options} />
       {operators.length === 0 ? (
         <p className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento per i filtri selezionati.</p>
       ) : (
         <div className="space-y-1">
           {operators.map((o) => {
             const segs = Object.entries(o.byMacro).sort((a, b) => b[1] - a[1]);
-            const active = selectedId === o.id;
             return (
-              <button
-                key={o.id}
-                type="button"
-                onClick={() => onSelect(o.id)}
-                className={`grid w-full grid-cols-[160px_1fr_56px] items-center gap-3 rounded-lg px-2 py-1.5 text-left transition-colors ${active ? 'bg-[var(--brand-primary)]/10' : 'hover:bg-[var(--brand-primary)]/5'}`}
-              >
+              <div key={o.id} className="grid grid-cols-[160px_1fr_56px] items-center gap-3 rounded-lg px-2 py-1.5">
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium text-[var(--brand-text-main)]">{o.name}</div>
-                  <div className="truncate text-[11px] text-[var(--brand-text-muted)]">{segs.map(([k]) => k).join(', ') || '—'}</div>
+                  <div className="truncate text-[11px] text-[var(--brand-text-muted)]">
+                    {segs.map(([k]) => k).join(', ') || '—'}
+                    {o.valvole > 0 && <span className="text-[var(--brand-gold)]"> · 🔧 {o.valvole} saracinesca</span>}
+                  </div>
                 </div>
                 <div className="h-3.5 overflow-hidden rounded-md bg-[var(--brand-border)]/40">
                   <div className="flex h-full" style={{ width: `${(o.total / max) * 100}%` }}>
@@ -40,7 +44,7 @@ export default function PerformanceConfronto({
                   </div>
                 </div>
                 <div className="text-right text-[13px] font-semibold tabular-nums text-[var(--brand-text-main)]">{o.total.toLocaleString('it-IT')}</div>
-              </button>
+              </div>
             );
           })}
         </div>
