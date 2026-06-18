@@ -1,64 +1,45 @@
-// Performance operatori (admin_plus): logica pura di shaping/aggregazione.
+// Performance operatori (admin_plus): logica pura, modello "client-row".
+// I dati grezzi (già risolti coi nomi) sono caricati una volta dal server e
+// filtrati/aggregati lato client, in modo che ogni grafico abbia i suoi filtri.
 // Niente import server-only qui → testabile con vitest.
 
-export type Granularity = 'day' | 'week' | 'month';
-
-/** Riga intervento grezza (sottoinsieme di `interventi`) usata per l'aggregazione. */
-export interface RawIntervento {
+// ---- Riga lato client (un intervento completato, con nomi risolti) ----
+export interface ClientRow {
   id: string;
-  staff_id: string | null;
-  data: string; // ISO aaaa-mm-gg
-  territorio_id: string | null;
-  committente: string | null;
-  intervento_tipo: string | null;
-  esito: string | null;
-  /** L'intervento includeva una sostituzione saracinesca (flag dal rapportino). */
-  valvola?: boolean;
+  staffId: string;          // id operatore ('' se assente)
+  operatore: string;        // nome risolto
+  data: string;             // ISO aaaa-mm-gg
+  territorioId: string;     // id territorio ('' se assente)
+  territorio: string;       // nome risolto
+  committente: string;      // es. 'acea' / 'lim_massive'
+  intervento_tipo: string;  // free-text (per macro + dettaglio)
+  valvola: boolean;         // includeva sostituzione saracinesca
+  esito: string;
 }
 
 export interface PerfFilters {
   dateFrom: string;
   dateTo: string;
-  staffId?: string;
-  territorioId?: string;
-  committente?: string;
-  macroAttivita?: string;
-  /** Solo interventi che includono una sostituzione saracinesca. */
-  soloValvola?: boolean;
+  staffId: string;
+  territorioId: string;
+  committente: string;
+  macro: string;
+  soloValvola: boolean;
 }
 
-// ---- Date (formato italiano, bucketing timezone-safe: nessun new Date(iso)) ----
-function parts(iso: string): [number, number, number] {
-  const [y, m, d] = iso.slice(0, 10).split('-').map(Number);
-  return [y, m, d];
-}
+export interface SelectOption { value: string; label: string }
+
+export const emptyFilters = (dateFrom = '', dateTo = ''): PerfFilters => ({
+  dateFrom, dateTo, staffId: '', territorioId: '', committente: '', macro: '', soloValvola: false,
+});
+
+// ---- Date (formato italiano, no timezone bug) ----
 export function formatItDate(iso: string): string {
-  const [y, m, d] = parts(iso);
-  return `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}/${y}`;
+  const [y, m, d] = iso.slice(0, 10).split('-');
+  return `${d}/${m}/${y}`;
 }
-export function pickGranularity(dateFrom: string, dateTo: string): Granularity {
-  const a = Date.UTC(...parts(dateFrom));
-  const b = Date.UTC(...parts(dateTo));
-  const days = (b - a) / 86_400_000;
-  if (days <= 31) return 'day';
-  if (days <= 182) return 'week';
-  return 'month';
-}
-function mondayISO(iso: string): string {
-  const [y, m, d] = parts(iso);
-  const t = new Date(Date.UTC(y, m - 1, d));
-  const dow = (t.getUTCDay() + 6) % 7;
-  t.setUTCDate(t.getUTCDate() - dow);
-  return t.toISOString().slice(0, 10);
-}
-export function periodKey(iso: string, g: Granularity): string {
-  if (g === 'day') return iso.slice(0, 10);
-  if (g === 'month') return iso.slice(0, 7);
-  return mondayISO(iso);
-}
-function periodLabel(key: string, g: Granularity): string {
-  if (g === 'month') { const [y, m] = key.split('-'); return `${m}/${y}`; }
-  const [, m, d] = key.split('-');
+export function dayLabel(iso: string): string {
+  const [, m, d] = iso.slice(0, 10).split('-');
   return `${d}/${m}`;
 }
 
@@ -93,7 +74,28 @@ export function normalizeMacroAttivita(tipo: string | null | undefined): MacroAt
   return 'Altro';
 }
 
-// ---- Output aggregati ----
+// ---- Filtro puro (applicato per-grafico lato client) ----
+export function filterRows(rows: ClientRow[], f: PerfFilters): ClientRow[] {
+  return rows.filter((r) => {
+    if (f.dateFrom && r.data < f.dateFrom) return false;
+    if (f.dateTo && r.data > f.dateTo) return false;
+    if (f.staffId && r.staffId !== f.staffId) return false;
+    if (f.territorioId && r.territorioId !== f.territorioId) return false;
+    if (f.committente && r.committente !== f.committente) return false;
+    if (f.macro && normalizeMacroAttivita(r.intervento_tipo) !== f.macro) return false;
+    if (f.soloValvola && !r.valvola) return false;
+    return true;
+  });
+}
+
+export interface Totali { totale: number; valvole: number }
+export function totali(rows: ClientRow[]): Totali {
+  let valvole = 0;
+  for (const r of rows) if (r.valvola) valvole += 1;
+  return { totale: rows.length, valvole };
+}
+
+// ---- Confronto operatori ----
 export interface ConfrontoOperator {
   id: string;
   name: string;
@@ -101,8 +103,62 @@ export interface ConfrontoOperator {
   valvole: number;
   byMacro: Record<string, number>;
 }
-export interface AndamentoPoint { periodo: string; periodoLabel: string; n: number }
+const UNKNOWN_OP = 'Sconosciuto';
+export function buildConfronto(rows: ClientRow[]): ConfrontoOperator[] {
+  const map = new Map<string, ConfrontoOperator>();
+  for (const r of rows) {
+    const id = r.staffId || UNKNOWN_OP;
+    let op = map.get(id);
+    if (!op) { op = { id, name: r.operatore || UNKNOWN_OP, total: 0, valvole: 0, byMacro: {} }; map.set(id, op); }
+    op.total += 1;
+    const macro = normalizeMacroAttivita(r.intervento_tipo);
+    op.byMacro[macro] = (op.byMacro[macro] ?? 0) + 1;
+    if (r.valvola) op.valvole += 1;
+  }
+  return Array.from(map.values()).sort((a, b) => b.total - a.total);
+}
+
+// ---- Distribuzioni ----
 export interface DistribuzioneSlice { chiave: string; n: number }
+function distrib(rows: ClientRow[], key: (r: ClientRow) => string): DistribuzioneSlice[] {
+  const m = new Map<string, number>();
+  for (const r of rows) { const k = key(r); m.set(k, (m.get(k) ?? 0) + 1); }
+  return Array.from(m, ([chiave, n]) => ({ chiave, n })).sort((a, b) => b.n - a.n);
+}
+export function buildDistribuzioni(rows: ClientRow[]) {
+  return {
+    perMacro: distrib(rows, (r) => normalizeMacroAttivita(r.intervento_tipo)),
+    perCommittente: distrib(rows, (r) => r.committente || '—'),
+    perTerritorio: distrib(rows, (r) => r.territorio || 'Senza territorio'),
+  };
+}
+
+// ---- Produzione giornaliera: colonne impilate per macro ----
+export interface GiornalieraDatum { giorno: string; label: string; total: number; [macro: string]: number | string }
+export function buildGiornaliera(rows: ClientRow[]): { data: GiornalieraDatum[]; macros: string[] } {
+  const perDay = new Map<string, Map<string, number>>();
+  const macroTot = new Map<string, number>();
+  for (const r of rows) {
+    const g = r.data.slice(0, 10);
+    const macro = normalizeMacroAttivita(r.intervento_tipo);
+    if (!perDay.has(g)) perDay.set(g, new Map());
+    const dm = perDay.get(g)!;
+    dm.set(macro, (dm.get(macro) ?? 0) + 1);
+    macroTot.set(macro, (macroTot.get(macro) ?? 0) + 1);
+  }
+  const macros = Array.from(macroTot.entries()).sort((a, b) => b[1] - a[1]).map(([m]) => m);
+  const data: GiornalieraDatum[] = Array.from(perDay.keys()).sort().map((g) => {
+    const dm = perDay.get(g)!;
+    const row: GiornalieraDatum = { giorno: g, label: dayLabel(g), total: 0 };
+    let total = 0;
+    for (const m of macros) { const n = dm.get(m) ?? 0; row[m] = n; total += n; }
+    row.total = total;
+    return row;
+  });
+  return { data, macros };
+}
+
+// ---- Dettaglio operatore ----
 export interface DettaglioRow {
   id: string;
   giorno: string;
@@ -113,106 +169,17 @@ export interface DettaglioRow {
   esito: string;
   valvola: boolean;
 }
-export interface SelectOption { value: string; label: string }
-
-export interface PerformanceData {
-  totale: number;
-  totaleValvole: number;
-  confronto: ConfrontoOperator[];
-  andamento: { granularity: Granularity; points: AndamentoPoint[] };
-  perMacro: DistribuzioneSlice[];
-  perCommittente: DistribuzioneSlice[];
-  perTerritorio: DistribuzioneSlice[];
-  dettaglio: { name: string; rows: DettaglioRow[] } | null;
-}
-
-const UNKNOWN_OP = 'Sconosciuto';
-const NO_TERR = 'Senza territorio';
-
-function sortSlices(map: Map<string, number>): DistribuzioneSlice[] {
-  return Array.from(map, ([chiave, n]) => ({ chiave, n })).sort((a, b) => b.n - a.n);
-}
-
-/**
- * Aggrega le righe (già filtrate per stato/committente/territorio/operatore/date a monte)
- * applicando l'eventuale filtro macro-attività (post-normalizzazione) e producendo tutte le viste.
- */
-export function aggregatePerformance(
-  rows: RawIntervento[],
-  staffName: Map<string, string>,
-  territoryName: Map<string, string>,
-  opts: { dateFrom: string; dateTo: string; macroAttivita?: string; soloValvola?: boolean; selOperator?: string | null },
-): PerformanceData {
-  let filtered = opts.macroAttivita
-    ? rows.filter((r) => normalizeMacroAttivita(r.intervento_tipo) === opts.macroAttivita)
-    : rows;
-  if (opts.soloValvola) filtered = filtered.filter((r) => r.valvola === true);
-
-  const perOp = new Map<string, ConfrontoOperator>();
-  const perGiorno = new Map<string, number>();
-  const perMacro = new Map<string, number>();
-  const perComm = new Map<string, number>();
-  const perTerr = new Map<string, number>();
-  let totaleValvole = 0;
-
-  for (const r of filtered) {
-    const opId = r.staff_id ?? UNKNOWN_OP;
-    const macro = normalizeMacroAttivita(r.intervento_tipo);
-    const comm = (r.committente ?? '').trim() || '—';
-    const terr = (r.territorio_id && territoryName.get(r.territorio_id)) || NO_TERR;
-
-    let op = perOp.get(opId);
-    if (!op) {
-      op = { id: opId, name: staffName.get(opId) ?? UNKNOWN_OP, total: 0, valvole: 0, byMacro: {} };
-      perOp.set(opId, op);
-    }
-    op.total += 1;
-    op.byMacro[macro] = (op.byMacro[macro] ?? 0) + 1;
-    if (r.valvola) { op.valvole += 1; totaleValvole += 1; }
-
-    perGiorno.set(r.data.slice(0, 10), (perGiorno.get(r.data.slice(0, 10)) ?? 0) + 1);
-    perMacro.set(macro, (perMacro.get(macro) ?? 0) + 1);
-    perComm.set(comm, (perComm.get(comm) ?? 0) + 1);
-    perTerr.set(terr, (perTerr.get(terr) ?? 0) + 1);
-  }
-
-  const granularity = pickGranularity(opts.dateFrom, opts.dateTo);
-  const bucket = new Map<string, number>();
-  for (const [giorno, n] of perGiorno) {
-    const key = periodKey(giorno, granularity);
-    bucket.set(key, (bucket.get(key) ?? 0) + n);
-  }
-  const points = Array.from(bucket, ([periodo, n]) => ({ periodo, periodoLabel: periodLabel(periodo, granularity), n }))
-    .sort((a, b) => a.periodo.localeCompare(b.periodo));
-
-  const confronto = Array.from(perOp.values()).sort((a, b) => b.total - a.total);
-
-  let dettaglio: PerformanceData['dettaglio'] = null;
-  if (opts.selOperator) {
-    const rowsDet = filtered
-      .filter((r) => (r.staff_id ?? UNKNOWN_OP) === opts.selOperator)
-      .map((r) => ({
-        id: r.id,
-        giorno: r.data.slice(0, 10),
-        intervento_tipo: (r.intervento_tipo ?? '').trim() || '—',
-        macro: normalizeMacroAttivita(r.intervento_tipo),
-        committente: (r.committente ?? '').trim() || '—',
-        territorio: (r.territorio_id && territoryName.get(r.territorio_id)) || NO_TERR,
-        esito: (r.esito ?? '').trim() || '—',
-        valvola: r.valvola === true,
-      }))
-      .sort((a, b) => (a.giorno < b.giorno ? 1 : a.giorno > b.giorno ? -1 : 0));
-    dettaglio = { name: staffName.get(opts.selOperator) ?? UNKNOWN_OP, rows: rowsDet };
-  }
-
-  return {
-    totale: filtered.length,
-    totaleValvole,
-    confronto,
-    andamento: { granularity, points },
-    perMacro: sortSlices(perMacro),
-    perCommittente: sortSlices(perComm),
-    perTerritorio: sortSlices(perTerr),
-    dettaglio,
-  };
+export function buildDettaglio(rows: ClientRow[]): DettaglioRow[] {
+  return rows
+    .map((r) => ({
+      id: r.id,
+      giorno: r.data.slice(0, 10),
+      intervento_tipo: (r.intervento_tipo ?? '').trim() || '—',
+      macro: normalizeMacroAttivita(r.intervento_tipo),
+      committente: r.committente || '—',
+      territorio: r.territorio || 'Senza territorio',
+      esito: (r.esito ?? '').trim() || '—',
+      valvola: r.valvola,
+    }))
+    .sort((a, b) => (a.giorno < b.giorno ? 1 : a.giorno > b.giorno ? -1 : 0));
 }

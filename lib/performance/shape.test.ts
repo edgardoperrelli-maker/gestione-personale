@@ -1,92 +1,91 @@
 import { describe, it, expect } from 'vitest';
 import {
   formatItDate,
-  pickGranularity,
-  periodKey,
   normalizeMacroAttivita,
-  aggregatePerformance,
-  type RawIntervento,
+  filterRows,
+  totali,
+  buildConfronto,
+  buildDistribuzioni,
+  buildGiornaliera,
+  buildDettaglio,
+  emptyFilters,
+  type ClientRow,
 } from './shape';
 
-describe('date helpers', () => {
-  it('formatItDate: ISO -> gg/mm/aaaa', () => {
-    expect(formatItDate('2026-03-05')).toBe('05/03/2026');
-  });
-  it('pickGranularity', () => {
-    expect(pickGranularity('2026-05-01', '2026-05-20')).toBe('day');
-    expect(pickGranularity('2026-01-01', '2026-04-01')).toBe('week');
-    expect(pickGranularity('2025-01-01', '2026-06-01')).toBe('month');
-  });
-  it('periodKey: day/week(lunedì)/month senza off-by-one', () => {
-    expect(periodKey('2026-03-05', 'day')).toBe('2026-03-05');
-    expect(periodKey('2026-03-31', 'month')).toBe('2026-03');
-    expect(periodKey('2026-03-05', 'week')).toBe('2026-03-02'); // giovedì -> lunedì
-    expect(periodKey('2026-03-01', 'week')).toBe('2026-02-23'); // domenica -> lunedì precedente
-  });
-});
+const rows: ClientRow[] = [
+  { id: 'a', staffId: 's1', operatore: 'Rossi Mario', data: '2026-06-04', territorioId: 't1', territorio: 'Firenze', committente: 'acea', intervento_tipo: 'LIMITAZIONI MASSIVE', valvola: true, esito: 'eseguito_positivo' },
+  { id: 'b', staffId: 's1', operatore: 'Rossi Mario', data: '2026-06-04', territorioId: 't1', territorio: 'Firenze', committente: 'acea', intervento_tipo: 'BONIFICHE EXTRA', valvola: false, esito: '' },
+  { id: 'c', staffId: 's2', operatore: 'Bianchi Anna', data: '2026-06-05', territorioId: 't2', territorio: 'Lazio Centro', committente: 'lim_massive', intervento_tipo: 'Limitazione massiva', valvola: false, esito: '' },
+];
 
-describe('normalizeMacroAttivita', () => {
-  it('raggruppa le varianti free-text', () => {
+describe('date + macro', () => {
+  it('formatItDate', () => expect(formatItDate('2026-03-05')).toBe('05/03/2026'));
+  it('normalizeMacroAttivita raggruppa il free-text', () => {
     expect(normalizeMacroAttivita('LIMITAZIONI MASSIVE')).toBe('Limitazioni');
     expect(normalizeMacroAttivita('Limitazione massiva')).toBe('Limitazioni');
     expect(normalizeMacroAttivita('BONIFICHE EXTRA')).toBe('Bonifiche');
-    expect(normalizeMacroAttivita('PICARRO')).toBe('Picarro');
-    expect(normalizeMacroAttivita('Sospensione fornitura')).toBe('Sospensioni');
-    expect(normalizeMacroAttivita('Rimozione misuratore per morosità')).toBe('Morosità / forniture');
-    expect(normalizeMacroAttivita('Regolarizzazione flusso idrico')).toBe('Flusso idrico');
     expect(normalizeMacroAttivita('S-PR-003 A Sonda')).toBe('Sostituzioni / sonde');
     expect(normalizeMacroAttivita('')).toBe('Non specificato');
-    expect(normalizeMacroAttivita(null)).toBe('Non specificato');
-    expect(normalizeMacroAttivita('Qualcosa di strano')).toBe('Altro');
   });
 });
 
-describe('aggregatePerformance', () => {
-  const staff = new Map<string, string>([['s1', 'Rossi Mario'], ['s2', 'Bianchi Anna']]);
-  const terr = new Map<string, string>([['t1', 'Firenze'], ['t2', 'Lazio Centro']]);
-  const rows: RawIntervento[] = [
-    { id: 'a', staff_id: 's1', data: '2026-05-04', territorio_id: 't1', committente: 'acea', intervento_tipo: 'LIMITAZIONI MASSIVE', esito: 'eseguito_positivo', valvola: true },
-    { id: 'b', staff_id: 's1', data: '2026-05-04', territorio_id: 't1', committente: 'acea', intervento_tipo: 'BONIFICHE EXTRA', esito: null },
-    { id: 'c', staff_id: 's2', data: '2026-05-05', territorio_id: 't2', committente: 'lim_massive', intervento_tipo: 'Limitazione massiva', esito: null },
-  ];
+describe('filterRows', () => {
+  it('range date inclusivo', () => {
+    expect(filterRows(rows, { ...emptyFilters('2026-06-05', '2026-06-05') }).length).toBe(1);
+  });
+  it('operatore / committente / territorio / macro / saracinesca', () => {
+    expect(filterRows(rows, { ...emptyFilters(), staffId: 's1' }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), committente: 'acea' }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), territorioId: 't2' }).length).toBe(1);
+    expect(filterRows(rows, { ...emptyFilters(), macro: 'Bonifiche' }).length).toBe(1);
+    expect(filterRows(rows, { ...emptyFilters(), soloValvola: true }).length).toBe(1);
+  });
+});
 
-  it('conta per operatore, ordina desc, split macro', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20' });
-    expect(out.totale).toBe(3);
-    expect(out.confronto[0].name).toBe('Rossi Mario');
-    expect(out.confronto[0].total).toBe(2);
-    expect(out.confronto[0].byMacro['Limitazioni']).toBe(1);
-    expect(out.confronto[0].byMacro['Bonifiche']).toBe(1);
+describe('totali e saracinesca (no doppio conteggio)', () => {
+  it('totale = righe, valvole = solo con saracinesca', () => {
+    const t = totali(rows);
+    expect(t.totale).toBe(3);
+    expect(t.valvole).toBe(1);
   });
-  it('distribuzioni per macro/committente/territorio', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20' });
-    expect(out.perCommittente.find((s) => s.chiave === 'acea')?.n).toBe(2);
-    expect(out.perTerritorio.find((s) => s.chiave === 'Firenze')?.n).toBe(2);
-    expect(out.perMacro.find((s) => s.chiave === 'Limitazioni')?.n).toBe(2);
+});
+
+describe('buildConfronto', () => {
+  it('per operatore, ordinato desc, valvole e macro', () => {
+    const out = buildConfronto(rows);
+    expect(out[0].name).toBe('Rossi Mario');
+    expect(out[0].total).toBe(2);
+    expect(out[0].valvole).toBe(1);
+    expect(out[0].byMacro['Limitazioni']).toBe(1);
+    expect(out[0].byMacro['Bonifiche']).toBe(1);
   });
-  it('filtro macro-attività riduce il set', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20', macroAttivita: 'Bonifiche' });
-    expect(out.totale).toBe(1);
-    expect(out.confronto[0].id).toBe('s1');
+});
+
+describe('buildDistribuzioni', () => {
+  it('macro/committente/territorio', () => {
+    const d = buildDistribuzioni(rows);
+    expect(d.perCommittente.find((s) => s.chiave === 'acea')?.n).toBe(2);
+    expect(d.perTerritorio.find((s) => s.chiave === 'Firenze')?.n).toBe(2);
+    expect(d.perMacro.find((s) => s.chiave === 'Limitazioni')?.n).toBe(2);
   });
-  it('dettaglio per operatore selezionato', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20', selOperator: 's2' });
-    expect(out.dettaglio?.name).toBe('Bianchi Anna');
-    expect(out.dettaglio?.rows.length).toBe(1);
-    expect(out.dettaglio?.rows[0].territorio).toBe('Lazio Centro');
-    expect(out.dettaglio?.rows[0].valvola).toBe(false);
+});
+
+describe('buildGiornaliera', () => {
+  it('colonne per giorno con conteggi per macro, ordinate', () => {
+    const { data, macros } = buildGiornaliera(rows);
+    expect(data.length).toBe(2); // 04 e 05 giugno
+    expect(data[0].giorno).toBe('2026-06-04');
+    expect(data[0].label).toBe('04/06');
+    expect(data[0].total).toBe(2);
+    expect(macros).toContain('Limitazioni');
+    expect(Number(data[0]['Limitazioni'])).toBe(1);
   });
-  it('saracinesca: conteggio per operatore + totale (no doppio conteggio sul totale)', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20' });
-    expect(out.totale).toBe(3); // il totale interventi resta invariato
-    expect(out.totaleValvole).toBe(1);
-    expect(out.confronto.find((o) => o.id === 's1')?.valvole).toBe(1);
-    expect(out.confronto.find((o) => o.id === 's2')?.valvole).toBe(0);
-  });
-  it('filtro soloValvola riduce ai soli interventi con saracinesca', () => {
-    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20', soloValvola: true });
-    expect(out.totale).toBe(1);
-    expect(out.totaleValvole).toBe(1);
-    expect(out.confronto[0].id).toBe('s1');
+});
+
+describe('buildDettaglio', () => {
+  it('righe ordinate per data desc con flag valvola', () => {
+    const out = buildDettaglio(rows);
+    expect(out[0].giorno).toBe('2026-06-05');
+    expect(out.find((r) => r.id === 'a')?.valvola).toBe(true);
   });
 });

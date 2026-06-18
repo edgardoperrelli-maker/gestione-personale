@@ -1,6 +1,8 @@
 'use client';
+import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
-import type { DistribuzioneSlice } from '@/lib/performance/shape';
+import { buildDistribuzioni, filterRows, type ClientRow, type DistribuzioneSlice, type PerfFilters } from '@/lib/performance/shape';
+import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
 import { colorForMacro, PALETTE } from './palette';
 
 function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSlice[]; colorBy: 'macro' | 'index' }) {
@@ -40,16 +42,15 @@ function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSli
   );
 }
 
-export default function PerformanceDistribuzioni({
-  perMacro, perCommittente, perTerritorio,
-}: {
-  perMacro: DistribuzioneSlice[];
-  perCommittente: DistribuzioneSlice[];
-  perTerritorio: DistribuzioneSlice[];
-}) {
+export default function PerformanceDistribuzioni({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
+  const [f, setF] = useState<PerfFilters>(initial);
+  const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
+  const { perMacro, perCommittente, perTerritorio } = useMemo(() => buildDistribuzioni(rows), [rows]);
+
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-      <h2 className="mb-3 text-base font-semibold text-[var(--brand-text-main)]">Distribuzioni</h2>
+      <h2 className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Distribuzioni</h2>
+      <PerfFilterBar value={f} onChange={setF} options={options} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
         <Donut title="Per attività" data={perMacro} colorBy="macro" />
         <Donut title="Per committente" data={perCommittente} colorBy="index" />
