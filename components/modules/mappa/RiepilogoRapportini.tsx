@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RapportinoStato } from '@/utils/rapportini/links';
 import { type RapRiepilogo } from '@/utils/rapportini/groupByDay';
-import { groupByDayPiano } from '@/utils/rapportini/groupByDayPiano';
+import { groupByDayTerritory } from '@/utils/rapportini/groupByDayTerritory';
 import { filtraRapportini, type FiltriRiepilogo as Filtri } from '@/utils/rapportini/filtraRapportini';
 import FiltriRiepilogo from './riepilogo/FiltriRiepilogo';
-import CardPianificazione from './riepilogo/CardPianificazione';
+import CardTerritorio from './riepilogo/CardTerritorio';
 import IntestazioneGiorno from './riepilogo/IntestazioneGiorno';
 import { PERIODI, calcolaRange } from '@/utils/rapportini/rangePeriodo';
 
@@ -68,7 +68,7 @@ export default function RiepilogoRapportini() {
   }, [raps]);
 
   const oggi = new Date().toISOString().slice(0, 10);
-  const giorni = useMemo(() => groupByDayPiano(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
+  const giorni = useMemo(() => groupByDayTerritory(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
 
   const copia = async (r: RapportinoStato & { url: string; token: string }) => {
     try {
@@ -225,10 +225,10 @@ export default function RiepilogoRapportini() {
           <div key={g.data} className="space-y-3">
             <IntestazioneGiorno giorno={g} oggi={oggi} />
             <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
-              {g.piani.map((piano) => (
-                <CardPianificazione
-                  key={piano.piano_id}
-                  piano={piano}
+              {g.territori.map((t) => (
+                <CardTerritorio
+                  key={`${g.data}-${t.chiave}`}
+                  terr={t}
                   dataLabel={fmtData(g.data)}
                   copiedToken={copiedToken}
                   onCopia={copia}
