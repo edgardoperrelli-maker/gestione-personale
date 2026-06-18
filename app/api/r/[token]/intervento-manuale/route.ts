@@ -223,6 +223,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     });
   }
 
+  // VERIFICA POST-UPLOAD: storage.upload puo' rispondere error=null senza che l'oggetto venga
+  // davvero persistito (es. rete instabile in campo) -> "riga senza file". Confermiamo che OGNI
+  // file esista realmente nel bucket PRIMA di scrivere le righe in DB; altrimenti rollback + 502
+  // e l'invio offline verra' ritentato al prossimo sync (auto-guarigione).
+  if (pathCaricati.length > 0) {
+    const { data: listati } = await supabaseAdmin.storage
+      .from('interventi-foto')
+      .list(richiestaId, { limit: 1000 });
+    const presenti = new Set((listati ?? []).map((o) => `${richiestaId}/${o.name}`));
+    const mancanti = pathCaricati.filter((p) => !presenti.has(p));
+    if (mancanti.length > 0) {
+      await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+      return NextResponse.json({ error: 'upload_foto_non_persistito' }, { status: 502 });
+    }
+  }
+
   // === Solo se TUTTE le foto sono caricate: INSERT DB ===
 
   // Corsia per (piano, operatore): se 'liberi', la richiesta salta l'approvazione.

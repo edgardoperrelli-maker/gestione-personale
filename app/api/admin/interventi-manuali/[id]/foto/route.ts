@@ -21,10 +21,12 @@ export async function GET(_req: Request, { params }: { params: Promise<{ id: str
     .order('created_at', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const out: Array<{ id: string; etichetta: string; fileName: string; url: string | null }> = [];
+  const out: Array<{ id: string; etichetta: string; fileName: string; url: string | null; fileMancante: boolean }> = [];
   for (const f of (foto ?? []) as Array<{ id: string; slot_etichetta: string; storage_path: string; file_name: string }>) {
     const { data: signed } = await supabaseAdmin.storage.from('interventi-foto').createSignedUrl(f.storage_path, TTL);
-    out.push({ id: f.id, etichetta: f.slot_etichetta, fileName: f.file_name, url: signed?.signedUrl ?? null });
+    const url = signed?.signedUrl ?? null;
+    // url null = la signed URL fallisce perche' l'oggetto non esiste nel bucket (foto persa in invio).
+    out.push({ id: f.id, etichetta: f.slot_etichetta, fileName: f.file_name, url, fileMancante: !url });
   }
   return NextResponse.json({ foto: out });
 }

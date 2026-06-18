@@ -42,11 +42,11 @@ export function PannelloRevisioneRichiesta({
   const [errore, setErrore] = useState<string | null>(null);
   const [dupAvviso, setDupAvviso] = useState<{ matricola: string; duplicati: DuplicatoMatricola[] } | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
-  const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null }>>([]);
+  const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }>>([]);
   const caricaFoto = useCallback(async () => {
     try {
       const r = await fetch(`/api/admin/interventi-manuali/${riga.id}/foto`, { cache: 'no-store' });
-      const j = (r.ok ? await r.json() : { foto: [] }) as { foto?: Array<{ id: string; etichetta: string; url: string | null }> };
+      const j = (r.ok ? await r.json() : { foto: [] }) as { foto?: Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }> };
       setFoto(j.foto ?? []);
     } catch { /* foto opzionali: errore silenzioso */ }
   }, [riga.id]);
@@ -111,14 +111,24 @@ export function PannelloRevisioneRichiesta({
       {/* Foto */}
       {foto.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Foto ({foto.length})</p>
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            Foto ({foto.length})
+            {foto.some((f) => f.fileMancante) && (
+              <span className="text-[var(--danger)]"> · {foto.filter((f) => f.fileMancante).length} da re-inviare</span>
+            )}
+          </p>
           <div className="flex flex-wrap gap-2">
-            {foto.map((f) => f.url && (
+            {foto.map((f) => (f.url ? (
               <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-16 w-16 overflow-hidden rounded-lg border border-[var(--brand-border)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.url} alt={f.etichetta} className="h-full w-full object-cover" />
               </a>
-            ))}
+            ) : (
+              <div key={f.id} title={`${f.etichetta} — file mancante, da re-inviare`} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-[var(--danger)] bg-[var(--danger-soft)] p-1 text-center">
+                <span className="text-[13px] leading-none" aria-hidden>⚠️</span>
+                <span className="text-[8px] font-semibold leading-tight text-[var(--danger)]">da re-inviare</span>
+              </div>
+            )))}
           </div>
         </div>
       )}
