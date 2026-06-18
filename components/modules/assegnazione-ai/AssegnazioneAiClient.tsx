@@ -48,6 +48,8 @@ export default function AssegnazioneAiClient({
   const [selezione, setSelezione] = useState<Set<string>>(() => new Set(righe.map((r) => r.id)));
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [procedendo, setProcedendo] = useState(false);
+  const [esito, setEsito] = useState<string | null>(null);
 
   const fileCfgMap = new Map<string, { committente: string; attivita: string }>(
     fileConfig.map((fc) => [fc.file, { committente: fc.committente, attivita: fc.attivita }]),
@@ -73,6 +75,33 @@ export default function AssegnazioneAiClient({
       setMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
     } finally {
       setArming(false);
+    }
+  }
+
+  async function procedi() {
+    if (selezione.size === 0) return;
+    setProcedendo(true); setEsito(null);
+    try {
+      const res = await fetch('/api/admin/agente/assegna', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: [...selezione] }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) {
+        const nr = (j.nonRisolti ?? []) as { esecutore: string; motivo: string; n: number }[];
+        const avvisi = (j.avvisi ?? []) as string[];
+        let m = `Creati ${j.pianiCreati ?? 0} piani, ${j.rapportiniCreati ?? 0} rapportini.`;
+        if (nr.length) m += ` Operatori non pianificati: ${nr.map((x) => `${x.esecutore} (${x.motivo}, ${x.n})`).join(', ')}.`;
+        if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
+        setEsito(m);
+        router.refresh();
+      } else {
+        setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);
+      }
+    } catch (e) {
+      setEsito(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally {
+      setProcedendo(false);
     }
   }
 
@@ -181,19 +210,20 @@ export default function AssegnazioneAiClient({
           <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>
             Righe pianificabili
           </h2>
-          <button
-            type="button"
-            disabled
-            title="Disponibile nella Fase 2"
-            className="rounded-xl border px-4 py-1.5 text-sm font-semibold disabled:opacity-40 disabled:cursor-not-allowed"
-            style={{
-              borderColor: 'var(--brand-primary)',
-              backgroundColor: 'var(--brand-primary-soft)',
-              color: 'var(--brand-text-main)',
-            }}
-          >
-            Procedi ({selezione.size} righe)
-          </button>
+          <div className="flex flex-col items-end gap-1">
+            <button
+              type="button"
+              onClick={() => void procedi()}
+              disabled={procedendo || selezione.size === 0}
+              className="rounded-lg px-3 py-1.5 text-sm font-semibold text-white disabled:opacity-50"
+              style={{ backgroundColor: 'var(--brand-primary)' }}
+            >
+              {procedendo ? 'Creo…' : `Procedi (${selezione.size} righe)`}
+            </button>
+            {esito && (
+              <p className="mt-2 text-sm" style={{ color: 'var(--brand-text-muted)' }}>{esito}</p>
+            )}
+          </div>
         </div>
 
         {righe.length === 0 ? (
