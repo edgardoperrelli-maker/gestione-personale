@@ -128,10 +128,15 @@ export default function RiepilogoRapportini() {
     setBusy(true); setAvviso(null);
     try {
       const res = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
-      if (res.status === 409) {
-        const j = await res.json().catch(() => ({}));
-        const nomi = (j.conflicts ?? []).map((c: { staff_name: string | null }) => c.staff_name ?? 'operatore').join(', ');
-        setAvviso(`Spostamento bloccato: ${nomi || 'operatore'} già presente in quel territorio/giorno.`);
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string; conflicts?: { staff_name: string | null }[] };
+        const conflicts = j.conflicts ?? [];
+        if (conflicts.length > 0) {
+          const nomi = conflicts.map((c) => c.staff_name ?? 'operatore').join(', ');
+          setAvviso(`Spostamento bloccato: ${nomi} già presente in quel territorio/giorno.`);
+        } else {
+          setAvviso(j.error ?? 'Spostamento non riuscito. Riprova.');
+        }
         return;
       }
       await carica();
