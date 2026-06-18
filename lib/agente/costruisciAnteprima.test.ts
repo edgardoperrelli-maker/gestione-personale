@@ -62,4 +62,14 @@ describe('costruisciAnteprima', () => {
     const gruppi = costruisciAnteprima({ righe, staff, esistentiPerData: { '2026-06-19': esistenti } });
     expect(gruppi[0].operatori[0].stato).toBe('libero');
   });
+
+  it('esecutore con cognome condiviso da due staff → ambiguo (escluso)', () => {
+    const staffAmb = [
+      { id: 's3', display_name: 'ROSSI MARIO' },
+      { id: 's4', display_name: 'ROSSI LUIGI' },
+    ];
+    const gruppi = costruisciAnteprima({ righe: [riga('r1', 'ROSSI', 'O1')], staff: staffAmb, esistentiPerData: {} });
+    expect(gruppi[0].operatori[0].stato).toBe('ambiguo');
+    expect(gruppi[0].operatori[0].staffId).toBeNull();
+  });
 });

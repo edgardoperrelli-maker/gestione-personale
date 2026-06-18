@@ -148,6 +148,7 @@ export default function AssegnazioneAiClient({
         if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
         setEsito(m);
         void caricaStorico();
+        void caricaAnteprima(righe.map((r) => r.id)); // ricalcola i conflitti: gli operatori appena assegnati passano a 'conflitto' e si deselezionano
         router.refresh();
       } else setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
@@ -176,10 +177,10 @@ export default function AssegnazioneAiClient({
   const conflitti = gruppi.reduce((s, g) => s + g.operatori.filter((o) => o.stato === 'conflitto').length, 0);
   const comuni = new Set(gruppi.map((g) => g.comune)).size;
   const liberi = gruppi.flatMap((g) => g.operatori.filter((o) => o.stato === 'libero'));
+  const assegnabili = liberi.reduce((s, o) => s + o.righe.length, 0);
   const rapportiniDaCreare = liberi.filter((o) => o.righe.some((r) => selezione.has(r.id)));
-  const pianiDaCreare = new Set(
-    gruppi.filter((g) => g.operatori.some((o) => o.stato === 'libero' && o.righe.some((r) => selezione.has(r.id)))).map((g) => g.comune),
-  ).size;
+  const pianiDaCreare = gruppi.filter((g) => g.operatori.some((o) => o.stato === 'libero' && o.righe.some((r) => selezione.has(r.id)))).length;
+  const sottoOperatori = [conflitti > 0 ? `${conflitti} in conflitto` : null, daRisolvere > 0 ? `${daRisolvere} da risolvere` : null].filter(Boolean).join(' · ');
 
   const tile = (icon: string, label: string, value: ReactNode) => (
     <div className="rounded-xl border p-3" style={card}>
@@ -228,9 +229,9 @@ export default function AssegnazioneAiClient({
         <>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
             {tile('▦', 'Righe lette', righe.length)}
-            {tile('☻', 'Operatori', <>{operatoriTot}{daRisolvere > 0 && <span className="text-sm font-normal" style={{ color: 'var(--brand-text-muted)' }}> · {daRisolvere} da risolvere</span>}</>)}
+            {tile('☻', 'Operatori', <>{operatoriTot}{sottoOperatori && <span className="text-sm font-normal" style={{ color: 'var(--brand-text-muted)' }}> · {sottoOperatori}</span>}</>)}
             {tile('⌖', 'Comuni', comuni)}
-            {tile('✔', 'Interventi', righe.length)}
+            {tile('✔', 'Assegnabili', assegnabili)}
           </div>
 
           {conflitti > 0 && (
