@@ -2,6 +2,7 @@
 // Pagina unica del modulo Interventi: la consultazione "Storico interventi".
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
+import { canManageUsers, resolveAssignableRole } from '@/lib/moduleAccess';
 import StoricoInterventiClient from '@/components/modules/interventi/StoricoInterventiClient';
 
 export const dynamic = 'force-dynamic';
@@ -11,6 +12,13 @@ export default async function InterventiPage() {
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
 
+  const { data: { user } } = await supabase.auth.getUser();
+  const { data: profile } = user
+    ? await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle()
+    : { data: null };
+  // Solo gli admin_plus possono MODIFICARE; tutti gli abilitati al modulo vedono tabella + foto.
+  const isAdminPlus = canManageUsers(resolveAssignableRole(profile?.role, user?.app_metadata?.role));
+
   const { data: staffRows } = await supabase
     .from('staff')
     .select('id, display_name')
@@ -19,7 +27,7 @@ export default async function InterventiPage() {
 
   return (
     <main className="w-full space-y-4 px-4 py-6">
-      <StoricoInterventiClient staff={staff} />
+      <StoricoInterventiClient staff={staff} isAdminPlus={isAdminPlus} />
     </main>
   );
 }

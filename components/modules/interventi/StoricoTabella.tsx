@@ -34,7 +34,14 @@ function toneClass(v: string): string {
   return 'text-[var(--brand-text-muted)]';
 }
 
-export default function StoricoTabella({ righe }: { righe: RigaStorico[] }) {
+export default function StoricoTabella({
+  righe, isAdminPlus, onFoto, onModifica,
+}: {
+  righe: RigaStorico[];
+  isAdminPlus: boolean;
+  onFoto: (voceId: string) => void;
+  onModifica: (voceId: string) => void;
+}) {
   if (righe.length === 0) {
     return (
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] py-12 text-center text-sm text-[var(--brand-text-muted)]">
@@ -50,6 +57,7 @@ export default function StoricoTabella({ righe }: { righe: RigaStorico[] }) {
             {COLS.map((c) => (
               <th key={c.header} className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 font-medium">{c.header}</th>
             ))}
+            <th className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 text-right font-medium">Azioni</th>
           </tr>
         </thead>
         <tbody>
@@ -66,6 +74,30 @@ export default function StoricoTabella({ righe }: { righe: RigaStorico[] }) {
                   </td>
                 );
               })}
+              <td className="whitespace-nowrap px-3 py-2 text-right">
+                <div className="inline-flex items-center gap-1">
+                  <button
+                    type="button"
+                    onClick={() => onFoto(r.id)}
+                    title="Vedi foto"
+                    aria-label="Vedi foto"
+                    className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                  >
+                    📷
+                  </button>
+                  {isAdminPlus && (
+                    <button
+                      type="button"
+                      onClick={() => onModifica(r.id)}
+                      title="Modifica"
+                      aria-label="Modifica"
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                    >
+                      ✎
+                    </button>
+                  )}
+                </div>
+              </td>
             </tr>
           ))}
         </tbody>

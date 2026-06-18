@@ -4,6 +4,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import StoricoFiltri, { type StatoFiltriUI } from './StoricoFiltri';
 import StoricoTabella from './StoricoTabella';
+import ModaleFotoVoce from './ModaleFotoVoce';
+import ModaleModificaVoce from './ModaleModificaVoce';
 import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/types';
 
 type Staff = { id: string; display_name: string };
@@ -44,8 +46,10 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   return params;
 }
 
-export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
+export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff: Staff[]; isAdminPlus: boolean }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
+  const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
+  const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
   const [righe, setRighe] = useState<RigaStorico[]>([]);
   const [total, setTotal] = useState(0);
   const [troncato, setTroncato] = useState(false);
@@ -167,7 +171,12 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
             Caricamento…
           </div>
         )}
-        <StoricoTabella righe={righe} />
+        <StoricoTabella
+          righe={righe}
+          isAdminPlus={isAdminPlus}
+          onFoto={(id) => setFotoVoceId(id)}
+          onModifica={(id) => setModificaVoceId(id)}
+        />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
@@ -196,6 +205,15 @@ export default function StoricoInterventiClient({ staff }: { staff: Staff[] }) {
           </div>
         )}
       </div>
+
+      {fotoVoceId && <ModaleFotoVoce voceId={fotoVoceId} onClose={() => setFotoVoceId(null)} />}
+      {isAdminPlus && modificaVoceId && (
+        <ModaleModificaVoce
+          voceId={modificaVoceId}
+          onClose={() => setModificaVoceId(null)}
+          onSaved={() => { void carica(filtri, page); }}
+        />
+      )}
     </div>
   );
 }
