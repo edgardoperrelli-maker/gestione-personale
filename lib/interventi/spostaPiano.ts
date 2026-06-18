@@ -63,12 +63,13 @@ export async function applicaSpostamentoPiano(
   const conflicts = rilevaConflitti({ pianoId, territorio: nuovoTerr, data: nuovaData, operatori, esistenti });
   if (conflicts.length > 0) return { ok: false, status: 409, conflicts };
 
-  // --- Scritture (nessuna transazione nativa in PostgREST: ordine prudente) ---
-  const headerUpdate: Record<string, unknown> = {};
-  if (cambiaData) headerUpdate.data = nuovaData;
-  if (cambiaTerr) headerUpdate.territorio = nuovoTerr;
-  const { error: eHead } = await db.from('mappa_piani').update(headerUpdate).eq('id', pianoId);
-  if (eHead) return { ok: false, status: 500, error: eHead.message };
+  // --- Scritture (nessuna transazione nativa in PostgREST) ---
+  // Ordine: prima tutte le righe figlie (rapportini, interventi, distribuzioni), poi l'header
+  // mappa_piani come "commit marker". Se il processo si interrompe prima dell'ultimo UPDATE,
+  // l'header è ancora vecchio; un re-run ricalcola cambiaData/cambiaTerr dai valori originali
+  // (nuovaData, nuovoTerr, p.data, p.territorio letti all'inizio) → ri-esegue le stesse scritture
+  // idempotenti e completa. Se invece aggiornassimo l'header per primo, un secondo invio
+  // troverebbe cambiaData/cambiaTerr = false e cortocircuiterebbe, lasciando lo stato incompleto.
 
   if (cambiaData) {
     const expires = scadenzaIso(nuovaData);
@@ -99,6 +100,13 @@ export async function applicaSpostamentoPiano(
     const territorioId = ris.ok ? ris.territorioId : null;
     await db.from('interventi').update({ territorio_id: territorioId }).eq('piano_id', pianoId);
   }
+
+  // Commit marker: aggiorna l'header solo dopo che tutte le righe figlie sono allineate.
+  const headerUpdate: Record<string, unknown> = {};
+  if (cambiaData) headerUpdate.data = nuovaData;
+  if (cambiaTerr) headerUpdate.territorio = nuovoTerr;
+  const { error: eHead } = await db.from('mappa_piani').update(headerUpdate).eq('id', pianoId);
+  if (eHead) return { ok: false, status: 500, error: eHead.message };
 
   return { ok: true };
 }
