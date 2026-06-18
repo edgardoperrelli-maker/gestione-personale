@@ -31,6 +31,7 @@ export default function PerformanceDettaglio({ operatorName, rows }: { operatorN
                   <th className="py-1 pr-3 font-medium">Tipo (origine)</th>
                   <th className="py-1 pr-3 font-medium">Committente</th>
                   <th className="py-1 pr-3 font-medium">Territorio</th>
+                  <th className="py-1 pr-3 font-medium">Saracinesca</th>
                   <th className="py-1 font-medium">Esito</th>
                 </tr>
               </thead>
@@ -42,6 +43,7 @@ export default function PerformanceDettaglio({ operatorName, rows }: { operatorN
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.intervento_tipo}</td>
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.committente}</td>
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.territorio}</td>
+                    <td className="py-1.5 pr-3">{r.valvola ? <span className="font-medium text-[var(--brand-gold)]">Sì 🔧</span> : <span className="text-[var(--brand-text-subtle)]">—</span>}</td>
                     <td className="py-1.5 text-[var(--brand-text-muted)]">{r.esito}</td>
                   </tr>
                 ))}

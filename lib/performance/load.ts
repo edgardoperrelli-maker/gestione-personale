@@ -33,6 +33,24 @@ async function fetchInterventi(f: PerfFilters): Promise<RawIntervento[]> {
   return rows;
 }
 
+/** Insieme degli intervento_id che includono una sostituzione saracinesca (flag dal rapportino). */
+async function fetchValvolaSet(): Promise<Set<string>> {
+  const set = new Set<string>();
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('intervento_id')
+      .eq('risposte->>sostituzione_valvola', 'SI')
+      .not('intervento_id', 'is', null)
+      .range(from, from + PAGE - 1);
+    if (error) { console.error('[performance] fetchValvolaSet', error); break; }
+    const batch = (data ?? []) as Array<{ intervento_id: string | null }>;
+    for (const r of batch) if (r.intervento_id) set.add(r.intervento_id);
+    if (batch.length < PAGE) break;
+  }
+  return set;
+}
+
 async function loadMaps(): Promise<{ staffName: Map<string, string>; territoryName: Map<string, string> }> {
   const [{ data: staff }, { data: terr }] = await Promise.all([
     supabaseAdmin.from('staff').select('id, display_name'),
@@ -50,11 +68,13 @@ async function loadMaps(): Promise<{ staffName: Map<string, string>; territoryNa
 }
 
 export async function loadPerformanceData(f: PerfFilters, selOperator: string | null): Promise<PerformanceData> {
-  const [rows, maps] = await Promise.all([fetchInterventi(f), loadMaps()]);
+  const [rows, maps, valvolaSet] = await Promise.all([fetchInterventi(f), loadMaps(), fetchValvolaSet()]);
+  for (const r of rows) r.valvola = valvolaSet.has(r.id);
   return aggregatePerformance(rows, maps.staffName, maps.territoryName, {
     dateFrom: f.dateFrom,
     dateTo: f.dateTo,
     macroAttivita: f.macroAttivita,
+    soloValvola: f.soloValvola,
     selOperator,
   });
 }

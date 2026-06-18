@@ -53,6 +53,7 @@ export default async function PerformancePage({ searchParams }: { searchParams: 
     territorioId: pick(sp.territorioId),
     committente: pick(sp.committente),
     macroAttivita: pick(sp.macro),
+    soloValvola: pick(sp.valvola) === '1',
   };
   const selOperator = pick(sp.selOperator) ?? null;
 

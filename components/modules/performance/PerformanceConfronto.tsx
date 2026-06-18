@@ -30,7 +30,10 @@ export default function PerformanceConfronto({
               >
                 <div className="min-w-0">
                   <div className="truncate text-[13px] font-medium text-[var(--brand-text-main)]">{o.name}</div>
-                  <div className="truncate text-[11px] text-[var(--brand-text-muted)]">{segs.map(([k]) => k).join(', ') || '—'}</div>
+                  <div className="truncate text-[11px] text-[var(--brand-text-muted)]">
+                    {segs.map(([k]) => k).join(', ') || '—'}
+                    {o.valvole > 0 && <span className="text-[var(--brand-gold)]"> · 🔧 {o.valvole} saracinesca</span>}
+                  </div>
                 </div>
                 <div className="h-3.5 overflow-hidden rounded-md bg-[var(--brand-border)]/40">
                   <div className="flex h-full" style={{ width: `${(o.total / max) * 100}%` }}>

@@ -21,7 +21,10 @@ export default function PerformancePanel({ data, selOperator }: { data: Performa
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <span className="rounded-full bg-[var(--brand-gold)]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-gold)]">Admin Plus</span>
-        <span className="text-sm text-[var(--brand-text-muted)]">{data.totale.toLocaleString('it-IT')} interventi completati nel periodo</span>
+        <span className="text-sm text-[var(--brand-text-muted)]">
+          {data.totale.toLocaleString('it-IT')} interventi completati nel periodo
+          {data.totaleValvole > 0 && <> · di cui <strong className="text-[var(--brand-text-main)]">{data.totaleValvole.toLocaleString('it-IT')}</strong> con sostituzione saracinesca</>}
+        </span>
       </div>
       <PerformanceConfronto operators={data.confronto} onSelect={select} selectedId={selOperator} />
       <PerformanceAndamento points={data.andamento.points} granularity={data.andamento.granularity} />

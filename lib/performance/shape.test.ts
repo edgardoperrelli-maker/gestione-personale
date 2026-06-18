@@ -45,7 +45,7 @@ describe('aggregatePerformance', () => {
   const staff = new Map<string, string>([['s1', 'Rossi Mario'], ['s2', 'Bianchi Anna']]);
   const terr = new Map<string, string>([['t1', 'Firenze'], ['t2', 'Lazio Centro']]);
   const rows: RawIntervento[] = [
-    { id: 'a', staff_id: 's1', data: '2026-05-04', territorio_id: 't1', committente: 'acea', intervento_tipo: 'LIMITAZIONI MASSIVE', esito: 'eseguito_positivo' },
+    { id: 'a', staff_id: 's1', data: '2026-05-04', territorio_id: 't1', committente: 'acea', intervento_tipo: 'LIMITAZIONI MASSIVE', esito: 'eseguito_positivo', valvola: true },
     { id: 'b', staff_id: 's1', data: '2026-05-04', territorio_id: 't1', committente: 'acea', intervento_tipo: 'BONIFICHE EXTRA', esito: null },
     { id: 'c', staff_id: 's2', data: '2026-05-05', territorio_id: 't2', committente: 'lim_massive', intervento_tipo: 'Limitazione massiva', esito: null },
   ];
@@ -74,5 +74,19 @@ describe('aggregatePerformance', () => {
     expect(out.dettaglio?.name).toBe('Bianchi Anna');
     expect(out.dettaglio?.rows.length).toBe(1);
     expect(out.dettaglio?.rows[0].territorio).toBe('Lazio Centro');
+    expect(out.dettaglio?.rows[0].valvola).toBe(false);
+  });
+  it('saracinesca: conteggio per operatore + totale (no doppio conteggio sul totale)', () => {
+    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20' });
+    expect(out.totale).toBe(3); // il totale interventi resta invariato
+    expect(out.totaleValvole).toBe(1);
+    expect(out.confronto.find((o) => o.id === 's1')?.valvole).toBe(1);
+    expect(out.confronto.find((o) => o.id === 's2')?.valvole).toBe(0);
+  });
+  it('filtro soloValvola riduce ai soli interventi con saracinesca', () => {
+    const out = aggregatePerformance(rows, staff, terr, { dateFrom: '2026-05-01', dateTo: '2026-05-20', soloValvola: true });
+    expect(out.totale).toBe(1);
+    expect(out.totaleValvole).toBe(1);
+    expect(out.confronto[0].id).toBe('s1');
   });
 });

@@ -23,6 +23,7 @@ export default function PerformanceFilters({
   const [committente, setCommittente] = useState(sp.get('committente') ?? '');
   const [territorioId, setTerritorioId] = useState(sp.get('territorioId') ?? '');
   const [macro, setMacro] = useState(sp.get('macro') ?? '');
+  const [soloValvola, setSoloValvola] = useState(sp.get('valvola') === '1');
 
   const invalidRange = Boolean(dateFrom && dateTo && dateFrom > dateTo);
 
@@ -36,6 +37,7 @@ export default function PerformanceFilters({
     if (committente) p.set('committente', committente);
     if (territorioId) p.set('territorioId', territorioId);
     if (macro) p.set('macro', macro);
+    if (soloValvola) p.set('valvola', '1');
     const sel = sp.get('selOperator');
     if (sel) p.set('selOperator', sel);
     return p;
@@ -43,7 +45,7 @@ export default function PerformanceFilters({
 
   const apply = () => router.push(`/hub/performance?${buildParams().toString()}`);
   const reset = () => {
-    setDateFrom(''); setDateTo(''); setStaffId(''); setCommittente(''); setTerritorioId(''); setMacro('');
+    setDateFrom(''); setDateTo(''); setStaffId(''); setCommittente(''); setTerritorioId(''); setMacro(''); setSoloValvola(false);
     router.push('/hub/performance');
   };
 
@@ -93,6 +95,10 @@ export default function PerformanceFilters({
         <button type="button" className={preset} onClick={presetTrimestre}>Trimestre</button>
         <button type="button" className={preset} onClick={presetAnno}>Anno</button>
         <button type="button" className={preset} onClick={presetTutto} disabled={!minDate}>Tutto lo storico</button>
+        <label className="ml-2 inline-flex cursor-pointer items-center gap-1.5 text-[11px] text-[var(--brand-text-muted)]">
+          <input type="checkbox" checked={soloValvola} onChange={(e) => setSoloValvola(e.target.checked)} className="accent-[var(--brand-primary)]" />
+          Solo con sost. saracinesca
+        </label>
       </div>
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
         <div className="space-y-1">

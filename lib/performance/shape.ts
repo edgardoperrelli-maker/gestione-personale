@@ -12,6 +12,8 @@ export interface RawIntervento {
   committente: string | null;
   intervento_tipo: string | null;
   esito: string | null;
+  /** L'intervento includeva una sostituzione saracinesca (flag dal rapportino). */
+  valvola?: boolean;
 }
 
 export interface PerfFilters {
@@ -21,6 +23,8 @@ export interface PerfFilters {
   territorioId?: string;
   committente?: string;
   macroAttivita?: string;
+  /** Solo interventi che includono una sostituzione saracinesca. */
+  soloValvola?: boolean;
 }
 
 // ---- Date (formato italiano, bucketing timezone-safe: nessun new Date(iso)) ----
@@ -94,6 +98,7 @@ export interface ConfrontoOperator {
   id: string;
   name: string;
   total: number;
+  valvole: number;
   byMacro: Record<string, number>;
 }
 export interface AndamentoPoint { periodo: string; periodoLabel: string; n: number }
@@ -106,11 +111,13 @@ export interface DettaglioRow {
   committente: string;
   territorio: string;
   esito: string;
+  valvola: boolean;
 }
 export interface SelectOption { value: string; label: string }
 
 export interface PerformanceData {
   totale: number;
+  totaleValvole: number;
   confronto: ConfrontoOperator[];
   andamento: { granularity: Granularity; points: AndamentoPoint[] };
   perMacro: DistribuzioneSlice[];
@@ -134,17 +141,19 @@ export function aggregatePerformance(
   rows: RawIntervento[],
   staffName: Map<string, string>,
   territoryName: Map<string, string>,
-  opts: { dateFrom: string; dateTo: string; macroAttivita?: string; selOperator?: string | null },
+  opts: { dateFrom: string; dateTo: string; macroAttivita?: string; soloValvola?: boolean; selOperator?: string | null },
 ): PerformanceData {
-  const filtered = opts.macroAttivita
+  let filtered = opts.macroAttivita
     ? rows.filter((r) => normalizeMacroAttivita(r.intervento_tipo) === opts.macroAttivita)
     : rows;
+  if (opts.soloValvola) filtered = filtered.filter((r) => r.valvola === true);
 
   const perOp = new Map<string, ConfrontoOperator>();
   const perGiorno = new Map<string, number>();
   const perMacro = new Map<string, number>();
   const perComm = new Map<string, number>();
   const perTerr = new Map<string, number>();
+  let totaleValvole = 0;
 
   for (const r of filtered) {
     const opId = r.staff_id ?? UNKNOWN_OP;
@@ -154,11 +163,12 @@ export function aggregatePerformance(
 
     let op = perOp.get(opId);
     if (!op) {
-      op = { id: opId, name: staffName.get(opId) ?? UNKNOWN_OP, total: 0, byMacro: {} };
+      op = { id: opId, name: staffName.get(opId) ?? UNKNOWN_OP, total: 0, valvole: 0, byMacro: {} };
       perOp.set(opId, op);
     }
     op.total += 1;
     op.byMacro[macro] = (op.byMacro[macro] ?? 0) + 1;
+    if (r.valvola) { op.valvole += 1; totaleValvole += 1; }
 
     perGiorno.set(r.data.slice(0, 10), (perGiorno.get(r.data.slice(0, 10)) ?? 0) + 1);
     perMacro.set(macro, (perMacro.get(macro) ?? 0) + 1);
@@ -189,6 +199,7 @@ export function aggregatePerformance(
         committente: (r.committente ?? '').trim() || '—',
         territorio: (r.territorio_id && territoryName.get(r.territorio_id)) || NO_TERR,
         esito: (r.esito ?? '').trim() || '—',
+        valvola: r.valvola === true,
       }))
       .sort((a, b) => (a.giorno < b.giorno ? 1 : a.giorno > b.giorno ? -1 : 0));
     dettaglio = { name: staffName.get(opts.selOperator) ?? UNKNOWN_OP, rows: rowsDet };
@@ -196,6 +207,7 @@ export function aggregatePerformance(
 
   return {
     totale: filtered.length,
+    totaleValvole,
     confronto,
     andamento: { granularity, points },
     perMacro: sortSlices(perMacro),
