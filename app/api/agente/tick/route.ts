@@ -21,6 +21,7 @@ type ConfigRow = {
   ultima_rivendicazione_giorno: string | null;
   forza_giro: boolean;
   forza_scan: boolean;
+  pianifica_data: string | null;
 };
 
 export async function POST(req: Request) {
@@ -40,7 +41,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data',
       )
       .eq('id', 1)
       .single();
@@ -123,6 +124,7 @@ export async function POST(req: Request) {
         esitoPositivo: config.esito_positivo ?? 'eseguito',
         esitoNegativo: config.esito_negativo ?? 'No',
         forzaScan: config.forza_scan === true,
+        pianificaData: config.pianifica_data ?? null,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
