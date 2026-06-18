@@ -65,7 +65,7 @@ export async function POST(req: Request) {
         const { data: esistenti } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', p.data).eq('territorio', p.comune);
         for (const ex of (esistenti ?? []) as Array<{ id: string }>) {
           const { count } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', ex.id);
-          if (!count) await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
+          if (count === 0) await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
         }
         // crea piano + operatori
         const { data: piano, error: ePiano } = await supabaseAdmin.from('mappa_piani').insert({
@@ -78,10 +78,19 @@ export async function POST(req: Request) {
           km: 0, task_count: o.tasks.length, start_address: null, tasks: o.tasks, polyline: [],
         }));
         const { error: eOp } = await supabaseAdmin.from('mappa_piani_operatori').insert(opRows);
-        if (eOp) { avvisi.push(`Operatori ${p.comune} ${p.data}: ${eOp.message}.`); continue; }
+        if (eOp) {
+          await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+          avvisi.push(`Operatori ${p.comune} ${p.data}: ${eOp.message}.`);
+          continue;
+        }
         // rapportini (sincronizzaRapportini chiama ensureInterventiForPiano internamente)
         const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id, overwrite: 'replace' });
-        if (!res.ok) { avvisi.push(`Rapportini ${p.comune} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`); continue; }
+        if (!res.ok) {
+          const { count: nRap } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId);
+          if (nRap === 0) await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+          avvisi.push(`Rapportini ${p.comune} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`);
+          continue;
+        }
         pianiCreati += 1;
         rapportiniCreati += res.rapportini.length;
         if (res.interventiWarning) avvisi.push(`Interventi ${p.comune} ${p.data}: ${res.interventiWarning}`);
@@ -93,7 +102,7 @@ export async function POST(req: Request) {
       nonRisolti: [...nonRisoltiMap.values()], avvisi,
     });
   } catch (err: unknown) {
-    const msg = err instanceof Error ? err.message : 'Errore assegna.';
+    const msg = err instanceof Error ? err.message : (err as { message?: string } | null)?.message ?? 'Errore assegna.';
     return NextResponse.json({ error: msg }, { status: 500 });
   }
 }
