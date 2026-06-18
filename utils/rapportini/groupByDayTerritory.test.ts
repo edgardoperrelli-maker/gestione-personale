@@ -56,6 +56,25 @@ describe('groupByDayTerritory', () => {
     expect(out.map((g) => g.data)).toEqual(['2026-06-18', '2026-06-19', '2026-06-17']);
   });
 
+  it('(e) raggruppamento usa territorio EFFETTIVO (r.territorio), non il piano logico', () => {
+    // Due operatori nello stesso giorno e piano logico ma con territorio effettivo diverso:
+    // il secondo ha territorio_override applicato lato server → r.territorio='SUD'
+    const raps = [
+      rap({ id: 'op1', piano_id: 'p1', data: '2026-06-18', territorio: 'NORD', piano_creato_at: '2026-06-18T08:00:00Z', staff_id: 's1' }),
+      rap({ id: 'op2', piano_id: 'p1', data: '2026-06-18', territorio: 'SUD',  piano_creato_at: '2026-06-18T08:00:00Z', staff_id: 's2', territorio_override: 'SUD' }),
+    ];
+    const out = groupByDayTerritory(raps, '2026-06-18');
+    const territori = out[0].territori;
+    // Devono esserci due TerritorioGruppo distinti
+    expect(territori).toHaveLength(2);
+    const etichette = territori.map((t) => t.etichetta).sort();
+    expect(etichette).toEqual(['NORD', 'SUD']);
+    // L'operatore spostato deve conservare territorio_override nel risultato (usato dal badge "↪ spostato")
+    const gruppoSud = territori.find((t) => t.etichetta === 'SUD')!;
+    const opSpostato = gruppoSud.piani[0].operatori[0];
+    expect(opSpostato.territorio_override).toBe('SUD');
+  });
+
   it('nOperatori conta tutti gli operatori del territorio (su tutti i piani)', () => {
     const raps = [
       rap({ id: 'a', piano_id: 'p1', data: '2026-06-18', territorio: 'NORD', piano_creato_at: '2026-06-18T08:00:00Z', staff_id: 's1' }),

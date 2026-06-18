@@ -57,7 +57,7 @@ export function groupByDayTerritory(raps: RapRiepilogo[], oggi: string): GiornoT
         const terrOriginale = primoOp?.territorio ?? null;
         return {
           chiave,
-          etichetta: chiave === SENZA ? 'Senza territorio' : etichettaTerr(terrOriginale),
+          etichetta: chiave === SENZA ? 'Senza territorio' : etichettaTerr(terrOriginale ?? chiave),
           piani,
           nOperatori,
         };
