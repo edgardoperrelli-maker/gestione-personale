@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RapportinoStato } from '@/utils/rapportini/links';
 import { type RapRiepilogo } from '@/utils/rapportini/groupByDay';
-import { groupByDayTerritory } from '@/utils/rapportini/groupByDayTerritory';
+import { groupByDayPiano } from '@/utils/rapportini/groupByDayPiano';
 import { filtraRapportini, type FiltriRiepilogo as Filtri } from '@/utils/rapportini/filtraRapportini';
 import FiltriRiepilogo from './riepilogo/FiltriRiepilogo';
-import CardTerritorio from './riepilogo/CardTerritorio';
+import CardPianificazione from './riepilogo/CardPianificazione';
+import IntestazioneGiorno from './riepilogo/IntestazioneGiorno';
 import { PERIODI, calcolaRange } from '@/utils/rapportini/rangePeriodo';
 
 function fmtData(iso: string): string {
@@ -27,7 +28,7 @@ export default function RiepilogoRapportini() {
   const [confirmOp, setConfirmOp] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [territoriLista, setTerritoriLista] = useState<Array<{ id: string; name: string }>>([]);
-  const [spostaOpen, setSpostaOpen] = useState<string | null>(null);
+  const [avviso, setAvviso] = useState<string | null>(null);
 
   const carica = useCallback(async () => {
     const oggi = new Date().toISOString().slice(0, 10);
@@ -66,7 +67,8 @@ export default function RiepilogoRapportini() {
     return [...m.entries()].map(([id, nome]) => ({ id, nome })).sort((a, b) => a.nome.localeCompare(b.nome));
   }, [raps]);
 
-  const giorni = useMemo(() => groupByDayTerritory(filtraRapportini(raps, filtri)), [raps, filtri]);
+  const oggi = new Date().toISOString().slice(0, 10);
+  const giorni = useMemo(() => groupByDayPiano(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
 
   const copia = async (r: RapportinoStato & { url: string; token: string }) => {
     try {
@@ -95,7 +97,7 @@ export default function RiepilogoRapportini() {
         body: JSON.stringify({ rapportinoId, territorio }),
       });
       await carica();
-    } finally { setBusy(false); setSpostaOpen(null); }
+    } finally { setBusy(false); }
   };
 
   const riapriRapportino = async (rapportinoId: string) => {
@@ -113,8 +115,8 @@ export default function RiepilogoRapportini() {
   };
 
   const scaricaExcel = () => {
-    const oggi = new Date().toISOString().slice(0, 10);
-    const range = calcolaRange(periodo, { dataDa, dataA }, oggi);
+    const oggiStr = new Date().toISOString().slice(0, 10);
+    const range = calcolaRange(periodo, { dataDa, dataA }, oggiStr);
     if (!range) return;
     const p = new URLSearchParams({ from: range.from, to: range.to });
     if (filtri.territorio) p.set('territorio', filtri.territorio);
@@ -122,8 +124,40 @@ export default function RiepilogoRapportini() {
     window.open(`/api/admin/rapportini/export-intervalli?${p.toString()}`, '_blank');
   };
 
+  const gestisciSpostamento = async (url: string, body: object) => {
+    setBusy(true); setAvviso(null);
+    try {
+      const res = await fetch(url, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+      if (res.status === 409) {
+        const j = await res.json().catch(() => ({}));
+        const nomi = (j.conflicts ?? []).map((c: { staff_name: string | null }) => c.staff_name ?? 'operatore').join(', ');
+        setAvviso(`Spostamento bloccato: ${nomi || 'operatore'} già presente in quel territorio/giorno.`);
+        return;
+      }
+      await carica();
+    } finally { setBusy(false); }
+  };
+
+  const onSpostaDataOperatore = (rapportinoId: string, data: string) => {
+    const oggiStr = new Date().toISOString().slice(0, 10);
+    if (data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
+    void gestisciSpostamento('/api/mappa/rapportini/data', { rapportinoId, data });
+  };
+
+  const onSpostaPiano = (pianoId: string, opts: { data?: string; territorio?: string | null }) => {
+    const oggiStr = new Date().toISOString().slice(0, 10);
+    if (opts.data && opts.data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
+    void gestisciSpostamento('/api/mappa/piani/sposta', { pianoId, ...opts });
+  };
+
   return (
     <div className="space-y-5">
+      {avviso && (
+        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-4 py-2.5 text-sm text-[var(--warning)]">
+          {avviso}
+          <button type="button" onClick={() => setAvviso(null)} className="ml-3 text-[var(--warning)] opacity-70 hover:opacity-100">✕</button>
+        </div>
+      )}
       <div className="flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold">Riepilogo rapportini</h2>
         <div className="flex items-center gap-2">
@@ -146,8 +180,8 @@ export default function RiepilogoRapportini() {
           onChange={(e) => {
             const v = e.target.value;
             if (v === 'custom' && !dataDa && !dataA) {
-              const oggi = new Date().toISOString().slice(0, 10);
-              const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggi);
+              const oggiStr = new Date().toISOString().slice(0, 10);
+              const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggiStr);
               if (r) { setDataDa(r.from); setDataA(r.to); }
             }
             setPeriodo(v);
@@ -189,29 +223,31 @@ export default function RiepilogoRapportini() {
       ) : (
         giorni.map((g) => (
           <div key={g.data} className="space-y-3">
-            <h3 className="text-sm font-semibold capitalize text-[var(--brand-text-main)]">{fmtData(g.data)}</h3>
-            {g.territori.map((terr) => (
-              <CardTerritorio
-                key={`${g.data}-${terr.chiave}`}
-                terr={terr}
-                dataLabel={fmtData(g.data)}
-                copiedToken={copiedToken}
-                onCopia={copia}
-                onRiapri={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
-                onEliminaPiano={eliminaPiano}
-                onRimuoviOp={rimuoviOperatore}
-                onRiapriRapportino={riapriRapportino}
-                confirmPiano={confirmPiano}
-                setConfirmPiano={setConfirmPiano}
-                confirmOp={confirmOp}
-                setConfirmOp={setConfirmOp}
-                busy={busy}
-                territori={territoriLista}
-                onSposta={spostaOperatore}
-                spostaOpen={spostaOpen}
-                setSpostaOpen={setSpostaOpen}
-              />
-            ))}
+            <IntestazioneGiorno giorno={g} oggi={oggi} />
+            <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+              {g.piani.map((piano) => (
+                <CardPianificazione
+                  key={piano.piano_id}
+                  piano={piano}
+                  dataLabel={fmtData(g.data)}
+                  copiedToken={copiedToken}
+                  onCopia={copia}
+                  onRiapriHref={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
+                  onEliminaPiano={eliminaPiano}
+                  onRimuoviOp={rimuoviOperatore}
+                  onRiapriRapportino={riapriRapportino}
+                  confirmPiano={confirmPiano}
+                  setConfirmPiano={setConfirmPiano}
+                  confirmOp={confirmOp}
+                  setConfirmOp={setConfirmOp}
+                  busy={busy}
+                  territori={territoriLista}
+                  onSpostaTerritorioOperatore={spostaOperatore}
+                  onSpostaDataOperatore={onSpostaDataOperatore}
+                  onSpostaPiano={onSpostaPiano}
+                />
+              ))}
+            </div>
           </div>
         ))
       )}
