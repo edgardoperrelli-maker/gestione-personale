@@ -1,5 +1,5 @@
 'use client';
-import type { GiornoPiani } from '@/utils/rapportini/groupByDayPiano';
+import type { GiornoTerritori } from '@/utils/rapportini/groupByDayTerritory';
 import { etichettaRelativaGiorno } from '@/utils/rapportini/giorniRiepilogo';
 
 function fmtData(iso: string): string {
@@ -14,11 +14,11 @@ const BADGE: Record<'oggi' | 'domani' | 'ieri', { label: string; cls: string }> 
   ieri: { label: 'Ieri', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
 };
 
-export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoPiani; oggi: string }) {
+export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoTerritori; oggi: string }) {
   const rel = etichettaRelativaGiorno(giorno.data, oggi);
-  const nPiani = giorno.piani.length;
-  const nOperatori = giorno.piani.reduce((s, p) => s + p.operatori.length, 0);
-  const nInterventi = giorno.piani.reduce((s, p) => s + p.operatori.reduce((x, o) => x + (o.nVoci ?? 0), 0), 0);
+  const nPiani = giorno.territori.reduce((s, t) => s + t.piani.length, 0);
+  const nOperatori = giorno.territori.reduce((s, t) => s + t.nOperatori, 0);
+  const nInterventi = giorno.territori.reduce((s, t) => s + t.piani.reduce((x, p) => x + p.operatori.reduce((y, o) => y + (o.nVoci ?? 0), 0), 0), 0);
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       {rel && (
