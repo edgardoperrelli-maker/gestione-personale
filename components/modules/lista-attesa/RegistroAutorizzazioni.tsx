@@ -7,6 +7,8 @@ import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommitte
 import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { RecuperoFotoRichiesta } from './RecuperoFotoRichiesta';
+import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
+import { INFO_CAMPI_DISPONIBILI } from '@/utils/rapportini/infoCampi';
 import type { RigaRichiesta, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -31,6 +33,64 @@ function toCsv(righe: RigaRichiesta[]): string {
       .join(','),
   );
   return [head.join(','), ...rows].join('\r\n');
+}
+
+const labelCls = 'text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]';
+
+/** Valore leggibile di un campo esito per la vista read-only del registro. */
+function formatValoreEsito(campo: TemplateCampo, v: unknown): string {
+  if (campo.tipo === 'crocetta') return v === true || v === 'true' || v === 'SI' || v === 'X' || v === 1 ? 'SI' : '—';
+  const s = v === null || v === undefined ? '' : String(v);
+  return s.trim() === '' ? '—' : s;
+}
+
+/** Dettaglio read-only di una richiesta espandendo la riga: anagrafica + esiti + note + foto. */
+function DettaglioRiga({ riga, campiEsito }: { riga: RigaRichiesta; campiEsito: TemplateCampo[] }) {
+  const dati = datiFormRevisione(riga);
+  const anagrafiche = INFO_CAMPI_DISPONIBILI
+    .map((c) => ({ chiave: c.chiave, etichetta: c.etichettaDefault, valore: ((dati.anagrafica as Record<string, string>)[c.chiave] ?? '').trim() }))
+    .filter((a) => a.valore !== '');
+  const esiti = campiEsito.filter((c) => c.tipo !== 'foto');
+  return (
+    <div className="space-y-3">
+      {anagrafiche.length > 0 && (
+        <div className="space-y-1">
+          <p className={labelCls}>Anagrafica</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 md:grid-cols-3">
+            {anagrafiche.map((a) => (
+              <div key={a.chiave} className="min-w-0">
+                <span className="block truncate text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">{a.etichetta}</span>
+                <span className="text-sm text-[var(--brand-text-main)]">{a.valore}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {esiti.length > 0 && (
+        <div className="space-y-1">
+          <p className={labelCls}>Esiti</p>
+          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 md:grid-cols-3">
+            {esiti.map((c) => (
+              <div key={c.chiave} className="min-w-0">
+                <span className="block truncate text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</span>
+                <span className="text-sm text-[var(--brand-text-main)]">{formatValoreEsito(c, dati.risposte[c.chiave])}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {riga.note && (
+        <div className="space-y-1">
+          <p className={labelCls}>Note</p>
+          <p className="text-sm text-[var(--brand-text-main)]">{riga.note}</p>
+        </div>
+      )}
+      <div className="space-y-1">
+        <p className={labelCls}>Foto</p>
+        <RecuperoFotoRichiesta richiestaId={riga.id} slotFoto={campiFoto(campiEsito)} />
+      </div>
+    </div>
+  );
 }
 
 export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> }) {
@@ -158,13 +218,16 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                 <th className="px-3 py-2 text-left font-semibold">Approvatore</th>
                 <th className="px-3 py-2 text-left font-semibold">Approvato il</th>
                 <th className="px-3 py-2 text-left font-semibold">Motivo</th>
-                <th className="px-3 py-2 text-left font-semibold">Foto</th>
+                <th className="px-3 py-2 text-left font-semibold">Dettagli</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--brand-border)]">
               {filtrate.map((r) => (
                 <Fragment key={r.id}>
-                  <tr>
+                  <tr
+                    onClick={() => setApertaId((a) => (a === r.id ? null : r.id))}
+                    className="cursor-pointer transition hover:bg-[var(--brand-surface-muted)]"
+                  >
                     <td className="px-3 py-2">{formatDataIt(r.data)}</td>
                     <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
                     <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
@@ -173,15 +236,16 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                     <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
                     <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
                     <td className="px-3 py-2">
-                      <button type="button" onClick={() => setApertaId((a) => (a === r.id ? null : r.id))} className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs font-semibold text-[var(--brand-text-muted)]">
-                        {apertaId === r.id ? 'Chiudi' : '📷 Foto'}
-                      </button>
+                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-text-muted)]">
+                        <span aria-hidden>{apertaId === r.id ? '▾' : '▸'}</span>
+                        {apertaId === r.id ? 'Chiudi' : 'Dettagli'}
+                      </span>
                     </td>
                   </tr>
                   {apertaId === r.id && (
                     <tr>
                       <td colSpan={8} className="bg-[var(--brand-surface-muted)] px-3 py-3">
-                        <RecuperoFotoRichiesta richiestaId={r.id} slotFoto={campiFoto(campiPerCommittente[r.committente] ?? [])} />
+                        <DettaglioRiga riga={r} campiEsito={campiPerCommittente[r.committente] ?? []} />
                       </td>
                     </tr>
                   )}
