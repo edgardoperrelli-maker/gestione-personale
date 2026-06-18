@@ -28,3 +28,8 @@ export function tick({ baseUrl, exportKey, files }, fetchImpl = fetch) {
 export function inviaReport({ baseUrl, exportKey, report }, fetchImpl = fetch) {
   return postJson(`${baseUrl}/api/agente/report`, exportKey, report, fetchImpl);
 }
+
+/** POST /api/agente/pianificabili con le righe lette per un giorno. */
+export function inviaPianificabili({ baseUrl, exportKey, file, data, righe }, fetchImpl = fetch) {
+  return postJson(`${baseUrl}/api/agente/pianificabili`, exportKey, { file, data, righe }, fetchImpl);
+}

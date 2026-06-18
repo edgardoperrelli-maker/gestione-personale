@@ -10,7 +10,8 @@ import { decidiScritturaData } from './lib/dataCella.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
-import { tick, inviaReport, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
+import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
+import { estraiPianificabili } from './lib/pianificabili.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 export const MARKER_AUTOMAZIONE = 'SI';
@@ -249,6 +250,40 @@ function scriviLog(cartella, stamp, report) {
   fs.writeFileSync(path.join(dir, `${stamp}.json`), JSON.stringify(report, null, 2), 'utf8');
 }
 
+/** Legge dai file master le righe pianificabili del giorno e le invia all'app (no scrittura). */
+async function leggiPianificabili({ baseUrl, exportKey, cartella, dataTarget }) {
+  if (!fs.existsSync(cartella)) return;
+  const files = fs.readdirSync(cartella)
+    .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~$'))
+    .map((f) => path.join(cartella, f));
+  for (const file of files) {
+    try {
+      const wb = await caricaWorkbook(file);
+      const ws = wb.worksheets[0];
+      const rIntest = trovaRigaIntestazione(ws);
+      if (rIntest < 0) continue; // non master
+      const header = (ws.getRow(rIntest).values || []).slice(1);
+      const col = rilevaColonne(header); // {odl,matricola,via,comune,esecutore,data,esito}
+      const grezze = [];
+      for (let r = rIntest + 1; r <= ws.rowCount; r++) {
+        const row = ws.getRow(r);
+        const cell = (i) => (i != null ? row.getCell(i + 1).value : null);
+        grezze.push({
+          riga: r,
+          odl: cell(col.odl), matricola: cell(col.matricola),
+          indirizzo: cell(col.via), comune: cell(col.comune), esecutore: cell(col.esecutore),
+          dataRaw: cell(col.data), esitoRaw: cell(col.esito),
+        });
+      }
+      const righe = estraiPianificabili(grezze, dataTarget);
+      await inviaPianificabili({ baseUrl, exportKey, file: path.basename(file), data: dataTarget, righe });
+      console.log(`[lim-sync] pianificabili ${path.basename(file)} ${dataTarget}: ${righe.length} righe.`);
+    } catch (e) {
+      console.error(`[lim-sync] leggiPianificabili ${path.basename(file)} fallito: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+}
+
 /** Legge la data ISO dell'ultimo scan (YYYY-MM-DD) dal file stamp; null se assente. */
 function leggiStampScan(cfgPath) {
   const stampPath = path.join(path.dirname(cfgPath), 'scanColonne.stamp');
@@ -302,6 +337,11 @@ async function main() {
     } catch (e) {
       console.error(`[lim-sync] re-scan forzato fallito: ${e instanceof Error ? e.message : e}`);
     }
+  }
+
+  // Lettura "Assegnazione AI": l'app chiede di leggere un giorno specifico (one-shot).
+  if (ris.pianificaData) {
+    await leggiPianificabili({ baseUrl, exportKey: cfg.exportKey, cartella: cfg.cartella, dataTarget: ris.pianificaData });
   }
 
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
