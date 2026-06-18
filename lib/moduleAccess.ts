@@ -20,6 +20,7 @@ export type AppModuleKey =
   | 'appuntamenti'
   | 'misuratori'
   | 'agente'
+  | 'assegnazione-ai'
   | 'performance'
   | 'impostazioni';
 
@@ -138,6 +139,15 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Pianificazione e feedback sync limitazioni massive',
     section: 'modules',
     matchPrefixes: ['/hub/agente'],
+    adminOnly: true,
+  },
+  {
+    key: 'assegnazione-ai',
+    href: '/hub/assegnazione-ai',
+    label: 'Assegnazione AI',
+    description: 'Pianificazione assistita dagli interventi letti dal file',
+    section: 'modules',
+    matchPrefixes: ['/hub/assegnazione-ai'],
     adminOnly: true,
   },
   {
