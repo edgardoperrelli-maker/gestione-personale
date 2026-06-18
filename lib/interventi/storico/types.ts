@@ -7,6 +7,8 @@
 export type RigaStorico = {
   id: string;
   odl: string | null;
+  pdr: string | null;
+  matricola: string | null;
   data: string | null; // data esecuzione = data del rapportino (YYYY-MM-DD)
   esecutore: string | null;
   via: string | null;

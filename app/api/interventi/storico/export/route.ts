@@ -15,6 +15,8 @@ const MAX_RIGHE = 100000;
 
 const HEADERS = [
   { key: 'odl', header: 'ODL/ODS', width: 16 },
+  { key: 'pdr', header: 'PDR', width: 18 },
+  { key: 'matricola', header: 'MATRICOLA', width: 18 },
   { key: 'data', header: 'DATA ESECUZIONE', width: 16 },
   { key: 'esecutore', header: 'ESECUTORE', width: 22 },
   { key: 'via', header: 'VIA', width: 28 },
@@ -66,6 +68,8 @@ export async function GET(req: Request) {
     for (const r of righe) {
       ws.getRow(rowIdx).values = {
         odl: r.odl ?? '',
+        pdr: r.pdr ?? '',
+        matricola: r.matricola ?? '',
         data: fmtData(r.data),
         esecutore: r.esecutore ?? '',
         via: r.via ?? '',

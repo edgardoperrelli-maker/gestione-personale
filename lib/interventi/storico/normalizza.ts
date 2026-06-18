@@ -37,6 +37,8 @@ export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, st
   return {
     id: row.id,
     odl: nz(row.odl),
+    pdr: nz(row.pdr),
+    matricola: nz(row.matricola),
     data: rapp?.data ?? null,
     esecutore: nz(rapp?.staff_name) ?? (staffId ? staffById.get(staffId) ?? null : null),
     via: nz(row.via),

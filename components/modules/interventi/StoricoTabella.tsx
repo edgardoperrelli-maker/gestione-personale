@@ -5,6 +5,8 @@ import type { RigaStorico } from '@/lib/interventi/storico/types';
 
 const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'odl', header: 'ODL/ODS' },
+  { key: 'pdr', header: 'PDR' },
+  { key: 'matricola', header: 'Matricola' },
   { key: 'data', header: 'Data esecuzione' },
   { key: 'esecutore', header: 'Esecutore' },
   { key: 'via', header: 'Via' },

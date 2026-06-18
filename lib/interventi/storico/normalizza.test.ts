@@ -38,6 +38,8 @@ describe('voceToRigaStorico', () => {
     };
     const r = voceToRigaStorico(row, staff);
     expect(r.odl).toBe('200999');
+    expect(r.pdr).toBe('P1');
+    expect(r.matricola).toBe('M1');
     expect(r.data).toBe('2026-06-10');
     expect(r.esecutore).toBe('DE SANTIS');
     expect(r.via).toBe('Via Roma 1');
@@ -75,7 +77,7 @@ describe('voceToRigaStorico', () => {
 
 describe('ordinaRighe', () => {
   const base = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   it('ordina per data desc, poi via asc, poi id', () => {
@@ -90,7 +92,7 @@ describe('ordinaRighe', () => {
 
 describe('filtraSiNo', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   const noFilt = { eseguito: null, sostValvola: null, miniBag: null, rgStop: null } as const;
@@ -118,7 +120,7 @@ describe('filtraSiNo', () => {
 
 describe('calcolaContatori', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
-    id: '', odl: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    id: '', odl: null, pdr: null, matricola: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   it('conta esitati/eseguiti/negativi e i SI dei campi', () => {
