@@ -12,3 +12,14 @@ export function decidiScrittura(cellaEsistente, nuovoValore) {
   if (esistente === nuovo) return { azione: 'salta', valore: nuovo };
   return { azione: 'conflitto', valore: nuovo, esistente };
 }
+
+/**
+ * True se la cella esito contiene (normalizzato: trim + maiuscolo) il testo dell'esito NEGATIVO.
+ * Serve a riconoscere l'upgrade negativo→positivo: cella già "No" + lavoro vincente positivo.
+ * Falso se la cella è vuota o il testo negativo non è definito.
+ */
+export function cellaEsitoNegativa(cellaEsistente, esitoNegativo) {
+  const neg = t(esitoNegativo).toUpperCase();
+  if (neg === '') return false;
+  return t(cellaEsistente).toUpperCase() === neg;
+}

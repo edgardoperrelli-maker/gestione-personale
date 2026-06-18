@@ -1,6 +1,6 @@
 // tools/limitazioni-sync/lib/match.test.ts
 import { describe, it, expect } from 'vitest';
-import { norm, buildIndice, agganciaRiga, trovaExtra } from './match.mjs';
+import { norm, buildIndice, agganciaRiga, trovaExtra, vinceLavoro } from './match.mjs';
 
 const lavori = [
   { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', manuale: false },
@@ -35,5 +35,68 @@ describe('trovaExtra', () => {
   it('solo manuali non consumati', () => {
     const extra = trovaExtra(lavori, new Set(['b']));
     expect(extra.map((l) => l.id)).toEqual(['c']);
+  });
+});
+
+describe('vinceLavoro', () => {
+  const neg17 = { id: 'n', esitoOk: false, data_esecuzione: '2026-06-17' };
+  const pos18 = { id: 'p', esitoOk: true, data_esecuzione: '2026-06-18' };
+  const pos16 = { id: 'q', esitoOk: true, data_esecuzione: '2026-06-16' };
+  const neg19 = { id: 'r', esitoOk: false, data_esecuzione: '2026-06-19' };
+
+  it('il positivo batte il negativo a prescindere dalla data', () => {
+    expect(vinceLavoro(neg17, pos18)).toBe(pos18);
+    expect(vinceLavoro(pos18, neg17)).toBe(pos18);
+    // positivo più VECCHIO batte comunque un negativo più recente
+    expect(vinceLavoro(neg19, pos16)).toBe(pos16);
+    expect(vinceLavoro(pos16, neg19)).toBe(pos16);
+  });
+
+  it('a parità di esito vince la data più recente', () => {
+    expect(vinceLavoro(pos16, pos18)).toBe(pos18);
+    expect(vinceLavoro(pos18, pos16)).toBe(pos18);
+    expect(vinceLavoro(neg17, neg19)).toBe(neg19);
+  });
+
+  it('a parità piena tiene il primo (stabile)', () => {
+    const a = { id: 'a', esitoOk: true, data_esecuzione: '2026-06-18' };
+    const b = { id: 'b', esitoOk: true, data_esecuzione: '2026-06-18' };
+    expect(vinceLavoro(a, b)).toBe(a);
+  });
+
+  it('null/non lavorato perde contro il positivo e contro il negativo', () => {
+    const nullo = { id: 'x', esitoOk: null, data_esecuzione: '2026-06-20' };
+    expect(vinceLavoro(nullo, pos16)).toBe(pos16);
+    // stesso "non positivo": vince la data più recente (nullo è il 20)
+    expect(vinceLavoro(nullo, neg17)).toBe(nullo);
+  });
+});
+
+describe('buildIndice: vincitore per chiave duplicata', () => {
+  const base = { odl: '912230528', matricola: '202015249888', comune: 'ZAGAROLO', manuale: false };
+  const neg = { ...base, id: 'neg', esitoOk: false, data_esecuzione: '2026-06-17' };
+  const pos = { ...base, id: 'pos', esitoOk: true, data_esecuzione: '2026-06-18' };
+
+  it('tiene il positivo anche se inserito PRIMA del negativo (no last-wins)', () => {
+    const idx = buildIndice([pos, neg]);
+    expect(idx.byOdl.get('912230528')).toBe(pos);
+    expect(idx.byComuneMatricola.get('ZAGAROLO|202015249888')).toBe(pos);
+  });
+
+  it('tiene il positivo anche se inserito DOPO', () => {
+    const idx = buildIndice([neg, pos]);
+    expect(idx.byOdl.get('912230528')).toBe(pos);
+    expect(idx.byComuneMatricola.get('ZAGAROLO|202015249888')).toBe(pos);
+  });
+
+  it('segnala il perdente in perdenti (così non riappare come extra)', () => {
+    const idx = buildIndice([neg, pos]);
+    expect(idx.perdenti.has('neg')).toBe(true);
+    expect(idx.perdenti.has('pos')).toBe(false);
+  });
+
+  it('agganciaRiga restituisce il vincitore', () => {
+    const idx = buildIndice([neg, pos]);
+    expect(agganciaRiga({ odl: '912230528', matricola: '' }, idx, 'ZAGAROLO').lavoro).toBe(pos);
   });
 });

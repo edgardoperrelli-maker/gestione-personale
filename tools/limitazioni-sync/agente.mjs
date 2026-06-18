@@ -5,8 +5,8 @@ import path from 'node:path';
 import { caricaWorkbook, trovaRigaIntestazione, backupFile, salva } from './lib/excelIO.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
-import { decidiScrittura } from './lib/scrittura.mjs';
-import { decidiScritturaData } from './lib/dataCella.mjs';
+import { decidiScrittura, cellaEsitoNegativa } from './lib/scrittura.mjs';
+import { decidiScritturaData, giornoDa, aDataExcel } from './lib/dataCella.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
@@ -58,7 +58,8 @@ export async function eseguiGiro({
   const report = { generatoIl: stamp, dryRun: !!dryRun, file: [], extraNonCollocate: [] };
   const regole = (mappatura ?? []).filter((m) => m && m.abilitato);
   const indice = buildIndice(lavori);
-  const idConsumati = new Set();
+  // i perdenti per chiave (es. il "No" superato dal positivo) non devono riaffiorare come extra
+  const idConsumati = new Set(indice.perdenti);
   const comuniConFile = new Set();
 
   if (!fs.existsSync(cartella)) {
@@ -124,36 +125,54 @@ export async function eseguiGiro({
 
       // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
       // ritorna { scritto, eraPieno }: scritto=ha riempito la cella; eraPieno=la cella aveva già un valore (compilato a mano).
-      const scriviCella = (row, regola, l) => {
+      // forza=true (upgrade negativo→positivo su riga dell'agente): forza SOLO esito (→positivo),
+      // note (→pulita) e data (→data del positivo). Le ALTRE colonne (sigillo, saracinesca,
+      // esecutore, …) restano alla policy normale, così un dato compilato a mano sulla riga
+      // dell'agente NON viene mai svuotato né sovrascritto in silenzio dall'upgrade.
+      const scriviCella = (row, regola, l, forza = false) => {
         const cell = row.getCell(regola.idx + 1);
         const eraPieno = String(cell.value ?? '').trim() !== '';
         if (regola.campo === 'data') {
+          if (forza) {
+            // upgrade: aggiorna alla data del positivo SOLO se presente (mai svuotare una data a file)
+            const g = giornoDa(l.data_esecuzione);
+            if (!g) return { scritto: false, eraPieno };
+            cell.value = aDataExcel(g);
+            return { scritto: true, eraPieno };
+          }
           const d = decidiScritturaData(cell.value, l.data_esecuzione);
           if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
           if (d.azione === 'conflitto') {
-            fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
+            fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', via: l.via ?? '', campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
           }
           return { scritto: false, eraPieno };
         }
         const valore = regola.campo === 'esito'
           ? valoreEsito(l, esitoPositivo, esitoNegativo)
           : valoreCampo(l, regola.campo);
+        // upgrade: forza SOLO esito e note (note→pulita). Le altre colonne cadono nella policy normale sotto.
+        if (forza && (regola.campo === 'esito' || regola.campo === 'note')) {
+          const v = valore == null ? '' : String(valore).trim();
+          cell.value = v === '' ? null : v;
+          return { scritto: v !== '', eraPieno }; // cella svuotata → non conta nel marcatore
+        }
         const d = decidiScrittura(cell.value, valore);
         if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
         if (d.azione === 'conflitto') {
-          fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
+          fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', via: l.via ?? '', campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
         }
         return { scritto: false, eraPieno };
       };
 
       // scrive il marcatore nella colonna automazione (prudente: vuota->scrivi, uguale->salta, diversa->conflitto).
-      const scriviAutomazione = (row, valore, l) => {
+      const scriviAutomazione = (row, valore, l, forza = false) => {
         if (automazioneCol < 0) return;
         const cell = row.getCell(automazioneCol + 1);
+        if (forza) { cell.value = valore; return; }
         const d = decidiScrittura(cell.value, valore);
         if (d.azione === 'scrivi') { cell.value = d.valore; }
         else if (d.azione === 'conflitto') {
-          fileReport.conflitti.push({ riga: row.number, odl: l?.odl ?? '', matricola: l?.matricola ?? '', campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
+          fileReport.conflitti.push({ riga: row.number, odl: l?.odl ?? '', matricola: l?.matricola ?? '', via: l?.via ?? '', campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
         }
       };
 
@@ -166,6 +185,10 @@ export async function eseguiGiro({
         saracinesca: l.saracinesca ?? '', note: l.note ?? '',
       });
 
+      // colonne esito/note (per rilevare l'upgrade e tracciare ciò che viene sovrascritto)
+      const regolaEsito = regoleScrittura.find((r) => r.campo === 'esito');
+      const regolaNote = regoleScrittura.find((r) => r.campo === 'note');
+
       // 1) righe pianificate
       for (let r = rIntest + 1; r <= ws.rowCount; r++) {
         const row = ws.getRow(r);
@@ -175,22 +198,37 @@ export async function eseguiGiro({
         const hit = agganciaRiga({ odl, matricola }, indice, comuneFile);
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
+
+        // Upgrade negativo→positivo: il lavoro vincente è positivo e in cella esito c'è il "No",
+        // MA solo se la riga è dell'agente (colonna automazione valorizzata). Le righe scritte a
+        // mano NON si toccano: il mismatch resta un conflitto, da risolvere a mano.
+        const autoEsistente = automazioneCol >= 0 ? String(row.getCell(automazioneCol + 1).value ?? '').trim() : '';
+        const rigaDellAgente = autoEsistente !== '';
+        const esitoCella = regolaEsito ? row.getCell(regolaEsito.idx + 1).value : null;
+        const forza = rigaDellAgente && hit.lavoro.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+
+        // traccia ciò che l'upgrade sovrascrive (per storico/eventuale ripristino), letto PRIMA della scrittura
+        const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
+        const notaPrecedente = forza && regolaNote ? String(row.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
+
         let toccata = false;
-        const completate = []; // intestazioni delle colonne riempite dall'agente (erano vuote)
+        const completate = []; // intestazioni delle colonne scritte dall'agente
         let pieneAMano = 0;    // quante colonne mappate erano già compilate a mano
         for (const regola of regoleScrittura) {
-          const { scritto, eraPieno } = scriviCella(row, regola, hit.lavoro);
+          const { scritto, eraPieno } = scriviCella(row, regola, hit.lavoro, forza);
           if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
           if (eraPieno) pieneAMano++;
         }
         if (toccata) {
           fileReport.aggiornate++;
-          // marcatore = "<SI|PARZIALE> + <intestazioni delle colonne completate dall'agente>"
-          // SI = riga era vuota e completata interamente; PARZIALE = aveva già dati a mano.
-          const parziale = pieneAMano > 0;
+          // marcatore = "<SI|PARZIALE> + <colonne scritte>". L'upgrade è un refresh completo
+          // dell'agente sulla SUA riga → sempre "SI" (mai PARZIALE).
+          const parziale = !forza && pieneAMano > 0;
           const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
-          scriviAutomazione(row, valoreAuto, hit.lavoro);
-          fileReport.righe.push(rigaReport(hit.lavoro, row.number, parziale ? 'parziale' : 'aggiornata'));
+          scriviAutomazione(row, valoreAuto, hit.lavoro, forza);
+          const rep = rigaReport(hit.lavoro, row.number, forza ? 'upgrade' : (parziale ? 'parziale' : 'aggiornata'));
+          if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
+          fileReport.righe.push(rep);
         }
       }
 

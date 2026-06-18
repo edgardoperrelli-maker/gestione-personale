@@ -6,23 +6,45 @@ export function norm(v) {
   return String(v ?? '').toUpperCase().replace(/\s+/g, '').trim();
 }
 
-/** Indice dei lavori per odl e per (comune|matricola). */
+/**
+ * Confronta due lavori con la STESSA chiave (odl o comune|matricola) e ritorna il vincitore.
+ * Regola: vince SEMPRE il positivo (esitoOk===true); a parità di esito vince la data più
+ * recente; a parità piena tiene il primo (stabile). Così l'intervento positivo fatto oggi
+ * batte il "No / nessun passaggio" del giorno prima, a prescindere dall'ordine di arrivo.
+ */
+export function vinceLavoro(a, b) {
+  const pa = a?.esitoOk === true;
+  const pb = b?.esitoOk === true;
+  if (pa !== pb) return pa ? a : b; // positivo batte sempre non-positivo
+  const da = String(a?.data_esecuzione ?? '');
+  const db = String(b?.data_esecuzione ?? '');
+  if (da !== db) return db > da ? b : a; // stesso esito: più recente
+  return a; // parità piena: stabile
+}
+
+/**
+ * Indice dei lavori per odl e per (comune|matricola).
+ * A parità di chiave NON tiene l'ultimo inserito (fragile), ma il VINCITORE (vedi vinceLavoro).
+ * `perdenti` = id dei lavori superati da un vincitore sulla stessa chiave: vanno pre-marcati
+ * "consumati" così un perdente non riaffiora come riga extra.
+ */
 export function buildIndice(lavori) {
   const byOdl = new Map();
   const byComuneMatricola = new Map();
+  const perdenti = new Set();
+  const inserisci = (mappa, k, l) => {
+    const cur = mappa.get(k);
+    if (!cur) { mappa.set(k, l); return; }
+    const vinc = vinceLavoro(cur, l);
+    const perso = vinc === cur ? l : cur;
+    if (perso?.id != null) perdenti.add(perso.id);
+    mappa.set(k, vinc);
+  };
   for (const l of lavori ?? []) {
-    if (l.odl) {
-      const k = norm(l.odl);
-      if (byOdl.has(k)) console.warn(`[lim-sync] ODL duplicata nell'indice: ${l.odl}`);
-      byOdl.set(k, l);
-    }
-    if (l.matricola) {
-      const k = norm(l.comune) + '|' + norm(l.matricola);
-      if (byComuneMatricola.has(k)) console.warn(`[lim-sync] matricola duplicata nell'indice: ${l.comune}|${l.matricola}`);
-      byComuneMatricola.set(k, l);
-    }
+    if (l.odl) inserisci(byOdl, norm(l.odl), l);
+    if (l.matricola) inserisci(byComuneMatricola, norm(l.comune) + '|' + norm(l.matricola), l);
   }
-  return { byOdl, byComuneMatricola };
+  return { byOdl, byComuneMatricola, perdenti };
 }
 
 /** Aggancia una riga del file: prima per ODL, poi per matricola nel comune del file. */

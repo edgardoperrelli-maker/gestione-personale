@@ -332,3 +332,128 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     expect(conf.nuovo).toBe('CIARALLO');
   });
 });
+
+describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
+  it('upgrade sulla riga dell’agente (No→eseguito, nota pulita, marcatore rifatto); riga manuale → conflitto', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    // riga 2 = scritta dall'agente IERI col negativo (AUTOMAZIONE valorizzata, NOTE "nessun passaggio")
+    // riga 3 = scritta A MANO ("No", AUTOMAZIONE vuota)
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      const ws0 = wb0.worksheets[0];
+      ws0.getRow(2).getCell(67).value = 'No';                 // BO esito
+      ws0.getRow(2).getCell(69).value = 'nessun passaggio';   // BQ note
+      ws0.getRow(2).getCell(68).value = 'SI + esito';         // BP automazione (= riga dell'agente)
+      ws0.getRow(3).getCell(67).value = 'No';                 // BO esito (manuale)
+      // riga 3 AUTOMAZIONE (68) lasciata vuota = riga manuale
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        // stessa matricola/ODL: negativo del 17 + positivo del 18 → il positivo deve vincere (anche se inserito dopo)
+        { id: 'neg', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-17', esito: 'No', esitoOk: false,
+          sigillo: '', saracinesca: '', note: 'nessun passaggio', manuale: false },
+        { id: 'pos', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-18', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+        // riga 3 (manuale): positivo
+        { id: 'pos3', odl: '999999999', matricola: '11111111111', comune: 'ZAGAROLO', via: 'VIA Z 9',
+          esecutore: 'ROSSI', data_esecuzione: '2026-06-18', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260618-1530',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+
+    // riga 2 (agente): upgrade a positivo, nota PULITA, marcatore rifatto "SI ..."
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    expect(String(ws.getRow(2).getCell(69).value ?? '').trim()).toBe('');
+    expect(String(ws.getRow(2).getCell(68).value ?? '').startsWith('SI')).toBe(true);
+    const upg = report.file[0].righe.find((r: { riga: number }) => r.riga === 2);
+    expect(upg.tipo).toBe('upgrade');
+
+    // riga 3 (manuale): esito NON sovrascritto + conflitto segnalato (da risolvere a mano)
+    expect(ws.getRow(3).getCell(67).value).toBe('No');
+    const conf = report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 3 && c.campo === 'esito');
+    expect(conf).toBeTruthy();
+    expect(conf.esistente).toBe('No');
+    expect(conf.nuovo).toBe('eseguito');
+  });
+
+  it('NON cancella sigillo/saracinesca compilati a mano sulla riga dell’agente (refresh ristretto a esito/note/data)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg2-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    {
+      const wb0 = new ExcelJS.Workbook();
+      const ws0 = wb0.addWorksheet('Foglio1');
+      const h = ws0.getRow(1);
+      h.getCell(6).value = 'ORDINE';
+      h.getCell(9).value = 'MATRICOLA';
+      h.getCell(64).value = 'Località';
+      h.getCell(65).value = 'esito';          // BM
+      h.getCell(66).value = 'sigillo posato'; // BN
+      h.getCell(67).value = 'saracinesca';    // BO
+      h.getCell(68).value = 'AUTOMAZIONE';    // BP
+      h.getCell(69).value = 'NOTE';           // BQ
+      const r2 = ws0.getRow(2);
+      r2.getCell(6).value = '912231020'; r2.getCell(9).value = '20000020750'; r2.getCell(64).value = 'ZAGAROLO';
+      // ieri: l'agente scrive il negativo; l'ufficio completa A MANO sigillo + saracinesca SULLA riga dell'agente
+      r2.getCell(65).value = 'No';
+      r2.getCell(66).value = 'AA999999'; // sigillo a mano
+      r2.getCell(67).value = 'SI';       // saracinesca a mano
+      r2.getCell(68).value = 'SI + esito';
+      r2.getCell(69).value = 'nessun passaggio';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        // positivo di oggi SENZA sigillo/saracinesca (il caso tipico: 78%/80% dei positivi non li portano)
+        { id: 'pos', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-18', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260618-1600',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'sigillo', colonna: 'sigillo posato', abilitato: true },
+        { campo: 'saracinesca', colonna: 'saracinesca', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    expect(ws.getRow(2).getCell(65).value).toBe('eseguito');               // esito upgradato
+    expect(String(ws.getRow(2).getCell(69).value ?? '').trim()).toBe('');  // nota pulita
+    expect(ws.getRow(2).getCell(66).value).toBe('AA999999');               // SIGILLO a mano PRESERVATO
+    expect(ws.getRow(2).getCell(67).value).toBe('SI');                     // SARACINESCA a mano PRESERVATA
+    // lo storico dell'upgrade traccia lo stato precedente (per eventuale ripristino)
+    const upg = report.file[0].righe.find((r: { tipo: string }) => r.tipo === 'upgrade');
+    expect(upg.esitoPrecedente).toBe('No');
+    expect(upg.notaPrecedente).toBe('nessun passaggio');
+  });
+});
