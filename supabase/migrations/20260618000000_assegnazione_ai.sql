@@ -28,3 +28,14 @@ alter table agente_config add column if not exists pianifica_data date;
 insert into agente_file_config (file, committente, attivita, template_id)
 values ('ZAGAROLO.xlsx', 'acea', 'LIMITAZIONI MASSIVE', null)
 on conflict (file) do nothing;
+
+alter table agente_pianificabili enable row level security;
+alter table agente_file_config enable row level security;
+
+drop policy if exists agente_pianificabili_all_auth on agente_pianificabili;
+create policy agente_pianificabili_all_auth on agente_pianificabili
+  for all to authenticated using (true) with check (true);
+
+drop policy if exists agente_file_config_all_auth on agente_file_config;
+create policy agente_file_config_all_auth on agente_file_config
+  for all to authenticated using (true) with check (true);
