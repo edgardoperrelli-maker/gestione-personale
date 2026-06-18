@@ -94,6 +94,7 @@ export default function AssegnazioneAiClient({
         if (nr.length) m += ` Operatori non pianificati: ${nr.map((x) => `${x.esecutore} (${x.motivo}, ${x.n})`).join(', ')}.`;
         if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
         setEsito(m);
+        setSelezione(new Set<string>());
         router.refresh();
       } else {
         setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);

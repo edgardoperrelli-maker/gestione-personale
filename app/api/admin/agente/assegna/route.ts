@@ -65,7 +65,10 @@ export async function POST(req: Request) {
         const { data: esistenti } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', p.data).eq('territorio', p.comune);
         for (const ex of (esistenti ?? []) as Array<{ id: string }>) {
           const { count } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', ex.id);
-          if (count === 0) await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
+          if (count === 0) {
+            await supabaseAdmin.from('interventi').delete().eq('piano_id', ex.id);
+            await supabaseAdmin.from('mappa_piani').delete().eq('id', ex.id);
+          }
         }
         // crea piano + operatori
         const { data: piano, error: ePiano } = await supabaseAdmin.from('mappa_piani').insert({
@@ -87,7 +90,10 @@ export async function POST(req: Request) {
         const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id, overwrite: 'replace' });
         if (!res.ok) {
           const { count: nRap } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId);
-          if (nRap === 0) await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+          if (nRap === 0) {
+            await supabaseAdmin.from('interventi').delete().eq('piano_id', pianoId);
+            await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
+          }
           avvisi.push(`Rapportini ${p.comune} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`);
           continue;
         }
