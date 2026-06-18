@@ -62,10 +62,10 @@ export default function CardTerritorio({
   );
 
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div className="flex-1 min-w-0 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
       {/* Header card */}
-      <div className="flex items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3 py-2">
-        <span className="text-sm font-semibold">{terr.etichetta}</span>
+      <div className="flex items-center justify-between gap-2 border-b border-[var(--brand-border)] px-2.5 py-1.5">
+        <span className="truncate text-[13px] font-semibold">{terr.etichetta}</span>
         <span className="flex items-center gap-2 text-[11px]">
           {multiPiano && (
             <span className="rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]">
@@ -82,8 +82,8 @@ export default function CardTerritorio({
         <div key={piano.piano_id}>
           {/* Fascia intestazione piano (solo se multi-piano) */}
           {multiPiano && (
-            <div className="flex items-center justify-between gap-2 bg-[var(--brand-surface-muted)] px-3 py-1.5">
-              <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            <div className="flex items-center justify-between gap-2 bg-[var(--brand-surface-muted)] px-2.5 py-1">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
                 🕓 Pianificazione {i + 1}{piano.creato_at ? ` · creata ${fmtOra(piano.creato_at)}` : ''}
               </span>
               <AzioniPiano piano={piano} />
@@ -95,9 +95,9 @@ export default function CardTerritorio({
             {piano.operatori.map((r) => {
               const badge = statoBadge(r.statoCalcolato);
               return (
-                <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
-                  <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium">{r.staff_name ?? 'Operatore'}</span>
+                <li key={r.id} className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1 px-2.5 py-1.5">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-[13px] font-medium">{r.staff_name ?? 'Operatore'}</span>
                     <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${badge.className}`}>{badge.label}</span>
                     <span className="text-xs text-[var(--brand-text-muted)]">{r.nVoci} interventi</span>
                     {(r.fotoInSospeso ?? 0) > 0 && (
