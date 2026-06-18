@@ -166,3 +166,17 @@ Verifica manuale: ordine giorni (oggi in cima); card affiancate in griglia; spos
 ## 10. Aperti / da decidere in fase di piano
 - Etichetta badge giorno per i giorni lontani: solo `Oggi/Domani/Ieri` o anche distanze relative ("tra 3 giorni")? (default: solo i tre vicini).
 - `DatePicker` inline nel menu vs popover dedicato (default: riuso `components/ui/DatePicker.tsx`).
+
+---
+
+## 11. Revisione 2026-06-18 (post-deploy) — card unica per territorio con piani evidenziati
+
+Dopo il deploy iniziale (una card per pianificazione), l'utente ha richiesto di **unire le card dello stesso territorio** in un'unica card e dare **evidenza interna** che le pianificazioni sono state fatte in momenti diversi.
+
+Nuova decisione (sostituisce "una card per pianificazione"):
+- **Una card per territorio** (raggruppamento Giorno → Territorio → Piani); ordine giorni invariato (oggi in cima via `ordinaGiorni`).
+- **Un solo piano nel territorio**: card semplice, azioni piano (↗ Riapri / Sposta piano ▾ / 🗑 Elimina) nell'header del territorio.
+- **Più piani**: header territorio con etichetta + badge "N pianificazioni" + N operatori; poi, per ogni piano, una **fascia evidenziata** `Pianificazione N · creata HH:MM` (icona orologio, sfondo soft) con le azioni di quel piano, gli operatori sotto, e un **divisore netto** tra una pianificazione e l'altra. Piani ordinati per `creato_at` asc (Pianificazione 1 = più vecchia).
+- Invariati: `MenuSposta` (territorio | giorno) per operatore e per piano, tutti i tasti funzione, blocco conflitti, avviso passato.
+
+File: ripristino `utils/rapportini/groupByDayTerritory.ts` (ora basato su `ordinaGiorni`) e `components/modules/mappa/riepilogo/CardTerritorio.tsx` (con fasce-piano); `IntestazioneGiorno` passa al tipo `GiornoTerritori`; `RiepilogoRapportini` usa il raggruppamento per territorio. Rimossi `groupByDayPiano.ts` e `CardPianificazione.tsx`.
