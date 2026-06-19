@@ -38,7 +38,7 @@ describe('prefillModulesForRole / fallbackModulesForRole', () => {
     expect(prefillModulesForRole('operatore')).toEqual([]);
     const fb = fallbackModulesForRole('operatore');
     expect(fb).toContain('dashboard');
-    expect(fb).toContain('sopralluoghi');
+    expect(fb).toContain('mappa');
     expect(fb).not.toContain('impostazioni');
     expect(fb).not.toContain('live');
   });
@@ -54,11 +54,11 @@ describe('prefillModulesForRole / fallbackModulesForRole', () => {
 });
 
 describe('normalizeAllowedModules (nessuna forzatura, unico invariante su impostazioni)', () => {
-  it('operatore: niente sopralluoghi forzato; live mantenuto se richiesto', () => {
-    const out = normalizeAllowedModules(['rapportini', 'live'], 'operatore');
-    expect(out).toContain('rapportini');
+  it('operatore: nessun modulo non richiesto forzato; live mantenuto se richiesto', () => {
+    const out = normalizeAllowedModules(['mappa', 'live'], 'operatore');
+    expect(out).toContain('mappa');
     expect(out).toContain('live');
-    expect(out).not.toContain('sopralluoghi'); // non più forzato
+    expect(out).not.toContain('interventi'); // non richiesto → non forzato
     expect(out).not.toContain('impostazioni'); // operatore non lo ha mai
   });
   it('operatore: impostazioni rimosso anche se richiesto', () => {
@@ -87,7 +87,7 @@ describe('canAccessPathFromMetadata (logica del middleware)', () => {
     expect(canAccessPathFromMetadata('/hub/live', { role: 'operatore', allowedModules: ['live'] })).toBe(true);
   });
   it('operatore senza live NON accede a /hub/live', () => {
-    expect(canAccessPathFromMetadata('/hub/live', { role: 'operatore', allowedModules: ['rapportini'] })).toBe(false);
+    expect(canAccessPathFromMetadata('/hub/live', { role: 'operatore', allowedModules: ['mappa'] })).toBe(false);
   });
   it('operatore con impostazioni anomalo in metadata: resta bloccato (gate ruolo)', () => {
     expect(canAccessPathFromMetadata('/impostazioni', { role: 'operatore', allowedModules: ['impostazioni'] })).toBe(false);
@@ -119,8 +119,8 @@ describe('buildAppMetadataUpdate (PATCH Utenze)', () => {
     expect(out.allowedModules).toContain('live');
   });
   it('moduli non inviati: preserva i correnti (ordine di ALL_MODULE_KEYS)', () => {
-    const out = buildAppMetadataUpdate('operatore', ['mappa', 'rapportini'], undefined, undefined);
-    expect(out.allowedModules).toEqual(['rapportini', 'mappa']); // rapportini precede mappa in ALL_MODULE_KEYS
+    const out = buildAppMetadataUpdate('operatore', ['interventi', 'mappa'], undefined, undefined);
+    expect(out.allowedModules).toEqual(['mappa', 'interventi']); // mappa precede interventi in ALL_MODULE_KEYS
   });
   it('nessun modulo né corrente né richiesto: usa il prefill del ruolo', () => {
     const out = buildAppMetadataUpdate('operatore', undefined, undefined, undefined);

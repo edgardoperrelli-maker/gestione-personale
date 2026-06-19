@@ -11,10 +11,8 @@ export type AssignableRole = ValidRole | 'admin_plus';
 export type AppModuleKey =
   | 'dashboard'
   | 'hotel-calendar'
-  | 'rapportini'
   | 'mappa'
   | 'interventi'
-  | 'sopralluoghi'
   | 'live'
   | 'lista-attesa'
   | 'appuntamenti'
@@ -66,14 +64,6 @@ export const APP_MODULES: AppModuleDefinition[] = [
     matchPrefixes: ['/hub/hotel-calendar'],
   },
   {
-    key: 'rapportini',
-    href: '/hub/rapportini',
-    label: 'Rapportini',
-    description: 'Massivi e per clientela',
-    section: 'modules',
-    matchPrefixes: ['/hub/rapportini'],
-  },
-  {
     key: 'mappa',
     href: '/hub/mappa',
     label: 'Mappa Operatori',
@@ -88,14 +78,6 @@ export const APP_MODULES: AppModuleDefinition[] = [
     description: 'Import e gestione interventi',
     section: 'modules',
     matchPrefixes: ['/hub/interventi'],
-  },
-  {
-    key: 'sopralluoghi',
-    href: '/hub/sopralluoghi',
-    label: 'Sopralluoghi',
-    description: 'Gestione sopralluoghi territorio',
-    section: 'modules',
-    matchPrefixes: ['/hub/sopralluoghi'],
   },
   {
     key: 'live',

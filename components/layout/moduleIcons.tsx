@@ -19,13 +19,6 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="M8 2v4M16 2v4" />
     </svg>
   ),
-  rapportini: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M6 2h9l5 5v15H6z" />
-      <path d="M15 2v5h5" />
-      <path d="M9 13h6M9 17h6" />
-    </svg>
-  ),
   mappa: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
@@ -36,14 +29,6 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
       <path d="M12 3v10m0 0 4-4m-4 4-4-4" />
       <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
-    </svg>
-  ),
-  sopralluoghi: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2" />
-      <rect x="9" y="3" width="6" height="4" rx="1" />
-      <path d="M9 12h6" />
-      <path d="M9 16h6" />
     </svg>
   ),
   live: (

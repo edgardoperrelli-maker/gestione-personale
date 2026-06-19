@@ -8,9 +8,7 @@ import MappaOperatoriClient, {
   type MappaStaffRow,
   type ZtlZoneInfo,
 } from '@/components/modules/mappa/MappaOperatoriClient';
-import RegistroPianificazioni from '@/components/modules/mappa/RegistroPianificazioni';
 import RiepilogoRapportini from '@/components/modules/mappa/RiepilogoRapportini';
-import MonitoraggioMappaClient from '@/components/modules/mappa/MonitoraggioMappaClient';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import type { Task } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
@@ -313,35 +311,6 @@ export default async function MappaPage({
           </a>
 
           <a
-            href="/hub/mappa?vista=registro"
-            className="group rounded-2xl border border-[var(--brand-border)]
-                       bg-[var(--brand-surface)] p-5 shadow-sm transition
-                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
-          >
-            <div className="flex h-11 w-11 items-center justify-center
-                            rounded-xl bg-[var(--brand-primary-soft)]
-                            text-[var(--brand-primary)]">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none"
-                   stroke="currentColor" strokeWidth="1.6">
-                <path d="M6 2h9l5 5v15H6z"/>
-                <path d="M15 2v5h5"/>
-                <path d="M9 13h6M9 17h6"/>
-              </svg>
-            </div>
-            <div className="mt-4">
-              <h2 className="text-lg font-semibold">Registro pianificazioni</h2>
-              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-                Storico e gestione piani salvati
-              </p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-semibold
-                            text-[var(--brand-primary)]">
-              <span>Apri</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </div>
-          </a>
-
-          <a
             href="/hub/mappa?vista=riepilogo"
             className="group rounded-2xl border border-[var(--brand-border)]
                        bg-[var(--brand-surface)] p-5 shadow-sm transition
@@ -364,30 +333,6 @@ export default async function MappaPage({
             </div>
           </a>
 
-          <a
-            href="/hub/mappa?vista=monitoraggio"
-            className="group rounded-2xl border border-[var(--brand-border)]
-                       bg-[var(--brand-surface)] p-5 shadow-sm transition
-                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
-          >
-            <div className="flex h-11 w-11 items-center justify-center
-                            rounded-xl bg-[var(--brand-primary-soft)]
-                            text-[var(--brand-primary)]">
-              <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-                <circle cx="12" cy="12" r="3" />
-                <circle cx="12" cy="12" r="7" strokeOpacity=".4" />
-                <circle cx="12" cy="12" r="11" strokeOpacity=".15" />
-              </svg>
-            </div>
-            <div className="mt-4">
-              <h2 className="text-lg font-semibold">Monitoraggio oggi</h2>
-              <p className="mt-1 text-sm text-[var(--brand-text-muted)]">Interventi del giorno live sulla mappa</p>
-            </div>
-            <div className="mt-4 flex items-center gap-2 text-sm font-semibold text-[var(--brand-primary)]">
-              <span>Apri</span>
-              <span className="transition-transform group-hover:translate-x-1">→</span>
-            </div>
-          </a>
         </div>
       )}
 
@@ -408,17 +353,8 @@ export default async function MappaPage({
         </div>
       )}
 
-      {/* Modulo registro — a schermo pieno, no card */}
-      {vista === 'registro' && (
-        <RegistroPianificazioni />
-      )}
-
       {vista === 'riepilogo' && (
         <RiepilogoRapportini />
-      )}
-
-      {vista === 'monitoraggio' && (
-        <MonitoraggioMappaClient />
       )}
 
     </div>
