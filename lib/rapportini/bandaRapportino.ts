@@ -25,27 +25,32 @@ function clonaStile(s: Partial<ExcelJS.Style> | undefined): ExcelJS.Style {
 }
 
 /**
- * Cattura gli stili della banda (riga 35) e di una riga dati (riga 7) dal foglio
- * appena clonato dal template, PRIMA che i dati vengano scritti (in overflow la
- * riga 35 verrebbe sovrascritta dagli interventi, perdendo lo stile della banda).
+ * Prepara il foglio appena clonato dal template PRIMA che i dati vengano scritti:
+ * 1) cattura gli stili della banda (riga 35) e di una riga dati (riga 7);
+ * 2) SMONTA il merge A35:Q35 della banda del template.
+ * Lo smontaggio è essenziale: se la banda restasse mergiata, scrivere un intervento
+ * sulla riga 35 (overflow oltre 28) collasserebbe tutte le colonne nella cella master
+ * A35, perdendo i dati. La banda viene ri-mergiata da `posizionaBanda` alla posizione
+ * finale (riga 35 se non c'è overflow, altrimenti subito sotto i dati).
  */
-export function catturaStili(ws: ExcelJS.Worksheet): StiliRapportino {
+export function preparaBanda(ws: ExcelJS.Worksheet): StiliRapportino {
   const banda: ExcelJS.Style[] = [];
   const dati: ExcelJS.Style[] = [];
   for (let c = 1; c <= LAST_COL; c++) {
     banda.push(clonaStile(ws.getRow(TEMPLATE_BAND_ROW).getCell(c).style));
     dati.push(clonaStile(ws.getRow(DATA_START_ROW).getCell(c).style));
   }
+  try { ws.unMergeCells(`A${TEMPLATE_BAND_ROW}:Q${TEMPLATE_BAND_ROW}`); } catch { /* non mergiata: ok */ }
   return { banda, dati };
 }
 
 /**
- * Posiziona la banda sotto gli interventi scritti.
- * - dataCount ≤ 28: la banda resta alla riga 35 del template (nessuna modifica).
- * - dataCount > 28: smonta il merge A35:Q35, ridà stile-dati alle righe 35..(6+dataCount)
- *   che ora contengono interventi (ripulendo l'eventuale testo "INTERVENTI CON NOTE"
- *   residuo nelle celle non scritte), e ridisegna la banda (merge A..Q + stile + label)
- *   alla prima riga libera dopo i dati.
+ * Posiziona la banda sotto gli interventi scritti. Presuppone che `preparaBanda`
+ * abbia già smontato il merge A35:Q35 prima della scrittura dei dati.
+ * - dataCount ≤ 28: la banda resta alla riga 35; va solo RI-mergiata (A35:Q35).
+ * - dataCount > 28: ridà stile-dati alle righe 35..(6+dataCount) che ora contengono
+ *   interventi (ripulendo l'eventuale testo "INTERVENTI CON NOTE" residuo nelle celle
+ *   non scritte) e ridisegna la banda (merge A..Q + stile + label) alla prima riga libera.
  * Ritorna la riga della banda e la prima riga utile per le note.
  */
 export function posizionaBanda(
@@ -55,10 +60,9 @@ export function posizionaBanda(
 ): { bandRow: number; primaNota: number } {
   const bandRow = rigaBanda(dataCount);
   if (bandRow === TEMPLATE_BAND_ROW) {
+    ws.mergeCells(`A${TEMPLATE_BAND_ROW}:Q${TEMPLATE_BAND_ROW}`);
     return { bandRow, primaNota: TEMPLATE_BAND_ROW + 1 };
   }
-  // Overflow: la banda del template (riga 35) è coperta dai dati. Smontala e ricostruiscila sotto.
-  try { ws.unMergeCells(`A${TEMPLATE_BAND_ROW}:Q${TEMPLATE_BAND_ROW}`); } catch { /* non mergiata: ok */ }
   const ultimaRigaDati = HEADER_ROW + dataCount; // 6 + dataCount
   for (let r = TEMPLATE_BAND_ROW; r <= ultimaRigaDati; r++) {
     const row = ws.getRow(r);

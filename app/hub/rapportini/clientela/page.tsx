@@ -4,7 +4,7 @@ import { useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
-import { catturaStili, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
+import { preparaBanda, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
 
 /** Indici colonne ATTGIORN (0-based) */
 const COL = {
@@ -179,7 +179,7 @@ export default function RapportinoClientelaPage() {
         if (!rowsForOp.length) continue;
 
         const ws = cloneFromTemplate(base, opName, tplWb);
-        const stiliBanda = catturaStili(ws);
+        const stiliBanda = preparaBanda(ws);
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = useCombined ? '' : opName;
 

@@ -5,7 +5,7 @@ import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { catturaStili, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
+import { preparaBanda, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
 
 // lettere -> indici 0-based
 const COL = {
@@ -675,7 +675,7 @@ perOp[opName] = rowsSorted;
 if (!rowsSorted.length) continue;
 
 const ws = cloneFromTemplate(base, opName, tplWb);
-const stiliBanda = catturaStili(ws);
+const stiliBanda = preparaBanda(ws);
 ws.getCell('B2').value = dateStr;
 ws.getCell('B4').value = useCombined ? '' : opName;
 
