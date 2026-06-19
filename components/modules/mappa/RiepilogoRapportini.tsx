@@ -229,7 +229,7 @@ export default function RiepilogoRapportini() {
         giorni.map((g) => (
           <div key={g.data} className="space-y-3">
             <IntestazioneGiorno giorno={g} oggi={oggi} />
-            <div className="flex items-start gap-3">
+            <div className="flex flex-wrap items-start gap-3">
               {g.territori.map((t) => (
                 <CardTerritorio
                   key={`${g.data}-${t.chiave}`}

@@ -63,7 +63,7 @@ export default function CardTerritorio({
 
   return (
     <div
-      className={`flex-1 min-w-0 max-w-[340px] rounded-xl bg-[var(--brand-surface)] ${
+      className={`grow basis-[300px] min-w-[300px] max-w-[340px] rounded-xl bg-[var(--brand-surface)] ${
         terr.aiCreato ? 'border-2 border-[var(--success)]' : 'border border-[var(--brand-border)]'
       }`}
     >
