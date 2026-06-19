@@ -6,6 +6,7 @@ import { resolveInfoCampi, valoreInfo, coordinateFromRaw, type TemplateInfoCampo
 import { campiEsportabili, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { colonneVisibili, type VoceColonne } from '@/utils/rapportini/colonneVisibili';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
+import { catturaStili, posizionaBanda } from './bandaRapportino';
 
 /**
  * Export Excel dinamico dei rapportini compilati (lato server).
@@ -84,6 +85,7 @@ export async function buildRapportinoXlsx(
   const wb = await loadTemplate();
   const ws = wb.worksheets[0];
   if (!ws) throw new Error('Foglio template non valido in Rapportino.xlsx.');
+  const stiliBanda = catturaStili(ws);
 
   const vociC = voci.map((v) => ({ ...v, coordinate: coordinateFromRaw(v.raw_json) }));
   const info = resolveInfoCampi((rapportino.info_snapshot ?? []) as TemplateInfoCampo[]);
@@ -139,6 +141,9 @@ export async function buildRapportinoXlsx(
     rr.commit();
     rowIdx++;
   }
+
+  // Banda "INTERVENTI CON NOTE" dinamica: scende sotto l'ultima voce in overflow.
+  posizionaBanda(ws, rowIdx - DATA_START_ROW, stiliBanda);
 
   const totalCols = infoVis.length + 1 + campiVis.length + 1;
   for (let c = 1; c <= totalCols; c++) {
