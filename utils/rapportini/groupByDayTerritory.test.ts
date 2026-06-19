@@ -46,14 +46,24 @@ describe('groupByDayTerritory', () => {
     expect(etichette[0]).toBe('NORD');
   });
 
-  it('(d) giorni ordinati con oggi in cima', () => {
+  it('(d) giorni ordinati in decrescente: i futuri sopra, senza incastrarsi tra oggi e ieri', () => {
     const raps = [
       rap({ id: 'a', piano_id: 'p1', data: '2026-06-19', territorio: 'NORD', piano_creato_at: '2026-06-19T08:00:00Z' }),
       rap({ id: 'b', piano_id: 'p2', data: '2026-06-17', territorio: 'SUD', piano_creato_at: '2026-06-17T09:00:00Z' }),
       rap({ id: 'c', piano_id: 'p3', data: '2026-06-18', territorio: 'EST', piano_creato_at: '2026-06-18T10:00:00Z' }),
     ];
     const out = groupByDayTerritory(raps, '2026-06-18');
-    expect(out.map((g) => g.data)).toEqual(['2026-06-18', '2026-06-19', '2026-06-17']);
+    expect(out.map((g) => g.data)).toEqual(['2026-06-19', '2026-06-18', '2026-06-17']);
+  });
+
+  it('(d2) una pianificazione per un giorno FUTURO appare sopra oggi e ieri', () => {
+    const raps = [
+      rap({ id: 'a', piano_id: 'p1', data: '2026-06-22', territorio: 'NORD', piano_creato_at: '2026-06-19T08:00:00Z' }),
+      rap({ id: 'b', piano_id: 'p2', data: '2026-06-19', territorio: 'SUD', piano_creato_at: '2026-06-19T09:00:00Z' }),
+      rap({ id: 'c', piano_id: 'p3', data: '2026-06-18', territorio: 'EST', piano_creato_at: '2026-06-18T10:00:00Z' }),
+    ];
+    const out = groupByDayTerritory(raps, '2026-06-19');
+    expect(out.map((g) => g.data)).toEqual(['2026-06-22', '2026-06-19', '2026-06-18']);
   });
 
   it('(e) raggruppamento usa territorio EFFETTIVO (r.territorio), non il piano logico', () => {
