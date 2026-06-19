@@ -1,5 +1,5 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
-import { ordineInvio, classificaEsito } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto } from './syncPlan';
 import { marcaErrore } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
@@ -92,10 +92,19 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         if (blob) fd.append(`foto:${ref.chiave}`, blob, `${ref.chiave}.jpg`);
       }
       const r = await fetch(`/api/r/${item.token}/intervento-manuale`, { method: 'POST', body: fd });
+      // Il server conferma con fotoComplete che TUTTI i file sono davvero sullo storage.
+      // Assente (deploy vecchio) → prudenzialmente false → non rilasciare i blob.
+      let fotoComplete = false;
       if (r.ok) {
+        const j = (await r.json().catch(() => ({}))) as { fotoComplete?: boolean };
+        fotoComplete = j.fotoComplete === true;
+      }
+      const rilascia = deveRilasciareFoto(r.status, fotoComplete);
+      if (rilascia) {
         for (const ref of item.payload.fotoBlobRefs) await dbBlob.rimuovi(ref.blobId);
       }
-      return { status: r.status };
+      // 2xx ma foto non complete → forza il retry (tieni blob + item in coda).
+      return { status: r.status, ritentabile: r.ok && !rilascia };
     }
     // invia
     const r = await fetch(`/api/r/${item.token}/invia`, { method: 'POST' });
