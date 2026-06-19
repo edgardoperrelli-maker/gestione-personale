@@ -51,3 +51,12 @@ export function classificaEsito(status: number): EsitoSync {
   if (status === 400) return { esito: 'bloccato', motivo: 'Intervento non più disponibile — riapri il link' };
   return { esito: 'bloccato', motivo: 'Richiesta non valida' };
 }
+
+/**
+ * Decide se il sync può RILASCIARE i blob foto di una richiesta manuale: solo quando il
+ * server ha risposto 2xx E ha confermato che tutte le foto sono persistite (fotoComplete).
+ * Altrimenti i blob restano in IndexedDB per il retry automatico.
+ */
+export function deveRilasciareFoto(status: number, fotoComplete: boolean): boolean {
+  return status >= 200 && status < 300 && fotoComplete === true;
+}

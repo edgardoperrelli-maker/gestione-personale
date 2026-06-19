@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ordineInvio, classificaEsito } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto } from './syncPlan';
 import type { OutboxItem } from './types';
 
 const base = { token: 'tok', tentativi: 0, stato: 'in_attesa' as const };
@@ -56,5 +56,20 @@ describe('classificaEsito', () => {
   });
   it('404 resta sul motivo generico "Richiesta non valida"', () => {
     expect(classificaEsito(404)).toEqual({ esito: 'bloccato', motivo: 'Richiesta non valida' });
+  });
+});
+
+describe('deveRilasciareFoto', () => {
+  it('rilascia solo con 2xx E fotoComplete', () => {
+    expect(deveRilasciareFoto(200, true)).toBe(true);
+    expect(deveRilasciareFoto(201, true)).toBe(true);
+  });
+  it('non rilascia se 2xx ma foto incomplete', () => {
+    expect(deveRilasciareFoto(200, false)).toBe(false);
+  });
+  it('non rilascia su errori (5xx, 4xx, rete)', () => {
+    expect(deveRilasciareFoto(502, true)).toBe(false);
+    expect(deveRilasciareFoto(422, true)).toBe(false);
+    expect(deveRilasciareFoto(0, true)).toBe(false);
   });
 });
