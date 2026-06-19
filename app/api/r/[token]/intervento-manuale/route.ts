@@ -12,6 +12,7 @@ import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerComm
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { risolviCampiManuali } from '@/lib/interventi/manuali/risolviCampiManuali';
 import { partiFotoRicevute, etichettaSlotFoto } from '@/lib/interventi/manuali/fotoRicevute';
+import { slotDaRiparare } from '@/lib/interventi/manuali/riparazioneFoto';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -20,6 +21,14 @@ import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToInter
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 
 export const runtime = 'nodejs';
+
+/** Insieme dei path realmente presenti nel bucket sotto il prefisso della richiesta. */
+async function pathPresentiInStorage(richiestaId: string): Promise<Set<string>> {
+  const { data: listati } = await supabaseAdmin.storage
+    .from('interventi-foto')
+    .list(richiestaId, { limit: 1000 });
+  return new Set((listati ?? []).map((o) => `${richiestaId}/${o.name}`));
+}
 
 const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
 
@@ -150,12 +159,37 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       .eq('id', rawDati.richiestaId)
       .maybeSingle();
     if (esistente) {
+      // Self-healing: ri-carica i file foto mancanti se il re-invio li porta.
+      const reqId = esistente.id as string;
+      const { data: righe } = await supabaseAdmin
+        .from('interventi_manuali_foto')
+        .select('slot_chiave, storage_path')
+        .eq('richiesta_id', reqId);
+      const righeFoto = (righe ?? []) as Array<{ slot_chiave: string; storage_path: string }>;
+      const fotoTotali = righeFoto.length;
+      let fotoOk = fotoTotali;
+      if (fotoTotali > 0) {
+        const presenti = await pathPresentiInStorage(reqId);
+        const daRiparare = slotDaRiparare(righeFoto, received, presenti);
+        for (const s of daRiparare) {
+          if (!s.file.type.startsWith('image/')) continue;
+          const buf = Buffer.from(await s.file.arrayBuffer());
+          await supabaseAdmin.storage
+            .from('interventi-foto')
+            .upload(s.storagePath, buf, { contentType: s.file.type || 'image/jpeg', upsert: true });
+        }
+        const presentiDopo = daRiparare.length > 0 ? await pathPresentiInStorage(reqId) : presenti;
+        fotoOk = righeFoto.filter((r) => presentiDopo.has(r.storage_path)).length;
+      }
       return NextResponse.json({
         id: esistente.id,
         voceId: esistente.voce_id,
         corsia: esistente.corsia,
         interventoId: esistente.intervento_id,
         idempotente: true,
+        fotoTotali,
+        fotoOk,
+        fotoComplete: fotoOk === fotoTotali,
       });
     }
   }
@@ -228,10 +262,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // file esista realmente nel bucket PRIMA di scrivere le righe in DB; altrimenti rollback + 502
   // e l'invio offline verra' ritentato al prossimo sync (auto-guarigione).
   if (pathCaricati.length > 0) {
-    const { data: listati } = await supabaseAdmin.storage
-      .from('interventi-foto')
-      .list(richiestaId, { limit: 1000 });
-    const presenti = new Set((listati ?? []).map((o) => `${richiestaId}/${o.name}`));
+    const presenti = await pathPresentiInStorage(richiestaId);
     const mancanti = pathCaricati.filter((p) => !presenti.has(p));
     if (mancanti.length > 0) {
       await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
@@ -409,5 +440,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     }
   }
 
-  return NextResponse.json({ id: req2!.id, voceId: voceRow!.id, corsia, interventoId });
+  return NextResponse.json({
+    id: req2!.id,
+    voceId: voceRow!.id,
+    corsia,
+    interventoId,
+    fotoTotali: fotoCaricate.length,
+    fotoOk: fotoCaricate.length,
+    fotoComplete: true,
+  });
 }
