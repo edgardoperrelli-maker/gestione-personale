@@ -5,6 +5,8 @@ export type RapRiepilogo = RapportinoStato & {
   territorio: string | null;
   piano_creato_at?: string | null;
   territorio_override?: string | null;
+  /** true se il piano è stato creato dall'agente (Assegnazione AI) */
+  aiCreato?: boolean;
 };
 
 export type GiornoGruppo = {

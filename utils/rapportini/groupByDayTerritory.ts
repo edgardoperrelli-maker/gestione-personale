@@ -2,8 +2,8 @@
 import type { RapRiepilogo } from './groupByDay';
 import { ordinaGiorni } from './giorniRiepilogo';
 
-export type PianoGruppo = { piano_id: string; creato_at: string | null; operatori: RapRiepilogo[] };
-export type TerritorioGruppo = { chiave: string; etichetta: string; piani: PianoGruppo[]; nOperatori: number };
+export type PianoGruppo = { piano_id: string; creato_at: string | null; aiCreato: boolean; operatori: RapRiepilogo[] };
+export type TerritorioGruppo = { chiave: string; etichetta: string; piani: PianoGruppo[]; nOperatori: number; aiCreato: boolean };
 export type GiornoTerritori = { data: string; territori: TerritorioGruppo[] };
 
 const SENZA = '￿'; // ordina sempre per ultimo
@@ -30,6 +30,7 @@ export function groupByDayTerritory(raps: RapRiepilogo[], oggi: string): GiornoT
       byPiano.set(r.piano_id, {
         piano_id: r.piano_id,
         creato_at: r.piano_creato_at ?? null,
+        aiCreato: r.aiCreato ?? false,
         operatori: [],
       });
     }
@@ -60,6 +61,8 @@ export function groupByDayTerritory(raps: RapRiepilogo[], oggi: string): GiornoT
           etichetta: chiave === SENZA ? 'Senza territorio' : etichettaTerr(terrOriginale ?? chiave),
           piani,
           nOperatori,
+          // territorio "dell'agente" solo se TUTTI i suoi piani sono AI (in pratica non si mischiano)
+          aiCreato: piani.length > 0 && piani.every((p) => p.aiCreato),
         };
       });
 

@@ -85,6 +85,32 @@ describe('groupByDayTerritory', () => {
     expect(opSpostato.territorio_override).toBe('SUD');
   });
 
+  it('(f) aiCreato si propaga: piano AI → PianoGruppo.aiCreato; territorio AI sse tutti i piani sono AI', () => {
+    const raps = [
+      // territorio AI: unico piano marcato aiCreato
+      rap({ id: 'a', piano_id: 'pAI', data: '2026-06-18', territorio: 'ZAGAROLO', piano_creato_at: '2026-06-18T08:00:00Z', aiCreato: true }),
+      // territorio manuale: piano non AI
+      rap({ id: 'b', piano_id: 'pMan', data: '2026-06-18', territorio: 'ACEA', piano_creato_at: '2026-06-18T09:00:00Z', aiCreato: false }),
+    ];
+    const out = groupByDayTerritory(raps, '2026-06-18');
+    const zag = out[0].territori.find((t) => t.etichetta === 'ZAGAROLO')!;
+    const acea = out[0].territori.find((t) => t.etichetta === 'ACEA')!;
+    expect(zag.aiCreato).toBe(true);
+    expect(zag.piani[0].aiCreato).toBe(true);
+    expect(acea.aiCreato).toBe(false);
+    expect(acea.piani[0].aiCreato).toBe(false);
+  });
+
+  it('(g) territorio con un piano AI e uno manuale → NON è marcato AI (every)', () => {
+    const raps = [
+      rap({ id: 'a', piano_id: 'pAI', data: '2026-06-18', territorio: 'MISTO', piano_creato_at: '2026-06-18T08:00:00Z', aiCreato: true }),
+      rap({ id: 'b', piano_id: 'pMan', data: '2026-06-18', territorio: 'MISTO', piano_creato_at: '2026-06-18T09:00:00Z', aiCreato: false }),
+    ];
+    const out = groupByDayTerritory(raps, '2026-06-18');
+    const t = out[0].territori[0];
+    expect(t.aiCreato).toBe(false);
+  });
+
   it('nOperatori conta tutti gli operatori del territorio (su tutti i piani)', () => {
     const raps = [
       rap({ id: 'a', piano_id: 'p1', data: '2026-06-18', territorio: 'NORD', piano_creato_at: '2026-06-18T08:00:00Z', staff_id: 's1' }),

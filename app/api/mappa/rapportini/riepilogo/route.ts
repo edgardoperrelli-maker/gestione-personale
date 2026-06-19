@@ -30,11 +30,15 @@ export async function GET(req: Request) {
 
   const pianoIds = [...new Set(list.map((r) => r.piano_id))];
   const pianoInfoById: Record<string, { territorio: string | null; creato_at: string | null }> = {};
+  const aiPianoIds = new Set<string>();
   if (pianoIds.length) {
     const { data: piani } = await supabaseAdmin.from('mappa_piani').select('id, territorio, created_at').in('id', pianoIds);
     (piani ?? []).forEach((p: { id: string; territorio: string | null; created_at: string | null }) => {
       pianoInfoById[p.id] = { territorio: p.territorio ?? null, creato_at: p.created_at ?? null };
     });
+    // Piani creati dall'agente (Assegnazione AI): presenti nello storico assegnazione_ai_log.
+    const { data: aiLog } = await supabaseAdmin.from('assegnazione_ai_log').select('piano_id').in('piano_id', pianoIds);
+    (aiLog ?? []).forEach((l: { piano_id: string | null }) => { if (l.piano_id) aiPianoIds.add(l.piano_id); });
   }
 
   const rapIds = list.map((r) => r.id);
@@ -50,6 +54,7 @@ export async function GET(req: Request) {
     territorio: territorioEffettivo(r.territorio_override, pianoInfoById[r.piano_id]?.territorio),
     territorio_override: r.territorio_override ?? null,
     piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
+    aiCreato: aiPianoIds.has(r.piano_id),
     url: `${base}/r/${r.token}`,
     statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
     nVoci: vociCount[r.id] ?? 0,

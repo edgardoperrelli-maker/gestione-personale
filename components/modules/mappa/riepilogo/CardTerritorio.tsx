@@ -62,7 +62,11 @@ export default function CardTerritorio({
   );
 
   return (
-    <div className="flex-1 min-w-0 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div
+      className={`flex-1 min-w-0 max-w-[340px] rounded-xl bg-[var(--brand-surface)] ${
+        terr.aiCreato ? 'border-2 border-[var(--success)]' : 'border border-[var(--brand-border)]'
+      }`}
+    >
       {/* Header card */}
       <div className="flex items-center justify-between gap-2 border-b border-[var(--brand-border)] px-2.5 py-1.5">
         <span className="truncate text-[13px] font-semibold">{terr.etichetta}</span>
