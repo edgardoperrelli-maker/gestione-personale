@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
+import { catturaStili, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
 
 /** Indici colonne ATTGIORN (0-based) */
 const COL = {
@@ -178,6 +179,7 @@ export default function RapportinoClientelaPage() {
         if (!rowsForOp.length) continue;
 
         const ws = cloneFromTemplate(base, opName, tplWb);
+        const stiliBanda = catturaStili(ws);
         ws.getCell('B2').value = dateStr;
         ws.getCell('B4').value = useCombined ? '' : opName;
 
@@ -193,7 +195,7 @@ hrow.commit();
 // i dati partono dalla riga 7
 let rowIdx = 7;
 const sorted = rowsForOp
-  .slice(0, 33)
+  .slice()
   .sort((a,b) => hhmmToMin(onlyHHMM(a[COL.U_ORA])) - hhmmToMin(onlyHHMM(b[COL.U_ORA])));
 for (const r of sorted) {
   const nominativo = safeStr(r[COL.O_NOMINATIVO]);
@@ -231,6 +233,8 @@ for (const r of sorted) {
   rowIdx++;
 }
 
+// Banda "INTERVENTI CON NOTE" dinamica: scende sotto l'ultimo intervento in overflow.
+posizionaBanda(ws, rowIdx - DATA_START_ROW, stiliBanda);
 
         for (let c = 1; c <= 15; c++) {
           let maxLen = 8;
