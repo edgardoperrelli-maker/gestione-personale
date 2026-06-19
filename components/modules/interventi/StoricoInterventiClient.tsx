@@ -221,7 +221,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
         )}
       </div>
 
-      {fotoVoceId && <ModaleFotoVoce voceId={fotoVoceId} onClose={() => setFotoVoceId(null)} />}
+      {fotoVoceId && <ModaleFotoVoce voceId={fotoVoceId} isAdminPlus={isAdminPlus} onClose={() => setFotoVoceId(null)} />}
       {isAdminPlus && modificaVoceId && (
         <ModaleModificaVoce
           voceId={modificaVoceId}
