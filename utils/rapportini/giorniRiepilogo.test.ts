@@ -2,12 +2,10 @@ import { describe, it, expect } from 'vitest';
 import { ordinaGiorni, etichettaRelativaGiorno } from './giorniRiepilogo';
 
 describe('ordinaGiorni', () => {
-  it('mette oggi per primo, poi futuri asc, poi passati desc', () => {
+  it('ordina in decrescente: futuri/recenti in cima (no sandwich tra oggi e ieri)', () => {
     const giorni = ['2026-06-16', '2026-06-20', '2026-06-18', '2026-06-19', '2026-06-17'];
     expect(ordinaGiorni(giorni, '2026-06-18')).toEqual([
-      '2026-06-18', // oggi
-      '2026-06-19', '2026-06-20', // futuri asc
-      '2026-06-17', '2026-06-16', // passati desc
+      '2026-06-20', '2026-06-19', '2026-06-18', '2026-06-17', '2026-06-16',
     ]);
   });
   it('funziona se oggi non è tra i giorni (solo futuri/passati)', () => {

@@ -1,11 +1,11 @@
 import { addGiorni } from './scadenza';
 
-/** Ordina date YYYY-MM-DD: oggi primo, poi futuri asc, poi passati desc. */
-export function ordinaGiorni(giorni: string[], oggi: string): string[] {
-  const futuri = giorni.filter((g) => g > oggi).sort((a, b) => (a < b ? -1 : a > b ? 1 : 0));
-  const passati = giorni.filter((g) => g < oggi).sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
-  const haOggi = giorni.filter((g) => g === oggi);
-  return [...haOggi, ...futuri, ...passati];
+/** Ordina date YYYY-MM-DD in ordine DECRESCENTE (giorni più recenti/futuri in cima).
+ *  Così una pianificazione per un giorno futuro appare SOPRA, senza incastrarsi tra oggi e ieri.
+ *  (Il parametro `oggi` resta per compatibilità coi chiamanti; le etichette Oggi/Ieri/Domani
+ *   sono gestite a parte da `etichettaRelativaGiorno`.) */
+export function ordinaGiorni(giorni: string[], _oggi?: string): string[] {
+  return [...giorni].sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
 }
 
 /** 'oggi' | 'domani' | 'ieri' | null rispetto a `oggi` (YYYY-MM-DD). */

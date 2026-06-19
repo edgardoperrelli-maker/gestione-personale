@@ -58,6 +58,7 @@ export async function POST(req: Request) {
     // 4) per ogni file (template/attivita possono differire) raggruppa e crea i piani
     const avvisi: string[] = [];
     const conflitti: { staff_name: string | null; comune: string; data: string; submitted: boolean }[] = [];
+    const assegnatiIds: string[] = []; // righe pianificate → consumate da agente_pianificabili a fine giro
     let pianiCreati = 0; let rapportiniCreati = 0;
     for (const file of files) {
       const cfg = cfgByFile.get(file);
@@ -129,8 +130,12 @@ export async function POST(req: Request) {
         const logRows = costruisciLogRows({ data: p.data, comune: p.comune, file, pianoId, userId, operatori: operatoriLiberi });
         const { error: eLog } = await supabaseAdmin.from('assegnazione_ai_log').insert(logRows);
         if (eLog) avvisi.push(`Log ${p.comune} ${p.data}: ${eLog.message}`);
+        assegnatiIds.push(...operatoriLiberi.flatMap((o) => o.tasks.map((t) => String(t.id))));
       }
     }
+
+    // consuma le righe pianificate: spariscono dall'anteprima (non riappaiono come "già pianificato")
+    if (assegnatiIds.length) await supabaseAdmin.from('agente_pianificabili').delete().in('id', assegnatiIds);
 
     return NextResponse.json({
       ok: true, pianiCreati, rapportiniCreati,

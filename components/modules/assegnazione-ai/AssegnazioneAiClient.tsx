@@ -171,6 +171,16 @@ export default function AssegnazioneAiClient({
   function toggleEspandi(key: string) {
     setEspansi((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   }
+  async function scarta(o: OperatoreAnteprima) {
+    if (!window.confirm(`Rimuovere ${o.nome} dall'anteprima? Le sue ${o.righe.length} righe NON verranno pianificate (potrai ricaricarle con "Leggi dal file").`)) return;
+    try {
+      const res = await fetch('/api/admin/agente/scarta', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: o.righe.map((r) => r.id) }),
+      });
+      if (res.ok) { void caricaAnteprima(righe.map((r) => r.id)); router.refresh(); }
+    } catch { /* noop */ }
+  }
 
   const operatoriTot = gruppi.reduce((s, g) => s + g.operatori.length, 0);
   const daRisolvere = gruppi.reduce((s, g) => s + g.operatori.filter((o) => o.stato === 'non_risolto' || o.stato === 'ambiguo').length, 0);
@@ -283,6 +293,12 @@ export default function AssegnazioneAiClient({
                           <div className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>{o.righe.length}</div>
                           <div className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>{selezionabile ? `${selDe} selez.` : 'esclusi'}</div>
                         </div>
+                        <button type="button" onClick={() => void scarta(o)} title="Rimuovi dall'anteprima (non verrà pianificato)"
+                          aria-label={`rimuovi ${o.nome} dall'anteprima`}
+                          className="flex-none flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors hover:opacity-100"
+                          style={{ color: 'var(--brand-text-subtle)', backgroundColor: 'var(--brand-surface-2)', opacity: 0.7 }}>
+                          ✕
+                        </button>
                       </div>
 
                       {aperto && (
