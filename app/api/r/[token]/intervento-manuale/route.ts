@@ -169,17 +169,23 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       const fotoTotali = righeFoto.length;
       let fotoOk = fotoTotali;
       if (fotoTotali > 0) {
-        const presenti = await pathPresentiInStorage(reqId);
-        const daRiparare = slotDaRiparare(righeFoto, received, presenti);
-        for (const s of daRiparare) {
-          if (!s.file.type.startsWith('image/')) continue;
-          const buf = Buffer.from(await s.file.arrayBuffer());
-          await supabaseAdmin.storage
-            .from('interventi-foto')
-            .upload(s.storagePath, buf, { contentType: s.file.type || 'image/jpeg', upsert: true });
+        try {
+          const presenti = await pathPresentiInStorage(reqId);
+          const daRiparare = slotDaRiparare(righeFoto, received, presenti);
+          for (const s of daRiparare) {
+            if (!s.file.type.startsWith('image/')) continue;
+            const buf = Buffer.from(await s.file.arrayBuffer());
+            await supabaseAdmin.storage
+              .from('interventi-foto')
+              .upload(s.storagePath, buf, { contentType: s.file.type || 'image/jpeg', upsert: true });
+          }
+          const presentiDopo = daRiparare.length > 0 ? await pathPresentiInStorage(reqId) : presenti;
+          fotoOk = righeFoto.filter((r) => presentiDopo.has(r.storage_path)).length;
+        } catch {
+          // Best-effort (spec §1.6): se la riparazione fallisce NON rompiamo l'idempotenza;
+          // dichiariamo le foto non complete (fotoOk=0) così il client ritenta al prossimo sync.
+          fotoOk = 0;
         }
-        const presentiDopo = daRiparare.length > 0 ? await pathPresentiInStorage(reqId) : presenti;
-        fotoOk = righeFoto.filter((r) => presentiDopo.has(r.storage_path)).length;
       }
       return NextResponse.json({
         id: esistente.id,
