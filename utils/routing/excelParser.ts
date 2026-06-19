@@ -214,12 +214,13 @@ function extractOdsin(v: unknown): string | undefined {
 /**
  * Identificativo ODS/ODL unico (ODL = ODS = ODSIN sono la stessa cosa).
  * Priorità: colonna ODL grezza → colonna ODS/ODSIN (numero 200xxxxxxxx estratto, altrimenti grezzo)
- * → estrazione/valore dal PDR. `extractOdsin` resta come normalizzatore quando il campo ha testo extra.
+ * → SOLO un vero ODS 200xxxxxxxx estratto dal PDR. NON si usa più il PDR grezzo come ODL
+ * (il PDR a 14 cifre / la matricola non sono ODS): se non c'è un vero ODS l'ODL resta vuoto.
  */
 export function resolveOdl(odlRaw: string, odsAltRaw: string, pdrRaw: string): string {
   if (odlRaw) return odlRaw;
   if (odsAltRaw) return extractOdsin(odsAltRaw) || odsAltRaw;
-  return extractOdsin(pdrRaw) || pdrRaw || '';
+  return extractOdsin(pdrRaw) || '';
 }
 
 // ─── Export pubblico ─────────────────────────────────────────────────────────

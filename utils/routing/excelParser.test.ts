@@ -50,8 +50,12 @@ describe('resolveOdl — identificativo ODS/ODL unico', () => {
   it('estrae il 200xxxxxxxx quando il campo ODS ha testo extra', () => {
     expect(resolveOdl('', 'ABC 20012345678 XY', '')).toBe('20012345678');
   });
-  it('fallback al PDR se non c\'è altro', () => {
-    expect(resolveOdl('', '', 'PDR-9')).toBe('PDR-9');
+  it('estrae un vero ODS 200xxxxxxxx dal PDR se presente', () => {
+    expect(resolveOdl('', '', 'xx 20012345678 yy')).toBe('20012345678');
+  });
+  it('NON usa il PDR grezzo come ODL (PDR 14 cifre / matricola → vuoto)', () => {
+    expect(resolveOdl('', '', '00594203345063')).toBe('');
+    expect(resolveOdl('', '', 'IGMB030260006820')).toBe('');
   });
   it('tutto vuoto → stringa vuota', () => {
     expect(resolveOdl('', '', '')).toBe('');
