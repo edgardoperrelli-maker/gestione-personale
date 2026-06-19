@@ -1,11 +1,22 @@
 'use client';
 
 import Link from 'next/link';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams } from 'next/navigation';
 import { appNavigation, sectionLabels } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import { MODULE_ICONS, DASHBOARD_HOME_ICON } from './moduleIcons';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
+
+/**
+ * Icona per la voce "Riepilogo rapportini" (sotto-vista della Mappa, mostrata
+ * come voce a sé nella sidebar). La Pianificazione riusa l'icona `mappa`.
+ */
+const RIEPILOGO_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <path d="M9 11l3 3 8-8" />
+    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+  </svg>
+);
 
 type SidebarProps = {
   allowedModules?: AppModuleKey[];
@@ -28,6 +39,8 @@ export default function Sidebar({
   onToggleCollapsed,
 }: SidebarProps) {
   const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const vistaMappa = searchParams.get('vista');
   const { count: nAttesa } = useRichiesteManualiContext();
   const badgeAttesa = nAttesa > 0 ? (
     <span
@@ -116,15 +129,36 @@ export default function Sidebar({
                 {sectionLabels.modules}
               </p>
             )}
-            {moduleItems.map((item) =>
-              renderLink(
-                item.href,
-                item.label,
-                MODULE_ICONS[item.key as AppModuleKey],
-                matchesPath(pathname, item.href, item.matchPrefixes),
-                item.key === 'lista-attesa' ? badgeAttesa : undefined,
-              ),
-            )}
+            {moduleItems.flatMap((item) => {
+              // La Mappa è divisa in due voci dirette (stessa route, viste diverse):
+              // "Pianificazione" e "Riepilogo rapportini". Stesso permesso `mappa`.
+              if (item.key === 'mappa') {
+                const suMappa = pathname === '/hub/mappa' || pathname.startsWith('/hub/mappa/');
+                return [
+                  renderLink(
+                    '/hub/mappa?vista=pianifica',
+                    'Pianificazione',
+                    MODULE_ICONS.mappa,
+                    suMappa && vistaMappa !== 'riepilogo',
+                  ),
+                  renderLink(
+                    '/hub/mappa?vista=riepilogo',
+                    'Riepilogo rapportini',
+                    RIEPILOGO_ICON,
+                    suMappa && vistaMappa === 'riepilogo',
+                  ),
+                ];
+              }
+              return [
+                renderLink(
+                  item.href,
+                  item.label,
+                  MODULE_ICONS[item.key as AppModuleKey],
+                  matchesPath(pathname, item.href, item.matchPrefixes),
+                  item.key === 'lista-attesa' ? badgeAttesa : undefined,
+                ),
+              ];
+            })}
           </>
         )}
 
