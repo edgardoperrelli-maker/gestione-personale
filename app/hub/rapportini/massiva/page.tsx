@@ -5,6 +5,7 @@ import AuthGate from '@/components/AuthGate';
 import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
+import { catturaStili, posizionaBanda, DATA_START_ROW } from '@/lib/rapportini/bandaRapportino';
 
 // lettere -> indici 0-based
 const COL = {
@@ -674,6 +675,7 @@ perOp[opName] = rowsSorted;
 if (!rowsSorted.length) continue;
 
 const ws = cloneFromTemplate(base, opName, tplWb);
+const stiliBanda = catturaStili(ws);
 ws.getCell('B2').value = dateStr;
 ws.getCell('B4').value = useCombined ? '' : opName;
 
@@ -734,9 +736,11 @@ for (const r of rowsDeduped) {
   rowIdx++;
 }
 
-// --- NOTE in fondo, righe 36+ (riga 35 = "INTERVENTI CON NOTE" dal template) ---
-const NOTE_START = 36;
-const NOTE_END   = 41;
+// --- Banda "INTERVENTI CON NOTE" + NOTE in fondo, posizione DINAMICA ---
+const nInterventi = rowIdx - DATA_START_ROW;
+const { primaNota } = posizionaBanda(ws, nInterventi, stiliBanda);
+const NOTE_START = primaNota;
+const NOTE_END   = primaNota + 5; // 6 righe note (invariato)
 const maxNotes = Math.min(notes.length, NOTE_END - NOTE_START + 1);
 for (let i = 0; i < maxNotes; i++) {
   const rr = NOTE_START + i;
