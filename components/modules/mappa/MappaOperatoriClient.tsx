@@ -26,6 +26,7 @@ import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
+import { catturaStili, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
@@ -2322,6 +2323,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const opName = op ?? staffId ?? 'Operatore';
         const sheetName = sanitizeSheetName(opName).slice(0, 31);
         const ws = cloneFromTemplate(base, sheetName, tplWb);
+        const stiliBanda = catturaStili(ws);
 
         // Intestazioni header template (B2 = data, B4 = operatore)
         ws.getCell('B2').value = dateStr;
@@ -2372,6 +2374,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           for (let k = 0; k < campiCols.length; k++) { rr.getCell(col).value = ''; col++; }
           rr.commit();
         });
+
+        // Banda "INTERVENTI CON NOTE" dinamica: scende sotto l'ultimo intervento in overflow.
+        posizionaBanda(ws, sorted.length, stiliBanda);
 
         // Auto-larghezza colonne dati (dinamica)
         const totalCols = infoCols.length + 1 + campiCols.length;
