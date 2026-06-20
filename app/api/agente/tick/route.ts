@@ -22,6 +22,7 @@ type ConfigRow = {
   forza_giro: boolean;
   forza_scan: boolean;
   pianifica_data: string | null;
+  forza_acea_stato: boolean;
 };
 
 export async function POST(req: Request) {
@@ -41,7 +42,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato',
       )
       .eq('id', 1)
       .single();
@@ -115,6 +116,12 @@ export async function POST(req: Request) {
       if (claimErr) throw claimErr;
     }
 
+    // Giro ACEA on-demand: flag one-shot, consumato qui (come forza_giro con eseguiOra).
+    const aceaStato = config.forza_acea_stato === true;
+    if (aceaStato) {
+      await supabaseAdmin.from('agente_config').update({ forza_acea_stato: false }).eq('id', 1);
+    }
+
     return NextResponse.json(
       {
         eseguiOra,
@@ -125,6 +132,7 @@ export async function POST(req: Request) {
         esitoNegativo: config.esito_negativo ?? 'No',
         forzaScan: config.forza_scan === true,
         pianificaData: config.pianifica_data ?? null,
+        aceaStato,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
