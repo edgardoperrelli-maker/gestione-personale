@@ -382,6 +382,21 @@ async function main() {
     await leggiPianificabili({ baseUrl, exportKey: cfg.exportKey, cartella: cfg.cartella, dataTarget: ris.pianificaData });
   }
 
+  // Giro ACEA on-demand: indipendente da eseguiOra. Playwright caricato solo qui (import dinamico).
+  if (ris.aceaStato) {
+    const now = new Date();
+    const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '') + '-acea';
+    try {
+      const { eseguiGiroAcea } = await import('./lib/acea/eseguiGiroAcea.mjs');
+      const report = await eseguiGiroAcea({ cfg, stamp });
+      try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
+      await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
+      console.log(`[lim-sync] giro ACEA: aggiornate=${report.file?.[0]?.aggiornate ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+    } catch (e) {
+      console.error(`[lim-sync] giro ACEA fallito: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
 
   if (!eseguiOra) {
