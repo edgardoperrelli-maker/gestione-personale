@@ -11,8 +11,11 @@ function reportBase(extra) {
   return { tipo: 'acea-stato', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], ...extra };
 }
 
-export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowMs = Date.now() }) {
-  const a = cfg.acea;
+export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = loginEdEsporta, nowMs = Date.now() }) {
+  const acea = cfg.acea;
+  // target 'zagarolo' = override masterPath/foglio/colonne + regola DA CHIEDERE.
+  // login/ricerca/export/download restano CONDIVISI (stesso download per entrambi i target).
+  const a = (target === 'zagarolo' && acea.zagarolo) ? { ...acea, ...acea.zagarolo } : acea;
   const lockPath = path.join(path.dirname(a.masterPath), 'acea.lock');
   if (!acquisisci(lockPath, { nowMs })) {
     return reportBase({ saltato: true, erroreGlobale: 'Giro ACEA già in corso (lock).' });
@@ -33,6 +36,7 @@ export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowM
       masterColonnaOdl: a.masterColonnaOdl,
       masterColonnaStato: a.masterColonnaStato,
       masterColonnaAutomazione: a.masterColonnaAutomazione,
+      daChiedere: a.daChiedereSeVuoto === true,
       backup: () => backupFile(a.masterPath, stamp),
     });
     if (rep.erroreColonne) {
@@ -40,6 +44,7 @@ export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowM
     }
 
     return reportBase({
+      target,
       lavori: righe.length,
       file: [{
         file: path.basename(a.masterPath), master: true, aggiornate: rep.aggiornate,
@@ -47,6 +52,7 @@ export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowM
       }],
       extraNonCollocate: rep.nonAgganciate.map((odl) => ({ odl })),
       invariate: rep.invariate,
+      daChiedere: rep.daChiedere ?? 0,
     });
   } catch (e) {
     return reportBase({ erroreGlobale: e instanceof Error ? e.message : String(e) });

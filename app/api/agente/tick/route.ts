@@ -23,6 +23,7 @@ type ConfigRow = {
   forza_scan: boolean;
   pianifica_data: string | null;
   forza_acea_stato: boolean;
+  acea_target: string | null;
 };
 
 export async function POST(req: Request) {
@@ -42,7 +43,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato, acea_target',
       )
       .eq('id', 1)
       .single();
@@ -133,6 +134,7 @@ export async function POST(req: Request) {
         forzaScan: config.forza_scan === true,
         pianificaData: config.pianifica_data ?? null,
         aceaStato,
+        aceaTarget: config.acea_target ?? 'dunning',
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

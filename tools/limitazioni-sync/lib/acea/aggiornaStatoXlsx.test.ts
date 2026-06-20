@@ -78,6 +78,33 @@ describe('aggiornaStatoXlsx', () => {
     expect(fs.readFileSync(file).equals(prima)).toBe(true);
   });
 
+  it('daChiedere: scrive "DA CHIEDERE" su Ordine non in export con stato vuoto, lascia i pieni', async () => {
+    const file = path.join(dir, 'dachiedere.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione']);
+    ws.addRow([957276080, '']);        // in export -> aggiorna
+    ws.addRow([888, '']);              // NON in export + vuoto -> DA CHIEDERE
+    ws.addRow([999, 'gia presente']);  // NON in export + pieno -> invariato
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [{ ordine: '957276080', stato: 'completato' }],
+      { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione', daChiedere: true },
+    );
+
+    expect(rep.aggiornate).toBe(1);
+    expect(rep.daChiedere).toBe(1);
+
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    const w = chk.getWorksheet('PIANIFICAZIONE')!;
+    expect(w.getRow(2).getCell(2).value).toBe('completato');
+    expect(w.getRow(3).getCell(2).value).toBe('DA CHIEDERE');
+    expect(w.getRow(4).getCell(2).value).toBe('gia presente');
+  });
+
   it('erroreColonne=true se mancano le colonne', async () => {
     const file = path.join(dir, 'nomatch.xlsx');
     const wb = new ExcelJS.Workbook();

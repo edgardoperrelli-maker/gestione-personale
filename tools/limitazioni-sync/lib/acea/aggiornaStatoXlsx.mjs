@@ -89,7 +89,7 @@ function colonnaDaHeader(headerRow, nome, ss) {
  * Stato Operazione e (se masterColonnaAutomazione è data) il marcatore "SI + <colonna>".
  * @returns {Promise<{erroreColonne:boolean, aggiornate:number, invariate:number, nonAgganciate:string[], righe:object[]}>}
  */
-export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, masterColonnaOdl, masterColonnaStato, masterColonnaAutomazione, backup }) {
+export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, masterColonnaOdl, masterColonnaStato, masterColonnaAutomazione, daChiedere, backup }) {
   const zip = await JSZip.loadAsync(fs.readFileSync(masterPath));
 
   // 1) risolvi il foglio → sheetN.xml
@@ -122,41 +122,49 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   const visti = new Set();
   let aggiornate = 0;
   let invariate = 0;
+  let daChiedereScritte = 0;
   const righe = [];
   const sostituzioni = [];
+  const sAttrDi = (cella) => (cella ? ((cella.attrs.match(/\bs="[^"]*"/) || [''])[0]) : '');
   for (const rm of sheet.matchAll(/<row r="(\d+)"[\s\S]*?<\/row>/g)) {
     const n = +rm[1];
     if (n === 1) continue;
     const ordine = norm(valoreCella(trovaCella(rm[0], `${colOdl}${n}`), ss));
-    if (!ordine || !mappa.has(ordine)) continue;
-    visti.add(ordine);
-    const nuovo = String(mappa.get(ordine) ?? '').trim();
+    if (!ordine) continue;
     const statoCell = trovaCella(rm[0], `${colStato}${n}`);
     const precedente = String(valoreCella(statoCell, ss)).trim();
-    if (precedente === nuovo) { invariate++; continue; }
 
-    const sAttr = statoCell ? ((statoCell.attrs.match(/\bs="[^"]*"/) || [''])[0]) : '';
-    sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttr, nuovo), riga: n });
-
-    // marcatore Automazione: "SI + <colonna toccata>" (come la sync su Zagarolo)
-    if (colAutomazione) {
-      const autoCell = trovaCella(rm[0], `${colAutomazione}${n}`);
-      const aAttr = autoCell ? ((autoCell.attrs.match(/\bs="[^"]*"/) || [''])[0]) : '';
-      sostituzioni.push({ ref: `${colAutomazione}${n}`, vecchia: autoCell ? autoCell.full : null, nuova: cellaInline(`${colAutomazione}${n}`, aAttr, `SI + ${masterColonnaStato}`), riga: n });
+    if (mappa.has(ordine)) {
+      visti.add(ordine);
+      const nuovo = String(mappa.get(ordine) ?? '').trim();
+      if (precedente === nuovo) { invariate++; continue; }
+      sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttrDi(statoCell), nuovo), riga: n });
+      // marcatore Automazione: "SI + <colonna toccata>"
+      if (colAutomazione) {
+        const autoCell = trovaCella(rm[0], `${colAutomazione}${n}`);
+        sostituzioni.push({ ref: `${colAutomazione}${n}`, vecchia: autoCell ? autoCell.full : null, nuova: cellaInline(`${colAutomazione}${n}`, sAttrDi(autoCell), `SI + ${masterColonnaStato}`), riga: n });
+      }
+      aggiornate++;
+      righe.push({
+        riga: n, odl: ordine, tipo: 'acea-stato', comune: '', matricola: '',
+        esecutore: '', esito: nuovo, sigillo: '', data: '', note: precedente ? `era: ${precedente}` : '',
+      });
+    } else if (daChiedere && precedente === '') {
+      // ODL non presente nell'export (aggiunto a mano) + stato vuoto → "DA CHIEDERE"
+      sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttrDi(statoCell), 'DA CHIEDERE'), riga: n });
+      daChiedereScritte++;
+      righe.push({
+        riga: n, odl: ordine, tipo: 'da-chiedere', comune: '', matricola: '',
+        esecutore: '', esito: 'DA CHIEDERE', sigillo: '', data: '', note: '',
+      });
     }
-
-    aggiornate++;
-    righe.push({
-      riga: n, odl: ordine, tipo: 'acea-stato', comune: '', matricola: '',
-      esecutore: '', esito: nuovo, sigillo: '', data: '', note: precedente ? `era: ${precedente}` : '',
-    });
   }
 
   const nonAgganciate = [...mappa.keys()].filter((o) => !visti.has(o));
 
   // 5) nessuna modifica → non toccare il file (niente write, niente backup)
   if (sostituzioni.length === 0) {
-    return { erroreColonne: false, aggiornate: 0, invariate, nonAgganciate, righe: [] };
+    return { erroreColonne: false, aggiornate: 0, invariate, daChiedere: 0, nonAgganciate, righe: [] };
   }
 
   // 6) applica le sostituzioni sul testo del foglio (ref unici → replace sicuro; insert in ordine)
@@ -174,5 +182,5 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   if (typeof backup === 'function') backup();
   fs.writeFileSync(masterPath, outBuf);
 
-  return { erroreColonne: false, aggiornate, invariate, nonAgganciate, righe };
+  return { erroreColonne: false, aggiornate, invariate, daChiedere: daChiedereScritte, nonAgganciate, righe };
 }

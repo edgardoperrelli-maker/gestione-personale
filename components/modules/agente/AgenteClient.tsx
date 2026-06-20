@@ -53,11 +53,16 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   const [armMsg, setArmMsg] = useState<string | null>(null);
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
+  const [aceaTarget, setAceaTarget] = useState<'dunning' | 'zagarolo'>('dunning');
 
   async function aggiornaStatoAcea() {
     setAceaArming(true); setAceaMsg(null);
     try {
-      const res = await fetch('/api/admin/agente/acea-stato', { method: 'POST' });
+      const res = await fetch('/api/admin/agente/acea-stato', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target: aceaTarget }),
+      });
       const j = await res.json().catch(() => ({}));
       setAceaMsg(res.ok ? 'Richiesta inviata: parte al prossimo contatto dell\'agente.' : `Errore: ${j.error ?? res.status}`);
     } catch (e) {
@@ -285,13 +290,24 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {arming ? 'Armo…' : 'Esegui ora'}
           </button>
           {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
+          <select
+            value={aceaTarget}
+            onChange={(e) => setAceaTarget(e.target.value as 'dunning' | 'zagarolo')}
+            disabled={aceaArming}
+            className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            title="Quale master aggiornare con lo stato ODL da ACEA"
+          >
+            <option value="dunning">DUNNING — Limitazioni con ordine</option>
+            <option value="zagarolo">Zagarolo — Limitazioni massive</option>
+          </select>
           <button
             type="button"
             onClick={aggiornaStatoAcea}
             disabled={aceaArming}
             className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
             style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
-            title="Playwright accede ad ACEA, esporta e aggiorna la colonna Stato Operazione nel master."
+            title="Playwright accede ad ACEA, esporta e aggiorna la colonna stato del master scelto."
           >
             {aceaArming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
           </button>
