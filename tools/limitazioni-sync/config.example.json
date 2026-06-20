@@ -17,7 +17,7 @@
       "dataPubblicazioneDa": "01/05/2026",
       "escludiOdmChiusi": false
     },
-    "export": { "foglio": null, "colonnaOdl": "Ordine", "colonnaStato": "Stato Operazione" },
+    "export": { "foglio": null, "colonnaOdl": "Ordine", "colonnaStato": "Descrizione Stato Ordine" },
     "masterColonnaOdl": "Ordine",
     "masterColonnaStato": "Stato Operazione",
     "sovrascriviStato": true
