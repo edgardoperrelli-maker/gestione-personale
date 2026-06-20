@@ -29,6 +29,7 @@ export type AgenteRunRow = {
   non_collocate: number;
   errore: string | null;
   dettaglio: unknown;
+  tipo?: string;
 };
 
 /** Snapshot colonne rilevate per file (agente_file_colonne). */

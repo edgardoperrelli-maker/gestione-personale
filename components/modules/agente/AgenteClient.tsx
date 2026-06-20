@@ -15,6 +15,7 @@ export type AgenteClientProps = {
   minutiDaContatto: number | null;
   forzaGiro: boolean;
   forzaScan: boolean;
+  forzaAcea: boolean;
 };
 
 /** Forma modificabile della config nel form (sottoinsieme salvabile). */
@@ -34,7 +35,7 @@ const cardStyle = {
   backgroundColor: 'var(--brand-surface)',
 } as const;
 
-export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan }: AgenteClientProps) {
+export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea }: AgenteClientProps) {
   const router = useRouter();
   const [form, setForm] = useState<ConfigForm>({
     enabled: config.enabled,
@@ -50,6 +51,21 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   const [esitoSalva, setEsitoSalva] = useState<{ ok: boolean; msg: string } | null>(null);
   const [arming, setArming] = useState(false);
   const [armMsg, setArmMsg] = useState<string | null>(null);
+  const [aceaArming, setAceaArming] = useState(false);
+  const [aceaMsg, setAceaMsg] = useState<string | null>(null);
+
+  async function aggiornaStatoAcea() {
+    setAceaArming(true); setAceaMsg(null);
+    try {
+      const res = await fetch('/api/admin/agente/acea-stato', { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      setAceaMsg(res.ok ? 'Richiesta inviata: parte al prossimo contatto dell\'agente.' : `Errore: ${j.error ?? res.status}`);
+    } catch (e) {
+      setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally {
+      setAceaArming(false);
+    }
+  }
 
   async function eseguiOra() {
     setArming(true); setArmMsg(null);
@@ -218,7 +234,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             · ultimo contatto {formattaContatto(minutiDaContatto)}
           </span>
         </div>
-        {(forzaGiro || forzaScan) && (
+        {(forzaGiro || forzaScan || forzaAcea) && (
           <div
             className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
@@ -232,6 +248,11 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {forzaScan && (
               <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
                 re-scan colonne
+              </span>
+            )}
+            {forzaAcea && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
+                stato ACEA
               </span>
             )}
             <button
@@ -264,6 +285,17 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {arming ? 'Armo…' : 'Esegui ora'}
           </button>
           {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
+          <button
+            type="button"
+            onClick={aggiornaStatoAcea}
+            disabled={aceaArming}
+            className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
+            title="Playwright accede ad ACEA, esporta e aggiorna la colonna Stato Operazione nel master."
+          >
+            {aceaArming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
+          </button>
+          {aceaMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</span>}
         </div>
       </section>
 

@@ -70,6 +70,7 @@ export default async function AgentePage() {
   // flag one-shot (non nel tipo config): mostrati come "in attesa" finché l'agente non ticka
   const forzaGiro = (configRow as { forza_giro?: boolean } | null)?.forza_giro === true;
   const forzaScan = (configRow as { forza_scan?: boolean } | null)?.forza_scan === true;
+  const forzaAcea = (configRow as { forza_acea_stato?: boolean } | null)?.forza_acea_stato === true;
 
   const now = new Date();
   const { oggi, oraCorrente, weekday } = partiRoma(now);
@@ -92,6 +93,7 @@ export default async function AgentePage() {
       minutiDaContatto={minutiDa(config.ultimo_contatto_il, now)}
       forzaGiro={forzaGiro}
       forzaScan={forzaScan}
+      forzaAcea={forzaAcea}
     />
   );
 }
