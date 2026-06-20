@@ -20,6 +20,7 @@
     "export": { "foglio": null, "colonnaOdl": "Ordine", "colonnaStato": "Descrizione Stato Ordine" },
     "masterColonnaOdl": "Ordine",
     "masterColonnaStato": "Stato Operazione",
+    "masterColonnaAutomazione": "Automazione",
     "sovrascriviStato": true
   }
 }

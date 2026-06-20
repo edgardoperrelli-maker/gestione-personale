@@ -32,6 +32,7 @@ export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowM
       foglio: a.foglio,
       masterColonnaOdl: a.masterColonnaOdl,
       masterColonnaStato: a.masterColonnaStato,
+      masterColonnaAutomazione: a.masterColonnaAutomazione,
       backup: () => backupFile(a.masterPath, stamp),
     });
     if (rep.erroreColonne) {

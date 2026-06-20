@@ -12,10 +12,10 @@ const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acea-xlsx-'));
 async function creaMaster(file: string) {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet('PIANIFICAZIONE');
-  ws.addRow(['Ordine', 'Stato Operazione', 'Esecutore']);
-  ws.addRow([957276080, 'Intervento Richiesto', 'CIARALLO']);
-  ws.addRow([957289327, 'Ricevuto', 'PRATESI']);
-  ws.autoFilter = 'A1:C3';
+  ws.addRow(['Ordine', 'Stato Operazione', 'Esecutore', 'Automazione']);
+  ws.addRow([957276080, 'Intervento Richiesto', 'CIARALLO', '']);
+  ws.addRow([957289327, 'Ricevuto', 'PRATESI', '']);
+  ws.autoFilter = 'A1:D3';
   await wb.xlsx.writeFile(file);
 }
 
@@ -36,6 +36,7 @@ describe('aggiornaStatoXlsx', () => {
         foglio: 'PIANIFICAZIONE',
         masterColonnaOdl: 'Ordine',
         masterColonnaStato: 'Stato Operazione',
+        masterColonnaAutomazione: 'Automazione',
         backup: () => { backupChiamato = true; },
       },
     );
@@ -47,12 +48,14 @@ describe('aggiornaStatoXlsx', () => {
     expect(backupChiamato).toBe(true);
     expect(rep.righe[0]).toMatchObject({ odl: '957276080', esito: 'completato', note: 'era: Intervento Richiesto' });
 
-    // rilettura: stato aggiornato, Esecutore intatto
+    // rilettura: stato aggiornato, Esecutore intatto, marcatore Automazione scritto
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.readFile(file);
     const ws = wb.getWorksheet('PIANIFICAZIONE')!;
     expect(ws.getRow(2).getCell(2).value).toBe('completato');
     expect(ws.getRow(2).getCell(3).value).toBe('CIARALLO');
+    expect(ws.getRow(2).getCell(4).value).toBe('SI + Stato Operazione');
+    expect(ws.getRow(3).getCell(4).value ?? '').toBe(''); // riga invariata: Automazione non toccata
 
     // AutoFiltro preservato
     const zip = await JSZip.loadAsync(fs.readFileSync(file));
