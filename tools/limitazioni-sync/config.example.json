@@ -1,5 +1,25 @@
 {
   "endpointUrl": "https://<TUO-DOMINIO-VERCEL>/api/export/limitazioni-massive",
   "exportKey": "INCOLLA-QUI-LO-STESSO-SEGRETO-DI-VERCEL",
-  "cartella": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE"
+  "cartella": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE",
+  "acea": {
+    "loginUrl": "https://<PORTALE-ACEA>/login",
+    "username": "<UTENTE-ACEA>",
+    "password": "<PASSWORD-ACEA>",
+    "browser": "msedge",
+    "masterPath": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\DUNNING\\2026\\LIMITAZIONI CON ORDINE.xlsx",
+    "foglio": "PIANIFICAZIONE",
+    "download": "C:\\Users\\edgardo.perrelli\\Desktop\\tools\\_acea_download",
+    "debug": "C:\\Users\\edgardo.perrelli\\Desktop\\tools\\_acea_debug",
+    "login": { "campoUser": "<SELETTORE-INPUT-USER>", "campoPass": "<SELETTORE-INPUT-PASS>", "bottoneLogin": "<SELETTORE-BOTTONE-LOGIN>" },
+    "ricerca": {
+      "filtri": [],
+      "bottoneCerca": "<SELETTORE-BOTTONE-CERCA>",
+      "bottoneEsporta": "<SELETTORE-BOTTONE-ESPORTA>"
+    },
+    "export": { "foglio": null, "colonnaOdl": "Ordine", "colonnaStato": "Stato Operazione" },
+    "masterColonnaOdl": "Ordine",
+    "masterColonnaStato": "Stato Operazione",
+    "sovrascriviStato": true
+  }
 }

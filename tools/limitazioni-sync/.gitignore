@@ -2,3 +2,7 @@ node_modules/
 config.json
 _backup/
 _log/
+_acea_download/
+_acea_debug/
+acea.lock
+_prova-acea.mjs
