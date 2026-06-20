@@ -49,6 +49,14 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                   >
                     {badge.label}
                   </span>
+                  {run.tipo === 'acea-stato' && (
+                    <span
+                      className="rounded-full px-2 py-0.5 text-xs font-semibold"
+                      style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
+                    >
+                      Stato ACEA
+                    </span>
+                  )}
                   {run.errore && (
                     <span className="rounded-full px-2 py-0.5 text-xs font-semibold"
                       style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>Errore</span>
