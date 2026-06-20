@@ -6,6 +6,7 @@
   "description": "Agente locale: aggiorna i file ACEA limitazioni massive su SharePoint da /api/export/limitazioni-massive",
   "dependencies": {
     "exceljs": "^4.4.0",
-    "playwright": "^1.49.0"
+    "playwright": "^1.49.0",
+    "jszip": "^3.10.1"
   }
 }

@@ -1,9 +1,9 @@
 // tools/limitazioni-sync/lib/acea/eseguiGiroAcea.mjs
-// Orchestrazione: lock → driver(export) → parse → aggiorna master → backup/salva → report.
+// Orchestrazione: lock → driver(export) → parse → aggiorna master (chirurgico) → report.
 import path from 'node:path';
-import { caricaWorkbook, backupFile, salva } from '../excelIO.mjs';
+import { backupFile } from '../excelIO.mjs';
 import { parseExport } from './parseExport.mjs';
-import { aggiornaStato } from './aggiornaStato.mjs';
+import { aggiornaStatoXlsx } from './aggiornaStatoXlsx.mjs';
 import { acquisisci, rilascia } from './lock.mjs';
 import { loginEdEsporta } from './driver.mjs';
 
@@ -26,14 +26,17 @@ export async function eseguiGiroAcea({ cfg, stamp, driver = loginEdEsporta, nowM
       return reportBase({ erroreGlobale: `Export: colonne "${a.export.colonnaOdl}"/"${a.export.colonnaStato}" non trovate.` });
     }
 
-    const wb = await caricaWorkbook(a.masterPath);
-    const ws = (a.foglio && wb.getWorksheet(a.foglio)) || wb.worksheets[0];
-    const rep = aggiornaStato(ws, righe, { masterColonnaOdl: a.masterColonnaOdl, masterColonnaStato: a.masterColonnaStato });
+    // Scrittura CHIRURGICA: tocca solo le celle dello Stato Operazione (preserva AutoFiltro,
+    // formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
+    const rep = await aggiornaStatoXlsx(a.masterPath, righe, {
+      foglio: a.foglio,
+      masterColonnaOdl: a.masterColonnaOdl,
+      masterColonnaStato: a.masterColonnaStato,
+      backup: () => backupFile(a.masterPath, stamp),
+    });
     if (rep.erroreColonne) {
       return reportBase({ lavori: righe.length, erroreGlobale: `Master: colonne "${a.masterColonnaOdl}"/"${a.masterColonnaStato}" non trovate.` });
     }
-
-    if (rep.aggiornate > 0) { backupFile(a.masterPath, stamp); await salva(wb, a.masterPath); }
 
     return reportBase({
       lavori: righe.length,

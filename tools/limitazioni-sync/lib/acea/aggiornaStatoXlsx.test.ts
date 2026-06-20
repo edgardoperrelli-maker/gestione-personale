@@ -1,0 +1,89 @@
+// tools/limitazioni-sync/lib/acea/aggiornaStatoXlsx.test.ts
+import { describe, it, expect } from 'vitest';
+import ExcelJS from 'exceljs';
+import JSZip from 'jszip';
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
+import { aggiornaStatoXlsx } from './aggiornaStatoXlsx.mjs';
+
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'acea-xlsx-'));
+
+async function creaMaster(file: string) {
+  const wb = new ExcelJS.Workbook();
+  const ws = wb.addWorksheet('PIANIFICAZIONE');
+  ws.addRow(['Ordine', 'Stato Operazione', 'Esecutore']);
+  ws.addRow([957276080, 'Intervento Richiesto', 'CIARALLO']);
+  ws.addRow([957289327, 'Ricevuto', 'PRATESI']);
+  ws.autoFilter = 'A1:C3';
+  await wb.xlsx.writeFile(file);
+}
+
+describe('aggiornaStatoXlsx', () => {
+  it("aggiorna Stato Operazione per Ordine, preserva le altre celle e l'AutoFiltro", async () => {
+    const file = path.join(dir, 'master.xlsx');
+    await creaMaster(file);
+
+    let backupChiamato = false;
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [
+        { ordine: '957276080', stato: 'completato' }, // cambia
+        { ordine: '957289327', stato: 'Ricevuto' }, // invariata
+        { ordine: '111', stato: 'x' }, // non agganciata
+      ],
+      {
+        foglio: 'PIANIFICAZIONE',
+        masterColonnaOdl: 'Ordine',
+        masterColonnaStato: 'Stato Operazione',
+        backup: () => { backupChiamato = true; },
+      },
+    );
+
+    expect(rep.erroreColonne).toBe(false);
+    expect(rep.aggiornate).toBe(1);
+    expect(rep.invariate).toBe(1);
+    expect(rep.nonAgganciate).toEqual(['111']);
+    expect(backupChiamato).toBe(true);
+    expect(rep.righe[0]).toMatchObject({ odl: '957276080', esito: 'completato', note: 'era: Intervento Richiesto' });
+
+    // rilettura: stato aggiornato, Esecutore intatto
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.getWorksheet('PIANIFICAZIONE')!;
+    expect(ws.getRow(2).getCell(2).value).toBe('completato');
+    expect(ws.getRow(2).getCell(3).value).toBe('CIARALLO');
+
+    // AutoFiltro preservato
+    const zip = await JSZip.loadAsync(fs.readFileSync(file));
+    const s1 = await zip.file('xl/worksheets/sheet1.xml')!.async('string');
+    expect(/<autoFilter/.test(s1)).toBe(true);
+  });
+
+  it('nessuna modifica → non chiama il backup e non altera il file', async () => {
+    const file = path.join(dir, 'nochange.xlsx');
+    await creaMaster(file);
+    const prima = fs.readFileSync(file);
+    let backupChiamato = false;
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [{ ordine: '957289327', stato: 'Ricevuto' }], // già uguale
+      { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione', backup: () => { backupChiamato = true; } },
+    );
+    expect(rep.aggiornate).toBe(0);
+    expect(backupChiamato).toBe(false);
+    expect(fs.readFileSync(file).equals(prima)).toBe(true);
+  });
+
+  it('erroreColonne=true se mancano le colonne', async () => {
+    const file = path.join(dir, 'nomatch.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Pippo', 'Pluto']);
+    await wb.xlsx.writeFile(file);
+    const rep = await aggiornaStatoXlsx(file, [{ ordine: '1', stato: 'x' }], {
+      foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+    });
+    expect(rep.erroreColonne).toBe(true);
+  });
+});

@@ -7,7 +7,7 @@
     "username": "<UTENTE-ACEA>",
     "password": "<PASSWORD-ACEA>",
     "browser": "msedge",
-    "headless": false,
+    "headless": true,
     "masterPath": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\DUNNING\\2026\\LIMITAZIONI CON ORDINE.xlsx",
     "foglio": "PIANIFICAZIONE",
     "download": "C:\\Users\\edgardo.perrelli\\Desktop\\tools\\_acea_download",
