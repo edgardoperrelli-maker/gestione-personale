@@ -21,6 +21,7 @@ export async function POST(req: Request) {
   try {
     const r = riassumiReport(body);
     const now = new Date();
+    const tipo = typeof body.tipo === 'string' ? body.tipo : 'sync';
 
     const { error: insErr } = await supabaseAdmin.from('agente_run').insert({
       dry_run: body.dryRun === true,
@@ -31,6 +32,7 @@ export async function POST(req: Request) {
       non_collocate: r.nonCollocate,
       errore: body.erroreGlobale ?? null,
       dettaglio: body,
+      tipo,
     });
     if (insErr) throw insErr;
 

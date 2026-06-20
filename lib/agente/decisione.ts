@@ -34,6 +34,7 @@ export type ReportAgente = {
   file?: ReportFileAgente[];
   extraNonCollocate?: unknown[];
   erroreGlobale?: string;
+  tipo?: string;
 };
 
 export type RiassuntoReport = {
