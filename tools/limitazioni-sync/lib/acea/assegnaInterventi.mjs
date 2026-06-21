@@ -69,13 +69,17 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           if (on === true) await sw.click().catch(() => {});
         }
 
-        // 2) apri il dialog "Numero OdM", svuota, INCOLLA tutti gli ODL dell'operatore, Inserisci OdM
+        // 3) apri il modale "Numero OdM" col pulsante ">" della sua riga (id auto ma stabile su questa app)
         passo = `cerca-${cognome}`;
-        const cellaOdM = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM');
-        await cellaOdM.scrollIntoViewIfNeeded().catch(() => {});
-        await cellaOdM.waitFor({ state: 'visible', timeout: 30_000 });
-        await cellaOdM.click();
         const svuota = app.getByRole('button', { name: 'Svuota tabella' });
+        const apriModale = app.locator('[id="__button8"]').first();
+        if (await apriModale.isVisible().catch(() => false)) {
+          await apriModale.click();
+        }
+        // fallback: se il modale non si è aperto, prova a cliccare il campo "Numero OdM"
+        if (!(await svuota.isVisible().catch(() => false))) {
+          await app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first().click().catch(() => {});
+        }
         await svuota.waitFor({ state: 'visible', timeout: 15_000 });
         await svuota.click().catch(() => {});
         // campo del dialog: l'unico textbox DENTRO il dialog SAP (.sapMDialog), non i campi del form dietro
