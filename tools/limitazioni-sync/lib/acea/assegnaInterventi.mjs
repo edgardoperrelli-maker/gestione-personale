@@ -9,8 +9,9 @@
 //     2) "Escludi ODM chiusi" OFF
 //     3) modale OdM (__button8) → scrivi l'ODL nel campo (NO "Svuota tabella") → "Inserisci OdM"
 //     4) "Ricerca" → individua la riga   (dry-run: si ferma qui)
-//     5) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente →
-//        seleziona operatore per COGNOME → "Ok" → "Team Leader" → "Salva" → "OK"
+//     5) apri la riga (cella stato, non il link Ordine) → "Modificare" → "Definizione risorse" →
+//        se l'operatore NON è già presente: "Inserire" → seleziona per COGNOME → "Ok";
+//        poi operatore = UNICO Team Leader → "Salva" → "OK"
 import { apriCruscotto } from './driver.mjs';
 
 const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
@@ -86,32 +87,76 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           continue;
         }
 
-        // 5) apri in modifica e assegna l'operatore
+        // 5) apri in modifica e assegna l'operatore  (locatori dal codegen reale Fase 2)
         passo = `apri-${r.odl}`;
-        await rigaLavoro.click();
+        // apri la riga cliccando la cella "Descrizione Stato Ordine" (col1) DENTRO la riga dell'ODL:
+        // NON la riga intera, perché la colonna "Ordine" è un link che navigherebbe altrove.
+        const cellaApri = rigaLavoro.locator('[id*="-col1"]').first();
+        if (await cellaApri.isVisible().catch(() => false)) await cellaApri.click();
+        else await app.locator('[id$="tableLavoriPubblicati-rows-row0-col1"]').first().click();
         await app.getByRole('button', { name: 'Modificare' }).click();
 
         passo = `risorse-${r.odl}`;
-        await app.getByText('Definizione risorse').click();
-        await app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]').click();
+        await app.getByText('Definizione risorse').first().click();
+        // assicurati che la sezione Dipendenti sia caricata (bottone "Inserire" presente)
+        const btnInserire = app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]');
+        await btnInserire.waitFor({ state: 'visible', timeout: 20_000 });
 
-        passo = `seleziona-${r.odl}`;
-        const rigaDialogo = app.getByRole('row', { name: new RegExp(cognome, 'i') }).first();
-        await rigaDialogo.waitFor({ state: 'visible', timeout: 20_000 });
-        const checkbox = rigaDialogo.getByRole('checkbox').first();
-        if (await checkbox.isVisible().catch(() => false)) await checkbox.check();
-        else await rigaDialogo.click();
-        await app.getByRole('button', { name: 'Ok' }).click();
+        // L'operatore è GIÀ nella griglia Dipendenti? (es. già assegnato a questo lavoro). In tal caso
+        // NON compare tra i "Dipendenti disponibili" della modale: niente aggiunta, solo Team Leader.
+        let giaPresente = false;
+        try {
+          await app.getByRole('row', { name: new RegExp(`Team Leader.*${cognome}`, 'i') }).first()
+            .waitFor({ state: 'visible', timeout: 6_000 });
+          giaPresente = true;
+        } catch { giaPresente = false; }
 
+        if (!giaPresente) {
+          passo = `inserisci-${r.odl}`;
+          await btnInserire.click();
+
+          passo = `seleziona-${r.odl}`;
+          // modale "Selezione dipendenti": seleziona la riga per COGNOME (scoped alla tabella del dialog)
+          const rigaDialogo = app.locator('#tableSelezioneDipendenti')
+            .getByRole('row', { name: new RegExp(cognome, 'i') }).first();
+          await rigaDialogo.waitFor({ state: 'visible', timeout: 20_000 });
+          await rigaDialogo.click();
+          await app.getByRole('button', { name: 'Ok' }).click();
+          // attendi che l'operatore compaia nella griglia Dipendenti
+          await app.getByRole('row', { name: new RegExp(`Team Leader.*${cognome}`, 'i') }).first()
+            .waitFor({ state: 'visible', timeout: 20_000 });
+        }
+
+        // REGOLA: l'operatore dev'essere l'UNICO Team Leader. Per riga: spunta l'operatore, togli la
+        // spunta agli altri. Traccio se ho cambiato qualcosa (per la conferma di salvataggio).
         passo = `teamleader-${r.odl}`;
-        await app.getByRole('row', { name: new RegExp(cognome, 'i') }).getByLabel('Team Leader').click();
+        let modificato = !giaPresente; // se ho appena aggiunto l'operatore è già una modifica
+        const righeTL = app.getByRole('row', { name: /Team Leader/ });
+        const nR = await righeTL.count();
+        for (let i = 0; i < nR; i++) {
+          const riga = righeTL.nth(i);
+          const testo = (await riga.textContent().catch(() => '')) ?? '';
+          const isOp = new RegExp(cognome, 'i').test(testo);
+          const box = riga.getByLabel('Team Leader').first();
+          const checked = await box.isChecked().catch(() => false);
+          if (isOp && !checked) { await box.click(); modificato = true; }       // spunta l'operatore
+          else if (!isOp && checked) { await box.click(); modificato = true; }  // togli gli altri
+        }
 
         passo = `salva-${r.odl}`;
         await app.getByRole('button', { name: 'Salva' }).click();
-        await app.getByRole('button', { name: 'OK' }).click();
+        // l'OK di conferma compare su un salvataggio reale; se non c'erano modifiche può non comparire
+        if (modificato) await app.getByRole('button', { name: 'OK' }).click();
+        else await app.getByRole('button', { name: 'OK' }).click({ timeout: 8_000 }).catch(() => {});
         await page.waitForLoadState('networkidle').catch(() => {});
         await shot(`ok-${r.odl}`);
-        esiti.push({ odl: r.odl, esito: 'assegnato' });
+        esiti.push({
+          odl: r.odl,
+          esito: 'assegnato',
+          motivo: giaPresente
+            ? (modificato ? 'operatore già presente; Team Leader aggiornato' : 'operatore già presente e Team Leader corretto')
+            : undefined,
+        });
       } catch (e) {
         await shot(`errore-${passo}`);
         esiti.push({ odl: r.odl, esito: 'fallito', motivo: `passo "${passo}": ${e instanceof Error ? e.message : String(e)}` });
