@@ -10,7 +10,12 @@ type BadgeVariant =
   | 'success'
   | 'warning'
   | 'danger'
-  | 'gold';
+  | 'gold'
+  | 'ok'
+  | 'ko'
+  | 'warn'
+  | 'idle'
+  | 'progress';
 
 type BadgeProps = React.HTMLAttributes<HTMLSpanElement> & {
   variant?: BadgeVariant;
@@ -27,6 +32,11 @@ const variantClasses: Record<BadgeVariant, string> = {
   warning: 'bg-[var(--warning-soft)] text-[var(--warning)]',
   danger: 'bg-[var(--danger-soft)] text-[var(--danger)]',
   gold: 'bg-[var(--brand-gold-soft)] text-[var(--brand-text-main)]',
+  ok: 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]',
+  ko: 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]',
+  warn: 'bg-[var(--status-warn-soft)] text-[var(--status-warn)]',
+  idle: 'bg-[var(--status-idle-soft)] text-[var(--status-idle)]',
+  progress: 'bg-[var(--status-progress-soft)] text-[var(--status-progress)]',
 };
 
 export default function Badge({ variant = 'primary', className = '', ...props }: BadgeProps) {

@@ -14,9 +14,7 @@ type TabsProps = {
 
 export default function Tabs({ value, onValueChange, items, className = '' }: TabsProps) {
   return (
-    <div
-      className={`inline-flex items-center gap-0.5 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] p-0.5 shadow-sm ${className}`}
-    >
+    <div className={`inline-flex items-end gap-1 border-b border-[var(--brand-border)] ${className}`}>
       {items.map((item) => {
         const active = value === item.value;
         return (
@@ -24,10 +22,11 @@ export default function Tabs({ value, onValueChange, items, className = '' }: Ta
             key={item.value}
             type="button"
             onClick={() => onValueChange(item.value)}
-            className={`rounded-lg px-3 py-1.5 text-sm font-medium transition-all ${
+            aria-current={active ? 'page' : undefined}
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
               active
-                ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] shadow-sm'
-                : 'text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]'
+                ? 'border-[var(--brand-primary)] text-[var(--primary-text)]'
+                : 'border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]'
             }`}
           >
             {item.label}
