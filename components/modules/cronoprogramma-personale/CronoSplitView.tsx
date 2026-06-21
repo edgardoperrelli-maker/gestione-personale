@@ -332,7 +332,7 @@ export default function CronoSplitView({
                     className="shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
                     style={
                       isActive
-                        ? { backgroundColor: s.band, color: 'oklch(0.16 0.06 245)' }
+                        ? { backgroundColor: s.band, color: 'var(--on-primary)' }
                         : { backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }
                     }
                   >

@@ -60,7 +60,7 @@ export default function ManualAssignmentsModal(p: Props) {
         <div className="flex-1 overflow-auto px-7 py-6">
           <button onClick={() => setWizardOpen(true)}
             className="mb-4 rounded-2xl px-5 py-3 font-semibold"
-            style={{ background: C.primary, color: 'oklch(0.16 0.06 245)', boxShadow: '0 0 16px oklch(0.78 0.13 215/.45)' }}>
+            style={{ background: C.primary, color: 'var(--on-primary)' }}>
             ＋ Nuova regola
           </button>
 
@@ -136,7 +136,7 @@ export default function ManualAssignmentsModal(p: Props) {
           <div className="flex gap-2.5">
             <button onClick={p.onClose} className="rounded-2xl px-5 py-2.5 text-sm font-semibold" style={{ color: 'var(--brand-text-muted)' }}>Chiudi</button>
             <button onClick={p.onDistribute} className="rounded-2xl px-5 py-2.5 text-sm font-semibold"
-              style={{ background: C.primary, color: 'oklch(0.16 0.06 245)', boxShadow: '0 0 16px oklch(0.78 0.13 215/.45)' }}>⚙ Distribuisci</button>
+              style={{ background: C.primary, color: 'var(--on-primary)' }}>⚙ Distribuisci</button>
           </div>
         </div>
       </div>
@@ -190,7 +190,7 @@ function RuleWizard(props: {
           <button onClick={props.onCancel} className="rounded-xl px-4 py-2 text-sm">Annulla</button>
           <button disabled={!valid} onClick={() => props.onCreate(rule)}
             className="rounded-xl px-4 py-2 text-sm font-semibold disabled:opacity-50"
-            style={{ background: 'oklch(0.78 0.155 215)', color: 'oklch(0.16 0.06 245)' }}>✓ Crea regola</button>
+            style={{ background: 'var(--brand-primary)', color: 'var(--on-primary)' }}>✓ Crea regola</button>
         </div>
       </div>
     </div>

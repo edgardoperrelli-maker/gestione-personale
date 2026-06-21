@@ -62,7 +62,7 @@ export function EsportaExcelButton({
             type="button"
             onClick={scarica}
             className="rounded-lg px-3 py-1.5 text-sm font-semibold"
-            style={{ backgroundColor: 'var(--brand-primary)', color: 'oklch(0.16 0.06 245)' }}
+            style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}
           >
             Scarica
           </button>
