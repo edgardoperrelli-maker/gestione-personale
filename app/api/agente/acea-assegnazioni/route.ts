@@ -16,10 +16,13 @@ export async function GET(req: Request) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return NextResponse.json({ error: 'data obbligatoria (YYYY-MM-DD).' }, { status: 400 });
 
   try {
-    // file di committente ACEA
-    const { data: cfgRows } = await supabaseAdmin.from('agente_file_config').select('file, committente');
+    // file di committente ACEA assegnabili sul Cruscotto "Pianificazione Lavori".
+    // ESCLUDE l'attività "LIMITAZIONI MASSIVE" (ZAGAROLO): NON va assegnata qui — è un flusso diverso.
+    const { data: cfgRows } = await supabaseAdmin.from('agente_file_config').select('file, committente, attivita');
     const aceaFiles = new Set(
-      ((cfgRows ?? []) as { file: string; committente: string }[]).filter((c) => c.committente === 'acea').map((c) => c.file),
+      ((cfgRows ?? []) as { file: string; committente: string; attivita: string | null }[])
+        .filter((c) => c.committente === 'acea' && c.attivita !== 'LIMITAZIONI MASSIVE')
+        .map((c) => c.file),
     );
 
     // righe lette dal file per quel giorno (solo file ACEA)
