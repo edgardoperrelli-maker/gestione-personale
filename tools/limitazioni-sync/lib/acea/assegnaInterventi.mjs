@@ -3,13 +3,14 @@
 // Selettori SAP UI5 instabili → locatori per ruolo/etichetta/testo.
 //
 // Flusso reale (dal codegen + screenshot ACEA):
-//   apriCruscotto → attiva il form (Contratto + "Escludi ODM chiusi" OFF) UNA volta →
-//   per ogni ODL:
-//     1) campo "Numero OdM" → dialog "Ricerca: Numero OdM" → "Svuota tabella" → digita ODL → "Inserisci OdM"
-//     2) "Ricerca" → individua la riga del lavoro
-//     (dry-run: si ferma qui, NON apre/salva)
-//     3) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente
-//     4) seleziona l'operatore per COGNOME → "Ok" → spunta "Team Leader" → "Salva" → "OK"
+//   apriCruscotto → per ogni ODL:
+//     0) "Nuova ricerca" (il portale ricorda l'ultima ricerca e al rientro mostra i RISULTATI:
+//        questo riporta al FORM di ricerca pulito; vale anche da un ODL al successivo)
+//     1) Contratto (precompilato; fill+Enter risolve il Fornitore) + "Escludi ODM chiusi" OFF
+//     2) campo "Numero OdM" → dialog "Ricerca: Numero OdM" → "Svuota tabella" → digita ODL → "Inserisci OdM"
+//     3) "Ricerca" → individua la riga del lavoro   (dry-run: si ferma qui)
+//     4) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente
+//     5) seleziona l'operatore per COGNOME → "Ok" → spunta "Team Leader" → "Salva" → "OK"
 import { apriCruscotto } from './driver.mjs';
 
 const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
@@ -19,35 +20,45 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
   if (!Array.isArray(righe) || righe.length === 0) return { esiti };
 
   const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
-  try {
-    // ── attiva il form UNA volta: Contratto (precompilato, ma il fill "attiva" i filtri) + ODM chiusi OFF
-    try {
-      const ric = acea.ricerca ?? {};
-      const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
-      if (ric.contratto) {
-        await contratto.fill(String(ric.contratto));
-        await contratto.press('Enter');
-        await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
-      }
-      // "Escludi ODM chiusi" SEMPRE OFF (per includere anche i chiusi/completati)
-      const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
-      if (await sw.isVisible().catch(() => false)) {
-        const acceso = await sw.getAttribute('aria-checked').catch(() => null);
-        if (acceso === 'true') await sw.click();
-      }
-      await shot('form-attivo');
-    } catch { /* best effort: il form potrebbe essere già attivo */ }
+  const ric = acea.ricerca ?? {};
 
+  // Torna al FORM di ricerca pulito (se siamo sui risultati c'è "Nuova ricerca").
+  const vaiAlForm = async () => {
+    const nuova = app.getByRole('button', { name: 'Nuova ricerca' });
+    if (await nuova.isVisible().catch(() => false)) {
+      await nuova.click();
+      await page.waitForLoadState('networkidle').catch(() => {});
+    }
+  };
+
+  try {
     for (const r of righe) {
-      let passo = `cerca-${r.odl}`;
+      let passo = `form-${r.odl}`;
       try {
-        // 1) campo "Numero OdM" → apre il dialog "Ricerca: Numero OdM"
+        // 0) assicura il form di ricerca pulito (gestisce risultati persistiti + reset tra ODL)
+        await vaiAlForm();
+
+        // 1) Contratto (precompilato): un fill+Enter risolve il Fornitore e "attiva" i filtri
+        const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
+        await contratto.waitFor({ state: 'visible', timeout: 30_000 });
+        if (ric.contratto) {
+          await contratto.fill(String(ric.contratto));
+          await contratto.press('Enter');
+          await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+        }
+        // "Escludi ODM chiusi" SEMPRE OFF
+        const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
+        if (await sw.isVisible().catch(() => false)) {
+          const on = await sw.isChecked().catch(() => null);
+          if (on === true) await sw.click();
+        }
+
+        // 2) campo "Numero OdM" → dialog "Ricerca: Numero OdM"
+        passo = `cerca-${r.odl}`;
         const cellaOdM = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first();
         await cellaOdM.waitFor({ state: 'visible', timeout: 30_000 });
         await cellaOdM.click();
 
-        // dialog: svuota la tabella, digita l'ODL nella riga, conferma con "Inserisci OdM".
-        // Fallback: se il dialog non compare, prova a digitare inline nel campo + Enter.
         const svuota = app.getByRole('button', { name: 'Svuota tabella' });
         if (await svuota.isVisible().catch(() => false)) {
           await svuota.click().catch(() => {});
@@ -60,33 +71,30 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           await cellaOdM.press('Enter');
         }
 
-        // 2) Ricerca
+        // 3) Ricerca → individua la riga
         passo = `ricerca-${r.odl}`;
         await app.getByRole('button', { name: 'Ricerca' }).click();
         await page.waitForLoadState('networkidle').catch(() => {});
-
-        // individua la riga del lavoro per numero ODL
         const rigaLavoro = app.getByRole('row', { name: new RegExp(String(r.odl)) }).first();
         await rigaLavoro.waitFor({ state: 'visible', timeout: 20_000 });
         await shot(`trovato-${r.odl}`);
 
         if (dryRun) {
-          // dry-run: NON tocca il portale, verifica solo che l'ODL sia individuabile.
           esiti.push({ odl: r.odl, esito: 'simulato', motivo: 'dry-run (riga trovata, non salvato)' });
           continue;
         }
 
-        // 3) apri in modifica
+        // 4) apri in modifica
         passo = `apri-${r.odl}`;
         await rigaLavoro.click();
         await app.getByRole('button', { name: 'Modificare' }).click();
 
-        // 4) scheda "Definizione risorse" → aggiungi dipendente
+        // 5) "Definizione risorse" → aggiungi dipendente
         passo = `risorse-${r.odl}`;
         await app.getByText('Definizione risorse').click();
         await app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]').click();
 
-        // 5) seleziona l'operatore per COGNOME (la lista non ha ricerca: Playwright scrolla alla riga)
+        // 6) seleziona l'operatore per COGNOME (la lista non ha ricerca: Playwright scrolla alla riga)
         passo = `seleziona-${r.odl}`;
         const cognome = cognomeDa(r.operatoreAcea);
         if (!cognome) throw new Error('cognome operatore vuoto');
@@ -97,11 +105,11 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         else await rigaDialogo.click();
         await app.getByRole('button', { name: 'Ok' }).click(); // 'Ok' del dialog (≠ 'OK' finale)
 
-        // 6) spunta "Team Leader" sulla riga dell'operatore (sempre)
+        // 7) spunta "Team Leader" sulla riga dell'operatore (sempre)
         passo = `teamleader-${r.odl}`;
         await app.getByRole('row', { name: new RegExp(cognome, 'i') }).getByLabel('Team Leader').click();
 
-        // 7) salva
+        // 8) salva
         passo = `salva-${r.odl}`;
         await app.getByRole('button', { name: 'Salva' }).click();
         await app.getByRole('button', { name: 'OK' }).click(); // conferma salvataggio
