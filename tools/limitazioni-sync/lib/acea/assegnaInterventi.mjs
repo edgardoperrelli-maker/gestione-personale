@@ -7,7 +7,7 @@
 //     0) "Nuova ricerca" se siamo sui risultati (torna al form)
 //     1) value-help Contratto (__input1-vhi) → seleziona il contratto → ABILITA il form
 //     2) "Escludi ODM chiusi" OFF
-//     3) ">" della riga Numero OdM (__button8) → modale → "Svuota tabella" → scrivi 1 ODL → "Inserisci OdM"
+//     3) modale OdM (__button8) → scrivi l'ODL nel campo (NO "Svuota tabella") → "Inserisci OdM"
 //     4) "Ricerca" → individua la riga   (dry-run: si ferma qui)
 //     5) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente →
 //        seleziona operatore per COGNOME → "Ok" → "Team Leader" → "Salva" → "OK"
@@ -57,20 +57,20 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           if (on === true) await sw.click().catch(() => {});
         }
 
-        // 3) apri il modale Numero OdM (">"=__button8, fallback: campo del form), svuota, scrivi l'ODL, Inserisci OdM
+        // 3) Modale "Numero OdM" (NO "Svuota tabella"): apri la tabella OdM, scrivi l'ODL nell'unico
+        //    campo (il sistema accetta anche più ODL su righe multiple e li divide per riga), poi
+        //    "Inserisci OdM". Fedele al codegen reale. "Nuova ricerca" a inizio giro azzera già la
+        //    tabella → svuotarla è inutile e rompeva "Inserisci OdM".
         passo = `cerca-${r.odl}`;
-        const svuotaBtn = app.getByRole('button', { name: 'Svuota tabella' });
-        await app.locator('[id="__button8"]').first().click().catch(() => {});
-        if (!(await svuotaBtn.isVisible().catch(() => false))) {
-          await app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first().click().catch(() => {});
-        }
-        await svuotaBtn.waitFor({ state: 'visible', timeout: 20_000 });
-        await svuotaBtn.click().catch(() => {});
-        // campo del DIALOG (è un textbox; il form usa un'altra struttura) → .last() = quello del dialog
-        const inp = app.getByRole('textbox', { name: 'Numero OdM' }).last();
-        await inp.waitFor({ state: 'visible', timeout: 15_000 });
-        await inp.click();
-        await inp.fill(String(r.odl));
+        await app.locator('[id="__button8"]').first().click();
+        // campo del modale OdM: prima la cella della griglia (codegen), fallback al textbox del dialog
+        const cellaOdl = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first();
+        const inputModale = (await cellaOdl.isVisible().catch(() => false))
+          ? cellaOdl
+          : app.getByRole('textbox', { name: 'Numero OdM' }).last();
+        await inputModale.waitFor({ state: 'visible', timeout: 20_000 });
+        await inputModale.click();
+        await inputModale.fill(String(r.odl));
         await app.getByRole('button', { name: 'Inserisci OdM' }).click();
 
         // 4) Ricerca → individua la riga
