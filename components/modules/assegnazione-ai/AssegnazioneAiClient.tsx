@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import type { GruppoAnteprima, OperatoreAnteprima, StatoOp } from '@/lib/agente/costruisciAnteprima';
+import { raggruppaCommessaAttivita } from '@/lib/agente/raggruppaCommessaAttivita';
 
 export type RigaPianificabile = {
   id: string;
@@ -84,13 +85,26 @@ export default function AssegnazioneAiClient({
   const cfgByFile = new Map(fileConfig.map((fc) => [fc.file, fc]));
   const idsKey = righe.map((r) => r.id).join(',');
 
+  // tab commessa → attività (data-driven da agente_file_config)
+  const alberi = raggruppaCommessaAttivita(righe.map((r) => ({ id: r.id, file: r.file })), fileConfig);
+  const [commessaSel, setCommessaSel] = useState<string>('');
+  const [attivitaSel, setAttivitaSel] = useState<string>('');
+  const commessaCorrente = alberi.find((c) => c.committente === commessaSel);
+  const attivitaCorrente = commessaCorrente?.attivita.find((a) => a.attivita === attivitaSel);
+  const idsAttivita = attivitaCorrente?.ids ?? [];
+  const idsAttivitaKey = idsAttivita.join(',');
+  const isAcea = commessaSel === 'acea';
+
   const caricaStorico = useCallback(async () => {
     try {
-      const res = await fetch('/api/admin/agente/assegnazioni');
+      const qs = new URLSearchParams();
+      if (commessaSel) qs.set('committente', commessaSel);
+      if (attivitaSel) qs.set('attivita', attivitaSel);
+      const res = await fetch(`/api/admin/agente/assegnazioni?${qs.toString()}`);
       const j = await res.json().catch(() => ({}));
       if (res.ok) setStorico((j.righe ?? []) as StoricoRiga[]);
     } catch { /* informativo */ }
-  }, []);
+  }, [commessaSel, attivitaSel]);
 
   const caricaAnteprima = useCallback(async (ids: string[]) => {
     if (ids.length === 0) { setGruppi([]); setSelezione(new Set()); return; }
@@ -112,7 +126,19 @@ export default function AssegnazioneAiClient({
   }, []);
 
   useEffect(() => { void caricaStorico(); }, [caricaStorico]);
-  useEffect(() => { void caricaAnteprima(idsKey ? idsKey.split(',') : []); }, [idsKey, caricaAnteprima]);
+
+  // default selezione commessa/attività quando cambiano le righe lette
+  useEffect(() => {
+    if (alberi.length === 0) { setCommessaSel(''); setAttivitaSel(''); return; }
+    const c = alberi.find((x) => x.committente === commessaSel) ?? alberi[0];
+    if (c.committente !== commessaSel) setCommessaSel(c.committente);
+    const a = c.attivita.find((x) => x.attivita === attivitaSel) ?? c.attivita[0];
+    if (a && a.attivita !== attivitaSel) setAttivitaSel(a.attivita);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [idsKey]);
+
+  // carica l'anteprima dei soli ID dell'attività selezionata
+  useEffect(() => { void caricaAnteprima(idsAttivitaKey ? idsAttivitaKey.split(',') : []); }, [idsAttivitaKey, caricaAnteprima]);
 
   async function leggi() {
     setArming(true); setMsg(null);
@@ -148,7 +174,7 @@ export default function AssegnazioneAiClient({
         if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
         setEsito(m);
         void caricaStorico();
-        void caricaAnteprima(righe.map((r) => r.id)); // ricalcola i conflitti: gli operatori appena assegnati passano a 'conflitto' e si deselezionano
+        void caricaAnteprima(idsAttivita); // ricalcola i conflitti: gli operatori appena assegnati passano a 'conflitto' e si deselezionano
         router.refresh();
       } else setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
@@ -178,7 +204,7 @@ export default function AssegnazioneAiClient({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: o.righe.map((r) => r.id) }),
       });
-      if (res.ok) { void caricaAnteprima(righe.map((r) => r.id)); router.refresh(); }
+      if (res.ok) { void caricaAnteprima(idsAttivita); router.refresh(); }
     } catch { /* noop */ }
   }
 
@@ -230,6 +256,40 @@ export default function AssegnazioneAiClient({
         )}
         {msg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>}
       </section>
+
+      {alberi.length > 0 && (
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-2">
+            {alberi.map((c) => (
+              <button key={c.committente} type="button"
+                onClick={() => { setCommessaSel(c.committente); setAttivitaSel(c.attivita[0]?.attivita ?? ''); }}
+                className="rounded-xl border px-3 py-1.5 text-sm font-semibold capitalize transition"
+                style={{
+                  borderColor: c.committente === commessaSel ? 'var(--brand-primary)' : 'var(--brand-border)',
+                  backgroundColor: c.committente === commessaSel ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
+                  color: 'var(--brand-text-main)',
+                }}>
+                {c.committente} <span style={{ color: 'var(--brand-text-muted)' }}>· {c.ids.length}</span>
+              </button>
+            ))}
+          </div>
+          {commessaCorrente && commessaCorrente.attivita.length > 0 && (
+            <div className="flex flex-wrap gap-2 pl-1">
+              {commessaCorrente.attivita.map((a) => (
+                <button key={a.attivita} type="button" onClick={() => setAttivitaSel(a.attivita)}
+                  className="rounded-lg border px-2.5 py-1 text-xs font-medium transition"
+                  style={{
+                    borderColor: a.attivita === attivitaSel ? 'var(--brand-primary)' : 'var(--brand-border)',
+                    backgroundColor: a.attivita === attivitaSel ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
+                    color: 'var(--brand-text-main)',
+                  }}>
+                  {a.attivita} <span style={{ color: 'var(--brand-text-muted)' }}>· {a.ids.length}</span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {righe.length === 0 ? (
         <section className="rounded-2xl border p-8 text-center" style={card}>
