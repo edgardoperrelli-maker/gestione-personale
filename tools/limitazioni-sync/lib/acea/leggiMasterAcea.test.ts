@@ -1,5 +1,19 @@
 import { describe, it, expect } from 'vitest';
-import { mappaRigheMaster } from './leggiMasterAcea.mjs';
+import { mappaRigheMaster, trovaIntestazioneAcea } from './leggiMasterAcea.mjs';
+
+describe('trovaIntestazioneAcea', () => {
+  it('trova la riga con la colonna chiave (per nome)', () => {
+    const righe = [['titolo', ''], ['', ''], ['Ordine', 'Esecutore', 'Data']];
+    expect(trovaIntestazioneAcea(righe, 'Ordine')).toBe(3);
+  });
+  it('robusto ad accenti/maiuscole', () => {
+    const righe = [['ORDINE', 'Localita']];
+    expect(trovaIntestazioneAcea(righe, 'Ordine')).toBe(1);
+  });
+  it('fallback riga 1 se non trovata', () => {
+    expect(trovaIntestazioneAcea([['a', 'b']], 'Ordine')).toBe(1);
+  });
+});
 
 describe('mappaRigheMaster', () => {
   const header = ['Descrizione Stato Ordine', 'Ordine', 'Matricola misuratore', 'INDIRIZZO', 'Località', 'Data', 'Esecutore'];

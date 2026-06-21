@@ -6,8 +6,22 @@ import { risolviColonna } from '../colonne.mjs';
 
 const t = (v) => String(v ?? '').trim();
 
-/** matrix: righe dati [riga][cella] (0-based). header: array intestazione. colonne: nomi-colonna. */
-export function mappaRigheMaster(matrix, header, colonne) {
+/** Indice 1-based della riga intestazione: la prima (entro maxScan) che contiene la colonna chiave
+ *  (match per NOME, robusto ad accenti/maiuscole). Fallback: 1.
+ *  NB: NON usa isFileMaster (che pretende "matricola" esatto e fallirebbe sul DUNNING dove la
+ *  colonna è "Matricola misuratore"). `righe` = celle per riga, 0-based (index 0 = riga 1 del foglio). */
+export function trovaIntestazioneAcea(righe, nomeColonnaChiave, maxScan = 15) {
+  const lista = righe ?? [];
+  const lim = Math.min(maxScan, lista.length);
+  for (let i = 0; i < lim; i++) {
+    if (risolviColonna(lista[i] ?? [], nomeColonnaChiave) >= 0) return i + 1;
+  }
+  return 1;
+}
+
+/** matrix: righe dati [riga][cella] (0-based). header: array intestazione. colonne: nomi-colonna.
+ *  primaRigaDati = numero di riga (1-based) della prima riga dati (header su riga prima). */
+export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
   const idx = {
     odl: risolviColonna(header, colonne.odl),
     esecutore: risolviColonna(header, colonne.esecutore),
@@ -21,7 +35,7 @@ export function mappaRigheMaster(matrix, header, colonne) {
   for (let r = 0; r < (matrix ?? []).length; r++) {
     const row = matrix[r] ?? [];
     out.push({
-      riga: r + 2, // header su riga 1 → prima riga dati = 2
+      riga: primaRigaDati + r, // numero di riga reale nel foglio
       odl: cella(row, idx.odl),
       matricola: cella(row, idx.matricola),
       indirizzo: cella(row, idx.indirizzo),

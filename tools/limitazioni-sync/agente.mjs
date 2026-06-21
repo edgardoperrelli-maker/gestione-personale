@@ -12,7 +12,7 @@ import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 import { estraiPianificabili } from './lib/pianificabili.mjs';
-import { mappaRigheMaster } from './lib/acea/leggiMasterAcea.mjs';
+import { mappaRigheMaster, trovaIntestazioneAcea } from './lib/acea/leggiMasterAcea.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 export const MARKER_AUTOMAZIONE = 'SI';
@@ -329,18 +329,18 @@ async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) 
   try {
     const wb = await caricaWorkbook(acea.masterPath);
     const ws = acea.foglio ? (wb.getWorksheet(acea.foglio) ?? wb.worksheets[0]) : wb.worksheets[0];
-    const rIntest = trovaRigaIntestazione(ws);
-    if (rIntest < 0) return;
-    const header = (ws.getRow(rIntest).values || []).slice(1);
-    const matrix = [];
-    for (let r = rIntest + 1; r <= ws.rowCount; r++) {
-      matrix.push((ws.getRow(r).values || []).slice(1));
-    }
+    // Legge tutte le righe una volta e trova l'header per NOME colonna (Ordine), NON per isFileMaster:
+    // nel DUNNING la matricola è "Matricola misuratore" e isFileMaster fallirebbe (header vuoto).
+    const tutte = [];
+    for (let r = 1; r <= ws.rowCount; r++) tutte.push((ws.getRow(r).values || []).slice(1));
     const colonne = {
       odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
       matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
     };
-    const grezze = mappaRigheMaster(matrix, header, colonne);
+    const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
+    const header = tutte[rIntest - 1] || [];
+    const matrix = tutte.slice(rIntest);
+    const grezze = mappaRigheMaster(matrix, header, colonne, rIntest + 1);
     const righe = estraiPianificabili(grezze, dataTarget);
     const file = path.basename(acea.masterPath);
     await inviaPianificabili({ baseUrl, exportKey, file, data: dataTarget, righe });
