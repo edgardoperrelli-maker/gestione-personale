@@ -33,3 +33,14 @@ export function inviaReport({ baseUrl, exportKey, report }, fetchImpl = fetch) {
 export function inviaPianificabili({ baseUrl, exportKey, file, data, righe }, fetchImpl = fetch) {
   return postJson(`${baseUrl}/api/agente/pianificabili`, exportKey, { file, data, righe }, fetchImpl);
 }
+
+/** GET /api/agente/acea-assegnazioni?data= → { data, righe, scartati } (header x-export-key). */
+export async function fetchAceaAssegnazioni({ baseUrl, exportKey, data }, fetchImpl = fetch) {
+  const url = `${baseUrl}/api/agente/acea-assegnazioni?data=${encodeURIComponent(data)}`;
+  const res = await fetchImpl(url, { headers: { 'x-export-key': exportKey } });
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => '');
+    throw new Error(`GET ${url} ${res.status}: ${corpo}`);
+  }
+  return res.json();
+}

@@ -16,7 +16,9 @@ import path from 'node:path';
 
 const FRAME = 'iframe[title="Applicazione"]';
 
-export async function loginEdEsporta(acea, { stamp = 'manual' } = {}) {
+/** Login + apertura del Cruscotto (passi condivisi tra export e assegnazione).
+ *  Ritorna browser/page/app(frameLocator)/shot. Il chiamante DEVE chiudere browser. */
+export async function apriCruscotto(acea, { stamp = 'manual' } = {}) {
   const { chromium } = await import('playwright');
   fs.mkdirSync(acea.download, { recursive: true });
   if (acea.debug) fs.mkdirSync(acea.debug, { recursive: true });
@@ -29,7 +31,6 @@ export async function loginEdEsporta(acea, { stamp = 'manual' } = {}) {
   const page = await ctx.newPage();
   page.setDefaultTimeout(acea.timeoutMs ?? 60_000);
 
-  const ric = acea.ricerca ?? {};
   let passo = 'init';
   const shot = async (nome) => {
     if (!acea.debug) return;
@@ -74,9 +75,22 @@ export async function loginEdEsporta(acea, { stamp = 'manual' } = {}) {
     }
     await contratto.waitFor({ state: 'visible' });
     await shot('1-form');
+    return { browser, page, app, shot };
+  } catch (e) {
+    await shot(`errore-${passo}`);
+    await browser.close();
+    throw new Error(`[ACEA driver] login fallito al passo "${passo}": ${e instanceof Error ? e.message : String(e)}`);
+  }
+}
 
+export async function loginEdEsporta(acea, { stamp = 'manual' } = {}) {
+  const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
+  const ric = acea.ricerca ?? {};
+  let passo = 'post-login';
+  try {
     // 6a) Filtro Contratto: digitazione diretta + verifica che il Fornitore si risolva
     passo = 'filtro-contratto';
+    const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
     await contratto.fill(String(ric.contratto ?? ''));
     await contratto.press('Enter');
     await app.getByText('PLENZICH', { exact: false }).first()

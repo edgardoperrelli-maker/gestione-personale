@@ -430,6 +430,25 @@ async function main() {
     }
   }
 
+  // Giro ASSEGNAZIONE su ACEA on-demand: indipendente da eseguiOra. Playwright via import dinamico.
+  if (ris.aceaAssegna && ris.aceaAssegnaData) {
+    const now = new Date();
+    const dryRun = ris.aceaAssegnaDry !== false;
+    const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '') + '-acea-assegna';
+    try {
+      const { eseguiGiroAceaAssegna } = await import('./lib/acea/eseguiGiroAceaAssegna.mjs');
+      const report = await eseguiGiroAceaAssegna({
+        cfg, stamp, data: ris.aceaAssegnaData, dryRun,
+        baseUrl, exportKey: cfg.exportKey,
+      });
+      try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
+      await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
+      console.log(`[lim-sync] giro ACEA assegna (${dryRun ? 'PROVA' : 'REALE'}) ${ris.aceaAssegnaData}: assegnate=${report.file?.[0]?.aggiornate ?? 0} scartate=${report.scartati?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+    } catch (e) {
+      console.error(`[lim-sync] giro ACEA assegna fallito: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
 
   if (!eseguiOra) {
