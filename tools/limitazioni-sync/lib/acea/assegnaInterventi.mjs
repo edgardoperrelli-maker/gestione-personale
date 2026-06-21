@@ -60,30 +60,25 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           if (on === true) await sw.click().catch(() => {});
         }
 
-        // 3) modale "Numero OdM": apri col ">" (__button8), svuota, scrivi 1 ODL, Inserisci OdM
+        // 3) modale "Numero OdM": apri col ">" (__button8), svuota, scrivi 1 ODL, Inserisci OdM.
+        //    Tutto SCOPATO dentro il dialog VISIBILE (.sapMDialog:visible): in DOM possono restare
+        //    dialog nascosti di aperture precedenti → senza lo scope si prende il bottone sbagliato.
         passo = `cerca-${r.odl}`;
-        const svuota = app.getByRole('button', { name: 'Svuota tabella' });
         const apriModale = app.locator('[id="__button8"]').first();
         if (await apriModale.isVisible().catch(() => false)) await apriModale.click();
+        const dlg = app.locator('.sapMDialog:visible').last();
+        const svuota = dlg.getByRole('button', { name: 'Svuota tabella' });
         if (!(await svuota.isVisible().catch(() => false))) {
+          // fallback apertura: clic sul campo "Numero OdM" del form
           await app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first().click().catch(() => {});
         }
         await svuota.waitFor({ state: 'visible', timeout: 15_000 });
         await svuota.click().catch(() => {});
-        // campo del modale (input/combobox/textbox): primo visibile tra i candidati
-        const candidati = [
-          app.locator('.sapMDialog input:visible').last(),
-          app.getByRole('combobox', { name: 'Numero OdM' }).last(),
-          app.getByRole('textbox', { name: 'Numero OdM' }).last(),
-          app.getByLabel('Numero OdM').last(),
-        ];
-        let inpDlg = null;
-        for (const c of candidati) { if (await c.isVisible().catch(() => false)) { inpDlg = c; break; } }
-        if (!inpDlg) inpDlg = candidati[0];
+        const inpDlg = dlg.locator('input:visible').last();
         await inpDlg.waitFor({ state: 'visible', timeout: 15_000 });
         await inpDlg.click();
         await inpDlg.fill(String(r.odl)); // UN solo ODL: niente multilinea, niente auto-submit
-        await app.getByRole('button', { name: 'Inserisci OdM' }).last().click({ timeout: 20_000 });
+        await dlg.getByRole('button', { name: 'Inserisci OdM' }).click({ timeout: 20_000 });
 
         // 4) Ricerca → individua la riga
         passo = `ricerca-${r.odl}`;
