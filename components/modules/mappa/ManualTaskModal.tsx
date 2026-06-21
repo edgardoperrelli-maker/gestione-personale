@@ -73,7 +73,7 @@ export default function ManualTaskModal({
         </div>
         <div className="flex justify-end gap-2 border-t border-[var(--brand-border)] px-5 py-3">
           <button onClick={onClose} className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]">Annulla</button>
-          <button onClick={handleAdd} disabled={!valido || saving} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:opacity-90 disabled:opacity-50">
+          <button onClick={handleAdd} disabled={!valido || saving} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:opacity-90 disabled:opacity-50">
             {saving ? 'Aggiungo…' : 'Aggiungi'}
           </button>
         </div>

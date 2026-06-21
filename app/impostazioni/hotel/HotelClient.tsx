@@ -184,7 +184,7 @@ export default function HotelClient({
         <button
           type="button"
           onClick={() => setShowNewForm((value) => !value)}
-          className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]"
+          className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]"
         >
           {showNewForm ? 'Annulla' : '+ Nuovo hotel'}
         </button>
@@ -254,7 +254,7 @@ export default function HotelClient({
               type="button"
               disabled={busy}
               onClick={() => void createHotel()}
-              className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
+              className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-60"
             >
               Salva hotel
             </button>
@@ -400,7 +400,7 @@ function HotelRow({
                 </select>
               </div>
               <div className="flex justify-end sm:col-span-4">
-                <button type="button" onClick={saveHotel} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)]">
+                <button type="button" onClick={saveHotel} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)]">
                   Salva
                 </button>
               </div>
@@ -430,7 +430,7 @@ function HotelRow({
                   <input value={newDinner} onChange={(event) => setNewDinner(event.target.value)} type="number" min="0" step="0.01" className="w-full rounded-xl border border-[var(--brand-border)] px-3 py-2 text-sm" />
                 </div>
                 <div className="flex justify-end sm:col-span-4">
-                  <button type="button" onClick={saveRoomPrice} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)]">
+                  <button type="button" onClick={saveRoomPrice} className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)]">
                     Aggiungi
                   </button>
                 </div>

@@ -45,7 +45,7 @@ export function TaskViaFocus({
       <button
         type="button"
         onClick={() => onAggiungi(voce)}
-        className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]"
+        className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]"
       >
         + Aggiungi intervento
       </button>

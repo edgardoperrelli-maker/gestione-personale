@@ -76,7 +76,7 @@ export function CaricaFotoRichiesta({
             type="button"
             onClick={() => void carica()}
             disabled={inviando || nSel === 0}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[var(--on-primary)] disabled:opacity-50"
           >
             {inviando ? 'Caricamento…' : `Carica ${nSel || ''} foto`}
           </button>

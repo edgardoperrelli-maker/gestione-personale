@@ -213,7 +213,7 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
               onClick={() => setValidityFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 validityFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]'
                   : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
@@ -304,7 +304,7 @@ export default function PersonaleClient({ initialStaff, territories, initialRang
                       type="button"
                       disabled={saving}
                       onClick={() => void handleSave(row)}
-                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                      className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                     >
                       {saving ? 'Salvataggio...' : 'Salva'}
                     </button>

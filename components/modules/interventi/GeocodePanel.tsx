@@ -182,7 +182,7 @@ function FailedRow({ item, onResolved }: { item: FailedItem; onResolved: () => v
           type="button"
           onClick={onRetry}
           disabled={busy || indirizzo.trim() === ''}
-          className="rounded-xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition disabled:cursor-not-allowed disabled:opacity-50"
           style={{ backgroundColor: 'var(--brand-primary)' }}
         >
           {busy ? '…' : 'Ritenta'}

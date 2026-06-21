@@ -183,7 +183,7 @@ export default function TrasfertaAlert() {
               </div>
             ))}
           </div>
-          <Link href="/hub/hotel-calendar" className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--warning)] px-4 py-2 text-xs font-semibold text-[oklch(0.16_0.06_245)]">
+          <Link href="/hub/hotel-calendar" className="mt-3 inline-flex items-center gap-1.5 rounded-xl bg-[var(--warning)] px-4 py-2 text-xs font-semibold text-[var(--on-primary)]">
             Gestisci prenotazioni -&gt;
           </Link>
         </div>

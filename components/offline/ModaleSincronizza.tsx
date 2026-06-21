@@ -135,7 +135,7 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
             type="button"
             onClick={() => { if (typeof window !== 'undefined') window.location.reload(); }}
             disabled={sincronizzando && online}
-            className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50"
+            className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50"
           >
             Aggiorna pagina
           </button>

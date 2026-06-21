@@ -233,7 +233,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
             type="button"
             onClick={createNewZone}
             disabled={isCreatingZone}
-            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
           >
             + Nuova
           </button>
@@ -318,7 +318,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
                 <button
                   type="button"
                   onClick={saveZoneInfo}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
+                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
                 >
                   Salva modifiche
                 </button>
@@ -371,7 +371,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
               <button
                 type="button"
                 onClick={saveCapList}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
+                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
               >
                 Salva CAP
               </button>
@@ -422,7 +422,7 @@ export default function ZtlZoneClient({ initialZones, staff, initialZoneOps }: P
               <button
                 type="button"
                 onClick={saveOperators}
-                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
+                className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
               >
                 Salva operatori
               </button>

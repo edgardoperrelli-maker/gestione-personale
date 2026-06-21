@@ -2571,7 +2571,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   }}
                   className={`w-full rounded-lg px-4 py-2 text-sm font-semibold transition ${
                     isDateValid && isTerritoryValid
-                      ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
+                      ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]'
                       : 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-subtle)] cursor-not-allowed'
                   }`}
                 >
@@ -2687,7 +2687,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   disabled={!canRoute}
                   className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
                     routeMode
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-[var(--on-primary)]'
                       : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
                   } disabled:opacity-40`}
                 >
@@ -2897,7 +2897,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                     <button
                                       type="button"
                                       onClick={() => handleCopyLink(r)}
-                                      className="rounded bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]"
+                                      className="rounded bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]"
                                     >
                                       {copiedToken === r.token ? '✓ Copiato!' : '🔗 Copia link'}
                                     </button>
@@ -2946,7 +2946,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
                         📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
                       </button>
-                      <button type="button" onClick={distributeToOps} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]">
+                      <button type="button" onClick={distributeToOps} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]">
                         {selectedOps.length === 1 ? 'Assegna' : 'Distribuisci'}
                       </button>
                       {distribution && (
@@ -3345,7 +3345,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   const op = (task as Task & { _operatore?: string })._operatore;
                   return (
                     <div key={task.id} className="flex items-start gap-2 rounded-xl border border-[var(--brand-border)] p-2">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[10px] font-bold text-[oklch(0.16_0.06_245)]">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[10px] font-bold text-[var(--on-primary)]">
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
@@ -3639,7 +3639,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                 savedDistribution
                   ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
-                  : 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)]'
+                  : 'bg-[var(--brand-primary)] text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]'
               } disabled:opacity-50`}
             >
               {savingDistribution

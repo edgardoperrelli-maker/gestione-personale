@@ -45,7 +45,7 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
             </span>
           )}
           {r.nuovo && (
-            <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[oklch(0.16_0.06_245)]">
+            <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-primary)]">
               Nuovo
             </span>
           )}
@@ -141,7 +141,7 @@ export function RapportinoLista({
               <span>{lbl}</span>
               <span
                 className={`min-w-[1.25rem] rounded-full px-1 text-xs font-bold tabular-nums ${
-                  filtro === k ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
+                  filtro === k ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
                 }`}
               >
                 {conteggi[k]}
@@ -221,7 +221,7 @@ export function RapportinoLista({
                   type="button"
                   onClick={() => { if (inviabile) { onInvia(); } else { setTentatoInvio(true); } }}
                   disabled={inviando}
-                  className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[oklch(0.16_0.06_245)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                  className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
                   {inviando ? 'Invio in corso…' : 'Invia rapportino'}
                 </button>

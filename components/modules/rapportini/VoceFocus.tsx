@@ -62,7 +62,7 @@ export function VoceFocus({
       <div className="fixed inset-x-0 bottom-0 z-10">
         <div className="mx-auto flex max-w-[480px] items-center gap-2.5 border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           <button type="button" onClick={onPrev} disabled={isFirst} className="shrink-0 rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)] disabled:opacity-40">‹</button>
-          <button type="button" onClick={onNext} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[oklch(0.16_0.06_245)] shadow-sm transition hover:bg-[var(--brand-primary-hover)]">
+          <button type="button" onClick={onNext} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-sm transition hover:bg-[var(--brand-primary-hover)]">
             {disabilitato ? (isLast ? 'Torna alla lista' : 'Avanti ›') : isLast ? 'Salva e torna alla lista' : 'Salva e avanti ›'}
           </button>
         </div>

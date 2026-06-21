@@ -22,7 +22,7 @@ export default function SchedeTipo({ attiva, onChange }: Props) {
           aria-pressed={attiva === s.key}
           className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
             attiva === s.key
-              ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+              ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]'
               : 'text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]'
           }`}
         >

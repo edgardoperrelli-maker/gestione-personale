@@ -123,7 +123,7 @@ export function CampoFoto({
           type="button"
           disabled={disabilitato || elaboro}
           onClick={() => scattoRef.current?.click()}
-          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
         >
           {preview ? 'Rifai scatto' : '📷 Scatta'}
         </button>

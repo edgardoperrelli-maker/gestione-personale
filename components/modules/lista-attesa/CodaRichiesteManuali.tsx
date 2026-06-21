@@ -135,7 +135,7 @@ export function CodaRichiesteManuali({
                       </span>
                     )}
                     {presa.mostraPrendi && (
-                      <button type="button" disabled={busy} onClick={() => void prendi(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-2.5 py-1 text-xs font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">Prendi</button>
+                      <button type="button" disabled={busy} onClick={() => void prendi(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-2.5 py-1 text-xs font-semibold text-[var(--on-primary)] disabled:opacity-50">Prendi</button>
                     )}
                     {presa.mostraRilascia && (
                       <button type="button" disabled={busy} onClick={() => void rilascia(r.id)} className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-xs font-semibold text-[var(--brand-text-muted)] disabled:opacity-50">Rilascia</button>

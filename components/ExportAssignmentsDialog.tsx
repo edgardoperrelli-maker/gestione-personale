@@ -73,7 +73,7 @@ export default function ExportAssignmentsDialog({
                 window.location.href = `/api/export/assignments?from=${a}&to=${b}`;
                 onClose();
               }}
-              className={`px-4 py-1.5 rounded-lg text-[oklch(0.16_0.06_245)] ${canExport ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
+              className={`px-4 py-1.5 rounded-lg text-[var(--on-primary)] ${canExport ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
             >
               Esporta CSV
             </button>

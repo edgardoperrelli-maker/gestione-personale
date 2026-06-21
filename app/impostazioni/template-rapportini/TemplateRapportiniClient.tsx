@@ -395,7 +395,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           <button
             type="button"
             onClick={startNew}
-            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90"
+            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
           >
             + Nuovo
           </button>
@@ -427,7 +427,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <div className="mb-1 flex items-center gap-2">
                   <span className="font-semibold text-[var(--brand-text-main)]">{tpl.nome}</span>
                   {tpl.is_default && (
-                    <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-xs font-bold text-[oklch(0.16_0.06_245)]">
+                    <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-xs font-bold text-[var(--on-primary)]">
                       default
                     </span>
                   )}
@@ -852,7 +852,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   type="button"
                   onClick={handleSave}
                   disabled={saving}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
                 >
                   {saving ? 'Creazione…' : 'Crea template'}
                 </button>

@@ -122,7 +122,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
             type="button"
             onClick={addCode}
             disabled={!newCode.trim() || busy === '__new__'}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
           >
             {busy === '__new__' ? 'Aggiunta...' : 'Aggiungi'}
           </button>
@@ -198,7 +198,7 @@ export default function CodiciAllegato10Client({ initialCodici }: { initialCodic
                     type="button"
                     disabled={busy === c.codice}
                     onClick={() => toggle(c.codice, c.genera_allegato)}
-                    className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                   >
                     Attiva
                   </button>

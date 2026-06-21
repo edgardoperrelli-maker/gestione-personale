@@ -244,7 +244,7 @@ export default function EditAssignmentDialog({
             <button
               type="submit"
               disabled={!canSave}
-              className={`px-4 py-1.5 rounded-lg text-[oklch(0.16_0.06_245)] ${canSave ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
+              className={`px-4 py-1.5 rounded-lg text-[var(--on-primary)] ${canSave ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
             >
               {saving ? 'Salvo…' : 'Salva'}
             </button>

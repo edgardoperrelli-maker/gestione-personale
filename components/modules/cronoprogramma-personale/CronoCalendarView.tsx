@@ -225,7 +225,7 @@ function DayCell(props: {
             draggable
             className={`inline-flex h-7 w-7 cursor-grab items-center justify-center rounded-full font-bold active:cursor-grabbing ${
               isToday
-                ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] ring-2 ring-[var(--brand-primary)] ring-offset-1'
+                ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] ring-2 ring-[var(--brand-primary)] ring-offset-1'
                 : isItalyHoliday(d)
                 ? 'text-[var(--danger)]'
                 : ''

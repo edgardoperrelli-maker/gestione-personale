@@ -118,7 +118,7 @@ export default function CardTerritorio({
                     )}
                   </div>
                   <div className="flex shrink-0 items-center gap-1.5 text-[11px]">
-                    <button onClick={() => onCopia(r)} className="rounded bg-[var(--brand-primary)] px-2 py-0.5 font-semibold text-[oklch(0.16_0.06_245)]">{copiedToken === r.token ? '✓' : '🔗'}</button>
+                    <button onClick={() => onCopia(r)} className="rounded bg-[var(--brand-primary)] px-2 py-0.5 font-semibold text-[var(--on-primary)]">{copiedToken === r.token ? '✓' : '🔗'}</button>
                     <button
                       type="button"
                       onClick={() => onRiapriRapportino(r.id)}

@@ -693,9 +693,9 @@ export default function Page() {
           <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
 
           <div className="ml-2 flex items-center gap-1">
-            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
-            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
-            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
+            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
+            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
+            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
             <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
             <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
             <button

@@ -177,7 +177,7 @@ export default function RapportinoEditor({
           type="button"
           onClick={salva}
           disabled={dirty.size === 0 || stato === 'salvataggio'}
-          className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+          className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
         >
           {stato === 'salvataggio' ? 'Salvataggio…' : 'Salva modifiche'}
         </button>

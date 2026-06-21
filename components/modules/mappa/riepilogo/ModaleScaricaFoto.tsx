@@ -45,7 +45,7 @@ export default function ModaleScaricaFoto({
 
         <a
           href={zip()}
-          className="mb-3 block rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-center text-sm font-semibold text-[oklch(0.16_0.06_245)]"
+          className="mb-3 block rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-center text-sm font-semibold text-[var(--on-primary)]"
         >📦 Scarica tutto</a>
 
         <div className="mb-1 text-[11px] font-semibold uppercase text-[var(--brand-text-muted)]">Per indirizzo</div>

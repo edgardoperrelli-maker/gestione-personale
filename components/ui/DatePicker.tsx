@@ -175,7 +175,7 @@ export default function DatePicker({
               if (!cell.inMonth) {
                 cls = 'text-[var(--brand-text-subtle)] opacity-40';
               } else if (isSelected) {
-                cls = 'bg-[var(--brand-primary)] font-semibold text-[oklch(0.16_0.06_245)]';
+                cls = 'bg-[var(--brand-primary)] font-semibold text-[var(--on-primary)]';
               } else if (isToday) {
                 cls = 'ring-1 ring-[var(--brand-primary)] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]';
               } else {

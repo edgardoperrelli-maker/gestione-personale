@@ -73,7 +73,7 @@ function SignInInner() {
 
         <button
           type="submit"
-          className="w-full rounded-xl px-4 py-2 bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] font-semibold transition hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
+          className="w-full rounded-xl px-4 py-2 bg-[var(--brand-primary)] text-[var(--on-primary)] font-semibold transition hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-50"
           disabled={loading}
         >
           {loading ? 'Accesso…' : 'Entra'}

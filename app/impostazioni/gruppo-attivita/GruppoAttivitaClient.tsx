@@ -227,7 +227,7 @@ export default function GruppoAttivitaClient() {
             type="button"
             onClick={() => void handleCreate()}
             disabled={!newName.trim() || creating}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
           >
             {creating ? 'Aggiunta...' : 'Aggiungi'}
           </button>
@@ -254,7 +254,7 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('all')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'all'
-                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]'
                   : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
@@ -265,7 +265,7 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('active')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'active'
-                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]'
                   : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
@@ -276,7 +276,7 @@ export default function GruppoAttivitaClient() {
               onClick={() => setStatusFilter('inactive')}
               className={`rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${
                 statusFilter === 'inactive'
-                  ? 'bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)]'
+                  ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]'
                   : 'border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
               }`}
             >
@@ -350,7 +350,7 @@ export default function GruppoAttivitaClient() {
                     type="button"
                     disabled={saving || deleting}
                     onClick={() => void handleSave(row)}
-                    className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+                    className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
                   >
                     {saving ? 'Salvataggio...' : 'Salva'}
                   </button>

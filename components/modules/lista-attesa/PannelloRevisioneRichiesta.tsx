@@ -171,7 +171,7 @@ export function PannelloRevisioneRichiesta({
 
       <div className="flex gap-2">
         <button type="button" onClick={rifiuta} disabled={busy} className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2.5 font-bold text-[var(--danger)] disabled:opacity-50">Rifiuta</button>
-        <button type="button" onClick={() => void approva()} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
+        <button type="button" onClick={() => void approva()} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[var(--on-primary)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
       </div>
     </div>
   );

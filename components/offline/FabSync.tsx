@@ -43,7 +43,7 @@ export function FabSync({
         <path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
       </svg>
       {inAttesa > 0 && (
-        <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-[oklch(0.16_0.06_245)]">
+        <span className="absolute -right-1 -top-1 flex h-5 min-w-[1.25rem] items-center justify-center rounded-full bg-[var(--brand-primary)] px-1 text-[10px] font-bold text-[var(--on-primary)]">
           {inAttesa}
         </span>
       )}

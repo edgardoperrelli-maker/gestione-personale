@@ -131,7 +131,7 @@ export default function CronoGridView({
               <div
                 draggable
                 className={`inline-flex h-6 w-6 cursor-grab items-center justify-center rounded-full text-sm font-bold active:cursor-grabbing ${
-                  isToday ? 'text-[oklch(0.16_0.06_245)]' : isHol ? 'text-[var(--danger)]' : 'text-[var(--brand-text-main)]'
+                  isToday ? 'text-[var(--on-primary)]' : isHol ? 'text-[var(--danger)]' : 'text-[var(--brand-text-main)]'
                 }`}
                 style={isToday ? { backgroundColor: 'var(--brand-primary)' } : {}}
                 title="Trascina per spostare l'intero giorno"

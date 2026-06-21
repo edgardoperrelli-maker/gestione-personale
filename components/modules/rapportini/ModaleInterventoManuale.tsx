@@ -194,7 +194,7 @@ export function ModaleInterventoManuale({
             </div>
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">Indietro</button>
-              <button type="button" onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]">Avanti</button>
+              <button type="button" onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]">Avanti</button>
             </div>
           </div>
         )}
@@ -209,7 +209,7 @@ export function ModaleInterventoManuale({
             ))}
             <div className="flex gap-2 pt-1">
               <button type="button" onClick={() => setStep(2)} disabled={inviando} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)] disabled:opacity-50">Indietro</button>
-              <button type="button" onClick={() => setStep(4)} disabled={inviando} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50">Avanti</button>
+              <button type="button" onClick={() => setStep(4)} disabled={inviando} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50">Avanti</button>
             </div>
           </div>
         )}
@@ -250,7 +250,7 @@ export function ModaleInterventoManuale({
                 type="button"
                 disabled={inviando || !esitoFoto.ok}
                 onClick={handleInvia}
-                className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-50"
+                className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50"
               >
                 {inviando ? 'Invio…' : 'Invia richiesta'}
               </button>

@@ -52,7 +52,7 @@ export function ModaleFotoMancanti({
           <button type="button" onClick={onInviaComunque} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">
             Invia comunque
           </button>
-          <button type="button" onClick={() => onControlla(voci[0].index)} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]">
+          <button type="button" onClick={() => onControlla(voci[0].index)} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]">
             Controlla foto
           </button>
         </div>

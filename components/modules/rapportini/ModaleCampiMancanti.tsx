@@ -49,7 +49,7 @@ export function ModaleCampiMancanti({
           <button
             type="button"
             onClick={() => onControlla(voci[0].index)}
-            className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[oklch(0.16_0.06_245)]"
+            className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]"
           >
             Vai a compilare
           </button>

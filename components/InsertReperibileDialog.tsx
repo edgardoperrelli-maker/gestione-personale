@@ -217,7 +217,7 @@ export default function InsertReperibileDialog({
               Annulla
             </button>
             <button
-              className="px-3 py-2 rounded-lg bg-[var(--brand-primary)] text-[oklch(0.16_0.06_245)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
+              className="px-3 py-2 rounded-lg bg-[var(--brand-primary)] text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50"
               onClick={save}
               disabled={saving}
             >

@@ -141,7 +141,7 @@ export default function RiconsegnaClient({ giorno, righe }: { giorno: string; ri
           type="button"
           disabled={busy || righe.length === 0}
           onClick={salva}
-          className="ml-auto rounded-2xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:opacity-50"
+          className="ml-auto rounded-2xl px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition disabled:opacity-50"
           style={{ backgroundColor: 'var(--brand-primary)' }}
         >
           {busy ? '…' : 'Salva controllo'}

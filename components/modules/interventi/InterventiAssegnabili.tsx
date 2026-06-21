@@ -140,7 +140,7 @@ export default function InterventiAssegnabili({
             type="button"
             disabled={busy || bulkStaff === ''}
             onClick={() => assegna([...selected], bulkStaff, bulkTemplate || null)}
-            className="rounded-2xl px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition disabled:cursor-not-allowed disabled:opacity-50"
+            className="rounded-2xl px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition disabled:cursor-not-allowed disabled:opacity-50"
             style={{ backgroundColor: 'var(--brand-primary)' }}
           >
             {busy ? '…' : `Assegna ${selected.size}`}

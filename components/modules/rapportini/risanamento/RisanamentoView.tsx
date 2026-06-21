@@ -462,7 +462,7 @@ export function RisanamentoView({
                 type="button"
                 onClick={() => { void aggiungiRiga(); }}
                 disabled={aggiungendoRiga}
-                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] transition hover:opacity-90 disabled:opacity-50"
+                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
               >
                 + Aggiungi misuratore
               </button>
