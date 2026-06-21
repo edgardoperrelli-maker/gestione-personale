@@ -6,13 +6,14 @@ import 'leaflet/dist/leaflet.css';
 import { coloreStato, type TonoTorre } from '@/lib/interventi/torreView';
 import type { TorreIntervento } from './LiveClient';
 
-const DOT: Record<TonoTorre, string> = {
-  ok: '#22c55e',
-  ko: '#ef4444',
-  attesa: '#fbbf24',
-  corso: '#38bdf8',
-  annullato: '#9ca3af',
-  da_assegnare: '#9ca3af',
+// Token names — resolved at runtime via getComputedStyle (Leaflet doesn't resolve CSS vars in JS)
+const DOT_TOKEN: Record<TonoTorre, string> = {
+  ok: '--status-ok',
+  ko: '--status-ko',
+  attesa: '--status-warn',
+  corso: '--status-progress',
+  annullato: '--status-idle',
+  da_assegnare: '--status-idle',
 };
 
 export default function TorreMappa({ interventi }: { interventi: TorreIntervento[] }) {
@@ -45,12 +46,17 @@ export default function TorreMappa({ interventi }: { interventi: TorreIntervento
 
   useEffect(() => {
     if (!leaflet || !layerRef.current || !mapInstanceRef.current) return;
+    // Resolve CSS tokens to actual color values once per render (Leaflet can't resolve var() in JS)
+    const css = getComputedStyle(document.documentElement);
+    const resolvedDot = Object.fromEntries(
+      Object.entries(DOT_TOKEN).map(([k, token]) => [k, css.getPropertyValue(token).trim() || token]),
+    ) as Record<TonoTorre, string>;
     const layer = layerRef.current;
     layer.clearLayers();
     const pts: Leaflet.LatLngTuple[] = [];
     for (const it of interventi) {
       if (it.lat == null || it.lng == null) continue;
-      const color = DOT[coloreStato(it.stato, it.esito)];
+      const color = resolvedDot[coloreStato(it.stato, it.esito)];
       leaflet
         .circleMarker([it.lat, it.lng], { radius: 7, color, fillColor: color, fillOpacity: 0.85, weight: 1 })
         .bindPopup(`${it.nominativo ?? it.odl ?? 'Intervento'}${it.comune ? ' · ' + it.comune : ''}`)

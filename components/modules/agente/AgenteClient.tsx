@@ -148,7 +148,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             }}
             aria-pressed={form.enabled}
           >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: form.enabled ? '#22c55e' : '#9ca3af' }} />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: form.enabled ? 'var(--status-ok)' : 'var(--status-idle)' }} />
             {form.enabled ? 'Acceso' : 'Spento'}
           </button>
         </div>
@@ -231,7 +231,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
       <section className="rounded-2xl border p-5 space-y-3" style={cardStyle}>
         <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>Stato</h2>
         <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: stato.online ? '#22c55e' : '#9ca3af' }} />
+          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: stato.online ? 'var(--status-ok)' : 'var(--status-idle)' }} />
           <span className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
             {stato.online ? 'Online' : 'Offline'}
           </span>

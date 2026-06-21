@@ -13,12 +13,12 @@ export type { TorreIntervento };
 const TorreMappa = dynamic(() => import('./TorreMappa'), { ssr: false });
 
 const TONO: Record<TonoTorre, { fg: string; dot: string; label: string; bg: string }> = {
-  ok: { fg: 'var(--success)', dot: '#22c55e', label: 'Fatto', bg: 'var(--success-soft)' },
-  ko: { fg: 'var(--danger)', dot: '#ef4444', label: 'Non fatto', bg: 'var(--danger-soft)' },
-  attesa: { fg: 'var(--brand-text-main)', dot: '#fbbf24', label: 'Da fare', bg: 'var(--warning-soft)' },
-  corso: { fg: 'var(--brand-text-main)', dot: '#38bdf8', label: 'In corso', bg: 'rgba(56,189,248,0.12)' },
-  annullato: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Annullato', bg: 'var(--brand-surface-muted)' },
-  da_assegnare: { fg: 'var(--brand-text-muted)', dot: '#9ca3af', label: 'Da assegnare', bg: 'var(--brand-surface-muted)' },
+  ok: { fg: 'var(--success)', dot: 'var(--status-ok)', label: 'Fatto', bg: 'var(--success-soft)' },
+  ko: { fg: 'var(--danger)', dot: 'var(--status-ko)', label: 'Non fatto', bg: 'var(--danger-soft)' },
+  attesa: { fg: 'var(--brand-text-main)', dot: 'var(--status-warn)', label: 'Da fare', bg: 'var(--warning-soft)' },
+  corso: { fg: 'var(--brand-text-main)', dot: 'var(--status-progress)', label: 'In corso', bg: 'var(--status-progress-soft)' },
+  annullato: { fg: 'var(--brand-text-muted)', dot: 'var(--status-idle)', label: 'Annullato', bg: 'var(--brand-surface-muted)' },
+  da_assegnare: { fg: 'var(--brand-text-muted)', dot: 'var(--status-idle)', label: 'Da assegnare', bg: 'var(--brand-surface-muted)' },
 };
 
 /** Ora locale italiana HH:MM dell'inserimento esito (chiuso_at). */
@@ -170,7 +170,7 @@ export default function LiveClient({
               color: live ? 'var(--success)' : 'var(--brand-text-muted)',
             }}
           >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? '#22c55e' : '#9ca3af' }} />
+            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? 'var(--status-ok)' : 'var(--status-idle)' }} />
             {live ? 'Live' : 'Non connesso'}
           </span>
           {lastUpdate && (

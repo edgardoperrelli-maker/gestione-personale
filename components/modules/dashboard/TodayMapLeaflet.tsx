@@ -30,13 +30,18 @@ export default function TodayMapLeaflet({ operators }: Props) {
       const layer = L.layerGroup().addTo(map);
       const points: [number, number][] = [];
 
+      // Resolve CSS tokens at mount (Leaflet can't resolve var() in JS)
+      const css = getComputedStyle(document.documentElement);
+      const markerColor = css.getPropertyValue('--status-progress').trim() || '#1570d1';
+      const markerFill = css.getPropertyValue('--brand-primary-soft').trim() || '#1570d1';
+
       for (const op of operators) {
         points.push([op.lat, op.lng]);
         L.circleMarker([op.lat, op.lng], {
           radius: 8,
-          color: '#0ea5e9',
+          color: markerColor,
           weight: 2,
-          fillColor: '#22d3ee',
+          fillColor: markerFill,
           fillOpacity: 0.85,
         })
           .bindPopup(`<strong>${op.name}</strong>${op.territory ? `<br/>${op.territory}` : ''}`)
