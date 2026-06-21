@@ -12,6 +12,7 @@ import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 import { estraiPianificabili } from './lib/pianificabili.mjs';
+import { mappaRigheMaster } from './lib/acea/leggiMasterAcea.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 export const MARKER_AUTOMAZIONE = 'SI';
@@ -322,6 +323,33 @@ async function leggiPianificabili({ baseUrl, exportKey, cartella, dataTarget }) 
   }
 }
 
+/** Legge il master DUNNING (acea.masterPath) per colonne esplicite e invia le righe pianificabili. */
+async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) {
+  if (!acea?.masterPath || !fs.existsSync(acea.masterPath)) return;
+  try {
+    const wb = await caricaWorkbook(acea.masterPath);
+    const ws = acea.foglio ? (wb.getWorksheet(acea.foglio) ?? wb.worksheets[0]) : wb.worksheets[0];
+    const rIntest = trovaRigaIntestazione(ws);
+    if (rIntest < 0) return;
+    const header = (ws.getRow(rIntest).values || []).slice(1);
+    const matrix = [];
+    for (let r = rIntest + 1; r <= ws.rowCount; r++) {
+      matrix.push((ws.getRow(r).values || []).slice(1));
+    }
+    const colonne = {
+      odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
+      matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
+    };
+    const grezze = mappaRigheMaster(matrix, header, colonne);
+    const righe = estraiPianificabili(grezze, dataTarget);
+    const file = path.basename(acea.masterPath);
+    await inviaPianificabili({ baseUrl, exportKey, file, data: dataTarget, righe });
+    console.log(`[lim-sync] pianificabili ACEA ${file} ${dataTarget}: ${righe.length} righe.`);
+  } catch (e) {
+    console.error(`[lim-sync] leggiMasterAceaDunning fallito: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 /** Legge la data ISO dell'ultimo scan (YYYY-MM-DD) dal file stamp; null se assente. */
 function leggiStampScan(cfgPath) {
   const stampPath = path.join(path.dirname(cfgPath), 'scanColonne.stamp');
@@ -380,6 +408,10 @@ async function main() {
   // Lettura "Assegnazione AI": l'app chiede di leggere un giorno specifico (one-shot).
   if (ris.pianificaData) {
     await leggiPianificabili({ baseUrl, exportKey: cfg.exportKey, cartella: cfg.cartella, dataTarget: ris.pianificaData });
+    // master DUNNING (cartella diversa, colonne esplicite): letto solo se configurato.
+    if (cfg.acea?.masterPath) {
+      await leggiMasterAceaDunning({ baseUrl, exportKey: cfg.exportKey, acea: cfg.acea, dataTarget: ris.pianificaData });
+    }
   }
 
   // Giro ACEA on-demand: indipendente da eseguiOra. Playwright caricato solo qui (import dinamico).
