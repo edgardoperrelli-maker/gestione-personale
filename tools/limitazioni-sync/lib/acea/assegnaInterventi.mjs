@@ -79,9 +79,12 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         const svuota = app.getByRole('button', { name: 'Svuota tabella' });
         await svuota.waitFor({ state: 'visible', timeout: 15_000 });
         await svuota.click().catch(() => {});
+        // campo del dialog: l'unico textbox DENTRO il dialog SAP (.sapMDialog), non i campi del form dietro
         const elenco = ordini.map((o) => String(o.odl)).join('\n');
-        const inp = app.getByRole('textbox', { name: 'Numero OdM' }).last();
-        await inp.fill(elenco); // incolla tutti gli ODL (uno per riga)
+        const inpDlg = app.locator('.sapMDialog').last().getByRole('textbox').first();
+        await inpDlg.waitFor({ state: 'visible', timeout: 15_000 });
+        await inpDlg.click();
+        await inpDlg.fill(elenco); // incolla tutti gli ODL (uno per riga)
         await app.getByRole('button', { name: 'Inserisci OdM' }).click();
 
         // 3) Ricerca
