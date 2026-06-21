@@ -31,7 +31,8 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
 
         if (dryRun) {
           await shot(`dry-${r.odl}`);
-          esiti.push({ odl: r.odl, esito: 'assegnato', motivo: 'dry-run (non salvato)' });
+          // 'simulato' (non 'assegnato'): il dry-run NON deve marcare l'ODL come assegnato nel log.
+          esiti.push({ odl: r.odl, esito: 'simulato', motivo: 'dry-run (non salvato)' });
           continue;
         }
 

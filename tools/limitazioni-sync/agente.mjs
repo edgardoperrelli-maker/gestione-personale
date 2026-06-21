@@ -443,7 +443,9 @@ async function main() {
       });
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
-      console.log(`[lim-sync] giro ACEA assegna (${dryRun ? 'PROVA' : 'REALE'}) ${ris.aceaAssegnaData}: assegnate=${report.file?.[0]?.aggiornate ?? 0} scartate=${report.scartati?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+      const nProc = report.righe?.length ?? 0;
+      const etichetta = dryRun ? `simulate=${nProc}` : `assegnate=${report.file?.[0]?.aggiornate ?? 0}`;
+      console.log(`[lim-sync] giro ACEA assegna (${dryRun ? 'PROVA' : 'REALE'}) ${ris.aceaAssegnaData}: ${etichetta} scartate=${report.scartati?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
     } catch (e) {
       console.error(`[lim-sync] giro ACEA assegna fallito: ${e instanceof Error ? e.message : e}`);
     }

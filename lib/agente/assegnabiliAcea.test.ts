@@ -27,4 +27,15 @@ describe('assegnabiliAcea', () => {
       { odl: '333', motivo: 'già assegnato' },
     ]);
   });
+
+  it('deduplica gli ODL ripetuti nel batch', () => {
+    const interventi = [
+      { id: 'i1', odl: '111', matricola_contatore: 'M1', indirizzo: null, comune: null, staff_id: 's1' },
+      { id: 'i2', odl: '111', matricola_contatore: 'M2', indirizzo: null, comune: null, staff_id: 's2' },
+    ];
+    const r = assegnabiliAcea(interventi, staff, new Set());
+    expect(r.righe).toHaveLength(1);
+    expect(r.righe[0].interventoId).toBe('i1');
+    expect(r.scartati).toEqual([{ odl: '111', motivo: 'odl duplicato' }]);
+  });
 });

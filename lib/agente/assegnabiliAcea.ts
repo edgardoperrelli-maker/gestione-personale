@@ -13,6 +13,7 @@ export function assegnabiliAcea(
 ): { righe: RigaAssegnabile[]; scartati: { odl: string | null; motivo: string }[] } {
   const righe: RigaAssegnabile[] = [];
   const scartati: { odl: string | null; motivo: string }[] = [];
+  const visti = new Set<string>(); // dedup ODL nel batch (evita doppia assegnazione + conflitto unique sul log)
   for (const i of interventi ?? []) {
     const odl = t(i.odl);
     if (!odl) { scartati.push({ odl: i.odl ?? '', motivo: 'odl mancante' }); continue; }
@@ -20,6 +21,8 @@ export function assegnabiliAcea(
     const nome = staffId ? staffById[staffId] : undefined;
     if (!nome) { scartati.push({ odl, motivo: 'operatore non risolto' }); continue; }
     if (odlGiaAssegnati.has(odl)) { scartati.push({ odl, motivo: 'già assegnato' }); continue; }
+    if (visti.has(odl)) { scartati.push({ odl, motivo: 'odl duplicato' }); continue; }
+    visti.add(odl);
     righe.push({ interventoId: i.id, odl, matricola: t(i.matricola_contatore), indirizzo: t(i.indirizzo), comune: t(i.comune), staffId, operatoreAcea: nome });
   }
   return { righe, scartati };
