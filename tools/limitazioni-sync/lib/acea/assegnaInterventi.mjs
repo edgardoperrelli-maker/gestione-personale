@@ -48,8 +48,22 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
         await page.waitForLoadState('networkidle').catch(() => {});
 
-        // 1) NB: il Contratto è precompilato e DISABILITATO (Fornitore già risolto) → NON va riempito.
-        //    "Escludi ODM chiusi" SEMPRE OFF
+        // 1) SELEZIONA il Contratto col value-help: il campo è disabilitato alla digitazione e
+        //    finché il Contratto non è "selezionato" il resto del form (switch, Numero OdM) resta
+        //    disabilitato. Locatori dal codegen reale (id auto ma stabili su questa app).
+        passo = `contratto-${cognome}`;
+        const vhContratto = app.locator('[id="__input1-vhi"]').first();
+        if (await vhContratto.isVisible().catch(() => false)) {
+          await vhContratto.click();
+          await app.getByText('Gestione utenze idriche morose_Lotto 2', { exact: false }).first().click();
+          // conferma (OK del dialog Contratto)
+          await app.locator('[id="__button8"]').first().click().catch(async () => {
+            await app.getByRole('button', { name: /^OK$/ }).first().click().catch(() => {});
+          });
+          await page.waitForLoadState('networkidle').catch(() => {});
+        }
+
+        // 2) "Escludi ODM chiusi" SEMPRE OFF (ora il form è abilitato)
         const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
         if (await sw.isVisible().catch(() => false)) {
           const on = await sw.isChecked().catch(() => null);
