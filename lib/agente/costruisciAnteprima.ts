@@ -1,8 +1,7 @@
 // lib/agente/costruisciAnteprima.ts
-// PURO: trasforma le righe pianificabili nella struttura dell'anteprima (Comune → Operatore →
-// righe), con lo STATO di ciascun operatore (libero/conflitto/non_risolto/ambiguo). Riusa
-// risolviEsecutore e partizionaConflitti — nessuna logica duplicata. Gli `esistenti` (rapportini)
-// sono passati già caricati, così la funzione resta pura e testabile.
+// PURO: trasforma le righe pianificabili nella struttura dell'anteprima raggruppata per
+// OPERATORE (data → operatore → comuni), con lo STATO per-comune (libero/conflitto) perché il
+// conflitto è per (operatore, comune). Riusa risolviEsecutore e partizionaConflitti.
 import { risolviEsecutore } from '@/lib/agente/risolviEsecutore';
 import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
 import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
@@ -12,10 +11,14 @@ export type RigaP = {
   indirizzo: string | null; comune: string | null; data: string; esecutore: string | null;
 };
 export type StatoOp = 'libero' | 'conflitto' | 'non_risolto' | 'ambiguo';
-export type OperatoreAnteprima = {
-  key: string; staffId: string | null; nome: string; stato: StatoOp; submitted: boolean; righe: RigaP[];
+export type ComuneOp = { comune: string; stato: StatoOp; submitted: boolean; righe: RigaP[] };
+export type GruppoOperatore = {
+  key: string; staffId: string | null; nome: string; data: string;
+  stato: StatoOp;      // complessivo: errore se non risolto; 'libero' se almeno un comune libero, altrimenti 'conflitto'
+  submitted: boolean;  // true se qualche comune in conflitto è già inviato
+  comuni: ComuneOp[];
+  righe: RigaP[];      // tutte le righe dell'operatore (selezionabili = quelle dei comuni 'libero')
 };
-export type GruppoAnteprima = { comune: string; data: string; operatori: OperatoreAnteprima[] };
 
 const ORD: Record<StatoOp, number> = { libero: 0, conflitto: 1, ambiguo: 2, non_risolto: 3 };
 
@@ -23,54 +26,76 @@ export function costruisciAnteprima(args: {
   righe: RigaP[];
   staff: { id: string; display_name: string }[];
   esistentiPerData: Record<string, RapEsistente[]>;
-}): GruppoAnteprima[] {
+}): GruppoOperatore[] {
   const { righe, staff, esistentiPerData } = args;
 
-  // 1) raggruppa per (data, comune) → operatore
-  const gruppi = new Map<string, { comune: string; data: string; ops: Map<string, OperatoreAnteprima> }>();
+  // 1) raggruppa per (data, operatore) → comune → righe
+  type Op = {
+    key: string; staffId: string | null; nome: string; data: string;
+    statoErrore: StatoOp | null; comuni: Map<string, RigaP[]>;
+  };
+  const operatori = new Map<string, Op>();
   for (const r of righe ?? []) {
     const comune = r.comune ?? '';
-    const gKey = `${r.data}|${comune}`;
-    let g = gruppi.get(gKey);
-    if (!g) { g = { comune, data: r.data, ops: new Map() }; gruppi.set(gKey, g); }
-
     const ris = risolviEsecutore(r.esecutore ?? '', staff);
-    let opKey: string, staffId: string | null, nome: string, stato: StatoOp;
+    let key: string, staffId: string | null, nome: string, statoErrore: StatoOp | null;
     if ('errore' in ris) {
       staffId = null;
-      stato = ris.errore === 'ambiguo' ? 'ambiguo' : 'non_risolto';
+      statoErrore = ris.errore === 'ambiguo' ? 'ambiguo' : 'non_risolto';
       nome = (r.esecutore ?? '').trim() || '—';
-      opKey = `${stato}|${nome.toUpperCase()}`;
+      key = `${statoErrore}|${nome.toUpperCase()}|${r.data}`;
     } else {
-      staffId = ris.staffId; nome = ris.staffName; stato = 'libero'; opKey = `staff|${ris.staffId}`;
+      staffId = ris.staffId; nome = ris.staffName; statoErrore = null;
+      key = `staff|${ris.staffId}|${r.data}`;
     }
-    let op = g.ops.get(opKey);
-    if (!op) { op = { key: opKey, staffId, nome, stato, submitted: false, righe: [] }; g.ops.set(opKey, op); }
-    op.righe.push(r);
+    let op = operatori.get(key);
+    if (!op) { op = { key, staffId, nome, data: r.data, statoErrore, comuni: new Map() }; operatori.set(key, op); }
+    if (!op.comuni.has(comune)) op.comuni.set(comune, []);
+    op.comuni.get(comune)!.push(r);
   }
 
-  // 2) per ogni gruppo (data, comune) marca i conflitti sugli operatori risolti
-  const out: GruppoAnteprima[] = [];
-  for (const g of gruppi.values()) {
-    const risolti = [...g.ops.values()].filter((o) => o.staffId != null);
-    const esistenti = esistentiPerData[g.data] ?? [];
+  // 2) conflitti per (data, comune): raccogli gli operatori risolti presenti in ciascun comune
+  const perComune = new Map<string, { data: string; comune: string; ops: { staff_id: string; staff_name: string }[] }>();
+  for (const op of operatori.values()) {
+    if (op.staffId == null) continue;
+    for (const comune of op.comuni.keys()) {
+      const k = `${op.data}|${comune}`;
+      let pc = perComune.get(k);
+      if (!pc) { pc = { data: op.data, comune, ops: [] }; perComune.set(k, pc); }
+      pc.ops.push({ staff_id: op.staffId, staff_name: op.nome });
+    }
+  }
+  const conflitti = new Map<string, Map<string, boolean>>(); // `${data}|${comune}` → staffId → submitted
+  for (const pc of perComune.values()) {
     const { inConflitto } = partizionaConflitti({
-      operatori: risolti.map((o) => ({ staff_id: o.staffId as string, staff_name: o.nome })),
-      data: g.data, comune: g.comune, esistenti,
+      operatori: pc.ops, data: pc.data, comune: pc.comune, esistenti: esistentiPerData[pc.data] ?? [],
     });
-    const confById = new Map(inConflitto.map((c) => [c.staff_id, c]));
-    for (const o of g.ops.values()) {
-      if (o.staffId != null && confById.has(o.staffId)) {
-        o.stato = 'conflitto';
-        o.submitted = confById.get(o.staffId)!.submitted;
-      }
-    }
-    const operatori = [...g.ops.values()].sort(
-      (a, b) => ORD[a.stato] - ORD[b.stato] || a.nome.localeCompare(b.nome),
-    );
-    out.push({ comune: g.comune, data: g.data, operatori });
+    conflitti.set(`${pc.data}|${pc.comune}`, new Map(inConflitto.map((c) => [c.staff_id, c.submitted])));
   }
 
-  out.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : a.comune.localeCompare(b.comune)));
+  // 3) costruisci l'output per operatore
+  const out: GruppoOperatore[] = [];
+  for (const op of operatori.values()) {
+    const comuni: ComuneOp[] = [];
+    const righeAll: RigaP[] = [];
+    let anyLibero = false, anySubmitted = false;
+    for (const [comune, rs] of op.comuni.entries()) {
+      let stato: StatoOp; let submitted = false;
+      if (op.staffId == null) {
+        stato = op.statoErrore as StatoOp;
+      } else {
+        const conf = conflitti.get(`${op.data}|${comune}`);
+        if (conf && conf.has(op.staffId)) { stato = 'conflitto'; submitted = conf.get(op.staffId)!; anySubmitted = anySubmitted || submitted; }
+        else { stato = 'libero'; anyLibero = true; }
+      }
+      comuni.push({ comune, stato, submitted, righe: rs });
+      righeAll.push(...rs);
+    }
+    comuni.sort((a, b) => ORD[a.stato] - ORD[b.stato] || a.comune.localeCompare(b.comune));
+    const stato: StatoOp = op.staffId == null ? (op.statoErrore as StatoOp) : (anyLibero ? 'libero' : 'conflitto');
+    out.push({ key: op.key, staffId: op.staffId, nome: op.nome, data: op.data, stato, submitted: anySubmitted, comuni, righe: righeAll });
+  }
+
+  out.sort((a, b) => (a.data < b.data ? -1 : a.data > b.data ? 1 : 0) || ORD[a.stato] - ORD[b.stato] || a.nome.localeCompare(b.nome));
   return out;
 }

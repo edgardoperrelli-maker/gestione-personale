@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
-import type { GruppoAnteprima, OperatoreAnteprima, StatoOp } from '@/lib/agente/costruisciAnteprima';
+import type { GruppoOperatore, StatoOp } from '@/lib/agente/costruisciAnteprima';
 import { raggruppaCommessaAttivita } from '@/lib/agente/raggruppaCommessaAttivita';
 
 export type RigaPianificabile = {
@@ -80,7 +80,7 @@ export default function AssegnazioneAiClient({
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
 
-  const [gruppi, setGruppi] = useState<GruppoAnteprima[]>([]);
+  const [gruppi, setGruppi] = useState<GruppoOperatore[]>([]);
   const [caricando, setCaricando] = useState(false);
   const [selezione, setSelezione] = useState<Set<string>>(() => new Set());
   const [espansi, setEspansi] = useState<Set<string>>(() => new Set());
@@ -119,10 +119,11 @@ export default function AssegnazioneAiClient({
         body: JSON.stringify({ ids }),
       });
       const j = await res.json().catch(() => ({}));
-      const gr = (res.ok ? j.gruppi ?? [] : []) as GruppoAnteprima[];
+      const gr = (res.ok ? j.gruppi ?? [] : []) as GruppoOperatore[];
       setGruppi(gr);
+      // preseleziona solo le righe dei comuni liberi di ogni operatore
       const sel = new Set<string>();
-      for (const g of gr) for (const o of g.operatori) if (o.stato === 'libero') for (const r of o.righe) sel.add(r.id);
+      for (const o of gr) for (const c of o.comuni) if (c.stato === 'libero') for (const r of c.righe) sel.add(r.id);
       setSelezione(sel);
     } finally {
       setCaricando(false);
@@ -204,19 +205,24 @@ export default function AssegnazioneAiClient({
   function toggleRiga(id: string) {
     setSelezione((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
   }
-  function toggleOperatore(o: OperatoreAnteprima) {
-    if (o.stato !== 'libero') return;
+  // righe selezionabili di un operatore = quelle dei suoi comuni liberi
+  function righeLibere(o: GruppoOperatore): string[] {
+    return o.comuni.filter((c) => c.stato === 'libero').flatMap((c) => c.righe.map((r) => r.id));
+  }
+  function toggleOperatore(o: GruppoOperatore) {
+    const ids = righeLibere(o);
+    if (ids.length === 0) return;
     setSelezione((prev) => {
       const n = new Set(prev);
-      const tutte = o.righe.every((r) => n.has(r.id));
-      for (const r of o.righe) { if (tutte) n.delete(r.id); else n.add(r.id); }
+      const tutte = ids.every((id) => n.has(id));
+      for (const id of ids) { if (tutte) n.delete(id); else n.add(id); }
       return n;
     });
   }
   function toggleEspandi(key: string) {
     setEspansi((prev) => { const n = new Set(prev); if (n.has(key)) n.delete(key); else n.add(key); return n; });
   }
-  async function scarta(o: OperatoreAnteprima) {
+  async function scarta(o: GruppoOperatore) {
     if (!window.confirm(`Rimuovere ${o.nome} dall'anteprima? Le sue ${o.righe.length} righe NON verranno pianificate (potrai ricaricarle con "Leggi dal file").`)) return;
     try {
       const res = await fetch('/api/admin/agente/scarta', {
@@ -227,14 +233,17 @@ export default function AssegnazioneAiClient({
     } catch { /* noop */ }
   }
 
-  const operatoriTot = gruppi.reduce((s, g) => s + g.operatori.length, 0);
-  const daRisolvere = gruppi.reduce((s, g) => s + g.operatori.filter((o) => o.stato === 'non_risolto' || o.stato === 'ambiguo').length, 0);
-  const conflitti = gruppi.reduce((s, g) => s + g.operatori.filter((o) => o.stato === 'conflitto').length, 0);
-  const comuni = new Set(gruppi.map((g) => g.comune)).size;
-  const liberi = gruppi.flatMap((g) => g.operatori.filter((o) => o.stato === 'libero'));
-  const assegnabili = liberi.reduce((s, o) => s + o.righe.length, 0);
-  const rapportiniDaCreare = liberi.filter((o) => o.righe.some((r) => selezione.has(r.id)));
-  const pianiDaCreare = gruppi.filter((g) => g.operatori.some((o) => o.stato === 'libero' && o.righe.some((r) => selezione.has(r.id)))).length;
+  const operatoriTot = gruppi.length;
+  const daRisolvere = gruppi.filter((o) => o.stato === 'non_risolto' || o.stato === 'ambiguo').length;
+  const conflitti = gruppi.filter((o) => o.stato === 'conflitto').length;
+  const comuni = new Set(gruppi.flatMap((o) => o.comuni.map((c) => c.comune))).size;
+  const assegnabili = gruppi.flatMap((o) => o.comuni.filter((c) => c.stato === 'libero')).reduce((s, c) => s + c.righe.length, 0);
+  const operatoriDaCreare = gruppi.filter((o) => righeLibere(o).some((id) => selezione.has(id)));
+  // piani = un piano per (data, comune); rapportini = uno per (operatore, comune libero) selezionato
+  const pianiDaCreare = new Set(
+    gruppi.flatMap((o) => o.comuni.filter((c) => c.stato === 'libero' && c.righe.some((r) => selezione.has(r.id))).map((c) => `${o.data}|${c.comune}`)),
+  ).size;
+  const rapportiniDaCreareN = gruppi.reduce((s, o) => s + o.comuni.filter((c) => c.stato === 'libero' && c.righe.some((r) => selezione.has(r.id))).length, 0);
   const sottoOperatori = [conflitti > 0 ? `${conflitti} in conflitto` : null, daRisolvere > 0 ? `${daRisolvere} da risolvere` : null].filter(Boolean).join(' · ');
 
   const tile = (icon: string, label: string, value: ReactNode) => (
@@ -358,92 +367,99 @@ export default function AssegnazioneAiClient({
               {caricando && <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>aggiorno…</span>}
             </div>
 
-            {gruppi.map((g) => (
-              <div key={`${g.data}|${g.comune}`} className="rounded-2xl border overflow-hidden" style={card}>
-                <div className="flex items-center justify-between px-4 py-2.5 border-b" style={{ borderColor: 'var(--brand-border)' }}>
-                  <div className="flex items-center gap-2 text-sm">
-                    <span style={{ color: 'var(--brand-text-muted)' }}>⌖</span>
-                    <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>{g.comune || '—'}</span>
-                    <span style={{ color: 'var(--brand-text-muted)' }}>· {ddmm(g.data)} · {g.operatori.length} operatori · {g.operatori.reduce((s, o) => s + o.righe.length, 0)} interventi</span>
-                  </div>
-                </div>
-
-                {g.operatori.map((o) => {
-                  const st = STATO[o.stato];
-                  const selezionabile = o.stato === 'libero';
-                  const selDe = o.righe.filter((r) => selezione.has(r.id)).length;
-                  const aperto = espansi.has(o.key);
-                  return (
-                    <div key={o.key} className="border-b last:border-b-0" style={{ borderColor: 'var(--brand-border)' }}>
-                      <div className="flex items-center gap-3 px-4 py-2.5" style={{ opacity: selezionabile ? 1 : 0.7 }}>
-                        <input type="checkbox" disabled={!selezionabile} aria-label={`seleziona ${o.nome}`}
-                          checked={selezionabile && selDe === o.righe.length && o.righe.length > 0}
-                          ref={(el) => { if (el) el.indeterminate = selezionabile && selDe > 0 && selDe < o.righe.length; }}
-                          onChange={() => toggleOperatore(o)} />
-                        <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-semibold"
-                          style={{ backgroundColor: st.bg, color: st.fg }}>{o.staffId ? iniziali(o.nome) : '?'}</div>
-                        <button type="button" onClick={() => toggleEspandi(o.key)} className="flex flex-1 items-center gap-2 text-left min-w-0">
-                          <span className="text-sm font-medium truncate" style={{ color: 'var(--brand-text-main)' }}>{o.nome}</span>
-                          <span className="rounded-full px-2 py-0.5 text-[11px] font-medium flex-none" style={{ backgroundColor: st.bg, color: st.fg }}>
-                            {st.icon} {o.stato === 'conflitto' ? `già pianificato ${ddmm(g.data)}` : st.label}
-                          </span>
-                          <span className="flex-none text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{aperto ? '▾' : '▸'}</span>
-                        </button>
-                        <div className="flex-none text-right">
-                          <div className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>{o.righe.length}</div>
-                          <div className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>{selezionabile ? `${selDe} selez.` : 'esclusi'}</div>
-                        </div>
-                        <button type="button" onClick={() => void scarta(o)} title="Rimuovi dall'anteprima (non verrà pianificato)"
-                          aria-label={`rimuovi ${o.nome} dall'anteprima`}
-                          className="flex-none flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors hover:opacity-100"
-                          style={{ color: 'var(--brand-text-subtle)', backgroundColor: 'var(--brand-surface-2)', opacity: 0.7 }}>
-                          ✕
-                        </button>
-                      </div>
-
-                      {aperto && (
-                        <div className="overflow-auto px-4 pb-3">
-                          <table className="w-full border-collapse text-left text-xs">
-                            <thead>
-                              <tr style={{ color: 'var(--brand-text-muted)' }}>
-                                <th className="px-2 py-1.5 font-medium"></th>
-                                {['ODL', 'Matricola', 'Indirizzo', 'Gruppo attività', 'Committente'].map((h) => (
-                                  <th key={h} className="px-2 py-1.5 font-medium whitespace-nowrap">{h}</th>
-                                ))}
-                              </tr>
-                            </thead>
-                            <tbody>
-                              {o.righe.map((r) => {
-                                const cfg = cfgByFile.get(r.file);
-                                return (
-                                  <tr key={r.id} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
-                                    <td className="px-2 py-1.5">
-                                      <input type="checkbox" disabled={!selezionabile} aria-label={`seleziona intervento ${r.odl ?? r.id}`}
-                                        checked={selezione.has(r.id)} onChange={() => toggleRiga(r.id)} />
-                                    </td>
-                                    <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.odl ?? '—'}</td>
-                                    <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.matricola ?? '—'}</td>
-                                    <td className="px-2 py-1.5">{r.indirizzo ?? '—'}</td>
-                                    <td className="px-2 py-1.5 whitespace-nowrap">{cfg?.attivita ?? '—'}</td>
-                                    <td className="px-2 py-1.5 whitespace-nowrap">{cfg?.committente ?? '—'}</td>
-                                  </tr>
-                                );
-                              })}
-                            </tbody>
-                          </table>
-                        </div>
+            {gruppi.map((o) => {
+              const st = STATO[o.stato];
+              const idsLiberi = righeLibere(o);
+              const selezionabile = idsLiberi.length > 0;
+              const selDe = idsLiberi.filter((id) => selezione.has(id)).length;
+              const aperto = espansi.has(o.key);
+              const nComuni = o.comuni.length;
+              return (
+                <div key={o.key} className="rounded-2xl border overflow-hidden" style={card}>
+                  <div className="flex items-center gap-3 px-4 py-2.5" style={{ opacity: o.staffId ? 1 : 0.75 }}>
+                    <input type="checkbox" disabled={!selezionabile} aria-label={`seleziona ${o.nome}`}
+                      checked={selezionabile && selDe === idsLiberi.length}
+                      ref={(el) => { if (el) el.indeterminate = selezionabile && selDe > 0 && selDe < idsLiberi.length; }}
+                      onChange={() => toggleOperatore(o)} />
+                    <div className="flex h-8 w-8 flex-none items-center justify-center rounded-full text-xs font-semibold"
+                      style={{ backgroundColor: st.bg, color: st.fg }}>{o.staffId ? iniziali(o.nome) : '?'}</div>
+                    <button type="button" onClick={() => toggleEspandi(o.key)} className="flex flex-1 items-center gap-2 text-left min-w-0">
+                      <span className="text-sm font-semibold truncate" style={{ color: 'var(--brand-text-main)' }}>{o.nome}</span>
+                      <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs flex-none">· {ddmm(o.data)} · {nComuni} {nComuni === 1 ? 'comune' : 'comuni'}</span>
+                      {o.stato !== 'libero' && (
+                        <span className="rounded-full px-2 py-0.5 text-[11px] font-medium flex-none" style={{ backgroundColor: st.bg, color: st.fg }}>
+                          {st.icon} {st.label}
+                        </span>
                       )}
+                      <span className="flex-none text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{aperto ? '▾' : '▸'}</span>
+                    </button>
+                    <div className="flex-none text-right">
+                      <div className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>{o.righe.length}</div>
+                      <div className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>{selezionabile ? `${selDe} selez.` : 'esclusi'}</div>
                     </div>
-                  );
-                })}
-              </div>
-            ))}
+                    <button type="button" onClick={() => void scarta(o)} title="Rimuovi dall'anteprima (non verrà pianificato)"
+                      aria-label={`rimuovi ${o.nome} dall'anteprima`}
+                      className="flex-none flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors hover:opacity-100"
+                      style={{ color: 'var(--brand-text-subtle)', backgroundColor: 'var(--brand-surface-2)', opacity: 0.7 }}>
+                      ✕
+                    </button>
+                  </div>
+
+                  {aperto && (
+                    <div className="px-4 pb-3 space-y-3">
+                      {o.comuni.map((c) => {
+                        const cst = STATO[c.stato];
+                        const cSel = c.righe.filter((r) => selezione.has(r.id)).length;
+                        const cLibero = c.stato === 'libero';
+                        return (
+                          <div key={c.comune} className="rounded-xl border" style={{ borderColor: 'var(--brand-border)' }}>
+                            <div className="flex items-center gap-2 px-3 py-1.5 text-xs border-b" style={{ borderColor: 'var(--brand-border)' }}>
+                              <span style={{ color: 'var(--brand-text-muted)' }}>⌖</span>
+                              <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>{c.comune || '—'}</span>
+                              <span className="rounded-full px-2 py-0.5 text-[10px] font-medium" style={{ backgroundColor: cst.bg, color: cst.fg }}>
+                                {cst.icon} {c.stato === 'conflitto' ? `già pianificato ${ddmm(o.data)}` : cst.label}
+                              </span>
+                              <span className="ml-auto" style={{ color: 'var(--brand-text-muted)' }}>{c.righe.length} interventi{cLibero ? ` · ${cSel} selez.` : ''}</span>
+                            </div>
+                            <div className="overflow-auto">
+                              <table className="w-full border-collapse text-left text-xs">
+                                <thead>
+                                  <tr style={{ color: 'var(--brand-text-muted)' }}>
+                                    <th className="px-2 py-1.5 font-medium"></th>
+                                    {['ODL', 'Matricola', 'Indirizzo'].map((h) => (
+                                      <th key={h} className="px-2 py-1.5 font-medium whitespace-nowrap">{h}</th>
+                                    ))}
+                                  </tr>
+                                </thead>
+                                <tbody>
+                                  {c.righe.map((r) => (
+                                    <tr key={r.id} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                                      <td className="px-2 py-1.5">
+                                        <input type="checkbox" disabled={!cLibero} aria-label={`seleziona intervento ${r.odl ?? r.id}`}
+                                          checked={selezione.has(r.id)} onChange={() => toggleRiga(r.id)} />
+                                      </td>
+                                      <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.odl ?? '—'}</td>
+                                      <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.matricola ?? '—'}</td>
+                                      <td className="px-2 py-1.5">{r.indirizzo ?? '—'}</td>
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
 
             <div className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
               style={{ borderColor: 'var(--brand-primary-border)', backgroundColor: 'var(--brand-surface)', boxShadow: 'var(--shadow-md)' }}>
               <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-                <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>{rapportiniDaCreare.length} operatori · {selezione.size} interventi</span>
-                {' '}→ crea {pianiDaCreare} {pianiDaCreare === 1 ? 'piano' : 'piani'}, {rapportiniDaCreare.length} rapportini
+                <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>{operatoriDaCreare.length} operatori · {selezione.size} interventi</span>
+                {' '}→ crea {pianiDaCreare} {pianiDaCreare === 1 ? 'piano' : 'piani'}, {rapportiniDaCreareN} rapportini
               </div>
               <button type="button" onClick={() => void procedi()} disabled={procedendo || selezione.size === 0}
                 className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold text-white transition disabled:opacity-50"
