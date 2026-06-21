@@ -321,9 +321,9 @@ export default function AssegnazioneAiClient({
 
       {isAcea && (
         <section className="rounded-2xl border p-4 space-y-2" style={card}>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Scrivi assegnazioni su ACEA</h2>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Assegna interventi su ACEA (WEB Appalti)</h2>
           <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-            Spinge sul portale ACEA tutte le assegnazioni della commessa per il giorno selezionato (gli ODL già assegnati vengono saltati). Usa &quot;Prova&quot; per simulare senza scrivere.
+            Assegna sul portale ACEA gli ODL agli operatori del giorno, leggendo direttamente le righe del file (Data + Esecutore) — <strong>indipendente da &quot;Procedi&quot;/rapportini</strong>. Gli ODL già assegnati vengono saltati. Usa &quot;Prova&quot; per simulare senza scrivere.
           </p>
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm" style={{ color: 'var(--brand-text-main)' }}>Giorno: <strong>{data}</strong></span>

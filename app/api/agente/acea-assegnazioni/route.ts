@@ -6,6 +6,9 @@ import { assegnabiliAcea, type InterventoAcea } from '@/lib/agente/assegnabiliAc
 
 export const runtime = 'nodejs';
 
+// Sorgente: righe lette dal file (agente_pianificabili) dei file di committente ACEA per quel giorno.
+// È INDIPENDENTE da "Procedi"/rapportini: serve solo aver fatto "Leggi dal file". Il driver ACEA
+// aggancia l'operatore per COGNOME, che è già l'`esecutore` del master → nessuna risoluzione staff.
 export async function GET(req: Request) {
   if (!chiaveValida(req)) return NextResponse.json({ error: 'Chiave non valida.' }, { status: 401 });
   const { searchParams } = new URL(req.url);
@@ -13,18 +16,27 @@ export async function GET(req: Request) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(data)) return NextResponse.json({ error: 'data obbligatoria (YYYY-MM-DD).' }, { status: 400 });
 
   try {
-    // interventi ACEA del giorno (con operatore, non annullati)
-    const { data: intRaw, error: eInt } = await supabaseAdmin
-      .from('interventi')
-      .select('id, odl, matricola_contatore, indirizzo, comune, staff_id, stato')
-      .eq('committente', 'acea').eq('data', data).neq('stato', 'annullato');
-    if (eInt) throw eInt;
-    const interventi = ((intRaw ?? []) as Array<InterventoAcea & { stato: string }>);
+    // file di committente ACEA
+    const { data: cfgRows } = await supabaseAdmin.from('agente_file_config').select('file, committente');
+    const aceaFiles = new Set(
+      ((cfgRows ?? []) as { file: string; committente: string }[]).filter((c) => c.committente === 'acea').map((c) => c.file),
+    );
 
-    // staff_id -> display_name
-    const { data: staffRows } = await supabaseAdmin.from('staff').select('id, display_name');
+    // righe lette dal file per quel giorno (solo file ACEA)
+    const { data: pianRaw, error: ePian } = await supabaseAdmin
+      .from('agente_pianificabili')
+      .select('id, file, odl, matricola, indirizzo, comune, esecutore')
+      .eq('data', data);
+    if (ePian) throw ePian;
+    const pian = ((pianRaw ?? []) as Array<{ id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; esecutore: string | null }>)
+      .filter((r) => aceaFiles.has(r.file));
+
+    // adatta alla forma usata da assegnabiliAcea: staff_id = esecutore (cognome), staffById = identità
+    const interventi: InterventoAcea[] = pian.map((r) => ({
+      id: r.id, odl: r.odl, matricola_contatore: r.matricola, indirizzo: r.indirizzo, comune: r.comune, staff_id: r.esecutore,
+    }));
     const staffById: Record<string, string> = {};
-    for (const s of (staffRows ?? []) as { id: string; display_name: string }[]) staffById[String(s.id)] = s.display_name;
+    for (const r of pian) { const e = (r.esecutore ?? '').trim(); if (e) staffById[e] = e; }
 
     // odl già assegnati (reali) per quel giorno → idempotenza
     const { data: logRows } = await supabaseAdmin
