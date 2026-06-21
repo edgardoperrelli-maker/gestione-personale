@@ -14,7 +14,6 @@
 import { apriCruscotto } from './driver.mjs';
 
 const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
-const CONTRATTO_TXT = 'Gestione utenze idriche morose'; // descrizione contratto nel value-help
 
 export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun = true } = {}) {
   const esiti = [];
@@ -39,14 +38,16 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         await vaiAlForm();
         await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
 
-        // 1) value-help Contratto → seleziona (abilita il form). __input1-vhi = icona value-help del Contratto.
+        // 1) Contratto: fill se editabile (form fresco lo "attiva"); se disabilitato è già impostato
         passo = `contratto-${r.odl}`;
-        const vhContratto = app.locator('[id="__input1-vhi"]').first();
-        if (await vhContratto.isVisible().catch(() => false)) {
-          await vhContratto.click();
-          await app.getByText(CONTRATTO_TXT, { exact: false }).first().click({ timeout: 15_000 });
-          await page.waitForLoadState('networkidle').catch(() => {});
-        }
+        try {
+          const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
+          if (acea.ricerca?.contratto && await contratto.isEditable().catch(() => false)) {
+            await contratto.fill(String(acea.ricerca.contratto));
+            await contratto.press('Enter');
+            await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+          }
+        } catch { /* già impostato */ }
 
         // 2) "Escludi ODM chiusi" OFF
         passo = `switch-${r.odl}`;
@@ -56,14 +57,20 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           if (on === true) await sw.click().catch(() => {});
         }
 
-        // 3) apri il modale Numero OdM col ">" (__button8), svuota, scrivi l'ODL, Inserisci OdM
+        // 3) apri il modale Numero OdM (">"=__button8, fallback: campo del form), svuota, scrivi l'ODL, Inserisci OdM
         passo = `cerca-${r.odl}`;
-        await app.locator('[id="__button8"]').first().click();
-        await app.getByRole('button', { name: 'Svuota tabella' }).click().catch(() => {});
-        const campo = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').last();
-        await campo.waitFor({ state: 'visible', timeout: 15_000 });
-        await campo.click();
-        await campo.fill(String(r.odl));
+        const svuotaBtn = app.getByRole('button', { name: 'Svuota tabella' });
+        await app.locator('[id="__button8"]').first().click().catch(() => {});
+        if (!(await svuotaBtn.isVisible().catch(() => false))) {
+          await app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first().click().catch(() => {});
+        }
+        await svuotaBtn.waitFor({ state: 'visible', timeout: 20_000 });
+        await svuotaBtn.click().catch(() => {});
+        // campo del DIALOG (è un textbox; il form usa un'altra struttura) → .last() = quello del dialog
+        const inp = app.getByRole('textbox', { name: 'Numero OdM' }).last();
+        await inp.waitFor({ state: 'visible', timeout: 15_000 });
+        await inp.click();
+        await inp.fill(String(r.odl));
         await app.getByRole('button', { name: 'Inserisci OdM' }).click();
 
         // 4) Ricerca → individua la riga
