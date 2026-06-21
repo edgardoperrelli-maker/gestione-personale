@@ -1,9 +1,9 @@
 import * as React from 'react';
 
-type InputProps = React.InputHTMLAttributes<HTMLInputElement> & { error?: boolean };
+type TextareaProps = React.TextareaHTMLAttributes<HTMLTextAreaElement> & { error?: boolean };
 
-const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className = '', error = false, ...props }, ref) => (
-  <input
+const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ className = '', error = false, ...props }, ref) => (
+  <textarea
     ref={ref}
     aria-invalid={error || undefined}
     className={`w-full rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:outline-none focus:ring-2 ${
@@ -15,6 +15,6 @@ const Input = React.forwardRef<HTMLInputElement, InputProps>(({ className = '', 
   />
 ));
 
-Input.displayName = 'Input';
+Textarea.displayName = 'Textarea';
 
-export default Input;
+export default Textarea;
