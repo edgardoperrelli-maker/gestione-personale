@@ -8,10 +8,14 @@
 
 Dopo che le assegnazioni operatore→ODL esistono **nell'app**, l'agente — via Playwright —
 **scrive le assegnazioni sul portale ACEA** (SAP Fiori, stesso Cruscotto della Fase 1), una alla
-volta, e **verifica** che siano atterrate rileggendo l'export `ATTGIORN`.
+volta. Priorità: **automatizzare tutta la commessa ACEA** (leggi → anteprima/procedi → scrivi).
 
 La Fase 1 (leggere lo stato ODL da ACEA → scrivere nel master) è in produzione. La Fase 2 va nella
 **direzione opposta**: l'app *scrive* su ACEA.
+
+> **Fuori scope (rimandato)**: la **verifica via export `ATTGIORN`** (`RISORSA`+`CODICE_ODL`) NON
+> fa parte di questa fase — è legata al filone **Italgas** e si farà dopo aver automatizzato tutta
+> Acea. Nessun flusso `ATTGIORN` viene calibrato o implementato qui.
 
 ## 2. Principio guida (a prova di futuro)
 
@@ -29,7 +33,7 @@ così abbandonare l'Excel non richiede di rifare la Fase 2.
 
 ## 3. Generico per la commessa ACEA (non per singolo master)
 
-Il processo (LEGGI → ANTEPRIMA/PROCEDI → SCRIVI → VERIFICA) deve valere **identico** per ogni
+Il processo (LEGGI → ANTEPRIMA/PROCEDI → SCRIVI) deve valere **identico** per ogni
 attività ACEA, non essere cablato sul DUNNING:
 
 - **Limitazioni Massive (Zagarolo)**: già letto dal percorso Assegnazione AI esistente (cartella
@@ -42,14 +46,15 @@ attività ACEA, non essere cablato sul DUNNING:
 La **scrittura su ACEA è sostanzialmente target-agnostica**: gli ODL di Zagarolo, DUNNING e attività
 future finiscono tutti nello stesso Cruscotto ACEA; cambia solo *da quale piano* arrivano gli ODL.
 
-## 4. I quattro passi
+## 4. I tre passi
 
 | # | Passo | Stato di partenza | Cosa serve in Fase 2 |
 |---|-------|-------------------|----------------------|
 | 1 | **LEGGI** (Excel → app) | Zagarolo ok | Estendere l'agente a leggere il master DUNNING per **colonne esplicite da config**; registrare i master ACEA in `agente_file_config`. |
 | 2 | **ANTEPRIMA + PROCEDI** | esiste | Riuso del modulo Assegnazione AI tale quale (crea `interventi` = fonte verità). |
 | 3 | **SCRIVI su ACEA** | nuovo | Flag one-shot → l'agente legge gli `interventi` ACEA del giorno → Playwright assegna ogni ODL nel Cruscotto → report per-ODL → l'app marca "assegnato su ACEA". |
-| 4 | **VERIFICA** (ATTGIORN) | nuovo | Lo stesso giro Playwright esporta `ATTGIORN` → confronta `RISORSA`+`CODICE_ODL` con l'atteso → ogni assegnazione confermata/non-confermata nel report. |
+
+(La verifica via `ATTGIORN` è **rimandata**, vedi §1 — filone Italgas.)
 
 ## 5. Ristrutturazione del modulo Assegnazione AI (commessa → attività)
 
@@ -74,8 +79,8 @@ Assegnazione AI
 - Ogni vista (commessa, attività) riusa l'**identico** flusso esistente
   (`leggi-pianificabili` → `anteprima` → `assegna`/`scarta` → storico), **filtrato** sui file di
   quella attività (join `agente_pianificabili.file` → `agente_file_config`).
-- Il pulsante **"Scrivi su ACEA"** (+ esito verifica) compare **solo nelle attività di committente
-  `acea`**, per attività, e opera sul giorno selezionato.
+- Il pulsante **"Scrivi su ACEA"** compare **solo nelle attività di committente `acea`**, per
+  attività, e opera sul giorno selezionato.
 
 ### Impatto sugli endpoint esistenti
 - `POST /api/admin/agente/anteprima`, `/assegna`, `/scarta`: invariati nella logica; ricevono già
@@ -109,7 +114,6 @@ Assegnazione AI
     intervento_id uuid,             -- FK logica → interventi.id
     esito text not null,            -- 'assegnato' | 'saltato' | 'fallito'
     motivo text,                    -- ragione se saltato/fallito
-    verifica text,                  -- 'confermato' | 'non_confermato' | 'non_verificato'
     dry_run boolean not null default false,
     run_id uuid,                    -- FK logica → agente_run.id
     creato_il timestamptz not null default now()
@@ -146,7 +150,7 @@ Assegnazione AI
   `acea_assegna_dry`→`aceaAssegnaDry`; **azzerare `forza_acea_assegna` subito** dopo la lettura
   (come `forza_acea_stato`).
 - `app/api/agente/report/route.ts` — accetta `tipo: 'acea-assegna'`; oltre all'insert in
-  `agente_run`, inserisce/aggiorna le righe in `acea_assegnazioni_log` (esito + verifica per-ODL).
+  `agente_run`, inserisce/aggiorna le righe in `acea_assegnazioni_log` (esito per-ODL).
 - UI:
   - `components/modules/assegnazione-ai/*` — ristrutturazione a tab commessa/attività (§5) e
     pulsante "Scrivi su ACEA" (date-picker + toggle dry-run) nelle attività ACEA.
@@ -160,12 +164,9 @@ Assegnazione AI
   nel Cruscotto per ogni ODL apre la riga, assegna l'operatore, salva. Selettori per
   ruolo/etichetta/testo (gli ID UI5 cambiano), **da calibrare via codegen** (§9). Riusa login/iframe
   della Fase 1 (`driver.mjs`).
-- `lib/acea/verificaAttgiorn.mjs` — esporta `ATTGIORN` ("Dettaglio Risorse Interne"), fa parsing di
-  `RISORSA`+`CODICE_ODL`, ritorna per ogni ODL `confermato`/`non_confermato`. (Parsing puro
-  testabile; navigazione/export da calibrare.)
 - `lib/acea/eseguiGiroAceaAssegna.mjs` — orchestratore: `lock` → fetch lista dall'app
-  (`/api/agente/acea-assegnazioni`) → `assegnaInterventi` (skip se `dryRun` salva soltanto) →
-  `verificaAttgiorn` → costruisce report `tipo:'acea-assegna'`. Firma gemella di `eseguiGiroAcea`.
+  (`/api/agente/acea-assegnazioni`) → `assegnaInterventi` (in `dryRun` non salva) → costruisce
+  report `tipo:'acea-assegna'`. Firma gemella di `eseguiGiroAcea`.
 - `lib/acea/risolviNomeOperatore.mjs` (puro, testabile) — applica l'eventuale mappatura override
   (§7) sopra il nome ricevuto dall'app.
 - `agente.mjs` `main()` — nuovo ramo `if (ris.aceaAssegna) { … eseguiGiroAceaAssegna … }`,
@@ -191,9 +192,9 @@ Assegnazione AI
 
 - **Idempotenza**: prima di assegnare, l'endpoint esclude gli ODL già `assegnato` reale in
   `acea_assegnazioni_log` per quel giorno (unique parziale). I re-run riprovano solo i mancanti.
-- **Dry-run**: fa login + naviga + individua la riga + (eventuale) verifica, ma **NON salva** su
-  ACEA e **NON marca** `acea_assegnazioni_log` come `assegnato` (logga `dry_run=true`). È l'anteprima
-  sicura prima del giro reale.
+- **Dry-run**: fa login + naviga + individua la riga, ma **NON salva** su ACEA e **NON marca**
+  `acea_assegnazioni_log` come `assegnato` (logga `dry_run=true`). È l'anteprima sicura prima del
+  giro reale.
 - **Errori per-ODL**: try/catch per ogni ODL; un fallimento non blocca gli altri
   (`esito:'fallito'`, `motivo`). Il giro continua.
 - **Lock**: riuso del lock file ACEA (anti-sovrapposizione con la Fase 1/sync).
@@ -214,27 +215,28 @@ Da registrare e trascrivere (locatori per ruolo/etichetta/testo, valori dal conf
 1. **Assegnazione** (passo 3): dal Cruscotto, come si apre un ODL e si imposta l'operatore (campo
    "Risorsa"?), se è autocomplete/dropdown/testo libero, come si salva. Conferma di
    ambiguità/omonimie. → riempie `assegnaInterventi.mjs`.
-2. **Export ATTGIORN** (passo 4): come si arriva all'export "Dettaglio Risorse Interne" e si scarica.
-   → riempie `verificaAttgiorn.mjs`.
-3. **Grafia nome operatore** attesa dal portale → §7 (override config se serve).
+2. **Grafia nome operatore** attesa dal portale → §7 (override config se serve).
 
-Finché non calibrati, i due moduli restano stub con la struttura e i punti di aggancio definiti;
-i moduli puri (parsing ATTGIORN, risoluzione nome, orchestrazione, report) sono testabili da subito.
+Finché non calibrato, `assegnaInterventi.mjs` resta uno stub con struttura e punti di aggancio
+definiti; i moduli puri (risoluzione nome, orchestrazione, report) sono testabili da subito.
 
 ## 10. Testing
 
-- **Unit (vitest, in `tools/limitazioni-sync`)**: parsing `ATTGIORN` (`RISORSA`/`CODICE_ODL`),
-  `risolviNomeOperatore` (override/passthrough/mancante), orchestratore con `assegna`/`verifica`
-  iniettati (mock driver) → report corretto (assegnato/saltato/fallito/confermato), idempotenza
-  (skip già-assegnati), dry-run (non marca). Mantenere la suite verde (84+ → 90+).
+- **Unit (vitest, in `tools/limitazioni-sync`)**: `risolviNomeOperatore`
+  (override/passthrough/mancante), orchestratore con `assegna` iniettato (mock driver) → report
+  corretto (assegnato/saltato/fallito), idempotenza (skip già-assegnati), dry-run (non marca).
+  Mantenere la suite verde (84+ → 90+).
 - **App**: test mirati sugli endpoint nuovi (selezione `interventi` ACEA del giorno, risoluzione
   nome, azzeramento flag nel tick). Gate: nessun nuovo fallimento sui file toccati (baseline repo
   rossa fuori da `tools/limitazioni-sync`).
 - **End-to-end reale**: sul PC del lavoro, dry-run su un giorno con poche righe → leggere il report →
-  poi giro reale → verificare su ACEA e via `ATTGIORN`.
+  poi giro reale → verificare su ACEA a mano.
 
 ## 11. Fuori scope / decisioni
 
+- **Verifica `ATTGIORN`**: rimandata (filone Italgas). Prima si automatizza tutta Acea (leggi →
+  anteprima/procedi → scrivi). Lo schema `acea_assegnazioni_log` è già pronto per ospitarla in
+  seguito (basta aggiungere una colonna `verifica`), ma nessun flusso `ATTGIORN` è in questa fase.
 - **Italgas → portale**: la commessa Italgas entra solo come **tab di organizzazione** del modulo
   (READ → anteprima → Procedi). La scrittura su un eventuale portale Italgas è fuori scope.
 - **Scrittura ACEA in blocco**: l'assegnazione è **una alla volta** (vincolo del portale). Eventuale
@@ -250,9 +252,9 @@ i moduli puri (parsing ATTGIORN, risoluzione nome, orchestrazione, report) sono 
   `agente_file_config` (DUNNING, Italgas).
 - Impostare i `template_id` mancanti in `agente_file_config` (DUNNING, eventuali Italgas).
 - `config.json` del PC del lavoro: eventuale `acea.operatori` (mappatura nomi) dopo il codegen.
-- `codegen` dei due flussi Playwright (assegnazione + export ATTGIORN) e trascrizione selettori.
+- `codegen` del flusso Playwright di **assegnazione** e trascrizione selettori.
 - Propagare l'agente al PC del lavoro (robocopy dal canale `G:\Il mio Drive\limitazioni-sync-aggiornato`).
-- Dry-run reale, poi giro reale + verifica.
+- Dry-run reale, poi giro reale + verifica a mano su ACEA.
 
 ## 13. Decomposizione per il piano di implementazione
 
@@ -262,6 +264,4 @@ i moduli puri (parsing ATTGIORN, risoluzione nome, orchestrazione, report) sono 
 3. **Ristrutturazione modulo Assegnazione AI** (commessa → attività, data-driven).
 4. **WRITE su ACEA**: endpoint `acea-assegna` + `acea-assegnazioni` + tick + ramo agente +
    `assegnaInterventi.mjs` (stub calibrabile) + report/log + UI pulsante.
-5. **VERIFICA ATTGIORN**: `verificaAttgiorn.mjs` (parsing puro + export calibrabile) + esito nel
-   report/log.
-6. **Test + calibrazione + dry-run reale**.
+5. **Test + calibrazione + dry-run reale**.
