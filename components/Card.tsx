@@ -10,7 +10,7 @@ type CardProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Card({ className = '', interactive = false, animated = true, ...props }: CardProps) {
-  const classes = `rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm transition hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)] ${className}`;
+  const classes = `rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] transition hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)] ${className}`;
 
   if (!animated) {
     return <div className={classes} {...props} />;
@@ -46,4 +46,8 @@ export function CardHeader({ className = '', ...props }: React.HTMLAttributes<HT
 
 export function CardContent({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
   return <div className={`px-4 py-4 ${className}`} {...props} />;
+}
+
+export function CardFooter({ className = '', ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return <div className={`border-t border-[var(--brand-border)] px-4 py-3 ${className}`} {...props} />;
 }
