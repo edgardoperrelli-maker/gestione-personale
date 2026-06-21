@@ -28,6 +28,7 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
   }
 
   const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
+  const ric = acea.ricerca ?? {};
 
   // Torna al FORM di ricerca pulito (se siamo sui risultati c'è "Nuova ricerca").
   const vaiAlForm = async () => {
@@ -48,26 +49,24 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
         await page.waitForLoadState('networkidle').catch(() => {});
 
-        // 1) SELEZIONA il Contratto col value-help: il campo è disabilitato alla digitazione e
-        //    finché il Contratto non è "selezionato" il resto del form (switch, Numero OdM) resta
-        //    disabilitato. Locatori dal codegen reale (id auto ma stabili su questa app).
+        // 1) Contratto: se il campo è editabile (form fresco) lo "attiva" con fill+Enter; se è
+        //    disabilitato (già selezionato) si salta. NIENTE value-help / id auto (instabili).
         passo = `contratto-${cognome}`;
-        const vhContratto = app.locator('[id="__input1-vhi"]').first();
-        if (await vhContratto.isVisible().catch(() => false)) {
-          await vhContratto.click();
-          await app.getByText('Gestione utenze idriche morose_Lotto 2', { exact: false }).first().click();
-          // conferma (OK del dialog Contratto)
-          await app.locator('[id="__button8"]').first().click().catch(async () => {
-            await app.getByRole('button', { name: /^OK$/ }).first().click().catch(() => {});
-          });
-          await page.waitForLoadState('networkidle').catch(() => {});
-        }
+        try {
+          const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
+          if (ric.contratto && await contratto.isEditable().catch(() => false)) {
+            await contratto.fill(String(ric.contratto));
+            await contratto.press('Enter');
+            await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+          }
+        } catch { /* contratto già impostato */ }
 
-        // 2) "Escludi ODM chiusi" SEMPRE OFF (ora il form è abilitato)
+        // 2) "Escludi ODM chiusi" OFF
+        passo = `switch-${cognome}`;
         const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
         if (await sw.isVisible().catch(() => false)) {
           const on = await sw.isChecked().catch(() => null);
-          if (on === true) await sw.click();
+          if (on === true) await sw.click().catch(() => {});
         }
 
         // 2) apri il dialog "Numero OdM", svuota, INCOLLA tutti gli ODL dell'operatore, Inserisci OdM
