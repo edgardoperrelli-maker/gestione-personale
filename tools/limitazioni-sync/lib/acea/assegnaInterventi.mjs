@@ -82,9 +82,19 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         }
         await svuota.waitFor({ state: 'visible', timeout: 15_000 });
         await svuota.click().catch(() => {});
-        // campo del dialog: l'unico textbox DENTRO il dialog SAP (.sapMDialog), non i campi del form dietro
+        // campo del dialog: può essere input/combobox/MultiInput → provo più locatori, primo visibile
         const elenco = ordini.map((o) => String(o.odl)).join('\n');
-        const inpDlg = app.locator('.sapMDialog').last().getByRole('textbox').first();
+        const candidati = [
+          app.locator('.sapMDialog input:visible').last(),
+          app.getByRole('combobox', { name: 'Numero OdM' }).last(),
+          app.getByRole('textbox', { name: 'Numero OdM' }).last(),
+          app.getByLabel('Numero OdM').last(),
+        ];
+        let inpDlg = null;
+        for (const c of candidati) {
+          if (await c.isVisible().catch(() => false)) { inpDlg = c; break; }
+        }
+        if (!inpDlg) inpDlg = candidati[0];
         await inpDlg.waitFor({ state: 'visible', timeout: 15_000 });
         await inpDlg.click();
         await inpDlg.fill(elenco); // incolla tutti gli ODL (uno per riga)
