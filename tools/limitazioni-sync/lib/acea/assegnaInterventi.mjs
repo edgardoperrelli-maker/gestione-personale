@@ -28,7 +28,6 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
   }
 
   const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
-  const ric = acea.ricerca ?? {};
 
   // Torna al FORM di ricerca pulito (se siamo sui risultati c'è "Nuova ricerca").
   const vaiAlForm = async () => {
@@ -44,18 +43,13 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
       const cognome = cognomeDa(operatore);
       let passo = `form-${cognome}`;
       try {
-        // 0) reset al form (solo al cambio operatore)
+        // 0) reset al form (solo al cambio operatore) + attendi che il form sia pronto
         await vaiAlForm();
+        await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
+        await page.waitForLoadState('networkidle').catch(() => {});
 
-        // 1) Contratto (precompilato): fill+Enter risolve il Fornitore e "attiva" i filtri
-        const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
-        await contratto.waitFor({ state: 'visible', timeout: 30_000 });
-        if (ric.contratto) {
-          await contratto.fill(String(ric.contratto));
-          await contratto.press('Enter');
-          await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
-        }
-        // "Escludi ODM chiusi" SEMPRE OFF
+        // 1) NB: il Contratto è precompilato e DISABILITATO (Fornitore già risolto) → NON va riempito.
+        //    "Escludi ODM chiusi" SEMPRE OFF
         const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
         if (await sw.isVisible().catch(() => false)) {
           const on = await sw.isChecked().catch(() => null);
@@ -64,7 +58,8 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
 
         // 2) apri il dialog "Numero OdM", svuota, INCOLLA tutti gli ODL dell'operatore, Inserisci OdM
         passo = `cerca-${cognome}`;
-        const cellaOdM = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first();
+        const cellaOdM = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM');
+        await cellaOdM.scrollIntoViewIfNeeded().catch(() => {});
         await cellaOdM.waitFor({ state: 'visible', timeout: 30_000 });
         await cellaOdM.click();
         const svuota = app.getByRole('button', { name: 'Svuota tabella' });
