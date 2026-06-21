@@ -1,28 +1,27 @@
 // tools/limitazioni-sync/lib/acea/assegnaInterventi.mjs
 // Driver Playwright di SCRITTURA: assegna gli ODL agli operatori sul Cruscotto ACEA, UN ODL alla volta.
-// Selettori SAP UI5 instabili → locatori per ruolo/etichetta/testo.
+// Locatori dal codegen reale (alcuni id auto __input1/__button8 sono stabili su questa app).
 //
-// Flusso reale (dal codegen + screenshot), PER OGNI ODL:
-//   apriCruscotto → poi, per ogni ODL:
-//     0) "Nuova ricerca" (reset al form: il portale ricorda l'ultima ricerca/risultati)
-//     1) Contratto (se editabile, fill+Enter; se disabilitato è già selezionato) — abilita il form
+// Flusso reale (codegen), PER OGNI ODL:
+//   apriCruscotto → poi:
+//     0) "Nuova ricerca" se siamo sui risultati (torna al form)
+//     1) value-help Contratto (__input1-vhi) → seleziona il contratto → ABILITA il form
 //     2) "Escludi ODM chiusi" OFF
-//     3) apri il modale "Numero OdM" col ">" della riga → "Svuota tabella" → scrivi 1 ODL → "Inserisci OdM"
+//     3) ">" della riga Numero OdM (__button8) → modale → "Svuota tabella" → scrivi 1 ODL → "Inserisci OdM"
 //     4) "Ricerca" → individua la riga   (dry-run: si ferma qui)
 //     5) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente →
-//        seleziona l'operatore per COGNOME → "Ok" → "Team Leader" → "Salva" → "OK"
+//        seleziona operatore per COGNOME → "Ok" → "Team Leader" → "Salva" → "OK"
 import { apriCruscotto } from './driver.mjs';
 
 const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
+const CONTRATTO_TXT = 'Gestione utenze idriche morose'; // descrizione contratto nel value-help
 
 export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun = true } = {}) {
   const esiti = [];
   if (!Array.isArray(righe) || righe.length === 0) return { esiti };
 
   const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
-  const ric = acea.ricerca ?? {};
 
-  // Torna al FORM di ricerca pulito (se siamo sui risultati c'è "Nuova ricerca").
   const vaiAlForm = async () => {
     const nuova = app.getByRole('button', { name: 'Nuova ricerca' });
     if (await nuova.isVisible().catch(() => false)) {
@@ -36,49 +35,36 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
       const cognome = cognomeDa(r.operatoreAcea);
       let passo = `form-${r.odl}`;
       try {
-        // 0) reset al form + attendi prontezza (bottone "Ricerca")
+        // 0) torna al form di ricerca
         await vaiAlForm();
         await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
-        await page.waitForLoadState('networkidle').catch(() => {});
 
-        // 1) Contratto: fill se editabile (form fresco); se disabilitato è già selezionato
+        // 1) value-help Contratto → seleziona (abilita il form). __input1-vhi = icona value-help del Contratto.
         passo = `contratto-${r.odl}`;
-        try {
-          const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
-          if (ric.contratto && await contratto.isEditable().catch(() => false)) {
-            await contratto.fill(String(ric.contratto));
-            await contratto.press('Enter');
-            await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
-          }
-        } catch { /* già impostato */ }
+        const vhContratto = app.locator('[id="__input1-vhi"]').first();
+        if (await vhContratto.isVisible().catch(() => false)) {
+          await vhContratto.click();
+          await app.getByText(CONTRATTO_TXT, { exact: false }).first().click({ timeout: 15_000 });
+          await page.waitForLoadState('networkidle').catch(() => {});
+        }
 
         // 2) "Escludi ODM chiusi" OFF
         passo = `switch-${r.odl}`;
-        const sw = app.getByRole('switch', { name: /Escludi ODM chiusi/i }).first();
+        const sw = app.getByRole('switch', { name: 'Escludi ODM chiusi' }).first();
         if (await sw.isVisible().catch(() => false)) {
           const on = await sw.isChecked().catch(() => null);
           if (on === true) await sw.click().catch(() => {});
         }
 
-        // 3) modale "Numero OdM": apri col ">" (__button8), svuota, scrivi 1 ODL, Inserisci OdM.
-        //    Tutto SCOPATO dentro il dialog VISIBILE (.sapMDialog:visible): in DOM possono restare
-        //    dialog nascosti di aperture precedenti → senza lo scope si prende il bottone sbagliato.
+        // 3) apri il modale Numero OdM col ">" (__button8), svuota, scrivi l'ODL, Inserisci OdM
         passo = `cerca-${r.odl}`;
-        const apriModale = app.locator('[id="__button8"]').first();
-        if (await apriModale.isVisible().catch(() => false)) await apriModale.click();
-        const dlg = app.locator('.sapMDialog:visible').last();
-        const svuota = dlg.getByRole('button', { name: 'Svuota tabella' });
-        if (!(await svuota.isVisible().catch(() => false))) {
-          // fallback apertura: clic sul campo "Numero OdM" del form
-          await app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first().click().catch(() => {});
-        }
-        await svuota.waitFor({ state: 'visible', timeout: 15_000 });
-        await svuota.click().catch(() => {});
-        const inpDlg = dlg.locator('input:visible').last();
-        await inpDlg.waitFor({ state: 'visible', timeout: 15_000 });
-        await inpDlg.click();
-        await inpDlg.fill(String(r.odl)); // UN solo ODL: niente multilinea, niente auto-submit
-        await dlg.getByRole('button', { name: 'Inserisci OdM' }).click({ timeout: 20_000 });
+        await app.locator('[id="__button8"]').first().click();
+        await app.getByRole('button', { name: 'Svuota tabella' }).click().catch(() => {});
+        const campo = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').last();
+        await campo.waitFor({ state: 'visible', timeout: 15_000 });
+        await campo.click();
+        await campo.fill(String(r.odl));
+        await app.getByRole('button', { name: 'Inserisci OdM' }).click();
 
         // 4) Ricerca → individua la riga
         passo = `ricerca-${r.odl}`;
