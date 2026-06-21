@@ -76,6 +76,10 @@ export default function AssegnazioneAiClient({
   const [procedendo, setProcedendo] = useState(false);
   const [esito, setEsito] = useState<string | null>(null);
 
+  const [aceaDry, setAceaDry] = useState(true);
+  const [aceaArming, setAceaArming] = useState(false);
+  const [aceaMsg, setAceaMsg] = useState<string | null>(null);
+
   const [gruppi, setGruppi] = useState<GruppoAnteprima[]>([]);
   const [caricando, setCaricando] = useState(false);
   const [selezione, setSelezione] = useState<Set<string>>(() => new Set());
@@ -180,6 +184,21 @@ export default function AssegnazioneAiClient({
     } catch (e) {
       setEsito(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
     } finally { setProcedendo(false); }
+  }
+
+  async function scriviAcea() {
+    setAceaArming(true); setAceaMsg(null);
+    try {
+      const res = await fetch('/api/admin/agente/acea-assegna', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ data, dry: aceaDry }),
+      });
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setAceaMsg(`Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per il ${data}: l'agente assegnerà su ACEA al prossimo contatto.`);
+      else setAceaMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
+    } catch (e) {
+      setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally { setAceaArming(false); }
   }
 
   function toggleRiga(id: string) {
@@ -289,6 +308,27 @@ export default function AssegnazioneAiClient({
             </div>
           )}
         </div>
+      )}
+
+      {isAcea && (
+        <section className="rounded-2xl border p-4 space-y-2" style={card}>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Scrivi assegnazioni su ACEA</h2>
+          <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+            Spinge sul portale ACEA tutte le assegnazioni della commessa per il giorno selezionato (gli ODL già assegnati vengono saltati). Usa &quot;Prova&quot; per simulare senza scrivere.
+          </p>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-sm" style={{ color: 'var(--brand-text-main)' }}>Giorno: <strong>{data}</strong></span>
+            <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--brand-text-main)' }}>
+              <input type="checkbox" checked={aceaDry} onChange={(e) => setAceaDry(e.target.checked)} /> Prova (non scrive)
+            </label>
+            <button type="button" onClick={() => void scriviAcea()} disabled={aceaArming}
+              className="rounded-xl border px-4 py-1.5 text-sm font-semibold transition disabled:opacity-60"
+              style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}>
+              {aceaArming ? 'Invio…' : (aceaDry ? '▶ Prova su ACEA' : '▶ Scrivi su ACEA')}
+            </button>
+          </div>
+          {aceaMsg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</p>}
+        </section>
       )}
 
       {righe.length === 0 ? (

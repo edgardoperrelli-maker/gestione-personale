@@ -24,6 +24,9 @@ type ConfigRow = {
   pianifica_data: string | null;
   forza_acea_stato: boolean;
   acea_target: string | null;
+  forza_acea_assegna: boolean;
+  acea_assegna_data: string | null;
+  acea_assegna_dry: boolean;
 };
 
 export async function POST(req: Request) {
@@ -43,7 +46,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato, acea_target',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato, acea_target, forza_acea_assegna, acea_assegna_data, acea_assegna_dry',
       )
       .eq('id', 1)
       .single();
@@ -123,6 +126,12 @@ export async function POST(req: Request) {
       await supabaseAdmin.from('agente_config').update({ forza_acea_stato: false }).eq('id', 1);
     }
 
+    // Assegnazione su ACEA on-demand: flag one-shot, consumato qui.
+    const aceaAssegna = config.forza_acea_assegna === true;
+    if (aceaAssegna) {
+      await supabaseAdmin.from('agente_config').update({ forza_acea_assegna: false }).eq('id', 1);
+    }
+
     return NextResponse.json(
       {
         eseguiOra,
@@ -135,6 +144,9 @@ export async function POST(req: Request) {
         pianificaData: config.pianifica_data ?? null,
         aceaStato,
         aceaTarget: config.acea_target ?? 'dunning',
+        aceaAssegna,
+        aceaAssegnaData: config.acea_assegna_data ?? null,
+        aceaAssegnaDry: config.acea_assegna_dry !== false,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
