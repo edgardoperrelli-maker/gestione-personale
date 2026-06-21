@@ -1,16 +1,16 @@
 // tools/limitazioni-sync/lib/acea/assegnaInterventi.mjs
-// Driver Playwright di SCRITTURA: per ogni ODL lo cerca nel Cruscotto e assegna l'operatore.
+// Driver Playwright di SCRITTURA: assegna gli ODL agli operatori sul Cruscotto ACEA.
 // Selettori SAP UI5 instabili → locatori per ruolo/etichetta/testo.
 //
-// Flusso reale (dal codegen + screenshot ACEA):
-//   apriCruscotto → per ogni ODL:
-//     0) "Nuova ricerca" (il portale ricorda l'ultima ricerca e al rientro mostra i RISULTATI:
-//        questo riporta al FORM di ricerca pulito; vale anche da un ODL al successivo)
+// Flusso reale (dal codegen + screenshot ACEA), raggruppato PER OPERATORE:
+//   apriCruscotto → per ogni OPERATORE:
+//     0) "Nuova ricerca" (reset al form: il portale ricorda l'ultima ricerca/risultati)
 //     1) Contratto (precompilato; fill+Enter risolve il Fornitore) + "Escludi ODM chiusi" OFF
-//     2) campo "Numero OdM" → dialog "Ricerca: Numero OdM" → "Svuota tabella" → digita ODL → "Inserisci OdM"
-//     3) "Ricerca" → individua la riga del lavoro   (dry-run: si ferma qui)
-//     4) apri la riga → "Modificare" → "Definizione risorse" → aggiungi dipendente
-//     5) seleziona l'operatore per COGNOME → "Ok" → spunta "Team Leader" → "Salva" → "OK"
+//     2) campo "Numero OdM" → dialog "Ricerca: Numero OdM" → "Svuota tabella" →
+//        INCOLLA TUTTI gli ODL dell'operatore (uno per riga) → "Inserisci OdM"
+//     3) "Ricerca" → risultati con TUTTI gli ODL di quell'operatore   (dry-run: si ferma qui)
+//     4) per ogni riga: apri → "Modificare" → "Definizione risorse" → aggiungi dipendente →
+//        seleziona l'operatore per COGNOME → "Ok" → "Team Leader" → "Salva" → "OK"
 import { apriCruscotto } from './driver.mjs';
 
 const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
@@ -18,6 +18,14 @@ const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
 export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun = true } = {}) {
   const esiti = [];
   if (!Array.isArray(righe) || righe.length === 0) return { esiti };
+
+  // raggruppa per operatore (preserva l'ordine di prima apparizione)
+  const perOperatore = new Map();
+  for (const r of righe) {
+    const k = String(r.operatoreAcea ?? '').trim();
+    if (!perOperatore.has(k)) perOperatore.set(k, []);
+    perOperatore.get(k).push(r);
+  }
 
   const { browser, page, app, shot } = await apriCruscotto(acea, { stamp });
   const ric = acea.ricerca ?? {};
@@ -32,13 +40,14 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
   };
 
   try {
-    for (const r of righe) {
-      let passo = `form-${r.odl}`;
+    for (const [operatore, ordini] of perOperatore) {
+      const cognome = cognomeDa(operatore);
+      let passo = `form-${cognome}`;
       try {
-        // 0) assicura il form di ricerca pulito (gestisce risultati persistiti + reset tra ODL)
+        // 0) reset al form (solo al cambio operatore)
         await vaiAlForm();
 
-        // 1) Contratto (precompilato): un fill+Enter risolve il Fornitore e "attiva" i filtri
+        // 1) Contratto (precompilato): fill+Enter risolve il Fornitore e "attiva" i filtri
         const contratto = app.getByRole('textbox', { name: /Contratto/i }).first();
         await contratto.waitFor({ state: 'visible', timeout: 30_000 });
         if (ric.contratto) {
@@ -53,72 +62,71 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
           if (on === true) await sw.click();
         }
 
-        // 2) campo "Numero OdM" → dialog "Ricerca: Numero OdM"
-        passo = `cerca-${r.odl}`;
+        // 2) apri il dialog "Numero OdM", svuota, INCOLLA tutti gli ODL dell'operatore, Inserisci OdM
+        passo = `cerca-${cognome}`;
         const cellaOdM = app.getByRole('gridcell', { name: 'Numero OdM' }).getByLabel('Numero OdM').first();
         await cellaOdM.waitFor({ state: 'visible', timeout: 30_000 });
         await cellaOdM.click();
-
         const svuota = app.getByRole('button', { name: 'Svuota tabella' });
-        if (await svuota.isVisible().catch(() => false)) {
-          await svuota.click().catch(() => {});
-          const inp = app.getByRole('textbox', { name: 'Numero OdM' }).last();
-          await inp.fill(String(r.odl));
-          await inp.press('Enter').catch(() => {});
-          await app.getByRole('button', { name: 'Inserisci OdM' }).click();
-        } else {
-          await cellaOdM.fill(String(r.odl));
-          await cellaOdM.press('Enter');
-        }
+        await svuota.waitFor({ state: 'visible', timeout: 15_000 });
+        await svuota.click().catch(() => {});
+        const elenco = ordini.map((o) => String(o.odl)).join('\n');
+        const inp = app.getByRole('textbox', { name: 'Numero OdM' }).last();
+        await inp.fill(elenco); // incolla tutti gli ODL (uno per riga)
+        await app.getByRole('button', { name: 'Inserisci OdM' }).click();
 
-        // 3) Ricerca → individua la riga
-        passo = `ricerca-${r.odl}`;
+        // 3) Ricerca
+        passo = `ricerca-${cognome}`;
         await app.getByRole('button', { name: 'Ricerca' }).click();
         await page.waitForLoadState('networkidle').catch(() => {});
-        const rigaLavoro = app.getByRole('row', { name: new RegExp(String(r.odl)) }).first();
-        await rigaLavoro.waitFor({ state: 'visible', timeout: 20_000 });
-        await shot(`trovato-${r.odl}`);
+        // conferma che almeno il primo ODL dell'operatore sia nei risultati
+        await app.getByRole('row', { name: new RegExp(String(ordini[0].odl)) }).first()
+          .waitFor({ state: 'visible', timeout: 25_000 });
+        await shot(`trovato-${cognome}`);
 
         if (dryRun) {
-          esiti.push({ odl: r.odl, esito: 'simulato', motivo: 'dry-run (riga trovata, non salvato)' });
+          for (const o of ordini) esiti.push({ odl: o.odl, esito: 'simulato', motivo: `dry-run (${operatore}, ${ordini.length} ODL trovati)` });
           continue;
         }
 
-        // 4) apri in modifica
-        passo = `apri-${r.odl}`;
-        await rigaLavoro.click();
-        await app.getByRole('button', { name: 'Modificare' }).click();
+        // 4) assegna l'operatore a ciascun ODL dei risultati (senza ri-cercare)
+        for (const o of ordini) {
+          let p2 = `apri-${o.odl}`;
+          try {
+            const riga = app.getByRole('row', { name: new RegExp(String(o.odl)) }).first();
+            await riga.waitFor({ state: 'visible', timeout: 20_000 });
+            await riga.click();
+            await app.getByRole('button', { name: 'Modificare' }).click();
 
-        // 5) "Definizione risorse" → aggiungi dipendente
-        passo = `risorse-${r.odl}`;
-        await app.getByText('Definizione risorse').click();
-        await app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]').click();
+            p2 = `risorse-${o.odl}`;
+            await app.getByText('Definizione risorse').click();
+            await app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]').click();
 
-        // 6) seleziona l'operatore per COGNOME (la lista non ha ricerca: Playwright scrolla alla riga)
-        passo = `seleziona-${r.odl}`;
-        const cognome = cognomeDa(r.operatoreAcea);
-        if (!cognome) throw new Error('cognome operatore vuoto');
-        const rigaDialogo = app.getByRole('row', { name: new RegExp(cognome, 'i') }).first();
-        await rigaDialogo.waitFor({ state: 'visible', timeout: 20_000 });
-        const checkbox = rigaDialogo.getByRole('checkbox').first();
-        if (await checkbox.isVisible().catch(() => false)) await checkbox.check();
-        else await rigaDialogo.click();
-        await app.getByRole('button', { name: 'Ok' }).click(); // 'Ok' del dialog (≠ 'OK' finale)
+            p2 = `seleziona-${o.odl}`;
+            const rigaDialogo = app.getByRole('row', { name: new RegExp(cognome, 'i') }).first();
+            await rigaDialogo.waitFor({ state: 'visible', timeout: 20_000 });
+            const checkbox = rigaDialogo.getByRole('checkbox').first();
+            if (await checkbox.isVisible().catch(() => false)) await checkbox.check();
+            else await rigaDialogo.click();
+            await app.getByRole('button', { name: 'Ok' }).click();
 
-        // 7) spunta "Team Leader" sulla riga dell'operatore (sempre)
-        passo = `teamleader-${r.odl}`;
-        await app.getByRole('row', { name: new RegExp(cognome, 'i') }).getByLabel('Team Leader').click();
+            p2 = `teamleader-${o.odl}`;
+            await app.getByRole('row', { name: new RegExp(cognome, 'i') }).getByLabel('Team Leader').click();
 
-        // 8) salva
-        passo = `salva-${r.odl}`;
-        await app.getByRole('button', { name: 'Salva' }).click();
-        await app.getByRole('button', { name: 'OK' }).click(); // conferma salvataggio
-        await page.waitForLoadState('networkidle').catch(() => {});
-        await shot(`ok-${r.odl}`);
-        esiti.push({ odl: r.odl, esito: 'assegnato' });
+            p2 = `salva-${o.odl}`;
+            await app.getByRole('button', { name: 'Salva' }).click();
+            await app.getByRole('button', { name: 'OK' }).click();
+            await page.waitForLoadState('networkidle').catch(() => {});
+            await shot(`ok-${o.odl}`);
+            esiti.push({ odl: o.odl, esito: 'assegnato' });
+          } catch (e) {
+            await shot(`errore-${p2}`);
+            esiti.push({ odl: o.odl, esito: 'fallito', motivo: `passo "${p2}": ${e instanceof Error ? e.message : String(e)}` });
+          }
+        }
       } catch (e) {
         await shot(`errore-${passo}`);
-        esiti.push({ odl: r.odl, esito: 'fallito', motivo: `passo "${passo}": ${e instanceof Error ? e.message : String(e)}` });
+        for (const o of ordini) esiti.push({ odl: o.odl, esito: 'fallito', motivo: `passo "${passo}": ${e instanceof Error ? e.message : String(e)}` });
       }
     }
     return { esiti };
