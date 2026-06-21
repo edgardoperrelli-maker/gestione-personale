@@ -97,8 +97,13 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
         if (!inpDlg) inpDlg = candidati[0];
         await inpDlg.waitFor({ state: 'visible', timeout: 15_000 });
         await inpDlg.click();
-        await inpDlg.fill(elenco); // incolla tutti gli ODL (uno per riga)
-        await app.getByRole('button', { name: 'Inserisci OdM' }).click();
+        // INCOLLA reale (clipboard + Ctrl+V): non scatena Invio, il controllo splitta le righe
+        // come quando si incolla a mano (il fill multilinea invece auto-submitteva il modale).
+        await page.evaluate((t) => navigator.clipboard.writeText(t), elenco);
+        await page.keyboard.press('Control+V');
+        await page.waitForTimeout(400);
+        // conferma con "Inserisci OdM" (tollerante: a volte il paste già popola le righe)
+        await app.getByRole('button', { name: 'Inserisci OdM' }).last().click({ timeout: 20_000 }).catch(() => {});
 
         // 3) Ricerca
         passo = `ricerca-${cognome}`;

@@ -27,7 +27,7 @@ export async function apriCruscotto(acea, { stamp = 'manual' } = {}) {
     channel: acea.browser ?? 'msedge',
     headless: acea.headless !== false, // default headless; "headless": false per vedere il browser (calibrazione)
   });
-  const ctx = await browser.newContext({ acceptDownloads: true });
+  const ctx = await browser.newContext({ acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await ctx.newPage();
   page.setDefaultTimeout(acea.timeoutMs ?? 60_000);
 
