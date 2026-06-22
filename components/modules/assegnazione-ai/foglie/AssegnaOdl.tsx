@@ -51,6 +51,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
 
   // storico assegnazioni
   const [storico, setStorico] = useState<StoricoRiga[]>([]);
+  const [storicoAperto, setStoricoAperto] = useState(false);
 
   // territorio macro (ACEA, LAZIO CENTRO, …) scelto al "Crea rapportini"
   const [territori, setTerritori] = useState<Array<{ id: string; name: string }>>([]);
@@ -63,6 +64,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
   const [aceaEsiti, setAceaEsiti] = useState<AceaEsiti | null>(null);
   const [aceaCheck, setAceaCheck] = useState(false);
+  const [esitoAperto, setEsitoAperto] = useState(false); // card esiti ACEA: chiusa, si apre quando assegni
 
   // ── Filtra righe per questa commessa+attività ─────────────────────────────
   const isLm = nav.attivita === 'lm';
@@ -173,7 +175,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
 
   async function scriviAcea() {
     if (odlSelezionati.length === 0) { setAceaMsg('Seleziona prima gli interventi da assegnare su ACEA.'); return; }
-    setAceaArming(true); setAceaMsg(null);
+    setAceaArming(true); setAceaMsg(null); setEsitoAperto(true);
     const giorno = dataSelez;
     try {
       const res = await fetch('/api/admin/agente/acea-assegna', {
@@ -396,12 +398,19 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         </>
       )}
 
-      {/* Storico assegnazioni */}
+      {/* Storico assegnazioni (collassabile) */}
       <Card animated={false}>
         <CardContent className="space-y-3">
-          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-            Storico assegnazioni
-          </h2>
+          <button
+            type="button"
+            onClick={() => setStoricoAperto((v) => !v)}
+            className="flex w-full items-center gap-2 text-left"
+          >
+            <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{storicoAperto ? '▾' : '▸'}</span>
+            <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Storico assegnazioni</h2>
+            {storico.length > 0 && <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>· {storico.length}</span>}
+          </button>
+          {/* avviso "giorno già assegnato": sempre visibile (a colpo d'occhio), anche se la lista è chiusa */}
           {(() => {
             const delGiorno = storico.filter((s) => s.data_pianificata === data);
             if (delGiorno.length === 0) return null;
@@ -415,31 +424,33 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               </div>
             );
           })()}
-          {storico.length === 0 ? (
-            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna assegnazione registrata.</p>
-          ) : (
-            <div className="overflow-auto">
-              <table className="w-full border-collapse text-left text-sm">
-                <thead>
-                  <tr style={{ color: 'var(--brand-text-muted)' }}>
-                    {['Giorno', 'Comune', 'Operatore', 'N. interventi', 'Creato il'].map((h) => (
-                      <th key={h} className="px-2 py-2 font-medium whitespace-nowrap">{h}</th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {storico.map((s, idx) => (
-                    <tr key={idx} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
-                      <td className="px-2 py-1.5 whitespace-nowrap">{s.data_pianificata}</td>
-                      <td className="px-2 py-1.5">{s.comune}</td>
-                      <td className="px-2 py-1.5">{s.staff_name ?? '—'}</td>
-                      <td className="px-2 py-1.5">{s.n_interventi}</td>
-                      <td className="px-2 py-1.5 whitespace-nowrap">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
+          {storicoAperto && (
+            storico.length === 0 ? (
+              <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna assegnazione registrata.</p>
+            ) : (
+              <div className="overflow-auto">
+                <table className="w-full border-collapse text-left text-sm">
+                  <thead>
+                    <tr style={{ color: 'var(--brand-text-muted)' }}>
+                      {['Giorno', 'Comune', 'Operatore', 'N. interventi', 'Creato il'].map((h) => (
+                        <th key={h} className="px-2 py-2 font-medium whitespace-nowrap">{h}</th>
+                      ))}
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody>
+                    {storico.map((s, idx) => (
+                      <tr key={idx} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{s.data_pianificata}</td>
+                        <td className="px-2 py-1.5">{s.comune}</td>
+                        <td className="px-2 py-1.5">{s.staff_name ?? '—'}</td>
+                        <td className="px-2 py-1.5">{s.n_interventi}</td>
+                        <td className="px-2 py-1.5 whitespace-nowrap">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )
           )}
         </CardContent>
       </Card>
@@ -458,6 +469,8 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         </Card>
       ) : (
         <PannelloAceaAssegna
+          aperto={esitoAperto}
+          onToggle={() => setEsitoAperto((v) => !v)}
           msg={aceaMsg}
           esiti={aceaEsiti}
           checking={aceaCheck}

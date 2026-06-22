@@ -9,6 +9,8 @@ import type { AceaEsiti } from './tipi';
 // della foglia, accanto a "Crea rapportini", e rispetta la selezione.
 
 type PannelloAceaAssegnaProps = {
+  aperto: boolean;
+  onToggle: () => void;
   msg: string | null;
   esiti: AceaEsiti | null;
   checking: boolean;
@@ -17,24 +19,28 @@ type PannelloAceaAssegnaProps = {
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export function PannelloAceaAssegna({ msg, esiti, checking, onRicarica }: PannelloAceaAssegnaProps) {
+export function PannelloAceaAssegna({ aperto, onToggle, msg, esiti, checking, onRicarica }: PannelloAceaAssegnaProps) {
   return (
     <Card animated={false}>
     <CardContent className="space-y-2">
       <div className="flex items-center gap-2">
-        <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-          Esito assegnazione ACEA
-        </h2>
+        <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-2 text-left">
+          <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{aperto ? '▾' : '▸'}</span>
+          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+            Esito assegnazione ACEA
+          </h2>
+        </button>
         <Button
           variant="ghost"
           size="sm"
           onClick={onRicarica}
           disabled={checking}
-          className="ml-auto"
         >
           {checking ? '…' : '↻ Aggiorna esito'}
         </Button>
       </div>
+      {aperto && (
+      <>
       {msg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>}
 
       {esiti?.ultimoRun ? (
@@ -100,6 +106,8 @@ export function PannelloAceaAssegna({ msg, esiti, checking, onRicarica }: Pannel
             </tbody>
           </table>
         </div>
+      )}
+      </>
       )}
     </CardContent>
     </Card>
