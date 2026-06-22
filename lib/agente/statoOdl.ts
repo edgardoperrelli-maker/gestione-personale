@@ -5,7 +5,13 @@
 export const STATI_NON_ASSEGNABILI = ['completo', 'da richiedere'];
 
 function normStato(s: string | null | undefined): string {
-  return String(s ?? '').replace(/\s+/g, ' ').trim().toLowerCase();
+  // NFD + strip accenti (coerente con normNome lato agente, spec §3); \s copre l'NBSP.
+  return String(s ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim()
+    .toLowerCase();
 }
 
 /** Vero se la cella di stato contiene (per nome normalizzato) uno degli stati della lista. */
