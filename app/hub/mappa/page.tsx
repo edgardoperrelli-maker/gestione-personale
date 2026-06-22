@@ -286,7 +286,7 @@ export default async function MappaPage({
             href="/hub/mappa?vista=pianifica"
             className="group rounded-2xl border border-[var(--brand-border)]
                        bg-[var(--brand-surface)] p-5 shadow-sm transition
-                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-md)]"
           >
             <div className="flex h-11 w-11 items-center justify-center
                             rounded-xl bg-[var(--brand-primary-soft)]
@@ -314,7 +314,7 @@ export default async function MappaPage({
             href="/hub/mappa?vista=riepilogo"
             className="group rounded-2xl border border-[var(--brand-border)]
                        bg-[var(--brand-surface)] p-5 shadow-sm transition
-                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)]"
+                       hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-md)]"
           >
             <div className="flex h-11 w-11 items-center justify-center
                             rounded-xl bg-[var(--brand-primary-soft)]

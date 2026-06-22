@@ -106,13 +106,13 @@ export default function CardTerritorio({
                     <span className="text-xs text-[var(--brand-text-muted)]">{r.nVoci} interventi</span>
                     {(r.fotoInSospeso ?? 0) > 0 && (
                       <span
-                        className="rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+                        className="rounded-full bg-[var(--status-warn-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--status-warn)]"
                         title="Foto ancora in caricamento dal telefono dell'operatore (non ancora sul server)"
                       >⏳ {r.fotoInSospeso} foto in sospeso</span>
                     )}
                     {r.territorio_override && (
                       <span
-                        className="rounded-full border border-[var(--brand-primary-border)] px-2 py-0.5 text-[10px] text-[var(--brand-primary)]"
+                        className="rounded-full bg-[var(--status-progress-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--status-progress)]"
                         title={`Spostato in ${r.territorio_override}`}
                       >↪ spostato</span>
                     )}
