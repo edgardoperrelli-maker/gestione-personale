@@ -3,13 +3,16 @@ import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { buildGiornaliera, filterRows, totali, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
-import { colorForMacro, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_GRID_STROKE, CHART_TICK_FILL } from './palette';
+import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_TICK_FILL } from './palette';
 
 export default function PerformanceGiornaliera({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
   const [f, setF] = useState<PerfFilters>(initial);
   const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
   const { data, macros } = useMemo(() => buildGiornaliera(rows), [rows]);
   const t = totali(rows);
+
+  // Resolved concrete color strings for recharts SVG props (var() not resolved in SVG attrs).
+  const cc = useChartColors();
 
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
@@ -27,10 +30,10 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
         <div style={{ width: '100%', height: 300 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 8, right: 8, bottom: 4, left: -16 }}>
-              <CartesianGrid stroke={CHART_GRID_STROKE} strokeOpacity={0.5} vertical={false} />
+              <CartesianGrid stroke={cc.brandBorder} strokeOpacity={0.5} vertical={false} />
               <XAxis
                 dataKey="label"
-                tick={{ fontSize: 10, fill: CHART_TICK_FILL }}
+                tick={{ fontSize: 10, fill: cc.brandTextMuted }}
                 interval="preserveStartEnd"
                 minTickGap={12}
                 axisLine={false}
@@ -38,7 +41,7 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
               />
               <YAxis
                 allowDecimals={false}
-                tick={{ fontSize: 11, fill: CHART_TICK_FILL }}
+                tick={{ fontSize: 11, fill: cc.brandTextMuted }}
                 axisLine={false}
                 tickLine={false}
               />
@@ -48,11 +51,11 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
                 contentStyle={chartTooltipContent}
                 itemStyle={chartItemStyle}
                 labelStyle={chartLabelStyle}
-                cursor={{ fill: 'var(--brand-border)', opacity: 0.4 }}
+                cursor={{ fill: cc.brandBorder, opacity: 0.4 }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: CHART_TICK_FILL }} />
               {macros.map((m) => (
-                <Bar key={m} dataKey={m} name={m} stackId="g" fill={colorForMacro(m)} radius={m === macros[macros.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+                <Bar key={m} dataKey={m} name={m} stackId="g" fill={cc.colorForMacro(m)} radius={m === macros[macros.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>

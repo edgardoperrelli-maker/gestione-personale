@@ -3,11 +3,18 @@ import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { buildDistribuzioni, filterRows, type ClientRow, type DistribuzioneSlice, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
-import { colorForMacro, PALETTE, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
+import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
 
-function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSlice[]; colorBy: 'macro' | 'index' }) {
+function Donut({ title, data, colorBy, palette, colorForMacro, brandSurface }: {
+  title: string;
+  data: DistribuzioneSlice[];
+  colorBy: 'macro' | 'index';
+  palette: string[];
+  colorForMacro: (name: string) => string;
+  brandSurface: string;
+}) {
   const total = data.reduce((s, d) => s + d.n, 0);
-  const color = (chiave: string, i: number) => (colorBy === 'macro' ? colorForMacro(chiave) : PALETTE[i % PALETTE.length]);
+  const color = (chiave: string, i: number) => (colorBy === 'macro' ? colorForMacro(chiave) : palette[i % palette.length]);
   return (
     <div>
       <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">{title}</h3>
@@ -24,14 +31,14 @@ function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSli
                   nameKey="chiave"
                   innerRadius={45}
                   outerRadius={75}
-                  stroke="var(--brand-surface)"
+                  stroke={brandSurface}
                   strokeWidth={1.5}
                 >
                   {data.map((d, i) => (
                     <Cell
                       key={d.chiave}
                       fill={color(d.chiave, i)}
-                      stroke="var(--brand-surface)"
+                      stroke={brandSurface}
                       strokeWidth={1.5}
                     />
                   ))}
@@ -67,14 +74,17 @@ export default function PerformanceDistribuzioni({ allRows, options, initial }: 
   const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
   const { perMacro, perCommittente, perTerritorio } = useMemo(() => buildDistribuzioni(rows), [rows]);
 
+  // Resolved concrete color strings for recharts SVG props (var() not resolved in SVG attrs).
+  const cc = useChartColors();
+
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <h2 className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Distribuzioni</h2>
       <PerfFilterBar value={f} onChange={setF} options={options} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Donut title="Per attività" data={perMacro} colorBy="macro" />
-        <Donut title="Per committente" data={perCommittente} colorBy="index" />
-        <Donut title="Per territorio" data={perTerritorio} colorBy="index" />
+        <Donut title="Per attività"    data={perMacro}        colorBy="macro"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
+        <Donut title="Per committente" data={perCommittente}  colorBy="index"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
+        <Donut title="Per territorio"  data={perTerritorio}   colorBy="index"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
       </div>
     </section>
   );
