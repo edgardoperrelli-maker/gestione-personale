@@ -35,7 +35,9 @@ export function Breadcrumb({ nav, onNavigate }: BreadcrumbProps) {
 
       {segments.map((seg, i) => {
         const isLast = i === segments.length - 1;
-        const targetLevel = (['root', 'commessa', 'attivita'] as const)[i] as 'root' | 'commessa' | 'attivita';
+        // i=0 → cliccando "ACEA" (commessa) vogliamo mostrare AttivitaGrid → risali('commessa')
+        // i=1 → cliccando "Limitazioni massive" (attività) vogliamo mostrare AzioneGrid → risali('attivita')
+        const targetLevel = (['commessa', 'attivita'] as const)[i] as 'commessa' | 'attivita';
         if (isLast) {
           return (
             <span

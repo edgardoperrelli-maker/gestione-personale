@@ -4,7 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { GruppoOperatore } from '@/lib/agente/costruisciAnteprima';
-import type { RigaPianificabile, FileConfig, AceaEsiti } from '../tipi';
+import type { RigaPianificabile, FileConfig, AceaEsiti, StoricoRiga } from '../tipi';
 import { AnteprimaPianificazione, righeLibere } from '../AnteprimaPianificazione';
 import { PannelloAceaAssegna } from '../PannelloAceaAssegna';
 import Button from '@/components/Button';
@@ -49,6 +49,9 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const [procedendo, setProcedendo] = useState(false);
   const [esito, setEsito] = useState<string | null>(null);
 
+  // storico assegnazioni
+  const [storico, setStorico] = useState<StoricoRiga[]>([]);
+
   // ACEA
   const [aceaDry, setAceaDry] = useState(true);
   const [aceaArming, setAceaArming] = useState(false);
@@ -76,6 +79,23 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const odlAceaPerData = righeAttivita.filter((r) => r.data === data).length;
 
   // ── Fetch handlers (verbatim dal monolite) ────────────────────────────────
+
+  // deriva l'attività dalla prima riga (es. "LIMITAZIONI MASSIVE" o il valore dunning)
+  const attivitaLabel = (() => {
+    const firstFile = righeAttivita[0]?.file;
+    if (!firstFile) return '';
+    return cfgByFile.get(firstFile)?.attivita ?? '';
+  })();
+
+  const caricaStorico = useCallback(async () => {
+    try {
+      const qs = new URLSearchParams({ committente: 'acea' });
+      if (attivitaLabel) qs.set('attivita', attivitaLabel);
+      const res = await fetch(`/api/admin/agente/assegnazioni?${qs.toString()}`);
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setStorico((j.righe ?? []) as StoricoRiga[]);
+    } catch { /* informativo */ }
+  }, [attivitaLabel]);
 
   const caricaAceaEsiti = useCallback(async (giorno: string) => {
     setAceaCheck(true);
@@ -139,6 +159,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         if (avvisi.length) m += ` Avvisi: ${avvisi.join(' · ')}`;
         setEsito(m);
         void caricaAnteprima(idsAttivita);
+        void caricaStorico();
         router.refresh();
       } else setEsito(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
@@ -208,6 +229,10 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   useEffect(() => {
     if (!isLm) void caricaAceaEsiti(data);
   }, [isLm, data, caricaAceaEsiti]);
+
+  useEffect(() => {
+    void caricaStorico();
+  }, [caricaStorico]);
 
   // ── Contatori barra azioni ────────────────────────────────────────────────
 
@@ -317,6 +342,54 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
           {esito && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{esito}</p>}
         </>
       )}
+
+      {/* Storico assegnazioni */}
+      <Card animated={false}>
+        <CardContent className="space-y-3">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+            Storico assegnazioni
+          </h2>
+          {(() => {
+            const delGiorno = storico.filter((s) => s.data_pianificata === data);
+            if (delGiorno.length === 0) return null;
+            return (
+              <div
+                className="rounded-xl border px-3 py-2 text-sm"
+                style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
+              >
+                ⚠️ Il giorno {data} risulta già assegnato:{' '}
+                {delGiorno.map((s) => `${s.staff_name ?? '—'} (${s.comune}, ${s.n_interventi})`).join(', ')}.
+              </div>
+            );
+          })()}
+          {storico.length === 0 ? (
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna assegnazione registrata.</p>
+          ) : (
+            <div className="overflow-auto">
+              <table className="w-full border-collapse text-left text-sm">
+                <thead>
+                  <tr style={{ color: 'var(--brand-text-muted)' }}>
+                    {['Giorno', 'Comune', 'Operatore', 'N. interventi', 'Creato il'].map((h) => (
+                      <th key={h} className="px-2 py-2 font-medium whitespace-nowrap">{h}</th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {storico.map((s, idx) => (
+                    <tr key={idx} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{s.data_pianificata}</td>
+                      <td className="px-2 py-1.5">{s.comune}</td>
+                      <td className="px-2 py-1.5">{s.staff_name ?? '—'}</td>
+                      <td className="px-2 py-1.5">{s.n_interventi}</td>
+                      <td className="px-2 py-1.5 whitespace-nowrap">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Pannello ACEA: attivo per dunning, disabilitato per lm */}
       {isLm ? (
