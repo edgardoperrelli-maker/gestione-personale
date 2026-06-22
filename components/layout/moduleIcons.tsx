@@ -4,17 +4,17 @@ import type { AppModuleKey } from '@/lib/moduleAccess';
 /**
  * Icone per modulo, riusate dalla Sidebar e dalla Dashboard.
  * Set a linee sobrio (stroke currentColor, linecap/linejoin round), una icona
- * riconoscibile per ogni voce: Cronoprogramma=gantt, Calendario Hotel=letto,
- * Pianificazione=mappa, Interventi=chiave, Live=onde, Lista attesa=lista+orologio,
- * Appuntamenti=calendario+check, Misuratori=contatore, Agente=robot,
- * Performance=barre, Impostazioni=ingranaggio, Assegnazione AI=scintille.
+ * riconoscibile per ogni voce: Cronoprogramma=caschetto cantiere, Calendario Hotel=letto,
+ * Pianificazione=mappa, Interventi=lente (cerca intervento), Live=georadar,
+ * Lista attesa=lista+orologio, Appuntamenti=calendario+check, Misuratori=contatore,
+ * Agente=robot, Performance=barre, Impostazioni=ingranaggio, Assegnazione AI=scintille.
  */
 export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   dashboard: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="5" width="11" height="3" rx="1.5" />
-      <rect x="7" y="10.5" width="12" height="3" rx="1.5" />
-      <rect x="5" y="16" width="9" height="3" rx="1.5" />
+      <path d="M3 17.5h18" />
+      <path d="M5 17.5v-1.5a7 7 0 0 1 14 0v1.5" />
+      <path d="M10 16.5V9.2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7.3" />
     </svg>
   ),
   'hotel-calendar': (
@@ -33,14 +33,16 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   ),
   interventi: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L4 17v3h3l5.4-5.4a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.1-2.1 2.6-2.6z" />
+      <circle cx="11" cy="11" r="6" />
+      <path d="m20 20-3.6-3.6" />
     </svg>
   ),
   live: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="12" cy="12" r="2" />
-      <path d="M8.8 8.8a4.5 4.5 0 0 0 0 6.4M15.2 8.8a4.5 4.5 0 0 1 0 6.4" />
-      <path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" />
+      <path d="M3 8.5h18" />
+      <rect x="9.5" y="4.5" width="5" height="3" rx="1" />
+      <path d="M9 11.5q3 3 6 0" />
+      <path d="M7 13.5q5 4 10 0" />
     </svg>
   ),
   'lista-attesa': (
@@ -59,9 +61,11 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   ),
   misuratori: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 18a8 8 0 1 1 16 0" />
-      <path d="M12 18l3.5-4.5" />
-      <circle cx="12" cy="18" r="1" />
+      <rect x="4.5" y="4" width="15" height="15" rx="2.5" />
+      <circle cx="12" cy="11.5" r="4.5" />
+      <path d="M12 11.5 14.8 9.3" />
+      <path d="M12 7.4v.6M16.1 11.5h-.6M12 15.6v-.6M7.9 11.5h.6" />
+      <path d="M9 19v1.6M15 19v1.6" />
     </svg>
   ),
   agente: (
