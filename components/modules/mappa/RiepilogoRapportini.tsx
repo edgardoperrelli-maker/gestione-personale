@@ -3,10 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RapportinoStato } from '@/utils/rapportini/links';
 import { type RapRiepilogo } from '@/utils/rapportini/groupByDay';
-import { groupByDayOperatore } from '@/utils/rapportini/groupByDayOperatore';
+import { groupByDayTerritory } from '@/utils/rapportini/groupByDayTerritory';
 import { filtraRapportini, type FiltriRiepilogo as Filtri } from '@/utils/rapportini/filtraRapportini';
 import FiltriRiepilogo from './riepilogo/FiltriRiepilogo';
-import CardOperatore from './riepilogo/CardOperatore';
+import CardTerritorio from './riepilogo/CardTerritorio';
 import IntestazioneGiorno from './riepilogo/IntestazioneGiorno';
 import { PERIODI, calcolaRange } from '@/utils/rapportini/rangePeriodo';
 
@@ -24,6 +24,7 @@ export default function RiepilogoRapportini() {
   const [dataA, setDataA] = useState('');
   const [filtri, setFiltri] = useState<Filtri>({ territorio: '', operatore: '', stati: [], q: '' });
   const [copiedToken, setCopiedToken] = useState<string | null>(null);
+  const [confirmPiano, setConfirmPiano] = useState<string | null>(null);
   const [confirmOp, setConfirmOp] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [territoriLista, setTerritoriLista] = useState<Array<{ id: string; name: string }>>([]);
@@ -67,7 +68,7 @@ export default function RiepilogoRapportini() {
   }, [raps]);
 
   const oggi = new Date().toISOString().slice(0, 10);
-  const giorni = useMemo(() => groupByDayOperatore(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
+  const giorni = useMemo(() => groupByDayTerritory(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
 
   const copia = async (r: RapportinoStato & { url: string; token: string }) => {
     try {
@@ -75,6 +76,11 @@ export default function RiepilogoRapportini() {
       setCopiedToken(r.token);
       setTimeout(() => setCopiedToken((t) => (t === r.token ? null : t)), 1800);
     } catch { /* noop */ }
+  };
+  const eliminaPiano = async (pianoId: string) => {
+    setBusy(true);
+    try { await fetch(`/api/mappa/piani?id=${pianoId}`, { method: 'DELETE' }); await carica(); }
+    finally { setBusy(false); setConfirmPiano(null); }
   };
   const rimuoviOperatore = async (pianoId: string, staffId: string) => {
     setBusy(true);
@@ -141,6 +147,12 @@ export default function RiepilogoRapportini() {
     const oggiStr = new Date().toISOString().slice(0, 10);
     if (data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
     void gestisciSpostamento('/api/mappa/rapportini/data', { rapportinoId, data });
+  };
+
+  const onSpostaPiano = (pianoId: string, opts: { data?: string; territorio?: string | null }) => {
+    const oggiStr = new Date().toISOString().slice(0, 10);
+    if (opts.data && opts.data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
+    void gestisciSpostamento('/api/mappa/piani/sposta', { pianoId, ...opts });
   };
 
   return (
@@ -218,22 +230,26 @@ export default function RiepilogoRapportini() {
           <div key={g.data} className="space-y-3">
             <IntestazioneGiorno giorno={g} oggi={oggi} />
             <div className="flex flex-wrap items-start gap-3">
-              {g.operatori.map((op) => (
-                <CardOperatore
-                  key={`${g.data}-${op.staff_id}`}
-                  op={op}
+              {g.territori.map((t) => (
+                <CardTerritorio
+                  key={`${g.data}-${t.chiave}`}
+                  terr={t}
                   dataLabel={fmtData(g.data)}
                   copiedToken={copiedToken}
                   onCopia={copia}
                   onRiapriHref={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
+                  onEliminaPiano={eliminaPiano}
                   onRimuoviOp={rimuoviOperatore}
                   onRiapriRapportino={riapriRapportino}
+                  confirmPiano={confirmPiano}
+                  setConfirmPiano={setConfirmPiano}
                   confirmOp={confirmOp}
                   setConfirmOp={setConfirmOp}
                   busy={busy}
                   territori={territoriLista}
                   onSpostaTerritorioOperatore={spostaOperatore}
                   onSpostaDataOperatore={onSpostaDataOperatore}
+                  onSpostaPiano={onSpostaPiano}
                 />
               ))}
             </div>
