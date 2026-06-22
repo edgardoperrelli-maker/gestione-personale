@@ -22,6 +22,7 @@ const AZIONI_PER_ATTIVITA: Record<string, string[]> = {
   dunning: ['aggiorna-stato', 'assegna-interventi'],
 };
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function AzioneGrid({ commessa: _commessa, attivita, onSelect }: AzioneGridProps) {
   const azioni = AZIONI_PER_ATTIVITA[attivita] ?? [];
 
