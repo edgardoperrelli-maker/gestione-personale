@@ -1,7 +1,8 @@
 // lib/agente/assegnabiliAcea.ts
 // PURO: dagli interventi ACEA del giorno costruisce la lista (odl→operatore) da spingere su ACEA,
 // scartando odl mancanti, operatori non risolti e odl già assegnati (idempotenza).
-export type InterventoAcea = { id: string; odl: string | null; matricola_contatore: string | null; indirizzo: string | null; comune: string | null; staff_id: string | null };
+import { isNonAssegnabile } from './statoOdl';
+export type InterventoAcea = { id: string; odl: string | null; matricola_contatore: string | null; indirizzo: string | null; comune: string | null; staff_id: string | null; stato_odl?: string | null };
 export type RigaAssegnabile = { interventoId: string; odl: string; matricola: string; indirizzo: string; comune: string; staffId: string; operatoreAcea: string };
 
 const t = (v: string | null | undefined): string => (v ?? '').trim();
@@ -17,6 +18,7 @@ export function assegnabiliAcea(
   for (const i of interventi ?? []) {
     const odl = t(i.odl);
     if (!odl) { scartati.push({ odl: i.odl ?? '', motivo: 'odl mancante' }); continue; }
+    if (isNonAssegnabile(i.stato_odl)) { scartati.push({ odl, motivo: 'stato non assegnabile' }); continue; }
     const staffId = t(i.staff_id);
     const nome = staffId ? staffById[staffId] : undefined;
     if (!nome) { scartati.push({ odl, motivo: 'operatore non risolto' }); continue; }
