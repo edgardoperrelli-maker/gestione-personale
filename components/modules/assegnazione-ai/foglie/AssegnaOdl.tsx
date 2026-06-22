@@ -52,6 +52,11 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   // storico assegnazioni
   const [storico, setStorico] = useState<StoricoRiga[]>([]);
 
+  // territorio macro (ACEA, LAZIO CENTRO, …) scelto al "Crea rapportini"
+  const [territori, setTerritori] = useState<Array<{ id: string; name: string }>>([]);
+  const [territorioModale, setTerritorioModale] = useState(false);
+  const [territorioSel, setTerritorioSel] = useState('');
+
   // ACEA
   const [aceaDry, setAceaDry] = useState(true);
   const [aceaArming, setAceaArming] = useState(false);
@@ -140,13 +145,14 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
     } finally { setArming(false); }
   }
 
-  async function procedi() {
-    if (selezione.size === 0) return;
+  async function procedi(territorioScelto: string) {
+    if (selezione.size === 0 || !territorioScelto) return;
+    setTerritorioModale(false);
     setProcedendo(true); setEsito(null);
     try {
       const res = await fetch('/api/admin/agente/assegna', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ids: [...selezione] }),
+        body: JSON.stringify({ ids: [...selezione], territorio: territorioScelto }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
@@ -234,20 +240,20 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
     void caricaStorico();
   }, [caricaStorico]);
 
+  // lista territori (macro) per il selettore al "Crea rapportini"
+  useEffect(() => {
+    let attivo = true;
+    fetch('/api/mappa/territori').then((r) => r.json())
+      .then((d) => { if (attivo) setTerritori(Array.isArray(d) ? d : []); })
+      .catch(() => { if (attivo) setTerritori([]); });
+    return () => { attivo = false; };
+  }, []);
+
   // ── Contatori barra azioni ────────────────────────────────────────────────
 
+  // Raggruppamento per TERRITORIO (scelto al "Crea rapportini"): un rapportino per
+  // operatore, i comuni vengono accorpati → niente più conteggio per-comune.
   const operatoriDaCreare = gruppi.filter((o) => righeLibere(o).some((id) => selezione.has(id)));
-  const pianiDaCreare = new Set(
-    gruppi.flatMap((o) =>
-      o.comuni
-        .filter((c) => c.stato === 'libero' && c.righe.some((r) => selezione.has(r.id)))
-        .map((c) => `${o.data}|${c.comune}`),
-    ),
-  ).size;
-  const rapportiniDaCreareN = gruppi.reduce(
-    (s, o) => s + o.comuni.filter((c) => c.stato === 'libero' && c.righe.some((r) => selezione.has(r.id))).length,
-    0,
-  );
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -328,17 +334,46 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                 {operatoriDaCreare.length} operatori · {selezione.size} interventi
               </span>
-              {' '}→ crea {pianiDaCreare} {pianiDaCreare === 1 ? 'piano' : 'piani'}, {rapportiniDaCreareN} rapportini
+              {' '}→ un rapportino per operatore (indirizzi accorpati nel territorio scelto)
             </div>
             <Button
               variant="primary"
-              onClick={() => void procedi()}
+              onClick={() => { setTerritorioSel(''); setTerritorioModale(true); }}
               disabled={procedendo || selezione.size === 0}
               className={selezione.size ? 'shadow-[var(--shadow-hover)]' : ''}
             >
               {procedendo ? 'Creo…' : 'Crea rapportini (app)'}
             </Button>
           </div>
+          {territorioModale && (
+            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={() => setTerritorioModale(false)}>
+              <div
+                className="w-full max-w-sm rounded-2xl border p-5"
+                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <h3 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Territorio da associare</h3>
+                <p className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                  Gli interventi selezionati ({operatoriDaCreare.length} operatori) vengono accorpati sotto questo territorio: un solo rapportino — e un solo link — per operatore.
+                </p>
+                <select
+                  value={territorioSel}
+                  onChange={(e) => setTerritorioSel(e.target.value)}
+                  className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
+                  style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+                >
+                  <option value="">Scegli territorio…</option>
+                  {territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+                </select>
+                <div className="mt-4 flex justify-end gap-2">
+                  <Button variant="ghost" size="sm" onClick={() => setTerritorioModale(false)}>Annulla</Button>
+                  <Button variant="primary" size="sm" disabled={!territorioSel || procedendo} onClick={() => void procedi(territorioSel)}>
+                    {procedendo ? 'Creo…' : 'Crea rapportini'}
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
           {esito && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{esito}</p>}
         </>
       )}

@@ -1,6 +1,10 @@
 // lib/agente/raggruppaPerPiano.ts
-// PURO: trasforma le righe risolte in una lista di piani (uno per data+comune),
+// PURO: trasforma le righe risolte in una lista di piani (uno per data+TERRITORIO),
 // ciascuno con gli operatori e i loro Task. Riusato dall'endpoint /assegna.
+// Il territorio (macro: ACEA, LAZIO CENTRO, …) è scelto dall'utente al momento
+// dell'assegnazione: i comuni vengono ACCORPATI sotto quel territorio, così ogni
+// operatore ha UN solo piano/rapportino per (giorno, territorio). Il comune resta
+// come indirizzo (citta) del singolo task, non più come chiave del piano.
 import type { Task } from '@/utils/routing/types';
 
 export type RigaRisolta = {
@@ -8,7 +12,7 @@ export type RigaRisolta = {
   comune: string | null; data: string; staffId: string; staffName: string;
 };
 export type OperatorePianoDaCreare = { staffId: string; staffName: string; tasks: Task[] };
-export type PianoDaCreare = { data: string; comune: string; operatori: OperatorePianoDaCreare[] };
+export type PianoDaCreare = { data: string; territorio: string; operatori: OperatorePianoDaCreare[] };
 
 function rigaToTask(r: RigaRisolta, attivita: string): Task {
   return {
@@ -24,13 +28,12 @@ function rigaToTask(r: RigaRisolta, attivita: string): Task {
   };
 }
 
-export function raggruppaPerPiano(righe: RigaRisolta[], attivita: string): PianoDaCreare[] {
+export function raggruppaPerPiano(righe: RigaRisolta[], attivita: string, territorio: string): PianoDaCreare[] {
   const piani = new Map<string, PianoDaCreare>();
   for (const r of righe ?? []) {
-    const comune = r.comune ?? '';
-    const keyP = `${r.data}|${comune}`;
+    const keyP = `${r.data}|${territorio}`;
     let piano = piani.get(keyP);
-    if (!piano) { piano = { data: r.data, comune, operatori: [] }; piani.set(keyP, piano); }
+    if (!piano) { piano = { data: r.data, territorio, operatori: [] }; piani.set(keyP, piano); }
     let op = piano.operatori.find((o) => o.staffId === r.staffId);
     if (!op) { op = { staffId: r.staffId, staffName: r.staffName, tasks: [] }; piano.operatori.push(op); }
     op.tasks.push(rigaToTask(r, attivita));

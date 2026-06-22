@@ -7,25 +7,28 @@ const r = (over: Partial<RigaRisolta>): RigaRisolta => ({
 });
 
 describe('raggruppaPerPiano', () => {
-  it('un piano per (data,comune); operatori per staffId; un Task per riga', () => {
+  it('un piano per (data,territorio); comuni diversi stesso giorno → UN piano accorpato; il comune resta come indirizzo del task', () => {
     const out = raggruppaPerPiano([
-      r({ id: '1', staffId: 's1' }),
-      r({ id: '2', staffId: 's1' }),
-      r({ id: '3', staffId: 's2', staffName: 'PASTORELLI LUIGI' }),
-    ], 'LIMITAZIONI MASSIVE');
+      r({ id: '1', staffId: 's1', comune: 'AFFILE' }),
+      r({ id: '2', staffId: 's1', comune: 'OLEVANO ROMANO' }),
+      r({ id: '3', staffId: 's2', staffName: 'SIKORA ARTUR', comune: 'PISONIANO' }),
+    ], 'DUNNING', 'LAZIO CENTRO');
     expect(out).toHaveLength(1);
-    expect(out[0].comune).toBe('ZAGAROLO');
+    expect(out[0].territorio).toBe('LAZIO CENTRO');
     expect(out[0].operatori).toHaveLength(2);
     const s1 = out[0].operatori.find((o) => o.staffId === 's1')!;
     expect(s1.tasks).toHaveLength(2);
-    expect(s1.tasks[0]).toEqual({ id: '1', odl: 'O1', indirizzo: 'VIA X', cap: '', citta: 'ZAGAROLO', priorita: 0, fascia_oraria: '', matricola: 'M1', attivita: 'LIMITAZIONI MASSIVE' });
+    // il comune NON è più la chiave del piano: resta come citta (indirizzo) sul task
+    expect(s1.tasks.map((t) => t.citta).sort()).toEqual(['AFFILE', 'OLEVANO ROMANO']);
+    expect(s1.tasks[0]).toEqual({ id: '1', odl: 'O1', indirizzo: 'VIA X', cap: '', citta: 'AFFILE', priorita: 0, fascia_oraria: '', matricola: 'M1', attivita: 'DUNNING' });
   });
-  it('giorni/comuni diversi → piani separati', () => {
+
+  it('giorni diversi → piani separati (stesso territorio)', () => {
     const out = raggruppaPerPiano([
-      r({ id: '1', data: '2026-06-19', comune: 'ZAGAROLO' }),
+      r({ id: '1', data: '2026-06-19', comune: 'ROMA' }),
       r({ id: '2', data: '2026-06-20', comune: 'ZAGAROLO' }),
-      r({ id: '3', data: '2026-06-19', comune: 'ROMA' }),
-    ], 'X');
-    expect(out).toHaveLength(3);
+    ], 'X', 'ACEA');
+    expect(out).toHaveLength(2);
+    expect(out.every((p) => p.territorio === 'ACEA')).toBe(true);
   });
 });

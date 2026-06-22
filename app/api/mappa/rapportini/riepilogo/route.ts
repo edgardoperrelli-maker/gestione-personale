@@ -4,7 +4,6 @@ import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { contaVociByRapportino } from '@/lib/rapportini/contaVoci';
 import { contaFotoInSospesoByRapportino } from '@/lib/rapportini/contaFotoInSospeso';
 import { territorioEffettivo } from '@/utils/rapportini/territorioEffettivo';
-import { territorioRiepilogo } from '@/lib/agente/territorioRiepilogo';
 import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
@@ -50,24 +49,16 @@ export async function GET(req: Request) {
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const nowIso = now.toISOString();
-  const out = list.map((r) => {
-    const aiCreato = aiPianoIds.has(r.piano_id);
-    return {
-      ...r,
-      // I piani AI sono per-comune; nel riepilogo si raggruppano sotto il macro (ACEA).
-      // L'override per-operatore vince comunque sul macro.
-      territorio: territorioEffettivo(
-        r.territorio_override,
-        territorioRiepilogo({ aiCreato, pianoTerritorio: pianoInfoById[r.piano_id]?.territorio ?? null }),
-      ),
-      territorio_override: r.territorio_override ?? null,
-      piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
-      aiCreato,
-      url: `${base}/r/${r.token}`,
-      statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
-      nVoci: vociCount[r.id] ?? 0,
-      fotoInSospeso: fotoSospese[r.id] ?? 0,
-    };
-  });
+  const out = list.map((r) => ({
+    ...r,
+    territorio: territorioEffettivo(r.territorio_override, pianoInfoById[r.piano_id]?.territorio),
+    territorio_override: r.territorio_override ?? null,
+    piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
+    aiCreato: aiPianoIds.has(r.piano_id),
+    url: `${base}/r/${r.token}`,
+    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
+    nVoci: vociCount[r.id] ?? 0,
+    fotoInSospeso: fotoSospese[r.id] ?? 0,
+  }));
   return NextResponse.json(out);
 }

@@ -8,6 +8,7 @@ import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
 import { costruisciLogRows } from '@/lib/agente/costruisciLogRows';
 import { caricaRapportiniEsistenti } from '@/lib/agente/caricaRapportiniEsistenti';
+import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 
 export const runtime = 'nodejs';
 
@@ -18,10 +19,14 @@ export async function POST(req: Request) {
   if (auth instanceof NextResponse) return auth;
   const userId = auth.user.id;
 
-  let body: { ids?: string[] } = {};
+  let body: { ids?: string[]; territorio?: string } = {};
   try { body = (await req.json()) as typeof body; } catch { body = {}; }
   const ids = Array.isArray(body.ids) ? body.ids.filter((x) => typeof x === 'string') : [];
   if (ids.length === 0) return NextResponse.json({ error: 'Nessuna riga selezionata.' }, { status: 400 });
+  // Territorio (macro: ACEA, LAZIO CENTRO, …) scelto nell'UI: è la chiave di raggruppamento
+  // del piano. I comuni vengono accorpati → un solo piano/rapportino per (giorno, territorio).
+  const territorio = String(body.territorio ?? '').trim();
+  if (!territorio) return NextResponse.json({ error: 'Territorio mancante: scegli il territorio da associare prima di procedere.' }, { status: 400 });
 
   try {
     // 1) righe selezionate
@@ -60,14 +65,26 @@ export async function POST(req: Request) {
     const conflitti: { staff_name: string | null; comune: string; data: string; submitted: boolean }[] = [];
     const assegnatiIds: string[] = []; // righe pianificate → consumate da agente_pianificabili a fine giro
     let pianiCreati = 0; let rapportiniCreati = 0;
+
+    // Snapshot PRE-RUN dei rapportini esistenti per ogni giorno coinvolto. I conflitti si
+    // valutano sullo stato PRIMA di questa run: così, se nello stesso giro si creano più
+    // piani per lo stesso (operatore, territorio, giorno) — es. due file ACEA — non si
+    // auto-bloccano a vicenda (sono attività/template diversi, legittimamente più rapportini).
+    const allStaffIds = [...new Set(risolte.map((r) => r.staffId))];
+    const rapEsistentiByData = new Map<string, RapEsistente[]>();
+    for (const d of [...new Set(risolte.map((r) => r.data))]) {
+      try { rapEsistentiByData.set(d, await caricaRapportiniEsistenti(supabaseAdmin, d, allStaffIds)); }
+      catch (e) { rapEsistentiByData.set(d, []); avvisi.push(`Conflitti ${d}: verifica fallita (${e instanceof Error ? e.message : 'errore'}).`); }
+    }
+
     for (const file of files) {
       const cfg = cfgByFile.get(file);
       if (!cfg || !cfg.template_id) { avvisi.push(`File ${file}: template non configurato (imposta agente_file_config.template_id).`); continue; }
       const righeFile = risolte.filter((r) => r.file === file);
-      const piani = raggruppaPerPiano(righeFile, cfg.attivita);
+      const piani = raggruppaPerPiano(righeFile, cfg.attivita, territorio);
       for (const p of piani) {
-        // anti-duplicato: elimina piani residui SENZA rapportini per (data, territorio=comune)
-        const { data: esistenti } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', p.data).eq('territorio', p.comune);
+        // anti-duplicato: elimina piani residui SENZA rapportini per (data, territorio)
+        const { data: esistenti } = await supabaseAdmin.from('mappa_piani').select('id').eq('data', p.data).eq('territorio', p.territorio);
         for (const ex of (esistenti ?? []) as Array<{ id: string }>) {
           const { count } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', ex.id);
           if (count === 0) {
@@ -76,28 +93,21 @@ export async function POST(req: Request) {
           }
         }
 
-        // pre-check conflitti: pianifica solo gli operatori NON già pianificati in quel comune+giorno
-        const staffIds = p.operatori.map((o) => o.staffId);
-        let rapEsistenti;
-        try {
-          rapEsistenti = await caricaRapportiniEsistenti(supabaseAdmin, p.data, staffIds);
-        } catch (e) {
-          avvisi.push(`Conflitti ${p.comune} ${p.data}: verifica fallita (${e instanceof Error ? e.message : 'errore'}), piano saltato.`);
-          continue;
-        }
+        // pre-check conflitti: pianifica solo gli operatori NON già pianificati in quel territorio+giorno
+        const rapEsistenti = rapEsistentiByData.get(p.data) ?? [];
         const { liberi, inConflitto } = partizionaConflitti({
           operatori: p.operatori.map((o) => ({ staff_id: o.staffId, staff_name: o.staffName })),
-          data: p.data, comune: p.comune, esistenti: rapEsistenti,
+          data: p.data, comune: p.territorio, esistenti: rapEsistenti,
         });
-        for (const c of inConflitto) conflitti.push({ staff_name: c.staff_name, comune: p.comune, data: p.data, submitted: c.submitted });
+        for (const c of inConflitto) conflitti.push({ staff_name: c.staff_name, comune: p.territorio, data: p.data, submitted: c.submitted });
         const operatoriLiberi = p.operatori.filter((o) => liberi.some((L) => L.staff_id === o.staffId));
         if (operatoriLiberi.length === 0) continue; // tutti già pianificati: nessun piano
 
         // crea piano + operatori (solo i liberi)
         const { data: piano, error: ePiano } = await supabaseAdmin.from('mappa_piani').insert({
-          data: p.data, territorio: p.comune, note: null, stato: 'confermato', created_by: userId, updated_by: userId,
+          data: p.data, territorio: p.territorio, note: null, stato: 'confermato', created_by: userId, updated_by: userId,
         }).select('id').single();
-        if (ePiano || !piano) { avvisi.push(`Piano ${p.comune} ${p.data}: ${ePiano?.message ?? 'creazione fallita'}.`); continue; }
+        if (ePiano || !piano) { avvisi.push(`Piano ${p.territorio} ${p.data}: ${ePiano?.message ?? 'creazione fallita'}.`); continue; }
         const pianoId = (piano as { id: string }).id;
         const opRows = operatoriLiberi.map((o) => ({
           piano_id: pianoId, staff_id: o.staffId, staff_name: o.staffName, colore: '#2563EB',
@@ -106,7 +116,7 @@ export async function POST(req: Request) {
         const { error: eOp } = await supabaseAdmin.from('mappa_piani_operatori').insert(opRows);
         if (eOp) {
           await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
-          avvisi.push(`Operatori ${p.comune} ${p.data}: ${eOp.message}.`);
+          avvisi.push(`Operatori ${p.territorio} ${p.data}: ${eOp.message}.`);
           continue;
         }
         // rapportini (sincronizzaRapportini chiama ensureInterventiForPiano internamente).
@@ -119,17 +129,17 @@ export async function POST(req: Request) {
             await supabaseAdmin.from('interventi').delete().eq('piano_id', pianoId);
             await supabaseAdmin.from('mappa_piani').delete().eq('id', pianoId);
           }
-          avvisi.push(`Rapportini ${p.comune} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`);
+          avvisi.push(`Rapportini ${p.territorio} ${p.data}: ${res.error ?? 'conflitto'} (status ${res.status}).`);
           continue;
         }
         pianiCreati += 1;
         rapportiniCreati += res.rapportini.length;
-        if (res.interventiWarning) avvisi.push(`Interventi ${p.comune} ${p.data}: ${res.interventiWarning}`);
+        if (res.interventiWarning) avvisi.push(`Interventi ${p.territorio} ${p.data}: ${res.interventiWarning}`);
 
         // storico (best-effort): una riga per operatore pianificato
-        const logRows = costruisciLogRows({ data: p.data, comune: p.comune, file, pianoId, userId, operatori: operatoriLiberi });
+        const logRows = costruisciLogRows({ data: p.data, comune: p.territorio, file, pianoId, userId, operatori: operatoriLiberi });
         const { error: eLog } = await supabaseAdmin.from('assegnazione_ai_log').insert(logRows);
-        if (eLog) avvisi.push(`Log ${p.comune} ${p.data}: ${eLog.message}`);
+        if (eLog) avvisi.push(`Log ${p.territorio} ${p.data}: ${eLog.message}`);
         assegnatiIds.push(...operatoriLiberi.flatMap((o) => o.tasks.map((t) => String(t.id))));
       }
     }
