@@ -2,7 +2,8 @@
 // Orchestrazione: scarica i lavori -> per ogni file-master aggancia/scrive/aggiunge -> backup/salva -> log.
 import fs from 'node:fs';
 import path from 'node:path';
-import { caricaWorkbook, trovaRigaIntestazione, backupFile, salva } from './lib/excelIO.mjs';
+import { caricaWorkbook, trovaRigaIntestazione, backupFile } from './lib/excelIO.mjs';
+import { applicaModificheXlsx } from './lib/acea/applicaModificheXlsx.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
 import { decidiScrittura, cellaEsitoNegativa } from './lib/scrittura.mjs';
@@ -53,6 +54,16 @@ function valoreCampo(l, campo) {
   }
 }
 
+/** Foglio "master" del workbook: il primo i cui header (entro le prime righe) sono riconosciuti
+ *  come master (ORDINE+MATRICOLA). Robusto a fogli pivot/extra messi DAVANTI al master
+ *  (es. una tabella pivot salvata come primo foglio del file). Fallback: il primo foglio. */
+function foglioMaster(wb) {
+  for (const ws of wb.worksheets) {
+    if (trovaRigaIntestazione(ws) >= 0) return ws;
+  }
+  return wb.worksheets[0];
+}
+
 export async function eseguiGiro({
   cartella, lavori, dryRun, stamp, mappatura, esitoPositivo, esitoNegativo,
 }) {
@@ -80,7 +91,7 @@ export async function eseguiGiro({
     };
     try {
       const wb = await caricaWorkbook(file);
-      const ws = wb.worksheets[0];
+      const ws = foglioMaster(wb);
       const rIntest = trovaRigaIntestazione(ws);
       if (rIntest < 0) { report.file.push(fileReport); continue; } // non master -> ignora
       fileReport.master = true;
@@ -124,6 +135,15 @@ export async function eseguiGiro({
         norm(path.basename(file, '.xlsx'));
       comuniConFile.add(comuneFile);
 
+      // change-set per la scrittura CHIRURGICA (al posto di salva() exceljs, che corrompe l'xlsx
+      // e perde l'AutoFiltro). Ogni scrittura sotto viene registrata; a fine file si applica con
+      // applicaModificheXlsx. Righe oltre maxRigaOriginale = righe nuove (extra) → append.
+      const modifiche = [];
+      const maxRigaOriginale = ws.rowCount;
+      const registra = (row, idx, valore) => {
+        modifiche.push({ riga: row.number, col: idx, valore, tipo: valore instanceof Date ? 'date' : 'str' });
+      };
+
       // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
       // ritorna { scritto, eraPieno }: scritto=ha riempito la cella; eraPieno=la cella aveva già un valore (compilato a mano).
       // forza=true (upgrade negativo→positivo su riga dell'agente): forza SOLO esito (→positivo),
@@ -138,11 +158,13 @@ export async function eseguiGiro({
             // upgrade: aggiorna alla data del positivo SOLO se presente (mai svuotare una data a file)
             const g = giornoDa(l.data_esecuzione);
             if (!g) return { scritto: false, eraPieno };
-            cell.value = aDataExcel(g);
+            const dv = aDataExcel(g);
+            cell.value = dv;
+            registra(row, regola.idx, dv);
             return { scritto: true, eraPieno };
           }
           const d = decidiScritturaData(cell.value, l.data_esecuzione);
-          if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
+          if (d.azione === 'scrivi') { cell.value = d.valore; registra(row, regola.idx, d.valore); return { scritto: true, eraPieno }; }
           if (d.azione === 'conflitto') {
             fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', via: l.via ?? '', campo: 'data', esistente: d.esistente, nuovo: l.data_esecuzione });
           }
@@ -154,11 +176,13 @@ export async function eseguiGiro({
         // upgrade: forza SOLO esito e note (note→pulita). Le altre colonne cadono nella policy normale sotto.
         if (forza && (regola.campo === 'esito' || regola.campo === 'note')) {
           const v = valore == null ? '' : String(valore).trim();
-          cell.value = v === '' ? null : v;
+          const nv = v === '' ? null : v;
+          cell.value = nv;
+          registra(row, regola.idx, nv);
           return { scritto: v !== '', eraPieno }; // cella svuotata → non conta nel marcatore
         }
         const d = decidiScrittura(cell.value, valore);
-        if (d.azione === 'scrivi') { cell.value = d.valore; return { scritto: true, eraPieno }; }
+        if (d.azione === 'scrivi') { cell.value = d.valore; registra(row, regola.idx, d.valore); return { scritto: true, eraPieno }; }
         if (d.azione === 'conflitto') {
           fileReport.conflitti.push({ riga: row.number, odl: l.odl ?? '', matricola: l.matricola ?? '', via: l.via ?? '', campo: regola.campo, esistente: d.esistente, nuovo: d.valore });
         }
@@ -169,9 +193,9 @@ export async function eseguiGiro({
       const scriviAutomazione = (row, valore, l, forza = false) => {
         if (automazioneCol < 0) return;
         const cell = row.getCell(automazioneCol + 1);
-        if (forza) { cell.value = valore; return; }
+        if (forza) { cell.value = valore; registra(row, automazioneCol, valore); return; }
         const d = decidiScrittura(cell.value, valore);
-        if (d.azione === 'scrivi') { cell.value = d.valore; }
+        if (d.azione === 'scrivi') { cell.value = d.valore; registra(row, automazioneCol, d.valore); }
         else if (d.azione === 'conflitto') {
           fileReport.conflitti.push({ riga: row.number, odl: l?.odl ?? '', matricola: l?.matricola ?? '', via: l?.via ?? '', campo: 'automazione', esistente: d.esistente, nuovo: d.valore });
         }
@@ -239,8 +263,8 @@ export async function eseguiGiro({
         idConsumati.add(l.id);
         const row = ws.addRow([]);
         // aggancio fields scritti sempre sulle righe extra (matricola e via per identificare la riga)
-        if (col.matricola != null && l.matricola) row.getCell(col.matricola + 1).value = l.matricola;
-        if (col.via != null && l.via) row.getCell(col.via + 1).value = l.via;
+        if (col.matricola != null && l.matricola) { row.getCell(col.matricola + 1).value = l.matricola; registra(row, col.matricola, l.matricola); }
+        if (col.via != null && l.via) { row.getCell(col.via + 1).value = l.via; registra(row, col.via, l.via); }
         // poi i campi mappati (riga nuova: tutto completato dall'agente)
         const completateExtra = [];
         for (const regola of regoleScrittura) {
@@ -251,7 +275,7 @@ export async function eseguiGiro({
         if (markerCol >= 0) {
           const mc = row.getCell(markerCol + 1);
           const d = decidiScrittura(mc.value, MARKER);
-          if (d.azione === 'scrivi') mc.value = d.valore;
+          if (d.azione === 'scrivi') { mc.value = d.valore; registra(row, markerCol, d.valore); }
         }
         scriviAutomazione(row, completateExtra.length > 0 ? `SI + ${completateExtra.join(' + ')}` : MARKER_AUTOMAZIONE, l);
         fileReport.righe.push(rigaReport(l, row.number, 'extra'));
@@ -260,7 +284,16 @@ export async function eseguiGiro({
 
       if (!dryRun && (fileReport.aggiornate > 0 || fileReport.extraAggiunte > 0)) {
         backupFile(file, stamp);
-        await salva(wb, file);
+        // scrittura CHIRURGICA: applica il change-set senza ri-serializzare tutto il file.
+        const aggiornamenti = modifiche.filter((m) => m.riga <= maxRigaOriginale);
+        const perNuova = new Map();
+        for (const m of modifiche) {
+          if (m.riga <= maxRigaOriginale) continue;
+          if (!perNuova.has(m.riga)) perNuova.set(m.riga, []);
+          perNuova.get(m.riga).push({ col: m.col, valore: m.valore, tipo: m.tipo });
+        }
+        const nuoveRighe = [...perNuova.keys()].sort((a, b) => a - b).map((k) => perNuova.get(k));
+        await applicaModificheXlsx(file, { foglio: ws.name, aggiornamenti, nuoveRighe });
       }
     } catch (e) {
       fileReport.saltato = true;
@@ -298,7 +331,7 @@ async function leggiPianificabili({ baseUrl, exportKey, cartella, dataTarget }) 
   for (const file of files) {
     try {
       const wb = await caricaWorkbook(file);
-      const ws = wb.worksheets[0];
+      const ws = foglioMaster(wb);
       const rIntest = trovaRigaIntestazione(ws);
       if (rIntest < 0) continue; // non master
       const header = (ws.getRow(rIntest).values || []).slice(1);
@@ -336,7 +369,6 @@ async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) 
     const colonne = {
       odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
       matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
-      stato: acea.masterColonnaStato,
     };
     const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
     const header = tutte[rIntest - 1] || [];
