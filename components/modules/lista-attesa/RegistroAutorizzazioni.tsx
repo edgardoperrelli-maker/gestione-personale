@@ -1,30 +1,52 @@
 'use client';
 
-import { Fragment, useCallback, useEffect, useMemo, useState } from 'react';
+import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { datiAnagraficaCoda } from '@/lib/interventi/manuali/filtraCoda';
 import { RecuperoFotoRichiesta } from './RecuperoFotoRichiesta';
 import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import { INFO_CAMPI_DISPONIBILI } from '@/utils/rapportini/infoCampi';
-import type { RigaRichiesta, CommittenteManuale } from '@/lib/interventi/manuali/types';
+import type { RigaRichiesta, CommittenteManuale, StatoRichiesta } from '@/lib/interventi/manuali/types';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
+import Badge from '@/components/Badge';
 
 const labelCls = 'text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]';
 
+type BadgeVariant = ComponentProps<typeof Badge>['variant'];
+
+/** Mapping stato richiesta → badge colorato (verde = approvato, rosso = rifiutato, ecc.). */
+const STATO_META: Record<StatoRichiesta, { variant: BadgeVariant; label: string }> = {
+  in_attesa:   { variant: 'warn',     label: 'In attesa' },
+  approvato:   { variant: 'ok',       label: 'Approvato' },
+  rifiutato:   { variant: 'ko',       label: 'Rifiutato' },
+  auto_liberi: { variant: 'progress', label: 'Auto liberi' },
+  annullato:   { variant: 'idle',     label: 'Annullato' },
+};
+
+function StatoBadge({ stato }: { stato: StatoRichiesta }) {
+  const m = STATO_META[stato] ?? { variant: 'muted' as BadgeVariant, label: String(stato) };
+  return <Badge variant={m.variant}>{m.label}</Badge>;
+}
+
 function toCsv(righe: RigaRichiesta[]): string {
-  const head = ['Data', 'Operatore', 'Committente', 'Stato', 'Approvatore', 'Approvato il', 'Note', 'Motivo rifiuto', 'Creato'];
+  const head = ['Data', 'Operatore', 'Committente', 'Via', 'Matricola', 'Attività', 'Stato', 'Approvatore', 'Approvato il', 'Note', 'Motivo rifiuto', 'Creato'];
   const esc = (v: unknown) => `"${String(v ?? '').replace(/"/g, '""')}"`;
-  const rows = righe.map((r) =>
-    [
+  const rows = righe.map((r) => {
+    const a = datiAnagraficaCoda(r);
+    return [
       formatDataIt(r.data),
       r.staff_name ?? r.staff_id,
       etichettaCommittente(r.committente),
+      a.via,
+      a.matricola,
+      a.attivita,
       r.stato,
       r.deciso_da_name ?? '',
       formatDataOraIt(r.deciso_at),
@@ -33,8 +55,8 @@ function toCsv(righe: RigaRichiesta[]): string {
       formatDataOraIt(r.created_at),
     ]
       .map(esc)
-      .join(','),
-  );
+      .join(',');
+  });
   return [head.join(','), ...rows].join('\r\n');
 }
 
@@ -174,7 +196,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           <option value="">Tutti gli stati</option>
           {STATI_RICHIESTA.map((s) => (
             <option key={s} value={s}>
-              {s}
+              {STATO_META[s]?.label ?? s}
             </option>
           ))}
         </Select>
@@ -220,6 +242,9 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Data</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Operatore</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Committente</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Via</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Matricola</th>
+                <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Attività</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Stato</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Approvatore</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Approvato il</th>
@@ -228,35 +253,41 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--brand-border)]">
-              {filtrate.map((r) => (
-                <Fragment key={r.id}>
-                  <tr
-                    onClick={() => setApertaId((a) => (a === r.id ? null : r.id))}
-                    className="cursor-pointer py-[9px] transition hover:bg-[var(--brand-surface-muted)]"
-                  >
-                    <td className="px-3 py-2">{formatDataIt(r.data)}</td>
-                    <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
-                    <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
-                    <td className="px-3 py-2">{r.stato}</td>
-                    <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
-                    <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
-                    <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
-                    <td className="px-3 py-2">
-                      <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-text-muted)]">
-                        <span aria-hidden>{apertaId === r.id ? '▾' : '▸'}</span>
-                        {apertaId === r.id ? 'Chiudi' : 'Dettagli'}
-                      </span>
-                    </td>
-                  </tr>
-                  {apertaId === r.id && (
-                    <tr>
-                      <td colSpan={8} className="bg-[var(--brand-surface-muted)] px-3 py-3">
-                        <DettaglioRiga riga={r} campiEsito={campiPerCommittente[r.committente] ?? []} />
+              {filtrate.map((r) => {
+                const a = datiAnagraficaCoda(r);
+                return (
+                  <Fragment key={r.id}>
+                    <tr
+                      onClick={() => setApertaId((cur) => (cur === r.id ? null : r.id))}
+                      className="cursor-pointer transition hover:bg-[var(--brand-surface-muted)]"
+                    >
+                      <td className="whitespace-nowrap px-3 py-2">{formatDataIt(r.data)}</td>
+                      <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
+                      <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
+                      <td className="max-w-[200px] truncate px-3 py-2" title={a.via || undefined}>{a.via || '—'}</td>
+                      <td className="px-3 py-2">{a.matricola || '—'}</td>
+                      <td className="max-w-[160px] truncate px-3 py-2" title={a.attivita || undefined}>{a.attivita || '—'}</td>
+                      <td className="px-3 py-2"><StatoBadge stato={r.stato} /></td>
+                      <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
+                      <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-text-muted)]">
+                          <span aria-hidden>{apertaId === r.id ? '▾' : '▸'}</span>
+                          {apertaId === r.id ? 'Chiudi' : 'Dettagli'}
+                        </span>
                       </td>
                     </tr>
-                  )}
-                </Fragment>
-              ))}
+                    {apertaId === r.id && (
+                      <tr>
+                        <td colSpan={11} className="bg-[var(--brand-surface-muted)] px-3 py-3">
+                          <DettaglioRiga riga={r} campiEsito={campiPerCommittente[r.committente] ?? []} />
+                        </td>
+                      </tr>
+                    )}
+                  </Fragment>
+                );
+              })}
             </tbody>
           </table>
         </div>
