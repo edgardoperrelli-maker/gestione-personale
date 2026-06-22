@@ -5,7 +5,7 @@ import { chiaveValida } from '@/lib/apiExportKey';
 
 export const runtime = 'nodejs';
 
-type RigaIn = { riga?: number; odl?: string; matricola?: string; indirizzo?: string; comune?: string; data?: string; esecutore?: string };
+type RigaIn = { riga?: number; odl?: string; matricola?: string; indirizzo?: string; comune?: string; data?: string; esecutore?: string; statoOdl?: string };
 
 export async function POST(req: Request) {
   if (!chiaveValida(req)) return NextResponse.json({ error: 'Chiave non valida.' }, { status: 401 });
@@ -28,6 +28,7 @@ export async function POST(req: Request) {
         riga: Number(r.riga ?? 0),
         odl: r.odl ?? null, matricola: r.matricola ?? null, indirizzo: r.indirizzo ?? null,
         comune: r.comune ?? null, esecutore: r.esecutore ?? null,
+        stato_odl: r.statoOdl ?? null,
         scansionato_il: new Date().toISOString(),
       }));
       const { error } = await supabaseAdmin.from('agente_pianificabili').insert(rows);
