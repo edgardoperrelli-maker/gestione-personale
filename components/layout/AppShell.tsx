@@ -93,11 +93,12 @@ export default function AppShell({
       {mobileOpen && (
         <div className="fixed inset-0 z-50 md:hidden">
           <div
-            className="absolute inset-0 bg-[oklch(0_0_0/0.5)]"
+            className="absolute inset-0"
+            style={{ background: 'var(--overlay)' }}
             onClick={() => setMobileOpen(false)}
             aria-hidden="true"
           />
-          <div className="absolute inset-y-0 left-0 h-full shadow-xl">
+          <div className="absolute inset-y-0 left-0 h-full shadow-[var(--shadow-lg)]">
             <Sidebar
               allowedModules={allowedModules}
               collapsed={false}
