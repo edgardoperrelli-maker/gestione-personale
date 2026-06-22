@@ -75,11 +75,14 @@ describe('voceEsitoColore — esito "NESSUN PASSAGGIO" (lim massive / limitazion
   it('NESSUN PASSAGGIO (template senza note) → rossa', () => {
     expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, senzaNote)).toBe('rossa');
   });
-  it('NESSUN PASSAGGIO senza note (note obbligatorie con esito negativo) → neutro, non verde', () => {
-    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, conNote)).toBe('neutro');
+  it('NESSUN PASSAGGIO senza note → rossa (nota NON obbligatoria: valore auto-esplicativo)', () => {
+    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, conNote)).toBe('rossa');
   });
   it('NESSUN PASSAGGIO con note compilate → rossa', () => {
     expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO', note: 'cancello chiuso' }, conNote)).toBe('rossa');
+  });
+  it('GUARDIA: "NO" richiede ancora la nota (senza nota → neutro)', () => {
+    expect(voceEsitoColore({ eseguito: 'NO' }, conNote)).toBe('neutro');
   });
   it('SI resta positivo (verde) — nessuna regressione', () => {
     expect(voceEsitoColore({ eseguito: 'SI' }, senzaNote)).toBe('verde');

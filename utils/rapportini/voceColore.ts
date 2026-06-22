@@ -3,6 +3,12 @@ import type { TemplateCampo } from './buildVoci';
 /** Valore di una tendina che indica di per sé "non fatto" (incl. "NESSUN PASSAGGIO" dei template ACEA). */
 const NEG_SELECT = /^(no|assente|negativ\w*|ko|nessun[\s_-]*passagg\w*)$/i;
 
+/**
+ * Esito negativo "auto-esplicativo": il valore stesso spiega il motivo (es. "NESSUN PASSAGGIO"),
+ * quindi la nota NON è obbligatoria → la voce è subito rossa (non resta neutra in attesa di nota).
+ */
+const NEG_SELECT_SENZA_NOTA = /^nessun[\s_-]*passagg\w*$/i;
+
 /** Campo il cui NOME indica un esito negativo (assente / non eseguito / negativo / ko). */
 const NEG_NAME = /assent|non[\s_-]*eseguit|negativ|\bko\b/i;
 
@@ -66,7 +72,11 @@ export function voceEsitoColore(
       const s = typeof v === 'string' ? v.trim() : '';
       if (s !== '') {
         // Valore negativo esplicito (NO / negativo / ko) → esito negativo.
-        if (NEG_SELECT.test(s)) return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
+        if (NEG_SELECT.test(s)) {
+          // "NESSUN PASSAGGIO" è auto-esplicativo: rossa diretta, nota non obbligatoria.
+          if (NEG_SELECT_SENZA_NOTA.test(s)) return 'rossa';
+          return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
+        }
         // Tendina su un campo "negativo" (Assente / Non eseguito) valorizzata "SI" → esito negativo.
         if (nomeNegativo(c)) return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
         positivo = true;

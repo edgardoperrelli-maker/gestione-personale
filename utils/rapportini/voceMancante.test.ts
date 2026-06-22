@@ -22,6 +22,13 @@ describe('motivoVoceIncompleta', () => {
   it('esito positivo → null (completa)', () => {
     expect(motivoVoceIncompleta({ att_cess: true }, campi)).toBeNull();
   });
+  it('NESSUN PASSAGGIO → null: niente nota_mancante (nota non obbligatoria, non blocca l\'invio)', () => {
+    const conEseguito: TemplateCampo[] = [
+      { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 },
+      { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 2 },
+    ];
+    expect(motivoVoceIncompleta({ eseguito: 'NESSUN PASSAGGIO' }, conEseguito)).toBeNull();
+  });
 });
 
 describe('isCampoNota', () => {
