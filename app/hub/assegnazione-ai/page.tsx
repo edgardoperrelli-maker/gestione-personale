@@ -3,8 +3,9 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import AssegnazioneAiClient from '@/components/modules/assegnazione-ai/AssegnazioneAiClient';
-import type { RigaPianificabile, FileConfig } from '@/components/modules/assegnazione-ai/AssegnazioneAiClient';
+import AssegnazioniAiClient from '@/components/modules/assegnazione-ai/AssegnazioniAiClient';
+import type { RigaPianificabile, FileConfig } from '@/components/modules/assegnazione-ai/tipi';
+import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 
 export const dynamic = 'force-dynamic';
 
@@ -19,17 +20,25 @@ export default async function AssegnazioneAiPage() {
   const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
   if (role !== 'admin' || !allowedModules.includes('assegnazione-ai')) redirect('/hub');
 
-  const [{ data: cfg }, { data: righe }, { data: fileCfg }] = await Promise.all([
-    supabaseAdmin.from('agente_config').select('pianifica_data').eq('id', 1).maybeSingle(),
+  const [{ data: cfg }, { data: righe }, { data: fileCfg }, { data: runRows }] = await Promise.all([
+    supabaseAdmin.from('agente_config').select('pianifica_data, ultimo_contatto_il').eq('id', 1).maybeSingle(),
     supabaseAdmin.from('agente_pianificabili').select('*').order('comune', { ascending: true }).order('riga', { ascending: true }),
     supabaseAdmin.from('agente_file_config').select('*'),
+    supabaseAdmin.from('agente_run').select('*').order('creato_il', { ascending: false }).limit(30),
   ]);
 
+  const ultimoContatto = (cfg as { ultimo_contatto_il?: string | null } | null)?.ultimo_contatto_il ?? null;
+  const minutiDaContatto = ultimoContatto
+    ? Math.max(0, Math.floor((Date.now() - new Date(ultimoContatto).getTime()) / 60000))
+    : null;
+
   return (
-    <AssegnazioneAiClient
+    <AssegnazioniAiClient
       righe={(righe ?? []) as RigaPianificabile[]}
       fileConfig={(fileCfg ?? []) as FileConfig[]}
       pianificaData={(cfg as { pianifica_data?: string | null } | null)?.pianifica_data ?? null}
+      runs={(runRows ?? []) as AgenteRunRow[]}
+      online={{ minutiDaContatto, ultimoContatto }}
     />
   );
 }
