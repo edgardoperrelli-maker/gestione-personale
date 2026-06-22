@@ -4,9 +4,14 @@ import { useEffect, useState } from 'react';
 import {
   prefillModulesForRole,
   ASSIGNABLE_ROLE_LABELS,
+  APP_MODULES,
   type AppModuleKey,
   type AssignableRole,
+  type AppModuleGroup,
 } from '@/lib/moduleAccess';
+import Button from '@/components/Button';
+import Badge from '@/components/Badge';
+import Dialog from '@/components/ui/Dialog';
 
 type ModuleOption = {
   key: AppModuleKey;
@@ -30,15 +35,27 @@ type EditRow = UserRow & { newPassword: string };
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 
-const ROLE_COLORS: Record<AssignableRole, string> = {
-  admin_plus: 'var(--brand-gold)',
-  admin: 'var(--danger)',
-  operatore: 'var(--success)',
+// Group metadata: labels and display order
+const GROUP_META: Record<AppModuleGroup, { label: string; order: number }> = {
+  pianificazione: { label: 'Pianificazione', order: 0 },
+  operativita:    { label: 'Operatività', order: 1 },
+  analisi:        { label: 'Analisi', order: 2 },
+  sistema:        { label: 'Sistema', order: 3 },
 };
 
-const inputCls =
-  'w-full rounded-xl border px-3 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)]';
-const inputStyle = { borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' };
+// Role badge variant mapping
+const ROLE_BADGE_VARIANT: Record<AssignableRole, 'warn' | 'progress' | 'muted'> = {
+  admin_plus: 'warn',
+  admin:      'progress',
+  operatore:  'muted',
+};
+
+// Role accent dot color
+const ROLE_DOT_COLOR: Record<AssignableRole, string> = {
+  admin_plus: 'var(--status-warn)',
+  admin:      'var(--status-progress)',
+  operatore:  'var(--status-ok)',
+};
 
 function normalizeUsername(value: string) {
   const trimmed = value.trim().toLowerCase();
@@ -56,69 +73,134 @@ function formatDate(value: string) {
   return date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
+// Avatar: neutral circle with initials + a role dot
+function UserAvatar({ username, role, size = 'md' }: { username: string; role: AssignableRole; size?: 'sm' | 'md' }) {
+  const dim = size === 'sm' ? 'h-7 w-7 text-xs' : 'h-9 w-9 text-sm';
+  return (
+    <div className="relative shrink-0">
+      <div
+        className={`${dim} flex items-center justify-center rounded-full font-semibold uppercase`}
+        style={{
+          backgroundColor: 'var(--brand-surface-muted)',
+          color: 'var(--brand-text-main)',
+          border: '1px solid var(--brand-border)',
+        }}
+      >
+        {username.charAt(0)}
+      </div>
+      <span
+        className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full ring-2 ring-[var(--brand-surface)]"
+        style={{ backgroundColor: ROLE_DOT_COLOR[role] }}
+      />
+    </div>
+  );
+}
+
+// Grouped ModuleSelector with section headers + select-all/none per group
 function ModuleSelector({
   selected,
   modules,
   onToggle,
+  onSelectGroup,
 }: {
   selected: AppModuleKey[];
   modules: ModuleOption[];
   onToggle: (moduleKey: AppModuleKey) => void;
+  onSelectGroup?: (keys: AppModuleKey[], allSelected: boolean) => void;
 }) {
+  // Build groups from APP_MODULES order, using the group field
+  const groups: { groupKey: AppModuleGroup; groupLabel: string; items: ModuleOption[] }[] = [];
+  const seen = new Set<AppModuleGroup>();
+
+  for (const appMod of APP_MODULES) {
+    const group = (appMod.group ?? 'operativita') as AppModuleGroup;
+    const mod = modules.find((m) => m.key === appMod.key);
+    if (!mod) continue;
+    if (!seen.has(group)) {
+      seen.add(group);
+      groups.push({ groupKey: group, groupLabel: GROUP_META[group]?.label ?? group, items: [] });
+    }
+    groups.find((g) => g.groupKey === group)!.items.push(mod);
+  }
+
   return (
-    <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-      {modules.map((module) => {
-        const checked = selected.includes(module.key);
-        const locked = module.requiresAdminRole; // Impostazioni: segue il ruolo, non si tocca
+    <div className="flex flex-col gap-4">
+      {groups.map(({ groupKey, groupLabel, items }) => {
+        const toggleableItems = items.filter((m) => !m.requiresAdminRole);
+        const allSelected = toggleableItems.length > 0 && toggleableItems.every((m) => selected.includes(m.key));
 
         return (
-          <label
-            key={module.key}
-            className={`flex items-start gap-3 rounded-2xl border px-3 py-3 transition ${
-              locked ? 'opacity-60' : 'cursor-pointer hover:border-[var(--brand-primary)]'
-            }`}
-            style={{
-              borderColor: checked ? 'var(--brand-primary)' : 'var(--brand-border)',
-              backgroundColor: checked ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
-            }}
-          >
-            <input
-              type="checkbox"
-              checked={checked}
-              disabled={locked}
-              title={locked ? 'Questo modulo segue il ruolo e non può essere modificato' : undefined}
-              onChange={() => onToggle(module.key)}
-              className="mt-1"
-            />
-            <span className="min-w-0">
-              <span className="flex items-center gap-2 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                {module.label}
-                {module.requiresAdminRole ? (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ backgroundColor: 'var(--brand-surface-muted)', color: 'var(--brand-text-muted)' }}
-                  >
-                    Segue il ruolo
-                  </span>
-                ) : module.adminOnly ? (
-                  <span
-                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold"
-                    style={{ backgroundColor: 'var(--info-soft)', color: 'var(--info)' }}
-                  >
-                    Sensibile
-                  </span>
-                ) : null}
+          <div key={groupKey}>
+            {/* Section header */}
+            <div className="mb-2 flex items-center justify-between gap-2">
+              <span
+                className="text-[11px] font-semibold uppercase tracking-wider"
+                style={{ color: 'var(--brand-text-subtle)' }}
+              >
+                {groupLabel}
               </span>
-              <span className="mt-0.5 block text-xs leading-relaxed" style={{ color: 'var(--brand-text-muted)' }}>
-                {module.description}
-              </span>
-            </span>
-          </label>
+              {onSelectGroup && toggleableItems.length > 0 && (
+                <button
+                  type="button"
+                  className="text-[11px] transition hover:underline"
+                  style={{ color: 'var(--brand-text-muted)' }}
+                  onClick={() => onSelectGroup(toggleableItems.map((m) => m.key), allSelected)}
+                >
+                  {allSelected ? 'Nessuno' : 'Tutti'}
+                </button>
+              )}
+            </div>
+
+            {/* Module tiles */}
+            <div className="grid gap-1.5 sm:grid-cols-2 xl:grid-cols-3">
+              {items.map((module) => {
+                const checked = selected.includes(module.key);
+                const locked = module.requiresAdminRole;
+
+                return (
+                  <label
+                    key={module.key}
+                    className={`flex items-center gap-2.5 rounded-[var(--radius-md)] border px-2.5 py-2 transition ${
+                      locked ? 'opacity-60' : 'cursor-pointer hover:border-[var(--brand-primary)]'
+                    }`}
+                    style={{
+                      borderColor: checked ? 'var(--brand-primary)' : 'var(--brand-border)',
+                      backgroundColor: checked ? 'var(--brand-primary-soft)' : 'var(--brand-surface-muted)',
+                    }}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      disabled={locked}
+                      title={locked ? 'Questo modulo segue il ruolo e non può essere modificato' : undefined}
+                      onChange={() => onToggle(module.key)}
+                      className="shrink-0"
+                    />
+                    <span className="min-w-0 flex-1">
+                      <span className="flex items-center gap-1.5 text-xs font-medium leading-tight" style={{ color: 'var(--brand-text-main)' }}>
+                        {module.label}
+                        {module.requiresAdminRole ? (
+                          <Badge variant="muted">Segue il ruolo</Badge>
+                        ) : module.adminOnly ? (
+                          <Badge variant="warn">Sensibile</Badge>
+                        ) : null}
+                      </span>
+                    </span>
+                  </label>
+                );
+              })}
+            </div>
+          </div>
         );
       })}
     </div>
   );
 }
+
+// Inline form fields (username / password / role) used in both Create and Edit
+const fieldLabel = 'mb-1 block text-xs font-medium';
+const inputCls = 'w-full rounded-[var(--radius-md)] border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)]';
+const inputStyle = { borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)', backgroundColor: 'var(--brand-surface)' };
 
 export default function UtenzeClient() {
   const [users, setUsers] = useState<EditRow[]>([]);
@@ -133,6 +215,8 @@ export default function UtenzeClient() {
   const [resetId, setResetId] = useState<string | null>(null);
   const [newPwd, setNewPwd] = useState('');
   const [resetting, setResetting] = useState(false);
+  // Which user rows are expanded
+  const [expandedRows, setExpandedRows] = useState<Set<string>>(new Set());
   const [form, setForm] = useState<{
     username: string;
     password: string;
@@ -186,6 +270,15 @@ export default function UtenzeClient() {
     setUsers((prev) => prev.map((user) => (user.userId === userId ? { ...user, ...patch } : user)));
   };
 
+  const toggleExpanded = (userId: string) => {
+    setExpandedRows((prev) => {
+      const next = new Set(prev);
+      if (next.has(userId)) next.delete(userId);
+      else next.add(userId);
+      return next;
+    });
+  };
+
   const toggleCreateModule = (moduleKey: AppModuleKey) => {
     setForm((prev) => {
       const hasModule = prev.allowedModules.includes(moduleKey);
@@ -193,6 +286,15 @@ export default function UtenzeClient() {
         ? prev.allowedModules.filter((item) => item !== moduleKey)
         : [...prev.allowedModules, moduleKey];
       return { ...prev, allowedModules: nextModules };
+    });
+  };
+
+  const selectCreateGroup = (keys: AppModuleKey[], allSelected: boolean) => {
+    setForm((prev) => {
+      const set = new Set(prev.allowedModules);
+      if (allSelected) keys.forEach((k) => set.delete(k));
+      else keys.forEach((k) => set.add(k));
+      return { ...prev, allowedModules: Array.from(set) };
     });
   };
 
@@ -204,6 +306,16 @@ export default function UtenzeClient() {
         ? u.allowedModules.filter((item) => item !== moduleKey)
         : [...u.allowedModules, moduleKey];
       return { ...u, allowedModules };
+    }));
+  };
+
+  const selectUserGroup = (userId: string, keys: AppModuleKey[], allSelected: boolean) => {
+    setUsers((prev) => prev.map((u) => {
+      if (u.userId !== userId) return u;
+      const set = new Set(u.allowedModules);
+      if (allSelected) keys.forEach((k) => set.delete(k));
+      else keys.forEach((k) => set.add(k));
+      return { ...u, allowedModules: Array.from(set) };
     }));
   };
 
@@ -296,6 +408,11 @@ export default function UtenzeClient() {
     }
   };
 
+  // The user targeted by confirmDelete dialog
+  const deleteTarget = users.find((u) => u.userId === confirmDelete) ?? null;
+  // The user targeted by resetId dialog
+  const resetTarget = users.find((u) => u.userId === resetId) ?? null;
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
       <div className="space-y-1">
@@ -307,7 +424,7 @@ export default function UtenzeClient() {
 
       {feedback && (
         <div
-          className={`rounded-xl border px-4 py-3 text-sm font-medium ${
+          className={`rounded-[var(--radius-md)] border px-4 py-3 text-sm font-medium ${
             feedback.type === 'success'
               ? 'border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]'
               : 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]'
@@ -317,17 +434,21 @@ export default function UtenzeClient() {
         </div>
       )}
 
-      <section className="rounded-3xl border bg-[var(--brand-surface)] shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      {/* ── Create section ───────────────────────────────────────── */}
+      <section
+        className="rounded-[var(--radius-lg)] border shadow-[var(--shadow-sm)]"
+        style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
+      >
         <div className="border-b px-5 py-4" style={{ borderColor: 'var(--brand-border)' }}>
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Nuova utenza</h2>
-          <p className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+          <p className="mt-0.5 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
             L&apos;accesso viene creato nel formato <code className="rounded bg-[var(--brand-surface-muted)] px-1">u_username@local.it</code>.
           </p>
         </div>
 
         <div className="grid gap-4 p-5 lg:grid-cols-[1.2fr_1fr_1fr]">
           <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Username</label>
+            <label className={`${fieldLabel}`} style={{ color: 'var(--brand-text-muted)' }}>Username</label>
             <input
               type="text"
               value={form.username}
@@ -338,7 +459,7 @@ export default function UtenzeClient() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Password iniziale</label>
+            <label className={`${fieldLabel}`} style={{ color: 'var(--brand-text-muted)' }}>Password iniziale</label>
             <input
               type="password"
               value={form.password}
@@ -349,7 +470,7 @@ export default function UtenzeClient() {
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
+            <label className={`${fieldLabel}`} style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
             <select
               value={form.role}
               onChange={(e) => handleCreateRoleChange(e.target.value as AssignableRole)}
@@ -363,32 +484,30 @@ export default function UtenzeClient() {
           </div>
         </div>
 
-        <div className="border-t px-5 py-5" style={{ borderColor: 'var(--brand-border)' }}>
+        <div className="border-t px-5 pb-5 pt-4" style={{ borderColor: 'var(--brand-border)' }}>
           <div className="mb-3 flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Moduli visibili</h3>
               <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                Impostazioni segue il ruolo (sempre per gli admin, mai per gli operatori); gli altri moduli sono liberi.
+                Impostazioni segue il ruolo; gli altri moduli sono liberi.
               </p>
             </div>
             <div className="flex items-center gap-2">
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => setForm((prev) => ({ ...prev, allowedModules: prefillModulesForRole(prev.role) }))}
-                className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
               >
-                Reimposta ai default del ruolo
-              </button>
-              <button
-                type="button"
+                Reimposta default ruolo
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
                 onClick={handleCreate}
                 disabled={creating}
-                className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition disabled:opacity-60"
-                style={{ backgroundColor: 'var(--brand-primary)' }}
               >
                 {creating ? 'Creazione...' : 'Crea utenza'}
-              </button>
+              </Button>
             </div>
           </div>
 
@@ -396,21 +515,24 @@ export default function UtenzeClient() {
             selected={form.allowedModules}
             modules={availableModules}
             onToggle={toggleCreateModule}
+            onSelectGroup={selectCreateGroup}
           />
         </div>
       </section>
 
-      <section className="rounded-3xl border bg-[var(--brand-surface)] shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
+      {/* ── User list section ─────────────────────────────────────── */}
+      <section
+        className="rounded-[var(--radius-lg)] border shadow-[var(--shadow-sm)]"
+        style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
+      >
         <div className="flex items-center justify-between border-b px-5 py-4" style={{ borderColor: 'var(--brand-border)' }}>
           <div>
             <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Utenze configurate</h2>
-            <p className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-              Modifica direttamente password, ruolo e moduli associati a ogni utente.
+            <p className="mt-0.5 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+              Clicca su una riga per espandere le opzioni di modifica.
             </p>
           </div>
-          <span className="rounded-full px-3 py-1 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}>
-            {users.length} utenti
-          </span>
+          <Badge variant="primary">{users.length} utenti</Badge>
         </div>
 
         {loading ? (
@@ -418,222 +540,266 @@ export default function UtenzeClient() {
         ) : users.length === 0 ? (
           <div className="px-5 py-8 text-center text-sm" style={{ color: 'var(--brand-text-muted)' }}>Nessuna utenza configurata.</div>
         ) : (
-          <div className="grid gap-4 p-5">
+          <ul className="divide-y" style={{ borderColor: 'var(--brand-border)' }}>
             {users.map((user) => {
               const isSelf = user.userId === currentUserId;
+              const isExpanded = expandedRows.has(user.userId);
+
               return (
-              <article
-                key={user.userId}
-                className="rounded-2xl border p-4"
-                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
-              >
-                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                  <div className="flex items-center gap-3">
-                    <div
-                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-sm font-bold text-white uppercase"
-                      style={{ backgroundColor: ROLE_COLORS[user.role] }}
-                    >
-                      {user.username.charAt(0)}
-                    </div>
-                    <div>
-                      <p className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>{user.username}</p>
-                      <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                        Creato il {formatDate(user.createdAt)}
-                      </p>
-                    </div>
-                  </div>
+                <li key={user.userId}>
+                  {/* Dense row (always visible) */}
+                  <div
+                    className="flex cursor-pointer items-center gap-3 px-4 py-2.5 transition hover:bg-[var(--brand-surface-muted)]"
+                    onClick={() => toggleExpanded(user.userId)}
+                    role="button"
+                    tabIndex={0}
+                    aria-expanded={isExpanded}
+                    onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleExpanded(user.userId); } }}
+                  >
+                    <UserAvatar username={user.username} role={user.role} size="sm" />
 
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span
-                      className="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-semibold text-white"
-                      style={{ backgroundColor: ROLE_COLORS[user.role] }}
-                    >
-                      {ASSIGNABLE_ROLE_LABELS[user.role]}
+                    <span className="min-w-0 flex-1">
+                      <span className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
+                        {user.username}
+                        {isSelf && (
+                          <span className="ml-1.5 text-xs" style={{ color: 'var(--brand-text-subtle)' }}>(tu)</span>
+                        )}
+                      </span>
                     </span>
-                    {resetId === user.userId ? (
-                      <button
-                        type="button"
-                        onClick={() => { setResetId(null); setNewPwd(''); }}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium"
-                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-                      >
-                        ← Indietro
-                      </button>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => { setResetId(user.userId); setNewPwd(''); }}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-                      >
-                        Reset password
-                      </button>
-                    )}
-                    {confirmDelete === user.userId ? (
-                      <>
-                        <button
-                          type="button"
-                          onClick={() => void handleDelete(user.userId, user.username)}
-                          disabled={deleting === user.userId}
-                          className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)] px-3 py-1.5 text-xs font-semibold transition"
-                        >
-                          {deleting === user.userId ? 'Elimino...' : 'Conferma eliminazione'}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setConfirmDelete(null)}
-                          className="rounded-xl border px-3 py-1.5 text-xs font-medium"
-                          style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-                        >
-                          Annulla
-                        </button>
-                      </>
-                    ) : (
-                      <button
-                        type="button"
-                        onClick={() => setConfirmDelete(user.userId)}
-                        disabled={isSelf}
-                        title={isSelf ? 'Non puoi eliminare la tua utenza' : undefined}
-                        className="rounded-xl border px-3 py-1.5 text-xs font-medium transition enabled:hover:border-[var(--danger)] enabled:hover:text-[var(--danger)] disabled:opacity-50"
-                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-                      >
-                        Elimina
-                      </button>
-                    )}
-                  </div>
-                </div>
 
-                {resetId === user.userId && (
-                  <div className="mt-3 flex items-center gap-1 rounded-lg border border-[var(--info)] bg-[var(--info-soft)] p-3">
-                    <input
-                      type="password"
-                      value={newPwd}
-                      onChange={(e) => setNewPwd(e.target.value)}
-                      placeholder="Nuova password (min. 6 car.)"
-                      className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] px-2 py-1 text-xs flex-1 max-w-xs"
-                      autoFocus
-                    />
-                    <button
-                      onClick={async () => {
-                        if (newPwd.length < 6) return;
-                        setResetting(true);
-                        try {
-                          const response = await fetch('/api/admin/users', {
-                            method: 'PATCH',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify({ userId: user.userId, password: newPwd }),
-                          });
-                          if (response.ok) {
-                            showFeedback('success', `Password resettata per "${user.username}"`);
-                            setResetId(null);
-                            setNewPwd('');
-                          } else {
-                            const json = await response.json() as { error?: string };
-                            showFeedback('error', json.error ?? 'Errore nel reset password');
-                          }
-                        } catch (err) {
-                          showFeedback('error', err instanceof Error ? err.message : 'Errore');
-                        } finally {
-                          setResetting(false);
-                        }
-                      }}
-                      disabled={resetting || newPwd.length < 6}
-                      className="rounded bg-[var(--brand-primary)] px-3 py-1 text-xs text-[var(--on-primary)] font-medium disabled:opacity-50 transition"
-                    >
-                      {resetting ? '...' : 'Salva'}
-                    </button>
-                    <button
-                      onClick={() => { setResetId(null); setNewPwd(''); }}
-                      className="rounded border border-[var(--brand-border)] px-3 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface)] transition"
-                    >
-                      Annulla
-                    </button>
-                  </div>
-                )}
+                    <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="shrink-0 text-[10px]">
+                      {ASSIGNABLE_ROLE_LABELS[user.role]}
+                    </Badge>
 
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Username</label>
-                    <input
-                      type="text"
-                      value={user.username}
-                      onChange={(e) => updateRow(user.userId, { username: normalizeUsername(e.target.value) })}
-                      className={inputCls}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Nuova password</label>
-                    <input
-                      type="password"
-                      value={user.newPassword}
-                      onChange={(e) => updateRow(user.userId, { newPassword: e.target.value })}
-                      placeholder="Lascia vuoto per non cambiare"
-                      className={inputCls}
-                      style={inputStyle}
-                    />
-                  </div>
-                  <div>
-                    <label className="mb-1 block text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
-                    <select
-                      value={user.role}
-                      disabled={isSelf}
-                      title={isSelf ? 'Non puoi cambiare il tuo ruolo' : undefined}
-                      onChange={(e) => updateRow(user.userId, {
-                        role: e.target.value as AssignableRole,
-                        allowedModules: prefillModulesForRole(e.target.value as AssignableRole),
-                      })}
-                      className={`${inputCls} disabled:opacity-60`}
-                      style={inputStyle}
-                    >
-                      {Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => (
-                        <option key={value} value={value}>{label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
+                    <span className="shrink-0 text-xs tabular-nums" style={{ color: 'var(--brand-text-subtle)' }}>
+                      {formatDate(user.createdAt)}
+                    </span>
 
-                <div className="mt-4">
-                  <div className="mb-2 flex items-center justify-between gap-3">
-                    <div>
-                      <h3 className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Moduli abilitati</h3>
-                      <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                        Impostazioni segue il ruolo; gli altri moduli sono liberamente abilitabili.
-                      </p>
+                    {/* Expand chevron */}
+                    <svg
+                      viewBox="0 0 24 24"
+                      className={`h-4 w-4 shrink-0 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
+                      style={{ color: 'var(--brand-text-subtle)' }}
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </div>
+
+                  {/* Expanded edit panel */}
+                  {isExpanded && (
+                    <div
+                      className="border-t px-5 pb-5 pt-4"
+                      style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface-muted)' }}
+                    >
+                      {/* Fields row */}
+                      <div className="grid gap-4 lg:grid-cols-3">
+                        <div>
+                          <label className={fieldLabel} style={{ color: 'var(--brand-text-muted)' }}>Username</label>
+                          <input
+                            type="text"
+                            value={user.username}
+                            onChange={(e) => updateRow(user.userId, { username: normalizeUsername(e.target.value) })}
+                            className={inputCls}
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={fieldLabel} style={{ color: 'var(--brand-text-muted)' }}>Nuova password</label>
+                          <input
+                            type="password"
+                            value={user.newPassword}
+                            onChange={(e) => updateRow(user.userId, { newPassword: e.target.value })}
+                            placeholder="Lascia vuoto per non cambiare"
+                            className={inputCls}
+                            style={inputStyle}
+                          />
+                        </div>
+                        <div>
+                          <label className={fieldLabel} style={{ color: 'var(--brand-text-muted)' }}>Ruolo</label>
+                          <select
+                            value={user.role}
+                            disabled={isSelf}
+                            title={isSelf ? 'Non puoi cambiare il tuo ruolo' : undefined}
+                            onChange={(e) => updateRow(user.userId, {
+                              role: e.target.value as AssignableRole,
+                              allowedModules: prefillModulesForRole(e.target.value as AssignableRole),
+                            })}
+                            className={`${inputCls} disabled:opacity-60`}
+                            style={inputStyle}
+                          >
+                            {Object.entries(ASSIGNABLE_ROLE_LABELS).map(([value, label]) => (
+                              <option key={value} value={value}>{label}</option>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {/* Module selector */}
+                      <div className="mt-5">
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <h3 className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Moduli abilitati</h3>
+                            <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                              Impostazioni segue il ruolo; gli altri moduli sono liberamente abilitabili.
+                            </p>
+                          </div>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => updateRow(user.userId, { allowedModules: prefillModulesForRole(user.role) })}
+                          >
+                            Reimposta default ruolo
+                          </Button>
+                        </div>
+
+                        <ModuleSelector
+                          selected={user.allowedModules}
+                          modules={availableModules}
+                          onToggle={(moduleKey) => toggleUserModule(user.userId, moduleKey)}
+                          onSelectGroup={(keys, allSelected) => selectUserGroup(user.userId, keys, allSelected)}
+                        />
+                      </div>
+
+                      {/* Action bar */}
+                      <div className="mt-4 flex items-center justify-between gap-2 border-t pt-4" style={{ borderColor: 'var(--brand-border)' }}>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => { setResetId(user.userId); setNewPwd(''); }}
+                          >
+                            Reset password
+                          </Button>
+                          {!isSelf && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => setConfirmDelete(user.userId)}
+                              className="text-[var(--danger)] hover:bg-[var(--danger-soft)]"
+                            >
+                              Elimina
+                            </Button>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => toggleExpanded(user.userId)}
+                          >
+                            Annulla
+                          </Button>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={() => void handleSave(user)}
+                            disabled={saving === user.userId}
+                          >
+                            {saving === user.userId ? 'Salvo...' : 'Salva modifiche'}
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => updateRow(user.userId, { allowedModules: prefillModulesForRole(user.role) })}
-                        className="rounded-xl border px-3 py-2 text-xs font-medium transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                        style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-                      >
-                        Reimposta ai default del ruolo
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => void handleSave(user)}
-                        disabled={saving === user.userId}
-                        className="rounded-xl px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition disabled:opacity-60"
-                        style={{ backgroundColor: 'var(--brand-primary)' }}
-                      >
-                        {saving === user.userId ? 'Salvo...' : 'Salva modifiche'}
-                      </button>
-                    </div>
-                  </div>
-
-                  <ModuleSelector
-                    selected={user.allowedModules}
-                    modules={availableModules}
-                    onToggle={(moduleKey) => toggleUserModule(user.userId, moduleKey)}
-                  />
-                </div>
-              </article>
-            );
+                  )}
+                </li>
+              );
             })}
-          </div>
+          </ul>
         )}
       </section>
+
+      {/* ── Confirm delete Dialog ─────────────────────────────────── */}
+      <Dialog
+        open={confirmDelete !== null}
+        onClose={() => setConfirmDelete(null)}
+        title="Elimina utenza"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(null)}>
+              Annulla
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              disabled={deleting === confirmDelete}
+              onClick={() => deleteTarget && void handleDelete(deleteTarget.userId, deleteTarget.username)}
+            >
+              {deleting === confirmDelete ? 'Elimino...' : 'Conferma eliminazione'}
+            </Button>
+          </>
+        }
+      >
+        {deleteTarget && (
+          <p className="text-sm" style={{ color: 'var(--brand-text-main)' }}>
+            Sei sicuro di voler eliminare l&apos;utenza{' '}
+            <strong>{deleteTarget.username}</strong>? L&apos;operazione non è reversibile.
+          </p>
+        )}
+      </Dialog>
+
+      {/* ── Reset password Dialog ─────────────────────────────────── */}
+      <Dialog
+        open={resetId !== null}
+        onClose={() => { setResetId(null); setNewPwd(''); }}
+        title="Reimposta password"
+        footer={
+          <>
+            <Button variant="ghost" size="sm" onClick={() => { setResetId(null); setNewPwd(''); }}>
+              Annulla
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              disabled={resetting || newPwd.length < 6}
+              onClick={async () => {
+                if (newPwd.length < 6 || !resetTarget) return;
+                setResetting(true);
+                try {
+                  const response = await fetch('/api/admin/users', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ userId: resetTarget.userId, password: newPwd }),
+                  });
+                  if (response.ok) {
+                    showFeedback('success', `Password resettata per "${resetTarget.username}"`);
+                    setResetId(null);
+                    setNewPwd('');
+                  } else {
+                    const json = await response.json() as { error?: string };
+                    showFeedback('error', json.error ?? 'Errore nel reset password');
+                  }
+                } catch (err) {
+                  showFeedback('error', err instanceof Error ? err.message : 'Errore');
+                } finally {
+                  setResetting(false);
+                }
+              }}
+            >
+              {resetting ? 'Salvo...' : 'Reimposta'}
+            </Button>
+          </>
+        }
+      >
+        {resetTarget && (
+          <div className="flex flex-col gap-3">
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              Nuova password per <strong style={{ color: 'var(--brand-text-main)' }}>{resetTarget.username}</strong>
+            </p>
+            <input
+              type="password"
+              value={newPwd}
+              onChange={(e) => setNewPwd(e.target.value)}
+              placeholder="Minimo 6 caratteri"
+              className={inputCls}
+              style={inputStyle}
+              autoFocus
+            />
+          </div>
+        )}
+      </Dialog>
     </div>
   );
 }
