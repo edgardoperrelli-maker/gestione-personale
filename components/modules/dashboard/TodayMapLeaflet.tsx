@@ -2,7 +2,7 @@
 
 import 'leaflet/dist/leaflet.css';
 import { useEffect, useRef } from 'react';
-import type { Map as LeafletMap } from 'leaflet';
+import type { Map as LeafletMap, LayerGroup } from 'leaflet';
 import type { TodayOperatorMarker } from '@/lib/dashboard/todayOperators';
 
 type Props = { operators: TodayOperatorMarker[] };
@@ -13,6 +13,7 @@ export default function TodayMapLeaflet({ operators }: Props) {
 
   useEffect(() => {
     let cancelled = false;
+    let layerGroup: LayerGroup | null = null;
 
     (async () => {
       const L = (await import('leaflet')).default;
@@ -28,6 +29,7 @@ export default function TodayMapLeaflet({ operators }: Props) {
 
       const map = mapRef.current;
       const layer = L.layerGroup().addTo(map);
+      layerGroup = layer;
       const points: [number, number][] = [];
 
       // Resolve CSS tokens at mount (Leaflet can't resolve var() in JS)
@@ -53,14 +55,11 @@ export default function TodayMapLeaflet({ operators }: Props) {
       } else if (points.length > 1) {
         map.fitBounds(points, { padding: [30, 30], maxZoom: 13 });
       }
-
-      return () => {
-        layer.remove();
-      };
     })();
 
     return () => {
       cancelled = true;
+      layerGroup?.remove();
     };
   }, [operators]);
 
