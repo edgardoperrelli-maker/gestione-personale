@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { CampoFoto } from '@/components/modules/rapportini/CampoFoto';
+import Button from '@/components/Button';
 
 export function CaricaFotoRichiesta({
   richiestaId,
@@ -43,14 +44,16 @@ export function CaricaFotoRichiesta({
 
   return (
     <div className="space-y-2">
-      <button
-        type="button"
+      <Button
+        variant="secondary"
+        size="sm"
+        animated={false}
+        className="w-full justify-between"
         onClick={() => setAperto((a) => !a)}
-        className="flex w-full items-center justify-between rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-muted)]"
       >
         <span>📷 Carica foto (recupero){nSel ? ` · ${nSel} pronte` : ''}</span>
         <span>{aperto ? '▲' : '▼'}</span>
-      </button>
+      </Button>
       {aperto && (
         <>
           <div className="grid grid-cols-2 gap-2">
@@ -72,14 +75,15 @@ export function CaricaFotoRichiesta({
             ))}
           </div>
           {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
-          <button
-            type="button"
-            onClick={() => void carica()}
+          <Button
+            variant="primary"
+            size="md"
+            animated={false}
             disabled={inviando || nSel === 0}
-            className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[var(--on-primary)] disabled:opacity-50"
+            onClick={() => void carica()}
           >
             {inviando ? 'Caricamento…' : `Carica ${nSel || ''} foto`}
-          </button>
+          </Button>
         </>
       )}
     </div>

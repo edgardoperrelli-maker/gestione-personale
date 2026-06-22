@@ -1,16 +1,31 @@
 import Link from 'next/link';
 
-/** Navigazione tra le due sotto-pagine del modulo Lista attesa. */
+/** Navigazione tra le due sotto-pagine del modulo Lista attesa.
+ *  Usa uno stile underline-tab (come Tabs primitive) mantenendo next/link per prefetch/routing.
+ */
 export function ListaAttesaNav({ attivo }: { attivo: 'richieste' | 'registro' }) {
-  const base = 'rounded-lg px-3 py-1.5 text-sm font-semibold transition';
-  const on = 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
-  const off = 'border border-[var(--brand-border)] text-[var(--brand-text-muted)]';
   return (
-    <nav className="flex flex-wrap gap-2">
-      <Link href="/hub/lista-attesa" className={`${base} ${attivo === 'richieste' ? on : off}`}>
+    <nav className="flex items-end gap-0 border-b border-[var(--brand-border)]">
+      <Link
+        href="/hub/lista-attesa"
+        className={[
+          'px-4 pb-2.5 text-xl font-semibold tracking-tight transition-colors',
+          attivo === 'richieste'
+            ? 'border-b-2 border-[var(--brand-primary)] text-[var(--brand-text-main)]'
+            : 'border-b-2 border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]',
+        ].join(' ')}
+      >
         Richieste manuali
       </Link>
-      <Link href="/hub/lista-attesa/registro" className={`${base} ${attivo === 'registro' ? on : off}`}>
+      <Link
+        href="/hub/lista-attesa/registro"
+        className={[
+          'px-4 pb-2.5 text-xl font-semibold tracking-tight transition-colors',
+          attivo === 'registro'
+            ? 'border-b-2 border-[var(--brand-primary)] text-[var(--brand-text-main)]'
+            : 'border-b-2 border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]',
+        ].join(' ')}
+      >
         Registro autorizzazioni
       </Link>
     </nav>

@@ -10,8 +10,9 @@ import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommitte
 import { formatDataIt, formatOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { datiAnagraficaCoda, filtraCoda } from '@/lib/interventi/manuali/filtraCoda';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
-
-const selCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)]';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
 
 export function CodaRichiesteManuali({
   infoCampi,
@@ -70,40 +71,56 @@ export function CodaRichiesteManuali({
 
   return (
     <section className="space-y-3">
+      {/* Header: h2 dominante + live dot + Aggiorna */}
       <div className="flex items-center justify-between">
-        <h2 className="text-base font-bold text-[var(--brand-text-main)]">
-          Richieste manuali · in attesa ({filtroAttivo ? `${filtrate.length} di ${count}` : count})
+        <h2 className="flex items-center gap-2 text-xl font-semibold text-[var(--brand-text-main)]">
+          Richieste manuali
+          <span className="text-sm font-normal text-[var(--brand-text-muted)]">
+            in attesa ({filtroAttivo ? `${filtrate.length} di ${count}` : count})
+          </span>
           <span
-            className={`ml-2 inline-block h-2 w-2 rounded-full align-middle ${live ? 'bg-[var(--success)]' : 'bg-[var(--brand-text-muted)]'}`}
+            className={`inline-block h-2 w-2 rounded-full ${live ? 'bg-[var(--status-ok)]' : 'bg-[var(--status-idle)]'}`}
             title={live ? 'Realtime attivo' : 'Realtime non attivo (polling)'}
           />
         </h2>
-        <button type="button" onClick={() => void refresh()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-semibold text-[var(--brand-text-muted)]">
+        <Button variant="secondary" size="sm" animated={false} onClick={() => void refresh()}>
           Aggiorna
-        </button>
+        </Button>
       </div>
 
       {/* Ricerca + filtri */}
       <div className="flex flex-wrap items-center gap-2">
-        <input
+        <Input
           type="search"
           value={ricerca}
           onChange={(e) => setRicerca(e.target.value)}
           placeholder="Cerca via, matricola, ODS…"
-          className={`${selCls} min-w-[200px] flex-1 placeholder:text-[var(--brand-text-subtle)]`}
+          className="min-w-[200px] flex-1 py-1.5 text-xs"
         />
-        <select className={selCls} value={filtroOperatore} onChange={(e) => setFiltroOperatore(e.target.value)}>
+        <Select
+          value={filtroOperatore}
+          onChange={(e) => setFiltroOperatore(e.target.value)}
+          className="py-1.5 text-xs"
+        >
           <option value="">Tutti gli operatori</option>
           {operatori.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-        </select>
-        <select className={selCls} value={filtroCommittente} onChange={(e) => setFiltroCommittente(e.target.value)}>
+        </Select>
+        <Select
+          value={filtroCommittente}
+          onChange={(e) => setFiltroCommittente(e.target.value)}
+          className="py-1.5 text-xs"
+        >
           <option value="">Tutti i committenti</option>
           {committenti.map((c) => <option key={c} value={c}>{etichettaCommittente(c)}</option>)}
-        </select>
-        <select className={selCls} value={filtroAttivita} onChange={(e) => setFiltroAttivita(e.target.value)}>
+        </Select>
+        <Select
+          value={filtroAttivita}
+          onChange={(e) => setFiltroAttivita(e.target.value)}
+          className="py-1.5 text-xs"
+        >
           <option value="">Tutte le attività</option>
           {attivita.map((a) => <option key={a} value={a}>{a}</option>)}
-        </select>
+        </Select>
       </div>
 
       {richieste.length === 0 ? (
@@ -111,42 +128,60 @@ export function CodaRichiesteManuali({
       ) : filtrate.length === 0 ? (
         <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta per i filtri selezionati.</p>
       ) : (
-        <ul className="space-y-2">
+        <ul className="space-y-1.5">
           {filtrate.map((r) => {
             const presa = statoPresaInCarico(r.preso_in_carico_da, userId, adminNomi);
             const busy = busyId === r.id;
             const dati = datiAnagraficaCoda(r);
             return (
-              <li key={r.id} className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
-                <div className="flex flex-wrap items-center justify-between gap-2 p-3">
-                  <button type="button" onClick={() => setAperta((a) => (a === r.id ? null : r.id))} className="flex flex-col items-start gap-0.5 text-left">
-                    <span className="text-sm font-semibold text-[var(--brand-text-main)]">{r.staff_name ?? r.staff_id} · {etichettaCommittente(r.committente)}</span>
+              <li
+                key={r.id}
+                className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]"
+              >
+                {/* Row collapsed: ~36px */}
+                <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setAperta((a) => (a === r.id ? null : r.id))}
+                    className="flex flex-col items-start gap-0.5 text-left"
+                  >
+                    <span className="text-sm font-semibold text-[var(--brand-text-main)]">
+                      {r.staff_name ?? r.staff_id} · {etichettaCommittente(r.committente)}
+                    </span>
                     {(dati.via || dati.matricola) && (
                       <span className="text-xs text-[var(--brand-text-main)]">
                         {[dati.via, dati.matricola && `matr. ${dati.matricola}`].filter(Boolean).join(' · ')}
                       </span>
                     )}
-                    <span className="text-[11px] text-[var(--brand-text-muted)]">{formatDataIt(r.data)} · inviata {formatOraIt(r.created_at)}</span>
+                    <span className="text-xs font-medium text-[var(--brand-text-muted)]">
+                      {formatDataIt(r.data)} · inviata {formatOraIt(r.created_at)}
+                    </span>
                   </button>
                   <div className="flex items-center gap-2">
                     {presa.etichetta && (
-                      <span className={`rounded-full px-2 py-0.5 text-[11px] font-semibold ${presa.miaPresa ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'}`}>
+                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${presa.miaPresa ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'}`}>
                         {presa.etichetta}
                       </span>
                     )}
                     {presa.mostraPrendi && (
-                      <button type="button" disabled={busy} onClick={() => void prendi(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-2.5 py-1 text-xs font-semibold text-[var(--on-primary)] disabled:opacity-50">Prendi</button>
+                      <Button variant="primary" size="sm" animated={false} disabled={busy} onClick={() => void prendi(r.id)}>
+                        Prendi
+                      </Button>
                     )}
                     {presa.mostraRilascia && (
-                      <button type="button" disabled={busy} onClick={() => void rilascia(r.id)} className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-xs font-semibold text-[var(--brand-text-muted)] disabled:opacity-50">Rilascia</button>
+                      <Button variant="secondary" size="sm" animated={false} disabled={busy} onClick={() => void rilascia(r.id)}>
+                        Rilascia
+                      </Button>
                     )}
                     {presa.mostraOverride && (
-                      <button type="button" disabled={busy} onClick={() => void prendi(r.id, true)} className="rounded-lg border border-[var(--danger)] px-2.5 py-1 text-xs font-semibold text-[var(--danger)] disabled:opacity-50">Override</button>
+                      <Button variant="danger" size="sm" animated={false} disabled={busy} onClick={() => void prendi(r.id, true)}>
+                        Override
+                      </Button>
                     )}
                   </div>
                 </div>
                 {aperta === r.id && (
-                  <div className="px-3 pb-3">
+                  <div className="border-t border-[var(--brand-border)] px-3 pb-3 pt-2.5">
                     <PannelloRevisioneRichiesta
                       riga={r}
                       infoCampi={infoCampiPerCommittente[r.committente] ?? infoCampi}

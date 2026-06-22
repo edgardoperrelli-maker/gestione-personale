@@ -11,6 +11,8 @@ import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
 
 type DuplicatoMatricola = {
   id: string;
@@ -19,9 +21,6 @@ type DuplicatoMatricola = {
   deciso_at: string | null;
   deciso_da_name: string | null;
 };
-
-const campoCompactCls =
-  'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none';
 
 export function PannelloRevisioneRichiesta({
   riga,
@@ -84,22 +83,31 @@ export function PannelloRevisioneRichiesta({
   };
 
   return (
-    <div className="space-y-2.5 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
-      <p className="text-sm font-semibold text-[var(--brand-text-muted)]">{riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {formatDataIt(riga.data)} · inviata {formatOraIt(riga.created_at)}</p>
+    <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
+      <p className="text-xs font-medium text-[var(--brand-text-muted)]">
+        {riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {formatDataIt(riga.data)} · inviata {formatOraIt(riga.created_at)}
+      </p>
 
       {/* Anagrafica compatta: 2 colonne */}
       {campiAnag.length > 0 && (
         <div className="grid grid-cols-2 gap-x-2 gap-y-2">
           {campiAnag.map((c) => (
             <div key={c.chiave} className="min-w-0">
-              <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
-              <input type="text" value={anagrafica[c.chiave] ?? ''} onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))} className={campoCompactCls} />
+              <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                {c.etichetta}
+              </label>
+              <Input
+                type="text"
+                value={anagrafica[c.chiave] ?? ''}
+                onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))}
+                className="py-1.5 text-xs"
+              />
             </div>
           ))}
         </div>
       )}
 
-      {/* Esiti — solo campi NON foto (le foto stanno nella galleria + uploader sotto), su 2 colonne */}
+      {/* Esiti — solo campi NON foto, su 2 colonne */}
       {campiEsito.some((c) => c.tipo !== 'foto') && (
         <div className="grid grid-cols-2 gap-x-2 gap-y-2">
           {campiEsito.filter((c) => c.tipo !== 'foto').map((campo) => (
@@ -111,7 +119,7 @@ export function PannelloRevisioneRichiesta({
       {/* Foto */}
       {foto.length > 0 && (
         <div className="space-y-1">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+          <p className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
             Foto ({foto.length})
             {foto.some((f) => f.fileMancante) && (
               <span className="text-[var(--danger)]"> · {foto.filter((f) => f.fileMancante).length} da re-inviare</span>
@@ -119,14 +127,14 @@ export function PannelloRevisioneRichiesta({
           </p>
           <div className="flex flex-wrap gap-2">
             {foto.map((f) => (f.url ? (
-              <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-16 w-16 overflow-hidden rounded-lg border border-[var(--brand-border)]">
+              <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-16 w-16 overflow-hidden rounded-[var(--radius-md)] border border-[var(--brand-border)]">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src={f.url} alt={f.etichetta} className="h-full w-full object-cover" />
               </a>
             ) : (
-              <div key={f.id} title={`${f.etichetta} — file mancante, da re-inviare`} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-lg border border-dashed border-[var(--danger)] bg-[var(--danger-soft)] p-1 text-center">
+              <div key={f.id} title={`${f.etichetta} — file mancante, da re-inviare`} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-md)] border border-dashed border-[var(--danger)] bg-[var(--danger-soft)] p-1 text-center">
                 <span className="text-[13px] leading-none" aria-hidden>⚠️</span>
-                <span className="text-[8px] font-semibold leading-tight text-[var(--danger)]">da re-inviare</span>
+                <span className="text-xs font-semibold leading-tight text-[var(--danger)]">da re-inviare</span>
               </div>
             )))}
           </div>
@@ -137,19 +145,23 @@ export function PannelloRevisioneRichiesta({
       <CaricaFotoRichiesta richiestaId={riga.id} slotFoto={campiFoto(campiEsito)} onCaricato={caricaFoto} />
 
       {/* Motivo rifiuto (compatto) */}
-      <input
+      <Input
         type="text"
         value={motivo}
         onChange={(e) => setMotivo(e.target.value)}
         placeholder="Motivo rifiuto (se rifiuti)"
-        className={`${campoCompactCls} placeholder:text-[var(--brand-text-subtle)]`}
+        className="py-1.5 text-xs"
       />
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
 
+      {/* Avviso duplicato matricola — callout sobrio */}
       {dupAvviso && (
-        <div className="space-y-2 rounded-xl border border-[var(--warning)] bg-[var(--warning-soft)] p-3">
-          <p className="text-sm font-bold text-[var(--warning)]">
+        <div
+          className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] p-3"
+          style={{ backgroundColor: 'var(--warning-soft)' }}
+        >
+          <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>
             &#9888; Matricola {dupAvviso.matricola} già approvata ({dupAvviso.duplicati.length})
           </p>
           <ul className="space-y-1 text-xs text-[var(--brand-text-main)]">
@@ -163,15 +175,30 @@ export function PannelloRevisioneRichiesta({
             ))}
           </ul>
           <div className="flex gap-2">
-            <button type="button" onClick={() => setDupAvviso(null)} disabled={busy} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-muted)] disabled:opacity-50">Annulla</button>
-            <button type="button" onClick={() => void approva(true)} disabled={busy} className="rounded-lg border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-1.5 text-xs font-bold text-[var(--warning)] disabled:opacity-50">Approva comunque</button>
+            <Button variant="secondary" size="sm" animated={false} disabled={busy} onClick={() => setDupAvviso(null)}>
+              Annulla
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              animated={false}
+              disabled={busy}
+              className="border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning-soft)]"
+              onClick={() => void approva(true)}
+            >
+              Approva comunque
+            </Button>
           </div>
         </div>
       )}
 
       <div className="flex gap-2">
-        <button type="button" onClick={rifiuta} disabled={busy} className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2.5 font-bold text-[var(--danger)] disabled:opacity-50">Rifiuta</button>
-        <button type="button" onClick={() => void approva()} disabled={busy} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 font-semibold text-[var(--on-primary)] disabled:opacity-50">{busy ? '…' : 'Approva'}</button>
+        <Button variant="danger" size="md" animated={false} disabled={busy} onClick={rifiuta}>
+          Rifiuta
+        </Button>
+        <Button variant="primary" size="md" animated={false} disabled={busy} className="flex-1" onClick={() => void approva()}>
+          {busy ? '…' : 'Approva'}
+        </Button>
       </div>
     </div>
   );
