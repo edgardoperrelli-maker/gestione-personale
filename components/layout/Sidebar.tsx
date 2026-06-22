@@ -2,15 +2,11 @@
 
 import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
-import { appNavigation, sectionLabels } from '@/lib/appNavigation';
+import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import { MODULE_ICONS, DASHBOARD_HOME_ICON } from './moduleIcons';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
-/**
- * Icona per la voce "Riepilogo rapportini" (sotto-vista della Mappa, mostrata
- * come voce a sé nella sidebar). La Pianificazione riusa l'icona `mappa`.
- */
 const RIEPILOGO_ICON = (
   <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
     <path d="M9 11l3 3 8-8" />
@@ -18,12 +14,17 @@ const RIEPILOGO_ICON = (
   </svg>
 );
 
+const ACCOUNT_ICON = (
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <circle cx="12" cy="8" r="4" />
+    <path d="M4 21a8 8 0 0 1 16 0" />
+  </svg>
+);
+
 type SidebarProps = {
   allowedModules?: AppModuleKey[];
   collapsed?: boolean;
-  /** Chiamata al click su un link: usata per chiudere il drawer su mobile. */
   onNavigate?: () => void;
-  /** Se presente, mostra il pulsante per collassare/espandere (solo desktop). */
   onToggleCollapsed?: () => void;
 };
 
@@ -45,24 +46,20 @@ export default function Sidebar({
   const badgeAttesa = nAttesa > 0 ? (
     <span
       aria-label={`${nAttesa} in attesa`}
-      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white ${collapsed ? 'absolute right-1 top-1' : ''}`}
-      style={{ backgroundColor: 'var(--danger)' }}
+      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-[var(--on-danger)] ${collapsed ? 'absolute right-1 top-1' : ''}`}
+      style={{ backgroundColor: 'var(--status-ko)' }}
     >
       {nAttesa > 99 ? '99+' : nAttesa}
     </span>
   ) : null;
 
   const visibleItems = appNavigation.filter((item) => {
-    if (item.key === 'hub') return false; // la home è la voce brand in alto
+    if (item.key === 'hub') return false;
     return !allowedModules || allowedModules.includes(item.key as AppModuleKey);
   });
 
-  const moduleItems = visibleItems.filter((item) => item.section === 'modules');
-  const systemItems = visibleItems.filter((item) => item.section === 'system');
-
-  // La home Dashboard è attiva solo su /hub esatto (i moduli figli hanno il loro stato)
   const homeActive = pathname === '/hub';
-  const accountActive = pathname === '/account/password' || pathname.startsWith('/account/');
+  const accountActive = pathname.startsWith('/account/');
 
   const renderLink = (
     href: string,
@@ -77,16 +74,45 @@ export default function Sidebar({
       onClick={onNavigate}
       title={collapsed ? label : undefined}
       aria-current={active ? 'page' : undefined}
-      className={`group relative flex items-center gap-3 rounded-xl px-3 py-2 text-sm font-medium transition ${
+      className={`group relative flex items-center gap-3 rounded-[var(--radius-md)] px-3 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
         collapsed ? 'justify-center' : ''
-      } ${active ? 'bg-[var(--brand-nav-active-bg)] font-semibold' : 'hover:bg-[var(--brand-primary-soft)]'}`}
-      style={{ color: active ? 'var(--brand-primary)' : 'var(--brand-text-main)' }}
+      } ${active ? 'bg-[var(--brand-primary-soft)] font-semibold' : 'hover:bg-[var(--brand-surface-muted)]'}`}
+      style={{ color: active ? 'var(--primary-text)' : 'var(--brand-text-main)' }}
     >
+      {active && !collapsed && (
+        <span
+          aria-hidden="true"
+          className="absolute left-0 top-1.5 bottom-1.5 w-[3px] rounded-full"
+          style={{ backgroundColor: 'var(--brand-primary)' }}
+        />
+      )}
       <span className="flex h-5 w-5 shrink-0 items-center justify-center">{icon}</span>
       {!collapsed && <span className="truncate">{label}</span>}
       {trailing}
     </Link>
   );
+
+  const renderModuleLinks = (group: (typeof GROUP_ORDER)[number]) =>
+    visibleItems
+      .filter((item) => item.group === group)
+      .flatMap((item) => {
+        if (item.key === 'mappa') {
+          const suMappa = pathname === '/hub/mappa' || pathname.startsWith('/hub/mappa/');
+          return [
+            renderLink('/hub/mappa?vista=pianifica', 'Pianificazione', MODULE_ICONS.mappa, suMappa && vistaMappa !== 'riepilogo'),
+            renderLink('/hub/mappa?vista=riepilogo', 'Riepilogo rapportini', RIEPILOGO_ICON, suMappa && vistaMappa === 'riepilogo'),
+          ];
+        }
+        return [
+          renderLink(
+            item.href,
+            item.label,
+            MODULE_ICONS[item.key as AppModuleKey],
+            matchesPath(pathname, item.href, item.matchPrefixes),
+            item.key === 'lista-attesa' ? badgeAttesa : undefined,
+          ),
+        ];
+      });
 
   return (
     <div
@@ -99,99 +125,45 @@ export default function Sidebar({
           href="/hub"
           onClick={onNavigate}
           title="Dashboard"
-          className={`flex min-w-0 items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-[var(--brand-primary-soft)] ${
+          className={`flex min-w-0 items-center gap-2 rounded-[var(--radius-md)] px-2 py-1.5 transition hover:bg-[var(--brand-surface-muted)] ${
             collapsed ? 'justify-center' : ''
           }`}
           style={{ color: 'var(--brand-primary)' }}
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[var(--brand-primary-soft)]">
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--brand-primary-soft)]">
             {DASHBOARD_HOME_ICON}
           </span>
           {!collapsed && (
             <span className="flex min-w-0 flex-col leading-tight">
-              <span className="truncate text-sm font-extrabold tracking-[0.08em]">PLENZICH</span>
-              <span className="truncate text-[9px] tracking-[0.24em] text-[var(--brand-text-muted)]">
-                DASHBOARD
-              </span>
+              <span className="truncate text-sm font-bold tracking-[0.04em]">PLENZICH</span>
+              <span className="truncate text-[9px] tracking-[0.12em] text-[var(--brand-text-subtle)]">DASHBOARD</span>
             </span>
           )}
         </Link>
       </div>
 
       {/* Navigazione */}
-      <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-3">
+      <nav className="flex-1 space-y-1 overflow-y-auto px-2 pb-3 sidebar-scrollbar">
         {renderLink('/hub', 'Dashboard', DASHBOARD_HOME_ICON, homeActive)}
 
-        {moduleItems.length > 0 && (
-          <>
-            {!collapsed && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-subtle)]">
-                {sectionLabels.modules}
-              </p>
-            )}
-            {moduleItems.flatMap((item) => {
-              // La Mappa è divisa in due voci dirette (stessa route, viste diverse):
-              // "Pianificazione" e "Riepilogo rapportini". Stesso permesso `mappa`.
-              if (item.key === 'mappa') {
-                const suMappa = pathname === '/hub/mappa' || pathname.startsWith('/hub/mappa/');
-                return [
-                  renderLink(
-                    '/hub/mappa?vista=pianifica',
-                    'Pianificazione',
-                    MODULE_ICONS.mappa,
-                    suMappa && vistaMappa !== 'riepilogo',
-                  ),
-                  renderLink(
-                    '/hub/mappa?vista=riepilogo',
-                    'Riepilogo rapportini',
-                    RIEPILOGO_ICON,
-                    suMappa && vistaMappa === 'riepilogo',
-                  ),
-                ];
-              }
-              return [
-                renderLink(
-                  item.href,
-                  item.label,
-                  MODULE_ICONS[item.key as AppModuleKey],
-                  matchesPath(pathname, item.href, item.matchPrefixes),
-                  item.key === 'lista-attesa' ? badgeAttesa : undefined,
-                ),
-              ];
-            })}
-          </>
-        )}
-
-        {systemItems.length > 0 && (
-          <>
-            {!collapsed && (
-              <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-subtle)]">
-                {sectionLabels.system}
-              </p>
-            )}
-            {systemItems.map((item) =>
-              renderLink(
-                item.href,
-                item.label,
-                MODULE_ICONS[item.key as AppModuleKey],
-                matchesPath(pathname, item.href, item.matchPrefixes),
-              ),
-            )}
-          </>
-        )}
-
-        <div className="my-2 border-t" style={{ borderColor: 'var(--brand-border)' }} />
-        {renderLink(
-          '/account/password',
-          'Account',
-          (
-            <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-              <circle cx="12" cy="8" r="4" />
-              <path d="M4 21a8 8 0 0 1 16 0" />
-            </svg>
-          ),
-          accountActive,
-        )}
+        {GROUP_ORDER.map((group, idx) => {
+          const links = renderModuleLinks(group);
+          const isSistema = group === 'sistema';
+          if (links.length === 0 && !isSistema) return null;
+          return (
+            <div key={group} className="space-y-1">
+              {collapsed ? (
+                idx > 0 && <div className="mx-2 my-1 border-t" style={{ borderColor: 'var(--brand-border)' }} />
+              ) : (
+                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-subtle)]">
+                  {groupLabels[group]}
+                </p>
+              )}
+              {links}
+              {isSistema && renderLink('/account/password', 'Account', ACCOUNT_ICON, accountActive)}
+            </div>
+          );
+        })}
       </nav>
 
       {/* Collapse toggle (solo desktop) */}
@@ -201,7 +173,7 @@ export default function Sidebar({
           onClick={onToggleCollapsed}
           aria-label={collapsed ? 'Espandi menu' : 'Comprimi menu'}
           title={collapsed ? 'Espandi menu' : 'Comprimi menu'}
-          className={`m-2 flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-medium transition hover:bg-[var(--brand-primary-soft)] ${
+          className={`m-2 flex items-center gap-2 rounded-[var(--radius-md)] border px-3 py-2 text-xs font-medium transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
             collapsed ? 'justify-center' : ''
           }`}
           style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
