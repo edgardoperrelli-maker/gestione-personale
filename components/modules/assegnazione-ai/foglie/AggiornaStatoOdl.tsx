@@ -1,6 +1,8 @@
 'use client';
 
 import { useState } from 'react';
+import Button from '@/components/Button';
+import { Card, CardContent } from '@/components/Card';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
@@ -17,8 +19,6 @@ type AggiornaStatoOdlProps = {
 // ─── Componente ──────────────────────────────────────────────────────────────
 
 export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
-  const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
-
   // target: lm → zagarolo, dunning → dunning
   const target = nav.attivita === 'lm' ? 'zagarolo' : 'dunning';
 
@@ -66,7 +66,8 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border p-5 space-y-4" style={card}>
+      <Card animated={false}>
+      <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
             Aggiorna stato ODL da ACEA
@@ -87,20 +88,19 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
           <strong>{target}</strong>). L'operazione parte al prossimo contatto dell'agente.
         </p>
 
-        <button
-          type="button"
+        <Button
+          variant="primary"
           onClick={() => void aggiornaStatoAcea()}
           disabled={arming}
-          className="rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-          style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}
         >
           {arming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
-        </button>
+        </Button>
 
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>
         )}
-      </section>
+      </CardContent>
+      </Card>
 
       <StoricoCard runs={runsStato} />
     </div>

@@ -7,6 +7,8 @@ import type { GruppoOperatore } from '@/lib/agente/costruisciAnteprima';
 import type { RigaPianificabile, FileConfig, AceaEsiti } from '../tipi';
 import { AnteprimaPianificazione, righeLibere } from '../AnteprimaPianificazione';
 import { PannelloAceaAssegna } from '../PannelloAceaAssegna';
+import Button from '@/components/Button';
+import { Card, CardContent } from '@/components/Card';
 import DatePicker from '@/components/ui/DatePicker';
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
@@ -38,8 +40,6 @@ type AssegnaOdlProps = {
 
 export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdlProps) {
   const router = useRouter();
-  const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
-
   // ── Stato locale ─────────────────────────────────────────────────────────
   const [data, setData] = useState<string>(oggiPiuUno);
 
@@ -239,7 +239,8 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
     <div className="space-y-5">
 
       {/* Card 1: Sincronizza file */}
-      <section className="rounded-2xl border p-5 space-y-3" style={card}>
+      <Card animated={false}>
+      <CardContent className="space-y-3">
         <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
           Sincronizza file
         </h2>
@@ -250,15 +251,13 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
             </label>
             <DatePicker value={data} onChange={setData} />
           </div>
-          <button
-            type="button"
+          <Button
+            variant="soft"
             onClick={() => void leggi()}
             disabled={arming}
-            className="rounded-xl border px-4 py-1.5 text-sm font-semibold transition disabled:opacity-60"
-            style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
           >
             {arming ? 'Invio…' : 'Sincronizza file'}
-          </button>
+          </Button>
         </div>
         {pianificaData && (
           <div
@@ -266,26 +265,29 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
             style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
           >
             <span>In attesa di lettura per il giorno {pianificaData}</span>
-            <button
-              type="button"
+            <Button
+              variant="ghost"
+              size="sm"
               onClick={() => router.refresh()}
-              className="ml-auto rounded-lg border px-2 py-0.5 text-xs font-medium"
-              style={{ borderColor: 'var(--brand-border)' }}
+              className="ml-auto"
             >
               ↻ Aggiorna
-            </button>
+            </Button>
           </div>
         )}
         {msg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>}
-      </section>
+      </CardContent>
+      </Card>
 
       {/* Anteprima pianificazione */}
       {idsAttivita.length === 0 ? (
-        <section className="rounded-2xl border p-8 text-center" style={card}>
-          <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-            Nessuna riga pianificabile per questa attività. Usa «Sincronizza file» per caricare i dati.
-          </p>
-        </section>
+        <Card animated={false}>
+          <CardContent className="p-8 text-center">
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              Nessuna riga pianificabile per questa attività. Usa «Sincronizza file» per caricare i dati.
+            </p>
+          </CardContent>
+        </Card>
       ) : (
         <AnteprimaPianificazione
           gruppi={gruppi}
@@ -312,15 +314,14 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               </span>
               {' '}→ crea {pianiDaCreare} {pianiDaCreare === 1 ? 'piano' : 'piani'}, {rapportiniDaCreareN} rapportini
             </div>
-            <button
-              type="button"
+            <Button
+              variant="primary"
               onClick={() => void procedi()}
               disabled={procedendo || selezione.size === 0}
-              className="flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-50"
-              style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)', boxShadow: selezione.size ? 'var(--shadow-hover)' : 'none' }}
+              className={selezione.size ? 'shadow-[var(--shadow-hover)]' : ''}
             >
               {procedendo ? 'Creo…' : 'Crea rapportini (app)'}
-            </button>
+            </Button>
           </div>
           {esito && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{esito}</p>}
         </>
@@ -328,22 +329,19 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
 
       {/* Pannello ACEA: attivo per dunning, disabilitato per lm */}
       {isLm ? (
-        <section className="rounded-2xl border p-4 space-y-2" style={card}>
-          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-            Assegna su ACEA (WEB Appalti)
-          </h2>
-          <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-            L'assegnazione automatica su ACEA per le Limitazioni Massive è in arrivo (Fase 2).
-          </p>
-          <button
-            type="button"
-            disabled
-            className="rounded-xl border px-4 py-1.5 text-sm font-semibold disabled:opacity-40 cursor-not-allowed"
-            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}
-          >
-            Assegna su ACEA — in arrivo (Fase 2)
-          </button>
-        </section>
+        <Card animated={false}>
+          <CardContent className="space-y-2">
+            <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+              Assegna su ACEA (WEB Appalti)
+            </h2>
+            <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              L'assegnazione automatica su ACEA per le Limitazioni Massive è in arrivo (Fase 2).
+            </p>
+            <Button variant="ghost" size="sm" disabled>
+              Assegna su ACEA — in arrivo (Fase 2)
+            </Button>
+          </CardContent>
+        </Card>
       ) : (
         <PannelloAceaAssegna
           data={data}

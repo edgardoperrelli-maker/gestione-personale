@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import Button from '@/components/Button';
+import { Card, CardContent } from '@/components/Card';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
 import { usePollRuns } from '../usePollRuns';
@@ -16,8 +18,6 @@ type SincronizzaRapportiniProps = {
 // ─── Componente — solo LM ─────────────────────────────────────────────────────
 
 export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniProps) {
-  const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
-
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [pollAttivo, setPollAttivo] = useState(false);
@@ -58,7 +58,8 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
 
   return (
     <div className="space-y-4">
-      <section className="rounded-2xl border p-5 space-y-4" style={card}>
+      <Card animated={false}>
+      <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
             Sincronizza rapportini
@@ -80,20 +81,17 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
-          <button
-            type="button"
+          <Button
+            variant="primary"
             onClick={() => void eseguiOra()}
             disabled={arming}
-            className="rounded-xl px-4 py-2 text-sm font-semibold transition disabled:opacity-60"
-            style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}
           >
             {arming ? 'Invio…' : 'Esegui ora'}
-          </button>
+          </Button>
 
           <Link
             href="/hub/agente"
-            className="rounded-xl border px-4 py-2 text-sm font-medium transition"
-            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+            className="inline-flex items-center justify-center rounded-[var(--radius-md)] font-medium transition px-3 py-1.5 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
           >
             Configura colonne in Agente
           </Link>
@@ -102,7 +100,8 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>
         )}
-      </section>
+      </CardContent>
+      </Card>
 
       <StoricoCard runs={runsSync} />
     </div>

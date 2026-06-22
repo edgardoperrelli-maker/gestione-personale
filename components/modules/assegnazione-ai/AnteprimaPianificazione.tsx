@@ -1,5 +1,7 @@
 'use client';
 
+import Button from '@/components/Button';
+import { Card } from '@/components/Card';
 import type { GruppoOperatore, StatoOp } from '@/lib/agente/costruisciAnteprima';
 
 // ─── Costanti di stato (identiche al monolite) ───────────────────────────────
@@ -54,8 +56,6 @@ export function AnteprimaPianificazione({
   onToggleEspandi,
   onScarta,
 }: AnteprimaPianificazioneProps) {
-  const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
-
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
@@ -71,7 +71,7 @@ export function AnteprimaPianificazione({
         const aperto = espansi.has(o.key);
         const nComuni = o.comuni.length;
         return (
-          <div key={o.key} className="rounded-2xl border overflow-hidden" style={card}>
+          <Card key={o.key} className="overflow-hidden" animated={false}>
             <div className="flex items-center gap-3 px-4 py-2.5" style={{ opacity: o.staffId ? 1 : 0.75 }}>
               <input
                 type="checkbox"
@@ -87,10 +87,11 @@ export function AnteprimaPianificazione({
               >
                 {o.staffId ? iniziali(o.nome) : '?'}
               </div>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onToggleEspandi(o.key)}
-                className="flex flex-1 items-center gap-2 text-left min-w-0"
+                className="flex flex-1 items-center gap-2 text-left min-w-0 justify-start"
               >
                 <span className="text-sm font-semibold truncate" style={{ color: 'var(--brand-text-main)' }}>{o.nome}</span>
                 <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs flex-none">
@@ -107,23 +108,23 @@ export function AnteprimaPianificazione({
                 <span className="flex-none text-xs" style={{ color: 'var(--brand-text-subtle)' }}>
                   {aperto ? '▾' : '▸'}
                 </span>
-              </button>
+              </Button>
               <div className="flex-none text-right">
                 <div className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>{o.righe.length}</div>
                 <div className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>
                   {selezionabile ? `${selDe} selez.` : 'esclusi'}
                 </div>
               </div>
-              <button
-                type="button"
+              <Button
+                variant="ghost"
+                size="sm"
                 onClick={() => onScarta(o)}
                 title="Rimuovi dall'anteprima (non verrà pianificato)"
                 aria-label={`rimuovi ${o.nome} dall'anteprima`}
-                className="flex-none flex h-7 w-7 items-center justify-center rounded-full text-sm transition-colors hover:opacity-100"
-                style={{ color: 'var(--brand-text-subtle)', backgroundColor: 'var(--brand-surface-2)', opacity: 0.7 }}
+                className="flex-none h-7 w-7 p-0"
               >
                 ✕
-              </button>
+              </Button>
             </div>
 
             {aperto && (
@@ -188,7 +189,7 @@ export function AnteprimaPianificazione({
                 })}
               </div>
             )}
-          </div>
+          </Card>
         );
       })}
     </section>

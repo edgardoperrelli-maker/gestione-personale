@@ -1,5 +1,7 @@
 'use client';
 
+import Button from '@/components/Button';
+import { Card, CardContent } from '@/components/Card';
 import type { AceaEsiti } from './tipi';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -31,10 +33,9 @@ export function PannelloAceaAssegna({
   checking,
   onRicarica,
 }: PannelloAceaAssegnaProps) {
-  const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
-
   return (
-    <section className="rounded-2xl border p-4 space-y-2" style={card}>
+    <Card animated={false}>
+    <CardContent className="space-y-2">
       <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
         Assegna interventi su ACEA (WEB Appalti)
       </h2>
@@ -52,19 +53,13 @@ export function PannelloAceaAssegna({
         <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--brand-text-main)' }}>
           <input type="checkbox" checked={aceaDry} onChange={(e) => onToggleDry(e.target.checked)} /> Prova (non scrive)
         </label>
-        <button
-          type="button"
+        <Button
+          variant="soft"
           onClick={onScrivi}
           disabled={arming}
-          className="rounded-xl border px-4 py-1.5 text-sm font-semibold transition disabled:opacity-60"
-          style={{
-            borderColor: 'var(--brand-primary)',
-            backgroundColor: 'var(--brand-primary-soft)',
-            color: 'var(--brand-text-main)',
-          }}
         >
           {arming ? 'Invio…' : aceaDry ? '▶ Prova su ACEA' : '▶ Scrivi su ACEA'}
-        </button>
+        </Button>
       </div>
       {msg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>}
 
@@ -77,15 +72,15 @@ export function PannelloAceaAssegna({
           <span className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
             Esito assegnazione ACEA
           </span>
-          <button
-            type="button"
+          <Button
+            variant="ghost"
+            size="sm"
             onClick={onRicarica}
             disabled={checking}
-            className="ml-auto rounded-lg border px-2 py-0.5 text-xs font-medium disabled:opacity-60"
-            style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
+            className="ml-auto"
           >
             {checking ? '…' : '↻ Aggiorna esito'}
-          </button>
+          </Button>
         </div>
         {esiti?.ultimoRun ? (
           <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
@@ -152,6 +147,7 @@ export function PannelloAceaAssegna({
           </div>
         )}
       </div>
-    </section>
+    </CardContent>
+    </Card>
   );
 }
