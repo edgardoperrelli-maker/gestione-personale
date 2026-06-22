@@ -60,6 +60,35 @@ describe('voceEsitoColore — campi esito a tendina (Eseguito / Assente / Non es
   });
 });
 
+describe('voceEsitoColore — esito "NESSUN PASSAGGIO" (lim massive / limitazioni-sospensioni)', () => {
+  // Template reali: select `eseguito` con opzioni SI / NESSUN PASSAGGIO / NO.
+  const senzaNote: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 },
+  ];
+  const conNote: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 },
+    { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 2 },
+  ];
+  it('NESSUN PASSAGGIO → MAI verde (esito negativo, non positivo)', () => {
+    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, senzaNote)).not.toBe('verde');
+  });
+  it('NESSUN PASSAGGIO (template senza note) → rossa', () => {
+    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, senzaNote)).toBe('rossa');
+  });
+  it('NESSUN PASSAGGIO senza note (note obbligatorie con esito negativo) → neutro, non verde', () => {
+    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO' }, conNote)).toBe('neutro');
+  });
+  it('NESSUN PASSAGGIO con note compilate → rossa', () => {
+    expect(voceEsitoColore({ eseguito: 'NESSUN PASSAGGIO', note: 'cancello chiuso' }, conNote)).toBe('rossa');
+  });
+  it('SI resta positivo (verde) — nessuna regressione', () => {
+    expect(voceEsitoColore({ eseguito: 'SI' }, senzaNote)).toBe('verde');
+  });
+  it('haEsitoNegativo riconosce NESSUN PASSAGGIO come negativo', () => {
+    expect(haEsitoNegativo({ eseguito: 'NESSUN PASSAGGIO' }, senzaNote)).toBe(true);
+  });
+});
+
 describe('haEsitoNegativo', () => {
   const campi: TemplateCampo[] = [
     { chiave: 'assente', etichetta: 'Assente', tipo: 'crocetta', ordine: 1 },

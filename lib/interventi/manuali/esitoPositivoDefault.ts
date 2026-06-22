@@ -3,8 +3,8 @@
 // opzione positiva (es. "SI"), così la colonna Eseguito si popola e il conteggio si allinea.
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
-/** Valori che indicano "non eseguito" (allineato a voceColore/datiRiepilogoPdf). */
-const NEG = /^(no|assente|negativ\w*|ko)$/i;
+/** Valori che indicano "non eseguito" (allineato a voceColore/datiRiepilogoPdf, incl. "NESSUN PASSAGGIO"). */
+const NEG = /^(no|assente|negativ\w*|ko|nessun[\s_-]*passagg\w*)$/i;
 
 /**
  * Ritorna una copia di `risposte` con `eseguito` impostato all'opzione positiva del template

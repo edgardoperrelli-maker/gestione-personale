@@ -20,6 +20,12 @@ describe('esitoPositivoDefault', () => {
     const c: TemplateCampo[] = [{ chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['NO', 'Fatto'], ordine: 1 }];
     expect(esitoPositivoDefault(c, {})).toEqual({ eseguito: 'Fatto' });
   });
+  it('non sceglie mai "NESSUN PASSAGGIO" come opzione positiva (è negativa)', () => {
+    const c: TemplateCampo[] = [
+      { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['NESSUN PASSAGGIO', 'SI', 'NO'], ordine: 1 },
+    ];
+    expect(esitoPositivoDefault(c, {})).toEqual({ eseguito: 'SI' });
+  });
   it('no-op se il template non ha un select "eseguito"', () => {
     const c: TemplateCampo[] = [{ chiave: 'sost', etichetta: 'Sost', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 }];
     expect(esitoPositivoDefault(c, {})).toEqual({});

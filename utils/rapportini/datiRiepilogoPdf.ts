@@ -36,8 +36,8 @@ export interface DatiRiepilogoPdf {
   nonEseguiti: RigaPdf[];
 }
 
-/** Valori di un select che indicano "non fatto" (allineato a voceColore). */
-const NEG_SELECT = /^(no|assente|negativ\w*|ko)$/i;
+/** Valori di un select che indicano "non fatto" (allineato a voceColore, incl. "NESSUN PASSAGGIO"). */
+const NEG_SELECT = /^(no|assente|negativ\w*|ko|nessun[\s_-]*passagg\w*)$/i;
 
 /** Marcatori negativi (es. "assente") non sono "lavorazioni svolte". */
 function isMarcatoreAssente(chiave: string, etichetta: string): boolean {

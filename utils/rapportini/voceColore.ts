@@ -1,7 +1,7 @@
 import type { TemplateCampo } from './buildVoci';
 
-/** Valore di una tendina che indica di per sé "non fatto". */
-const NEG_SELECT = /^(no|assente|negativ\w*|ko)$/i;
+/** Valore di una tendina che indica di per sé "non fatto" (incl. "NESSUN PASSAGGIO" dei template ACEA). */
+const NEG_SELECT = /^(no|assente|negativ\w*|ko|nessun[\s_-]*passagg\w*)$/i;
 
 /** Campo il cui NOME indica un esito negativo (assente / non eseguito / negativo / ko). */
 const NEG_NAME = /assent|non[\s_-]*eseguit|negativ|\bko\b/i;
