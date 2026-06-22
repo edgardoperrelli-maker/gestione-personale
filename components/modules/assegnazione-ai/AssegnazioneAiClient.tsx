@@ -34,6 +34,13 @@ export type StoricoRiga = {
   creato_il: string;
 };
 
+export type AceaEsitoRiga = { odl: string; operatore_acea: string | null; esito: string; motivo: string | null; dry_run: boolean; creato_il: string };
+export type AceaEsiti = {
+  ultimoRun: { giorno: string | null; dryRun: boolean; lavori: number; aggiornate: number; scartati: number; errore: string | null; creato_il: string } | null;
+  righe: AceaEsitoRiga[];
+  riepilogo: Record<string, number>;
+};
+
 const card = { borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' } as const;
 
 const STATO: Record<StatoOp, { label: string; icon: string; bg: string; fg: string }> = {
@@ -79,6 +86,8 @@ export default function AssegnazioneAiClient({
   const [aceaDry, setAceaDry] = useState(true);
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
+  const [aceaEsiti, setAceaEsiti] = useState<AceaEsiti | null>(null);
+  const [aceaCheck, setAceaCheck] = useState(false);
 
   const [gruppi, setGruppi] = useState<GruppoOperatore[]>([]);
   const [caricando, setCaricando] = useState(false);
@@ -98,6 +107,13 @@ export default function AssegnazioneAiClient({
   const idsAttivita = attivitaCorrente?.ids ?? [];
   const idsAttivitaKey = idsAttivita.join(',');
   const isAcea = commessaSel === 'acea';
+  // ODL ACEA "Cruscotto" (Dunning, NON Limitazioni Massive) letti per il giorno selezionato:
+  // è ciò che la "Scrivi su ACEA" assegnerà. Se 0 → niente da assegnare per quel giorno.
+  const odlAceaPerData = righe.filter((r) => {
+    if (r.data !== data) return false;
+    const fc = cfgByFile.get(r.file);
+    return fc?.committente === 'acea' && fc.attivita !== 'LIMITAZIONI MASSIVE';
+  }).length;
 
   const caricaStorico = useCallback(async () => {
     try {
@@ -109,6 +125,16 @@ export default function AssegnazioneAiClient({
       if (res.ok) setStorico((j.righe ?? []) as StoricoRiga[]);
     } catch { /* informativo */ }
   }, [commessaSel, attivitaSel]);
+
+  // esito dell'assegnazione su ACEA (feedback): ultimo giro + esiti per-ODL del giorno
+  const caricaAceaEsiti = useCallback(async (giorno: string) => {
+    setAceaCheck(true);
+    try {
+      const res = await fetch(`/api/admin/agente/acea-esiti?data=${encodeURIComponent(giorno)}`);
+      const j = await res.json().catch(() => ({}));
+      if (res.ok) setAceaEsiti(j as AceaEsiti);
+    } catch { /* informativo */ } finally { setAceaCheck(false); }
+  }, []);
 
   const caricaAnteprima = useCallback(async (ids: string[]) => {
     if (ids.length === 0) { setGruppi([]); setSelezione(new Set()); return; }
@@ -131,6 +157,8 @@ export default function AssegnazioneAiClient({
   }, []);
 
   useEffect(() => { void caricaStorico(); }, [caricaStorico]);
+  // sulla commessa ACEA: mostra l'esito dell'ultima assegnazione per il giorno scelto
+  useEffect(() => { if (isAcea) void caricaAceaEsiti(data); }, [isAcea, data, caricaAceaEsiti]);
 
   // default selezione commessa/attività quando cambiano le righe lette
   useEffect(() => {
@@ -195,8 +223,15 @@ export default function AssegnazioneAiClient({
         body: JSON.stringify({ data, dry: aceaDry }),
       });
       const j = await res.json().catch(() => ({}));
-      if (res.ok) setAceaMsg(`Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per il ${data}: l'agente assegnerà su ACEA al prossimo contatto.`);
-      else setAceaMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
+      if (res.ok) {
+        setAceaMsg(
+          odlAceaPerData === 0
+            ? `⚠️ Richiesta inviata per il ${data}, ma per quel giorno NON risultano ODL Dunning letti: l'agente non avrà nulla da assegnare. Leggi prima dal file o cambia giorno.`
+            : `Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per il ${data} (${odlAceaPerData} ODL): l'agente assegnerà al prossimo contatto (~1 min). L'esito comparirà qui sotto.`,
+        );
+        // l'agente gira al tick (~1 min): ricontrolla l'esito qualche volta
+        for (const ms of [15000, 35000, 60000, 90000]) setTimeout(() => void caricaAceaEsiti(data), ms);
+      } else setAceaMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
       setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
     } finally { setAceaArming(false); }
@@ -326,7 +361,10 @@ export default function AssegnazioneAiClient({
             Assegna sul portale ACEA gli ODL agli operatori del giorno, leggendo direttamente le righe del file (Data + Esecutore) — <strong>indipendente da &quot;Procedi&quot;/rapportini</strong>. Gli ODL già assegnati vengono saltati. Usa &quot;Prova&quot; per simulare senza scrivere.
           </p>
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm" style={{ color: 'var(--brand-text-main)' }}>Giorno: <strong>{data}</strong></span>
+            <span className="text-sm" style={{ color: 'var(--brand-text-main)' }}>
+              Giorno: <strong>{data}</strong>
+              <span style={{ color: odlAceaPerData === 0 ? 'var(--warning)' : 'var(--brand-text-muted)' }}> · {odlAceaPerData} ODL Dunning</span>
+            </span>
             <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--brand-text-main)' }}>
               <input type="checkbox" checked={aceaDry} onChange={(e) => setAceaDry(e.target.checked)} /> Prova (non scrive)
             </label>
@@ -337,6 +375,60 @@ export default function AssegnazioneAiClient({
             </button>
           </div>
           {aceaMsg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</p>}
+
+          {/* Esito assegnazione su ACEA — feedback, così "Scrivi su ACEA" non è più silenzioso */}
+          <div className="rounded-xl border p-3 space-y-2" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface-2)' }}>
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>Esito assegnazione ACEA</span>
+              <button type="button" onClick={() => void caricaAceaEsiti(data)} disabled={aceaCheck}
+                className="ml-auto rounded-lg border px-2 py-0.5 text-xs font-medium disabled:opacity-60"
+                style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                {aceaCheck ? '…' : '↻ Aggiorna esito'}
+              </button>
+            </div>
+            {aceaEsiti?.ultimoRun ? (
+              <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                Ultimo giro: <strong>{aceaEsiti.ultimoRun.dryRun ? 'PROVA' : 'REALE'}</strong> · giorno {aceaEsiti.ultimoRun.giorno ?? '—'} · {aceaEsiti.ultimoRun.lavori} ODL · {new Date(aceaEsiti.ultimoRun.creato_il).toLocaleString('it-IT')}
+                {aceaEsiti.ultimoRun.lavori === 0 && <span style={{ color: 'var(--warning)' }}> — 0 ODL: niente da assegnare per quel giorno.</span>}
+                {aceaEsiti.ultimoRun.errore && <span style={{ color: 'var(--danger)' }}> — errore: {aceaEsiti.ultimoRun.errore}</span>}
+              </p>
+            ) : (
+              <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>Nessun giro ACEA ancora registrato.</p>
+            )}
+            {aceaEsiti && Object.keys(aceaEsiti.riepilogo).length > 0 && (
+              <div className="flex flex-wrap gap-1.5">
+                {Object.entries(aceaEsiti.riepilogo).map(([k, n]) => (
+                  <span key={k} className="rounded-full px-2 py-0.5 text-[11px] font-medium"
+                    style={{ backgroundColor: 'var(--brand-surface)', border: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                    {k}: {n}
+                  </span>
+                ))}
+              </div>
+            )}
+            {aceaEsiti && aceaEsiti.righe.length > 0 && (
+              <div className="overflow-auto" style={{ maxHeight: '14rem' }}>
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr style={{ color: 'var(--brand-text-muted)' }}>
+                      {['ODL', 'Operatore', 'Esito', 'Note'].map((h) => (
+                        <th key={h} className="px-2 py-1 font-medium whitespace-nowrap">{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aceaEsiti.righe.slice(0, 100).map((r, i) => (
+                      <tr key={i} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                        <td className="px-2 py-1 whitespace-nowrap font-mono">{r.odl}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{r.operatore_acea ?? '—'}</td>
+                        <td className="px-2 py-1 whitespace-nowrap">{r.esito}{r.dry_run ? ' (prova)' : ''}</td>
+                        <td className="px-2 py-1">{r.motivo ?? ''}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </section>
       )}
 
