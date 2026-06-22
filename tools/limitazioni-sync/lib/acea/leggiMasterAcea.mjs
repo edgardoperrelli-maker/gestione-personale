@@ -29,6 +29,7 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
     matricola: risolviColonna(header, colonne.matricola),
     indirizzo: risolviColonna(header, colonne.indirizzo),
     comune: risolviColonna(header, colonne.comune),
+    stato: risolviColonna(header, colonne.stato),
   };
   const cella = (row, i) => (i >= 0 && row[i] != null ? t(row[i]) : '');
   const out = [];
@@ -43,6 +44,7 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
       esecutore: cella(row, idx.esecutore),
       dataRaw: cella(row, idx.data),
       esitoRaw: '', // il master DUNNING non ha "esito" in lettura: sempre pianificabile
+      statoRaw: cella(row, idx.stato), // Stato Operazione (DUNNING); '' se colonne.stato assente
     });
   }
   return out;
