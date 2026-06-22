@@ -28,15 +28,16 @@ export async function GET(req: Request) {
     // righe lette dal file per quel giorno (solo file ACEA)
     const { data: pianRaw, error: ePian } = await supabaseAdmin
       .from('agente_pianificabili')
-      .select('id, file, odl, matricola, indirizzo, comune, esecutore')
+      .select('id, file, odl, matricola, indirizzo, comune, esecutore, stato_odl')
       .eq('data', data);
     if (ePian) throw ePian;
-    const pian = ((pianRaw ?? []) as Array<{ id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; esecutore: string | null }>)
+    const pian = ((pianRaw ?? []) as Array<{ id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; esecutore: string | null; stato_odl: string | null }>)
       .filter((r) => aceaFiles.has(r.file));
 
     // adatta alla forma usata da assegnabiliAcea: staff_id = esecutore (cognome), staffById = identità
     const interventi: InterventoAcea[] = pian.map((r) => ({
       id: r.id, odl: r.odl, matricola_contatore: r.matricola, indirizzo: r.indirizzo, comune: r.comune, staff_id: r.esecutore,
+      stato_odl: r.stato_odl,
     }));
     const staffById: Record<string, string> = {};
     for (const r of pian) { const e = (r.esecutore ?? '').trim(); if (e) staffById[e] = e; }
