@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback, useEffect, type ReactNode } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { GruppoOperatore } from '@/lib/agente/costruisciAnteprima';
@@ -17,14 +17,6 @@ function oggiPiuUno(): string {
   const d = new Date();
   d.setDate(d.getDate() + 1);
   return d.toISOString().slice(0, 10);
-}
-
-/** Mappa attivita nav (lm / dunning) → stringa attivita in agente_file_config */
-function attivitaNavToConfig(attivitaNav: string): string | null {
-  if (attivitaNav === 'lm') return 'LIMITAZIONI MASSIVE';
-  // dunning = tutte le attività ACEA che NON sono Limitazioni Massive
-  // filtriamo sul committente acea + attività ≠ LIMITAZIONI MASSIVE
-  return null; // dunning = resto ACEA
 }
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -211,7 +203,6 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
 
   useEffect(() => {
     void caricaAnteprima(idsAttivitaKey ? idsAttivitaKey.split(',') : []);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [idsAttivitaKey, caricaAnteprima]);
 
   useEffect(() => {
@@ -335,7 +326,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               Assegna su ACEA (WEB Appalti)
             </h2>
             <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-              L'assegnazione automatica su ACEA per le Limitazioni Massive è in arrivo (Fase 2).
+              L&rsquo;assegnazione automatica su ACEA per le Limitazioni Massive è in arrivo (Fase 2).
             </p>
             <Button variant="ghost" size="sm" disabled>
               Assegna su ACEA — in arrivo (Fase 2)

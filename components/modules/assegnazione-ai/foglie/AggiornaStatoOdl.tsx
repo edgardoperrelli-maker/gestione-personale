@@ -84,8 +84,8 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
         </div>
 
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Richiede all'agente locale di aggiornare lo stato degli ODL sul portale ACEA (target:{' '}
-          <strong>{target}</strong>). L'operazione parte al prossimo contatto dell'agente.
+          Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA (target:{' '}
+          <strong>{target}</strong>). L&rsquo;operazione parte al prossimo contatto dell&rsquo;agente.
         </p>
 
         <Button

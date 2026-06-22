@@ -76,8 +76,8 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
         </div>
 
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Avvia un giro dell'agente locale per sincronizzare i rapportini delle Limitazioni Massive con il file SharePoint.
-          Il giro parte al prossimo contatto dell'agente (entro ~1 min).
+          Avvia un giro dell&rsquo;agente locale per sincronizzare i rapportini delle Limitazioni Massive con il file SharePoint.
+          Il giro parte al prossimo contatto dell&rsquo;agente (entro ~1 min).
         </p>
 
         <div className="flex flex-wrap items-center gap-3">

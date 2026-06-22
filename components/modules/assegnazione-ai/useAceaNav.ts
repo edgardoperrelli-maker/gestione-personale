@@ -1,5 +1,5 @@
 'use client';
-import { useCallback } from 'react';
+import { useCallback, useMemo } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import type { NavState } from '@/lib/agente/aceaNav';
 
@@ -7,7 +7,10 @@ export function useAceaNav() {
   const router = useRouter();
   const pathname = usePathname();
   const sp = useSearchParams();
-  const nav: NavState = { commessa: sp.get('commessa'), attivita: sp.get('attivita'), azione: sp.get('azione') };
+  const nav: NavState = useMemo(
+    () => ({ commessa: sp.get('commessa'), attivita: sp.get('attivita'), azione: sp.get('azione') }),
+    [sp],
+  );
 
   const push = useCallback((next: NavState) => {
     const qs = new URLSearchParams();
