@@ -1,5 +1,5 @@
 'use client';
-import type { GiornoTerritori } from '@/utils/rapportini/groupByDayTerritory';
+import type { GiornoOperatori } from '@/utils/rapportini/groupByDayOperatore';
 import { etichettaRelativaGiorno } from '@/utils/rapportini/giorniRiepilogo';
 
 function fmtData(iso: string): string {
@@ -14,18 +14,18 @@ const BADGE: Record<'oggi' | 'domani' | 'ieri', { label: string; cls: string }> 
   ieri: { label: 'Ieri', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
 };
 
-export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoTerritori; oggi: string }) {
+export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoOperatori; oggi: string }) {
   const rel = etichettaRelativaGiorno(giorno.data, oggi);
-  const nPiani = giorno.territori.reduce((s, t) => s + t.piani.length, 0);
-  const nOperatori = giorno.territori.reduce((s, t) => s + t.nOperatori, 0);
-  const nInterventi = giorno.territori.reduce((s, t) => s + t.piani.reduce((x, p) => x + p.operatori.reduce((y, o) => y + (o.nVoci ?? 0), 0), 0), 0);
+  const nOperatori = giorno.operatori.length;
+  const nInterventi = giorno.operatori.reduce((s, o) => s + o.nInterventi, 0);
+  const nComuni = new Set(giorno.operatori.flatMap((o) => o.comuni)).size;
   return (
     <div className="flex flex-wrap items-center gap-2.5">
       {rel && (
         <span className={`rounded-md px-2.5 py-0.5 text-xs font-semibold ${BADGE[rel].cls}`}>{BADGE[rel].label}</span>
       )}
       <h3 className="text-sm font-semibold capitalize text-[var(--brand-text-main)]">{fmtData(giorno.data)}</h3>
-      <span className="text-xs text-[var(--brand-text-muted)]">· {nPiani} piani · {nOperatori} operatori · {nInterventi} interventi</span>
+      <span className="text-xs text-[var(--brand-text-muted)]">· {nOperatori} operatori · {nInterventi} interventi · {nComuni} comuni</span>
     </div>
   );
 }
