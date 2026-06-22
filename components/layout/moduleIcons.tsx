@@ -3,95 +3,101 @@ import type { AppModuleKey } from '@/lib/moduleAccess';
 
 /**
  * Icone per modulo, riusate dalla Sidebar e dalla Dashboard.
- * Le SVG erano definite inline nella vecchia griglia di card di `app/hub/page.tsx`.
+ * Set a linee sobrio (stroke currentColor, linecap/linejoin round), una icona
+ * riconoscibile per ogni voce: Cronoprogramma=gantt, Calendario Hotel=letto,
+ * Pianificazione=mappa, Interventi=chiave, Live=onde, Lista attesa=lista+orologio,
+ * Appuntamenti=calendario+check, Misuratori=contatore, Agente=robot,
+ * Performance=barre, Impostazioni=ingranaggio, Assegnazione AI=scintille.
  */
 export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   dashboard: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M3 12h7v9H3z" />
-      <path d="M14 3h7v18h-7z" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="5" width="11" height="3" rx="1.5" />
+      <rect x="7" y="10.5" width="12" height="3" rx="1.5" />
+      <rect x="5" y="16" width="9" height="3" rx="1.5" />
     </svg>
   ),
   'hotel-calendar': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 9h18" />
-      <path d="M8 2v4M16 2v4" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M3 18v-3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3" />
+      <path d="M3 18h18" />
+      <path d="M3 21v-4M21 21v-2" />
+      <path d="M6 13v-1.5A1.5 1.5 0 0 1 7.5 10h3A1.5 1.5 0 0 1 12 11.5V13" />
     </svg>
   ),
   mappa: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
       <circle cx="12" cy="10" r="2.5" />
     </svg>
   ),
   interventi: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 3v10m0 0 4-4m-4 4-4-4" />
-      <path d="M4 17v2a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-2" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M14.7 6.3a4 4 0 0 0-5.4 5.3L4 17v3h3l5.4-5.4a4 4 0 0 0 5.3-5.4l-2.5 2.5-2.1-2.1 2.6-2.6z" />
     </svg>
   ),
   live: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 2v20" />
-      <path d="M6 8l6-4 6 4" />
-      <circle cx="12" cy="12" r="2.5" />
-      <path d="M5 20a8 8 0 0 1 14 0" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="2" />
+      <path d="M8.8 8.8a4.5 4.5 0 0 0 0 6.4M15.2 8.8a4.5 4.5 0 0 1 0 6.4" />
+      <path d="M6.3 6.3a8 8 0 0 0 0 11.4M17.7 6.3a8 8 0 0 1 0 11.4" />
     </svg>
   ),
   'lista-attesa': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M4 6h10M4 12h10M4 18h6" />
-      <circle cx="18" cy="17" r="3.5" />
-      <path d="M18 15.5v1.5l1 1" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 6h9M4 12h6M4 18h5" />
+      <circle cx="17.5" cy="15.5" r="4" />
+      <path d="M17.5 13.7v1.8l1.3 1.3" />
     </svg>
   ),
   appuntamenti: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="3" y="4" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 2v4M16 2v4" />
-      <circle cx="12" cy="14.5" r="2" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="4.5" width="18" height="16" rx="2" />
+      <path d="M3 9h18M8 2.5v4M16 2.5v4" />
+      <path d="M9 14.8l2 2 4-4" />
     </svg>
   ),
   misuratori: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.8">
-      <path d="M9 3H5a2 2 0 0 0-2 2v4m6-6h10a2 2 0 0 1 2 2v4M9 3v18m0 0h10a2 2 0 0 0 2-2v-4M9 21H5a2 2 0 0 1-2-2v-4m0 0h18" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 18a8 8 0 1 1 16 0" />
+      <path d="M12 18l3.5-4.5" />
+      <circle cx="12" cy="18" r="1" />
     </svg>
   ),
   agente: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <rect x="5" y="8" width="14" height="11" rx="2" />
-      <path d="M12 5v3" />
-      <circle cx="12" cy="4" r="1.5" />
-      <path d="M9 13h.01M15 13h.01" />
-      <path d="M2 13v2M22 13v2" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="4.5" y="8" width="15" height="11" rx="2.5" />
+      <path d="M12 4.5v3.5" />
+      <circle cx="12" cy="3.5" r="1.4" />
+      <path d="M9.5 13h.01M14.5 13h.01" />
+      <path d="M9.5 16.5h5" />
     </svg>
   ),
   performance: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M3 3v18h18" />
-      <rect x="7" y="12" width="3" height="6" />
-      <rect x="12" y="8" width="3" height="10" />
-      <rect x="17" y="5" width="3" height="13" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4v16h16" />
+      <rect x="7" y="12" width="2.6" height="5" rx="1" />
+      <rect x="11.7" y="8.5" width="2.6" height="8.5" rx="1" />
+      <rect x="16.4" y="5.5" width="2.6" height="11.5" rx="1" />
     </svg>
   ),
   impostazioni: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />
       <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.04A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.06 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.88V9c0 .67.4 1.28 1.03 1.56H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.35 15Z" />
     </svg>
   ),
   'assegnazione-ai': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-      <path d="M12 2a4 4 0 0 1 4 4v1h1a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H7a3 3 0 0 1-3-3v-8a3 3 0 0 1 3-3h1V6a4 4 0 0 1 4-4Z" />
-      <path d="M9 11h6M9 15h4" />
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M11 3.5l1.5 4 4 1.5-4 1.5L11 14.5 9.5 10.5 5.5 9l4-1.5z" />
+      <path d="M18 13.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
     </svg>
   ),
 };
 
 /** Icona "Dashboard / Home" usata in cima alla sidebar. */
 export const DASHBOARD_HOME_ICON: ReactNode = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
+  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
     <path d="M3 10.5 12 3l9 7.5" />
     <path d="M5 9.5V21h14V9.5" />
     <path d="M9 21v-6h6v6" />
