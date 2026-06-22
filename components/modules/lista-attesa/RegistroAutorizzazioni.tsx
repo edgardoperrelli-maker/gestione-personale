@@ -120,7 +120,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
   const [righe, setRighe] = useState<RigaRichiesta[]>([]);
   const [loading, setLoading] = useState(true);
   const [apertaId, setApertaId] = useState<string | null>(null);
-  const [filtri, setFiltri] = useState<FiltriRegistro>({ operatore: '', stato: '', committente: '', from: '', to: '' });
+  const [filtri, setFiltri] = useState<FiltriRegistro>({ operatore: '', stato: '', committente: '', from: '', to: '', ricerca: '' });
 
   const carica = useCallback(async () => {
     setLoading(true);
@@ -174,8 +174,16 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
         </Button>
       </div>
 
-      {/* Filtri */}
+      {/* Ricerca + filtri */}
       <div className="flex flex-wrap items-center gap-2">
+        <Input
+          type="search"
+          aria-label="Cerca via, matricola, ODL"
+          value={filtri.ricerca ?? ''}
+          onChange={(e) => setFiltri((f) => ({ ...f, ricerca: e.target.value }))}
+          placeholder="Cerca via, matricola, ODL&hellip;"
+          className="w-full py-1.5 text-xs"
+        />
         <Select
           value={filtri.operatore}
           onChange={(e) => setFiltri((f) => ({ ...f, operatore: e.target.value }))}
@@ -211,23 +219,25 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           <option value="altro">Altro</option>
           <option value="lim_massive">Limitazioni massive</option>
         </Select>
-        <Input
-          type="date"
-          aria-label="Dal"
-          value={filtri.from}
-          max={filtri.to || undefined}
-          onChange={(e) => setFiltri((f) => ({ ...f, from: e.target.value }))}
-          className="py-1.5 text-xs"
-        />
-        <span className="text-xs text-[var(--brand-text-muted)]">&rarr;</span>
-        <Input
-          type="date"
-          aria-label="Al"
-          value={filtri.to}
-          min={filtri.from || undefined}
-          onChange={(e) => setFiltri((f) => ({ ...f, to: e.target.value }))}
-          className="py-1.5 text-xs"
-        />
+        <div className="flex w-full items-center gap-2 sm:max-w-sm">
+          <Input
+            type="date"
+            aria-label="Dal"
+            value={filtri.from}
+            max={filtri.to || undefined}
+            onChange={(e) => setFiltri((f) => ({ ...f, from: e.target.value }))}
+            className="min-w-0 flex-1 py-1.5 text-xs"
+          />
+          <span className="shrink-0 text-xs text-[var(--brand-text-muted)]">&rarr;</span>
+          <Input
+            type="date"
+            aria-label="Al"
+            value={filtri.to}
+            min={filtri.from || undefined}
+            onChange={(e) => setFiltri((f) => ({ ...f, to: e.target.value }))}
+            className="min-w-0 flex-1 py-1.5 text-xs"
+          />
+        </div>
       </div>
 
       {loading ? (
