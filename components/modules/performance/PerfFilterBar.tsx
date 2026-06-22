@@ -1,5 +1,6 @@
 'use client';
 import { MACRO_ATTIVITA, type PerfFilters, type SelectOption, formatItDate } from '@/lib/performance/shape';
+import Button from '@/components/Button';
 
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -33,46 +34,56 @@ export default function PerfFilterBar({
   const presetAnno = () => setRange(toISO(new Date(now.getFullYear(), 0, 1)), today);
   const presetTutto = () => setRange('', '');
 
-  const field = 'rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-[12px] text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
-  const preset = 'rounded-md border border-[var(--brand-border)] px-2 py-0.5 text-[11px] text-[var(--brand-text-muted)] hover:bg-[var(--brand-primary)]/10';
+  const field = 'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
 
   return (
-    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-[var(--brand-border)]/60 bg-[var(--brand-bg)]/40 p-2">
-      <input type="date" value={value.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className={field} aria-label="Da" />
-      <span className="text-[var(--brand-text-muted)]">→</span>
-      <input type="date" value={value.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className={field} aria-label="A" />
-      <button type="button" className={preset} onClick={presetSettimana}>Sett.</button>
-      <button type="button" className={preset} onClick={presetMese}>Mese</button>
-      <button type="button" className={preset} onClick={presetTrimestre}>Trim.</button>
-      <button type="button" className={preset} onClick={presetAnno}>Anno</button>
-      <button type="button" className={preset} onClick={presetTutto}>Tutto</button>
-      {invalid && <span className="text-[11px] text-[var(--danger)]">Da &gt; A</span>}
+    <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
+      {/* Cluster Periodo */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        <input type="date" value={value.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className={field} aria-label="Da" />
+        <span className="text-xs text-[var(--brand-text-subtle)]">→</span>
+        <input type="date" value={value.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className={field} aria-label="A" />
+        <div className="flex items-center gap-1">
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetSettimana}>Sett.</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetMese}>Mese</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTrimestre}>Trim.</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetAnno}>Anno</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTutto}>Tutto</Button>
+        </div>
+        {invalid && <span className="text-xs text-[var(--danger)]">Da &gt; A</span>}
+        {value.dateFrom && value.dateTo && !invalid && (
+          <span className="text-xs text-[var(--brand-text-subtle)]">{formatItDate(value.dateFrom)}–{formatItDate(value.dateTo)}</span>
+        )}
+      </div>
 
-      {showOperatore && (
-        <select value={value.staffId} onChange={(e) => set({ staffId: e.target.value })} className={field} aria-label="Operatore">
-          <option value="">Tutti gli operatori</option>
-          {options.operatori.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+      {/* Divider */}
+      <div className="hidden h-5 w-px bg-[var(--brand-border)] sm:block" aria-hidden />
+
+      {/* Cluster Segmentazione */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {showOperatore && (
+          <select value={value.staffId} onChange={(e) => set({ staffId: e.target.value })} className={field} aria-label="Operatore">
+            <option value="">Tutti gli operatori</option>
+            {options.operatori.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
+          </select>
+        )}
+        <select value={value.macro} onChange={(e) => set({ macro: e.target.value })} className={field} aria-label="Attività">
+          <option value="">Tutte le attività</option>
+          {MACRO_ATTIVITA.map((m) => <option key={m} value={m}>{m}</option>)}
         </select>
-      )}
-      <select value={value.macro} onChange={(e) => set({ macro: e.target.value })} className={field} aria-label="Attività">
-        <option value="">Tutte le attività</option>
-        {MACRO_ATTIVITA.map((m) => <option key={m} value={m}>{m}</option>)}
-      </select>
-      <select value={value.committente} onChange={(e) => set({ committente: e.target.value })} className={field} aria-label="Committente">
-        <option value="">Tutti i committenti</option>
-        {options.committenti.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-      </select>
-      <select value={value.territorioId} onChange={(e) => set({ territorioId: e.target.value })} className={field} aria-label="Territorio">
-        <option value="">Tutti i territori</option>
-        {options.territori.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-      </select>
-      <label className="inline-flex cursor-pointer items-center gap-1 text-[11px] text-[var(--brand-text-muted)]">
-        <input type="checkbox" checked={value.soloValvola} onChange={(e) => set({ soloValvola: e.target.checked })} className="accent-[var(--brand-primary)]" />
-        Solo saracinesca
-      </label>
-      {value.dateFrom && value.dateTo && !invalid && (
-        <span className="text-[11px] text-[var(--brand-text-subtle)]">{formatItDate(value.dateFrom)}–{formatItDate(value.dateTo)}</span>
-      )}
+        <select value={value.committente} onChange={(e) => set({ committente: e.target.value })} className={field} aria-label="Committente">
+          <option value="">Tutti i committenti</option>
+          {options.committenti.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
+        <select value={value.territorioId} onChange={(e) => set({ territorioId: e.target.value })} className={field} aria-label="Territorio">
+          <option value="">Tutti i territori</option>
+          {options.territori.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
+        </select>
+        <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-[var(--brand-text-muted)]">
+          <input type="checkbox" checked={value.soloValvola} onChange={(e) => set({ soloValvola: e.target.checked })} className="accent-[var(--brand-primary)]" />
+          Solo saracinesca
+        </label>
+      </div>
     </div>
   );
 }

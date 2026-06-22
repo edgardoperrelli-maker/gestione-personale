@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { emptyFilters, type ClientRow, type PerfFilters, type SelectOption } from '@/lib/performance/shape';
 import type { FilterOptions } from './PerfFilterBar';
+import Badge from '@/components/Badge';
 import PerformanceGiornaliera from './PerformanceGiornaliera';
 import PerformanceConfronto from './PerformanceConfronto';
 import PerformanceDistribuzioni from './PerformanceDistribuzioni';
@@ -30,8 +31,8 @@ export default function PerformancePanel({
   return (
     <div className="space-y-4">
       <div className="flex items-center gap-2">
-        <span className="rounded-full bg-[var(--brand-gold)]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-gold)]">Admin Plus</span>
-        <span className="text-[12px] text-[var(--brand-text-muted)]">Ogni grafico ha i suoi filtri indipendenti · default: mese corrente</span>
+        <Badge variant="warning">Admin Plus</Badge>
+        <span className="text-xs text-[var(--brand-text-muted)]">Ogni grafico ha i suoi filtri indipendenti · default: mese corrente</span>
       </div>
       <PerformanceGiornaliera allRows={rows} options={options} initial={initial} />
       <PerformanceConfronto allRows={rows} options={options} initial={initial} />

@@ -27,7 +27,7 @@ export default async function PerformancePage() {
   return (
     <div className="mx-auto max-w-6xl space-y-4 p-4">
       <div>
-        <h1 className="text-xl font-bold text-[var(--brand-text-main)]">Performance operatori</h1>
+        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Performance operatori</h1>
         <p className="text-sm text-[var(--brand-text-muted)]">Cosa hanno fatto gli operatori: interventi completati, con produzione giornaliera e filtri indipendenti per ogni grafico.</p>
       </div>
       <PerformancePanel

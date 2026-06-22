@@ -3,7 +3,7 @@ import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { buildDistribuzioni, filterRows, type ClientRow, type DistribuzioneSlice, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
-import { colorForMacro, PALETTE } from './palette';
+import { colorForMacro, PALETTE, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
 
 function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSlice[]; colorBy: 'macro' | 'index' }) {
   const total = data.reduce((s, d) => s + d.n, 0);
@@ -18,17 +18,37 @@ function Donut({ title, data, colorBy }: { title: string; data: DistribuzioneSli
           <div style={{ width: '100%', height: 200 }}>
             <ResponsiveContainer>
               <PieChart>
-                <Pie data={data} dataKey="n" nameKey="chiave" innerRadius={45} outerRadius={75}>
-                  {data.map((d, i) => <Cell key={d.chiave} fill={color(d.chiave, i)} />)}
+                <Pie
+                  data={data}
+                  dataKey="n"
+                  nameKey="chiave"
+                  innerRadius={45}
+                  outerRadius={75}
+                  stroke="var(--brand-surface)"
+                  strokeWidth={1.5}
+                >
+                  {data.map((d, i) => (
+                    <Cell
+                      key={d.chiave}
+                      fill={color(d.chiave, i)}
+                      stroke="var(--brand-surface)"
+                      strokeWidth={1.5}
+                    />
+                  ))}
                 </Pie>
-                <Tooltip formatter={(value, name) => {
-                  const v = Number(value);
-                  return [`${v.toLocaleString('it-IT')} (${total ? Math.round((v / total) * 100) : 0}%)`, String(name)];
-                }} />
+                <Tooltip
+                  formatter={(value, name) => {
+                    const v = Number(value);
+                    return [`${v.toLocaleString('it-IT')} (${total ? Math.round((v / total) * 100) : 0}%)`, String(name)];
+                  }}
+                  contentStyle={chartTooltipContent}
+                  itemStyle={chartItemStyle}
+                  labelStyle={chartLabelStyle}
+                />
               </PieChart>
             </ResponsiveContainer>
           </div>
-          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--brand-text-muted)]">
+          <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-[var(--brand-text-muted)]">
             {data.map((d, i) => (
               <span key={d.chiave} className="inline-flex items-center gap-1">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color(d.chiave, i) }} />
