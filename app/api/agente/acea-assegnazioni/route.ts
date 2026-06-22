@@ -25,14 +25,26 @@ export async function GET(req: Request) {
         .map((c) => c.file),
     );
 
-    // righe lette dal file per quel giorno (solo file ACEA)
+    // Filtro per ODL SELEZIONATI nell'anteprima (acea_assegna_odls): se valorizzato, si assegnano
+    // SOLO quegli ODL (sottoinsieme del giorno). null/vuoto = tutto il giorno (retro-compatibile).
+    const { data: cfgRow } = await supabaseAdmin
+      .from('agente_config')
+      .select('acea_assegna_odls')
+      .eq('id', 1)
+      .maybeSingle();
+    const odlSelRaw = (cfgRow as { acea_assegna_odls?: unknown } | null)?.acea_assegna_odls;
+    const odlSel = Array.isArray(odlSelRaw) && odlSelRaw.length > 0
+      ? new Set(odlSelRaw.map((x) => String(x)))
+      : null;
+
+    // righe lette dal file per quel giorno (solo file ACEA), eventualmente ristrette agli ODL selezionati
     const { data: pianRaw, error: ePian } = await supabaseAdmin
       .from('agente_pianificabili')
       .select('id, file, odl, matricola, indirizzo, comune, esecutore, stato_odl')
       .eq('data', data);
     if (ePian) throw ePian;
     const pian = ((pianRaw ?? []) as Array<{ id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; esecutore: string | null; stato_odl: string | null }>)
-      .filter((r) => aceaFiles.has(r.file));
+      .filter((r) => aceaFiles.has(r.file) && (!odlSel || (r.odl != null && odlSel.has(String(r.odl)))));
 
     // adatta alla forma usata da assegnabiliAcea: staff_id = esecutore (cognome), staffById = identità
     const interventi: InterventoAcea[] = pian.map((r) => ({

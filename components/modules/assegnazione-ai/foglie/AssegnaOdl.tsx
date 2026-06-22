@@ -80,8 +80,6 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const idsAttivita = righeAttivita.map((r) => r.id);
   const idsAttivitaKey = idsAttivita.join(',');
 
-  // ODL del giorno selezionato per il pannello ACEA (conta solo per dunning)
-  const odlAceaPerData = righeAttivita.filter((r) => r.data === data).length;
 
   // ── Fetch handlers (verbatim dal monolite) ────────────────────────────────
 
@@ -174,20 +172,20 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   }
 
   async function scriviAcea() {
+    if (odlSelezionati.length === 0) { setAceaMsg('Seleziona prima gli interventi da assegnare su ACEA.'); return; }
     setAceaArming(true); setAceaMsg(null);
+    const giorno = dataSelez;
     try {
       const res = await fetch('/api/admin/agente/acea-assegna', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, dry: aceaDry }),
+        body: JSON.stringify({ data: giorno, dry: aceaDry, odls: odlSelezionati }),
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
         setAceaMsg(
-          odlAceaPerData === 0
-            ? `Attenzione: richiesta inviata per il ${data}, ma per quel giorno NON risultano ODL letti: l'agente non avrà nulla da assegnare. Leggi prima dal file o cambia giorno.`
-            : `Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per il ${data} (${odlAceaPerData} ODL): l'agente assegnerà al prossimo contatto (~1 min). L'esito comparirà qui sotto.`,
+          `Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per ${odlSelezionati.length} ODL selezionati del ${giorno}: l'agente assegnerà al prossimo contatto (~1 min). L'esito comparirà qui sotto.`,
         );
-        for (const ms of [15000, 35000, 60000, 90000]) setTimeout(() => void caricaAceaEsiti(data), ms);
+        for (const ms of [15000, 35000, 60000, 90000]) setTimeout(() => void caricaAceaEsiti(giorno), ms);
       } else setAceaMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
       setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
@@ -254,6 +252,11 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   // Raggruppamento per TERRITORIO (scelto al "Crea rapportini"): un rapportino per
   // operatore, i comuni vengono accorpati → niente più conteggio per-comune.
   const operatoriDaCreare = gruppi.filter((o) => righeLibere(o).some((id) => selezione.has(id)));
+
+  // ODL delle righe SELEZIONATE → pilotano "Assegna su ACEA" (sottoinsieme, non tutto il giorno).
+  const righeSelez = gruppi.flatMap((o) => o.comuni.flatMap((c) => c.righe)).filter((r) => selezione.has(r.id));
+  const odlSelezionati = righeSelez.map((r) => r.odl).filter((x): x is string => !!x);
+  const dataSelez = righeSelez[0]?.data ?? data;
 
   // ── Render ────────────────────────────────────────────────────────────────
 
@@ -334,16 +337,31 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                 {operatoriDaCreare.length} operatori · {selezione.size} interventi
               </span>
-              {' '}→ un rapportino per operatore (indirizzi accorpati nel territorio scelto)
             </div>
-            <Button
-              variant="primary"
-              onClick={() => { setTerritorioSel(''); setTerritorioModale(true); }}
-              disabled={procedendo || selezione.size === 0}
-              className={selezione.size ? 'shadow-[var(--shadow-hover)]' : ''}
-            >
-              {procedendo ? 'Creo…' : 'Crea rapportini (app)'}
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              {!isLm && (
+                <label className="flex items-center gap-1.5 text-sm" style={{ color: 'var(--brand-text-main)' }}>
+                  <input type="checkbox" checked={aceaDry} onChange={(e) => setAceaDry(e.target.checked)} /> Prova
+                </label>
+              )}
+              <Button
+                variant="soft"
+                onClick={() => { setTerritorioSel(''); setTerritorioModale(true); }}
+                disabled={procedendo || selezione.size === 0}
+              >
+                {procedendo ? 'Creo…' : 'Crea rapportini (app)'}
+              </Button>
+              {!isLm && (
+                <Button
+                  variant="primary"
+                  onClick={() => void scriviAcea()}
+                  disabled={aceaArming || selezione.size === 0}
+                  className={selezione.size ? 'shadow-[var(--shadow-hover)]' : ''}
+                >
+                  {aceaArming ? 'Invio…' : aceaDry ? 'Assegna su ACEA (Prova)' : 'Assegna su ACEA'}
+                </Button>
+              )}
+            </div>
           </div>
           {territorioModale && (
             <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={() => setTerritorioModale(false)}>
@@ -426,33 +444,24 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         </CardContent>
       </Card>
 
-      {/* Pannello ACEA: attivo per dunning, disabilitato per lm */}
+      {/* Assegnazione ACEA: il trigger è nella barra azioni → qui solo gli ESITI (dunning) o la nota LM */}
       {isLm ? (
         <Card animated={false}>
-          <CardContent className="space-y-2">
+          <CardContent className="space-y-1">
             <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
               Assegna su ACEA (WEB Appalti)
             </h2>
             <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
               L&rsquo;assegnazione automatica su ACEA per le Limitazioni Massive è in arrivo (Fase 2).
             </p>
-            <Button variant="ghost" size="sm" disabled>
-              Assegna su ACEA — in arrivo (Fase 2)
-            </Button>
           </CardContent>
         </Card>
       ) : (
         <PannelloAceaAssegna
-          data={data}
-          odlCount={odlAceaPerData}
-          aceaDry={aceaDry}
-          onToggleDry={setAceaDry}
-          onScrivi={() => void scriviAcea()}
-          arming={aceaArming}
           msg={aceaMsg}
           esiti={aceaEsiti}
           checking={aceaCheck}
-          onRicarica={() => void caricaAceaEsiti(data)}
+          onRicarica={() => void caricaAceaEsiti(dataSelez)}
         />
       )}
     </div>
