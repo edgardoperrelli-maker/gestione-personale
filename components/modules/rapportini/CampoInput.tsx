@@ -29,7 +29,7 @@ export function CampoInput({
       <label
         className={`flex min-h-[50px] items-center gap-3 rounded-xl border p-3 transition ${
           checked
-            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+            ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
             : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]'
         } ${disabilitato ? 'cursor-not-allowed opacity-70' : 'cursor-pointer'}`}
       >
@@ -250,7 +250,7 @@ function TextareaAuto({ valore, disabilitato, onChange, evidenzia }: { valore: s
       value={valore}
       disabled={disabilitato}
       onChange={(e) => onChange(e.target.value)}
-      className={`${inputCls} resize-none overflow-hidden ${evidenzia ? 'border-[var(--danger)] ring-1 ring-[var(--danger)]' : ''}`}
+      className={`${inputCls} resize-none overflow-hidden ${evidenzia ? 'border-[var(--status-ko)] ring-1 ring-[var(--status-ko)]' : ''}`}
     />
   );
 }

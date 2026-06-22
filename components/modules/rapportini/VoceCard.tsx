@@ -21,7 +21,7 @@ export function VoceHeaderInfo({ voce, coordinataAbilitata }: { voce: VoceCardDa
   const fascia = valoreInfo(voce, 'fascia_oraria');
   const coordinata = valoreInfo(voce, 'coordinate');
   return (
-    <div className="mt-2.5 space-y-1.5 text-[14.5px] text-[var(--brand-text-main)]">
+    <div className="mt-2.5 space-y-1.5 text-sm text-[var(--brand-text-main)]">
       {indirizzo && (
         <a href={mapsUrlFromAddress(valoreInfo(voce, 'via'), valoreInfo(voce, 'comune'), valoreInfo(voce, 'cap'))} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline">
           <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1118 0z" /><circle cx="12" cy="10" r="3" /></svg>
@@ -53,14 +53,14 @@ export function VoceDettagli({ voce, dettaglio }: { voce: VoceCardData; dettagli
   if (dett.length === 0) return null;
   return (
     <details className="group mt-3.5 overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]">
-      <summary className="flex min-h-[46px] cursor-pointer list-none items-center justify-between px-4 py-3 text-[13.5px] font-semibold text-[var(--brand-text-muted)] [&::-webkit-details-marker]:hidden">
+      <summary className="flex min-h-[46px] cursor-pointer list-none items-center justify-between px-4 py-3 text-[13px] font-semibold text-[var(--brand-text-muted)] [&::-webkit-details-marker]:hidden">
         Dettagli anagrafici
         <svg className="h-[18px] w-[18px] transition-transform group-open:rotate-180" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M6 9l6 6 6-6" /></svg>
       </summary>
       <dl className="grid grid-cols-2 gap-x-4 gap-y-3 px-4 pb-4 pt-1">
         {dett.map((r) => (
           <div key={r.label} className="min-w-0">
-            <dt className="text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">{r.label}</dt>
+            <dt className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">{r.label}</dt>
             <dd className="mt-0.5 break-words text-sm text-[var(--brand-text-main)]">{r.value}</dd>
           </div>
         ))}
@@ -112,7 +112,7 @@ export function VoceCard({
 }) {
   const badge = badgeVoceManuale(approvazioneStato ?? null);
   const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
-  const bordo = stato === 'eseguito' ? 'border-[var(--success)]' : stato === 'non_eseguito' ? 'border-[var(--danger)]' : 'border-[var(--brand-border)]';
+  const bordo = stato === 'eseguito' ? 'border-[var(--status-ok)]' : stato === 'non_eseguito' ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]';
   const notaMancante = motivoVoceIncompleta(voce.risposte, campi) === 'nota_mancante';
 
   return (
@@ -122,7 +122,7 @@ export function VoceCard({
         {headerRight}
       </div>
       {badge && (
-        <div className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+        <div className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]'}`}>
           {badge.label}
           {badge.tono === 'attesa' && ' — in attesa di approvazione dalla centrale'}
           {badge.tono === 'rifiutato' && motivoRifiuto ? ` · ${motivoRifiuto}` : ''}
@@ -139,9 +139,9 @@ export function VoceCard({
         </div>
       )}
       {notaMancante && (
-        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3.5 py-2.5">
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3.5 py-2.5">
           <span aria-hidden className="text-base leading-none">⚠️</span>
-          <p className="text-[13.5px] font-semibold text-[var(--danger)]">
+          <p className="text-[13px] font-semibold text-[var(--status-ko)]">
             Esito negativo: la nota è obbligatoria. Compila il campo nota qui sotto per completare l&apos;intervento.
           </p>
         </div>

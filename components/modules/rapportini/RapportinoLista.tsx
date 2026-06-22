@@ -14,8 +14,8 @@ export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: 
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
-  eseguito: { label: '✓ Fatto', cls: 'bg-[var(--success-soft)] text-[var(--success)]' },
-  non_eseguito: { label: 'Non fatto', cls: 'bg-[var(--danger-soft)] text-[var(--danger)]' },
+  eseguito: { label: '✓ Fatto', cls: 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]' },
+  non_eseguito: { label: 'Non fatto', cls: 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' },
   da_fare: { label: 'Da fare', cls: 'border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-subtle)]' },
 };
 
@@ -28,29 +28,29 @@ const MOTIVO_LABEL: Record<MotivoIncompleto, string> = {
 
 export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (index: number) => void }) {
   const chip = CHIP[r.stato];
-  const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--danger)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--success)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--danger)]' : '';
-  const num = r.annullato ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : r.stato === 'eseguito' ? 'bg-[var(--success-soft)] text-[var(--success)]' : r.stato === 'non_eseguito' ? 'bg-[var(--danger-soft)] text-[var(--danger)]' : 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]';
+  const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--status-ko)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--status-ko)]' : '';
+  const num = r.annullato ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : r.stato === 'eseguito' ? 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]';
   return (
     <button
       type="button"
       onClick={r.annullato ? undefined : () => onApri(r.index)}
-      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--danger)] bg-[var(--danger-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
+      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--status-ko)] bg-[var(--status-ko-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
     >
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
       <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
         <span className="flex min-w-0 items-center gap-1.5">
           {r.annullato && (
-            <span className="shrink-0 rounded-full bg-[var(--danger)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-white">
+            <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
               Annullato
             </span>
           )}
           {r.nuovo && (
-            <span className="shrink-0 rounded-full bg-[var(--brand-gold)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-primary)]">
+            <span className="shrink-0 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--brand-text-main)]">
               Nuovo
             </span>
           )}
           {r.badge && (
-            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--danger-soft)] text-[var(--danger)]'}`}>
+            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]'}`}>
               {r.badge.label}
             </span>
           )}
@@ -59,13 +59,13 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           )}
           <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (
-            <span className="shrink-0 whitespace-nowrap text-[11.5px] font-medium text-[var(--brand-text-muted)]">
+            <span className="shrink-0 whitespace-nowrap text-xs font-medium text-[var(--brand-text-muted)]">
               {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
             </span>
           )}
         </span>
         <span className="mt-0.5 flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-[12.5px] text-[var(--brand-text-muted)]">{r.sub}</span>
+          <span className="min-w-0 flex-1 truncate text-xs text-[var(--brand-text-muted)]">{r.sub}</span>
           <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
         </span>
       </span>
@@ -134,14 +134,14 @@ export function RapportinoLista({
               key={k}
               type="button"
               onClick={() => onFiltro(k)}
-              className={`flex min-h-[32px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold transition ${
-                filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'text-[var(--brand-text-muted)]'
+              className={`flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold transition ${
+                filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
               <span>{lbl}</span>
               <span
                 className={`min-w-[1.25rem] rounded-full px-1 text-xs font-bold tabular-nums ${
-                  filtro === k ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
+                  filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
                 }`}
               >
                 {conteggi[k]}
@@ -168,7 +168,7 @@ export function RapportinoLista({
         <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {inviato ? (
             <>
-              <p className="mb-1.5 text-center text-xs font-medium text-[var(--success)]">Rapportino inviato ✓</p>
+              <p className="mb-1.5 text-center text-xs font-medium text-[var(--status-ok)]">Rapportino inviato ✓</p>
               <CondividiPdfButton
                 staffName={staffName}
                 dataLabel={dataLabel}
@@ -181,16 +181,16 @@ export function RapportinoLista({
           ) : (
             <>
               {!readOnly && tentatoInvio && mancanti.length > 0 && (
-                <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2">
+                <div className="mb-2 rounded-xl border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3 py-2">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-[var(--danger)]">
+                    <p className="text-xs font-bold text-[var(--status-ko)]">
                       ⚠️ Non puoi inviare: completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}
                     </p>
                     <button
                       type="button"
                       onClick={() => setTentatoInvio(false)}
                       aria-label="Chiudi avviso"
-                      className="shrink-0 rounded-md px-2 py-0.5 text-sm font-bold leading-none text-[var(--danger)] hover:bg-[var(--danger)]/15"
+                      className="-mr-1 flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-md text-sm font-bold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15"
                     >
                       ✕
                     </button>
@@ -207,14 +207,14 @@ export function RapportinoLista({
                           <span className="font-bold">Intervento {m.index + 1}</span>
                           {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
                         </span>
-                        <span className="shrink-0 font-semibold text-[var(--danger)]">{MOTIVO_LABEL[m.motivo]}</span>
+                        <span className="shrink-0 font-semibold text-[var(--status-ko)]">{MOTIVO_LABEL[m.motivo]}</span>
                       </button>
                     ))}
                   </div>
                 </div>
               )}
               {!readOnly && inviabile && (
-                <p className="mb-1.5 text-center text-xs font-medium text-[var(--success)]">Tutti gli interventi hanno un esito ✓</p>
+                <p className="mb-1.5 text-center text-xs font-medium text-[var(--status-ok)]">Tutti gli interventi hanno un esito ✓</p>
               )}
               {!readOnly && (
                 <button

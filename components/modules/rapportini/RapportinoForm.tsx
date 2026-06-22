@@ -413,7 +413,7 @@ export default function RapportinoForm({
       {avvisoManuale && (
         <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3 text-sm text-[var(--brand-text-main)]">
           <span>{avvisoManuale}</span>
-          <button type="button" onClick={() => setAvvisoManuale(null)} className="shrink-0 text-xs font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
+          <button type="button" onClick={() => setAvvisoManuale(null)} className="-mr-1 flex min-h-[40px] shrink-0 items-center px-2 text-xs font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
         </div>
       )}
       {bannerSospese}

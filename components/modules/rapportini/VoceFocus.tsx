@@ -35,7 +35,7 @@ export function VoceFocus({
   return (
     <div className="flex h-dvh flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-3 pb-2 pt-3">
-        <button type="button" onClick={onClose} className="inline-flex items-center gap-1.5 py-1.5 text-sm font-semibold text-[var(--brand-primary)]">
+        <button type="button" onClick={onClose} className="-ml-1 inline-flex min-h-[40px] items-center gap-1.5 px-1 py-1.5 text-sm font-semibold text-[var(--brand-primary)]">
           <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M15 18l-6-6 6-6" /></svg>
           Tutti gli interventi
         </button>
