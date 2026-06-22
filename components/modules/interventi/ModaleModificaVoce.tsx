@@ -2,6 +2,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import Dialog from '@/components/ui/Dialog';
 import { ANAGRAFICA_COLONNE, ANAGRAFICA_LABEL } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -12,7 +13,7 @@ type EditorData = {
 };
 
 const inputCls =
-  'w-full rounded-md border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-2 py-1 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none';
+  'w-full rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-2 py-1 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 function CampoInput({ campo, valore, onChange }: { campo: TemplateCampo; valore: unknown; onChange: (v: unknown) => void }) {
   if (campo.tipo === 'crocetta') {
@@ -112,69 +113,73 @@ export default function ModaleModificaVoce({
     }
   };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={onClose}>
-      <div
-        className="max-h-[88vh] w-full max-w-2xl overflow-auto rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-xl"
-        onClick={(e) => e.stopPropagation()}
+  const footer = (
+    <>
+      <button
+        type="button"
+        onClick={onClose}
+        disabled={saving}
+        className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
       >
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[var(--brand-text-main)]">Modifica intervento</h2>
-          <button type="button" onClick={onClose} aria-label="Chiudi" className="rounded-lg px-2 py-1 text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]">✕</button>
-        </div>
+        Annulla
+      </button>
+      <button
+        type="button"
+        onClick={salva}
+        disabled={saving}
+        className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+      >
+        {saving ? 'Salvataggio…' : 'Salva'}
+      </button>
+    </>
+  );
 
-        {loading ? (
-          <div className="flex items-center justify-center gap-3 py-10 text-sm text-[var(--brand-text-muted)]">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
-            Caricamento…
-          </div>
-        ) : (
-          <div className="space-y-5">
+  return (
+    <Dialog open onClose={onClose} title="Modifica intervento" className="max-w-2xl" footer={footer}>
+      {loading ? (
+        <div className="flex items-center justify-center gap-3 py-10 text-sm text-[var(--brand-text-muted)]">
+          <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
+          Caricamento…
+        </div>
+      ) : (
+        <div className="space-y-5">
+          <section>
+            <h3 className="mb-2 text-xs font-semibold text-[var(--brand-text-muted)]">Anagrafica</h3>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {ANAGRAFICA_COLONNE.map((k) => (
+                <label key={k} className="block">
+                  <span className="mb-1 block text-xs text-[var(--brand-text-muted)]">{ANAGRAFICA_LABEL[k]}</span>
+                  <input
+                    className={inputCls}
+                    value={anagrafica[k] ?? ''}
+                    onChange={(e) => setAnagrafica((p) => ({ ...p, [k]: e.target.value }))}
+                  />
+                </label>
+              ))}
+            </div>
+          </section>
+
+          {campi.length > 0 && (
             <section>
-              <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Anagrafica</h3>
-              <div className="grid gap-3 sm:grid-cols-2">
-                {ANAGRAFICA_COLONNE.map((k) => (
-                  <label key={k} className="block">
-                    <span className="mb-1 block text-xs text-[var(--brand-text-muted)]">{ANAGRAFICA_LABEL[k]}</span>
-                    <input
-                      className={inputCls}
-                      value={anagrafica[k] ?? ''}
-                      onChange={(e) => setAnagrafica((p) => ({ ...p, [k]: e.target.value }))}
-                    />
+              <h3 className="mb-2 text-xs font-semibold text-[var(--brand-text-muted)]">Esiti / risposte</h3>
+              <div className="space-y-3">
+                {campi.map((c) => (
+                  <label key={c.chiave} className="flex items-start gap-3">
+                    <span className="mt-1 w-40 shrink-0 text-sm text-[var(--brand-text-main)]">{c.etichetta}</span>
+                    <span className="flex-1">
+                      <CampoInput campo={c} valore={risposte[c.chiave]} onChange={(v) => setRisposte((p) => ({ ...p, [c.chiave]: v }))} />
+                    </span>
                   </label>
                 ))}
               </div>
             </section>
+          )}
 
-            {campi.length > 0 && (
-              <section>
-                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Esiti / risposte</h3>
-                <div className="space-y-3">
-                  {campi.map((c) => (
-                    <label key={c.chiave} className="flex items-start gap-3">
-                      <span className="mt-1 w-40 shrink-0 text-sm text-[var(--brand-text-main)]">{c.etichetta}</span>
-                      <span className="flex-1">
-                        <CampoInput campo={c} valore={risposte[c.chiave]} onChange={(v) => setRisposte((p) => ({ ...p, [c.chiave]: v }))} />
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              </section>
-            )}
-
-            {error && (
-              <div className="rounded-lg border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">{error}</div>
-            )}
-
-            <div className="flex justify-end gap-2">
-              <button type="button" onClick={onClose} disabled={saving} className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60">Annulla</button>
-              <button type="button" onClick={salva} disabled={saving} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
-                {saving ? 'Salvataggio…' : 'Salva'}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
-    </div>
+          {error && (
+            <div className="rounded-[var(--radius-md)] border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-4 py-2 text-sm text-[var(--status-ko)]">{error}</div>
+          )}
+        </div>
+      )}
+    </Dialog>
   );
 }

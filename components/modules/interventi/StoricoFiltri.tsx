@@ -46,7 +46,7 @@ export default function StoricoFiltri({
       <div>
         <label
           htmlFor="storico-ricerca"
-          className="mb-1 block text-xs font-medium uppercase tracking-wide text-[var(--brand-text-muted)]"
+          className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]"
         >
           Cerca nel database
         </label>
@@ -94,7 +94,7 @@ export default function StoricoFiltri({
           type="button"
           onClick={onApplica}
           disabled={loading}
-          className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60"
+          className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
         >
           Cerca
         </button>
@@ -102,7 +102,7 @@ export default function StoricoFiltri({
           type="button"
           onClick={onPulisci}
           disabled={loading}
-          className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60"
+          className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
         >
           Pulisci
         </button>
@@ -110,7 +110,7 @@ export default function StoricoFiltri({
           type="button"
           onClick={onEsporta}
           disabled={loading}
-          className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-60"
+          className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
         >
           📥 Esporta Excel
         </button>

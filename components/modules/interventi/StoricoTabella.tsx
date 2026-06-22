@@ -31,8 +31,8 @@ function cella(r: RigaStorico, key: keyof RigaStorico): string {
 }
 
 function toneClass(v: string): string {
-  if (v === 'SI') return 'font-semibold text-[var(--success)]';
-  if (v === 'NO') return 'font-semibold text-[var(--danger)]';
+  if (v === 'SI') return 'font-semibold text-[var(--status-ok)]';
+  if (v === 'NO') return 'font-semibold text-[var(--status-ko)]';
   return 'text-[var(--brand-text-muted)]';
 }
 
@@ -53,14 +53,14 @@ export default function StoricoTabella({
     );
   }
   return (
-    <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-2xl border border-[var(--brand-border)]">
+    <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)]">
       <table className="min-w-full text-left text-sm">
-        <thead className="sticky top-0 z-10 text-xs uppercase tracking-wide text-[var(--brand-text-muted)]">
+        <thead className="sticky top-0 z-10 border-b border-[var(--brand-border-strong)] text-xs text-[var(--brand-text-muted)]">
           <tr>
             {COLS.map((c) => (
-              <th key={c.header} className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 font-medium">{c.header}</th>
+              <th key={c.header} className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 font-semibold">{c.header}</th>
             ))}
-            <th className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 text-right font-medium">Azioni</th>
+            <th className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 text-right font-semibold">Azioni</th>
           </tr>
         </thead>
         <tbody>
@@ -84,7 +84,7 @@ export default function StoricoTabella({
                     onClick={() => onFoto(r.id)}
                     title="Vedi foto"
                     aria-label="Vedi foto"
-                    className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                    className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                   >
                     📷
                   </button>
@@ -94,7 +94,7 @@ export default function StoricoTabella({
                       onClick={() => onModifica(r.id)}
                       title="Modifica"
                       aria-label="Modifica"
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                     >
                       ✎
                     </button>
@@ -105,7 +105,7 @@ export default function StoricoTabella({
                       onClick={() => onCancella(r.id)}
                       title="Elimina riga"
                       aria-label="Elimina riga"
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
+                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--danger)] hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                     >
                       🗑
                     </button>

@@ -147,7 +147,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
             <div className="text-xs text-[var(--brand-text-muted)]">{c.label}</div>
             <div
               className={`text-2xl font-semibold ${
-                c.tone === 'ok' ? 'text-[var(--success)]' : c.tone === 'no' ? 'text-[var(--danger)]' : 'text-[var(--brand-primary)]'
+                c.tone === 'ok' ? 'text-[var(--status-ok)]' : c.tone === 'no' ? 'text-[var(--status-ko)]' : 'text-[var(--brand-text-main)]'
               }`}
             >
               {contatori[c.key].toLocaleString('it-IT')}
@@ -203,7 +203,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
               aria-label="Pagina precedente"
               onClick={() => vaiPagina(Math.max(0, page - 1))}
               disabled={loading || page === 0}
-              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50"
+              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
             >
               ←
             </button>
@@ -213,7 +213,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
               aria-label="Pagina successiva"
               onClick={() => vaiPagina(Math.min(totPagine - 1, page + 1))}
               disabled={loading || page >= totPagine - 1}
-              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50"
+              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
             >
               →
             </button>
