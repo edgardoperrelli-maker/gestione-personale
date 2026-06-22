@@ -22,10 +22,10 @@ export default function PremialitaPanel({ kpis }: { kpis?: KpiResult[] }) {
   const hasData = (kpis?.length ?? 0) > 0;
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-primary-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm" style={{ borderRadius: 'var(--radius-xl)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <span className="rounded-full bg-[var(--brand-gold)]/20 px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider text-[var(--brand-gold)]">
+          <span className="rounded-full bg-[var(--brand-surface-muted)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-muted)] border border-[var(--brand-border)]">
             Admin Plus
           </span>
           <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Premialità Acea</h2>
@@ -59,7 +59,7 @@ export default function PremialitaPanel({ kpis }: { kpis?: KpiResult[] }) {
                 <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
                   Prezzo {k.variazionePrezzo > 0 ? '+' : ''}{k.variazionePrezzo}%
                   {k.code === 'ES' && k.premio && (
-                    <span className="ml-1 font-semibold text-[var(--brand-gold)]">· premio attivo</span>
+                    <span className="ml-1 font-semibold text-[var(--success)]">· premio attivo</span>
                   )}
                 </p>
               )}

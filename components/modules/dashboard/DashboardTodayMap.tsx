@@ -14,7 +14,7 @@ const TodayMapLeaflet = dynamic(() => import('./TodayMapLeaflet'), {
 
 export default function DashboardTodayMap({ operators }: { operators: TodayOperatorMarker[] }) {
   return (
-    <section className="flex flex-col rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="flex flex-col border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm" style={{ borderRadius: 'var(--radius-xl)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Operatori di oggi</h2>
         <span className="rounded-full bg-[var(--brand-primary-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--brand-primary)]">

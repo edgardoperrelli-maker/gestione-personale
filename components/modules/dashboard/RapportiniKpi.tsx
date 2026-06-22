@@ -17,7 +17,7 @@ function formatGiorno(iso: string): string {
   });
 }
 
-type Tile = { label: string; value: number; className: string };
+type Tile = { label: string; value: number; dotVar: string };
 
 export default function RapportiniKpi() {
   const [giorno, setGiorno] = useState<string>(todayRomeIso());
@@ -44,17 +44,17 @@ export default function RapportiniKpi() {
 
   const tiles: Tile[] = kpi
     ? [
-        { label: 'Inviati', value: kpi.inviato, className: 'bg-[var(--success-soft)] text-[var(--success)]' },
-        { label: 'In corso', value: kpi.valido, className: 'bg-[var(--warning-soft)] text-[var(--warning)]' },
-        { label: 'Scaduti', value: kpi.scaduto, className: 'bg-[var(--danger-soft)] text-[var(--danger)]' },
-        { label: 'Non consegnati', value: kpi.nonConsegnati, className: 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' },
+        { label: 'Inviati', value: kpi.inviato, dotVar: '--status-ok' },
+        { label: 'In corso', value: kpi.valido, dotVar: '--status-progress' },
+        { label: 'Scaduti', value: kpi.scaduto, dotVar: '--status-ko' },
+        { label: 'Non consegnati', value: kpi.nonConsegnati, dotVar: '--status-warn' },
       ]
     : [];
 
   const isOggi = giorno === todayRomeIso();
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm" style={{ borderRadius: 'var(--radius-xl)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Stato rapportini</h2>
         <Link
@@ -70,7 +70,7 @@ export default function RapportiniKpi() {
         <button
           type="button"
           onClick={() => setGiorno((g) => addDaysIso(g, -1))}
-          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)]"
+          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           aria-label="Giorno precedente"
         >
           ◀
@@ -90,7 +90,7 @@ export default function RapportiniKpi() {
         <button
           type="button"
           onClick={() => setGiorno((g) => addDaysIso(g, 1))}
-          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)]"
+          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           aria-label="Giorno successivo"
         >
           ▶
@@ -103,9 +103,18 @@ export default function RapportiniKpi() {
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {tiles.map((t) => (
-              <div key={t.label} className={`rounded-xl px-3 py-3 ${t.className}`}>
-                <p className="text-2xl font-bold tabular-nums">{t.value}</p>
-                <p className="text-xs font-medium opacity-90">{t.label}</p>
+              <div
+                key={t.label}
+                className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-3"
+              >
+                <p className="text-2xl font-semibold tabular-nums text-[var(--brand-text-main)]">{t.value}</p>
+                <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text-muted)]">
+                  <span
+                    className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
+                    style={{ backgroundColor: `var(${t.dotVar})` }}
+                  />
+                  {t.label}
+                </p>
               </div>
             ))}
           </div>

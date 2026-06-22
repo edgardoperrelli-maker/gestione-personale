@@ -151,12 +151,16 @@ export default async function DashboardPage() {
       {showLivePromo && (
         <Link
           href="/hub/live"
-          className="flex items-center justify-between gap-3 rounded-2xl border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)]"
-          style={{ borderColor: 'var(--brand-primary-border)', backgroundColor: 'var(--brand-surface)' }}
+          className="flex items-center justify-between gap-3 border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          style={{
+            borderRadius: 'var(--radius-xl)',
+            borderColor: 'var(--brand-border)',
+            backgroundColor: 'var(--brand-surface)',
+          }}
         >
           <div className="flex items-center gap-3">
             <span
-              className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--brand-primary-soft)]"
+              className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)]"
               style={{ color: 'var(--brand-primary)' }}
             >
               {MODULE_ICONS.live}
@@ -170,7 +174,7 @@ export default async function DashboardPage() {
               </div>
             </div>
           </div>
-          <span className="text-sm font-medium" style={{ color: 'var(--brand-primary)' }}>
+          <span className="text-sm font-medium focus-visible:underline" style={{ color: 'var(--primary-text)' }}>
             Apri →
           </span>
         </Link>
