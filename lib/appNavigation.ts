@@ -1,4 +1,4 @@
-import { APP_MODULES } from '@/lib/moduleAccess';
+import { APP_MODULES, type AppModuleGroup } from '@/lib/moduleAccess';
 
 export type NavItem = {
   key: string;
@@ -6,6 +6,7 @@ export type NavItem = {
   label: string;
   description?: string;
   section: 'overview' | 'modules' | 'system';
+  group?: AppModuleGroup;
   matchPrefixes?: string[];
 };
 
@@ -24,6 +25,7 @@ export const appNavigation: NavItem[] = [
     label: module.label,
     description: module.description,
     section: module.section,
+    group: module.group,
     matchPrefixes: module.matchPrefixes,
   })),
 ];
@@ -33,3 +35,12 @@ export const sectionLabels: Record<NavItem['section'], string> = {
   modules: 'Moduli',
   system: 'Sistema',
 };
+
+export const groupLabels: Record<AppModuleGroup, string> = {
+  pianificazione: 'Pianificazione',
+  operativita: 'Operatività',
+  analisi: 'Analisi',
+  sistema: 'Sistema',
+};
+
+export const GROUP_ORDER: AppModuleGroup[] = ['pianificazione', 'operativita', 'analisi', 'sistema'];

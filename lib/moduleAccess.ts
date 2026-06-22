@@ -8,6 +8,8 @@ export type ValidRole = 'admin' | 'operatore';
  */
 export type AssignableRole = ValidRole | 'admin_plus';
 
+export type AppModuleGroup = 'pianificazione' | 'operativita' | 'analisi' | 'sistema';
+
 export type AppModuleKey =
   | 'dashboard'
   | 'hotel-calendar'
@@ -28,6 +30,8 @@ export type AppModuleDefinition = {
   label: string;
   description: string;
   section: 'overview' | 'modules' | 'system';
+  /** Raggruppamento SOLO per la UI della sidebar (additivo, non incide su access/gating). */
+  group?: AppModuleGroup;
   matchPrefixes?: string[];
   /** Modulo "sensibile": escluso dai default operatore + badge in UI. NON è un gate di accesso. */
   adminOnly?: boolean;
@@ -53,6 +57,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Cronoprogramma',
     description: 'Pianificazione turni e assegnazioni',
     section: 'modules',
+    group: 'pianificazione',
     matchPrefixes: ['/dashboard'],
   },
   {
@@ -61,6 +66,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Calendario Hotel',
     description: 'Prenotazioni e occupazione',
     section: 'modules',
+    group: 'operativita',
     matchPrefixes: ['/hub/hotel-calendar'],
   },
   {
@@ -69,6 +75,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Mappa Operatori',
     description: 'Distribuzione territoriale',
     section: 'modules',
+    group: 'pianificazione',
     matchPrefixes: ['/hub/mappa'],
   },
   {
@@ -77,6 +84,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Interventi',
     description: 'Import e gestione interventi',
     section: 'modules',
+    group: 'operativita',
     matchPrefixes: ['/hub/interventi'],
   },
   {
@@ -85,6 +93,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Live',
     description: 'Interventi del giorno in tempo reale',
     section: 'modules',
+    group: 'operativita',
     matchPrefixes: ['/hub/live'],
     adminOnly: true,
   },
@@ -94,6 +103,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Lista attesa',
     description: 'Ordini manuali degli operatori',
     section: 'modules',
+    group: 'operativita',
     matchPrefixes: ['/hub/lista-attesa'],
     adminOnly: true,
   },
@@ -103,6 +113,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Appuntamenti',
     description: 'Gestione e pianificazione appuntamenti',
     section: 'modules',
+    group: 'pianificazione',
     matchPrefixes: ['/hub/appuntamenti'],
   },
   {
@@ -111,6 +122,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Misuratori',
     description: 'Registro misuratori rimossi',
     section: 'modules',
+    group: 'operativita',
     matchPrefixes: ['/hub/misuratori'],
     adminOnly: true,
   },
@@ -120,6 +132,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Agente',
     description: 'Pianificazione e feedback sync limitazioni massive',
     section: 'modules',
+    group: 'analisi',
     matchPrefixes: ['/hub/agente'],
     adminOnly: true,
   },
@@ -129,6 +142,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Assegnazione AI',
     description: 'Pianificazione assistita dagli interventi letti dal file',
     section: 'modules',
+    group: 'pianificazione',
     matchPrefixes: ['/hub/assegnazione-ai'],
     adminOnly: true,
   },
@@ -138,6 +152,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Performance operatori',
     description: 'KPI interventi per operatore (solo Admin Plus)',
     section: 'modules',
+    group: 'analisi',
     matchPrefixes: ['/hub/performance'],
     adminOnly: true,
   },
@@ -147,6 +162,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     label: 'Impostazioni',
     description: 'Utenze e configurazione accessi',
     section: 'system',
+    group: 'sistema',
     matchPrefixes: ['/impostazioni'],
     adminOnly: true,
     requiresAdminRole: true,
