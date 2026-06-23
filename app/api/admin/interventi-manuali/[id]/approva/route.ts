@@ -94,7 +94,18 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .insert(record)
     .select('id')
     .single();
-  if (eInt) return NextResponse.json({ error: eInt.message }, { status: 500 });
+  if (eInt) {
+    // Compensazione: l'insert dell'intervento è fallito DOPO il check-and-set che ha già
+    // marcato la richiesta 'approvato'. Senza rollback resta uno stato rotto irrecuperabile
+    // (richiesta approvata + nessun intervento + voce bloccata 'in_attesa', e il guard
+    // atomico impedisce la ri-approvazione). Ripristino lo stato → la richiesta torna
+    // ri-approvabile dalla UI.
+    await supabaseAdmin
+      .from('interventi_manuali')
+      .update({ stato: 'in_attesa', deciso_da: null, deciso_at: null })
+      .eq('id', id);
+    return NextResponse.json({ error: eInt.message }, { status: 500 });
+  }
 
   // ── Aggiorna la voce (se presente) ──────────────────────────────────────────
   if (richiesta.voce_id) {
