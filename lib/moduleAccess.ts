@@ -318,14 +318,21 @@ export function buildAppMetadataUpdate(
   currentAllowedModules: unknown,
   requestedRole: AssignableRole | undefined,
   requestedModules: unknown,
-): { role: AssignableRole; allowedModules: AppModuleKey[] } {
+  currentModificaInterventi?: unknown,
+  requestedModificaInterventi?: boolean,
+): { role: AssignableRole; allowedModules: AppModuleKey[]; modificaInterventi: boolean } {
   const effectiveRole = requestedRole ?? resolveAssignableRole(undefined, currentMetadataRole);
   const modulesInput =
     Array.isArray(requestedModules) ? requestedModules :
     Array.isArray(currentAllowedModules) ? currentAllowedModules :
     prefillModulesForRole(effectiveRole);
+  const modificaInterventi =
+    typeof requestedModificaInterventi === 'boolean'
+      ? requestedModificaInterventi
+      : currentModificaInterventi === true;
   return {
     role: effectiveRole,
     allowedModules: normalizeAllowedModules(modulesInput, effectiveRole),
+    modificaInterventi,
   };
 }

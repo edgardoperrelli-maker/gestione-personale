@@ -150,3 +150,22 @@ describe('canEditStorico', () => {
     expect(canEditStorico('admin', { role: 'admin', modificaInterventi: true })).toBe(true);
   });
 });
+
+describe('buildAppMetadataUpdate — flag modificaInterventi', () => {
+  it('default false quando non corrente né richiesto', () => {
+    const out = buildAppMetadataUpdate('operatore', undefined, undefined, ['mappa']);
+    expect(out.modificaInterventi).toBe(false);
+  });
+  it('preserva il flag corrente quando non richiesto esplicitamente', () => {
+    const out = buildAppMetadataUpdate('operatore', ['mappa'], undefined, ['mappa'], true, undefined);
+    expect(out.modificaInterventi).toBe(true);
+  });
+  it('accende il flag quando richiesto true', () => {
+    const out = buildAppMetadataUpdate('operatore', undefined, undefined, ['mappa'], false, true);
+    expect(out.modificaInterventi).toBe(true);
+  });
+  it('spegne il flag quando richiesto false anche se corrente true', () => {
+    const out = buildAppMetadataUpdate('operatore', undefined, undefined, ['mappa'], true, false);
+    expect(out.modificaInterventi).toBe(false);
+  });
+});
