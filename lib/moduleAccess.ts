@@ -310,7 +310,7 @@ export function canAccessPathFromMetadata(pathname: string, appMetadata: unknown
 /**
  * Costruisce l'app_metadata da salvare in un aggiornamento utente (PATCH Utenze).
  * Senza `requestedRole` usa il ruolo corrente (non declassare aggiornando i soli moduli).
- * Senza `requestedModules` preserva i moduli correnti. Applica sempre l'invariante
+ * Senza `requestedModules` preserva i moduli correnti; il flag `modificaInterventi` segue la stessa logica (preserva il corrente se non richiesto). Applica sempre l'invariante
  * `impostazioni` ⟺ ruolo admin.
  */
 export function buildAppMetadataUpdate(

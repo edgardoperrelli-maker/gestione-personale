@@ -1,6 +1,6 @@
 // app/api/admin/interventi/storico/voce/[voceId]/foto/route.ts
 // GET: anteprime foto di una voce (signed URL), lettura per utente del modulo.
-// POST: upload foto aggiuntive (solo admin_plus) — voci manuali → interventi_manuali_foto,
+// POST: upload foto aggiuntive (admin_plus o flag modificaInterventi) — voci manuali → interventi_manuali_foto,
 //       voci standard → risposte.foto_extra. Le foto si leggono da 4 fonti.
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';

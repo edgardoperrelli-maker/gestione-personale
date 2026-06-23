@@ -1,5 +1,5 @@
 // app/api/admin/interventi/storico/voce/[voceId]/route.ts
-// GET: dati per la modale di modifica voce. PATCH: salva anagrafica + risposte. Solo admin_plus.
+// GET/PATCH: modale di modifica voce (admin_plus o flag modificaInterventi). DELETE: solo admin_plus.
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
