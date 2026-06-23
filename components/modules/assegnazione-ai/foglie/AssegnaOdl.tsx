@@ -410,16 +410,19 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
             <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Storico assegnazioni</h2>
             {storico.length > 0 && <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>· {storico.length}</span>}
           </button>
-          {/* avviso "giorno già assegnato": sempre visibile (a colpo d'occhio), anche se la lista è chiusa */}
+          {/* avviso doppione — SOLO all'occorrenza: stai per creare per operatori GIÀ assegnati quel
+              giorno (i conflitti per-operatore sono già segnalati nell'anteprima). */}
           {(() => {
-            const delGiorno = storico.filter((s) => s.data_pianificata === data);
+            if (operatoriDaCreare.length === 0) return null;
+            const nomiSelez = new Set(operatoriDaCreare.map((o) => o.nome));
+            const delGiorno = storico.filter((s) => s.data_pianificata === dataSelez && s.staff_name != null && nomiSelez.has(s.staff_name));
             if (delGiorno.length === 0) return null;
             return (
               <div
                 className="rounded-xl border px-3 py-2 text-sm"
                 style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
               >
-                ⚠️ Il giorno {data} risulta già assegnato:{' '}
+                ⚠️ Stai per creare rapportini per operatori già assegnati il {dataSelez}:{' '}
                 {delGiorno.map((s) => `${s.staff_name ?? '—'} (${s.comune}, ${s.n_interventi})`).join(', ')}.
               </div>
             );
