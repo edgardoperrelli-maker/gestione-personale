@@ -46,7 +46,7 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   return params;
 }
 
-export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff: Staff[]; isAdminPlus: boolean }) {
+export default function StoricoInterventiClient({ staff, isAdminPlus, puoModificare }: { staff: Staff[]; isAdminPlus: boolean; puoModificare: boolean }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
@@ -188,6 +188,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
         <StoricoTabella
           righe={righe}
           isAdminPlus={isAdminPlus}
+          puoModificare={puoModificare}
           onFoto={(id) => setFotoVoceId(id)}
           onModifica={(id) => setModificaVoceId(id)}
           onCancella={cancella}
@@ -221,8 +222,8 @@ export default function StoricoInterventiClient({ staff, isAdminPlus }: { staff:
         )}
       </div>
 
-      {fotoVoceId && <ModaleFotoVoce voceId={fotoVoceId} isAdminPlus={isAdminPlus} onClose={() => setFotoVoceId(null)} />}
-      {isAdminPlus && modificaVoceId && (
+      {fotoVoceId && <ModaleFotoVoce voceId={fotoVoceId} puoCaricare={puoModificare} onClose={() => setFotoVoceId(null)} />}
+      {puoModificare && modificaVoceId && (
         <ModaleModificaVoce
           voceId={modificaVoceId}
           onClose={() => setModificaVoceId(null)}

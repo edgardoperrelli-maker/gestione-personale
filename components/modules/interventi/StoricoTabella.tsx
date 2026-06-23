@@ -37,10 +37,11 @@ function toneClass(v: string): string {
 }
 
 export default function StoricoTabella({
-  righe, isAdminPlus, onFoto, onModifica, onCancella,
+  righe, isAdminPlus, puoModificare, onFoto, onModifica, onCancella,
 }: {
   righe: RigaStorico[];
   isAdminPlus: boolean;
+  puoModificare: boolean;
   onFoto: (voceId: string) => void;
   onModifica: (voceId: string) => void;
   onCancella: (voceId: string) => void;
@@ -88,7 +89,7 @@ export default function StoricoTabella({
                   >
                     📷
                   </button>
-                  {isAdminPlus && (
+                  {puoModificare && (
                     <button
                       type="button"
                       onClick={() => onModifica(r.id)}

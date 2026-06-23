@@ -7,10 +7,10 @@ import Dialog from '@/components/ui/Dialog';
 type Foto = { etichetta: string; fileName: string; url: string };
 
 export default function ModaleFotoVoce({
-  voceId, isAdminPlus, onClose,
+  voceId, puoCaricare, onClose,
 }: {
   voceId: string;
-  isAdminPlus: boolean;
+  puoCaricare: boolean;
   onClose: () => void;
 }) {
   const [foto, setFoto] = useState<Foto[]>([]);
@@ -63,7 +63,7 @@ export default function ModaleFotoVoce({
 
   return (
     <Dialog open onClose={onClose} title="Foto intervento" className="max-w-3xl">
-      {isAdminPlus && (
+      {puoCaricare && (
         <div className="mb-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-dashed border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-2">
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPick} />
           <button
