@@ -79,10 +79,26 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     risposte: rawDati.risposte ?? {},
   };
 
-  // Collegamento opzionale al task-via padre (BONIFICHE EXTRA). Assente ⇒ insert come oggi.
-  const parentVoceId = typeof rawDati.parentVoceId === 'string' && rawDati.parentVoceId.trim() !== ''
+  // Collegamento opzionale al task-via padre (BONIFICHE EXTRA). Il client può mandare l'UUID
+  // del voce padre OPPURE il suo id-task (es. "row-9", task-via offline). `parent_voce_id` è una
+  // colonna UUID: passarci "row-9" faceva fallire l'INSERT con "invalid input syntax for type uuid"
+  // → 500 → il "+" restava "in sincronizzazione" e non arrivava in Lista attesa. Risolviamo SEMPRE
+  // al voce reale di QUESTO rapportino (per id se UUID, altrimenti per task_id); se non risolve → null
+  // (il "+" resta valido, solo non agganciato al task-via, invece di far fallire l'intero invio).
+  const parentRaw = typeof rawDati.parentVoceId === 'string' && rawDati.parentVoceId.trim() !== ''
     ? rawDati.parentVoceId.trim()
     : null;
+  let parentVoceId: string | null = null;
+  if (parentRaw) {
+    const colonnaParent = richiestaIdValido(parentRaw) ? 'id' : 'task_id';
+    const { data: parents } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('id')
+      .eq('rapportino_id', rap.id)
+      .eq(colonnaParent, parentRaw)
+      .limit(1);
+    parentVoceId = ((parents ?? [])[0] as { id: string } | undefined)?.id ?? null;
+  }
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   const { data: templates } = await supabaseAdmin
