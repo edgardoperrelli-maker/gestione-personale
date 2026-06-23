@@ -4,7 +4,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { resolveAssignableRole, canManageUsers } from '@/lib/moduleAccess';
+import { resolveAssignableRole, canManageUsers, canEditStorico } from '@/lib/moduleAccess';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import {
@@ -27,11 +27,25 @@ async function requireAdminPlus(): Promise<true | NextResponse> {
   return true;
 }
 
+/** Gate per modifica/foto: admin_plus OPPURE flag modificaInterventi. NON copre la cancellazione. */
+async function requireEditStorico(): Promise<true | NextResponse> {
+  const cookieStore = await cookies();
+  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
+  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
+  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+  const role = resolveAssignableRole(profile?.role, user.app_metadata?.role);
+  if (!canEditStorico(role, user.app_metadata))
+    return NextResponse.json({ error: 'Non hai i permessi per modificare gli interventi.' }, { status: 403 });
+  return true;
+}
+
 const VOCE_SELECT =
   'id, intervento_id, rapportino_id, risposte, odl, via, comune, attivita, matricola, pdr, nominativo, cap, fascia_oraria';
 
 export async function GET(_req: Request, { params }: { params: Promise<{ voceId: string }> }) {
-  const guard = await requireAdminPlus();
+  const guard = await requireEditStorico();
   if (guard instanceof NextResponse) return guard;
   const { voceId } = await params;
 
@@ -50,7 +64,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
 }
 
 export async function PATCH(req: Request, { params }: { params: Promise<{ voceId: string }> }) {
-  const guard = await requireAdminPlus();
+  const guard = await requireEditStorico();
   if (guard instanceof NextResponse) return guard;
   const { voceId } = await params;
 

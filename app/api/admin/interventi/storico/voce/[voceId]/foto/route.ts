@@ -8,7 +8,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { randomUUID } from 'node:crypto';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
-import { resolveAssignableRole, canManageUsers } from '@/lib/moduleAccess';
+import { resolveAssignableRole, canEditStorico } from '@/lib/moduleAccess';
 import { estraiFotoPaths } from '@/lib/interventi/storico/modifica';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -17,15 +17,17 @@ export const runtime = 'nodejs';
 
 const TTL = 60 * 10; // 10 minuti
 
-async function requireAdminPlus(): Promise<true | NextResponse> {
+/** Gate per upload foto: admin_plus OPPURE flag modificaInterventi. */
+async function requireEditStorico(): Promise<true | NextResponse> {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createRouteHandlerClient({ cookies: cookieMethods });
   const { data: { user } } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
   const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  if (!canManageUsers(resolveAssignableRole(profile?.role, user.app_metadata?.role)))
-    return NextResponse.json({ error: 'Riservato agli Admin Plus.' }, { status: 403 });
+  const role = resolveAssignableRole(profile?.role, user.app_metadata?.role);
+  if (!canEditStorico(role, user.app_metadata))
+    return NextResponse.json({ error: 'Non hai i permessi per modificare gli interventi.' }, { status: 403 });
   return true;
 }
 
@@ -100,7 +102,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
 }
 
 export async function POST(req: Request, { params }: { params: Promise<{ voceId: string }> }) {
-  const guard = await requireAdminPlus();
+  const guard = await requireEditStorico();
   if (guard instanceof NextResponse) return guard;
   const { voceId } = await params;
 
