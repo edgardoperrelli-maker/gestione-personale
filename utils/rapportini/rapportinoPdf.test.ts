@@ -29,6 +29,7 @@ describe('generaRiepilogoPdfBlob', () => {
     ],
     eseguiti: [{ n: 1, valori: ['Esposito Anna', 'ODL-100', 'X', ''] }],
     nonEseguiti: [{ n: 2, valori: ['Conte Rosa', 'ODL-200', '', 'Assente'] }],
+    daFare: [{ n: 3, valori: ['Verdi Ugo', 'ODL-300', '', ''] }],
   };
   it('produce un Blob PDF non vuoto', async () => {
     const blob = await generaRiepilogoPdfBlob(dati);

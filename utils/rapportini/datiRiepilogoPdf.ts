@@ -34,6 +34,9 @@ export interface DatiRiepilogoPdf {
   colonne: ColonnaPdf[];
   eseguiti: RigaPdf[];
   nonEseguiti: RigaPdf[];
+  /** Interventi ancora SENZA esito (non compilati, o template senza campo `eseguito`): NON vanno
+   * scartati dal PDF, altrimenti il corpo resta vuoto pur con interventi pianificati. */
+  daFare: RigaPdf[];
 }
 
 /** Valori di un select che indicano "non fatto" (allineato a voceColore, incl. "NESSUN PASSAGGIO"). */
@@ -118,6 +121,7 @@ export function costruisciDatiPdf(params: {
 
   const eseguiti: RigaPdf[] = [];
   const nonEseguiti: RigaPdf[] = [];
+  const daFare: RigaPdf[] = [];
 
   voci.forEach((v, i) => {
     const rsp = risposteVoce[i];
@@ -132,7 +136,10 @@ export function costruisciDatiPdf(params: {
     const stato = v.manuale ? 'eseguito' : statoVoce(rsp, campi);
     if (stato === 'eseguito') eseguiti.push(riga);
     else if (stato === 'non_eseguito') nonEseguiti.push(riga);
-    // 'da_fare' ignorato: dopo l'invio non esiste (gate daFare === 0)
+    // 'da_fare' (non compilata, o template senza campo `eseguito` es. BONIFICHE EXTRA): NON scartare.
+    // Va mostrata col suo indirizzo/attività, altrimenti un rapportino non (del tutto) compilato
+    // genera un PDF con corpo vuoto pur avendo N interventi nell'header (regressione segnalata).
+    else daFare.push(riga);
   });
 
   return {
@@ -143,5 +150,6 @@ export function costruisciDatiPdf(params: {
     colonne,
     eseguiti,
     nonEseguiti,
+    daFare,
   };
 }

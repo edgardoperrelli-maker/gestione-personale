@@ -148,3 +148,48 @@ describe('costruisciDatiPdf — blindatura barra "Eseguito" voci manuali (regres
     expect(d.lavorazioni.find((l) => l.etichetta === 'Eseguito')?.count).toBe(1);
   });
 });
+
+describe('costruisciDatiPdf — le voci NON compilate (da_fare) NON spariscono dal PDF', () => {
+  // Regressione operativa: i rapportini stampati prima della compilazione, o su template senza
+  // campo `eseguito` (es. BONIFICHE EXTRA), avevano tutte le voci `da_fare` → il corpo del PDF
+  // restava VUOTO pur con N interventi nell'header. Ogni intervento deve comparire (con via/comune/attività).
+  const campiD: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+  ];
+  const voci = [
+    { matricola: 'A', via: 'Via A', comune: 'Roma', risposte: { eseguito: 'SI' } },  // eseguito
+    { matricola: 'B', via: 'Via B', comune: 'Roma', risposte: { eseguito: 'NO' } },  // non eseguito
+    { matricola: 'C', via: 'Via C', comune: 'Roma', risposte: {} },                  // non compilata → da fare
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiD, infoCampi: null });
+
+  it('le voci non compilate finiscono in `daFare`, non scartate', () => {
+    expect(dati.eseguiti.length).toBe(1);
+    expect(dati.nonEseguiti.length).toBe(1);
+    expect(dati.daFare.length).toBe(1);
+  });
+  it('nessun intervento sparisce: somma righe = totale voci', () => {
+    expect(dati.eseguiti.length + dati.nonEseguiti.length + dati.daFare.length).toBe(3);
+    expect(dati.stats.totali).toBe(3);
+  });
+  it('la riga `da fare` porta con sé i suoi dati (via)', () => {
+    expect(dati.daFare[0].valori).toContain('Via C');
+  });
+});
+
+describe('costruisciDatiPdf — template senza campo `eseguito` (BONIFICHE EXTRA)', () => {
+  const campiB: TemplateCampo[] = [
+    { chiave: 'bonifica_semplice', etichetta: 'BONIFICA SEMPLICE', tipo: 'crocetta', ordine: 1 },
+  ];
+  const voci = [
+    { matricola: 'X1', via: 'Via 1', comune: 'Subiaco', attivita: 'BONIFICHE EXTRA', risposte: {} },                       // non compilata
+    { matricola: 'X2', via: 'Via 2', comune: 'Subiaco', attivita: 'BONIFICHE EXTRA', risposte: { bonifica_semplice: true } }, // svolta → verde
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiB, infoCampi: null });
+
+  it('la voce non compilata appare comunque (in daFare), niente corpo vuoto', () => {
+    expect(dati.eseguiti.length).toBe(1);
+    expect(dati.daFare.length).toBe(1);
+    expect(dati.eseguiti.length + dati.nonEseguiti.length + dati.daFare.length).toBe(2);
+  });
+});

@@ -9,6 +9,7 @@ const MUTED: RGB = [91, 103, 117];
 const CYAN: RGB = [10, 143, 176];
 const GREEN: RGB = [21, 128, 61];
 const RED: RGB = [194, 38, 31];
+const AMBER: RGB = [180, 132, 36];
 const LINE: RGB = [227, 232, 238];
 const ML = 12;
 const MR = 12;
@@ -144,7 +145,10 @@ export async function generaRiepilogoPdfBlob(dati: DatiRiepilogoPdf): Promise<Bl
   };
 
   if (dati.eseguiti.length > 0) y = drawSezione('Eseguiti', GREEN, dati.eseguiti, y) + 7;
-  if (dati.nonEseguiti.length > 0) drawSezione('Non eseguiti', RED, dati.nonEseguiti, y);
+  if (dati.nonEseguiti.length > 0) y = drawSezione('Non eseguiti', RED, dati.nonEseguiti, y) + 7;
+  // Interventi ancora senza esito (non compilati / template senza `eseguito`): mostrati comunque,
+  // così il PDF non resta mai vuoto e riporta tutti gli interventi con i loro dati.
+  if (dati.daFare.length > 0) drawSezione('Da eseguire', AMBER, dati.daFare, y);
 
   // ── Piè di pagina su ogni pagina ──
   const ts = timestampLabel();
