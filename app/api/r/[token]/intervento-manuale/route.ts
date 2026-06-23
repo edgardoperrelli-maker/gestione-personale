@@ -243,6 +243,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       .upload(storagePath, buf, { contentType: f.type || 'image/jpeg', upsert: true });
 
     if (upErr) {
+      console.error('[intervento-manuale] upErr', { committente, slot: chiave, msg: upErr.message });
       // Rollback: elimina i file già caricati prima di rispondere con errore.
       if (pathCaricati.length > 0) {
         await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
@@ -336,6 +337,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .select('id')
     .single();
   if (eReq) {
+    console.error('[intervento-manuale] eReq (insert interventi_manuali)', { committente, msg: eReq.message });
     // Rollback storage se l'INSERT DB fallisce.
     if (pathCaricati.length > 0) {
       await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
@@ -359,6 +361,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .select('id')
     .single();
   if (eVoce) {
+    console.error('[intervento-manuale] eVoce (insert voce)', { committente, msg: eVoce.message });
     // Rollback best-effort: storage + richiesta DB (+ intervento se corsia liberi).
     try {
       if (pathCaricati.length > 0) {
@@ -396,6 +399,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       size: foto.size,
     });
     if (insErr) {
+      console.error('[intervento-manuale] insErr (insert foto)', { committente, slot: foto.chiave, msg: insErr.message });
       // Rollback best-effort: storage + foto parziali + voce + richiesta (+ intervento se liberi).
       try {
         if (pathCaricati.length > 0) {
