@@ -1,12 +1,14 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
-import { usePollRuns } from '../usePollRuns';
+import { useAttesaAgente } from '../useAttesaAgente';
+import { BarraAttesaAgente } from '../BarraAttesaAgente';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -21,16 +23,24 @@ type AggiornaStatoOdlProps = {
 export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
   // target: lm → zagarolo, dunning → dunning
   const target = nav.attivita === 'lm' ? 'zagarolo' : 'dunning';
+  const router = useRouter();
 
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [pollAttivo, setPollAttivo] = useState(false);
+  const [dispatchedAt, setDispatchedAt] = useState<number | null>(null);
+  const [baselineTs, setBaselineTs] = useState<string | null>(null);
 
-  // auto-refresh storico dopo l'invio
-  usePollRuns(() => { /* router.refresh() già chiamato dall'hook */ }, pollAttivo);
+  const runsStato = runs.filter((r) => r.tipo === 'acea-stato');
+  // fatto = è arrivato un giro 'acea-stato' più recente del baseline registrato al click
+  const fatto = dispatchedAt != null && runsStato.some((r) => !baselineTs || r.creato_il > baselineTs);
+  const inAttesa = dispatchedAt != null && !fatto;
+
+  // polling finché l'agente non ha fatto il giro (router.refresh ricarica i runs dal server)
+  useAttesaAgente({ inAttesa: dispatchedAt != null, fatto, onPoll: () => router.refresh() });
 
   async function aggiornaStatoAcea() {
     setArming(true); setMsg(null);
+    const baseline = runsStato[0]?.creato_il ?? null; // runs ordinati per creato_il desc
     try {
       const res = await fetch('/api/admin/agente/acea-stato', {
         method: 'POST',
@@ -39,9 +49,8 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
       });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
-        setMsg('Richiesta inviata: parte al prossimo contatto dell\'agente.');
-        setPollAttivo(false);   // reset → riattiviamo subito per far scattare i timer
-        setTimeout(() => setPollAttivo(true), 0);
+        setBaselineTs(baseline);
+        setDispatchedAt(Date.now());
       } else {
         setMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
       }
@@ -61,8 +70,6 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
     : minuti === null
       ? 'Offline · mai visto'
       : `Offline · ${minuti} min fa`;
-
-  const runsStato = runs.filter((r) => r.tipo === 'acea-stato');
 
   return (
     <div className="space-y-4">
@@ -91,14 +98,16 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
         <Button
           variant="primary"
           onClick={() => void aggiornaStatoAcea()}
-          disabled={arming}
+          disabled={arming || inAttesa}
         >
-          {arming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
+          {arming ? 'Invio…' : inAttesa ? 'In attesa…' : 'Aggiorna stato ODL da ACEA'}
         </Button>
 
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>
         )}
+
+        <BarraAttesaAgente dispatchedAt={dispatchedAt} fatto={fatto} etichetta="Aggiorna stato ODL" />
       </CardContent>
       </Card>
 

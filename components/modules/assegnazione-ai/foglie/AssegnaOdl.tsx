@@ -7,6 +7,8 @@ import type { GruppoOperatore } from '@/lib/agente/costruisciAnteprima';
 import type { RigaPianificabile, FileConfig, AceaEsiti, StoricoRiga } from '../tipi';
 import { AnteprimaPianificazione, righeLibere } from '../AnteprimaPianificazione';
 import { PannelloAceaAssegna } from '../PannelloAceaAssegna';
+import { useAttesaAgente } from '../useAttesaAgente';
+import { BarraAttesaAgente } from '../BarraAttesaAgente';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import DatePicker from '@/components/ui/DatePicker';
@@ -65,6 +67,8 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const [aceaEsiti, setAceaEsiti] = useState<AceaEsiti | null>(null);
   const [aceaCheck, setAceaCheck] = useState(false);
   const [esitoAperto, setEsitoAperto] = useState(false); // card esiti ACEA: chiusa, si apre quando assegni
+  const [dispatchedAtAcea, setDispatchedAtAcea] = useState<number | null>(null);
+  const [baselineAceaTs, setBaselineAceaTs] = useState<string | null>(null);
 
   // ── Filtra righe per questa commessa+attività ─────────────────────────────
   const isLm = nav.attivita === 'lm';
@@ -177,6 +181,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
     if (odlSelezionati.length === 0) { setAceaMsg('Seleziona prima gli interventi da assegnare su ACEA.'); return; }
     setAceaArming(true); setAceaMsg(null); setEsitoAperto(true);
     const giorno = dataSelez;
+    const baseline = aceaEsiti?.ultimoRun?.creato_il ?? null;
     try {
       const res = await fetch('/api/admin/agente/acea-assegna', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -187,7 +192,9 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         setAceaMsg(
           `Richiesta inviata (${aceaDry ? 'PROVA' : 'REALE'}) per ${odlSelezionati.length} ODL selezionati del ${giorno}: l'agente assegnerà al prossimo contatto (~1 min). L'esito comparirà qui sotto.`,
         );
-        for (const ms of [15000, 35000, 60000, 90000]) setTimeout(() => void caricaAceaEsiti(giorno), ms);
+        // la barra "In attesa dell'agente" + il polling continuo subentrano al vecchio polling fisso
+        setBaselineAceaTs(baseline);
+        setDispatchedAtAcea(Date.now());
       } else setAceaMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
     } catch (e) {
       setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
@@ -260,6 +267,17 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const odlSelezionati = righeSelez.map((r) => r.odl).filter((x): x is string => !!x);
   const dataSelez = righeSelez[0]?.data ?? data;
 
+  // ── Attesa agente ──────────────────────────────────────────────────────────
+  // Assegna su ACEA: fatto = è arrivato un esito 'acea-assegna' più recente del baseline al click.
+  // (acea-assegna può durare a lungo → niente soglia di stallo nella barra)
+  const fattoAcea =
+    dispatchedAtAcea != null &&
+    aceaEsiti?.ultimoRun != null &&
+    (!baselineAceaTs || aceaEsiti.ultimoRun.creato_il > baselineAceaTs);
+  useAttesaAgente({ inAttesa: dispatchedAtAcea != null, fatto: fattoAcea, onPoll: () => void caricaAceaEsiti(dataSelez) });
+  // Lettura file: finché pianificaData è valorizzato (segnale server, mostrato nel banner) → ricarica
+  useAttesaAgente({ inAttesa: pianificaData != null, fatto: false, onPoll: () => router.refresh() });
+
   // ── Render ────────────────────────────────────────────────────────────────
 
   return (
@@ -288,18 +306,17 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         </div>
         {pianificaData && (
           <div
-            className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm"
-            style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
+            className="rounded-xl border px-3 py-2.5 space-y-2"
+            style={{ borderColor: 'var(--status-progress-soft)', backgroundColor: 'var(--status-progress-soft)' }}
           >
-            <span>In attesa di lettura per il giorno {pianificaData}</span>
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => router.refresh()}
-              className="ml-auto"
-            >
-              ↻ Aggiorna
-            </Button>
+            <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
+              <span style={{ color: 'var(--status-progress)' }}>⟳</span>
+              <span>
+                In attesa dell&rsquo;agente — lettura del giorno {pianificaData}…
+                <span className="font-normal" style={{ color: 'var(--brand-text-muted)' }}>{' '}(parte entro ~1 min)</span>
+              </span>
+            </div>
+            <div className="barra-indeterminata h-1.5 w-full" style={{ backgroundColor: 'var(--brand-surface-muted)' }} aria-hidden />
           </div>
         )}
         {msg && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>}
@@ -457,6 +474,11 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
           )}
         </CardContent>
       </Card>
+
+      {/* Barra "in attesa dell'agente" per l'assegnazione su ACEA (può durare a lungo → niente soglia di stallo) */}
+      {!isLm && (
+        <BarraAttesaAgente dispatchedAt={dispatchedAtAcea} fatto={fattoAcea} sogliaStalloMin={null} etichetta="Assegna su ACEA" />
+      )}
 
       {/* Assegnazione ACEA: il trigger è nella barra azioni → qui solo gli ESITI (dunning) o la nota LM */}
       {isLm ? (

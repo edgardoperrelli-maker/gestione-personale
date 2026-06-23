@@ -2,11 +2,13 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
-import { usePollRuns } from '../usePollRuns';
+import { useAttesaAgente } from '../useAttesaAgente';
+import { BarraAttesaAgente } from '../BarraAttesaAgente';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -18,22 +20,27 @@ type SincronizzaRapportiniProps = {
 // ─── Componente — solo LM ─────────────────────────────────────────────────────
 
 export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniProps) {
+  const router = useRouter();
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
-  const [pollAttivo, setPollAttivo] = useState(false);
+  const [dispatchedAt, setDispatchedAt] = useState<number | null>(null);
+  const [baselineTs, setBaselineTs] = useState<string | null>(null);
 
-  // auto-refresh storico dopo "Esegui ora"
-  usePollRuns(() => { /* router.refresh() già eseguito dall'hook */ }, pollAttivo);
+  const runsSync = runs.filter((r) => r.tipo === 'sync' || !r.tipo);
+  const fatto = dispatchedAt != null && runsSync.some((r) => !baselineTs || r.creato_il > baselineTs);
+  const inAttesa = dispatchedAt != null && !fatto;
+
+  useAttesaAgente({ inAttesa: dispatchedAt != null, fatto, onPoll: () => router.refresh() });
 
   async function eseguiOra() {
     setArming(true); setMsg(null);
+    const baseline = runsSync[0]?.creato_il ?? null;
     try {
       const res = await fetch('/api/admin/agente/esegui-ora', { method: 'POST' });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
-        setMsg('Giro armato: parte al prossimo contatto dell\'agente (entro l\'ora).');
-        setPollAttivo(false);
-        setTimeout(() => setPollAttivo(true), 0);
+        setBaselineTs(baseline);
+        setDispatchedAt(Date.now());
       } else {
         setMsg(`Errore: ${(j as { error?: string }).error ?? res.status}`);
       }
@@ -53,8 +60,6 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
     : minuti === null
       ? 'Offline · mai visto'
       : `Offline · ${minuti} min fa`;
-
-  const runsSync = runs.filter((r) => r.tipo === 'sync' || !r.tipo);
 
   return (
     <div className="space-y-4">
@@ -84,9 +89,9 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
           <Button
             variant="primary"
             onClick={() => void eseguiOra()}
-            disabled={arming}
+            disabled={arming || inAttesa}
           >
-            {arming ? 'Invio…' : 'Esegui ora'}
+            {arming ? 'Invio…' : inAttesa ? 'In attesa…' : 'Esegui ora'}
           </Button>
 
           <Link
@@ -100,6 +105,8 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>
         )}
+
+        <BarraAttesaAgente dispatchedAt={dispatchedAt} fatto={fatto} etichetta="Sincronizza rapportini" />
       </CardContent>
       </Card>
 

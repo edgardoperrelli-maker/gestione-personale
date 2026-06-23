@@ -306,3 +306,29 @@ html { font-size: 16px; }
 .rapp-scroll::-webkit-scrollbar-track { background: transparent; }
 .rapp-scroll::-webkit-scrollbar-thumb { background: var(--brand-primary); border-radius: 999px; border: 2px solid transparent; background-clip: padding-box; }
 .rapp-scroll::-webkit-scrollbar-thumb:hover { background: var(--brand-primary); }
+
+/* Barra di progresso indeterminata (es. "In attesa dell'agente"). */
+@keyframes barra-indeterminata {
+  0%   { left: -40%; width: 40%; }
+  50%  { left: 30%;  width: 45%; }
+  100% { left: 100%; width: 40%; }
+}
+.barra-indeterminata {
+  position: relative;
+  overflow: hidden;
+  border-radius: 999px;
+}
+.barra-indeterminata::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -40%;
+  width: 40%;
+  border-radius: 999px;
+  background: var(--status-progress);
+  animation: barra-indeterminata 1.4s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .barra-indeterminata::after { animation: none; left: 0; width: 100%; opacity: 0.5; }
+}
