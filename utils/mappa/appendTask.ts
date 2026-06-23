@@ -150,3 +150,32 @@ export function ensureOperatorInDistribution<E extends RoutableEntry & { staffId
   const next = [...distribution, makeEmpty()];
   return { distribution: next, idx: next.length - 1 };
 }
+
+/**
+ * Aggancia `task` all'operatore `targetStaffId` SENZA ridistribuire fra operatori, restituendo una
+ * distribuzione ALLINEATA all'ordine `orderedStaffIds` (stessa lunghezza/ordine degli operatori
+ * selezionati). Serve all'aggiunta manuale su un piano già distribuito/riaperto: aggiungere un
+ * intervento NON deve rimescolare le assegnazioni esistenti.
+ * - ogni operatore con un gruppo esistente lo conserva INTATTO (stesso riferimento di entry);
+ * - gli operatori in `orderedStaffIds` privi di gruppo ne ricevono uno vuoto da `makeEmpty`, così
+ *   l'array resta allineato a selectedOps — invariante richiesto dal salvataggio, che accoppia
+ *   operatore e gruppo per indice;
+ * - SOLO l'operatore target riceve il task in coda e la sua rotta viene ricalcolata.
+ * Pura: non muta l'input.
+ */
+export function alignAndAppendTask<E extends RoutableEntry & { staffId: string }>(
+  orderedStaffIds: string[],
+  distribution: E[],
+  targetStaffId: string,
+  task: Task,
+  optimize: OptimizeFn,
+  makeEmpty: (staffId: string, index: number) => E,
+): E[] {
+  const byStaff = new Map(distribution.map((d) => [d.staffId, d] as const));
+  return orderedStaffIds.map((staffId, i) => {
+    const base = byStaff.get(staffId) ?? makeEmpty(staffId, i);
+    if (staffId !== targetStaffId) return base;
+    const res = optimize([...base.tasks, task], base.base ?? undefined);
+    return { ...base, tasks: res.orderedTasks, km: res.totalDistanceKm, polyline: res.polyline, schedule: res.schedule };
+  });
+}

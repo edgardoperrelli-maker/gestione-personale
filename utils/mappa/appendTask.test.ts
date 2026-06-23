@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, type RoutableEntry, type OptimizeFn } from './appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, alignAndAppendTask, type RoutableEntry, type OptimizeFn } from './appendTask';
 import type { Task } from '@/utils/routing/types';
 
 function task(id: string, lat?: number, lng?: number): Task {
@@ -179,5 +179,49 @@ describe('ensureOperatorInDistribution', () => {
     expect(res.distribution).toHaveLength(2);
     expect(res.distribution[1].staffId).toBe('C');
     expect(dist).toHaveLength(1);
+  });
+});
+
+describe('alignAndAppendTask', () => {
+  const makeEmpty = (staffId: string): Entry => entry(staffId, []);
+
+  it("operatore NUOVO (assente dalla distribuzione): riceve solo il task, gli altri restano INTATTI (niente ridistribuzione)", () => {
+    const dist = [entry('A', [task('a1'), task('a2')]), entry('B', [task('b1')])];
+    const out = alignAndAppendTask(['A', 'B', 'C'], dist, 'C', task('c1'), fakeOptimize, makeEmpty);
+    expect(out.map((e) => e.staffId)).toEqual(['A', 'B', 'C']);
+    expect(out[0]).toEqual(dist[0]);            // A intatto
+    expect(out[1]).toEqual(dist[1]);            // B intatto
+    expect(out[2].tasks.map((t) => t.id)).toEqual(['c1']); // C solo il nuovo
+  });
+
+  it("operatore ESISTENTE: i suoi task esistenti + il nuovo; gli altri intatti", () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [task('b1')])];
+    const out = alignAndAppendTask(['A', 'B'], dist, 'A', task('a2'), fakeOptimize, makeEmpty);
+    expect(out[0].tasks.map((t) => t.id)).toEqual(['a1', 'a2']);
+    expect(out[1]).toEqual(dist[1]);
+  });
+
+  it("ALLINEA a selectedOps: operatori selezionati senza gruppo ricevono un gruppo VUOTO (no crash al salvataggio per-indice)", () => {
+    const dist = [entry('A', [task('a1')])];
+    // selectedOps = [A, X, B] ma distribuzione ha solo A → X e B vanno riempiti, in ordine.
+    const out = alignAndAppendTask(['A', 'X', 'B'], dist, 'B', task('b1'), fakeOptimize, makeEmpty);
+    expect(out.map((e) => e.staffId)).toEqual(['A', 'X', 'B']);
+    expect(out[0]).toEqual(dist[0]);            // A intatto
+    expect(out[1].tasks).toEqual([]);           // X gruppo vuoto allineato
+    expect(out[2].tasks.map((t) => t.id)).toEqual(['b1']); // B (target) con il task
+  });
+
+  it('non muta input (purezza)', () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [task('b1')])];
+    const snap = JSON.parse(JSON.stringify(dist));
+    alignAndAppendTask(['A', 'B', 'C'], dist, 'C', task('c1'), fakeOptimize, makeEmpty);
+    expect(dist).toEqual(snap);
+  });
+
+  it("ricalcola la rotta del solo target (km dal fakeOptimize)", () => {
+    const dist = [entry('A', [task('a1')]), entry('B', [task('b1'), task('b2')])];
+    const out = alignAndAppendTask(['A', 'B'], dist, 'B', task('b3'), fakeOptimize, makeEmpty);
+    expect(out[1].km).toBe(3);                  // B ricalcolato (3 task)
+    expect(out[0].km).toBe(dist[0].km);         // A invariato
   });
 });

@@ -8,7 +8,7 @@ import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
-import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution } from '@/utils/mappa/appendTask';
+import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, alignAndAppendTask } from '@/utils/mappa/appendTask';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
@@ -2200,21 +2200,57 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       return;
     }
 
-    // Operatore non ancora nel gruppo (piano in costruzione) → aggiungilo e ridistribuisci.
-    setSelectedOps((prev) => {
-      if (prev.some((o) => o.id === operator.id)) return prev;
-      const isRepOnDay = operator.reperibileDates.includes(planningDate);
-      const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
-      const base = usesHome
-        ? { lat: operator.homeLat!, lng: operator.homeLng! }
-        : operator.startLat != null && operator.startLng != null
-          ? { lat: operator.startLat, lng: operator.startLng }
-          : null;
-      const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
-      return [...prev, { id: operator.id, name: operator.displayName, qty: 0, base, startAddress }];
-    });
-    if (distribution) distributeToOps();
-  }, [operatorOptions, planningDate, distribution, distributeToOps]);
+    // Operatore non ancora nel gruppo: calcola base/partenza una volta sola.
+    const isRepOnDay = operator.reperibileDates.includes(planningDate);
+    const usesHome = isRepOnDay && operator.homeLat != null && operator.homeLng != null;
+    const base = usesHome
+      ? { lat: operator.homeLat!, lng: operator.homeLng! }
+      : operator.startLat != null && operator.startLng != null
+        ? { lat: operator.startLat, lng: operator.startLng }
+        : null;
+    const startAddress = usesHome ? (operator.homeAddress ?? operator.startAddress) : operator.startAddress;
+
+    // selectedOps "next": l'operatore scelto entra in coda se assente (qty allineata).
+    const opsNext: OpConfig[] = selectedOps.some((o) => o.id === operator.id)
+      ? selectedOps.map((o) => (o.id === operator.id ? { ...o, qty: (o.qty || 0) + 1 } : o))
+      : [...selectedOps, { id: operator.id, name: operator.displayName, qty: distribution ? 1 : 0, base, startAddress }];
+    setSelectedOps(opsNext);
+
+    // Piano già distribuito (riaperto o in modifica): il Salva deve SOLO salvare. Niente
+    // ridistribuzione cieca: ricostruisco la distribuzione ALLINEATA a opsNext, preservando i
+    // task di ogni operatore e agganciando il nuovo intervento SOLO all'operatore scelto. La
+    // distribuzione automatica resta esclusiva del pulsante "Distribuisci". Senza distribuzione
+    // (piano in costruzione) il task resta in coda finché l'utente non distribuisce.
+    if (distribution) {
+      const orderedStaffIds = opsNext.map((o) => o.id);
+      const metaById = new Map(opsNext.map((o) => [o.id, o] as const));
+      setDistribution((prev) =>
+        prev
+          ? alignAndAppendTask(
+              orderedStaffIds,
+              prev,
+              operator.id,
+              geocoded,
+              optimizeRouteByFascia,
+              (staffId, i): DistEntry => {
+                const m = metaById.get(staffId);
+                return {
+                  op: m?.name ?? staffId,
+                  staffId,
+                  color: OP_COLORS[i % OP_COLORS.length],
+                  tasks: [],
+                  km: 0,
+                  polyline: [],
+                  base: m?.base ?? null,
+                  startAddress: m?.startAddress ?? null,
+                  schedule: [],
+                };
+              },
+            )
+          : prev,
+      );
+    }
+  }, [operatorOptions, planningDate, distribution, selectedOps]);
 
   // Nessuna auto-distribuzione: gli esecutori indicati nel file restano come
   // PROPOSTA (pin + operatori auto-selezionati), ma la distribuzione parte solo
