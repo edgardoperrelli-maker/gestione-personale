@@ -29,6 +29,7 @@ type UserRow = {
   roleLabel: string;
   allowedModules: AppModuleKey[];
   createdAt: string;
+  modificaInterventi: boolean;
 };
 
 type EditRow = UserRow & { newPassword: string };
@@ -202,6 +203,47 @@ const fieldLabel = 'mb-1 block text-xs font-medium';
 const inputCls = 'w-full rounded-[var(--radius-md)] border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:border-[var(--brand-primary)]';
 const inputStyle = { borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)', backgroundColor: 'var(--brand-surface)' };
 
+// Toggle del permesso-azione "modifica interventi" (separato dai moduli di accesso).
+// Per gli Admin Plus è sempre attivo e bloccato (segue il ruolo).
+function TogglePermessoModifica({
+  role, checked, onChange,
+}: {
+  role: AssignableRole;
+  checked: boolean;
+  onChange: (value: boolean) => void;
+}) {
+  const isPlus = role === 'admin_plus';
+  const effective = isPlus ? true : checked;
+  return (
+    <label
+      className="mt-5 flex items-start gap-2.5 rounded-[var(--radius-md)] border px-3 py-2.5 transition"
+      style={{
+        borderColor: effective ? 'var(--brand-primary)' : 'var(--brand-border)',
+        backgroundColor: effective ? 'var(--brand-primary-soft)' : 'var(--brand-surface-muted)',
+        cursor: isPlus ? 'default' : 'pointer',
+        opacity: isPlus ? 0.7 : 1,
+      }}
+      title={isPlus ? 'Gli Admin Plus possono sempre modificare' : undefined}
+    >
+      <input
+        type="checkbox"
+        checked={effective}
+        disabled={isPlus}
+        onChange={(e) => onChange(e.target.checked)}
+        className="mt-0.5 shrink-0"
+      />
+      <span className="min-w-0">
+        <span className="block text-xs font-medium" style={{ color: 'var(--brand-text-main)' }}>
+          Può modificare gli interventi
+        </span>
+        <span className="block text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>
+          Correggere dati/esiti e aggiungere foto nello storico, senza poter cancellare.
+        </span>
+      </span>
+    </label>
+  );
+}
+
 export default function UtenzeClient() {
   const [users, setUsers] = useState<EditRow[]>([]);
   const [availableModules, setAvailableModules] = useState<ModuleOption[]>([]);
@@ -222,11 +264,13 @@ export default function UtenzeClient() {
     password: string;
     role: AssignableRole;
     allowedModules: AppModuleKey[];
+    modificaInterventi: boolean;
   }>({
     username: '',
     password: '',
     role: 'operatore',
     allowedModules: prefillModulesForRole('operatore'),
+    modificaInterventi: false,
   });
 
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -334,6 +378,7 @@ export default function UtenzeClient() {
         password: form.password,
         role: form.role,
         allowedModules: form.allowedModules,
+        modificaInterventi: form.modificaInterventi,
       };
 
       const res = await fetch('/api/admin/users', {
@@ -354,6 +399,7 @@ export default function UtenzeClient() {
         password: '',
         role: 'operatore',
         allowedModules: prefillModulesForRole('operatore'),
+        modificaInterventi: false,
       });
       showFeedback('success', `Utenza "${json.user?.username}" creata.`);
     } catch (err) {
@@ -375,6 +421,7 @@ export default function UtenzeClient() {
           role: user.role,
           password: user.newPassword || undefined,
           allowedModules: user.allowedModules,
+          modificaInterventi: user.modificaInterventi,
         }),
       });
       const json = await res.json() as { ok?: boolean; error?: string };
@@ -516,6 +563,11 @@ export default function UtenzeClient() {
             modules={availableModules}
             onToggle={toggleCreateModule}
             onSelectGroup={selectCreateGroup}
+          />
+          <TogglePermessoModifica
+            role={form.role}
+            checked={form.modificaInterventi}
+            onChange={(value) => setForm((prev) => ({ ...prev, modificaInterventi: value }))}
           />
         </div>
       </section>
@@ -660,6 +712,11 @@ export default function UtenzeClient() {
                           modules={availableModules}
                           onToggle={(moduleKey) => toggleUserModule(user.userId, moduleKey)}
                           onSelectGroup={(keys, allSelected) => selectUserGroup(user.userId, keys, allSelected)}
+                        />
+                        <TogglePermessoModifica
+                          role={user.role}
+                          checked={user.modificaInterventi}
+                          onChange={(value) => updateRow(user.userId, { modificaInterventi: value })}
                         />
                       </div>
 
