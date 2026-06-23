@@ -89,6 +89,7 @@ export async function GET() {
       role,
       roleLabel: ASSIGNABLE_ROLE_LABELS[role],
       allowedModules: getAllowedModulesForUser(u.app_metadata, role),
+      modificaInterventi: u.app_metadata?.modificaInterventi === true,
       createdAt: u.created_at,
     };
   }).sort((a, b) => a.username.localeCompare(b.username, 'it'));
@@ -116,6 +117,7 @@ export async function POST(req: NextRequest) {
     password?: string;
     role?: string;
     allowedModules?: AppModuleKey[];
+    modificaInterventi?: boolean;
   };
 
   const username = normalizeUsername(body.username ?? '');
@@ -134,7 +136,7 @@ export async function POST(req: NextRequest) {
     email,
     password,
     email_confirm: true,
-    app_metadata: { role, allowedModules },
+    app_metadata: { role, allowedModules, modificaInterventi: body.modificaInterventi === true },
   });
 
   if (authErr || !authData.user) {
@@ -160,6 +162,7 @@ export async function POST(req: NextRequest) {
       role,
       roleLabel: ASSIGNABLE_ROLE_LABELS[role],
       allowedModules,
+      modificaInterventi: body.modificaInterventi === true,
       createdAt: authData.user.created_at,
     },
   });
@@ -176,6 +179,7 @@ export async function PATCH(req: NextRequest) {
     role?: string;
     username?: string;
     allowedModules?: AppModuleKey[];
+    modificaInterventi?: boolean;
   };
 
   const userId = (body.userId ?? '').trim();
@@ -186,6 +190,7 @@ export async function PATCH(req: NextRequest) {
   if (getErr) return NextResponse.json({ error: getErr.message }, { status: 400 });
   const currentMetaRole = current?.user?.app_metadata?.role;
   const currentModules = current?.user?.app_metadata?.allowedModules;
+  const currentModifica = current?.user?.app_metadata?.modificaInterventi;
   const currentAssignable = resolveAssignableRole(undefined, currentMetaRole);
 
   const requestedRole = isAssignableRole(body.role) ? body.role : undefined;
@@ -210,12 +215,14 @@ export async function PATCH(req: NextRequest) {
     updates.email = toEmail(body.username);
   }
 
-  if (requestedRole || Array.isArray(body.allowedModules)) {
+  if (requestedRole || Array.isArray(body.allowedModules) || typeof body.modificaInterventi === 'boolean') {
     updates.app_metadata = buildAppMetadataUpdate(
       currentMetaRole,
       currentModules,
       requestedRole,
       body.allowedModules,
+      currentModifica,
+      body.modificaInterventi,
     );
   }
 
