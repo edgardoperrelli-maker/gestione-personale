@@ -12,7 +12,7 @@ import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 
 export const runtime = 'nodejs';
 
-type PianRow = { id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; data: string; esecutore: string | null };
+type PianRow = { id: string; file: string; odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; data: string; esecutore: string | null; attivita: string | null };
 
 export async function POST(req: Request) {
   const auth = await requireAdmin();
@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     // 1) righe selezionate
     const { data: rowsRaw, error: eRows } = await supabaseAdmin
       .from('agente_pianificabili')
-      .select('id, file, odl, matricola, indirizzo, comune, data, esecutore')
+      .select('id, file, odl, matricola, indirizzo, comune, data, esecutore, attivita')
       .in('id', ids);
     if (eRows) throw eRows;
     const rows = (rowsRaw ?? []) as PianRow[];
@@ -57,7 +57,7 @@ export async function POST(req: Request) {
         cur.n += 1; nonRisoltiMap.set(key, cur);
         continue;
       }
-      risolte.push({ id: r.id, file: r.file, odl: r.odl, matricola: r.matricola, indirizzo: r.indirizzo, comune: r.comune, data: r.data, staffId: res.staffId, staffName: res.staffName });
+      risolte.push({ id: r.id, file: r.file, odl: r.odl, matricola: r.matricola, indirizzo: r.indirizzo, comune: r.comune, data: r.data, staffId: res.staffId, staffName: res.staffName, attivita: r.attivita });
     }
 
     // 4) per ogni file (template/attivita possono differire) raggruppa e crea i piani

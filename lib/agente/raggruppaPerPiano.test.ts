@@ -31,4 +31,16 @@ describe('raggruppaPerPiano', () => {
     expect(out).toHaveLength(2);
     expect(out.every((p) => p.territorio === 'ACEA')).toBe(true);
   });
+
+  it('attività PER-RIGA vince sul fallback; riga senza attività usa il fallback', () => {
+    const out = raggruppaPerPiano([
+      r({ id: '1', staffId: 's1', attivita: 'SOSPENSIONE' }),
+      r({ id: '2', staffId: 's1', attivita: '   ' }),   // vuota → fallback
+      r({ id: '3', staffId: 's1', attivita: null }),     // assente → fallback
+    ], 'DUNNING', 'ACEA');
+    const tasks = out[0].operatori[0].tasks;
+    expect(tasks.find((t) => t.id === '1')!.attivita).toBe('SOSPENSIONE');
+    expect(tasks.find((t) => t.id === '2')!.attivita).toBe('DUNNING');
+    expect(tasks.find((t) => t.id === '3')!.attivita).toBe('DUNNING');
+  });
 });

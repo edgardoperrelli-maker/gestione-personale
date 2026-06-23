@@ -10,11 +10,14 @@ import type { Task } from '@/utils/routing/types';
 export type RigaRisolta = {
   id: string; odl: string | null; matricola: string | null; indirizzo: string | null;
   comune: string | null; data: string; staffId: string; staffName: string;
+  /** Attività specifica della riga (dal file ACEA, colonna "Operazione testo breve").
+   *  Se assente/vuota si usa il fallback per-file (cfg.attivita, es. DUNNING). */
+  attivita?: string | null;
 };
 export type OperatorePianoDaCreare = { staffId: string; staffName: string; tasks: Task[] };
 export type PianoDaCreare = { data: string; territorio: string; operatori: OperatorePianoDaCreare[] };
 
-function rigaToTask(r: RigaRisolta, attivita: string): Task {
+function rigaToTask(r: RigaRisolta, attivitaFallback: string): Task {
   return {
     id: r.id,
     odl: r.odl ?? '',
@@ -24,7 +27,8 @@ function rigaToTask(r: RigaRisolta, attivita: string): Task {
     priorita: 0,
     fascia_oraria: '',
     matricola: r.matricola ?? undefined,
-    attivita,
+    // l'attività specifica della riga (es. "SOSPENSIONE") vince; se assente/vuota → fallback per-file
+    attivita: (r.attivita ?? '').trim() || attivitaFallback,
   };
 }
 
