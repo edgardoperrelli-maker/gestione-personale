@@ -206,6 +206,19 @@ export function canManageUsers(role: AssignableRole | null | undefined): boolean
   return role === 'admin_plus';
 }
 
+/**
+ * Può modificare/aggiungere foto alle voci dello storico interventi (NON cancellare).
+ * Vero per gli Admin Plus (sempre) o per chi ha il flag `modificaInterventi` nei metadata.
+ * La cancellazione resta separata (canManageUsers).
+ */
+export function canEditStorico(
+  role: AssignableRole | null | undefined,
+  appMetadata: unknown,
+): boolean {
+  if (canManageUsers(role)) return true;
+  return extractAppMetadata(appMetadata)?.modificaInterventi === true;
+}
+
 /** True per i ruoli con privilegi amministrativi (admin e admin_plus). */
 export function isAdminAssignableRole(role: AssignableRole | null | undefined): boolean {
   return role === 'admin' || role === 'admin_plus';
@@ -254,9 +267,9 @@ export function normalizeAllowedModules(
   return ALL_MODULE_KEYS.filter((key) => set.has(key)); // ordine stabile
 }
 
-function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: unknown } | null {
+function extractAppMetadata(value: unknown): { allowedModules?: unknown; role?: unknown; modificaInterventi?: unknown } | null {
   if (!value || typeof value !== 'object') return null;
-  return value as { allowedModules?: unknown; role?: unknown };
+  return value as { allowedModules?: unknown; role?: unknown; modificaInterventi?: unknown };
 }
 
 export function getAllowedModulesForUser(appMetadata: unknown, role?: AssignableRole | null): AppModuleKey[] {

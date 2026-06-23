@@ -7,6 +7,7 @@ import {
   prefillModulesForRole,
   fallbackModulesForRole,
   canManageUsers,
+  canEditStorico,
 } from './moduleAccess';
 
 describe('resolveUserRole', () => {
@@ -125,5 +126,27 @@ describe('buildAppMetadataUpdate (PATCH Utenze)', () => {
   it('nessun modulo né corrente né richiesto: usa il prefill del ruolo', () => {
     const out = buildAppMetadataUpdate('operatore', undefined, undefined, undefined);
     expect(out.allowedModules).toEqual([]); // prefillModulesForRole('operatore') = []
+  });
+});
+
+describe('canEditStorico', () => {
+  it('admin_plus può sempre, anche senza flag', () => {
+    expect(canEditStorico('admin_plus', null)).toBe(true);
+    expect(canEditStorico('admin_plus', { role: 'admin_plus' })).toBe(true);
+  });
+  it('operatore con flag modificaInterventi=true può', () => {
+    expect(canEditStorico('operatore', { role: 'operatore', modificaInterventi: true })).toBe(true);
+  });
+  it('operatore senza flag / flag false / metadata vuoti NON può', () => {
+    expect(canEditStorico('operatore', { role: 'operatore' })).toBe(false);
+    expect(canEditStorico('operatore', { role: 'operatore', modificaInterventi: false })).toBe(false);
+    expect(canEditStorico('operatore', null)).toBe(false);
+    expect(canEditStorico('operatore', undefined)).toBe(false);
+  });
+  it('admin semplice senza flag NON può (solo admin_plus è implicito)', () => {
+    expect(canEditStorico('admin', { role: 'admin' })).toBe(false);
+  });
+  it('admin semplice con flag può', () => {
+    expect(canEditStorico('admin', { role: 'admin', modificaInterventi: true })).toBe(true);
   });
 });
