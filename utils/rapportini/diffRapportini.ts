@@ -79,3 +79,23 @@ export function calcolaDiffRapportini(input: DiffInput): DiffRapportini {
 
   return { nessunaModifica, spostamenti, nuoviLink, svuotati, inviatiCoinvolti, bloccati };
 }
+
+/**
+ * Decide come sincronizzare le voci del rapportino dopo un Salva piano (Opzione A).
+ * - `avvisoBloccati`: testo (non bloccante) se ci sono interventi COMPLETATI "spostati".
+ * - `richiediConfermaInviati`: true se sono coinvolti rapportini GIÀ INVIATI → chiedere conferma
+ *   prima di riaprirli/aggiornarli. Senza inviati coinvolti la riconciliazione delle voci è
+ *   AUTOMATICA a ogni Salva (rimuove le voci fantasma, aggiunge le mancanti, preserva le risposte
+ *   per `task_id`): è ciò che evita il disallineamento rapportino↔piano.
+ */
+export function decideSyncRapportini(diff: DiffRapportini): {
+  avvisoBloccati: string | null;
+  richiediConfermaInviati: boolean;
+} {
+  const avvisoBloccati = diff.bloccati.length > 0
+    ? `Questi interventi sono completati e non andrebbero spostati:\n${diff.bloccati
+        .map((b) => `• ${b.descr} (${b.daNome} → ${b.aNome})`)
+        .join('\n')}`
+    : null;
+  return { avvisoBloccati, richiediConfermaInviati: diff.inviatiCoinvolti.length > 0 };
+}

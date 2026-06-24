@@ -1,6 +1,6 @@
 // utils/rapportini/diffRapportini.test.ts
 import { describe, it, expect } from 'vitest';
-import { calcolaDiffRapportini, type DiffInput } from './diffRapportini';
+import { calcolaDiffRapportini, decideSyncRapportini, type DiffInput } from './diffRapportini';
 
 function base(over: Partial<DiffInput> = {}): DiffInput {
   return {
@@ -12,6 +12,44 @@ function base(over: Partial<DiffInput> = {}): DiffInput {
     ...over,
   };
 }
+
+describe('decideSyncRapportini', () => {
+  // task t1 spostato da s1 (Mario) a s2 (Luigi); entrambi con rapportino.
+  function diffSpostamento(over: Partial<DiffInput> = {}) {
+    return calcolaDiffRapportini(base({
+      operatoriProposti: [
+        { staffId: 's1', staffName: 'Mario', tasks: [] },
+        { staffId: 's2', staffName: 'Luigi', tasks: [{ taskId: 't1', descr: 'ODL-1' }] },
+      ],
+      vociEsistenti: [{ taskId: 't1', staffId: 's1', staffName: 'Mario', descr: 'ODL-1' }],
+      staffConRapportino: new Set(['s1', 's2']),
+      ...over,
+    }));
+  }
+
+  it('movimenti SENZA inviati coinvolti → niente conferma, niente avviso (sync automatica)', () => {
+    const d = decideSyncRapportini(diffSpostamento());
+    expect(d.richiediConfermaInviati).toBe(false);
+    expect(d.avvisoBloccati).toBeNull();
+  });
+
+  it('rapportino inviato coinvolto → richiede conferma', () => {
+    const d = decideSyncRapportini(diffSpostamento({ staffInviati: new Set(['s2']) }));
+    expect(d.richiediConfermaInviati).toBe(true);
+  });
+
+  it('intervento completato spostato → avviso valorizzato (non bloccante)', () => {
+    const d = decideSyncRapportini(diffSpostamento({ taskCompletati: new Set(['t1']) }));
+    expect(d.avvisoBloccati).toContain('ODL-1');
+    // il completato non genera "inviato coinvolto" di per sé
+    expect(d.richiediConfermaInviati).toBe(false);
+  });
+
+  it('nessuna modifica → niente conferma, niente avviso', () => {
+    const d = decideSyncRapportini(calcolaDiffRapportini(base()));
+    expect(d).toEqual({ avvisoBloccati: null, richiediConfermaInviati: false });
+  });
+});
 
 describe('calcolaDiffRapportini', () => {
   it('spostamento: task passa da Mario a Luigi', () => {

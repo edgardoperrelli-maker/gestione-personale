@@ -25,6 +25,7 @@ import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } f
 import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
+import { decideSyncRapportini } from '@/utils/rapportini/diffRapportini';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
 import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
@@ -1872,16 +1873,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               });
               if (ap.ok) {
                 const diff = (await ap.json()) as import('@/utils/rapportini/diffRapportini').DiffRapportini;
-                if (diff.bloccati.length > 0) {
-                  const elenco = diff.bloccati.map((b) => `• ${b.descr} (${b.daNome} → ${b.aNome})`).join('\n');
-                  alert(`Questi interventi sono già completati e non possono essere spostati.\nRiportali all'operatore originale e risalva:\n\n${elenco}`);
-                } else if (diff.nessunaModifica) {
-                  await applicaRapportini(pid, false);
+                const { avvisoBloccati, richiediConfermaInviati } = decideSyncRapportini(diff);
+                // Interventi completati spostati: avvisa (non blocca la sincronizzazione del resto).
+                if (avvisoBloccati) {
+                  alert(`${avvisoBloccati}\n\nRiportali all'operatore originale se l'esito va mantenuto.`);
+                }
+                if (richiediConfermaInviati) {
+                  // Rapportini GIÀ INVIATI coinvolti: chiedi prima di riaprirli/aggiornarli.
+                  // Su Annulla NON si toccano gli inviati.
+                  const { testo } = buildRiepilogoConferma(diff);
+                  if (window.confirm(testo)) await applicaRapportini(pid, true);
                 } else {
-                  // Riepilogo + conferma con dialogo NATIVO (sempre visibile): la modale React poteva
-                  // non comparire, lasciando i rapportini non aggiornati. Affidabile e bloccante.
-                  const { testo, haInviati } = buildRiepilogoConferma(diff);
-                  if (window.confirm(testo)) await applicaRapportini(pid, haInviati);
+                  // Nessun inviato coinvolto: riconcilia SEMPRE le voci ai task correnti del piano
+                  // (rimuove le fantasma, aggiunge le mancanti, preserva le risposte per task_id).
+                  // È questo a garantire che rapportino e pianificazione restino allineati.
+                  await applicaRapportini(pid, false);
                 }
               } else {
                 const ej = (await ap.json().catch(() => ({}))) as { error?: string };
