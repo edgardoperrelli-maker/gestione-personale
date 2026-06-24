@@ -6,6 +6,8 @@ export interface Task {
   cap: string;
   citta: string;
   priorita: number;
+  /** Ordine di riga nel file sorgente (master/Excel): determina l'ordine delle voci nel rapportino. */
+  ordine?: number;
   fascia_oraria: string;
   durata_min?: number;
   lat?: number;

@@ -177,3 +177,24 @@ describe('sincronizzaRapportini — skipInviati (sync automatico dal salvataggio
     expect(nuova?.raw_json?._nuovo).toBe(true); // rapportino preesistente + task nuovo → badge
   });
 });
+
+describe('sincronizzaRapportini — ordine voci = ordine file (master), non la rotta', () => {
+  it('voce.ordine segue l ordine-file (row-N), non la posizione nei task ottimizzata', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      // tasks in ordine-rotta (array) DIVERSO dall ordine-file (row-N)
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [
+        { id: 'row-3', odl: 'C' }, { id: 'row-1', odl: 'A' }, { id: 'row-2', odl: 'B' },
+      ] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    const ord = Object.fromEntries(
+      tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1').map((v) => [v.task_id, v.ordine]),
+    );
+    // ordine-file: row-1=1, row-2=2, row-3=3 (NON la posizione array che darebbe row-3=1)
+    expect(ord['row-1']).toBe(1);
+    expect(ord['row-2']).toBe(2);
+    expect(ord['row-3']).toBe(3);
+  });
+});

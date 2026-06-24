@@ -283,6 +283,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
 
     const task: Task & { _operatore?: string } = {
       id: `row-${i}`,
+      ordine: i, // ordine di riga del file → ordine voci nel rapportino (vedi rankOrdineDaFile)
       odl,
       pdr: colMap.pdR != null ? str(row[colMap.pdR]) : undefined,
       indirizzo,

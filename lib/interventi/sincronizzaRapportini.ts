@@ -4,6 +4,7 @@
 import { randomBytes } from 'crypto';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { taskToVoce, mergeVoci, type Voce } from '@/utils/rapportini/buildVoci';
+import { rankOrdineDaFile } from '@/utils/rapportini/ordineVoci';
 import { orphanRapportini } from '@/utils/rapportini/orphans';
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
@@ -166,7 +167,10 @@ export async function sincronizzaRapportini(
       existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
     );
     const rapPreesisteva = Boolean(existing?.id);
-    const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, i + 1));
+    // Ordine voci = ordine del file master (task.ordine/id "row-N"), NON la posizione nella rotta
+    // ottimizzata: il rapportino segue la sequenza del master. La mappa (op.tasks) resta invariata.
+    const ranks = rankOrdineDaFile((op.tasks as Array<{ id: string; ordine?: number }>) ?? []);
+    const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, ranks[(t as { id?: string }).id ?? ''] ?? i + 1));
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
     const merged = mergeVoci(fromTasks, existingAsVoci);
 
