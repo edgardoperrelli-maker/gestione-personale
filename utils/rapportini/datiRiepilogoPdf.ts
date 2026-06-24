@@ -116,13 +116,20 @@ export function costruisciDatiPdf(params: {
     v.manuale ? esitoPositivoDefault(campi, v.risposte ?? {}) : (v.risposte ?? {}),
   );
 
+  // Una lavorazione si conta SOLO sugli interventi ESEGUITI: un'azione (es. mini_bag) marcata su
+  // una voce NON eseguita non è una "lavorazione svolta" e gonfiava il conteggio oltre il numero
+  // di eseguiti (caso DELL'AQUILA: mini_bag > eseguiti). Le voci manuali (dal "+") sono sempre eseguite.
+  const vociEseguite = voci.map((v, i) =>
+    v.manuale ? true : statoVoce(risposteVoce[i], campi) === 'eseguito',
+  );
+
   // Barre "Lavorazioni svolte": crocette spuntate + select positivi (es. saracinesca "SI"),
-  // escludendo i marcatori "assente".
+  // escludendo i marcatori "assente" e contando solo sugli interventi eseguiti.
   const lavorazioni = campiOrd
     .filter((c) => (c.tipo === 'crocetta' || c.tipo === 'select') && !isMarcatoreAssente(c.chiave, c.etichetta))
     .map((c) => ({
       etichetta: c.etichetta,
-      count: risposteVoce.filter((r) => lavorazioneFatta(c, r[c.chiave])).length,
+      count: risposteVoce.filter((r, i) => vociEseguite[i] && lavorazioneFatta(c, r[c.chiave])).length,
     }))
     .filter((l) => l.count > 0);
 

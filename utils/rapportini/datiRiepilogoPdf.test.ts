@@ -205,6 +205,28 @@ describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, n
   });
 });
 
+describe('costruisciDatiPdf — le LAVORAZIONI SVOLTE contano solo sugli interventi eseguiti', () => {
+  // Caso DELL'AQUILA 24/06: l'operatore ha marcato mini_bag su interventi NON eseguiti, gonfiando
+  // la barra mini_bag SOPRA il numero di eseguiti. Una "lavorazione svolta" su un intervento non
+  // eseguito non va conteggiata.
+  const campiL: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+    { chiave: 'mini_bag', etichetta: 'MINI BAG', tipo: 'crocetta', ordine: 2 },
+    { chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 3 },
+  ];
+  const voci = [
+    { matricola: 'A', via: 'V', risposte: { eseguito: 'SI', mini_bag: true } },           // eseguito + minibag → conta
+    { matricola: 'B', via: 'V', risposte: { eseguito: 'SI' } },                            // eseguito, niente minibag
+    { matricola: 'C', via: 'V', risposte: { eseguito: 'NO', mini_bag: true, note: 'x' } }, // NON eseguito + minibag → NON conta
+  ];
+  const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiL, infoCampi: null });
+
+  it('mini_bag su intervento NON eseguito non viene conteggiato (mini_bag ≤ eseguiti)', () => {
+    expect(dati.stats.eseguiti).toBe(2);
+    expect(dati.lavorazioni.find((l) => l.etichetta === 'MINI BAG')?.count).toBe(1);
+  });
+});
+
 describe('costruisciDatiPdf — template senza campo `eseguito` (BONIFICHE EXTRA)', () => {
   const campiB: TemplateCampo[] = [
     { chiave: 'bonifica_semplice', etichetta: 'BONIFICA SEMPLICE', tipo: 'crocetta', ordine: 1 },
