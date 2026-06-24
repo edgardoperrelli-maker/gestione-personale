@@ -32,9 +32,9 @@ export async function POST(req: Request) {
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: parsed.data.nome, committente: parsed.data.committente ?? null, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false }).select('id').single();
+    .insert({ nome: parsed.data.nome, committente: parsed.data.committente ?? null, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false }).select('id, updated_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, id: data.id });
+  return NextResponse.json({ ok: true, id: data.id, updated_at: data.updated_at });
 }
 
 export async function PATCH(req: Request) {
@@ -45,9 +45,25 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
   for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'foto_id_priority', 'tipo', 'active', 'solo_manuale', 'task_via'] as const) if (k in parsed.data) patch[k] = (parsed.data as Record<string, unknown>)[k];
-  const { error } = await supabaseAdmin.from('rapportino_template').update(patch).eq('id', body.id);
+  // Avanza sempre updated_at: è il "version token" per la concorrenza ottimistica.
+  patch.updated_at = new Date().toISOString();
+
+  // Lock ottimistico: se il client manda `expected_updated_at`, aggiorna SOLO se il record non è
+  // cambiato nel frattempo (es. una SQL diretta o un'altra sessione). Così l'editor non sovrascrive
+  // più con uno stato vecchio: in caso di mismatch torna 409 e l'UI ricarica la versione aggiornata.
+  const expected = typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null;
+  let q = supabaseAdmin.from('rapportino_template').update(patch).eq('id', body.id);
+  if (expected) q = q.eq('updated_at', expected);
+  const { data, error } = await q.select('id, updated_at');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true });
+  if (expected && (!data || data.length === 0)) {
+    const { data: cur } = await supabaseAdmin.from('rapportino_template').select('updated_at').eq('id', body.id).maybeSingle();
+    return NextResponse.json(
+      { error: 'Il template è stato modificato altrove.', conflict: true, updated_at: cur?.updated_at ?? null },
+      { status: 409 },
+    );
+  }
+  return NextResponse.json({ ok: true, updated_at: data?.[0]?.updated_at ?? null });
 }
 
 export async function DELETE(req: Request) {

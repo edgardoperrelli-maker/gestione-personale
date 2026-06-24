@@ -43,6 +43,7 @@ type Template = {
   solo_manuale?: boolean;
   task_via?: boolean;
   tipo?: 'standard' | 'risanamento';
+  updated_at?: string;
 };
 
 type Props = { initial: Template[] };
@@ -97,6 +98,13 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // Salta l'auto-save sul primo render dopo un load/startNew (non è una modifica utente).
   const skipAutosave = useRef(true);
+  // "Version token" del template caricato (updated_at): inviato a ogni salvataggio per il lock
+  // ottimistico. Se il DB è cambiato altrove (SQL/altra sessione) il salvataggio torna 409 e
+  // l'editor ricarica invece di sovrascrivere con lo stato vecchio.
+  const baseUpdatedAt = useRef<string | null>(null);
+  // "Latest ref" al gestore conflitti: usato dall'auto-save senza metterlo nelle deps dell'effetto
+  // (lo azzererebbe il debounce a ogni render).
+  const conflictHandlerRef = useRef<(id: string) => void | Promise<void>>(() => {});
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -107,6 +115,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
 
   function loadTemplate(tpl: Template) {
     skipAutosave.current = true;
+    baseUpdatedAt.current = tpl.updated_at ?? null;
     setAutoState('idle');
     setIsNew(false);
     setSelectedId(tpl.id);
@@ -123,6 +132,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
 
   function startNew() {
     skipAutosave.current = true;
+    baseUpdatedAt.current = null;
     setAutoState('idle');
     setIsNew(true);
     setSelectedId(null);
@@ -150,6 +160,19 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       setTemplates(data);
     }
   }
+
+  // Conflitto di concorrenza (409): il template è stato cambiato altrove (SQL/altra sessione).
+  // Ricarica dal DB la versione aggiornata invece di sovrascriverla con lo stato vecchio.
+  async function handleConflict(id: string) {
+    const res = await fetch('/api/admin/rapportino-template');
+    if (!res.ok) return;
+    const data: Template[] = await res.json();
+    setTemplates(data);
+    const tpl = data.find((t) => t.id === id);
+    if (tpl) loadTemplate(tpl); // resetta stato + baseUpdatedAt + skipAutosave
+    showFeedback('error', 'Template modificato altrove: ho ricaricato la versione aggiornata. Riapplica le tue modifiche.');
+  }
+  conflictHandlerRef.current = handleConflict;
 
   // ── Campo operations ───────────────────────────────────────────────────────
 
@@ -269,7 +292,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
         titolo_campi: titoloCampi,
         foto_id_priority: fotoIdPriority,
         active: true,
-        ...(isNew ? {} : { id: selectedId }),
+        ...(isNew ? {} : { id: selectedId, expected_updated_at: baseUpdatedAt.current }),
       };
 
       const res = await fetch('/api/admin/rapportino-template', {
@@ -279,8 +302,10 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       });
 
       const json = await res.json();
+      if (res.status === 409 && selectedId) { await handleConflict(selectedId); return; }
       if (!res.ok) { showFeedback('error', json.error ?? 'Errore durante il salvataggio'); return; }
 
+      if (typeof json.updated_at === 'string') baseUpdatedAt.current = json.updated_at;
       showFeedback('success', isNew ? 'Template creato' : 'Template aggiornato');
       await reloadTemplates();
 
@@ -330,6 +355,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       try {
         const payload = {
           id,
+          expected_updated_at: baseUpdatedAt.current,
           nome: nome.trim(),
           committente: committente || null,
           solo_manuale: soloManuale,
@@ -350,6 +376,10 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
+        // Conflitto: il template è cambiato altrove (SQL/altra sessione) → NON sovrascrivere, ricarica.
+        if (res.status === 409) { setAutoState('idle'); await conflictHandlerRef.current(id); return; }
+        const json = await res.json().catch(() => ({} as { updated_at?: string }));
+        if (res.ok && typeof json.updated_at === 'string') baseUpdatedAt.current = json.updated_at;
         setAutoState(res.ok ? 'saved' : 'error');
       } catch {
         setAutoState('error');
