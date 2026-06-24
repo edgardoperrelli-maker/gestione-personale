@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
+import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 
 export const runtime = 'nodejs';
@@ -14,7 +15,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { user } = auth;
   const { id } = await params;
 
-  const body = (await req.json()) as { dati_correnti?: DatiInterventoManuale; confermaDuplicato?: boolean };
+  const body = (await req.json()) as { dati_correnti?: DatiInterventoManuale; confermaDuplicato?: boolean; confermaFotoMancanti?: boolean };
 
   // Leggi la richiesta per ottenere il piano_id, staff_id, data, committente e
   // dati_correnti di default (servono prima del check atomico per costruire il record).
@@ -61,6 +62,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         deciso_da_name: d.deciso_da ? (nomi[d.deciso_da] ?? null) : null,
       }));
       return NextResponse.json({ error: 'matricola_duplicata', matricola, duplicati }, { status: 409 });
+    }
+  }
+
+  // ── GATE FOTO MANCANTI (non bloccante, forzabile) ────────────────────────────
+  if (body.confermaFotoMancanti !== true) {
+    const { data: fotoRows } = await supabaseAdmin
+      .from('interventi_manuali_foto')
+      .select('storage_path')
+      .eq('richiesta_id', id);
+    const paths = ((fotoRows ?? []) as Array<{ storage_path: string }>).map((f) => f.storage_path);
+    if (paths.length > 0) {
+      const presenti = await fotoPresentiVerificate(paths);
+      const mancanti = pathMancanti(paths, presenti);
+      if (mancanti.length > 0) {
+        return NextResponse.json({ error: 'foto_mancanti', mancanti: mancanti.length }, { status: 409 });
+      }
     }
   }
 
