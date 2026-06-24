@@ -40,6 +40,7 @@ export function PannelloRevisioneRichiesta({
   const [busy, setBusy] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [dupAvviso, setDupAvviso] = useState<{ matricola: string; duplicati: DuplicatoMatricola[] } | null>(null);
+  const [fotoAvviso, setFotoAvviso] = useState<number | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }>>([]);
   const caricaFoto = useCallback(async () => {
@@ -51,22 +52,21 @@ export function PannelloRevisioneRichiesta({
   }, [riga.id]);
   useEffect(() => { void caricaFoto(); }, [caricaFoto]);
 
-  const approva = async (forza = false) => {
+  const approva = async (forza = false, forzaFoto = false) => {
     setBusy(true); setErrore(null);
     try {
       const dati_correnti: DatiInterventoManuale = { committente: iniziali.committente, anagrafica, risposte };
       const res = await fetch(`/api/admin/interventi-manuali/${riga.id}/approva`, {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ dati_correnti, confermaDuplicato: forza }),
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ dati_correnti, confermaDuplicato: forza, confermaFotoMancanti: forzaFoto }),
       });
       if (res.status === 409) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; duplicati?: DuplicatoMatricola[] };
-        if (j.error === 'matricola_duplicata') {
-          setDupAvviso({ matricola: j.matricola ?? '', duplicati: j.duplicati ?? [] });
-          return;
-        }
+        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; duplicati?: DuplicatoMatricola[]; mancanti?: number };
+        if (j.error === 'matricola_duplicata') { setDupAvviso({ matricola: j.matricola ?? '', duplicati: j.duplicati ?? [] }); return; }
+        if (j.error === 'foto_mancanti') { setFotoAvviso(j.mancanti ?? 0); return; }
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      setDupAvviso(null);
+      setDupAvviso(null); setFotoAvviso(null);
       onDecisa();
     } catch (e) { setErrore(e instanceof Error ? e.message : 'Errore'); } finally { setBusy(false); }
   };
@@ -188,6 +188,21 @@ export function PannelloRevisioneRichiesta({
             >
               Approva comunque
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Avviso foto mancanti — callout forzabile */}
+      {fotoAvviso !== null && (
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] p-3" style={{ backgroundColor: 'var(--warning-soft)' }}>
+          <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>
+            &#9888; Mancano {fotoAvviso} foto: l&apos;intervento risulterà senza prove.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" animated={false} disabled={busy} onClick={() => setFotoAvviso(null)}>Annulla</Button>
+            <Button variant="secondary" size="sm" animated={false} disabled={busy}
+              className="border-[var(--warning)] text-[var(--warning)] hover:bg-[var(--warning-soft)]"
+              onClick={() => void approva(false, true)}>Approva comunque</Button>
           </div>
         </div>
       )}
