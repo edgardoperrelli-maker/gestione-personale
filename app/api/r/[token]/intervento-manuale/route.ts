@@ -32,6 +32,53 @@ async function pathPresentiInStorage(richiestaId: string): Promise<Set<string>> 
   return new Set((listati ?? []).map((o) => `${richiestaId}/${o.name}`));
 }
 
+type RichiestaEsistente = { id: string; voce_id: string | null; corsia: 'normale' | 'liberi'; intervento_id: string | null };
+
+/** Risposta idempotente per un re-invio con richiestaId già esistente. Ripara i file mancanti se
+ *  il re-invio porta le foto (slotDaRiparare) e dichiara `fotoComplete`/`durabile` byte-aware. */
+async function rispostaIdempotente(
+  esistente: RichiestaEsistente,
+  received: Array<{ chiave: string; file: File }>,
+): Promise<NextResponse> {
+  const reqId = esistente.id;
+  const { data: righe } = await supabaseAdmin
+    .from('interventi_manuali_foto')
+    .select('slot_chiave, storage_path')
+    .eq('richiesta_id', reqId);
+  const righeFoto = (righe ?? []) as Array<{ slot_chiave: string; storage_path: string }>;
+  const fotoTotali = righeFoto.length;
+  let fotoOk = fotoTotali;
+  if (fotoTotali > 0) {
+    try {
+      const presenti = await fotoPresentiVerificate(righeFoto.map((r) => r.storage_path));
+      const daRiparare = slotDaRiparare(righeFoto, received, presenti);
+      for (const s of daRiparare) {
+        if (!s.file.type.startsWith('image/')) continue;
+        const buf = Buffer.from(await s.file.arrayBuffer());
+        await supabaseAdmin.storage
+          .from('interventi-foto')
+          .upload(s.storagePath, buf, { contentType: s.file.type || 'image/jpeg', upsert: true });
+      }
+      const presentiDopo = daRiparare.length > 0 ? await fotoPresentiVerificate(righeFoto.map((r) => r.storage_path)) : presenti;
+      fotoOk = righeFoto.filter((r) => presentiDopo.has(r.storage_path)).length;
+    } catch {
+      fotoOk = 0;
+    }
+  }
+  const complete = fotoOk === fotoTotali;
+  return NextResponse.json({
+    id: esistente.id,
+    voceId: esistente.voce_id,
+    corsia: esistente.corsia,
+    interventoId: esistente.intervento_id,
+    idempotente: true,
+    fotoTotali,
+    fotoOk,
+    fotoComplete: complete,
+    durabile: complete,
+  });
+}
+
 const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -176,46 +223,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       .select('id, voce_id, corsia, intervento_id')
       .eq('id', rawDati.richiestaId)
       .maybeSingle();
-    if (esistente) {
-      // Self-healing: ri-carica i file foto mancanti se il re-invio li porta.
-      const reqId = esistente.id as string;
-      const { data: righe } = await supabaseAdmin
-        .from('interventi_manuali_foto')
-        .select('slot_chiave, storage_path')
-        .eq('richiesta_id', reqId);
-      const righeFoto = (righe ?? []) as Array<{ slot_chiave: string; storage_path: string }>;
-      const fotoTotali = righeFoto.length;
-      let fotoOk = fotoTotali;
-      if (fotoTotali > 0) {
-        try {
-          const presenti = await pathPresentiInStorage(reqId);
-          const daRiparare = slotDaRiparare(righeFoto, received, presenti);
-          for (const s of daRiparare) {
-            if (!s.file.type.startsWith('image/')) continue;
-            const buf = Buffer.from(await s.file.arrayBuffer());
-            await supabaseAdmin.storage
-              .from('interventi-foto')
-              .upload(s.storagePath, buf, { contentType: s.file.type || 'image/jpeg', upsert: true });
-          }
-          const presentiDopo = daRiparare.length > 0 ? await pathPresentiInStorage(reqId) : presenti;
-          fotoOk = righeFoto.filter((r) => presentiDopo.has(r.storage_path)).length;
-        } catch {
-          // Best-effort (spec §1.6): se la riparazione fallisce NON rompiamo l'idempotenza;
-          // dichiariamo le foto non complete (fotoOk=0) così il client ritenta al prossimo sync.
-          fotoOk = 0;
-        }
-      }
-      return NextResponse.json({
-        id: esistente.id,
-        voceId: esistente.voce_id,
-        corsia: esistente.corsia,
-        interventoId: esistente.intervento_id,
-        idempotente: true,
-        fotoTotali,
-        fotoOk,
-        fotoComplete: fotoOk === fotoTotali,
-      });
-    }
+    if (esistente) return rispostaIdempotente(esistente as RichiestaEsistente, received);
   }
 
   const richiestaId = richiestaIdValido(rawDati.richiestaId) ? rawDati.richiestaId : randomUUID();
