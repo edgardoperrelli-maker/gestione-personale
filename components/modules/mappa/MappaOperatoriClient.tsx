@@ -9,6 +9,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
 import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, alignAndAppendTask } from '@/utils/mappa/appendTask';
+import { pinsFromDistribution } from '@/utils/mappa/pinsEsecutore';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
@@ -727,6 +728,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Auto-assegnazione da colonna Esecutore
   const [esecutorePins, setEsecutorePins] = useState<Record<string, string>>({});
+  // Piano riaperto/popolato: assegnazioni "inchiodate" al master → inibisce la ridistribuzione
+  // (Distribuisci/Assegna) finché non si Azzera. Vedi pinsFromDistribution.
+  const [bloccaRidistribuzione, setBloccaRidistribuzione] = useState(false);
   const [esecutoreWarnings, setEsecutoreWarnings] = useState<string[]>([]);
   const esecutoreAutoDistributedRef = useRef(false);
 
@@ -918,6 +922,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setExcelMode(true);
     setActiveOpIdx(0);
     setSavedDistribution(true);
+    // Piano popolato riaperto: ricorda gli assegnatari (pin esecutore) così l'assegnazione resta
+    // fedele al master e "Distribuisci/Assegna" NON ridistribuisce i task già assegnati. Il blocco
+    // si toglie con "Azzera" (ridistribuzione da zero volontaria).
+    setEsecutorePins(pinsFromDistribution(initialDistribution));
+    setBloccaRidistribuzione(true);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ─── Computed ──────────────────────────────────────────────────────────────
@@ -1387,6 +1396,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setUnassignedTasks([]);
     setSelectedExcelTaskId(null);
     setEditingTaskId(null);
+    setBloccaRidistribuzione(false); // nuovo file Excel: ridistribuzione consentita
 
     // ── Auto-assegnazione da colonna Esecutore ──
     esecutoreAutoDistributedRef.current = false;
@@ -1476,6 +1486,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       setSelectedExcelTaskId(null);
       setEditingTaskId(null);
       setEsecutorePins({});
+      setBloccaRidistribuzione(false); // nuovo caricamento interventi: ridistribuzione consentita
       setEsecutoreWarnings([]);
       setSelectedOps([]);
       setShowOpPicker(false);
@@ -2550,6 +2561,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setEditingTaskId(null);
     setShowOpPicker(false);
     setZtlConflicts([]);
+    setEsecutorePins({});
+    setBloccaRidistribuzione(false); // nuova pianificazione: ridistribuzione consentita
     setTerritoryFilter('');
     setPlanningDate('');
     setSetupModalDate('');
@@ -3000,7 +3013,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
                         📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
                       </button>
-                      <button type="button" onClick={distributeToOps} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]">
+                      <button
+                        type="button"
+                        onClick={distributeToOps}
+                        disabled={bloccaRidistribuzione}
+                        title={bloccaRidistribuzione ? 'Piano riaperto: le assegnazioni seguono il master/file. Usa Azzera per ridistribuire da zero.' : undefined}
+                        className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
                         {selectedOps.length === 1 ? 'Assegna' : 'Distribuisci'}
                       </button>
                       {distribution && (
@@ -3011,6 +3030,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               setDistribution(null);
                               setUnassignedTasks([]);
                               setZtlConflicts([]);
+                              // Azzera = ridistribuzione volontaria da zero: sblocca e dimentica i pin.
+                              setEsecutorePins({});
+                              setBloccaRidistribuzione(false);
                               if (isEditMode) {
                                 setCurrentPianoId(undefined);
                                 window.history.replaceState({}, '', '/hub/mappa?vista=pianifica');
