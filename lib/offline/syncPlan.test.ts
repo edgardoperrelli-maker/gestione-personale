@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ordineInvio, classificaEsito, deveRilasciareFoto } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale, GRACE_CONFERMA_MS } from './syncPlan';
 import type { OutboxItem } from './types';
 
 const base = { token: 'tok', tentativi: 0, stato: 'in_attesa' as const };
@@ -71,5 +71,40 @@ describe('deveRilasciareFoto', () => {
     expect(deveRilasciareFoto(502, true)).toBe(false);
     expect(deveRilasciareFoto(422, true)).toBe(false);
     expect(deveRilasciareFoto(0, true)).toBe(false);
+  });
+});
+
+describe('modoInvioManuale', () => {
+  it('non caricato → con_foto (primo invio / riparazione)', () => {
+    expect(modoInvioManuale({}, 1000)).toBe('con_foto');
+  });
+  it('caricato ma prima di confermaDopo → attendi', () => {
+    expect(modoInvioManuale({ caricato: true, confermaDopo: 5000 }, 1000)).toBe('attendi');
+  });
+  it('caricato e oltre confermaDopo → senza_foto (conferma)', () => {
+    expect(modoInvioManuale({ caricato: true, confermaDopo: 5000 }, 9000)).toBe('senza_foto');
+  });
+});
+
+describe('esitoInvioManuale', () => {
+  it('2xx + durabile → rilascia', () => {
+    expect(esitoInvioManuale('senza_foto', 200, true, 0).tipo).toBe('rilascia');
+  });
+  it('primo invio 2xx non durabile → attesa_conferma con confermaDopo=now+GRACE', () => {
+    const e = esitoInvioManuale('con_foto', 200, false, 1000);
+    expect(e).toEqual({ tipo: 'attesa_conferma', confermaDopo: 1000 + GRACE_CONFERMA_MS });
+  });
+  it('conferma senza foto non durabile → ripara (forza re-upload)', () => {
+    expect(esitoInvioManuale('senza_foto', 200, false, 1000).tipo).toBe('ripara');
+  });
+  it('5xx → ritenta', () => { expect(esitoInvioManuale('con_foto', 500, false, 0).tipo).toBe('ritenta'); });
+  it('422 → bloccato', () => { expect(esitoInvioManuale('con_foto', 422, false, 0).tipo).toBe('bloccato'); });
+});
+
+describe('deveRilasciareFoto (durabile)', () => {
+  it('rilascia solo 2xx && durabile', () => {
+    expect(deveRilasciareFoto(200, true)).toBe(true);
+    expect(deveRilasciareFoto(200, false)).toBe(false);
+    expect(deveRilasciareFoto(500, true)).toBe(false);
   });
 });

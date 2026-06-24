@@ -52,11 +52,38 @@ export function classificaEsito(status: number): EsitoSync {
   return { esito: 'bloccato', motivo: 'Richiesta non valida' };
 }
 
-/**
- * Decide se il sync può RILASCIARE i blob foto di una richiesta manuale: solo quando il
- * server ha risposto 2xx E ha confermato che tutte le foto sono persistite (fotoComplete).
- * Altrimenti i blob restano in IndexedDB per il retry automatico.
- */
-export function deveRilasciareFoto(status: number, fotoComplete: boolean): boolean {
-  return status >= 200 && status < 300 && fotoComplete === true;
+/** Rilascia i blob solo se il server conferma la DURABILITÀ (non la semplice presenza immediata). */
+export function deveRilasciareFoto(status: number, durabile: boolean): boolean {
+  return status >= 200 && status < 300 && durabile === true;
+}
+
+/** Finestra minima prima di tentare la conferma differita: supera la finestra di sparizione osservata. */
+export const GRACE_CONFERMA_MS = 90_000;
+
+export type ModoInvioManuale = 'con_foto' | 'senza_foto' | 'attendi';
+
+/** Decide come ri-presentare una richiesta manuale: primo invio/riparazione (con foto),
+ *  conferma a banda minima (senza foto), oppure attendi la fine della grace. */
+export function modoInvioManuale(item: { caricato?: boolean; confermaDopo?: number }, now: number): ModoInvioManuale {
+  if (!item.caricato) return 'con_foto';
+  if (item.confermaDopo != null && now < item.confermaDopo) return 'attendi';
+  return 'senza_foto';
+}
+
+export type EsitoManuale =
+  | { tipo: 'rilascia' }
+  | { tipo: 'attesa_conferma'; confermaDopo: number }
+  | { tipo: 'ripara' }
+  | { tipo: 'ritenta' }
+  | { tipo: 'bloccato'; motivo: string };
+
+/** Transizione post-risposta per l'item manuale. */
+export function esitoInvioManuale(modo: ModoInvioManuale, status: number, durabile: boolean, now: number): EsitoManuale {
+  if (status < 200 || status >= 300) {
+    const base = classificaEsito(status);
+    return base.esito === 'ritenta' ? { tipo: 'ritenta' } : { tipo: 'bloccato', motivo: base.esito === 'bloccato' ? base.motivo : 'Richiesta non valida' };
+  }
+  if (durabile) return { tipo: 'rilascia' };
+  if (modo === 'con_foto') return { tipo: 'attesa_conferma', confermaDopo: now + GRACE_CONFERMA_MS };
+  return { tipo: 'ripara' };
 }
