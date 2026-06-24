@@ -16,6 +16,12 @@ export type SincronizzaOpts = {
   overwriteSubmitted?: boolean;
   /** Conferma la riapertura dei rapportini INVIATI di questo stesso piano toccati dalla variazione. */
   confermaInviati?: boolean;
+  /**
+   * Salta del tutto i rapportini già INVIATI: non ne ricostruisce le voci e non ne tocca lo stato.
+   * Usato dal sync automatico al salvataggio del piano, dove un rapportino consegnato non va alterato
+   * senza una conferma esplicita (la riapertura resta competenza del flusso "Genera/Conferma").
+   */
+  skipInviati?: boolean;
 };
 
 export type SincronizzaResult =
@@ -120,7 +126,10 @@ export async function sincronizzaRapportini(
   for (const op of ops ?? []) {
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
     const { data: existing } = await db.from('rapportini')
-      .select('id, token').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
+      .select('id, token, stato').eq('piano_id', pianoId).eq('staff_id', op.staff_id).maybeSingle();
+    // Sync automatico (skipInviati): un rapportino già consegnato non va alterato senza conferma
+    // esplicita → lo si lascia intatto (voci e stato). La riapertura resta nel flusso Genera/Conferma.
+    if (opts.skipInviati && (existing as { stato?: string } | null)?.stato === 'inviato') continue;
     let rapId = existing?.id;
     let token = existing?.token;
     if (!rapId) {

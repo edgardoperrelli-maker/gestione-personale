@@ -2,93 +2,13 @@
 // Test del motore di (ri)generazione rapportini. Usa un fake Supabase client in-memory
 // (chainable) e mocka ensureInterventiForPiano per isolare l'orchestrazione del motore.
 import { describe, it, expect, vi } from 'vitest';
-import type { SupabaseClient } from '@supabase/supabase-js';
 
 vi.mock('@/lib/interventi/ensureInterventiForPiano', () => ({
   ensureInterventiForPiano: vi.fn(async () => ({ creati: 0, preservati: 0, scartati: 0 })),
 }));
 
 import { sincronizzaRapportini, isInterventoFkError } from './sincronizzaRapportini';
-
-type Row = Record<string, unknown>;
-type Tables = Record<string, Row[]>;
-type Filtro = ['eq' | 'neq', string, unknown] | ['in', string, unknown[]];
-
-/** Fake Supabase client: simula le tabelle in memoria con le query chain usate dal motore. */
-function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } = {}): { db: SupabaseClient; tables: Tables } {
-  const tables: Tables = {};
-  for (const k of Object.keys(seed)) tables[k] = seed[k].map((r) => ({ ...r }));
-  let counter = 0;
-  const genId = () => `gen_${++counter}`;
-  let failVociPending: string | null = opts.failVociInsertOnce ?? null;
-
-  class Builder {
-    table: string;
-    op: 'select' | 'update' | 'delete' = 'select';
-    filters: Filtro[] = [];
-    patch: Row = {};
-    constructor(table: string) { this.table = table; }
-
-    select() { this.op = 'select'; return this; }
-    eq(c: string, v: unknown) { this.filters.push(['eq', c, v]); return this; }
-    neq(c: string, v: unknown) { this.filters.push(['neq', c, v]); return this; }
-    in(c: string, v: unknown[]) { this.filters.push(['in', c, v]); return this; }
-    update(patch: Row) { this.op = 'update'; this.patch = patch; return this; }
-    delete() { this.op = 'delete'; return this; }
-
-    private rows(): Row[] {
-      let rows = tables[this.table] ?? [];
-      for (const f of this.filters) {
-        if (f[0] === 'eq') rows = rows.filter((r) => r[f[1]] === f[2]);
-        else if (f[0] === 'neq') rows = rows.filter((r) => r[f[1]] !== f[2]);
-        else rows = rows.filter((r) => (f[2] as unknown[]).includes(r[f[1]]));
-      }
-      return rows;
-    }
-
-    private exec(): { data: Row[]; error: null } | { error: null } {
-      if (this.op === 'select') return { data: this.rows(), error: null };
-      if (this.op === 'update') { for (const r of this.rows()) Object.assign(r, this.patch); return { error: null }; }
-      const toDel = new Set(this.rows());
-      tables[this.table] = (tables[this.table] ?? []).filter((r) => !toDel.has(r));
-      return { error: null };
-    }
-
-    // thenable: await builder → esegue (select/update/delete)
-    then(resolve: (v: unknown) => void) { resolve(this.exec()); }
-    async single() { const r = this.rows(); return { data: r[0] ?? null, error: null }; }
-    async maybeSingle() { const r = this.rows(); return { data: r[0] ?? null, error: null }; }
-
-    insert(rows: Row | Row[]) {
-      const arr = Array.isArray(rows) ? rows : [rows];
-      if (this.table === 'rapportino_voci' && failVociPending && arr.some((r) => r.intervento_id != null)) {
-        const message = failVociPending;
-        failVociPending = null; // consuma: il retry (intervento_id null) passa
-        return { then: (resolve: (v: unknown) => void) => resolve({ error: { message } }) };
-      }
-      const inserted = arr.map((r) => { const row: Row = { ...r, id: (r.id as string | undefined) ?? genId() }; (tables[this.table] ??= []).push(row); return row; });
-      return {
-        select: () => ({ single: async () => ({ data: { id: inserted[0].id }, error: null }) }),
-        then: (resolve: (v: unknown) => void) => resolve({ error: null }),
-      };
-    }
-  }
-
-  const db = { from: (table: string) => new Builder(table) } as unknown as SupabaseClient;
-  return { db, tables };
-}
-
-function seedBase(over: Partial<Tables> = {}): Tables {
-  return {
-    mappa_piani: [{ id: 'p1', data: '2026-06-10', territorio: 'TERR' }],
-    rapportino_template: [{ id: 'tpl1', campi: [], info_campi: [] }],
-    mappa_piani_operatori: [],
-    rapportini: [],
-    rapportino_voci: [],
-    interventi: [],
-    ...over,
-  };
-}
+import { makeFakeDb, seedBase } from './testUtils/fakeSupabase';
 
 const OPTS = { templateId: 'tpl1' };
 
@@ -221,5 +141,39 @@ describe('sincronizzaRapportini — fallback FK su race', () => {
     const voce = tables.rapportino_voci.find((v) => v.task_id === 't1');
     expect(voce).toBeTruthy();
     expect(voce?.intervento_id ?? null).toBeNull();
+  });
+});
+
+describe('sincronizzaRapportini — skipInviati (sync automatico dal salvataggio del piano)', () => {
+  const seedConRapportino = (stato: string) => seedBase({
+    mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' }] }],
+    rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato }],
+    rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} }],
+  });
+
+  it('con skipInviati NON tocca le voci di un rapportino inviato (il nuovo ODL non viene aggiunto)', async () => {
+    const { db, tables } = makeFakeDb(seedConRapportino('inviato'));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1', skipInviati: true });
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    expect(voci.map((v) => v.task_id).sort()).toEqual(['t1']); // t2 NON aggiunto all'inviato
+  });
+
+  it('senza skipInviati ricostruisce le voci anche di un inviato (comportamento esistente, opt-in)', async () => {
+    const { db, tables } = makeFakeDb(seedConRapportino('inviato'));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    expect(voci.map((v) => v.task_id).sort()).toEqual(['t1', 't2']);
+  });
+
+  it('skipInviati NON salta i rapportini in_corso: il nuovo ODL viene aggiunto con badge _nuovo', async () => {
+    const { db, tables } = makeFakeDb(seedConRapportino('in_corso'));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1', skipInviati: true });
+    expect(res.ok).toBe(true);
+    const voci = tables.rapportino_voci.filter((v) => v.rapportino_id === 'rap1');
+    expect(voci.map((v) => v.task_id).sort()).toEqual(['t1', 't2']);
+    const nuova = voci.find((v) => v.task_id === 't2') as { raw_json?: { _nuovo?: boolean } } | undefined;
+    expect(nuova?.raw_json?._nuovo).toBe(true); // rapportino preesistente + task nuovo → badge
   });
 });
