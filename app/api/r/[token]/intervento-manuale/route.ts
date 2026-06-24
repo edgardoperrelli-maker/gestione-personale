@@ -493,5 +493,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     fotoTotali: fotoCaricate.length,
     fotoOk: fotoCaricate.length,
     fotoComplete: true,
+    durabile: false, // appena caricato: la durabilità si conferma in un giro successivo (Fase 2)
   });
 }
