@@ -1,5 +1,5 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
-import { ordineInvio, classificaEsito, deveRilasciareFoto } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale } from './syncPlan';
 import { marcaErrore } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
@@ -78,6 +78,12 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
       return { status };
     }
     if (item.type === 'manuale') {
+      const now = Date.now();
+      const modo = modoInvioManuale(item, now);
+      if (modo === 'attendi') {
+        // Non ancora ora di confermare: lascia l'item in coda senza inviare.
+        return { status: 200, ritentabile: true };
+      }
       const fd = new FormData();
       fd.append('dati', JSON.stringify({
         richiestaId: item.payload.richiestaId,
@@ -87,24 +93,34 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         note: item.payload.note ?? null,
         parentVoceId: item.payload.parentVoceId ?? null,
       }));
-      for (const ref of item.payload.fotoBlobRefs) {
-        const blob = await dbBlob.leggi(ref.blobId);
-        if (blob) fd.append(`foto:${ref.chiave}`, blob, `${ref.chiave}.jpg`);
+      if (modo === 'con_foto') {
+        for (const ref of item.payload.fotoBlobRefs) {
+          const blob = await dbBlob.leggi(ref.blobId);
+          if (blob) fd.append(`foto:${ref.chiave}`, blob, `${ref.chiave}.jpg`);
+        }
       }
       const r = await fetch(`/api/r/${item.token}/intervento-manuale`, { method: 'POST', body: fd });
-      // Il server conferma con fotoComplete che TUTTI i file sono davvero sullo storage.
-      // Assente (deploy vecchio) → prudenzialmente false → non rilasciare i blob.
-      let fotoComplete = false;
+      let durabile = false;
       if (r.ok) {
-        const j = (await r.json().catch(() => ({}))) as { fotoComplete?: boolean };
-        fotoComplete = j.fotoComplete === true;
+        const j = (await r.json().catch(() => ({}))) as { durabile?: boolean };
+        durabile = j.durabile === true;
       }
-      const rilascia = deveRilasciareFoto(r.status, fotoComplete);
-      if (rilascia) {
+      const esito = esitoInvioManuale(modo, r.status, durabile, now);
+      if (esito.tipo === 'rilascia') {
         for (const ref of item.payload.fotoBlobRefs) await dbBlob.rimuovi(ref.blobId);
+        return { status: r.status }; // completato → item rimosso
       }
-      // 2xx ma foto non complete → forza il retry (tieni blob + item in coda).
-      return { status: r.status, ritentabile: r.ok && !rilascia };
+      if (esito.tipo === 'attesa_conferma') {
+        await dbOutbox.put({ ...item, stato: 'in_attesa', caricato: true, confermaDopo: esito.confermaDopo });
+        return { status: r.status, ritentabile: true }; // tieni l'item, ritenta (conferma) più tardi
+      }
+      if (esito.tipo === 'ripara') {
+        await dbOutbox.put({ ...item, stato: 'in_attesa', caricato: false, confermaDopo: undefined });
+        return { status: r.status, ritentabile: true };
+      }
+      if (esito.tipo === 'ritenta') return { status: r.status === 0 ? 0 : r.status, ritentabile: true };
+      // bloccato
+      return { status: r.status };
     }
     // invia
     const r = await fetch(`/api/r/${item.token}/invia`, { method: 'POST' });
