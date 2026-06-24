@@ -29,7 +29,7 @@ export type OutboxItem =
   | { id: string; type: 'voce'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; payload: PayloadVoce }
   | { id: string; type: 'foto'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; payload: PayloadFoto }
   | { id: string; type: 'agenda'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; payload: PayloadAgenda }
-  | { id: string; type: 'manuale'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; payload: PayloadManuale }
+  | { id: string; type: 'manuale'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; caricato?: boolean; confermaDopo?: number; payload: PayloadManuale }
   | { id: string; type: 'invia'; token: string; createdAt: number; tentativi: number; stato: OutboxStato; ultimoErrore?: string; payload: PayloadInvia };
 
 export type SnapshotRapportino = { token: string; tipo: 'rapportino'; aggiornatoIl: number; dati: unknown };
