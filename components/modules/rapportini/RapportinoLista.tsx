@@ -93,6 +93,7 @@ export function RapportinoLista({
   readOnly,
   inviato,
   ricerca = '',
+  taskVia,
 }: {
   staffName: string;
   dataLabel: string;
@@ -112,6 +113,8 @@ export function RapportinoLista({
   readOnly: boolean;
   inviato: boolean;
   ricerca?: string;
+  /** Template task-via (BONIFICHE EXTRA): il PDF mostra gli ordini "+", non le vie contenitore. */
+  taskVia?: boolean;
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
   const [tentatoInvio, setTentatoInvio] = useState(false);
@@ -176,6 +179,7 @@ export function RapportinoLista({
                 voci={voci}
                 campi={campi}
                 infoCampi={infoCampi}
+                taskVia={taskVia}
               />
             </>
           ) : (

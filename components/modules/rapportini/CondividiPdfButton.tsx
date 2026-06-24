@@ -17,6 +17,7 @@ export function CondividiPdfButton({
   voci,
   campi,
   infoCampi,
+  taskVia,
 }: {
   staffName: string;
   dataLabel: string;
@@ -24,6 +25,8 @@ export function CondividiPdfButton({
   voci: VoceRiepilogo[];
   campi: TemplateCampo[];
   infoCampi: TemplateInfoCampo[];
+  /** Template task-via (BONIFICHE EXTRA): il PDF mostra gli ordini "+", non le vie contenitore. */
+  taskVia?: boolean;
 }) {
   const [stato, setStato] = useState<Stato>('idle');
 
@@ -31,7 +34,7 @@ export function CondividiPdfButton({
     if (stato === 'lavoro') return;
     setStato('lavoro');
     try {
-      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi, infoCampi });
+      const dati = costruisciDatiPdf({ staffName, dataLabel, voci, campi, infoCampi, taskVia });
       const blob = await generaRiepilogoPdfBlob(dati);
       const esito = await condividiOScarica({
         blob,

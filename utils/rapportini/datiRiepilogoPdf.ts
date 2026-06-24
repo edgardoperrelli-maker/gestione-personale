@@ -81,11 +81,18 @@ export function costruisciDatiPdf(params: {
   voci: VoceRiepilogo[];
   campi: TemplateCampo[];
   infoCampi?: TemplateInfoCampo[] | null;
+  /** Template task-via (es. BONIFICHE EXTRA): le voci pianificate sono "contenitori" (le vie); il
+   * dettaglio sono gli ordini creati col "+" (manuale=true). Il PDF mostra gli ordini, non i contenitori. */
+  taskVia?: boolean;
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci: vociInput, campi, infoCampi } = params;
+  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia } = params;
   // Le voci RIFIUTATE dall'ufficio sono scartate dal PDF: non sono interventi validi → fuori da
   // stats, lavorazioni e liste (coerente con `riepilogoRapportino`). Tutto il resto usa `voci`.
-  const voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
+  let voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
+  // Task-via: scarta i contenitori (voci pianificate, manuale=false) e tiene solo gli ordini "+"
+  // (manuale=true), che sono il vero dettaglio del lavoro. Senza questo il PDF mostrerebbe le vie
+  // contenitore vuote invece degli interventi creati al loro interno.
+  if (taskVia) voci = voci.filter((v) => v.manuale === true);
   const riep = riepilogoRapportino(voci, campi);
 
   // Stesse colonne del rapportino digitale/Excel:

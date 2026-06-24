@@ -177,6 +177,34 @@ describe('costruisciDatiPdf — le voci NON compilate (da_fare) NON spariscono d
   });
 });
 
+describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, non i contenitori', () => {
+  const campiTV: TemplateCampo[] = [
+    { chiave: 'minibag', etichetta: 'MINI BAG', tipo: 'crocetta', ordine: 1 },
+  ];
+  const voci = [
+    // contenitori = vie pianificate (manuale=false, vuote)
+    { via: 'VIA A', comune: 'X', attivita: 'BONIFICHE EXTRA', risposte: {} },
+    { via: 'VIA B', comune: 'X', attivita: 'BONIFICHE EXTRA', risposte: {} },
+    // ordini "+" dentro le vie (manuale=true) = il dettaglio del lavoro
+    { via: 'VIA A', comune: 'X', manuale: true, risposte: { minibag: true } },
+    { via: 'VIA A', comune: 'X', manuale: true, risposte: { minibag: true } },
+  ];
+
+  it('con taskVia: esclude i contenitori (manuale=false), mostra solo gli ordini', () => {
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiTV, infoCampi: null, taskVia: true });
+    expect(dati.stats.totali).toBe(2);     // solo i 2 ordini
+    expect(dati.eseguiti.length).toBe(2);  // ordini (manuale) → eseguiti
+    expect(dati.nonEseguiti.length + dati.daFare.length).toBe(0); // nessun contenitore
+  });
+
+  it('senza taskVia: comportamento invariato (contenitori in daFare, ordini in eseguiti)', () => {
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiTV, infoCampi: null });
+    expect(dati.stats.totali).toBe(4);
+    expect(dati.eseguiti.length).toBe(2);
+    expect(dati.daFare.length).toBe(2);
+  });
+});
+
 describe('costruisciDatiPdf — template senza campo `eseguito` (BONIFICHE EXTRA)', () => {
   const campiB: TemplateCampo[] = [
     { chiave: 'bonifica_semplice', etichetta: 'BONIFICA SEMPLICE', tipo: 'crocetta', ordine: 1 },

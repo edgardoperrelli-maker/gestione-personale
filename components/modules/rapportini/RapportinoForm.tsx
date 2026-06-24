@@ -460,6 +460,7 @@ export default function RapportinoForm({
           voci={voci}
           campi={campi}
           infoCampi={infoCampi}
+          taskVia={taskVia}
           riepilogo={riepilogo}
           righe={righe}
           mancanti={mancanti}
