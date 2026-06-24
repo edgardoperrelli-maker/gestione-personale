@@ -24,14 +24,6 @@ import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/v
 
 export const runtime = 'nodejs';
 
-/** Insieme dei path realmente presenti nel bucket sotto il prefisso della richiesta. */
-async function pathPresentiInStorage(richiestaId: string): Promise<Set<string>> {
-  const { data: listati } = await supabaseAdmin.storage
-    .from('interventi-foto')
-    .list(richiestaId, { limit: 1000 });
-  return new Set((listati ?? []).map((o) => `${richiestaId}/${o.name}`));
-}
-
 type RichiestaEsistente = { id: string; voce_id: string | null; corsia: 'normale' | 'liberi'; intervento_id: string | null };
 
 /** Risposta idempotente per un re-invio con richiestaId già esistente. Ripara i file mancanti se
@@ -128,6 +120,25 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     risposte: rawDati.risposte ?? {},
   };
 
+  // Raccoglie TUTTE le parti "foto:<chiave>" ricevute (anche slot non previsti dal
+  // template): il server non scarta mai una foto. Calcolato prima del check idempotenza
+  // così un re-invio senza foto non viene respinto con 422 prima di raggiungere il ramo
+  // idempotente.
+  const received = partiFotoRicevute(form);
+
+  // Idempotenza: se il client fornisce un richiestaId già esistente (re-invio offline),
+  // restituisci il risultato esistente senza re-inserire. Posto PRIMA della validazione
+  // delle foto obbligatorie: un re-invio di sola conferma (senza foto) deve raggiungere
+  // questo ramo invece di essere respinto 422.
+  if (richiestaIdValido(rawDati.richiestaId)) {
+    const { data: esistente } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('id, voce_id, corsia, intervento_id')
+      .eq('id', rawDati.richiestaId)
+      .maybeSingle();
+    if (esistente) return rispostaIdempotente(esistente as RichiestaEsistente, received);
+  }
+
   // Collegamento opzionale al task-via padre (BONIFICHE EXTRA). Il client può mandare l'UUID
   // del voce padre OPPURE il suo id-task (es. "row-9", task-via offline). `parent_voce_id` è una
   // colonna UUID: passarci "row-9" faceva fallire l'INSERT con "invalid input syntax for type uuid"
@@ -194,12 +205,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     : [...campiEffettivi, ...standardCampi];
   dati.risposte = esitoPositivoDefault(campiPerEsito, dati.risposte);
 
-  // Raccoglie TUTTE le parti "foto:<chiave>" ricevute (anche slot non previsti dal
-  // template): il server non scarta mai una foto. La validazione obbligatorie resta
-  // sui campi effettivi.
-  const received = partiFotoRicevute(form);
-
-  // Valida le foto obbligatorie → 422 se mancano.
+  // Valida le foto obbligatorie → 422 se mancano (solo per il primo invio; i re-invii
+  // idempotenti sono già stati intercettati sopra).
   const presentiSet = new Set(received.map((r) => r.chiave));
   const esito = haEsitoNegativo(dati.risposte, campiEffettivi)
     ? { ok: true, mancanti: [] as string[] }
@@ -214,17 +221,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   // === C1: genera l'id richiesta in anticipo e carica TUTTE le foto prima di qualsiasi INSERT DB ===
-
-  // Idempotenza: se il client fornisce un richiestaId già esistente (re-invio offline),
-  // restituisci il risultato esistente senza re-inserire.
-  if (richiestaIdValido(rawDati.richiestaId)) {
-    const { data: esistente } = await supabaseAdmin
-      .from('interventi_manuali')
-      .select('id, voce_id, corsia, intervento_id')
-      .eq('id', rawDati.richiestaId)
-      .maybeSingle();
-    if (esistente) return rispostaIdempotente(esistente as RichiestaEsistente, received);
-  }
 
   const richiestaId = richiestaIdValido(rawDati.richiestaId) ? rawDati.richiestaId : randomUUID();
   // Token per-esecuzione: due POST concorrenti della stessa richiesta scrivono su path DISTINTI,
@@ -367,9 +363,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     .single();
   if (eReq) {
     console.error('[intervento-manuale] eReq (insert interventi_manuali)', { committente, msg: eReq.message });
-    // Rollback storage se l'INSERT DB fallisce.
+    // Pulisci SOLO i propri file (path per-tentativo: non tocca quelli di altri POST).
     if (pathCaricati.length > 0) {
       await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
+    }
+    // Conflitto PK = duplicato concorrente: la richiesta esiste già → rispondi idempotente
+    // invece di un 500 spurio (il vincente ha i suoi file, intatti).
+    if (isViolazionePk(eReq as { code?: string })) {
+      const { data: gia } = await supabaseAdmin
+        .from('interventi_manuali')
+        .select('id, voce_id, corsia, intervento_id')
+        .eq('id', richiestaId)
+        .maybeSingle();
+      if (gia) return rispostaIdempotente(gia as RichiestaEsistente, received);
     }
     return NextResponse.json({ error: eReq.message }, { status: 500 });
   }
