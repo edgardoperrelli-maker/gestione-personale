@@ -19,6 +19,8 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
+import { pathFotoTentativo, isViolazionePk } from '@/lib/interventi/manuali/fotoStorageHardening';
+import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 
 export const runtime = 'nodejs';
 
@@ -217,6 +219,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   const richiestaId = richiestaIdValido(rawDati.richiestaId) ? rawDati.richiestaId : randomUUID();
+  // Token per-esecuzione: due POST concorrenti della stessa richiesta scrivono su path DISTINTI,
+  // così il rollback di uno non può cancellare i file dell'altro.
+  const tentativo = randomUUID().slice(0, 8);
 
   const ids = {
     pdr: anagrafica.pdr as string | undefined,
@@ -251,7 +256,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   for (const { chiave, file: f } of received) {
     const ext = (f.name.split('.').pop() ?? 'jpg').toLowerCase();
     // I1: storage_path usa identificativoFoto, non l'UUID della richiesta.
-    const storagePath = `${richiestaId}/${chiave}_${identificativoFoto(ids, fotoPriority)}.${ext}`;
+    const storagePath = pathFotoTentativo(richiestaId, chiave, identificativoFoto(ids, fotoPriority), tentativo, ext);
     const buf = Buffer.from(await f.arrayBuffer());
 
     const { error: upErr } = await supabaseAdmin.storage
@@ -285,8 +290,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // file esista realmente nel bucket PRIMA di scrivere le righe in DB; altrimenti rollback + 502
   // e l'invio offline verra' ritentato al prossimo sync (auto-guarigione).
   if (pathCaricati.length > 0) {
-    const presenti = await pathPresentiInStorage(richiestaId);
-    const mancanti = pathCaricati.filter((p) => !presenti.has(p));
+    const presenti = await fotoPresentiVerificate(pathCaricati);
+    const mancanti = pathMancanti(pathCaricati, presenti);
     if (mancanti.length > 0) {
       await supabaseAdmin.storage.from('interventi-foto').remove(pathCaricati);
       return NextResponse.json({ error: 'upload_foto_non_persistito' }, { status: 502 });
