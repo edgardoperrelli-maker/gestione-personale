@@ -1,5 +1,5 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
-import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale } from './syncPlan';
+import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale } from './syncPlan';
 import { marcaErrore } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
