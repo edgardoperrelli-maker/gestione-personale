@@ -8,7 +8,7 @@ import type { OutboxItem } from './types';
 let inCorso = false;
 
 /** Esegue l'invio HTTP di un singolo elemento; restituisce lo status (0 = errore rete). */
-async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean }> {
+async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean; differita?: boolean }> {
   try {
     if (item.type === 'voce') {
       // Le risposte CORRENTI stanno in dbLavoro: il ramo foto vi riscrive il path reale dopo
@@ -81,8 +81,10 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
       const now = Date.now();
       const modo = modoInvioManuale(item, now);
       if (modo === 'attendi') {
-        // Non ancora ora di confermare: lascia l'item in coda senza inviare.
-        return { status: 200, ritentabile: true };
+        // Non ancora ora di confermare: ripristina lo stato (il loop l'ha messo 'in_invio')
+        // e segnala 'differita' → il loop prosegue con gli altri item, senza errore né break.
+        await dbOutbox.put({ ...item, stato: 'in_attesa' });
+        return { status: 200, differita: true };
       }
       const fd = new FormData();
       fd.append('dati', JSON.stringify({
@@ -112,11 +114,11 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
       }
       if (esito.tipo === 'attesa_conferma') {
         await dbOutbox.put({ ...item, stato: 'in_attesa', caricato: true, confermaDopo: esito.confermaDopo });
-        return { status: r.status, ritentabile: true }; // tieni l'item, ritenta (conferma) più tardi
+        return { status: r.status, differita: true }; // tieni l'item: conferma differita più tardi
       }
       if (esito.tipo === 'ripara') {
         await dbOutbox.put({ ...item, stato: 'in_attesa', caricato: false, confermaDopo: undefined });
-        return { status: r.status, ritentabile: true };
+        return { status: r.status, differita: true };
       }
       if (esito.tipo === 'ritenta') return { status: r.status === 0 ? 0 : r.status, ritentabile: true };
       // bloccato
@@ -150,7 +152,8 @@ export async function sincronizzaToken(token: string): Promise<boolean> {
     const ordinati = ordineInvio(items);
     for (const item of ordinati) {
       await dbOutbox.put({ ...item, stato: 'in_invio' });
-      const { status, ritentabile } = await inviaElemento(item);
+      const { status, ritentabile, differita } = await inviaElemento(item);
+      if (differita) continue; // attesa/conferma differita: stato già persistito, prosegui con gli altri item
       const esito = ritentabile ? ({ esito: 'ritenta' } as const) : classificaEsito(status);
       if (esito.esito === 'completato') {
         await dbOutbox.rimuovi(item.id);
