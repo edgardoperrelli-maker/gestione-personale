@@ -461,6 +461,57 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(report2.file[0].aggiornate).toBe(0);
   });
 
+  it('refresh data NON sposta la data se l’esito a file (positivo) è in conflitto col lavoro agganciato (negativo) — niente riga fantasma', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-rdata2-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    {
+      const wb0 = new ExcelJS.Workbook();
+      const ws0 = wb0.addWorksheet('Foglio1');
+      const h = ws0.getRow(1);
+      h.getCell(6).value = 'ORDINE';
+      h.getCell(9).value = 'MATRICOLA';
+      h.getCell(64).value = 'Località';
+      h.getCell(65).value = 'Esecutore';
+      h.getCell(66).value = 'data prevista'; // BN
+      h.getCell(67).value = 'esito';         // BO
+      h.getCell(68).value = 'AUTOMAZIONE';   // BP
+      // riga DELL'AGENTE: "eseguito" (positivo di un giorno PRECEDENTE), data 19/06
+      const r2 = ws0.getRow(2);
+      r2.getCell(6).value = '912229248'; r2.getCell(9).value = '201915088310'; r2.getCell(64).value = 'ZAGAROLO';
+      r2.getCell(65).value = 'PASTORELLI'; r2.getCell(66).value = new Date(2026, 5, 19, 12); r2.getCell(67).value = 'eseguito';
+      r2.getCell(68).value = 'SI + esito';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      // il lavoro agganciato per ODL è un NEGATIVO del 22/06 (ricontrollo): NON deve trascinare la data
+      lavori: [
+        { id: 'neg', odl: '912229248', matricola: '201915088310', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'PASTORELLI', data_esecuzione: '2026-06-22', esito: 'No', esitoOk: false, manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260625-1000',
+      mappatura: [
+        { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+        { campo: 'data', colonna: 'data prevista', abilitato: true },
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // la data NON si è spostata al 22/06 (resta 19/06) e l'esito positivo è preservato
+    expect(giornoDa(ws.getRow(2).getCell(66).value)).toBe('2026-06-19');
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    // nessuna riga "refresh-data" prodotta per questa riga
+    expect(report.file[0].righe.find((r: { riga: number; tipo: string }) => r.riga === 2 && r.tipo === 'refresh-data')).toBeFalsy();
+  });
+
   it('NON cancella sigillo/saracinesca compilati a mano sulla riga dell’agente (refresh ristretto a esito/note/data)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg2-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');

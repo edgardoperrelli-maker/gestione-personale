@@ -241,8 +241,15 @@ export async function eseguiGiro({
         const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
         const notaPrecedente = forza && regolaNote ? String(row.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
 
-        // Sulle righe DELL'AGENTE la data segue l'esecuzione (sovrascrive la pianificata).
-        const refreshData = rigaDellAgente;
+        // Sulle righe DELL'AGENTE la data segue l'esecuzione (sovrascrive la pianificata), MA
+        // solo se data ed esito vengono dalla STESSA esecuzione. Se la riga conserva un esito a
+        // file (es. "eseguito") DIVERSO da quello del lavoro agganciato (es. un NEGATIVO acea
+        // agganciato per ODL), l'esito resta in conflitto/preservato: NON spostare la data al
+        // negativo, altrimenti resterebbe "eseguito" con la data del ricontrollo (riga fantasma).
+        const esitoCellaTxt = String(esitoCella ?? '').trim().toUpperCase();
+        const esitoNuovoTxt = String(valoreEsito(hit.lavoro, esitoPositivo, esitoNegativo) ?? '').trim().toUpperCase();
+        const esitoInConflitto = !forza && esitoCellaTxt !== '' && esitoNuovoTxt !== '' && esitoCellaTxt !== esitoNuovoTxt;
+        const refreshData = rigaDellAgente && !esitoInConflitto;
 
         let toccata = false;
         const completate = []; // intestazioni delle colonne scritte dall'agente
