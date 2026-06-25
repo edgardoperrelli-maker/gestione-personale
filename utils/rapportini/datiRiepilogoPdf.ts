@@ -3,6 +3,7 @@ import { riepilogoRapportino, statoVoce } from './riepilogo';
 import { resolveInfoCampi, valoreInfo, type VoceInfo, type TemplateInfoCampo } from './infoCampi';
 import { campiEsportabili, type TemplateCampo } from './buildVoci';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 
 export interface VoceRiepilogo extends VoceInfo {
   risposte: Record<string, unknown>;
@@ -84,8 +85,11 @@ export function costruisciDatiPdf(params: {
   /** Template task-via (es. BONIFICHE EXTRA): le voci pianificate sono "contenitori" (le vie); il
    * dettaglio sono gli ordini creati col "+" (manuale=true). Il PDF mostra gli ordini, non i contenitori. */
   taskVia?: boolean;
+  /** Template ibrido: tiene le voci CLASSICHE e gli ordini "+", scartando solo i contenitori
+   * BONIFICHE EXTRA (voci pianificate con quell'attività). Ortogonale a `taskVia` (che è "tutto"). */
+  taskViaIbrido?: boolean;
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia } = params;
+  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia, taskViaIbrido } = params;
   // Le voci RIFIUTATE dall'ufficio sono scartate dal PDF: non sono interventi validi → fuori da
   // stats, lavorazioni e liste (coerente con `riepilogoRapportino`). Tutto il resto usa `voci`.
   let voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
@@ -93,6 +97,10 @@ export function costruisciDatiPdf(params: {
   // (manuale=true), che sono il vero dettaglio del lavoro. Senza questo il PDF mostrerebbe le vie
   // contenitore vuote invece degli interventi creati al loro interno.
   if (taskVia) voci = voci.filter((v) => v.manuale === true);
+  // Ibrido: il rapportino è classico, ma alcune voci sono contenitori BONIFICHE EXTRA. Scarta
+  // SOLO quei contenitori (attività BONIFICHE EXTRA, non manuali); le voci classiche e gli
+  // ordini "+" restano. Gli ordini figli del contenitore sono già esclusi a monte (parent_voce_id).
+  else if (taskViaIbrido) voci = voci.filter((v) => !(isTaskVia(v) && v.manuale !== true));
   const riep = riepilogoRapportino(voci, campi);
 
   // Stesse colonne del rapportino digitale/Excel:

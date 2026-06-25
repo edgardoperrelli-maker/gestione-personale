@@ -13,6 +13,7 @@ import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { TaskViaFocus } from './TaskViaFocus';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
+import { voceTaskVia } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
@@ -78,6 +79,8 @@ type Props = {
   campiStandardManuale?: TemplateCampo[];
   /** true = rapportino "task-via" (template solo via): le voci aprono il contenitore + "+". */
   taskVia?: boolean;
+  /** true = template "ibrido": SOLO le voci BONIFICHE EXTRA aprono il contenitore + "+"; le altre restano classiche. */
+  taskViaIbrido?: boolean;
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
 };
@@ -111,6 +114,7 @@ export default function RapportinoForm({
   infoCampiPerCommittente = {},
   campiStandardManuale,
   taskVia = false,
+  taskViaIbrido = false,
   tipo,
   righe: righeRisanamento,
 }: Props) {
@@ -286,9 +290,16 @@ export default function RapportinoForm({
 
   /* ── Derivati ─────────────────────────────────────────────────────────────── */
 
-  // Rapportino "task-via" (template solo via): le voci sono contenitori (niente esito proprio),
-  // escluse dalla completezza così non bloccano l'invio né compaiono tra i "campi mancanti".
-  const riepilogo = useMemo(() => riepilogoRapportino(taskVia ? [] : voci, campi), [voci, campi, taskVia]);
+  // Una voce è un "contenitore" task-via (niente esito proprio: apre TaskViaFocus, esclusa dalla
+  // completezza/invio)? Task-via puro → tutte; ibrido → solo le BONIFICHE EXTRA; normale → nessuna.
+  const isVoceTaskVia = useCallback(
+    (v: Voce) => voceTaskVia(v, { tutto: taskVia, ibrido: taskViaIbrido }),
+    [taskVia, taskViaIbrido],
+  );
+
+  // Le voci-contenitore sono escluse dalla completezza così non bloccano l'invio né compaiono tra
+  // i "campi mancanti". Nel task-via puro vengono escluse tutte; nell'ibrido solo le BONIFICHE EXTRA.
+  const riepilogo = useMemo(() => riepilogoRapportino(voci.filter((v) => !isVoceTaskVia(v)), campi), [voci, campi, isVoceTaskVia]);
   const inviabile = riepilogo.daFare === 0 && voci.length > 0;
 
   const righe: RigaVoce[] = useMemo(
@@ -307,10 +318,10 @@ export default function RapportinoForm({
     () =>
       voci
         .map((v, idx) => ({ index: idx, v }))
-        .filter(({ v }) => !v.annullato && !taskVia)
+        .filter(({ v }) => !v.annullato && !isVoceTaskVia(v))
         .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campi) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
-    [voci, campi, titoloCampi, taskVia],
+    [voci, campi, titoloCampi, isVoceTaskVia],
   );
 
   /* ── Navigazione ──────────────────────────────────────────────────────────── */
@@ -368,15 +379,18 @@ export default function RapportinoForm({
 
   const handleInvia = useCallback(() => {
     if (disabilitato || inviando || !inviabile) return;
+    // Le voci-contenitore (task-via) non hanno esito proprio → escluse dai controlli pre-invio.
+    // Si passa l'array COMPLETO e si scartano i risultati per `index` (così l'`index` resta
+    // allineato a `voci` per la navigazione "Controlla" dei modali, anche in modalità ibrida).
     // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
-    const campiObbl = campiObbligatoriMancantiVoci((taskVia ? [] : voci), campi, titoloCampi);
+    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi).filter((m) => !isVoceTaskVia(voci[m.index]));
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
-    const mancanti = fotoObbligatorieMancantiDettaglio((taskVia ? [] : voci), campi, titoloCampi);
+    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi).filter((m) => !isVoceTaskVia(voci[m.index]));
     if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
     void eseguiInvio();
-  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, taskVia, eseguiInvio]);
+  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, isVoceTaskVia, eseguiInvio]);
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
 
@@ -419,7 +433,7 @@ export default function RapportinoForm({
       {bannerSospese}
       {tipo === 'risanamento' ? (
         <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
-      ) : vista === 'focus' && voci[indiceCorrente] && taskVia ? (
+      ) : vista === 'focus' && voci[indiceCorrente] && isVoceTaskVia(voci[indiceCorrente]) ? (
         <TaskViaFocus
           voce={voci[indiceCorrente]}
           token={token}
@@ -461,6 +475,7 @@ export default function RapportinoForm({
           campi={campi}
           infoCampi={infoCampi}
           taskVia={taskVia}
+          taskViaIbrido={taskViaIbrido}
           riepilogo={riepilogo}
           righe={righe}
           mancanti={mancanti}

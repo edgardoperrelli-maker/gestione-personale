@@ -94,6 +94,7 @@ export function RapportinoLista({
   inviato,
   ricerca = '',
   taskVia,
+  taskViaIbrido,
 }: {
   staffName: string;
   dataLabel: string;
@@ -115,6 +116,8 @@ export function RapportinoLista({
   ricerca?: string;
   /** Template task-via (BONIFICHE EXTRA): il PDF mostra gli ordini "+", non le vie contenitore. */
   taskVia?: boolean;
+  /** Template ibrido: il PDF tiene le voci classiche e scarta solo i contenitori BONIFICHE EXTRA. */
+  taskViaIbrido?: boolean;
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
   const [tentatoInvio, setTentatoInvio] = useState(false);
@@ -180,6 +183,7 @@ export function RapportinoLista({
                 campi={campi}
                 infoCampi={infoCampi}
                 taskVia={taskVia}
+                taskViaIbrido={taskViaIbrido}
               />
             </>
           ) : (

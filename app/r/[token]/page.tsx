@@ -217,6 +217,16 @@ export default async function RapportinoPublicPage({
     taskVia = Boolean((tplFlag as { task_via?: boolean } | null)?.task_via);
   }
 
+  // Flag "ibrido" del template (query separata e resiliente, indipendente da quella di `task_via`
+  // così la colonna mancante non regredisce i task-via puri). Nei rapportini ibridi convivono
+  // attività classiche e voci BONIFICHE EXTRA: solo queste ultime aprono il contenitore + "+".
+  let taskViaIbrido = false;
+  if (rap.template_id) {
+    const { data: tplIbrido } = await supabaseAdmin
+      .from('rapportino_template').select('task_via_ibrido').eq('id', rap.template_id).maybeSingle();
+    taskViaIbrido = Boolean((tplIbrido as { task_via_ibrido?: boolean } | null)?.task_via_ibrido);
+  }
+
   // Template attivi per committente → alimentano la modale "intervento manuale".
   // Si legge ANCHE info_campi: l'anagrafica del "+" è guidata dal template manuale scelto
   // (coerente con l'editor "Anagrafica da compilare"), non dall'anagrafica del rapportino.
@@ -252,6 +262,7 @@ export default async function RapportinoPublicPage({
         infoCampiPerCommittente={infoCampiPerCommittente}
         campiStandardManuale={campiStandardLive}
         taskVia={taskVia}
+        taskViaIbrido={taskViaIbrido}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
       />

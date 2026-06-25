@@ -43,4 +43,6 @@ export const TemplateSchema = z.object({
   solo_manuale: z.boolean().optional().default(false),
   /** Template "task-via" (solo via): i rapportini generati con questo template mostrano il contenitore + "+". */
   task_via: z.boolean().optional().default(false),
+  /** Template "ibrido": attività classiche + voci BONIFICHE EXTRA (task-via) nello stesso rapportino. */
+  task_via_ibrido: z.boolean().optional().default(false),
 });
