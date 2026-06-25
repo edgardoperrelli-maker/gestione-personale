@@ -44,7 +44,8 @@ async function requireAdmin(): Promise<true | NextResponse> {
 }
 
 function normalizeName(value: unknown): string | null {
-  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ');
+  // DB pulito: nome attività in MAIUSCOLO (la verifica di unicità è già case-insensitive).
+  const normalized = String(value ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
   return normalized || null;
 }
 
