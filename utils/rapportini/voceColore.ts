@@ -12,11 +12,23 @@ const NEG_SELECT_SENZA_NOTA = /^nessun[\s_-]*passagg\w*$/i;
 /** Campo il cui NOME indica un esito negativo (assente / non eseguito / negativo / ko). */
 const NEG_NAME = /assent|non[\s_-]*eseguit|negativ|\bko\b/i;
 
+/**
+ * Campo SELECT che rappresenta l'ESITO dell'intervento (Eseguito / Esito): solo qui un valore
+ * "NO" / "NESSUN PASSAGGIO" significa esito negativo. Su select secondari (es. "Sostituzione
+ * valvola", SI/NO) il "NO" è un attributo della lavorazione, non l'esito della voce: non deve
+ * rendere la voce negativa né disattivare le foto obbligatorie.
+ */
+const ESITO_SELECT_NAME = /esegu|esito/i;
+
 /** Pattern per i campi "note": obbligatori SOLO con esito negativo. */
 const NOTE_FIELD = /^note/i;
 
 function nomeNegativo(c: TemplateCampo): boolean {
   return NEG_NAME.test(`${c.chiave} ${c.etichetta}`);
+}
+
+function isEsitoSelect(c: TemplateCampo): boolean {
+  return ESITO_SELECT_NAME.test(`${c.chiave} ${c.etichetta}`);
 }
 
 /**
@@ -48,7 +60,9 @@ export function haEsitoNegativo(
       if (v === true && nomeNegativo(c)) return true;
     } else if (c.tipo === 'select') {
       const s = typeof v === 'string' ? v.trim() : '';
-      if (s !== '' && (NEG_SELECT.test(s) || nomeNegativo(c))) return true;
+      // Valore negativo (NO / NESSUN PASSAGGIO) → conta solo sul campo esito; nome negativo
+      // (Assente / Non eseguito) → conta sempre, indipendentemente dal valore.
+      if (s !== '' && (nomeNegativo(c) || (isEsitoSelect(c) && NEG_SELECT.test(s)))) return true;
     }
   }
   return false;
@@ -71,8 +85,9 @@ export function voceEsitoColore(
     } else if (c.tipo === 'select') {
       const s = typeof v === 'string' ? v.trim() : '';
       if (s !== '') {
-        // Valore negativo esplicito (NO / negativo / ko) → esito negativo.
-        if (NEG_SELECT.test(s)) {
+        // Valore negativo esplicito (NO / NESSUN PASSAGGIO) → esito negativo SOLO sul campo esito
+        // (Eseguito / Esito). Su select secondari (es. Sostituzione valvola) il "NO" non è un esito.
+        if (isEsitoSelect(c) && NEG_SELECT.test(s)) {
           // "NESSUN PASSAGGIO" è auto-esplicativo: rossa diretta, nota non obbligatoria.
           if (NEG_SELECT_SENZA_NOTA.test(s)) return 'rossa';
           return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';

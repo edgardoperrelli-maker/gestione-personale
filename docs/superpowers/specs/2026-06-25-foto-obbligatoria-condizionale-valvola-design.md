@@ -33,12 +33,23 @@ Finora il flag `obbligatoria` sulle foto è **statico** (sempre/mai). Serviva un
   - `utils/rapportini/fotoObbligatorieMancanti.ts` — `contaFotoObbligatorieMancanti` / `fotoObbligatorieMancantiDettaglio` calcolano l'obbligo **per voce**.
   - `components/modules/rapportini/ModaleInterventoManuale.tsx`, `app/api/r/[token]/intervento-manuale/route.ts`, `lib/offline/validateManuale.ts` — passano le `risposte`.
 
-## Nota correlata (fuori scope)
-`haEsitoNegativo` considera negativo **qualsiasi** select con valore "NO" (regex `NEG_SELECT`).
-Di conseguenza **`Sostituzione valvola = NO`** marca l'intera voce come esito negativo e
-**disattiva tutte le foto obbligatorie** (anche ante panoramica, sigillatura, ecc.). È un
-comportamento **preesistente**: non modificato qui perché toccherebbe anche colore voce e note.
-Da valutare separatamente se l'obiettivo è che solo `Eseguito` guidi l'esito.
+## Fix collegato: solo "Eseguito" guida l'esito negativo
+Prima, `haEsitoNegativo`/`voceEsitoColore` consideravano negativo **qualsiasi** select con
+valore "NO" (regex `NEG_SELECT`). Di conseguenza **`Sostituzione valvola = NO`** marcava
+l'intera voce come esito negativo e **disattivava tutte le foto obbligatorie** (anche ante
+panoramica, sigillatura, ecc.) oltre a colorarla di rosso.
+
+Correzione in [voceColore.ts](../../../utils/rapportini/voceColore.ts): la negatività **per
+valore** (`NO` / `NESSUN PASSAGGIO`) vale ora **solo sul campo esito** — select riconosciuto
+per nome con `ESITO_SELECT_NAME = /esegu|esito/i` (`Eseguito`, `Esito`). I select **secondari**
+(es. `Sostituzione valvola`, SI/NO) col valore "NO" non rendono più la voce negativa.
+Invariata la negatività **per nome** (`Assente`, `Non eseguito` via `NEG_NAME`), così tutti i
+template esistenti (Acea/Italgas/limitazioni) mantengono lo stesso comportamento — confermato
+dai test esistenti di `voceColore` tutti verdi.
+
+Verifica dati: l'unico template dove il bug si manifestava è "Rapportino limitazioni massive"
+(unico con `sostituzione_valvola` come **select con opzione NO**); altrove valvola è crocetta
+o select con sola opzione "SI".
 
 ## Estensione futura
 Aggiungere una regola = una riga in `REGOLE` dentro `fotoCondizionali.ts`
