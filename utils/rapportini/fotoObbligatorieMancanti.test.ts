@@ -40,6 +40,17 @@ describe('contaFotoObbligatorieMancanti', () => {
     ] as never;
     expect(contaFotoObbligatorieMancanti([{ risposte: { assente: true } }], campiNeg)).toBe(0);
   });
+
+  it('foto valvola condizionale: SI senza foto conta, NO non conta', () => {
+    const campiValvola = [
+      { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', ordine: 1 },
+      { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', ordine: 2 },
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 3 },
+    ] as never[];
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } }], campiValvola)).toBe(1);
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'SI', sost_valvola: PATH } }], campiValvola)).toBe(0);
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'NO' } }], campiValvola)).toBe(0);
+  });
 });
 
 describe('fotoObbligatorieMancantiDettaglio', () => {

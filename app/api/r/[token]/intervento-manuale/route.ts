@@ -212,7 +212,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     ? { ok: true, mancanti: [] as string[] }
     : validaFotoObbligatorie(campiEffettivi, Object.fromEntries(
         slotFoto.map((c) => [c.chiave, presentiSet.has(c.chiave)]),
-      ));
+      ), dati.risposte);
   if (!esito.ok) {
     return NextResponse.json(
       { error: 'Foto obbligatorie mancanti', mancanti: esito.mancanti },

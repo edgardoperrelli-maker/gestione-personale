@@ -87,6 +87,7 @@ export function ModaleInterventoManuale({
     : validaFotoObbligatorie(
         campiEsito,
         Object.fromEntries(slotFoto.map((c) => [c.chiave, foto[c.chiave] != null])),
+        risposte,
       );
 
   const handleInvia = async () => {

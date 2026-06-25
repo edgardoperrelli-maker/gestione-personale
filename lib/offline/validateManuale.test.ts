@@ -34,4 +34,27 @@ describe('validaManualeClient', () => {
     });
     expect(r.ok).toBe(true);
   });
+
+  it('Sostituzione valvola = SI → foto valvola obbligatoria', () => {
+    const campiValvola: TemplateCampo[] = [
+      { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 } as TemplateCampo,
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 2 } as TemplateCampo,
+    ];
+    const senza = validaManualeClient({
+      anagrafica: { pdr: '123', via: 'Roma' },
+      campiTemplate: campiValvola,
+      slotFotoPresenti: { sost_valvola: false },
+      risposte: { sostituzione_valvola: 'SI' },
+    });
+    expect(senza.ok).toBe(false);
+    if (!senza.ok) expect(senza.motivo).toMatch(/Sost\. Valvola/);
+
+    const con = validaManualeClient({
+      anagrafica: { pdr: '123', via: 'Roma' },
+      campiTemplate: campiValvola,
+      slotFotoPresenti: { sost_valvola: true },
+      risposte: { sostituzione_valvola: 'SI' },
+    });
+    expect(con.ok).toBe(true);
+  });
 });

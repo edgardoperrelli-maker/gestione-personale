@@ -49,4 +49,31 @@ describe('validaFotoObbligatorie', () => {
     ];
     expect(validaFotoObbligatorie(soloFacoltativi, {})).toEqual({ ok: true, mancanti: [] });
   });
+
+  describe('foto obbligatoria su condizione (Sostituzione valvola = SI)', () => {
+    const campiValvola: TemplateCampo[] = [
+      { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 2 },
+    ];
+
+    it('valvola = SI senza foto → mancante', () => {
+      const res = validaFotoObbligatorie(campiValvola, { sost_valvola: false }, { sostituzione_valvola: 'SI' });
+      expect(res.ok).toBe(false);
+      expect(res.mancanti).toEqual(['Sost. Valvola']);
+    });
+
+    it('valvola = SI con foto → ok', () => {
+      const res = validaFotoObbligatorie(campiValvola, { sost_valvola: true }, { sostituzione_valvola: 'SI' });
+      expect(res).toEqual({ ok: true, mancanti: [] });
+    });
+
+    it('valvola = NO → foto valvola facoltativa', () => {
+      const res = validaFotoObbligatorie(campiValvola, { sost_valvola: false }, { sostituzione_valvola: 'NO' });
+      expect(res).toEqual({ ok: true, mancanti: [] });
+    });
+
+    it('senza risposte (retro-compatibile) → foto valvola facoltativa', () => {
+      expect(validaFotoObbligatorie(campiValvola, { sost_valvola: false })).toEqual({ ok: true, mancanti: [] });
+    });
+  });
 });
