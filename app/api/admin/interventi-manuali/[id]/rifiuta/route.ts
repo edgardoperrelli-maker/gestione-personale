@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { maiuscolo } from '@/lib/testo/maiuscolo';
 
 export const runtime = 'nodejs';
 
@@ -11,7 +12,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
 
   const body = (await req.json()) as { motivo?: string };
-  const motivo = (body.motivo ?? '').trim();
+  // DB pulito: la nota di rifiuto viene salvata in MAIUSCOLO.
+  const motivo = maiuscolo((body.motivo ?? '').trim());
 
   // Leggi il voce_id (serve per aggiornare rapportino_voci dopo il lock).
   const { data: richiesta } = await supabaseAdmin
