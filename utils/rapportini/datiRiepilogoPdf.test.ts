@@ -203,6 +203,16 @@ describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, n
     expect(dati.eseguiti.length).toBe(2);
     expect(dati.daFare.length).toBe(2);
   });
+
+  it('taskVia ma NESSUN ordine (template normale flaggato task-via per errore): NON svuota il PDF', () => {
+    const vociNormali = [
+      { via: 'VIA 1', comune: 'X', risposte: { minibag: true } }, // manuale=false, interventi normali
+      { via: 'VIA 2', comune: 'X', risposte: {} },
+    ];
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci: vociNormali, campi: campiTV, infoCampi: null, taskVia: true });
+    expect(dati.stats.totali).toBe(2); // guardia: non azzerato
+    expect(dati.eseguiti.length + dati.nonEseguiti.length + dati.daFare.length).toBe(2);
+  });
 });
 
 describe('costruisciDatiPdf — ibrido: classiche + contenitori BONIFICHE EXTRA nello stesso rapportino', () => {

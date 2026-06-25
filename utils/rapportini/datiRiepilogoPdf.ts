@@ -96,7 +96,13 @@ export function costruisciDatiPdf(params: {
   // Task-via: scarta i contenitori (voci pianificate, manuale=false) e tiene solo gli ordini "+"
   // (manuale=true), che sono il vero dettaglio del lavoro. Senza questo il PDF mostrerebbe le vie
   // contenitore vuote invece degli interventi creati al loro interno.
-  if (taskVia) voci = voci.filter((v) => v.manuale === true);
+  if (taskVia) {
+    // Guardia anti-PDF-vuoto: tieni solo gli ordini "+" SOLO se ce ne sono davvero. Se un template
+    // task-via viene usato per interventi normali (nessun ordine, tutte le voci manuale=false — es.
+    // un template classico flaggato task-via per errore), NON svuotare il PDF: mostra le voci così.
+    const ordini = voci.filter((v) => v.manuale === true);
+    if (ordini.length > 0) voci = ordini;
+  }
   // Ibrido: il rapportino è classico, ma alcune voci sono contenitori BONIFICHE EXTRA. Scarta
   // SOLO quei contenitori (attività BONIFICHE EXTRA, non manuali); le voci classiche e gli
   // ordini "+" restano. Gli ordini figli del contenitore sono già esclusi a monte (parent_voce_id).
