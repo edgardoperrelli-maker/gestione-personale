@@ -150,18 +150,23 @@ export async function eseguiGiro({
       // note (→pulita) e data (→data del positivo). Le ALTRE colonne (sigillo, saracinesca,
       // esecutore, …) restano alla policy normale, così un dato compilato a mano sulla riga
       // dell'agente NON viene mai svuotato né sovrascritto in silenzio dall'upgrade.
-      const scriviCella = (row, regola, l, forza = false) => {
+      const scriviCella = (row, regola, l, forza = false, refreshData = false) => {
         const cell = row.getCell(regola.idx + 1);
         const eraPieno = String(cell.value ?? '').trim() !== '';
         if (regola.campo === 'data') {
-          if (forza) {
-            // upgrade: aggiorna alla data del positivo SOLO se presente (mai svuotare una data a file)
+          // Refresh data: sulle righe DELL'AGENTE (refreshData) o in upgrade (forza) la data del
+          // file deve riflettere la data di ESECUZIONE, sovrascrivendo l'eventuale data PIANIFICATA
+          // già presente (es. 26/06 pianificata vs 24/06 eseguita). Idempotente: riscrive SOLO se
+          // il GIORNO cambia, così i giri ripetuti non producono write/conflitti/marcatori inutili.
+          // refresh:true → è una correzione, NON entra nel marcatore (vedi sito di chiamata).
+          if (forza || refreshData) {
             const g = giornoDa(l.data_esecuzione);
             if (!g) return { scritto: false, eraPieno };
+            if (giornoDa(cell.value) === g) return { scritto: false, eraPieno };
             const dv = aDataExcel(g);
             cell.value = dv;
             registra(row, regola.idx, dv);
-            return { scritto: true, eraPieno };
+            return { scritto: true, eraPieno, refresh: true };
           }
           const d = decidiScritturaData(cell.value, l.data_esecuzione);
           if (d.azione === 'scrivi') { cell.value = d.valore; registra(row, regola.idx, d.valore); return { scritto: true, eraPieno }; }
@@ -236,22 +241,36 @@ export async function eseguiGiro({
         const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
         const notaPrecedente = forza && regolaNote ? String(row.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
 
+        // Sulle righe DELL'AGENTE la data segue l'esecuzione (sovrascrive la pianificata).
+        const refreshData = rigaDellAgente;
+
         let toccata = false;
         const completate = []; // intestazioni delle colonne scritte dall'agente
         let pieneAMano = 0;    // quante colonne mappate erano già compilate a mano
+        let soloRefresh = false; // ha rinfrescato la data ma senza nuove colonne completate
         for (const regola of regoleScrittura) {
-          const { scritto, eraPieno } = scriviCella(row, regola, hit.lavoro, forza);
-          if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
-          if (eraPieno) pieneAMano++;
+          const { scritto, eraPieno, refresh } = scriviCella(row, regola, hit.lavoro, forza, refreshData);
+          if (scritto) {
+            toccata = true;
+            // il refresh-data è una correzione: non è una "colonna completata", non entra nel marcatore
+            if (refresh) soloRefresh = true;
+            else completate.push(String(header[regola.idx] ?? regola.colonna));
+          }
+          if (eraPieno && !refresh) pieneAMano++;
         }
         if (toccata) {
           fileReport.aggiornate++;
           // marcatore = "<SI|PARZIALE> + <colonne scritte>". L'upgrade è un refresh completo
           // dell'agente sulla SUA riga → sempre "SI" (mai PARZIALE).
           const parziale = !forza && pieneAMano > 0;
-          const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
-          scriviAutomazione(row, valoreAuto, hit.lavoro, forza);
-          const rep = rigaReport(hit.lavoro, row.number, forza ? 'upgrade' : (parziale ? 'parziale' : 'aggiornata'));
+          // Ricompone il marcatore SOLO se ci sono NUOVE colonne completate: un puro refresh della
+          // data su una riga già dell'agente non deve riscrivere né azzerare il marcatore esistente.
+          if (completate.length > 0) {
+            const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
+            scriviAutomazione(row, valoreAuto, hit.lavoro, forza);
+          }
+          const tipo = forza ? 'upgrade' : (completate.length === 0 && soloRefresh ? 'refresh-data' : (parziale ? 'parziale' : 'aggiornata'));
+          const rep = rigaReport(hit.lavoro, row.number, tipo);
           if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
           fileReport.righe.push(rep);
         }

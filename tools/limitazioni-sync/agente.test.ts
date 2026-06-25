@@ -397,6 +397,70 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(conf.nuovo).toBe('eseguito');
   });
 
+  it('refresh data: sulla riga dell’agente sovrascrive la data PIANIFICATA con quella di ESECUZIONE (idempotente, marcatore intatto); riga a mano protetta', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-rdata-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    {
+      const wb0 = new ExcelJS.Workbook();
+      const ws0 = wb0.addWorksheet('Foglio1');
+      const h = ws0.getRow(1);
+      h.getCell(6).value = 'ORDINE';
+      h.getCell(9).value = 'MATRICOLA';
+      h.getCell(64).value = 'Località';
+      h.getCell(65).value = 'Esecutore';
+      h.getCell(66).value = 'data prevista'; // BN
+      h.getCell(67).value = 'esito';         // BO
+      h.getCell(68).value = 'AUTOMAZIONE';   // BP
+      // riga 2 = DELL'AGENTE: eseguito, ma "data prevista" è la data PIANIFICATA (futura) 26/06
+      const r2 = ws0.getRow(2);
+      r2.getCell(6).value = '912231020'; r2.getCell(9).value = '20000020750'; r2.getCell(64).value = 'ZAGAROLO';
+      r2.getCell(65).value = 'PASTORELLI'; r2.getCell(66).value = new Date(2026, 5, 26, 12); r2.getCell(67).value = 'eseguito';
+      r2.getCell(68).value = 'SI + esito';
+      // riga 3 = A MANO (AUTOMAZIONE vuota): data 20/06 da NON toccare
+      const r3 = ws0.getRow(3);
+      r3.getCell(6).value = '999999999'; r3.getCell(9).value = '11111111111'; r3.getCell(64).value = 'ZAGAROLO';
+      r3.getCell(65).value = 'ROSSI'; r3.getCell(66).value = new Date(2026, 5, 20, 12); r3.getCell(67).value = 'eseguito';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const lavori = [
+      { id: 'a', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+        esecutore: 'PASTORELLI', data_esecuzione: '2026-06-24', esito: 'eseguito', esitoOk: true, manuale: false },
+      { id: 'b', odl: '999999999', matricola: '11111111111', comune: 'ZAGAROLO', via: 'VIA Z 9',
+        esecutore: 'ROSSI', data_esecuzione: '2026-06-24', esito: 'eseguito', esitoOk: true, manuale: false },
+    ];
+    const mappatura = [
+      { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+      { campo: 'data', colonna: 'data prevista', abilitato: true },
+      { campo: 'esito', colonna: 'esito', abilitato: true },
+      { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+    ];
+    const opts = { cartella: dir, lavori, dryRun: false, stamp: '20260625-0800', mappatura, esitoPositivo: 'eseguito', esitoNegativo: 'No' };
+
+    const report = await eseguiGiro(opts);
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // riga 2 (agente): data PIANIFICATA 26/06 → sovrascritta con ESECUZIONE 24/06
+    expect(giornoDa(ws.getRow(2).getCell(66).value)).toBe('2026-06-24');
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');          // esito invariato
+    expect(ws.getRow(2).getCell(68).value).toBe('SI + esito');        // marcatore NON azzerato dal refresh
+    // niente conflitto sulla data della riga dell'agente
+    expect(report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 2 && c.campo === 'data')).toBeFalsy();
+    const rd = report.file[0].righe.find((r: { riga: number }) => r.riga === 2);
+    expect(rd.tipo).toBe('refresh-data');
+    // riga 3 (a mano): data 20/06 PRESERVATA + conflitto segnalato
+    expect(giornoDa(ws.getRow(3).getCell(66).value)).toBe('2026-06-20');
+    const conf3 = report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 3 && c.campo === 'data');
+    expect(conf3).toBeTruthy();
+    expect(conf3.esistente).toBe('2026-06-20');
+
+    // IDEMPOTENZA: secondo giro → la data è già 24/06, nessun aggiornamento
+    const report2 = await eseguiGiro({ ...opts, stamp: '20260625-0900' });
+    expect(report2.file[0].aggiornate).toBe(0);
+  });
+
   it('NON cancella sigillo/saracinesca compilati a mano sulla riga dell’agente (refresh ristretto a esito/note/data)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg2-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');
