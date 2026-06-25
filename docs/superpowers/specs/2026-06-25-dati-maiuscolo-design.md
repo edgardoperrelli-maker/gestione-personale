@@ -1,7 +1,7 @@
-# Dati operativi sempre in MAIUSCOLO
+# Dati sempre in MAIUSCOLO
 
 **Data:** 2026-06-25
-**Stato:** Implementato (solo dati nuovi; migrazione esistenti da decidere a parte)
+**Stato:** Implementato (dati nuovi) + migrazione storico ESEGUITA
 
 ## Obiettivo
 Il testo inserito da **operatori** (smartphone/PC) e **backoffice** deve essere salvato sempre
@@ -34,6 +34,24 @@ in **MAIUSCOLO**, così il DB resta pulito e uniforme — anche se digitato in m
 - **Server:** `app/api/r/[token]/voce/route.ts` (risposte testo), `app/api/r/[token]/intervento-manuale/route.ts`
   (anagrafica + risposte testo + note), `app/api/admin/interventi-manuali/[id]/rifiuta/route.ts` (motivo).
 
-## Fuori scope (per ora)
-- Migrazione dei dati **esistenti** (da fare a parte, con conteggio/anteprima).
-- Configurazione (template/territori/attività/personale): non forzata in MAIUSCOLO.
+## Ambito esteso (richiesta utente del 2026-06-25)
+Oltre ai dati operatore, il MAIUSCOLO è stato esteso a **master backoffice** (personale,
+territori, attività, hotel — **non** l'email) e alla **configurazione template** (nome +
+etichette dei campi). `chiave`/`tipo`/`opzioni` restano sempre intatti.
+
+## Migrazione dello storico (ESEGUITA 2026-06-25)
+Eseguita sul progetto Supabase `aceztqfebringeaebvce`. **Backup** prima di ogni modifica nelle
+tabelle `bak_maiusc_*` (id + colonne toccate) → rollback sempre possibile. Convertito:
+- `rapportino_voci`: colonne anagrafica/codici + valori `risposte` di `tipo='testo'` (1074 voci).
+- `rapportini`: `staff_name` + etichette in `campi_snapshot`/`info_snapshot` (248).
+- `interventi_manuali`: `staff_name`, `note`, `motivo_rifiuto` + anagrafica/risposte-testo in
+  `dati_operatore`/`dati_correnti` (378 anagrafiche) — `committente` preservato.
+- `rapportino_template` (8), `staff` (28), `territories` (10), `activities` (12), `hotels` (7).
+
+**Verifiche post-migrazione:** righe ancora minuscole = 0 ovunque; 1669/1669 percorsi foto
+intatti (case-sensitive); opzioni select e enum `committente` invariati.
+
+> I backup `bak_maiusc_*` restano nel DB finché non si conferma l'esito; poi si possono droppare.
+
+## Sempre fuori scope
+- Forzare MAIUSCOLO su `opzioni` dei select (devono combaciare con le risposte salvate).
