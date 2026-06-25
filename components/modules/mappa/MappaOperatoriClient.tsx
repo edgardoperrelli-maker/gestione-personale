@@ -672,6 +672,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [excelMode, setExcelMode] = useState(false);
   const [sorgente, setSorgente] = useState<'excel' | 'interventi'>('excel');
   const [excelOnlyManualAction, setExcelOnlyManualAction] = useState(false);
+  // Modalità "senza interventi": piano con solo personale, rapportini vuoti da compilare
+  // unicamente con ordini manuali (es. limitazioni massive). Nessun task → niente data sul master.
+  const [modalitaSenzaInterventi, setModalitaSenzaInterventi] = useState(false);
 
   // Modifica task non geocodificati
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -2289,6 +2292,28 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     schedule: [],
   }), []);
 
+  // Avvia la pianificazione "senza interventi": rivela il selettore del personale senza
+  // richiedere alcun file/intervento. I rapportini nasceranno vuoti, da compilare solo con
+  // ordini manuali (es. limitazioni massive) → nessuna data prevista finisce sul master.
+  const avviaSenzaInterventi = useCallback(() => {
+    setModalitaSenzaInterventi(true);
+    setDistribution(null);
+    setUnassignedTasks([]);
+    setShowOpPicker(true);
+  }, []);
+
+  // Costruisce un piano a solo personale: ogni operatore selezionato riceve un gruppo VUOTO
+  // (tasks=[]). Sblocca i pannelli Salva/Genera senza passare dalla distribuzione da file.
+  const confermaSenzaInterventi = useCallback(() => {
+    if (!selectedOps.length) return;
+    setDistribution(selectedOps.map((op, i) => makeEmptyEntry(op, OP_COLORS[i % OP_COLORS.length])));
+    setUnassignedTasks([]);
+    setActiveOpIdx(0);
+    setRouteMode(false);
+    setRouteResult(null);
+    setShowOpPicker(false);
+  }, [selectedOps, makeEmptyEntry]);
+
   // Sposta un singolo task all'operatore `op` (anche se NON ancora distribuito: gli crea un gruppo
   // vuoto al primo spostamento). `opSelIdx` = indice in selectedOps, per il colore della palette.
   const moveTask = useCallback((taskId: string, fromIdx: number, op: OpConfig, opSelIdx: number) => {
@@ -2569,6 +2594,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setZtlConflicts([]);
     setEsecutorePins({});
     setBloccaRidistribuzione(false); // nuova pianificazione: ridistribuzione consentita
+    setModalitaSenzaInterventi(false);
     setTerritoryFilter('');
     setPlanningDate('');
     setSetupModalDate('');
@@ -2741,6 +2767,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               ] satisfies MenuItem[]}
             />
 
+            {!excelMode && !distribution && !modalitaSenzaInterventi && (
+              <button
+                type="button"
+                onClick={avviaSenzaInterventi}
+                title="Crea rapportini vuoti per il personale, da compilare solo con ordini manuali (es. limitazioni massive). Nessuna data prevista finisce sul master."
+                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
+              >
+                Senza interventi
+              </button>
+            )}
+
             {distribution && (
               <MenuDropdown
                 align="right"
@@ -2794,10 +2831,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           );
         })()}
 
-        {/* Barra stato Excel + operatori */}
-        {excelMode && (
+        {/* Barra stato Excel + operatori (anche modalità senza interventi: solo personale) */}
+        {(excelMode || modalitaSenzaInterventi) && (
           <div className="mt-3 space-y-2">
-            {/* Riga geocodifica */}
+            {/* Riga geocodifica — solo con interventi caricati da Excel */}
+            {excelMode && (
             <div className="rounded-xl border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-3 py-2.5">
               <div className="flex items-center justify-between gap-3">
                 <div className="text-sm">
@@ -2842,13 +2880,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 </div>
               )}
             </div>
+            )}
 
-            {/* Pannello distribuzione operatori — >=1 per pianificare anche un solo civico (es. risanamento singolo) */}
-            {excelGeocoded >= 1 && !isGeocoding && (
+            {/* Pannello distribuzione operatori — >=1 task, oppure modalità senza interventi (rapportini vuoti) */}
+            {(excelGeocoded >= 1 || modalitaSenzaInterventi) && !isGeocoding && (
               <div className={`rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2.5 ${currentPhase === 6 ? 'opacity-80' : ''}`}>
                 {/* Intestazione + toggle */}
                 <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-[var(--brand-text-main)]">Distribuisci tra operatori</span>
+                  <span className="text-xs font-semibold text-[var(--brand-text-main)]">{modalitaSenzaInterventi ? 'Seleziona personale (senza interventi)' : 'Distribuisci tra operatori'}</span>
                   <button
                     type="button"
                     onClick={() => setShowOpPicker((v) => !v)}
@@ -2857,6 +2896,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     {showOpPicker ? 'Chiudi -' : 'Seleziona +'}
                   </button>
                 </div>
+
+                {modalitaSenzaInterventi && (
+                  <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
+                    Nessun intervento caricato: i rapportini nasceranno vuoti, da compilare solo con ordini manuali. Le quantità sono ignorate.
+                  </p>
+                )}
 
                 {esecutoreWarnings.length > 0 && (
                   <div className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2.5 py-1.5 text-[10px] text-[var(--warning)]">
@@ -3013,20 +3058,24 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         </React.Fragment>
                       ))}
                     </div>
-                    <p className="text-[10px] text-[var(--brand-text-subtle)]">Lascia vuoto per distribuzione automatica uguale.</p>
+                    {!modalitaSenzaInterventi && (
+                      <p className="text-[10px] text-[var(--brand-text-subtle)]">Lascia vuoto per distribuzione automatica uguale.</p>
+                    )}
                     <div className="flex items-center gap-2 pt-1">
-                      <button type="button" onClick={() => setAssignModalOpen(true)}
-                        className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
-                        📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
-                      </button>
+                      {!modalitaSenzaInterventi && (
+                        <button type="button" onClick={() => setAssignModalOpen(true)}
+                          className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
+                          📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
+                        </button>
+                      )}
                       <button
                         type="button"
-                        onClick={distributeToOps}
-                        disabled={bloccaRidistribuzione}
+                        onClick={modalitaSenzaInterventi ? confermaSenzaInterventi : distributeToOps}
+                        disabled={bloccaRidistribuzione || (modalitaSenzaInterventi && selectedOps.length === 0)}
                         title={bloccaRidistribuzione ? 'Piano riaperto: le assegnazioni seguono il master/file. Usa Azzera per ridistribuire da zero.' : undefined}
                         className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
-                        {selectedOps.length === 1 ? 'Assegna' : 'Distribuisci'}
+                        {modalitaSenzaInterventi ? 'Conferma personale' : (selectedOps.length === 1 ? 'Assegna' : 'Distribuisci')}
                       </button>
                       {distribution && (
                         <>
