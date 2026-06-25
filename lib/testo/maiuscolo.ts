@@ -42,3 +42,14 @@ export function maiuscolaRisposteTesto(
   }
   return out;
 }
+
+/**
+ * Copia di una lista di campi/colonne template con la sola `etichetta` in MAIUSCOLO.
+ * `chiave`, `tipo`, `opzioni` restano INTATTI: sono identificatori e opzioni fisse usati dal
+ * codice e devono combaciare con le risposte già salvate.
+ */
+export function maiuscolaEtichette<T extends { etichetta?: unknown }>(campi: T[] | null | undefined): T[] {
+  return (campi ?? []).map((c) =>
+    typeof c?.etichetta === 'string' ? { ...c, etichetta: c.etichetta.toUpperCase() } : c,
+  );
+}

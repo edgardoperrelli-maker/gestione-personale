@@ -4,9 +4,11 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { COST_CENTERS } from '@/constants/cost-centers';
+import { maiuscolo } from '@/lib/testo/maiuscolo';
 
+// DB pulito: testo (nome/indirizzi) in MAIUSCOLO; trim + null per i vuoti.
 function normalizeNullableString(value: unknown): string | null {
-  const trimmed = String(value ?? '').trim();
+  const trimmed = String(value ?? '').trim().toUpperCase();
   return trimmed || null;
 }
 
@@ -190,8 +192,8 @@ export async function POST(req: NextRequest) {
     costCenterRanges?: unknown;
   };
 
-  // Validazione displayName
-  const displayName = String(body.displayName ?? '').trim();
+  // Validazione displayName (DB pulito: nome operatore in MAIUSCOLO)
+  const displayName = maiuscolo(String(body.displayName ?? '').trim());
   if (!displayName) {
     return NextResponse.json({ error: 'Nome operatore richiesto.' }, { status: 400 });
   }

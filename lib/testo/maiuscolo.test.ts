@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from './maiuscolo';
+import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto, maiuscolaEtichette } from './maiuscolo';
 
 describe('maiuscolo', () => {
   it('porta in MAIUSCOLO le stringhe', () => {
@@ -63,5 +63,23 @@ describe('maiuscolaRisposteTesto', () => {
     const orig = { note: 'x' };
     maiuscolaRisposteTesto(orig, campi);
     expect(orig.note).toBe('x');
+  });
+});
+
+describe('maiuscolaEtichette', () => {
+  it('porta in MAIUSCOLO solo etichetta, lascia chiave/tipo/opzioni intatti', () => {
+    const campi = [
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 1 },
+      { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'No'], ordine: 2 },
+    ];
+    expect(maiuscolaEtichette(campi)).toEqual([
+      { chiave: 'sost_valvola', etichetta: 'SOST. VALVOLA', tipo: 'foto', ordine: 1 },
+      { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'No'], ordine: 2 },
+    ]);
+  });
+  it('gestisce lista null/vuota e voci senza etichetta', () => {
+    expect(maiuscolaEtichette(null)).toEqual([]);
+    const senzaEtichetta: Array<{ chiave: string; etichetta?: unknown }> = [{ chiave: 'x' }];
+    expect(maiuscolaEtichette(senzaEtichetta)).toEqual([{ chiave: 'x' }]);
   });
 });

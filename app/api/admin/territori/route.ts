@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { maiuscolo } from '@/lib/testo/maiuscolo';
 
 function normalizeNullableString(value: unknown): string | null {
   const trimmed = String(value ?? '').trim();
@@ -75,7 +76,7 @@ export async function POST(req: NextRequest) {
     lng?: number | string | null;
   };
 
-  const name = normalizeNullableString(body.name);
+  const name = maiuscolo(normalizeNullableString(body.name));
   if (!name) {
     return NextResponse.json({ error: 'Nome territorio richiesto.' }, { status: 400 });
   }
@@ -133,7 +134,7 @@ export async function PATCH(req: NextRequest) {
     return NextResponse.json({ error: 'ID territorio richiesto.' }, { status: 400 });
   }
 
-  const name = normalizeNullableString(body.name);
+  const name = maiuscolo(normalizeNullableString(body.name));
   if (!name) {
     return NextResponse.json({ error: 'Nome territorio richiesto.' }, { status: 400 });
   }
