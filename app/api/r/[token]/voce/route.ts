@@ -5,6 +5,7 @@ import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 export const runtime = 'nodejs';
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -43,10 +44,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // L'id effettivo della voce (può differire da quello inviato dal client dopo una rigenerazione).
   const voceIdReale = (voce as { id: string }).id;
 
+  // Campi del template (snapshot del rapportino): servono sia per la normalizzazione
+  // MAIUSCOLO dei campi di testo, sia per la propagazione live dell'esito.
+  const campi = (((rap as { campi_snapshot?: unknown }).campi_snapshot ?? []) as TemplateCampo[]);
+
   const esistenti = ((voce as { risposte: Record<string, unknown> | null }).risposte ?? {});
-  const merged = mergeRisposte(esistenti, (risposte ?? {}) as Record<string, unknown>, {
+  const mergedRaw = mergeRisposte(esistenti, (risposte ?? {}) as Record<string, unknown>, {
     soloCompletamentoFoto: stato === 'inviato',
   });
+  // DB pulito: i valori dei campi di testo vengono scritti SEMPRE in MAIUSCOLO
+  // (select/crocetta/numero/foto restano intatti: opzioni fisse, booleani, numeri, percorsi).
+  const merged = maiuscolaRisposteTesto(mergedRaw, campi);
   const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte: merged }).eq('id', voceIdReale);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -81,7 +89,6 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     }
 
     if (interventoId) {
-      const campi = (rapAny.campi_snapshot ?? []) as TemplateCampo[];
       const patch = patchInterventoLiveDaVoce(merged as Record<string, unknown>, campi);
       // 'completa' chiude l'intervento (qualsiasi stato tranne annullato).
       // 'riapri' annulla SOLO una nostra precedente chiusura: tocca l'intervento

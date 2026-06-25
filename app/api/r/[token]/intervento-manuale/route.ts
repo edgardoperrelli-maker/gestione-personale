@@ -10,6 +10,7 @@ import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
+import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import { risolviCampiManuali } from '@/lib/interventi/manuali/risolviCampiManuali';
 import { partiFotoRicevute, etichettaSlotFoto } from '@/lib/interventi/manuali/fotoRicevute';
 import { slotDaRiparare } from '@/lib/interventi/manuali/riparazioneFoto';
@@ -205,6 +206,12 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     : [...campiEffettivi, ...standardCampi];
   dati.risposte = esitoPositivoDefault(campiPerEsito, dati.risposte);
 
+  // DB pulito: anagrafica e risposte di testo scritte SEMPRE in MAIUSCOLO (vale anche per
+  // l'offline ri-giocato qui). I campi tecnici restano intatti: per le risposte si toccano
+  // solo i campi `tipo === 'testo'` (no select/crocetta/numero/foto).
+  dati.anagrafica = maiuscolaStringhe(dati.anagrafica);
+  dati.risposte = maiuscolaRisposteTesto(dati.risposte, campiEffettivi);
+
   // Valida le foto obbligatorie → 422 se mancano (solo per il primo invio; i re-invii
   // idempotenti sono già stati intercettati sopra).
   const presentiSet = new Set(received.map((r) => r.chiave));
@@ -353,7 +360,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       data: rap.data,
       dati_operatore: dati,
       dati_correnti: dati,
-      note: rawDati.note ?? null,
+      note: maiuscolo(rawDati.note ?? null),
       stato: corsia === 'liberi' ? 'auto_liberi' : 'in_attesa',
       corsia,
       intervento_id: interventoId,

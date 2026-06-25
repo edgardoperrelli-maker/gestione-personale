@@ -3,6 +3,7 @@ import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { maiuscolo } from '@/lib/testo/maiuscolo';
 
 async function requireAdmin(): Promise<true | NextResponse> {
   const cookieStore = await cookies();
@@ -56,14 +57,14 @@ export async function POST(req: NextRequest) {
     stars?: unknown;
   };
 
-  const name = normalizeString(body.name);
+  const name = maiuscolo(normalizeString(body.name));
   if (!name) return NextResponse.json({ error: 'Nome richiesto.' }, { status: 400 });
 
   const { data, error } = await supabaseAdmin
     .from('hotels')
     .insert({
       name,
-      email: normalizeString(body.email),
+      email: normalizeString(body.email), // email NON maiuscola (case-sensitive)
       territory_id: normalizeString(body.territory_id),
       stars: normalizeStars(body.stars) ?? 3,
     })
@@ -92,7 +93,7 @@ export async function PATCH(req: NextRequest) {
 
   const patch: Record<string, unknown> = { updated_at: new Date().toISOString() };
   if (body.name !== undefined) {
-    const name = normalizeString(body.name);
+    const name = maiuscolo(normalizeString(body.name));
     if (!name) return NextResponse.json({ error: 'Nome richiesto.' }, { status: 400 });
     patch.name = name;
   }

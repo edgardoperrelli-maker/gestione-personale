@@ -187,8 +187,9 @@ export function ModaleInterventoManuale({
                   <input
                     type="text"
                     value={anagrafica[c.chiave] ?? ''}
-                    onChange={(e) => setAnagrafica((prev) => ({ ...prev, [c.chiave]: e.target.value }))}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO.
+                    onChange={(e) => setAnagrafica((prev) => ({ ...prev, [c.chiave]: e.target.value.toUpperCase() }))}
+                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
                   />
                 </div>
               ))}

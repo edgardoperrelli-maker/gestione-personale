@@ -4,6 +4,7 @@ import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
 
 export const runtime = 'nodejs';
 
@@ -32,7 +33,7 @@ export async function POST(req: Request) {
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: parsed.data.nome, committente: parsed.data.committente ?? null, campi: parsed.data.campi, info_campi: parsed.data.info_campi, titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false }).select('id, updated_at').single();
+    .insert({ nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false }).select('id, updated_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id, updated_at: data.updated_at });
 }
@@ -45,6 +46,10 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
   for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'foto_id_priority', 'tipo', 'active', 'solo_manuale', 'task_via', 'task_via_ibrido'] as const) if (k in parsed.data) patch[k] = (parsed.data as Record<string, unknown>)[k];
+  // DB pulito: nome ed etichette dei campi in MAIUSCOLO (chiave/tipo/opzioni intatti).
+  if (typeof patch.nome === 'string') patch.nome = maiuscolo(patch.nome);
+  if ('campi' in patch) patch.campi = maiuscolaEtichette(patch.campi as Array<{ etichetta?: unknown }>);
+  if ('info_campi' in patch) patch.info_campi = maiuscolaEtichette(patch.info_campi as Array<{ etichetta?: unknown }>);
   // Avanza sempre updated_at: è il "version token" per la concorrenza ottimistica.
   patch.updated_at = new Date().toISOString();
 

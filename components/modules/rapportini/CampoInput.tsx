@@ -249,8 +249,9 @@ function TextareaAuto({ valore, disabilitato, onChange, evidenzia }: { valore: s
       rows={1}
       value={valore}
       disabled={disabilitato}
-      onChange={(e) => onChange(e.target.value)}
-      className={`${inputCls} resize-none overflow-hidden ${evidenzia ? 'border-[var(--status-ko)] ring-1 ring-[var(--status-ko)]' : ''}`}
+      // DB pulito: il testo libero viene scritto SEMPRE in MAIUSCOLO (anche se digitato minuscolo).
+      onChange={(e) => onChange(e.target.value.toUpperCase())}
+      className={`${inputCls} resize-none overflow-hidden uppercase ${evidenzia ? 'border-[var(--status-ko)] ring-1 ring-[var(--status-ko)]' : ''}`}
     />
   );
 }
