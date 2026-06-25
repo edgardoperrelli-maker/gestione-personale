@@ -205,6 +205,37 @@ describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, n
   });
 });
 
+describe('costruisciDatiPdf — ibrido: classiche + contenitori BONIFICHE EXTRA nello stesso rapportino', () => {
+  const campiH: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+    { chiave: 'minibag', etichetta: 'MINI BAG', tipo: 'crocetta', ordine: 2 },
+  ];
+  const voci = [
+    // attività classiche (con esito) — DEVONO restare nel PDF
+    { matricola: 'C1', via: 'Via Cl 1', attivita: 'Sostituzione', risposte: { eseguito: 'SI' } },
+    { matricola: 'C2', via: 'Via Cl 2', attivita: 'Sostituzione', risposte: { eseguito: 'NO' } },
+    // contenitori BONIFICHE EXTRA (manuale=false) — DEVONO sparire dal PDF
+    { via: 'Via B 1', attivita: 'BONIFICHE EXTRA', risposte: {} },
+    { via: 'Via B 2', attivita: 'BONIFICHE EXTRA', risposte: {} },
+    // ordine "+" standalone (FAB, senza parent) — DEVE restare
+    { matricola: 'M1', via: 'Via M', manuale: true, risposte: { minibag: true } },
+  ];
+
+  it('con taskViaIbrido: tiene le classiche e gli ordini "+", scarta solo i contenitori BONIFICHE EXTRA', () => {
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiH, infoCampi: null, taskViaIbrido: true });
+    expect(dati.stats.totali).toBe(3);              // 2 classiche + 1 ordine, i 2 contenitori spariti
+    expect(dati.eseguiti.length).toBe(2);           // C1 (SI) + M1 (manuale)
+    expect(dati.nonEseguiti.length).toBe(1);        // C2 (NO)
+    expect(dati.daFare.length).toBe(0);             // nessun contenitore vuoto residuo
+  });
+
+  it('senza flag: comportamento invariato (i contenitori restano e vanno in daFare)', () => {
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiH, infoCampi: null });
+    expect(dati.stats.totali).toBe(5);
+    expect(dati.daFare.length).toBe(2);             // i 2 contenitori senza esito
+  });
+});
+
 describe('costruisciDatiPdf — le LAVORAZIONI SVOLTE contano solo sugli interventi eseguiti', () => {
   // Caso DELL'AQUILA 24/06: l'operatore ha marcato mini_bag su interventi NON eseguiti, gonfiando
   // la barra mini_bag SOPRA il numero di eseguiti. Una "lavorazione svolta" su un intervento non
