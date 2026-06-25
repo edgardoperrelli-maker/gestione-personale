@@ -21,5 +21,7 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ] && ! grep -q "NEXT_PUBLIC_SUPABASE_URL" "$CLAUD
   } >> "$CLAUDE_ENV_FILE"
 fi
 
-# npm install (non "ci") per sfruttare la cache del container.
-npm install
+# `npm ci`: installazione deterministica dal lockfile, senza riscriverlo
+# (con `npm install` npm normalizzava il package-lock.json a ogni avvio,
+# lasciando il working tree "sporco" a ogni sessione).
+npm ci
