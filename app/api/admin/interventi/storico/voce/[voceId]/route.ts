@@ -8,7 +8,7 @@ import { resolveAssignableRole, canManageUsers, canEditStorico } from '@/lib/mod
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import {
-  buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
+  buildCampiEditor, unisciCampiTemplateLive, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
 } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -54,8 +54,23 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
   const v = voce as Record<string, unknown>;
 
   const { data: rap } = await supabaseAdmin
-    .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id as string).maybeSingle();
-  const campi = buildCampiEditor((rap?.campi_snapshot ?? []) as TemplateCampo[]);
+    .from('rapportini').select('campi_snapshot, template_id').eq('id', v.rapportino_id as string).maybeSingle();
+
+  // I campi modificabili sono quelli dello snapshot del rapportino UNITI ai campi
+  // nuovi del template "live": così un campo aggiunto al template dopo la
+  // pianificazione (es. 'sigillo' per le attività Acea) diventa compilabile anche
+  // sugli interventi già pianificati. Lettura best-effort: se il template è stato
+  // cancellato o la query fallisce, si ricade sul solo snapshot.
+  let campiLive: TemplateCampo[] = [];
+  const templateId = (rap as { template_id?: string | null } | null)?.template_id ?? null;
+  if (templateId) {
+    const { data: tpl } = await supabaseAdmin
+      .from('rapportino_template').select('campi').eq('id', templateId).maybeSingle();
+    campiLive = (tpl?.campi ?? []) as TemplateCampo[];
+  }
+  const campi = buildCampiEditor(
+    unisciCampiTemplateLive((rap?.campi_snapshot ?? []) as TemplateCampo[], campiLive),
+  );
 
   const anagrafica: Record<string, string | null> = {};
   for (const k of ANAGRAFICA_COLONNE) anagrafica[k] = (v[k] as string | null) ?? null;

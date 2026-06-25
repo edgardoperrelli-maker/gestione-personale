@@ -36,6 +36,24 @@ export const ANAGRAFICA_LABEL: Record<AnagraficaColonna, string> = {
   fascia_oraria: 'Fascia oraria',
 };
 
+/**
+ * Unione campi dello snapshot del rapportino con quelli del template "live".
+ * Lo snapshot vince sulle chiavi già presenti (preserva ciò che l'operatore ha
+ * effettivamente visto); i campi nuovi del template — aggiunti DOPO la
+ * pianificazione (es. 'sigillo' per le attività Acea) — vengono accodati così
+ * diventano compilabili nello Storico anche sugli interventi già pianificati.
+ * Non rimuove mai un campo dello snapshot.
+ */
+export function unisciCampiTemplateLive(
+  snapshot: TemplateCampo[] | null | undefined,
+  live: TemplateCampo[] | null | undefined,
+): TemplateCampo[] {
+  const base = (Array.isArray(snapshot) ? snapshot : []).filter(Boolean);
+  const presenti = new Set(base.map((c) => c.chiave));
+  const aggiunte = (Array.isArray(live) ? live : []).filter((c) => Boolean(c) && !presenti.has(c.chiave));
+  return [...base, ...aggiunte];
+}
+
 /** Campi editabili (non-foto) per la modale; garantisce un campo 'note' (testo) in coda. */
 export function buildCampiEditor(campiSnapshot: TemplateCampo[] | null | undefined): TemplateCampo[] {
   const base = (Array.isArray(campiSnapshot) ? campiSnapshot : [])
