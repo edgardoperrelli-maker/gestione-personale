@@ -22,7 +22,7 @@ export function validaManualeClient(args: {
   }
   const esito = haEsitoNegativo(args.risposte ?? {}, args.campiTemplate)
     ? { ok: true as const, mancanti: [] as string[] }
-    : validaFotoObbligatorie(args.campiTemplate, args.slotFotoPresenti);
+    : validaFotoObbligatorie(args.campiTemplate, args.slotFotoPresenti, args.risposte ?? {});
   if (!esito.ok) {
     return { ok: false, motivo: `Foto obbligatorie mancanti: ${esito.mancanti.join(', ')}` };
   }

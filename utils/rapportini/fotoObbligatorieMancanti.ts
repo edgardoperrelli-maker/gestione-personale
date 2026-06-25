@@ -1,6 +1,7 @@
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { slotFotoCondizionali, fotoSlotObbligatorio } from '@/utils/rapportini/fotoCondizionali';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { titoloVoce, type VoceInfo, type InfoChiave } from '@/utils/rapportini/infoCampi';
 
@@ -19,16 +20,17 @@ export function contaFotoObbligatorieMancanti(
   voci: Array<{ risposte: Record<string, unknown> | null; manuale?: boolean }>,
   campi: TemplateCampo[],
 ): number {
-  const obbligatorie = campi.filter(
-    (c) => c.tipo === 'foto' && (c as { obbligatoria?: boolean }).obbligatoria === true,
-  );
-  if (obbligatorie.length === 0) return 0;
+  const campiFotoTpl = campi.filter((c) => c.tipo === 'foto');
+  if (campiFotoTpl.length === 0) return 0;
   let n = 0;
   for (const v of voci) {
     if (v.manuale) continue; // creata dal "+": le foto sono già nella richiesta, non nel template pianificato
     const risposte = v.risposte ?? {};
     if (haEsitoNegativo(risposte, campi)) continue; // esito negativo → foto non obbligatorie
-    for (const c of obbligatorie) {
+    // L'obbligo può dipendere dalle risposte (es. "Sostituzione valvola" = SI → foto valvola).
+    const condizionali = slotFotoCondizionali(campi, risposte);
+    for (const c of campiFotoTpl) {
+      if (!fotoSlotObbligatorio(c, condizionali)) continue;
       if (fotoVuota(risposte[c.chiave])) n += 1;
     }
   }
@@ -52,16 +54,17 @@ export function fotoObbligatorieMancantiDettaglio(
   campi: TemplateCampo[],
   titoloCampi: InfoChiave[] = [],
 ): FotoMancanteVoce[] {
-  const obbligatorie = campi.filter(
-    (c) => c.tipo === 'foto' && (c as { obbligatoria?: boolean }).obbligatoria === true,
-  );
-  if (obbligatorie.length === 0) return [];
+  const campiFotoTpl = campi.filter((c) => c.tipo === 'foto');
+  if (campiFotoTpl.length === 0) return [];
   const out: FotoMancanteVoce[] = [];
   voci.forEach((v, index) => {
     if (v.manuale) return;
     const risposte = v.risposte ?? {};
     if (haEsitoNegativo(risposte, campi)) return;
-    const tipi = obbligatorie.filter((c) => fotoVuota(risposte[c.chiave])).map((c) => c.etichetta);
+    const condizionali = slotFotoCondizionali(campi, risposte);
+    const tipi = campiFotoTpl
+      .filter((c) => fotoSlotObbligatorio(c, condizionali) && fotoVuota(risposte[c.chiave]))
+      .map((c) => c.etichetta);
     if (tipi.length > 0) out.push({ index, titolo: titoloVoce(v, titoloCampi, index), tipi });
   });
   return out;

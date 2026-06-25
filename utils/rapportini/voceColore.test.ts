@@ -111,3 +111,23 @@ describe('haEsitoNegativo', () => {
     expect(haEsitoNegativo({}, campi)).toBe(false);
   });
 });
+
+describe('select secondario "NO" NON è esito negativo (solo Eseguito/Esito guidano)', () => {
+  // Template "Rapportino limitazioni massive": Eseguito guida l'esito, Sostituzione valvola è secondario.
+  const campi: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 },
+    { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 2 },
+  ];
+  it('Sostituzione valvola = NO (Eseguito = SI) → esito NON negativo', () => {
+    expect(haEsitoNegativo({ eseguito: 'SI', sostituzione_valvola: 'NO' }, campi)).toBe(false);
+  });
+  it('Sostituzione valvola = NO da sola → esito NON negativo', () => {
+    expect(haEsitoNegativo({ sostituzione_valvola: 'NO' }, campi)).toBe(false);
+  });
+  it('Eseguito = SI + Sostituzione valvola = NO → verde (non rossa)', () => {
+    expect(voceEsitoColore({ eseguito: 'SI', sostituzione_valvola: 'NO' }, campi)).toBe('verde');
+  });
+  it('Eseguito = NO continua a guidare l\'esito negativo', () => {
+    expect(haEsitoNegativo({ eseguito: 'NO', sostituzione_valvola: 'SI' }, campi)).toBe(true);
+  });
+});

@@ -40,6 +40,21 @@ describe('contaFotoObbligatorieMancanti', () => {
     ] as never;
     expect(contaFotoObbligatorieMancanti([{ risposte: { assente: true } }], campiNeg)).toBe(0);
   });
+
+  it('foto valvola condizionale: SI senza foto conta, NO non conta', () => {
+    const campiValvola = [
+      { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', ordine: 1 },
+      { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', ordine: 2 },
+      { chiave: 'foto_std', etichetta: 'Ante Panoramica', tipo: 'foto', obbligatoria: true, ordine: 3 },
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 4 },
+    ] as never[];
+    // Eseguito = SI, valvola = SI, nessuna foto → mancano foto_std + sost_valvola.
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'SI', foto_std: PATH } }], campiValvola)).toBe(1);
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'SI', foto_std: PATH, sost_valvola: PATH } }], campiValvola)).toBe(0);
+    // Eseguito = SI, valvola = NO → la valvola NON è richiesta, ma la foto standard SÌ (fix esito negativo).
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'NO' } }], campiValvola)).toBe(1);
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI', sostituzione_valvola: 'NO', foto_std: PATH } }], campiValvola)).toBe(0);
+  });
 });
 
 describe('fotoObbligatorieMancantiDettaglio', () => {
