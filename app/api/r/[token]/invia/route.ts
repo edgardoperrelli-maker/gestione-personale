@@ -5,6 +5,7 @@ import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 import { righeIncomplete } from '@/utils/rapportini/righeIncomplete';
+import { qualificaRimozioneMisuratore } from '@/lib/interventi/misuratoreRimosso';
 import { ymdLocal } from '@/utils/date-it';
 export const runtime = 'nodejs';
 
@@ -118,8 +119,10 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .eq('id', v.intervento_id)
       .neq('stato', 'annullato');
 
-    // Raccolta misuratori rimossi (esito positivo + matricola presente)
-    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && (tipoMap.get(v.intervento_id) ?? '').toLowerCase().includes('rimozione')) {
+    // Raccolta misuratori rimossi (esito positivo + matricola presente).
+    // La "Rimozione impianto abusivo" è esclusa: non scarica un contatore (vedi
+    // qualificaRimozioneMisuratore) e non deve confluire nel registro.
+    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && qualificaRimozioneMisuratore(tipoMap.get(v.intervento_id))) {
       misuratoriFermi.push({
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,

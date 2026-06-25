@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { qualificaRimozioneMisuratore } from '@/lib/interventi/misuratoreRimosso';
 import { ymdLocal } from '@/utils/date-it';
 
 export const runtime = 'nodejs';
@@ -16,15 +17,22 @@ export async function POST() {
   //    legittimi. La matricola è già garantita non nulla sui record esistenti
   //    (vincolo NOT NULL) e viene ri-controllata su voci.matricola nel solo
   //    ramo di inserimento.
-  const { data: interventi, error: errInt } = await supabaseAdmin
+  //    L'ILIKE '%rimozione%' è solo un pre-filtro grezzo lato DB; la qualificazione
+  //    fine (che esclude la "Rimozione impianto abusivo") è demandata a
+  //    qualificaRimozioneMisuratore, unica fonte di verità condivisa con l'hook di invio.
+  const { data: interventiRaw, error: errInt } = await supabaseAdmin
     .from('interventi')
-    .select('id, data, chiuso_at')
+    .select('id, data, chiuso_at, intervento_tipo')
     .eq('committente', 'acea')
     .ilike('intervento_tipo', '%rimozione%')
     .eq('esito', 'eseguito_positivo');
   if (errInt) return NextResponse.json({ error: errInt.message }, { status: 500 });
 
-  const qualifyingIds = new Set((interventi ?? []).map(i => i.id));
+  // Esclude gli interventi abusivi (es. "Rimozione impianto abusivo"): non scaricano
+  // un contatore e non devono entrare nel registro.
+  const interventi = (interventiRaw ?? []).filter(i => qualificaRimozioneMisuratore(i.intervento_tipo));
+
+  const qualifyingIds = new Set(interventi.map(i => i.id));
 
   // Data ESECUZIONE = momento reale di chiusura (chiuso_at) in fuso Europe/Rome.
   // Fallback alla data pianificata dell'intervento se chiuso_at è assente.
