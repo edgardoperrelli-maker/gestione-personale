@@ -4,6 +4,7 @@ import { type DragEvent, useState } from 'react';
 import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment, Territory } from '@/types';
+import { isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
 import { getTerritoryStyle, TERRITORY_COLORS } from '@/lib/territoryColors';
 import type { SortMode } from './types';
 import {
@@ -180,11 +181,13 @@ function TerritoryWeek({
   onDelete,
   onDrop,
   taskCountMap,
+  assenzeByDay,
 }: {
   territory: Territory & { id: string };
   days: Date[];
   today: Date;
   assignmentsByCell: Record<string, Assignment[]>;
+  assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
   onDropDay: (args: { fromDay: string; toDay: Date; copy: boolean }) => void;
@@ -212,7 +215,10 @@ function TerritoryWeek({
         {days.map((d) => {
           const iso = fmtDay(d);
           const key = `${iso}|${terrId}`;
-          const list = assignmentsByCell[key] ?? [];
+          const assentiInteri = new Set(
+            (assenzeByDay?.[iso] ?? []).filter((a) => isAssenzaIntera(a)).map((a) => a.staff_id),
+          );
+          const list = (assignmentsByCell[key] ?? []).filter((a) => !assentiInteri.has(a.staff?.id ?? ''));
           return (
             <WeekCell
               key={iso}
@@ -248,12 +254,14 @@ export default function CronoSplitView({
   onDelete,
   onDropAssignment,
   taskCountMap,
+  assenzeByDay,
 }: {
   days: Date[];
   today: Date;
   territories: Territory[];
   includeNoTerritory: boolean;
   assignmentsByCell: Record<string, Assignment[]>;
+  assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   sortMode: SortMode;
   onAdd: (d: Date) => void;
   onDropDay: (args: { fromDay: string; toDay: Date; copy: boolean }) => void;
@@ -371,6 +379,7 @@ export default function CronoSplitView({
             onDelete={onDelete}
             onDrop={handleDrop}
             taskCountMap={taskCountMap}
+            assenzeByDay={assenzeByDay}
           />
         ) : (
           <div className="flex flex-1 items-center justify-center text-sm text-[var(--brand-text-muted)]">

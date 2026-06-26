@@ -6,7 +6,7 @@ import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
-import { TIPO_META, labelDisponibilita, type Disponibilita } from '@/lib/disponibilita';
+import { TIPO_META, labelDisponibilita, isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
 import { loadCollapsed, saveCollapsed } from '@/lib/cronoCollapse';
 import {
   eqDate,
@@ -186,7 +186,15 @@ function DayCell(props: {
   const dayRow = dayMap[iso];
   const list = dayRow ? assignments[dayRow.id] ?? [] : [];
 
-  const visible = filterAssignments(list, filters);
+  // Chi ha un'assenza giornaliera intera (permesso/malattia/congedo/ferie/104/lutto)
+  // NON deve comparire nelle card del giorno (resta solo nella sezione assenze sopra).
+  const assentiInteri = new Set(
+    (assenzeByDay?.[iso] ?? []).filter((a) => isAssenzaIntera(a)).map((a) => a.staff_id),
+  );
+
+  const visible = filterAssignments(list, filters).filter(
+    (a) => !assentiInteri.has(a.staff?.id ?? ''),
+  );
   const sorted = sortAssignments(visible, sortMode);
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
