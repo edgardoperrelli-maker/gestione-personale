@@ -18,7 +18,7 @@ const TRENTA_GIORNI = 30 * 24 * 60 * 60;
 const navigazioneOperatore: RuntimeCaching = {
   matcher: ({ request, url }) =>
     request.mode === 'navigate' &&
-    (url.pathname.startsWith('/r/') || url.pathname.startsWith('/agenda/')),
+    (url.pathname.startsWith('/r/') || url.pathname.startsWith('/agenda/') || url.pathname.startsWith('/pi/')),
   handler: new NetworkFirst({
     cacheName: 'operatore-pagine',
     // Niente networkTimeoutSeconds: online (anche su rete lenta) si aspetta SEMPRE il dato
@@ -31,7 +31,7 @@ const navigazioneOperatore: RuntimeCaching = {
 /** GET delle API operatore in sola lettura: rete-poi-cache. */
 const apiOperatore: RuntimeCaching = {
   matcher: ({ request, url }) =>
-    request.method === 'GET' && url.pathname.startsWith('/api/r/'),
+    request.method === 'GET' && (url.pathname.startsWith('/api/r/') || url.pathname.startsWith('/api/pi/')),
   handler: new NetworkFirst({
     cacheName: 'operatore-api',
     // Niente timeout: fresco quando online, cache solo se offline (come navigazioneOperatore).

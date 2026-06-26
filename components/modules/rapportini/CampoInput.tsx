@@ -85,6 +85,21 @@ export function CampoInput({
     );
   }
 
+  if (campo.tipo === 'ora') {
+    return (
+      <div>
+        {labelEl}
+        <input
+          type="time"
+          value={typeof valore === 'string' ? valore : ''}
+          disabled={disabilitato}
+          onChange={(e) => onChange(e.target.value)}
+          className={inputCls}
+        />
+      </div>
+    );
+  }
+
   if (campo.tipo === 'foto') {
     return <CampoFotoInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} />;
   }

@@ -15,6 +15,7 @@ export type AppModuleKey =
   | 'hotel-calendar'
   | 'mappa'
   | 'interventi'
+  | 'pronto-intervento'
   | 'live'
   | 'lista-attesa'
   | 'appuntamenti'
@@ -86,6 +87,16 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/interventi'],
+  },
+  {
+    key: 'pronto-intervento',
+    href: '/hub/pronto-intervento',
+    label: 'Pronto Intervento',
+    description: 'Chiamate P.I. sul campo e contabilità',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/pronto-intervento'],
+    adminOnly: true,
   },
   {
     key: 'live',
