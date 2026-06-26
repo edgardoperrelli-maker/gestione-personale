@@ -25,6 +25,8 @@ export default function ProntoInterventoClient() {
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
   const [genera, setGenera] = useState(false);
+  const [from, setFrom] = useState('');
+  const [to, setTo] = useState('');
 
   useEffect(() => {
     (async () => {
@@ -41,15 +43,22 @@ export default function ProntoInterventoClient() {
 
   const areaAttiva = useMemo(() => aree.find((a) => a.codice === area), [aree, area]);
 
+  const periodoQS = useMemo(() => {
+    const p = new URLSearchParams({ area });
+    if (from) p.set('from', from);
+    if (to) p.set('to', to);
+    return p.toString();
+  }, [area, from, to]);
+
   const carica = useCallback(async () => {
     if (!area) return;
     const [c, t] = await Promise.all([
       fetch(`/api/admin/pi/coda?area=${area}`, { cache: 'no-store' }),
-      fetch(`/api/admin/pi/interventi?area=${area}`, { cache: 'no-store' }),
+      fetch(`/api/admin/pi/interventi?${periodoQS}`, { cache: 'no-store' }),
     ]);
     if (c.ok) setCoda((await c.json()).righe ?? []);
     if (t.ok) setTabella((await t.json()).righe ?? []);
-  }, [area]);
+  }, [area, periodoQS]);
 
   useEffect(() => { if (areaAttiva?.attiva) void carica(); }, [areaAttiva, carica]);
 
@@ -133,7 +142,23 @@ export default function ProntoInterventoClient() {
 
           {/* Tabella interventi approvati */}
           <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-            <h2 className="mb-3 text-base font-semibold">Interventi ({tabella.length})</h2>
+            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+              <h2 className="text-base font-semibold">Interventi ({tabella.length})</h2>
+              <div className="flex flex-wrap items-end gap-2">
+                <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
+                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+                </label>
+                <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Al
+                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+                </label>
+                <a
+                  href={`/api/admin/pi/export?${periodoQS}`}
+                  className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]"
+                >
+                  Esporta Excel
+                </a>
+              </div>
+            </div>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead>
