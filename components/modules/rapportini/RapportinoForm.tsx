@@ -119,6 +119,13 @@ export default function RapportinoForm({
   righe: righeRisanamento,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
+  // Risanamento: le "azioni" (campi foto) si leggono LIVE dal template collegato, non dallo snapshot
+  // congelato alla creazione. Così le azioni aggiunte al template dopo la generazione del rapportino
+  // (es. una nuova foto accessoria) compaiono anche nei rapportini già in corso.
+  const campiRisanamento = useMemo(
+    () => (campiStandardManuale ?? campiSnapshot).slice().sort((a, b) => a.ordine - b.ordine),
+    [campiStandardManuale, campiSnapshot],
+  );
   const vociOrdinate = useMemo(() => vociIniziali.slice().sort((a, b) => a.ordine - b.ordine), [vociIniziali]);
   const { dettaglio } = useMemo(() => partitionInfoCampi(infoCampi), [infoCampi]);
 
@@ -432,7 +439,7 @@ export default function RapportinoForm({
       )}
       {bannerSospese}
       {tipo === 'risanamento' ? (
-        <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campi} readOnly={readOnly} />
+        <RisanamentoView token={token} rapportino={rapportino} voci={voci} righeIniziali={righeRisanamento ?? []} campi={campiRisanamento} readOnly={readOnly} />
       ) : vista === 'focus' && voci[indiceCorrente] && isVoceTaskVia(voci[indiceCorrente]) ? (
         <TaskViaFocus
           voce={voci[indiceCorrente]}
