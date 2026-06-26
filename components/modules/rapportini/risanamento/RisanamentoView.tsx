@@ -52,12 +52,8 @@ export function RisanamentoView({
   const [aggiungendoRiga, setAggiungendoRiga] = useState(false);
   const [scanner, setScanner] = useState(false);
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
-  /** Ricerca misuratore (matricola/pdr/nominativo) nel civico aperto. */
-  const [ricerca, setRicerca] = useState('');
   /** Id dei misuratori espansi (lista accordion per non avere una lista infinita). */
   const [espansi, setEspansi] = useState<Set<string>>(new Set<string>());
-  /** Form "aggiungi misuratore" manuale aperto/chiuso. */
-  const [mostraAggiungi, setMostraAggiungi] = useState(false);
 
   /** vociRisposte: copia locale delle risposte delle voci, per aggiornamento ottimistico. */
   const [vociRisposte, setVociRisposte] = useState<Record<string, Record<string, unknown>>>(
@@ -81,14 +77,11 @@ export function RisanamentoView({
   useEffect(() => {
     setAccessorieAttive(new Set());
     setEspansi(new Set());
-    setRicerca('');
-    setMostraAggiungi(false);
   }, [civicoApertoId]);
 
-  // Espande un misuratore (accordion) e lo rende visibile azzerando l'eventuale ricerca attiva.
+  // Espande un misuratore (accordion) per caricarne subito le foto.
   const espandiRiga = (id: string) => {
     setEspansi((prev) => new Set(prev).add(id));
-    setRicerca('');
   };
   const toggleRiga = (id: string) => {
     setEspansi((prev) => {
@@ -204,12 +197,23 @@ export function RisanamentoView({
   const aggiungiRiga = async () => {
     if (!mat.trim() || !civicoApertoId || aggiungendoRiga) return;
     setErrore(null);
+    // Cerca-o-aggiungi: se la matricola è già nel civico la apre (niente doppioni),
+    // altrimenti crea la riga.
+    const norm = mat.trim();
+    const esistente = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === norm);
+    if (esistente) {
+      espandiRiga(esistente.id);
+      setEvidenziata(esistente.id);
+      setErrore('Misuratore già presente: aperto per la foto «dopo».');
+      setMat(''); setPdr(''); setNom('');
+      return;
+    }
     setAggiungendoRiga(true);
     try {
       const res = await fetch(`/api/r/${token}/riga`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voceId: civicoApertoId, matricola: mat.trim(), pdr: pdr.trim() || null, nominativo: nom.trim() || null }),
+        body: JSON.stringify({ voceId: civicoApertoId, matricola: norm, pdr: pdr.trim() || null, nominativo: nom.trim() || null }),
       });
       if (!res.ok) { setErrore('Errore nell\'aggiunta del misuratore'); return; }
       const json = (await res.json()) as { riga?: RigaRisanamento };
@@ -219,7 +223,6 @@ export function RisanamentoView({
         setMat('');
         setPdr('');
         setNom('');
-        setMostraAggiungi(false);
         espandiRiga(nuova.id);
       }
     } catch {
@@ -400,13 +403,6 @@ export function RisanamentoView({
   const risposteVoce = vociRisposte[civicoApertoId] ?? {};
   const titoloCivico = [voceDefinita.via, (voceDefinita as Voce & { civico?: string }).civico].filter(Boolean).join(' ') || voceDefinita.nominativo || 'Civico';
 
-  // Ricerca misuratore: filtra per matricola / pdr / nominativo (case-insensitive).
-  const filtro = ricerca.trim().toLowerCase();
-  const righeFiltrate = filtro
-    ? righeCivico.filter((r) =>
-        [r.matricola, r.pdr, r.nominativo].some((v) => (v ?? '').toLowerCase().includes(filtro)),
-      )
-    : righeCivico;
   // Conteggio foto-misuratore di una riga: completa = tutte le foto obbligatorie presenti.
   const statoFotoRiga = (riga: RigaRisanamento) => {
     const fatte = scope.misuratore.filter((c) => typeof riga.risposte?.[c.chiave] === 'string' && (riga.risposte?.[c.chiave] as string).length > 0).length;
@@ -454,44 +450,12 @@ export function RisanamentoView({
             )}
           </div>
 
-          {/* Barra di ricerca misuratore (matricola / pdr / nominativo) */}
-          {righeCivico.length > 0 && (
-            <div className="relative mb-3">
-              <svg viewBox="0 0 24 24" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="11" cy="11" r="7" /><path d="M21 21l-4.3-4.3" />
-              </svg>
-              <input
-                type="text"
-                inputMode="search"
-                placeholder="Cerca misuratore (matricola, PDR, nominativo)…"
-                aria-label="Cerca misuratore"
-                value={ricerca}
-                onChange={(e) => setRicerca(e.target.value)}
-                className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] py-2 pl-9 pr-9 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
-              />
-              {ricerca && (
-                <button
-                  type="button"
-                  onClick={() => setRicerca('')}
-                  aria-label="Cancella ricerca"
-                  className="absolute right-2 top-1/2 flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full text-[var(--brand-text-subtle)] hover:bg-[var(--brand-surface-muted)]"
-                >
-                  ✕
-                </button>
-              )}
-            </div>
-          )}
-
           {righeCivico.length === 0 && (
             <p className="mb-3 text-sm text-[var(--brand-text-muted)]">Nessun misuratore ancora aggiunto.</p>
           )}
 
-          {righeCivico.length > 0 && righeFiltrate.length === 0 && (
-            <p className="mb-3 text-sm text-[var(--brand-text-muted)]">Nessun misuratore trovato per «{ricerca.trim()}».</p>
-          )}
-
-          {righeFiltrate.map((riga) => {
-            const aperto = espansi.has(riga.id) || filtro !== '';
+          {righeCivico.map((riga) => {
+            const aperto = espansi.has(riga.id);
             const st = statoFotoRiga(riga);
             return (
               <div key={riga.id} id={`mis-${riga.id}`} className={`mb-2.5 overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
@@ -539,72 +503,55 @@ export function RisanamentoView({
             );
           })}
 
-          {/* Aggiungi misuratore (scanner sempre a portata, form manuale a scomparsa) */}
+          {/* Card cerca / scansiona / aggiungi misuratore (sempre presente) */}
           {!readOnly && (
-            <div className="mt-3">
-              {!mostraAggiungi ? (
-                <div className="flex flex-wrap gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setScanner(true)}
-                    className="flex-1 rounded-xl border border-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
-                  >
-                    📷 Scansiona misuratore
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { setMostraAggiungi(true); setErrore(null); }}
-                    className="flex-1 rounded-xl border border-dashed border-[var(--brand-border)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                  >
-                    ＋ Aggiungi manualmente
-                  </button>
-                </div>
-              ) : (
-                <div className="space-y-2 rounded-xl border border-dashed border-[var(--brand-border)] p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Aggiungi misuratore</div>
-                  <input
-                    type="text"
-                    placeholder="Matricola *"
-                    aria-label="Matricola"
-                    value={mat}
-                    onChange={(e) => { setMat(e.target.value); setErrore(null); }}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="PDR (facoltativo)"
-                    aria-label="PDR"
-                    value={pdr}
-                    onChange={(e) => { setPdr(e.target.value); }}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  />
-                  <input
-                    type="text"
-                    placeholder="Nominativo (facoltativo)"
-                    aria-label="Nominativo"
-                    value={nom}
-                    onChange={(e) => { setNom(e.target.value); }}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  />
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => { void aggiungiRiga(); }}
-                      disabled={aggiungendoRiga}
-                      className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
-                    >
-                      + Aggiungi misuratore
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => { setMostraAggiungi(false); setMat(''); setPdr(''); setNom(''); setErrore(null); }}
-                      className="rounded-xl border border-[var(--brand-border)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-text-muted)]"
-                    >
-                      Annulla
-                    </button>
-                  </div>
-                </div>
-              )}
+            <div className="mt-3 space-y-2 rounded-xl border border-dashed border-[var(--brand-border)] p-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Cerca o aggiungi misuratore</div>
+              <p className="text-[11px] leading-snug text-[var(--brand-text-muted)]">
+                Scansiona o digita la matricola: se è già presente la apri per la foto, altrimenti viene aggiunta.
+              </p>
+              <input
+                type="text"
+                placeholder="Matricola"
+                aria-label="Matricola"
+                value={mat}
+                onChange={(e) => { setMat(e.target.value); setErrore(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void aggiungiRiga(); } }}
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="PDR (facoltativo)"
+                aria-label="PDR"
+                value={pdr}
+                onChange={(e) => { setPdr(e.target.value); }}
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+              />
+              <input
+                type="text"
+                placeholder="Nominativo (facoltativo)"
+                aria-label="Nominativo"
+                value={nom}
+                onChange={(e) => { setNom(e.target.value); }}
+                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+              />
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setScanner(true)}
+                  className="flex-1 rounded-xl border border-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                >
+                  📷 Scansiona
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void aggiungiRiga(); }}
+                  disabled={aggiungendoRiga}
+                  className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  ＋ Aggiungi
+                </button>
+              </div>
             </div>
           )}
         </div>
