@@ -4,7 +4,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { risolviFinestra, puliziaQ, type FiltriStorico } from './filtri';
-import { voceToRigaStorico, ordinaRighe, filtraSiNo } from './normalizza';
+import { voceToRigaStorico, interventoPiToRigaStorico, ordinaRighe, filtraSiNo, type InterventoPiRow } from './normalizza';
 import type { VoceStoricoRow, RigaStorico } from './types';
 
 const PAGE_DB = 1000;
@@ -63,6 +63,21 @@ export async function caricaRigheStorico(
       break;
     }
   }
+
+  // P.I.: gli interventi origine='pronto_intervento' NON hanno una voce di rapportino
+  // (il modulo Interventi è il contenitore di tutti gli interventi) → includili a parte.
+  let qpi = supabase
+    .from('interventi')
+    .select('id, indirizzo, comune, data, staff_id, rif_esterno, intervento_tipo, esito, esito_motivo')
+    .eq('origine', 'pronto_intervento');
+  if (finestra.eq) qpi = qpi.eq('data', finestra.eq);
+  if (finestra.gte) qpi = qpi.gte('data', finestra.gte);
+  if (finestra.lte) qpi = qpi.lte('data', finestra.lte);
+  if (f.esecutore) qpi = qpi.eq('staff_id', f.esecutore);
+  if (f.comune) qpi = qpi.ilike('comune', `%${puliziaQ(f.comune)}%`);
+  if (qPulita) qpi = qpi.or(`indirizzo.ilike.%${qPulita}%,rif_esterno.ilike.%${qPulita}%`);
+  const { data: piRows } = await qpi;
+  for (const r of (piRows ?? []) as InterventoPiRow[]) righe.push(interventoPiToRigaStorico(r, staffById));
 
   const filtrate = filtraSiNo(righe, f);
   return { righe: ordinaRighe(filtrate), troncato };

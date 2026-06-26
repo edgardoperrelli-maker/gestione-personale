@@ -51,6 +51,39 @@ export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, st
   };
 }
 
+/** Riga grezza letta da `interventi` per le P.I. (origine='pronto_intervento'), che non
+ *  hanno una voce di rapportino e quindi vanno incluse a parte nello storico. */
+export type InterventoPiRow = {
+  id: string;
+  indirizzo: string | null;
+  comune: string | null;
+  data: string | null;
+  staff_id: string | null;
+  rif_esterno: string | null;
+  intervento_tipo: string | null;
+  esito: string | null;
+  esito_motivo: string | null;
+};
+
+/** Mappa una riga `interventi` P.I. nel formato unificato dello storico. */
+export function interventoPiToRigaStorico(row: InterventoPiRow, staffById: Map<string, string>): RigaStorico {
+  return {
+    id: row.id,
+    odl: nz(row.rif_esterno),
+    pdr: null,
+    matricola: null,
+    data: row.data ?? null,
+    esecutore: row.staff_id ? staffById.get(row.staff_id) ?? null : null,
+    via: nz(row.indirizzo),
+    gruppoAttivita: nz(row.intervento_tipo) ?? 'PRONTO INTERVENTO',
+    eseguito: row.esito === 'eseguito_positivo' ? 'SI' : siNo(row.esito),
+    sostValvola: '—',
+    miniBag: '—',
+    rgStop: '—',
+    note: nz(row.esito_motivo),
+  };
+}
+
 /** Match SI/NO sul valore già normalizzato: 'NO' include anche '—' (non risulta SI). */
 function matchSiNo(cell: string, filt: SiNoFiltro): boolean {
   if (!filt) return true;
