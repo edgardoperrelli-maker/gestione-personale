@@ -6,6 +6,25 @@ import { nomeFileFoto } from './idempotenza';
 export const runtime = 'nodejs';
 
 /**
+ * GET /api/r/[token]/foto-campo?path=rapportini/<id>/<file>
+ * Restituisce (via redirect) un URL firmato per visualizzare una foto del rapportino.
+ * Sicurezza: il path deve appartenere a QUESTO rapportino (prefisso rapportini/<id>/).
+ */
+export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
+  const { token } = await params;
+  const path = new URL(req.url).searchParams.get('path') ?? '';
+  if (!path || path.includes('..')) return NextResponse.json({ error: 'path non valido' }, { status: 400 });
+
+  const { data: rap } = await supabaseAdmin.from('rapportini').select('id').eq('token', token).maybeSingle();
+  if (!rap) return NextResponse.json({ error: 'token non valido' }, { status: 404 });
+  if (!path.startsWith(`rapportini/${rap.id}/`)) return NextResponse.json({ error: 'forbidden' }, { status: 403 });
+
+  const { data: signed } = await supabaseAdmin.storage.from('interventi-foto').createSignedUrl(path, 600);
+  if (!signed?.signedUrl) return NextResponse.json({ error: 'foto non trovata' }, { status: 404 });
+  return NextResponse.redirect(signed.signedUrl);
+}
+
+/**
  * POST /api/r/[token]/foto-campo
  * Riceve multipart/form-data con { file: File }.
  * Valida il token, carica la foto su storage (bucket interventi-foto, path rapportini/…),
