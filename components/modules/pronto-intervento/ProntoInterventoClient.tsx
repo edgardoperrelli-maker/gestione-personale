@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PannelloContabilita from './PannelloContabilita';
+import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
+import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 
 type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean };
 
@@ -36,6 +38,21 @@ function fmtData(d: string | null): string {
   return `${g}/${m}/${y}`;
 }
 const s = (v: unknown) => (v == null ? '' : String(v));
+
+async function condividiPdfTab(r: TabRiga) {
+  const dl = r.data ? `${r.data.split('-')[2]}/${r.data.split('-')[1]}/${r.data.split('-')[0]}` : '';
+  const blob = await generaRapportinoManutenzionePdfBlob({
+    bollato: s(r.n_segnalazione), dataInizio: dl, dataFine: dl,
+    oraInizio: s(r.ora_inizio), oraFine: s(r.ora_fine),
+    indirizzo: s(r.indirizzo), comune: s(r.comune),
+    assistenteItg: s(r.assistente_te), assistenteDitta: r.esecutore ?? '',
+    descrizione: s(r.note),
+  });
+  await condividiOScarica({
+    blob, filename: nomeFileRapportinoPI(s(r.n_segnalazione), r.data ?? ''),
+    title: 'Rapportino manutenzione', text: `Rapportino P.I. ${s(r.n_segnalazione)}`.trim(),
+  });
+}
 
 export default function ProntoInterventoClient() {
   const [aree, setAree] = useState<Area[]>([]);
@@ -209,12 +226,12 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                 <th className="py-2 pr-3">Assist. TE</th>
                 <th className="py-2 pr-3">Note</th>
                 {usaContabilita && <th className="py-2 pr-3 text-right">Valore</th>}
-                {usaContabilita && <th className="py-2"></th>}
+                <th className="py-2"></th>
               </tr>
             </thead>
             <tbody>
               {tabella.length === 0 && (
-                <tr><td colSpan={usaContabilita ? 11 : 9} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
+                <tr><td colSpan={usaContabilita ? 11 : 10} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
               )}
               {tabella.map((r) => (
                 <tr key={r.id} className="border-b border-[var(--brand-border)] align-top">
@@ -228,13 +245,14 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></td>
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></td>
                   {usaContabilita && <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>}
-                  {usaContabilita && (
-                    <td className="py-1.5 text-right">
-                      {r.intervento_id && (
+                  <td className="py-1.5 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <button type="button" onClick={() => { void condividiPdfTab(r).catch(() => {}); }} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium" title="Genera PDF rapportino">PDF</button>
+                      {usaContabilita && r.intervento_id && (
                         <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
                       )}
-                    </td>
-                  )}
+                    </div>
+                  </td>
                 </tr>
               ))}
             </tbody>
