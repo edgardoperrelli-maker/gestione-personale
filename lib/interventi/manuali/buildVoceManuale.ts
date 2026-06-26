@@ -29,6 +29,37 @@ const v = (s: string | null | undefined): string | null => {
   return t === '' ? null : t;
 };
 
+/** Colonne anagrafica + risposte di una voce, derivate dai dati dell'intervento manuale. */
+export type ColonneAnagraficaVoce = Pick<
+  VoceManualeInsert,
+  'nominativo' | 'matricola' | 'pdr' | 'odl' | 'via' | 'comune' | 'cap' | 'recapito' | 'attivita' | 'accessibilita' | 'fascia_oraria' | 'risposte'
+>;
+
+/**
+ * PURA: mappa anagrafica + risposte dei dati intervento sulle colonne di `rapportino_voci`.
+ * Usata sia alla creazione del "+" (buildVoceManuale) sia in APPROVAZIONE: il backoffice può
+ * correggere/aggiungere dati (es. la PDR, o la matricola) nel modulo approvazioni → quei dati
+ * vivono in `interventi_manuali.dati_correnti`; vanno riportati sulla voce del rapportino, altrimenti
+ * il rapportino/PDF mostra il dato vecchio dell'operatore (PDR mancante, matricola non corretta).
+ */
+export function colonneAnagraficaVoce(dati: DatiInterventoManuale): ColonneAnagraficaVoce {
+  const a = dati.anagrafica;
+  return {
+    nominativo: v(a.nominativo),
+    matricola: v(a.matricola),
+    pdr: v(a.pdr),
+    odl: v(a.odl),
+    via: v(a.via),
+    comune: v(a.comune),
+    cap: v(a.cap),
+    recapito: v(a.recapito),
+    attivita: v(a.attivita),
+    accessibilita: v(a.accessibilita),
+    fascia_oraria: v(a.fascia_oraria),
+    risposte: dati.risposte ?? {},
+  };
+}
+
 export function buildVoceManuale(args: {
   rapportinoId: string;
   richiestaId: string;
@@ -44,18 +75,7 @@ export function buildVoceManuale(args: {
     ordine: args.ordine,
     manuale: true,
     approvazione_stato: 'in_attesa',
-    nominativo: v(a.nominativo),
-    matricola: v(a.matricola),
-    pdr: v(a.pdr),
-    odl: v(a.odl),
-    via: v(a.via),
-    comune: v(a.comune),
-    cap: v(a.cap),
-    recapito: v(a.recapito),
-    attivita: v(a.attivita),
-    accessibilita: v(a.accessibilita),
-    fascia_oraria: v(a.fascia_oraria),
+    ...colonneAnagraficaVoce(args.dati),
     raw_json,
-    risposte: args.dati.risposte ?? {},
   };
 }
