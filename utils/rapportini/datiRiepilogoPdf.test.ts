@@ -255,6 +255,38 @@ describe('costruisciDatiPdf — ibrido: classiche + contenitori BONIFICHE EXTRA 
   });
 });
 
+describe('costruisciDatiPdf — bonifiche extra: il PDF mostra gli interventi "+", non i contenitori', () => {
+  // Regressione reale (PARADISI 26/06): un rapportino di SOLE vie BONIFICHE EXTRA + i loro ordini "+"
+  // (voci figlie, manuale=true) deve produrre il PDF con gli interventi creati — non i contenitori
+  // vuoti, né un corpo vuoto. Le voci figlie NON vanno filtrate via prima di arrivare qui.
+  const campiBE: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+  ];
+  const voci = [
+    { via: 'VIA A', attivita: 'BONIFICHE EXTRA', risposte: {} },                    // contenitore
+    { via: 'VIA B', attivita: 'BONIFICHE EXTRA', risposte: {} },                    // contenitore
+    { via: 'VIA A', matricola: 'M1', manuale: true, risposte: { eseguito: 'SI' } }, // ordine "+"
+    { via: 'VIA A', matricola: 'M2', manuale: true, risposte: { eseguito: 'SI' } }, // ordine "+"
+    { via: 'VIA B', matricola: 'M3', manuale: true, risposte: { eseguito: 'SI' } }, // ordine "+"
+  ];
+
+  it('tiene i 3 interventi "+" e scarta i 2 contenitori (anche senza flag)', () => {
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiBE, infoCampi: null });
+    expect(dati.stats.totali).toBe(3);
+    expect(dati.eseguiti.length).toBe(3);
+    expect(dati.nonEseguiti.length + dati.daFare.length).toBe(0);
+  });
+
+  it('solo contenitori senza ordini → guardia anti-vuoto: NON svuota il PDF', () => {
+    const soloVie = [
+      { via: 'VIA A', attivita: 'BONIFICHE EXTRA', risposte: {} },
+      { via: 'VIA B', attivita: 'BONIFICHE EXTRA', risposte: {} },
+    ];
+    const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci: soloVie, campi: campiBE, infoCampi: null });
+    expect(dati.stats.totali).toBe(2);
+  });
+});
+
 describe('costruisciDatiPdf — le LAVORAZIONI SVOLTE contano solo sugli interventi eseguiti', () => {
   // Caso DELL'AQUILA 24/06: l'operatore ha marcato mini_bag su interventi NON eseguiti, gonfiando
   // la barra mini_bag SOPRA il numero di eseguiti. Una "lavorazione svolta" su un intervento non
