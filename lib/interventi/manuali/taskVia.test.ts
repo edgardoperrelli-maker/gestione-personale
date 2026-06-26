@@ -38,8 +38,14 @@ describe('voceTaskVia', () => {
     expect(voceTaskVia(classica, { tutto: true, ibrido: true })).toBe(true);
   });
 
-  it('nessuna modalità (template normale) → mai task-via', () => {
-    expect(voceTaskVia(bonifica, {})).toBe(false);
+  it('senza flag: la voce BONIFICHE EXTRA è contenitore lo stesso (l\'attività è il segnale), le altre no', () => {
+    // Fix definitivo: anche su un template senza flag (es. un Italgas "ibrido nei fatti" ma con la
+    // spunta task_via_ibrido dimenticata) una voce BONIFICHE EXTRA apre il contenitore; le attività
+    // classiche restano classiche.
+    expect(voceTaskVia(bonifica, {})).toBe(true);
+    expect(voceTaskVia({ attivita: '  bonifiche extra ' }, {})).toBe(true);
     expect(voceTaskVia(classica, {})).toBe(false);
+    expect(voceTaskVia({}, {})).toBe(false);
+    expect(voceTaskVia(null, {})).toBe(false);
   });
 });

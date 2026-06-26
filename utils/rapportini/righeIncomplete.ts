@@ -4,7 +4,7 @@ import type { TemplateCampo } from './buildVoci';
 
 export type VoceLite = { id: string; via?: string | null; risposte: Record<string, unknown> | null };
 export type RigaLite = { id: string; voce_id: string; matricola: string | null; risposte: Record<string, unknown> | null };
-export type DettaglioIncompleto = { tipo: 'riga' | 'civico'; civico: string; matricola?: string; campiMancanti: string[] };
+export type DettaglioIncompleto = { tipo: 'riga' | 'civico'; civico: string; matricola?: string; campiMancanti: string[]; voceId: string; rigaId?: string };
 
 /** Verifica i campi foto OBBLIGATORI: misuratore→per riga, fase→per civico con righe; accessorie ignorate. */
 export function righeIncomplete(
@@ -22,7 +22,7 @@ export function righeIncomplete(
     const mancanti = misObb.filter((c) => comeArrayFoto(r.risposte?.[c.chiave]).length === 0).map((c) => c.etichetta);
     if (mancanti.length) {
       const v = voceById.get(r.voce_id);
-      dettagli.push({ tipo: 'riga', civico: v?.via ?? '', matricola: r.matricola ?? '', campiMancanti: mancanti });
+      dettagli.push({ tipo: 'riga', civico: v?.via ?? '', matricola: r.matricola ?? '', campiMancanti: mancanti, voceId: r.voce_id, rigaId: r.id });
     }
   }
   if (faseObb.length) {
@@ -30,7 +30,7 @@ export function righeIncomplete(
     for (const v of voci) {
       if (!vociConRighe.has(v.id)) continue;
       const mancanti = faseObb.filter((c) => comeArrayFoto(v.risposte?.[c.chiave]).length === 0).map((c) => c.etichetta);
-      if (mancanti.length) dettagli.push({ tipo: 'civico', civico: v.via ?? '', campiMancanti: mancanti });
+      if (mancanti.length) dettagli.push({ tipo: 'civico', civico: v.via ?? '', campiMancanti: mancanti, voceId: v.id });
     }
   }
   return { ok: dettagli.length === 0, dettagli };
