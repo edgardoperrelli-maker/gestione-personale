@@ -3,7 +3,26 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import PannelloContabilita from './PannelloContabilita';
 
-type Area = { codice: string; label: string; attiva: boolean; ordine: number };
+type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean };
+
+/** Cella modificabile per correzioni dell'ufficio (salva su blur). */
+function EditableCell({ id, campo, valore, tipo = 'testo', onSaved }: {
+  id: string; campo: string; valore: string; tipo?: 'testo' | 'data' | 'ora'; onSaved: () => void;
+}) {
+  const [v, setV] = useState(valore);
+  useEffect(() => { setV(valore); }, [valore]);
+  const cls = 'w-full min-w-[4.5rem] rounded bg-transparent px-1 py-0.5 text-sm focus:bg-[var(--brand-surface-muted)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
+  async function save() {
+    if (v === valore) return;
+    await fetch(`/api/admin/pi/interventi/${id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ campo, valore: v }),
+    });
+    onSaved();
+  }
+  if (tipo === 'data') return <input type="date" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} className={cls} />;
+  if (tipo === 'ora') return <input type="time" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} className={cls} />;
+  return <input type="text" value={v} onChange={(e) => setV(e.target.value.toUpperCase())} onBlur={save} className={`${cls} uppercase`} />;
+}
 type CodaRiga = {
   id: string; data: string | null; esecutore: string | null; indirizzo: unknown; comune: unknown;
   n_segnalazione: unknown; ora_inizio: unknown; ora_fine: unknown; assistente_te: unknown; note: unknown;
@@ -83,6 +102,7 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
 /** Dettaglio di una foglia: genera link, coda, tabella, contabilità, export. */
 function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => void }) {
   const codice = area.codice;
+  const usaContabilita = area.usa_contabilita;
   const [coda, setCoda] = useState<CodaRiga[]>([]);
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
@@ -174,6 +194,7 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
             <a href={`/api/admin/pi/export?${periodoQS}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">Esporta Excel</a>
           </div>
         </div>
+        <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Celle modificabili per correzioni: scrivi e clicca fuori per salvare.</p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -183,31 +204,37 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                 <th className="py-2 pr-3">Comune</th>
                 <th className="py-2 pr-3">Indirizzo</th>
                 <th className="py-2 pr-3">Esecutore</th>
-                <th className="py-2 pr-3">Orario</th>
+                <th className="py-2 pr-3">Ora inizio</th>
+                <th className="py-2 pr-3">Ora fine</th>
                 <th className="py-2 pr-3">Assist. TE</th>
-                <th className="py-2 pr-3 text-right">Valore</th>
-                <th className="py-2"></th>
+                <th className="py-2 pr-3">Note</th>
+                {usaContabilita && <th className="py-2 pr-3 text-right">Valore</th>}
+                {usaContabilita && <th className="py-2"></th>}
               </tr>
             </thead>
             <tbody>
               {tabella.length === 0 && (
-                <tr><td colSpan={9} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
+                <tr><td colSpan={usaContabilita ? 11 : 9} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
               )}
               {tabella.map((r) => (
-                <tr key={r.id} className="border-b border-[var(--brand-border)]">
-                  <td className="py-1.5 pr-3 font-mono text-xs">{s(r.n_segnalazione)}</td>
-                  <td className="py-1.5 pr-3">{fmtData(r.data)}</td>
-                  <td className="py-1.5 pr-3">{s(r.comune)}</td>
-                  <td className="py-1.5 pr-3">{s(r.indirizzo)}</td>
-                  <td className="py-1.5 pr-3">{r.esecutore ?? '—'}</td>
-                  <td className="py-1.5 pr-3">{s(r.ora_inizio)}–{s(r.ora_fine)}</td>
-                  <td className="py-1.5 pr-3">{s(r.assistente_te)}</td>
-                  <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>
-                  <td className="py-1.5 text-right">
-                    {r.intervento_id && (
-                      <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
-                    )}
-                  </td>
+                <tr key={r.id} className="border-b border-[var(--brand-border)] align-top">
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="n_segnalazione" valore={s(r.n_segnalazione)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="data" tipo="data" valore={s(r.data)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="comune" valore={s(r.comune)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="indirizzo" valore={s(r.indirizzo)} onSaved={carica} /></td>
+                  <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.esecutore ?? '—'}</td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="ora_inizio" tipo="ora" valore={s(r.ora_inizio)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="ora_fine" tipo="ora" valore={s(r.ora_fine)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></td>
+                  <td className="py-1 pr-2"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></td>
+                  {usaContabilita && <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>}
+                  {usaContabilita && (
+                    <td className="py-1.5 text-right">
+                      {r.intervento_id && (
+                        <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
             </tbody>

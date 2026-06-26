@@ -48,6 +48,8 @@ export function useRichiesteManualiFeed(): RichiesteManualiFeed {
         'postgres_changes',
         { event: '*', schema: 'public', table: 'interventi_manuali', filter: 'stato=eq.in_attesa' },
         (payload) => {
+          // Ignora le richieste di Pronto Intervento: vivono solo nel modulo P.I.
+          if ((payload.new as { fonte?: string } | null)?.fonte === 'pronto_intervento') return;
           setRichieste((prev) =>
             mergeRichiesteFeed(
               prev,

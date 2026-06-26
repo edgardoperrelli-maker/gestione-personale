@@ -10,7 +10,7 @@ export async function GET() {
   if (auth instanceof NextResponse) return auth;
   const { data, error } = await supabaseAdmin
     .from('pi_aree')
-    .select('codice, label, attiva, ordine')
+    .select('codice, label, attiva, ordine, usa_contabilita')
     .order('ordine');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ aree: data ?? [] });
