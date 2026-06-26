@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
+import { colonneAnagraficaVoce } from '@/lib/interventi/manuali/buildVoceManuale';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
@@ -125,10 +126,17 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   }
 
   // ── Aggiorna la voce (se presente) ──────────────────────────────────────────
+  // Oltre a intervento_id + stato, riporta sulla voce l'anagrafica/risposte CORRETTE in
+  // approvazione (es. PDR aggiunta, matricola corretta): vivono in `dati_correnti` e senza questo
+  // il rapportino/PDF resterebbe col dato vecchio dell'operatore (matricola sbagliata, PDR mancante).
   if (richiesta.voce_id) {
     await supabaseAdmin
       .from('rapportino_voci')
-      .update({ intervento_id: intRow!.id, approvazione_stato: 'approvato' })
+      .update({
+        intervento_id: intRow!.id,
+        approvazione_stato: 'approvato',
+        ...colonneAnagraficaVoce(dati),
+      })
       .eq('id', richiesta.voce_id);
   }
 

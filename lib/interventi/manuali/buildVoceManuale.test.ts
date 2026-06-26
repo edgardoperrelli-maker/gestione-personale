@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildVoceManuale } from './buildVoceManuale';
+import { buildVoceManuale, colonneAnagraficaVoce } from './buildVoceManuale';
 import type { DatiInterventoManuale } from './types';
 
 const dati: DatiInterventoManuale = {
@@ -45,5 +45,31 @@ describe('buildVoceManuale', () => {
     const v = buildVoceManuale({ rapportinoId: 'rap1', richiestaId: 'req1', ordine: 1, dati: vuoto });
     expect(v.nominativo ?? null).toBeNull();
     expect(v.risposte).toEqual({});
+  });
+});
+
+describe('colonneAnagraficaVoce (riallineamento voce in approvazione)', () => {
+  it('mappa l\'anagrafica corretta dal backoffice sulle colonne (PDR aggiunta, matricola corretta)', () => {
+    const corretti: DatiInterventoManuale = {
+      committente: 'italgas',
+      anagrafica: { via: 'VIA A', matricola: 'MTSB033207656306', pdr: '00882101957377' },
+      risposte: { eseguito: 'SI' },
+    };
+    expect(colonneAnagraficaVoce(corretti)).toMatchObject({
+      via: 'VIA A',
+      matricola: 'MTSB033207656306',
+      pdr: '00882101957377',
+      risposte: { eseguito: 'SI' },
+    });
+  });
+  it('rifila spazi/tab dei valori e mappa il vuoto a null', () => {
+    const d: DatiInterventoManuale = {
+      committente: 'italgas',
+      anagrafica: { pdr: '  00882101961924\t', matricola: '' },
+      risposte: {},
+    };
+    const c = colonneAnagraficaVoce(d);
+    expect(c.pdr).toBe('00882101961924');
+    expect(c.matricola).toBeNull();
   });
 });
