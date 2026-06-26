@@ -37,6 +37,12 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="m20 20-3.6-3.6" />
     </svg>
   ),
+  'pronto-intervento': (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M10.3 3.8 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
+      <path d="M12.6 8.4 9.8 12.6h3.2L11.4 16" />
+    </svg>
+  ),
   live: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 8.5h18" />
