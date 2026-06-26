@@ -18,7 +18,7 @@ Il problema: la registrazione è manuale, fuori dal gestionale, non collegata n�
 
 1. l'ufficio genera un **link a scadenza** (dal X al Y) **vuoto**, intestato all'operatore reperibile;
 2. l'operatore, sul campo, apre il link (PWA/offline) e con il **"+"** carica ogni chiamata compilando **campi dinamici e personalizzabili** (Indirizzo, Comune, Ora inizio, Ora fine, Numero segnalazione, Assistente TE, note svolgimento);
-3. l'**esecutore** è ricavato in automatico dal proprietario del link;
+3. l'**esecutore** si sceglie da una tendina che mostra **solo i reperibili del cronoprogramma** alla data della chiamata (con avviso di **anomalia reperibilità** se non combacia);
 4. l'invio genera un **task in approvazione**; approvato, l'intervento popola la **tabella del modulo P.I.**;
 5. **successivamente** l'ufficio carica la **contabilità** sulla riga, segnando le quantità sugli articoli a listino → `valore = quantità × prezzo`.
 
@@ -31,8 +31,9 @@ Il punto di partenza tecnico è favorevole: **quasi tutto esiste già**. I link 
 | Tema | Decisione | Alternative in §15 |
 |------|-----------|---------------------|
 | Foglie territoriali | Modulo **multi-area** con 3 foglie (**Firenze** attiva; **Lazio Centro/Est** e **Perugia** predisposte, `attiva=false`). Catalogo `pi_aree`; `area_codice` su `pi_token`, `pi_articoli` e sul filtro degli interventi P.I. | — |
-| Modello del link | **Nuova tabella `pi_token`** intestata a un singolo operatore, con finestra esplicita `valido_dal`/`valido_al`. Si segue il pattern `agenda_token` (link "vuoto" che mostra righe live) **non** `rapportini` (precaricato dal piano). | §15-A |
-| Esecutore | **Automatico** dal proprietario del link (`pi_token.staff_id`/`staff_name`), copiato come snapshot su ogni richiesta. Un link = un operatore. | §15-A |
+| Modello del link | **Nuova tabella `pi_token`** per **area (foglia) + finestra `valido_dal`/`valido_al`**, condiviso (non intestato a un singolo operatore). Pattern `agenda_token` (link "vuoto", righe live). | — |
+| Esecutore | **Menu a tendina** nel "+": elenca **solo gli operatori con flag `reperibile` nel cronoprogramma** alla **data della chiamata** (`assignments`+`calendar_days`). Se il reperibile è uno solo quel giorno → preselezionato. L'ufficio non intesta link: mette solo il flag reperibile sul cronoprogramma. | — |
+| Anomalia reperibilità | Se la chiamata è datata un giorno in cui l'esecutore scelto **non** è flaggato reperibile (es. chiamata di "ieri" inserita oggi), la richiesta parte con **`anomalia_reperibilita=true`**: avviso all'operatore + segnalazione in coda all'ufficio. Non blocca l'invio. | — |
 | "+" manuale | **Clone della route** `intervento-manuale` su `/api/pi/[token]/intervento`, con la stessa idempotenza/rollback/offline, ma gate sulla validità di `pi_token` (non sul `tokenStatus` del rapportino). | — |
 | Campi dinamici | **Riuso del sistema template** (`rapportino_template.campi`). Un template P.I. dedicato (`solo_manuale`). Si aggiunge il tipo campo **`ora`** per Ora inizio/fine; "Assistente TE" come `select` da anagrafica staff. | §15-B |
 | Approvazione | **Riuso di `interventi_manuali`** (coda + realtime + presa in carico + check-and-set atomico), esteso con `pi_token_id` e `fonte='pronto_intervento'`. | — |
@@ -47,21 +48,25 @@ Il punto di partenza tecnico è favorevole: **quasi tutto esiste già**. I link 
 ## 3. Modello di governance (flusso)
 
 ```
-UFFICIO sceglie la FOGLIA (Firenze) e genera link P.I.
-        (pi_token: area_codice='firenze', staff_id, valido_dal=X, valido_al=Y)  →  link VUOTO
+UFFICIO: (a) flagga i REPERIBILI sul cronoprogramma; (b) genera 1 link per FOGLIA+periodo
+        (pi_token: area_codice='firenze', valido_dal=X, valido_al=Y)  →  link VUOTO, condiviso
                                   │  url = /pi/<token>
                                   ▼
-OPERATORE (proprietario) apre il link sul campo (PWA/offline)
+OPERATORE apre il link sul campo (PWA/offline)
    └─ vede una lista VUOTA + tasto "+"
                                   │  preme "+"
                                   ▼
-   compila la modale: campi dinamici del TEMPLATE P.I.
+   compila la modale: DATA chiamata → ESECUTORE da tendina REPERIBILI di quella data
+   + campi dinamici del TEMPLATE P.I.
    (Indirizzo, Comune, Ora inizio, Ora fine, N° segnalazione, Assistente TE, Note)
-   ESECUTORE = pi_token.staff_name (auto, non editabile)
                                   │  "Invia"  (gate: oggiRoma() ∈ [valido_dal, valido_al])
+                                  ▼
+   reperibilità(esecutore, data) OK?  ── no ──▶ anomalia_reperibilita=true + avviso
+                                  │ sì
                                   ▼
    crea RICHIESTA interventi_manuali (fonte='pronto_intervento', pi_token_id, stato='in_attesa')
    + voce "Sospeso" nella lista del link        badge realtime alla coda ufficio
+                                                (badge "anomalia" se reperibilità non combacia)
                                   │
                                   ▼
 UFFICIO (Lista attesa / coda P.I.) prende in carico → Approva  (check-and-set atomico)
@@ -98,25 +103,24 @@ Seed: `('firenze','Firenze',true,1)`, `('lazio_centro_est','Lazio Centro/Est',fa
 
 ### 4.1 `pi_token` — il link a scadenza, vuoto
 
-Clone concettuale di [`agenda_token`](../../../supabase/migrations/20260603010000_agenda_operatore.sql) (link vuoto, righe live) con in più la **finestra X→Y** e lo snapshot del template.
+Clone concettuale di [`agenda_token`](../../../supabase/migrations/20260603010000_agenda_operatore.sql) (link vuoto, righe live). **Per area + periodo, condiviso**: l'esecutore non è il proprietario del link ma è scelto per-chiamata dalla tendina dei reperibili (vedi §8.1).
 
 | Campo | Tipo | Note |
 |---|---|---|
 | `id` | `uuid` PK | `default gen_random_uuid()` |
 | `area_codice` | `text not null` FK → `pi_aree(codice)` | foglia territoriale del link (oggi `'firenze'`) |
-| `staff_id` | `text not null` | **proprietario = esecutore** (auto) |
-| `staff_name` | `text` | snapshot nome visualizzato |
 | `template_id` | `uuid` FK → `rapportino_template` `on delete set null` | quale set di campi renderizzare |
 | `campi_snapshot` | `jsonb not null default '[]'` | copia **congelata** di `template.campi` alla creazione |
 | `valido_dal` | `date not null` | **X** |
 | `valido_al` | `date not null` | **Y** — validità = `oggiRoma()` ∈ `[valido_dal, valido_al]` |
 | `token` | `text not null unique` | segreto del link (`randomBytes(32).hex`, come `generaAgendaToken()`) |
 | `note` | `text` | etichetta libera (es. "Reperibilità Firenze sett. 26") |
+| `creato_da` | `uuid` | utente ufficio che ha generato il link (audit) |
 | `revocato_at` | `timestamptz` | revoca anticipata opzionale (null = attivo) |
 | `created_at` | `timestamptz not null default now()` | |
 | — | `check (valido_al >= valido_dal)` | |
 
-Indici: `pi_token_token_idx (token)`, `pi_token_staff_idx (staff_id)`.
+Indici: `pi_token_token_idx (token)`, `pi_token_area_idx (area_codice)`. Unicità consigliata: `unique (area_codice, valido_dal, valido_al)` (un link per foglia+periodo).
 RLS: enabled **senza policy pubblica** (raggiungibile solo via service role, come `agenda_token`).
 
 ### 4.2 Estensione di `interventi_manuali` — riuso della coda di approvazione
@@ -128,6 +132,9 @@ La [tabella delle richieste](../../../supabase/migrations/20260606000000_interve
 | `pi_token_id` | `uuid` FK → `pi_token` `on delete set null` | aggancio alla sessione P.I. (al posto di `rapportino_id`) |
 | `area_codice` | `text` | foglia (snapshot da `pi_token`); filtra coda e modulo per area |
 | `fonte` | `text not null default 'rapportino'` `check in ('rapportino','pronto_intervento')` | discriminatore della coda |
+| `anomalia_reperibilita` | `boolean not null default false` | l'esecutore non risultava reperibile in `data` al momento dell'invio (vedi §8.1) |
+
+> L'**esecutore** scelto dalla tendina e la **data** della chiamata usano le colonne già esistenti `staff_id`/`staff_name`/`data` di `interventi_manuali` (nessuna colonna nuova per questi).
 
 > I campi dinamici compilati dall'operatore finiscono in `dati_operatore`/`dati_correnti` (JSON `anagrafica` + `risposte`), esattamente come oggi. Per il P.I. il `committente` può restare `'altro'` (vedi §15-D) per non toccare i CHECK del committente.
 
@@ -202,8 +209,8 @@ Validità link: `oggiRoma() < valido_dal` → "non ancora attivo"; `∈ [X,Y]` �
 ## 6. API / Route
 
 **Lato operatore (token, no login — il token è l'auth):**
-- `GET /api/pi/[token]` — carica `pi_token` + le proprie righe live; 404 se assente; stato di validità calcolato.
-- `POST /api/pi/[token]/intervento` — "+": crea la richiesta `interventi_manuali` (clone della logica di [`/api/r/[token]/intervento-manuale`](../../../app/api/r/[token]/intervento-manuale/route.ts): idempotenza su `richiestaId`, foto-prima-del-DB, rollback, fallback su PK violation, offline replay). Gate: `pi_token` valido.
+- `GET /api/pi/[token]` — carica `pi_token` + le righe della sessione + la **mappa reperibili per data** della finestra X→Y (per la tendina, anche offline); 404 se assente; stato di validità calcolato.
+- `POST /api/pi/[token]/intervento` — "+": crea la richiesta `interventi_manuali` (clone della logica di [`/api/r/[token]/intervento-manuale`](../../../app/api/r/[token]/intervento-manuale/route.ts): idempotenza su `richiestaId`, foto-prima-del-DB, rollback, fallback su PK violation, offline replay). Gate: `pi_token` valido. **Calcola `anomalia_reperibilita`** ri-verificando lato server reperibilità(esecutore, data).
 - `POST /api/pi/[token]/intervento/[id]/annulla` — annulla finché `in_attesa`.
 
 **Lato ufficio (admin):**
@@ -221,15 +228,15 @@ Validità link: `oggiRoma() < valido_dal` → "non ancora attivo"; `∈ [X,Y]` �
 
 **Campo (operatore):**
 - **`PILinkClient`** — pagina `/pi/[token]`: intestazione (periodo X→Y, esecutore), lista delle proprie chiamate, **FAB "+"**, banner sola-lettura fuori finestra. Riuso del rendering campi (`CampoInput`) e dello stato offline (`ServiceWorkerRegister`).
-- **`ModalePIManuale`** — modale "+": renderizza i `campi_snapshot` del template P.I.; esecutore mostrato e bloccato.
+- **`ModalePIManuale`** — modale "+": campo **Data** chiamata, tendina **Esecutore** filtrata sui reperibili di quella data (preselezione se unico; avviso se nessuno/anomalia), poi i `campi_snapshot` del template P.I.
 
 **Ufficio (admin):**
 - **`ProntoInterventoClient`** — guscio del modulo `/hub/pronto-intervento` con i **3 tab/foglie** da `pi_aree` (ordinati per `ordine`): **Firenze** operativa; **Lazio Centro/Est** e **Perugia** rese come tab disabilitati con badge "in arrivo" (`attiva=false`). Il tab selezionato imposta `area_codice` per coda, tabella, contabilità e generazione link. (Per la struttura a foglie esiste il precedente `components/modules/assegnazione-ai/foglie/Foglia.tsx`, qui però le foglie sono **territoriali**.)
-- **`CodaPI`** — coda di approvazione filtrata `fonte='pronto_intervento'` **e** `area_codice` della foglia (riuso di `useRichiesteManualiFeed` + `CodaRichiesteManuali`/`PannelloRevisioneRichiesta`).
+- **`CodaPI`** — coda di approvazione filtrata `fonte='pronto_intervento'` **e** `area_codice` della foglia (riuso di `useRichiesteManualiFeed` + `CodaRichiesteManuali`/`PannelloRevisioneRichiesta`), con **badge "anomalia reperibilità"** sulle richieste `anomalia_reperibilita=true`.
 - **`TabellaPI`** — la tabella della foglia: colonne N° segnalazione, Comune, Indirizzo, Data, Esecutore, Ora inizio/fine, Assistente TE, **Valore** (Σ contabilità), stato contabilità. Riuso della pipeline `StoricoTabella`/`StoricoFiltri`.
 - **`PannelloContabilita`** — drawer sulla riga: tabella articoli del **listino della foglia** (codice, descrizione, U.M., prezzo, **quantità editabile**, valore), totale a piè di lista. Riuso visivo di `CodiciAllegato10Client`.
 - **`ListinoPIClient`** (in Impostazioni) — CRUD del listino `pi_articoli` **per area** (selettore foglia in alto).
-- **`GeneraLinkPI`** — form ufficio: **area** (foglia) + operatore + X + Y + template → crea link, mostra/copia URL.
+- **`GeneraLinkPI`** — form ufficio: **area** (foglia) + X + Y + template → crea **1 link condiviso** per foglia+periodo, mostra/copia URL. Nessun operatore da intestare: la reperibilità si gestisce sul cronoprogramma.
 
 Tutti i componenti seguono `DESIGN.md` (token CSS, primitivi `Button/Card/Input/Dialog/Tabs`, niente colori hardcoded).
 
@@ -264,6 +271,24 @@ Tutti i componenti seguono `DESIGN.md` (token CSS, primitivi `Button/Card/Input/
 
 ---
 
+## 8.1 Integrazione reperibilità (cronoprogramma)
+
+L'esecutore **non** è il proprietario del link: è scelto da una tendina alimentata dalla reperibilità del **cronoprogramma**, l'unica cosa che l'ufficio deve mantenere.
+
+**Fonte dati.** I reperibili stanno nelle `assignments` del cronoprogramma:
+`assignments(day_id → calendar_days.id, staff_id, reperibile boolean)`. I **reperibili in data D** = `assignments` joinate a `calendar_days` con `calendar_days.day = D` e `reperibile = true`, risolti a `staff.display_name` (stesso join dell'[export assegnazioni](../../../app/api/export/assignments/route.ts)).
+
+**Flusso nel "+".**
+1. L'operatore sceglie/imposta la **data** della chiamata (default: oggi; può retrodatare).
+2. La tendina **Esecutore** si popola con i reperibili di quella data per l'area della foglia. Se è **uno solo** → preselezionato (caso "automatico"); se più d'uno → scelta obbligatoria; se **nessuno** → campo vuoto + avviso "nessun reperibile in cronoprogramma per il GG/MM".
+3. All'invio il server **ri-verifica** la reperibilità (non si fida del client) e calcola `anomalia_reperibilita`.
+
+**Anomalia reperibilità.** Se l'esecutore scelto non è flaggato reperibile in `data` (es. chiamata di ieri ma ieri non era reperibile): l'invio **non si blocca**, ma la richiesta nasce con `anomalia_reperibilita=true`; l'operatore vede un avviso ("imputata come anomalia, l'ufficio verificherà") e in coda ufficio la richiesta ha un **badge "anomalia reperibilità"**. L'ufficio risolve in uno dei due modi: corregge il flag sul cronoprogramma (poi l'anomalia si può rivalutare) **oppure** approva/rifiuta consapevolmente. La scelta tra "ri-derivare l'anomalia in automatico" e "lasciarla come scattata all'invio" è un dettaglio implementativo: di base **si congela** il valore all'invio e l'ufficio può ricalcolarlo on-demand.
+
+**Offline.** La lista reperibili della finestra X→Y viene **inviata col payload del link** e messa in cache (Serwist), così la tendina funziona offline; la verifica autorevole resta lato server al sync.
+
+---
+
 ## 9. Realtime / Notifiche
 
 Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../../supabase/migrations/20260606000002_interventi_manuali_realtime.sql) + `useRichiesteManualiFeed`): il badge della coda si accende all'arrivo di una richiesta P.I.; il filtro `fonte=eq.pronto_intervento` separa la coda P.I. da quella dei rapportini. Nessun popup bloccante (coerente con `interventi-manuali`).
@@ -285,6 +310,8 @@ Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../.
 - **Dedup**: `interventi` ha `UNIQUE(committente, odl, data) WHERE odl is not null`; le chiamate P.I. hanno `odl` NULL → quell'indice **non** deduplica. La protezione anti-doppione resta l'**idempotenza su `richiestaId`** della route "+", da preservare nel clone.
 - **Snapshot vs live template**: `campi_snapshot` è congelato alla creazione del link. Un link X→Y nato il giorno X mantiene i campi del giorno X per tutta la finestra (stesso comportamento dei rapportini). Rinominare un'etichetta cambia la `chiave` slugificata e scollega le `risposte` salvate → in editor template, evitare rinomine retroattive.
 - **Fuori finestra**: invio dopo `valido_al` → 409 "link scaduto"; la voce eventualmente in bozza offline resta in coda di sync ma viene respinta (gestione come `non_modificabile`).
+- **Anomalia reperibilità**: esecutore non reperibile in `data` → `anomalia_reperibilita=true`, **non bloccante** (l'operatore può aver fatto davvero l'intervento). Nessun reperibile in cronoprogramma per quella data → tendina vuota: si consente comunque l'invio in anomalia (non si blocca il lavoro sul campo). La verifica è **sempre lato server** al momento dell'invio/sync, mai solo client.
+- **Cronoprogramma assente per la data**: se non esiste `calendar_days` per la data scelta, la query reperibili torna vuota → trattata come "nessun reperibile" (anomalia), non come errore.
 - **Quantità**: validazione `numeric ≥ 0`; articolo inattivo non selezionabile per nuove righe ma conservato sulle righe storiche (lo snapshot prezzo regge).
 
 ---
@@ -292,6 +319,7 @@ Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../.
 ## 12. Riuso del codice esistente
 
 - **Link/token**: pattern `agenda_token` + `generaAgendaToken()` ([`lib/interventi/agendaToken.ts`](../../../lib/interventi/agendaToken.ts)); generazione idempotente stile [`/api/interventi/assegna`](../../../app/api/interventi/assegna/route.ts).
+- **Reperibilità**: lettura dei reperibili per data dal join `assignments`+`calendar_days` (`reperibile=true`), stesso pattern dell'[export assegnazioni](../../../app/api/export/assignments/route.ts); il flag reperibile si imposta già nel cronoprogramma ([`/api/assignments/create`](../../../app/api/assignments/create/route.ts), `types.ts` `Assignment.reperibile`).
 - **"+" manuale**: [`/api/r/[token]/intervento-manuale/route.ts`](../../../app/api/r/[token]/intervento-manuale/route.ts) + `buildVoceManuale` + idempotenza `lib/offline/idRichiesta`.
 - **Template/campi dinamici**: `rapportino_template.campi`, `CampoInput`, `TemplateRapportiniClient`, `lib/rapportini/templateSchema.ts`. Per `ora` aggiungere il tipo nei 4 punti in lockstep: `TemplateCampo.tipo` (`utils/rapportini/buildVoci.ts`), `CampoSchema` (`templateSchema.ts`), `TIPO_LABELS` + switch in `CampoInput.tsx`, gestione `maiuscolaRisposteTesto`.
 - **Approvazione/coda/realtime**: `interventi_manuali` + `approva|rifiuta|prendi|rilascia` + `useRichiesteManualiFeed` + `CodaRichiesteManuali`/`PannelloRevisioneRichiesta`.
@@ -303,7 +331,7 @@ Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../.
 
 ## 13. Strategia di test (TDD)
 
-- **Unit**: validità `pi_token` (prima/dentro/dopo finestra, fuso Europe/Rome); calcolo `valore = quantita*prezzo_snapshot` e Σ totale; `richiestaToIntervento` P.I. emette `origine='pronto_intervento'`; idempotenza "+" (stesso `richiestaId` → nessun doppione).
+- **Unit**: validità `pi_token` (prima/dentro/dopo finestra, fuso Europe/Rome); **reperibili(data)** (join `assignments`+`calendar_days`, solo `reperibile=true`) e calcolo `anomalia_reperibilita` (reperibile→false, non-reperibile→true, nessun reperibile→true); calcolo `valore = quantita*prezzo_snapshot` e Σ totale; `richiestaToIntervento` P.I. emette `origine='pronto_intervento'`; idempotenza "+" (stesso `richiestaId` → nessun doppione).
 - **Migration shape**: test come [`migrationShape.test.ts`](../../../lib/interventi/manuali/migrationShape.test.ts) per le nuove tabelle/colonne e il CHECK `origine` esteso.
 - **E2E (Playwright)**: link vuoto → "+" → invio → coda → approva → riga nel modulo → contabilità → totale → export. Caso fuori finestra (409). Caso offline (bozza → sync).
 
@@ -322,7 +350,7 @@ Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../.
 
 ## 15. Punti aperti (da confermare)
 
-**A — Generazione e intestazione del link.** *Consigliato:* un link **per operatore**, creato dall'ufficio con X→Y, esecutore automatico (mappa 1:1 sul requisito). *Alternative:* link **condiviso** con scelta del nome (esecutore non automatico); generazione **automatica dalla rota reperibilità** (richiede gestire anche `COMP. SETT.`). Collegato: vuoi la **riapertura** del link scaduto (come `riaperto_at` dei rapportini) o scadenza secca?
+**A — Generazione e intestazione del link.** ✅ **RISOLTO (26/06).** Un **link condiviso per foglia+periodo** (non intestato). L'esecutore si sceglie da una **tendina alimentata dai reperibili del cronoprogramma** alla data della chiamata; l'ufficio mantiene solo il flag reperibile. Se la data non combacia con la reperibilità → **anomalia reperibilità** (avviso + segnalazione all'ufficio, non bloccante). Dettagli in §8.1. *Residuo da confermare:* riapertura del link scaduto (come `riaperto_at` dei rapportini) **sì/no**.
 
 **B — Tipi di campo dinamici.** *Consigliato:* aggiungere un tipo **`ora`** nativo (Ora inizio/fine con picker) e modellare "Assistente TE" come **`select` da anagrafica staff**. *Alternativa minima:* tenere tutto come `testo` (zero codice nuovo, ma niente picker/validazione).
 
