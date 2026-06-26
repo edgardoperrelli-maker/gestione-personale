@@ -38,12 +38,24 @@ export function GalleriaFoto({
         </span>
       </div>
       {valori.length > 0 && (
-        <ul className="mb-2 space-y-1">
+        <ul className="mb-2 grid grid-cols-3 gap-2">
           {valori.map((p, i) => (
-            <li key={p} className="flex items-center justify-between rounded-lg bg-[var(--brand-surface)] px-2 py-1 text-xs">
-              <span className="text-[var(--success)]">✓ Foto {i + 1}</span>
+            <li key={p} className="relative">
+              <a href={`/api/r/${token}/foto-campo?path=${encodeURIComponent(p)}`} target="_blank" rel="noreferrer" className="block">
+                <img
+                  src={`/api/r/${token}/foto-campo?path=${encodeURIComponent(p)}`}
+                  alt={`${etichetta} ${i + 1}`}
+                  loading="lazy"
+                  className="h-24 w-full rounded-lg object-cover"
+                />
+              </a>
               {!disabilitato && (
-                <button type="button" onClick={() => onRemove(p)} className="text-[var(--danger)]" aria-label={`Rimuovi foto ${i + 1}`}>✕</button>
+                <button
+                  type="button"
+                  onClick={() => onRemove(p)}
+                  className="absolute right-1 top-1 rounded-full bg-[var(--brand-surface)]/90 px-1.5 text-xs text-[var(--danger)]"
+                  aria-label={`Rimuovi foto ${i + 1}`}
+                >✕</button>
               )}
             </li>
           ))}

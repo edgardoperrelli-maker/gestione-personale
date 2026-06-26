@@ -4,6 +4,7 @@ import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import { eqDate } from './utils';
 import type { Assignment, Territory } from '@/types';
+import { isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
 import type { SortMode } from './types';
 import {
   fmtDay,
@@ -28,10 +29,12 @@ export default function CronoGridView({
   onDelete,
   onDropAssignment,
   taskCountMap,
+  assenzeByDay,
 }: {
   days: Date[];
   today: Date;
   assignmentsByCell: Record<string, Assignment[]>;
+  assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   territories: Territory[];
   includeNoTerritory: boolean;
   sortMode: SortMode;
@@ -80,6 +83,10 @@ export default function CronoGridView({
         const isHol   = isItalyHoliday(d);
         const isWe    = isWeekend(d);
         const isToday = eqDate(d, today);
+        // Operatori con assenza giornaliera intera: esclusi dalle card del giorno.
+        const assentiInteri = new Set(
+          (assenzeByDay?.[iso] ?? []).filter((a) => isAssenzaIntera(a)).map((a) => a.staff_id),
+        );
 
         /* colore di sfondo dell'intera riga — priorità: oggi > festività > weekend > default */
         const rowBg = isToday
@@ -152,7 +159,7 @@ export default function CronoGridView({
             {/* Celle territorio */}
             {columns.map((t) => {
               const key    = `${iso}|${t.id}`;
-              const list   = assignmentsByCell[key] ?? [];
+              const list   = (assignmentsByCell[key] ?? []).filter((a) => !assentiInteri.has(a.staff?.id ?? ''));
               const sorted = sortAssignments(list, sortMode);
 
               const onDrop = (e: DragEvent<HTMLDivElement>) => {

@@ -969,6 +969,7 @@ export default function CronoprogrammaWorkspace() {
             onDropAssignment={handleDropAssignment}
             onDropDay={handleDropDay}
             taskCountMap={taskCountMap}
+            assenzeByDay={assenze}
           />
         </motion.div>
       )}
@@ -1020,6 +1021,7 @@ export default function CronoprogrammaWorkspace() {
             onDropAssignment={handleDropAssignment}
             onDropDay={handleDropDay}
             taskCountMap={taskCountMap}
+            assenzeByDay={assenze}
           />
         </motion.div>
       )}

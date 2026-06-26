@@ -35,6 +35,16 @@ export function SlotFoto({
         <span className="text-sm font-medium text-[var(--brand-text-main)]">{etichetta}{obbligatoria ? ' *' : ''}</span>
         {valore ? <span className="text-xs text-[var(--success)]">✓ caricata</span> : err ? <span className="text-xs text-[var(--danger)]">errore</span> : null}
       </div>
+      {valore && (
+        <a href={`/api/r/${token}/foto-campo?path=${encodeURIComponent(valore)}`} target="_blank" rel="noreferrer" className="mb-2 block">
+          <img
+            src={`/api/r/${token}/foto-campo?path=${encodeURIComponent(valore)}`}
+            alt={etichetta}
+            loading="lazy"
+            className="h-28 w-full rounded-lg object-cover"
+          />
+        </a>
+      )}
       {!disabilitato && (
         <div className="flex gap-2">
           <button type="button" disabled={busy} onClick={() => camRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">📷 {busy ? '…' : 'Scatta'}</button>
