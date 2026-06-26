@@ -1,6 +1,6 @@
 export interface TemplateCampo {
   chiave: string; etichetta: string;
-  tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto';
+  tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto' | 'ora';
   opzioni?: string[];
   obbligatoria?: boolean; // campo obbligatorio: foto = slot richiesto; non-foto = blocco rigido all'invio (tutti i template)
   scope_foto?: 'misuratore' | 'fase' | 'accessoria'; // solo per tipo='foto' nei template risanamento
