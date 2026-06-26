@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { piTokenStato } from '@/lib/pi/tokenValidita';
-import { caricaReperibili } from '@/lib/pi/caricaReperibili';
+import { caricaReperibili, territoriDellArea } from '@/lib/pi/caricaReperibili';
 import { reperibiliPerData } from '@/lib/pi/reperibili';
 import { resolveInfoCampi } from '@/utils/rapportini/infoCampi';
 
@@ -46,7 +46,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
   }
   const infoCampi = resolveInfoCampi(infoCampiRaw as never);
 
-  const reperibili = reperibiliPerData(await caricaReperibili(tok.valido_dal, tok.valido_al));
+  const territoryIds = await territoriDellArea(tok.area_codice);
+  const reperibili = reperibiliPerData(await caricaReperibili(tok.valido_dal, tok.valido_al, territoryIds));
 
   const { data: righe } = await supabaseAdmin
     .from('interventi_manuali')

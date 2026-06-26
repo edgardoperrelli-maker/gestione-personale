@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { piTokenValido } from '@/lib/pi/tokenValidita';
-import { caricaReperibili } from '@/lib/pi/caricaReperibili';
+import { caricaReperibili, territoriDellArea } from '@/lib/pi/caricaReperibili';
 import { reperibiliPerData, calcolaAnomaliaReperibilita } from '@/lib/pi/reperibili';
 import { richiestaIdValido } from '@/lib/offline/idRichiesta';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -61,8 +61,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     campi = ((tpl?.campi ?? []) as TemplateCampo[]);
   }
 
-  // Anomalia: l'esecutore è reperibile in quella data? (ri-verifica autorevole)
-  const mappa = reperibiliPerData(await caricaReperibili(data, data));
+  // Anomalia: l'esecutore è reperibile in quella data nel territorio della foglia?
+  const territoryIds = await territoriDellArea(tok.area_codice);
+  const mappa = reperibiliPerData(await caricaReperibili(data, data, territoryIds));
   const anomalia = calcolaAnomaliaReperibilita(esecutoreStaffId, data, mappa);
   const nomeDaMappa = (mappa[data] ?? []).find((r) => r.staffId === esecutoreStaffId)?.nome;
   const staffName = (nomeDaMappa ?? body.esecutoreNome ?? '').trim() || esecutoreStaffId;

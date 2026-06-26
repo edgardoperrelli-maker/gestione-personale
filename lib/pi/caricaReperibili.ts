@@ -2,12 +2,22 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { RigaReperibile } from './reperibili';
 
+/** Territori associati a una foglia P.I. (vuoto = nessuna mappatura → tutti i territori). */
+export async function territoriDellArea(areaCodice: string): Promise<string[]> {
+  const { data } = await supabaseAdmin
+    .from('pi_aree_territori')
+    .select('territory_id')
+    .eq('area_codice', areaCodice);
+  return ((data ?? []) as Array<{ territory_id: string }>).map((r) => r.territory_id);
+}
+
 /**
  * Carica i reperibili del cronoprogramma nella finestra [dal, al] (YYYY-MM-DD):
  * assignments con reperibile=true, risolti alla data di calendario e al nome staff.
+ * Se `territoryIds` è valorizzato, filtra ai soli territori della foglia.
  * Stesso schema del join in /api/export/assignments.
  */
-export async function caricaReperibili(dal: string, al: string): Promise<RigaReperibile[]> {
+export async function caricaReperibili(dal: string, al: string, territoryIds?: string[]): Promise<RigaReperibile[]> {
   const { data: days } = await supabaseAdmin
     .from('calendar_days')
     .select('id, day')
@@ -22,11 +32,13 @@ export async function caricaReperibili(dal: string, al: string): Promise<RigaRep
   }
   if (dayIds.length === 0) return [];
 
-  const { data: asg } = await supabaseAdmin
+  let q = supabaseAdmin
     .from('assignments')
-    .select('day_id, staff_id, reperibile, staff:staff_id ( display_name )')
+    .select('day_id, staff_id, reperibile, territory_id, staff:staff_id ( display_name )')
     .in('day_id', dayIds)
     .eq('reperibile', true);
+  if (territoryIds && territoryIds.length > 0) q = q.in('territory_id', territoryIds);
+  const { data: asg } = await q;
 
   const out: RigaReperibile[] = [];
   for (const a of (asg ?? []) as Array<{

@@ -1,9 +1,41 @@
+import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import PILinkClient from '@/components/modules/pronto-intervento/campo/PILinkClient';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+const fmtDataIt = (d?: string | null): string => (d ? d.split('-').reverse().join('/') : '');
+
+/** Anteprima ricca (Open Graph) per la condivisione su WhatsApp: titolo con la foglia
+ *  e il periodo di validità, così nel gruppo reperibilità il link attivo è riconoscibile. */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const { data: tok } = await supabaseAdmin
+    .from('pi_token')
+    .select('area_codice, valido_dal, valido_al, revocato_at')
+    .eq('token', token)
+    .maybeSingle();
+  if (!tok) return { title: 'Pronto Intervento — Plenzich' };
+  const { data: area } = await supabaseAdmin.from('pi_aree').select('label').eq('codice', tok.area_codice).maybeSingle();
+  const label = (area as { label?: string } | null)?.label;
+  const revocato = !!tok.revocato_at;
+  const titolo = `🔧 Pronto Intervento${label ? ` · ${label}` : ''}`;
+  const desc = revocato
+    ? 'Link revocato dall’ufficio.'
+    : `Link attivo dal ${fmtDataIt(tok.valido_dal)} al ${fmtDataIt(tok.valido_al)} — tocca per registrare le chiamate P.I.`;
+  const base =
+    process.env.NEXT_PUBLIC_BASE_URL ||
+    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://gestione-personale.vercel.app');
+  return {
+    metadataBase: new URL(base),
+    title: titolo,
+    description: desc,
+    openGraph: { title: titolo, description: desc, type: 'website' },
+    twitter: { card: 'summary_large_image', title: titolo, description: desc },
+  };
+}
 
 function Avviso({ title, message }: { title: string; message: string }) {
   return (
