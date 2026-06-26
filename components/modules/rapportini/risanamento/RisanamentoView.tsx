@@ -52,6 +52,8 @@ export function RisanamentoView({
   const [aggiungendoRiga, setAggiungendoRiga] = useState(false);
   const [scanner, setScanner] = useState(false);
   const [evidenziata, setEvidenziata] = useState<string | null>(null);
+  /** Id dei misuratori espansi (lista accordion per non avere una lista infinita). */
+  const [espansi, setEspansi] = useState<Set<string>>(new Set<string>());
 
   /** vociRisposte: copia locale delle risposte delle voci, per aggiornamento ottimistico. */
   const [vociRisposte, setVociRisposte] = useState<Record<string, Record<string, unknown>>>(
@@ -71,8 +73,23 @@ export function RisanamentoView({
     if (civicoApertoId !== null && !voci.find((v) => v.id === civicoApertoId)) setCivicoApertoId(null);
   }, [civicoApertoId, voci]);
 
-  // Fix 4: reset accessorieAttive al cambio di civico
-  useEffect(() => { setAccessorieAttive(new Set()); }, [civicoApertoId]);
+  // Fix 4: reset accessorieAttive + stato lista misuratori al cambio di civico
+  useEffect(() => {
+    setAccessorieAttive(new Set());
+    setEspansi(new Set());
+  }, [civicoApertoId]);
+
+  // Espande un misuratore (accordion) per caricarne subito le foto.
+  const espandiRiga = (id: string) => {
+    setEspansi((prev) => new Set(prev).add(id));
+  };
+  const toggleRiga = (id: string) => {
+    setEspansi((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
 
   // Auto-clear highlight riga dopo 4 secondi
   useEffect(() => { if (!evidenziata) return; document.getElementById(`mis-${evidenziata}`)?.scrollIntoView({ behavior: 'smooth', block: 'center' }); const t = setTimeout(() => setEvidenziata(null), 4000); return () => clearTimeout(t); }, [evidenziata]);
@@ -180,20 +197,33 @@ export function RisanamentoView({
   const aggiungiRiga = async () => {
     if (!mat.trim() || !civicoApertoId || aggiungendoRiga) return;
     setErrore(null);
+    // Cerca-o-aggiungi: se la matricola è già nel civico la apre (niente doppioni),
+    // altrimenti crea la riga.
+    const norm = mat.trim();
+    const esistente = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === norm);
+    if (esistente) {
+      espandiRiga(esistente.id);
+      setEvidenziata(esistente.id);
+      setErrore('Misuratore già presente: aperto per la foto «dopo».');
+      setMat(''); setPdr(''); setNom('');
+      return;
+    }
     setAggiungendoRiga(true);
     try {
       const res = await fetch(`/api/r/${token}/riga`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ voceId: civicoApertoId, matricola: mat.trim(), pdr: pdr.trim() || null, nominativo: nom.trim() || null }),
+        body: JSON.stringify({ voceId: civicoApertoId, matricola: norm, pdr: pdr.trim() || null, nominativo: nom.trim() || null }),
       });
       if (!res.ok) { setErrore('Errore nell\'aggiunta del misuratore'); return; }
       const json = (await res.json()) as { riga?: RigaRisanamento };
       if (json.riga) {
-        setRighe((prev) => [...prev, json.riga!]);
+        const nuova = json.riga;
+        setRighe((prev) => [...prev, nuova]);
         setMat('');
         setPdr('');
         setNom('');
+        espandiRiga(nuova.id);
       }
     } catch {
       setErrore('Errore di rete nell\'aggiunta del misuratore');
@@ -214,6 +244,7 @@ export function RisanamentoView({
     const norm = codice.trim();
     const esistente = righe.find((r) => r.voce_id === civicoApertoId && (r.matricola ?? '') === norm);
     if (esistente) {
+      espandiRiga(esistente.id);
       setEvidenziata(esistente.id);
       setErrore('Misuratore già presente: fai la foto «dopo».');
       return;
@@ -235,7 +266,9 @@ export function RisanamentoView({
       if (!postRes.ok) { setErrore('Errore nell\'aggiunta del misuratore'); return; }
       const rj = (await postRes.json()) as { riga?: RigaRisanamento };
       if (rj.riga) {
-        setRighe((prev) => [...prev, rj.riga!]);
+        const nuova = rj.riga;
+        setRighe((prev) => [...prev, nuova]);
+        espandiRiga(nuova.id);
         if (json.fonte === 'fuori_elenco') setErrore(`Misuratore fuori elenco (anagrafica: ${json.indirizzoRef ?? '—'}).`);
       }
     } catch {
@@ -370,6 +403,15 @@ export function RisanamentoView({
   const risposteVoce = vociRisposte[civicoApertoId] ?? {};
   const titoloCivico = [voceDefinita.via, (voceDefinita as Voce & { civico?: string }).civico].filter(Boolean).join(' ') || voceDefinita.nominativo || 'Civico';
 
+  // Conteggio foto-misuratore di una riga: completa = tutte le foto obbligatorie presenti.
+  const statoFotoRiga = (riga: RigaRisanamento) => {
+    const fatte = scope.misuratore.filter((c) => typeof riga.risposte?.[c.chiave] === 'string' && (riga.risposte?.[c.chiave] as string).length > 0).length;
+    const obblOk = scope.misuratore
+      .filter((c) => c.obbligatoria)
+      .every((c) => typeof riga.risposte?.[c.chiave] === 'string' && (riga.risposte?.[c.chiave] as string).length > 0);
+    return { fatte, totale: scope.misuratore.length, completa: obblOk };
+  };
+
   return (
     <div className="flex h-dvh flex-col">
       {/* Header dettaglio */}
@@ -399,44 +441,82 @@ export function RisanamentoView({
 
         {/* ── Sezione 1: Misuratori ─────────────────────────────────────────── */}
         <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-          <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Misuratori</h2>
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Misuratori</h2>
+            {righeCivico.length > 0 && (
+              <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
+                {righeCivico.length}
+              </span>
+            )}
+          </div>
 
           {righeCivico.length === 0 && (
             <p className="mb-3 text-sm text-[var(--brand-text-muted)]">Nessun misuratore ancora aggiunto.</p>
           )}
 
-          {righeCivico.map((riga) => (
-            <div key={riga.id} id={`mis-${riga.id}`} className={`mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
-              <div className="mb-2 text-sm font-semibold text-[var(--brand-text-main)]">
-                {riga.matricola && <span className="mr-2">Matricola: {riga.matricola}</span>}
-                {riga.nominativo && <span className="text-[var(--brand-text-muted)]">{riga.nominativo}</span>}
+          {righeCivico.map((riga) => {
+            const aperto = espansi.has(riga.id);
+            const st = statoFotoRiga(riga);
+            return (
+              <div key={riga.id} id={`mis-${riga.id}`} className={`mb-2.5 overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
+                {/* Intestazione cliccabile (accordion) */}
+                <button
+                  type="button"
+                  onClick={() => toggleRiga(riga.id)}
+                  aria-expanded={aperto}
+                  className="flex w-full items-center gap-2.5 px-3 py-2.5 text-left"
+                >
+                  <svg viewBox="0 0 24 24" className={`h-4 w-4 shrink-0 text-[var(--brand-text-subtle)] transition-transform${aperto ? ' rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.2">
+                    <path d="M9 6l6 6-6 6" />
+                  </svg>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-[var(--brand-text-main)]">
+                      {riga.matricola || 'Senza matricola'}
+                    </span>
+                    {riga.nominativo && (
+                      <span className="block truncate text-[12px] text-[var(--brand-text-muted)]">{riga.nominativo}</span>
+                    )}
+                  </span>
+                  <span
+                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${st.completa ? 'bg-[var(--success)]/15 text-[var(--success)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'}`}
+                  >
+                    {st.completa ? '✓ foto' : `${st.fatte}/${st.totale} foto`}
+                  </span>
+                </button>
+                {/* Corpo: slot foto del misuratore */}
+                {aperto && (
+                  <div className="space-y-2 border-t border-[var(--brand-border)] px-3 py-3">
+                    {scope.misuratore.map((campo) => (
+                      <SlotFoto
+                        key={campo.chiave}
+                        token={token}
+                        etichetta={campo.etichetta}
+                        obbligatoria={campo.obbligatoria}
+                        valore={(riga.risposte?.[campo.chiave] as string | null | undefined) ?? null}
+                        disabilitato={readOnly}
+                        onUploaded={(path) => { void salvaFotoRiga(riga.id, campo.chiave, path); }}
+                      />
+                    ))}
+                  </div>
+                )}
               </div>
-              <div className="space-y-2">
-                {scope.misuratore.map((campo) => (
-                  <SlotFoto
-                    key={campo.chiave}
-                    token={token}
-                    etichetta={campo.etichetta}
-                    obbligatoria={campo.obbligatoria}
-                    valore={(riga.risposte?.[campo.chiave] as string | null | undefined) ?? null}
-                    disabilitato={readOnly}
-                    onUploaded={(path) => { void salvaFotoRiga(riga.id, campo.chiave, path); }}
-                  />
-                ))}
-              </div>
-            </div>
-          ))}
+            );
+          })}
 
-          {/* Form aggiungi misuratore */}
+          {/* Card cerca / scansiona / aggiungi misuratore (sempre presente) */}
           {!readOnly && (
             <div className="mt-3 space-y-2 rounded-xl border border-dashed border-[var(--brand-border)] p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Aggiungi misuratore</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Cerca o aggiungi misuratore</div>
+              <p className="text-[11px] leading-snug text-[var(--brand-text-muted)]">
+                Scansiona o digita la matricola: se è già presente la apri per la foto, altrimenti viene aggiunta.
+              </p>
               <input
                 type="text"
-                placeholder="Matricola *"
+                placeholder="Matricola"
                 aria-label="Matricola"
                 value={mat}
                 onChange={(e) => { setMat(e.target.value); setErrore(null); }}
+                onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void aggiungiRiga(); } }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <input
@@ -456,16 +536,22 @@ export function RisanamentoView({
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <div className="flex gap-2">
-                <button type="button" onClick={() => setScanner(true)} className="rounded-lg border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)]">📷 Scansiona misuratore</button>
+                <button
+                  type="button"
+                  onClick={() => setScanner(true)}
+                  className="flex-1 rounded-xl border border-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                >
+                  📷 Scansiona
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { void aggiungiRiga(); }}
+                  disabled={aggiungendoRiga}
+                  className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
+                >
+                  ＋ Aggiungi
+                </button>
               </div>
-              <button
-                type="button"
-                onClick={() => { void aggiungiRiga(); }}
-                disabled={aggiungendoRiga}
-                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
-              >
-                + Aggiungi misuratore
-              </button>
             </div>
           )}
         </div>
