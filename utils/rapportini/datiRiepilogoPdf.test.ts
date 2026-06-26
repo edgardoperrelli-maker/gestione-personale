@@ -197,11 +197,13 @@ describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, n
     expect(dati.nonEseguiti.length + dati.daFare.length).toBe(0); // nessun contenitore
   });
 
-  it('senza taskVia: comportamento invariato (contenitori in daFare, ordini in eseguiti)', () => {
+  it('senza taskVia: i contenitori BONIFICHE EXTRA sono scartati comunque (l\'attività è il segnale), restano gli ordini', () => {
+    // Fix definitivo: una voce BONIFICHE EXTRA (manuale=false) è un contenitore in base all'attività,
+    // quindi viene scartata dal corpo del PDF anche senza il flag — restano i 2 ordini "+".
     const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiTV, infoCampi: null });
-    expect(dati.stats.totali).toBe(4);
+    expect(dati.stats.totali).toBe(2);     // i 2 ordini; i 2 contenitori BONIFICHE EXTRA spariti
     expect(dati.eseguiti.length).toBe(2);
-    expect(dati.daFare.length).toBe(2);
+    expect(dati.daFare.length).toBe(0);
   });
 
   it('taskVia ma NESSUN ordine (template normale flaggato task-via per errore): NON svuota il PDF', () => {
@@ -239,10 +241,14 @@ describe('costruisciDatiPdf — ibrido: classiche + contenitori BONIFICHE EXTRA 
     expect(dati.daFare.length).toBe(0);             // nessun contenitore vuoto residuo
   });
 
-  it('senza flag: comportamento invariato (i contenitori restano e vanno in daFare)', () => {
+  it('senza flag: i contenitori BONIFICHE EXTRA sono scartati lo stesso (l\'attività è il segnale)', () => {
+    // Fix definitivo: lo scarto dei contenitori non dipende più dal flag task_via_ibrido — coerente
+    // con il form, dove una voce BONIFICHE EXTRA apre il contenitore anche senza la spunta.
     const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiH, infoCampi: null });
-    expect(dati.stats.totali).toBe(5);
-    expect(dati.daFare.length).toBe(2);             // i 2 contenitori senza esito
+    expect(dati.stats.totali).toBe(3);              // 2 classiche + 1 ordine; i 2 contenitori spariti
+    expect(dati.eseguiti.length).toBe(2);           // C1 (SI) + M1 (manuale)
+    expect(dati.nonEseguiti.length).toBe(1);        // C2 (NO)
+    expect(dati.daFare.length).toBe(0);
   });
 });
 
