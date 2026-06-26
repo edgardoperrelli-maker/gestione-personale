@@ -7,7 +7,7 @@ const path = require('path');
 
 // >>> MODIFICA QUI con il percorso reale della cartella sincronizzata sul PC di lavoro <<<
 const CARTELLA =
-  'C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE';
+  'C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE';
 
 console.log('=== PROBE LIMITAZIONI MASSIVE (sola lettura) ===');
 console.log('Versione Node :', process.version);

@@ -1,17 +1,17 @@
 {
   "endpointUrl": "https://<TUO-DOMINIO-VERCEL>/api/export/limitazioni-massive",
   "exportKey": "INCOLLA-QUI-LO-STESSO-SEGRETO-DI-VERCEL",
-  "cartella": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE",
+  "cartella": "C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE",
   "acea": {
     "loginUrl": "https://prd-int.launchpad.cfapps.eu10.hana.ondemand.com/site?siteId=57918e45-c3d6-4972-ab13-ca495fc4d7ee&sap-language=it-IT",
     "username": "<UTENTE-ACEA>",
     "password": "<PASSWORD-ACEA>",
     "browser": "msedge",
     "headless": true,
-    "masterPath": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\DUNNING\\2026\\LIMITAZIONI CON ORDINE.xlsx",
+    "masterPath": "C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\DUNNING\\2026\\LIMITAZIONI CON ORDINE.xlsx",
     "foglio": "PIANIFICAZIONE",
-    "download": "C:\\Users\\edgardo.perrelli\\Desktop\\tools\\_acea_download",
-    "debug": "C:\\Users\\edgardo.perrelli\\Desktop\\tools\\_acea_debug",
+    "download": "C:\\Users\\Edgardo\\Desktop\\tools\\_acea_download",
+    "debug": "C:\\Users\\Edgardo\\Desktop\\tools\\_acea_debug",
     "ricerca": {
       "contratto": "3600002158",
       "dataPubblicazioneDa": "01/05/2026",
@@ -31,7 +31,7 @@
     },
     "sovrascriviStato": true,
     "zagarolo": {
-      "masterPath": "C:\\Users\\edgardo.perrelli\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE\\ZAGAROLO.xlsx",
+      "masterPath": "C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE\\ZAGAROLO.xlsx",
       "foglio": "Foglio1",
       "masterColonnaOdl": "ORDINE",
       "masterColonnaStato": "stato odl",
