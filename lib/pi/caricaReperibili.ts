@@ -2,13 +2,25 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { RigaReperibile } from './reperibili';
 
-/** Territori associati a una foglia P.I. (vuoto = nessuna mappatura → tutti i territori). */
+/**
+ * Mappatura foglia → territori del cronoprogramma (per NOME, automatica): la foglia
+ * È già un territorio. Lazio Centro/Est accorpa "LAZIO CENTRO" e "LAZIO EST".
+ * Match case-insensitive su `includes`, così non serve alcuna configurazione manuale.
+ */
+const AREA_TERRITORI: Record<string, string[]> = {
+  firenze: ['firenze'],
+  lazio_centro_est: ['lazio centro', 'lazio est'],
+  perugia: ['perugia'],
+};
+
+/** Id dei territori della foglia (vuoto = area non mappata → nessun filtro, tutti). */
 export async function territoriDellArea(areaCodice: string): Promise<string[]> {
-  const { data } = await supabaseAdmin
-    .from('pi_aree_territori')
-    .select('territory_id')
-    .eq('area_codice', areaCodice);
-  return ((data ?? []) as Array<{ territory_id: string }>).map((r) => r.territory_id);
+  const termini = AREA_TERRITORI[areaCodice];
+  if (!termini || termini.length === 0) return [];
+  const { data } = await supabaseAdmin.from('territories').select('id, name');
+  return ((data ?? []) as Array<{ id: string; name: string }>)
+    .filter((t) => termini.some((term) => (t.name ?? '').toLowerCase().includes(term)))
+    .map((t) => t.id);
 }
 
 /**

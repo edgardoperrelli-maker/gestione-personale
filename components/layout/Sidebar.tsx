@@ -42,16 +42,19 @@ export default function Sidebar({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const vistaMappa = searchParams.get('vista');
-  const { count: nAttesa } = useRichiesteManualiContext();
-  const badgeAttesa = nAttesa > 0 ? (
-    <span
-      aria-label={`${nAttesa} in attesa`}
-      className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-[var(--on-danger)] ${collapsed ? 'absolute right-1 top-1' : ''}`}
-      style={{ backgroundColor: 'var(--status-ko)' }}
-    >
-      {nAttesa > 99 ? '99+' : nAttesa}
-    </span>
-  ) : null;
+  const { count: nAttesa, piCount } = useRichiesteManualiContext();
+  const badge = (n: number, label: string) =>
+    n > 0 ? (
+      <span
+        aria-label={`${n} ${label}`}
+        className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-[var(--on-danger)] ${collapsed ? 'absolute right-1 top-1' : ''}`}
+        style={{ backgroundColor: 'var(--status-ko)' }}
+      >
+        {n > 99 ? '99+' : n}
+      </span>
+    ) : null;
+  const badgeAttesa = badge(nAttesa, 'in attesa');
+  const badgePI = badge(piCount, 'da approvare');
 
   const visibleItems = appNavigation.filter((item) => {
     if (item.key === 'hub') return false;
@@ -109,7 +112,7 @@ export default function Sidebar({
             item.label,
             MODULE_ICONS[item.key as AppModuleKey],
             matchesPath(pathname, item.href, item.matchPrefixes),
-            item.key === 'lista-attesa' ? badgeAttesa : undefined,
+            item.key === 'lista-attesa' ? badgeAttesa : item.key === 'pronto-intervento' ? badgePI : undefined,
           ),
         ];
       });
