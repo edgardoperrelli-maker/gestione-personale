@@ -158,7 +158,7 @@ export default function CronoprogrammaWorkspace() {
     const ares = await sb
       .from('assignments')
       .select(`
-        id, day_id, reperibile, notes, cost_center,
+        id, day_id, reperibile, zona_reperibilita, notes, cost_center,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
         activity:activity_id ( id, name )
@@ -292,7 +292,7 @@ export default function CronoprogrammaWorkspace() {
         const ares = await sb
           .from('assignments')
           .select(`
-            id, day_id, reperibile, notes, cost_center,
+            id, day_id, reperibile, zona_reperibilita, notes, cost_center,
             staff:staff_id ( id, display_name ),
             territory:territory_id ( id, name ),
             activity:activity_id ( id, name )

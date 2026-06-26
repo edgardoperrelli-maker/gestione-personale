@@ -61,6 +61,8 @@ export type Assignment = {
   territory?: { id:string; name:string } | null;
   cost_center?: CostCenter | null;
   reperibile: boolean;
+  /** Zona di reperibilità (codice foglia P.I.): può differire dal territorio di lavoro. */
+  zona_reperibilita?: string | null;
   notes?: string | null;
 };
 

@@ -4,6 +4,7 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
+import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
 
 export default function EditAssignmentDialog({
   assignment,
@@ -37,9 +38,10 @@ export default function EditAssignmentDialog({
   const [actId, setActId] = useState<string>(assignment?.activity?.id ?? '');
   const [terrId, setTerrId] = useState<string>(assignment?.territory?.id ?? '');
   const [rep, setRep] = useState<boolean>(!!assignment?.reperibile);
+  const [zonaRep, setZonaRep] = useState<string>(assignment?.zona_reperibilita ?? '');
   const [notes, setNotes] = useState<string>(assignment?.notes ?? '');
 
-  useEffect(() => { setErr(undefined); }, [staffId, actId, terrId, rep, notes]);
+  useEffect(() => { setErr(undefined); }, [staffId, actId, terrId, rep, zonaRep, notes]);
   useEffect(() => {
     const p = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -106,12 +108,13 @@ export default function EditAssignmentDialog({
         territory_id: terrId || null,
         cost_center: cc,
         reperibile: rep,
+        zona_reperibilita: rep ? (zonaRep || null) : null,
         notes: notes || null,
         updated_at: new Date().toISOString(),
       })
       .eq('id', assignment.id)
       .select(`
-        id, day_id, reperibile, notes, cost_center,
+        id, day_id, reperibile, zona_reperibilita, notes, cost_center,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
         activity:activity_id ( id, name )
@@ -210,6 +213,22 @@ export default function EditAssignmentDialog({
               />
               <span>Reperibile</span>
             </label>
+
+            {rep && (
+              <label className="text-sm md:col-span-2">
+                <span className="block text-[var(--brand-text-muted)] mb-1">Zona reperibilità (P.I.)</span>
+                <select
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+                  value={zonaRep}
+                  onChange={(e) => setZonaRep(e.target.value)}
+                >
+                  <option value="">— Seleziona zona —</option>
+                  {FOGLIE_REPERIBILITA.map((f) => (
+                    <option key={f.codice} value={f.codice}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           <label className="text-sm block">
