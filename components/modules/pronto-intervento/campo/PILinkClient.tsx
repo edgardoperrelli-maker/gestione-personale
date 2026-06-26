@@ -5,6 +5,8 @@ import ModalePIManuale from './ModalePIManuale';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { ReperibileRef } from '@/lib/pi/types';
+import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
+import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 
 type Riga = {
   id: string;
@@ -12,8 +14,34 @@ type Riga = {
   data: string | null;
   stato: string;
   anomalia_reperibilita: boolean;
-  dati_correnti: { anagrafica?: Record<string, unknown> } | null;
+  dati_correnti: { anagrafica?: Record<string, unknown>; risposte?: Record<string, unknown> } | null;
 };
+
+const str = (v: unknown) => (v == null ? '' : String(v));
+
+async function condividiRapportinoPdf(r: Riga) {
+  const ana = r.dati_correnti?.anagrafica ?? {};
+  const rsp = r.dati_correnti?.risposte ?? {};
+  const dl = r.data ? `${r.data.split('-')[2]}/${r.data.split('-')[1]}/${r.data.split('-')[0]}` : '';
+  const blob = await generaRapportinoManutenzionePdfBlob({
+    bollato: str(rsp.n_segnalazione),
+    dataInizio: dl,
+    dataFine: dl,
+    oraInizio: str(rsp.ora_inizio),
+    oraFine: str(rsp.ora_fine),
+    indirizzo: str(ana.via),
+    comune: str(ana.comune),
+    assistenteItg: str(rsp.assistente_te),
+    assistenteDitta: r.staff_name ?? '',
+    descrizione: str(rsp.note),
+  });
+  await condividiOScarica({
+    blob,
+    filename: nomeFileRapportinoPI(str(rsp.n_segnalazione), r.data ?? ''),
+    title: 'Rapportino manutenzione',
+    text: `Rapportino P.I. ${str(rsp.n_segnalazione)}`.trim(),
+  });
+}
 
 type Payload = {
   token: { area_codice: string; valido_dal: string; valido_al: string; note: string | null; statoCalcolato: string };
@@ -99,15 +127,24 @@ export default function PILinkClient({ token }: { token: string }) {
                     )}
                   </div>
                 </div>
-                {r.stato === 'in_attesa' && (
+                <div className="mt-2 flex items-center gap-3">
                   <button
                     type="button"
-                    onClick={async () => { await fetch(`/api/pi/${token}/intervento/${r.id}/annulla`, { method: 'POST' }); void carica(); }}
-                    className="mt-2 text-xs font-medium text-[var(--danger)] underline"
+                    onClick={() => { void condividiRapportinoPdf(r).catch(() => {}); }}
+                    className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
                   >
-                    Annulla
+                    📄 Genera PDF
                   </button>
-                )}
+                  {r.stato === 'in_attesa' && (
+                    <button
+                      type="button"
+                      onClick={async () => { await fetch(`/api/pi/${token}/intervento/${r.id}/annulla`, { method: 'POST' }); void carica(); }}
+                      className="text-xs font-medium text-[var(--danger)] underline"
+                    >
+                      Annulla
+                    </button>
+                  )}
+                </div>
               </li>
             );
           })}

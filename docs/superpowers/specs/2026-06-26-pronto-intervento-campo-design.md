@@ -361,3 +361,13 @@ Riuso del canale realtime di `interventi_manuali` ([migrazione realtime](../../.
 ---
 
 *Prossimo passo: alla conferma dei punti §15, derivare il piano di implementazione `docs/superpowers/plans/2026-06-26-pronto-intervento-campo.md` (task a checkbox) e la migration.*
+
+---
+
+## 16. Aggiornamenti post-implementazione (v1.1 — 26/06)
+
+- **Foglie come 3 card sottomodulo**: il modulo `/hub/pronto-intervento` apre su una landing con una **card per foglia** (Firenze attiva; Lazio Centro/Est e Perugia inizialmente "in arrivo"). La card attiva apre il dettaglio (genera link, coda, tabella, contabilità, export) con "← Sottomoduli".
+- **Foglie senza contabilità su articoli**: nuovo flag `pi_aree.usa_contabilita`. Firenze = true (listino + drawer contabilità); **Lazio Centro/Est** e **Perugia** = false → mostrano **solo la tabella riepilogativa** (niente colonna Valore né drawer articoli). Migration `20260626000002_pi_aree_contabilita.sql` (attiva anche Lazio per i test).
+- **Tabella riepilogativa modificabile (correzioni ufficio)**: le celle della tabella interventi sono **editabili** su **tutte le foglie** (Firenze inclusa). Salvataggio su `blur` via `PATCH /api/admin/pi/interventi/[id]` (id = `interventi_manuali.id`): aggiorna `dati_correnti` e propaga alla riga canonica `interventi` (indirizzo/comune/`rif_esterno`/data). Testo sempre in MAIUSCOLO; `esecutore` resta in sola lettura (legato a staff_id/reperibilità).
+- **Nessuna chiusura del rapportino**: il link P.I. **non** è un rapportino e non ha "invio/chiusura a fine tempo". I task arrivano nella **coda del modulo P.I.**; le richieste in sospeso **non bloccano** nulla e non scade alcun rapportino (oltre la finestra `valido_al` il link diventa solo sola-lettura).
+- **Isolamento dalla Lista attesa dei rapportini**: poiché le P.I. riusano `interventi_manuali`, il feed globale (`GET /api/admin/interventi-manuali` + realtime `useRichiesteManualiFeed`) **esclude** `fonte='pronto_intervento'`. Le P.I. vivono solo nel modulo P.I.
