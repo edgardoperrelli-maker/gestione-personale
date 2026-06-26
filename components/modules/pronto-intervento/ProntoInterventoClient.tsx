@@ -20,7 +20,69 @@ const s = (v: unknown) => (v == null ? '' : String(v));
 
 export default function ProntoInterventoClient() {
   const [aree, setAree] = useState<Area[]>([]);
-  const [area, setArea] = useState<string>('');
+  const [area, setArea] = useState<string | null>(null); // null = vista a card (sottomoduli)
+
+  useEffect(() => {
+    (async () => {
+      const res = await fetch('/api/admin/pi/aree', { cache: 'no-store' });
+      if (res.ok) setAree(((await res.json()).aree ?? []) as Area[]);
+    })();
+  }, []);
+
+  const areaCorrente = useMemo(() => aree.find((a) => a.codice === area) ?? null, [aree, area]);
+
+  return (
+    <div className="space-y-5">
+      <div>
+        <h1 className="text-2xl font-semibold">Pronto Intervento</h1>
+        <p className="text-sm text-[var(--brand-text-muted)]">Chiamate P.I. sul campo, approvazione e contabilità.</p>
+      </div>
+
+      {!area || !areaCorrente?.attiva ? (
+        <CardsSottomoduli aree={aree} onApri={(c) => setArea(c)} />
+      ) : (
+        <FogliaDettaglio area={areaCorrente} onIndietro={() => setArea(null)} />
+      )}
+    </div>
+  );
+}
+
+/** Vista landing: una card per foglia (sottomodulo). */
+function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: string) => void }) {
+  return (
+    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      {aree.map((a) => (
+        <button
+          key={a.codice}
+          type="button"
+          disabled={!a.attiva}
+          onClick={() => a.attiva && onApri(a.codice)}
+          className={`rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-sm transition ${
+            a.attiva
+              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]'
+              : 'cursor-not-allowed opacity-60'
+          }`}
+        >
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-lg font-semibold">{a.label}</span>
+            {a.attiva ? (
+              <span className="rounded-full bg-[var(--status-ok-soft,var(--brand-surface-muted))] px-2 py-0.5 text-xs font-semibold text-[var(--status-ok,var(--brand-text-main))]">Attiva</span>
+            ) : (
+              <span className="rounded-full bg-[var(--brand-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--brand-text-muted)]">in arrivo</span>
+            )}
+          </div>
+          <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
+            {a.attiva ? 'Apri il sottomodulo: link, approvazioni, contabilità ed export.' : 'Sottomodulo non ancora attivo.'}
+          </p>
+        </button>
+      ))}
+    </div>
+  );
+}
+
+/** Dettaglio di una foglia: genera link, coda, tabella, contabilità, export. */
+function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => void }) {
+  const codice = area.codice;
   const [coda, setCoda] = useState<CodaRiga[]>([]);
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
@@ -28,39 +90,23 @@ export default function ProntoInterventoClient() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
-  useEffect(() => {
-    (async () => {
-      const res = await fetch('/api/admin/pi/aree', { cache: 'no-store' });
-      if (res.ok) {
-        const j = await res.json();
-        const a = (j.aree ?? []) as Area[];
-        setAree(a);
-        const prima = a.find((x) => x.attiva) ?? a[0];
-        if (prima) setArea(prima.codice);
-      }
-    })();
-  }, []);
-
-  const areaAttiva = useMemo(() => aree.find((a) => a.codice === area), [aree, area]);
-
   const periodoQS = useMemo(() => {
-    const p = new URLSearchParams({ area });
+    const p = new URLSearchParams({ area: codice });
     if (from) p.set('from', from);
     if (to) p.set('to', to);
     return p.toString();
-  }, [area, from, to]);
+  }, [codice, from, to]);
 
   const carica = useCallback(async () => {
-    if (!area) return;
     const [c, t] = await Promise.all([
-      fetch(`/api/admin/pi/coda?area=${area}`, { cache: 'no-store' }),
+      fetch(`/api/admin/pi/coda?area=${codice}`, { cache: 'no-store' }),
       fetch(`/api/admin/pi/interventi?${periodoQS}`, { cache: 'no-store' }),
     ]);
     if (c.ok) setCoda((await c.json()).righe ?? []);
     if (t.ok) setTabella((await t.json()).righe ?? []);
-  }, [area, periodoQS]);
+  }, [codice, periodoQS]);
 
-  useEffect(() => { if (areaAttiva?.attiva) void carica(); }, [areaAttiva, carica]);
+  useEffect(() => { void carica(); }, [carica]);
 
   async function approva(id: string) {
     await fetch(`/api/admin/pi/interventi/${id}/approva`, { method: 'POST' });
@@ -76,131 +122,98 @@ export default function ProntoInterventoClient() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Pronto Intervento</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Chiamate P.I. sul campo, approvazione e contabilità.</p>
-      </div>
-
-      {/* Foglie territoriali */}
-      <div className="flex flex-wrap gap-1 border-b border-[var(--brand-border)]">
-        {aree.map((a) => (
-          <button
-            key={a.codice}
-            type="button"
-            disabled={!a.attiva}
-            onClick={() => a.attiva && setArea(a.codice)}
-            className={`relative -mb-px rounded-t-lg px-4 py-2 text-sm font-medium transition ${
-              area === a.codice
-                ? 'border-x border-t border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--primary-text)]'
-                : 'text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]'
-            } ${!a.attiva ? 'cursor-not-allowed opacity-60' : ''}`}
-          >
-            {a.label}
-            {!a.attiva && <span className="ml-2 rounded-full bg-[var(--brand-surface-muted)] px-1.5 py-0.5 text-[10px]">in arrivo</span>}
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={onIndietro} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">← Sottomoduli</button>
+        <h2 className="text-lg font-semibold">{area.label}</h2>
+        <div className="ml-auto">
+          <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium">
+            {genera ? 'Chiudi' : 'Genera link'}
           </button>
-        ))}
+        </div>
       </div>
 
-      {!areaAttiva?.attiva ? (
-        <div className="rounded-xl border border-dashed border-[var(--brand-border)] p-10 text-center text-sm text-[var(--brand-text-muted)]">
-          Foglia “{areaAttiva?.label}” non ancora attiva.
-        </div>
-      ) : (
-        <>
-          <div className="flex justify-end">
-            <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium">
-              {genera ? 'Chiudi' : 'Genera link'}
-            </button>
+      {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
+
+      {/* Coda di approvazione */}
+      <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+        <h3 className="mb-3 text-base font-semibold">In approvazione ({coda.length})</h3>
+        {coda.length === 0 ? (
+          <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
+        ) : (
+          <ul className="space-y-2">
+            {coda.map((r) => (
+              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] p-3">
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
+                  <div className="text-xs text-[var(--brand-text-muted)]">
+                    {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
+                    {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+                  </div>
+                </div>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
+                  <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
+                </div>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+
+      {/* Tabella interventi approvati */}
+      <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
+          <h3 className="text-base font-semibold">Interventi ({tabella.length})</h3>
+          <div className="flex flex-wrap items-end gap-2">
+            <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
+              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+            </label>
+            <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Al
+              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+            </label>
+            <a href={`/api/admin/pi/export?${periodoQS}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">Esporta Excel</a>
           </div>
-          {genera && <GeneraLink area={area} onCreato={() => void carica()} />}
-
-          {/* Coda di approvazione */}
-          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-            <h2 className="mb-3 text-base font-semibold">In approvazione ({coda.length})</h2>
-            {coda.length === 0 ? (
-              <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
-            ) : (
-              <ul className="space-y-2">
-                {coda.map((r) => (
-                  <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] p-3">
-                    <div className="min-w-0">
-                      <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
-                      <div className="text-xs text-[var(--brand-text-muted)]">
-                        {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
-                        {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
-                      <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </section>
-
-          {/* Tabella interventi approvati */}
-          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-            <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-              <h2 className="text-base font-semibold">Interventi ({tabella.length})</h2>
-              <div className="flex flex-wrap items-end gap-2">
-                <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
-                  <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
-                </label>
-                <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Al
-                  <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
-                </label>
-                <a
-                  href={`/api/admin/pi/export?${periodoQS}`}
-                  className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]"
-                >
-                  Esporta Excel
-                </a>
-              </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="border-b border-[var(--brand-border)] text-left text-xs text-[var(--brand-text-muted)]">
-                    <th className="py-2 pr-3">N° segn.</th>
-                    <th className="py-2 pr-3">Data</th>
-                    <th className="py-2 pr-3">Comune</th>
-                    <th className="py-2 pr-3">Indirizzo</th>
-                    <th className="py-2 pr-3">Esecutore</th>
-                    <th className="py-2 pr-3">Orario</th>
-                    <th className="py-2 pr-3">Assist. TE</th>
-                    <th className="py-2 pr-3 text-right">Valore</th>
-                    <th className="py-2"></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {tabella.length === 0 && (
-                    <tr><td colSpan={9} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
-                  )}
-                  {tabella.map((r) => (
-                    <tr key={r.id} className="border-b border-[var(--brand-border)]">
-                      <td className="py-1.5 pr-3 font-mono text-xs">{s(r.n_segnalazione)}</td>
-                      <td className="py-1.5 pr-3">{fmtData(r.data)}</td>
-                      <td className="py-1.5 pr-3">{s(r.comune)}</td>
-                      <td className="py-1.5 pr-3">{s(r.indirizzo)}</td>
-                      <td className="py-1.5 pr-3">{r.esecutore ?? '—'}</td>
-                      <td className="py-1.5 pr-3">{s(r.ora_inizio)}–{s(r.ora_fine)}</td>
-                      <td className="py-1.5 pr-3">{s(r.assistente_te)}</td>
-                      <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>
-                      <td className="py-1.5 text-right">
-                        {r.intervento_id && (
-                          <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
-                        )}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </section>
-        </>
-      )}
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-[var(--brand-border)] text-left text-xs text-[var(--brand-text-muted)]">
+                <th className="py-2 pr-3">N° segn.</th>
+                <th className="py-2 pr-3">Data</th>
+                <th className="py-2 pr-3">Comune</th>
+                <th className="py-2 pr-3">Indirizzo</th>
+                <th className="py-2 pr-3">Esecutore</th>
+                <th className="py-2 pr-3">Orario</th>
+                <th className="py-2 pr-3">Assist. TE</th>
+                <th className="py-2 pr-3 text-right">Valore</th>
+                <th className="py-2"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {tabella.length === 0 && (
+                <tr><td colSpan={9} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
+              )}
+              {tabella.map((r) => (
+                <tr key={r.id} className="border-b border-[var(--brand-border)]">
+                  <td className="py-1.5 pr-3 font-mono text-xs">{s(r.n_segnalazione)}</td>
+                  <td className="py-1.5 pr-3">{fmtData(r.data)}</td>
+                  <td className="py-1.5 pr-3">{s(r.comune)}</td>
+                  <td className="py-1.5 pr-3">{s(r.indirizzo)}</td>
+                  <td className="py-1.5 pr-3">{r.esecutore ?? '—'}</td>
+                  <td className="py-1.5 pr-3">{s(r.ora_inizio)}–{s(r.ora_fine)}</td>
+                  <td className="py-1.5 pr-3">{s(r.assistente_te)}</td>
+                  <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>
+                  <td className="py-1.5 text-right">
+                    {r.intervento_id && (
+                      <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       {contabilitaPer && (
         <PannelloContabilita
