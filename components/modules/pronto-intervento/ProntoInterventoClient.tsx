@@ -124,6 +124,7 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
   const [genera, setGenera] = useState(false);
+  const [territori, setTerritori] = useState(false);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -162,13 +163,17 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
       <div className="flex items-center gap-3">
         <button type="button" onClick={onIndietro} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">← Sottomoduli</button>
         <h2 className="text-lg font-semibold">{area.label}</h2>
-        <div className="ml-auto">
+        <div className="ml-auto flex gap-2">
+          <button type="button" onClick={() => setTerritori((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium">
+            {territori ? 'Chiudi' : 'Territori'}
+          </button>
           <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium">
             {genera ? 'Chiudi' : 'Genera link'}
           </button>
         </div>
       </div>
 
+      {territori && <GestioneTerritori area={codice} />}
       {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
 
       {/* Coda di approvazione */}
@@ -267,6 +272,60 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           onSaved={() => { setContabilitaPer(null); void carica(); }}
         />
       )}
+    </div>
+  );
+}
+
+function GestioneTerritori({ area }: { area: string }) {
+  const [territories, setTerritories] = useState<Array<{ id: string; name: string }>>([]);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [stato, setStato] = useState<'idle' | 'salvataggio' | 'salvato'>('idle');
+
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      const res = await fetch(`/api/admin/pi/territori?area=${area}`, { cache: 'no-store' });
+      if (!alive || !res.ok) return;
+      const j = await res.json();
+      setTerritories((j.territories ?? []) as Array<{ id: string; name: string }>);
+      setSelected(new Set((j.selected ?? []) as string[]));
+    })();
+    return () => { alive = false; };
+  }, [area]);
+
+  function toggle(id: string) {
+    setSelected((prev) => { const n = new Set(prev); if (n.has(id)) n.delete(id); else n.add(id); return n; });
+    setStato('idle');
+  }
+
+  async function salva() {
+    setStato('salvataggio');
+    const res = await fetch('/api/admin/pi/territori', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ area_codice: area, territory_ids: [...selected] }),
+    });
+    setStato(res.ok ? 'salvato' : 'idle');
+  }
+
+  return (
+    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+      <p className="mb-1 text-sm font-semibold">Territori reperibilità della foglia</p>
+      <p className="mb-3 text-xs text-[var(--brand-text-muted)]">La tendina “Esecutore” del link mostra solo i reperibili di questi territori. Nessuna selezione = tutti i territori.</p>
+      <div className="grid max-h-56 grid-cols-2 gap-1 overflow-auto sm:grid-cols-3">
+        {territories.map((t) => (
+          <label key={t.id} className="flex items-center gap-2 rounded-md px-2 py-1 text-sm hover:bg-[var(--brand-surface-muted)]">
+            <input type="checkbox" checked={selected.has(t.id)} onChange={() => toggle(t.id)} className="accent-[var(--brand-primary)]" />
+            {t.name}
+          </label>
+        ))}
+        {territories.length === 0 && <p className="text-sm text-[var(--brand-text-muted)]">Nessun territorio disponibile.</p>}
+      </div>
+      <div className="mt-3 flex items-center gap-3">
+        <button type="button" onClick={salva} disabled={stato === 'salvataggio'} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50">
+          {stato === 'salvataggio' ? 'Salvataggio…' : 'Salva territori'}
+        </button>
+        {stato === 'salvato' && <span className="text-xs font-semibold text-[var(--success)]">✓ Salvato</span>}
+      </div>
     </div>
   );
 }
