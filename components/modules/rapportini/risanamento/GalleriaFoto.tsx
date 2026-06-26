@@ -1,8 +1,40 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { comprimiImmagine } from '../CampoFoto';
+import { useFotoUrl } from './useFotoUrl';
 
-/** Galleria multi-foto: aggiunge/rimuove foto a una lista. Carica via foto-campo. */
+/** Miniatura di una singola foto (anteprima): risolve il signed URL dal path. */
+function FotoThumb({
+  token, path, immediate, indice, disabilitato, onRemove,
+}: {
+  token: string; path: string; immediate?: string; indice: number;
+  disabilitato?: boolean; onRemove: () => void;
+}) {
+  const remoteUrl = useFotoUrl(token, path);
+  const src = immediate ?? remoteUrl;
+  return (
+    <div className="relative overflow-hidden rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+      {src ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={src} alt={`Foto ${indice + 1}`} className="h-24 w-full object-cover" />
+      ) : (
+        <div className="flex h-24 w-full items-center justify-center text-xs text-[var(--brand-text-muted)]">Anteprima…</div>
+      )}
+      {!disabilitato && (
+        <button
+          type="button"
+          onClick={onRemove}
+          aria-label={`Rimuovi foto ${indice + 1}`}
+          className="absolute right-1 top-1 flex h-6 w-6 items-center justify-center rounded-full bg-black/60 text-xs font-bold text-white"
+        >
+          ✕
+        </button>
+      )}
+    </div>
+  );
+}
+
+/** Galleria multi-foto: aggiunge/rimuove foto a una lista, con anteprima delle foto caricate. */
 export function GalleriaFoto({
   token, etichetta, valori, obbligatoria, disabilitato, onAdd, onRemove,
 }: {
@@ -14,6 +46,10 @@ export function GalleriaFoto({
   const libRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
+  // Anteprima locale immediata per i path appena caricati (in attesa del signed URL).
+  const [localByPath, setLocalByPath] = useState<Record<string, string>>({});
+
+  useEffect(() => () => { Object.values(localByPath).forEach((u) => URL.revokeObjectURL(u)); }, [localByPath]);
 
   const handle = async (f: File | undefined) => {
     if (!f || busy) return;
@@ -25,29 +61,36 @@ export function GalleriaFoto({
       const res = await fetch(`/api/r/${token}/foto-campo`, { method: 'POST', body: fd });
       if (!res.ok) { setErr(true); return; }
       const json = (await res.json()) as { path?: string };
-      if (json.path) onAdd(json.path);
+      if (json.path) {
+        const p = json.path;
+        setLocalByPath((prev) => ({ ...prev, [p]: URL.createObjectURL(compressed) }));
+        onAdd(p);
+      }
     } catch { setErr(true); } finally { setBusy(false); }
   };
 
   return (
     <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-      <div className="mb-1 flex items-center justify-between">
+      <div className="mb-2 flex items-center justify-between">
         <span className="text-sm font-medium text-[var(--brand-text-main)]">{etichetta}{obbligatoria ? ' *' : ''}</span>
         <span className="text-xs text-[var(--brand-text-muted)]">
           {valori.length ? `${valori.length} foto` : err ? <span className="text-[var(--danger)]">errore</span> : '—'}
         </span>
       </div>
       {valori.length > 0 && (
-        <ul className="mb-2 space-y-1">
+        <div className="mb-2 grid grid-cols-3 gap-2">
           {valori.map((p, i) => (
-            <li key={p} className="flex items-center justify-between rounded-lg bg-[var(--brand-surface)] px-2 py-1 text-xs">
-              <span className="text-[var(--success)]">✓ Foto {i + 1}</span>
-              {!disabilitato && (
-                <button type="button" onClick={() => onRemove(p)} className="text-[var(--danger)]" aria-label={`Rimuovi foto ${i + 1}`}>✕</button>
-              )}
-            </li>
+            <FotoThumb
+              key={p}
+              token={token}
+              path={p}
+              immediate={localByPath[p]}
+              indice={i}
+              disabilitato={disabilitato}
+              onRemove={() => onRemove(p)}
+            />
           ))}
-        </ul>
+        </div>
       )}
       {!disabilitato && (
         <div className="flex gap-2">

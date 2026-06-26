@@ -1,8 +1,10 @@
 'use client';
-import { useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { comprimiImmagine } from '../CampoFoto';
+import { useFotoUrl } from './useFotoUrl';
 
-/** Uno slot foto: scatta/libreria → comprime → carica via foto-campo → onUploaded(path). */
+/** Uno slot foto: scatta/libreria → comprime → carica via foto-campo → onUploaded(path).
+ *  Mostra l'anteprima della foto caricata (così l'operatore può controllarla). */
 export function SlotFoto({
   token, etichetta, valore, obbligatoria, disabilitato, onUploaded,
 }: {
@@ -14,6 +16,13 @@ export function SlotFoto({
   const libRef = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(false);
+  // Anteprima locale immediata dopo lo scatto (prima che arrivi il signed URL).
+  const [localPreview, setLocalPreview] = useState<string | null>(null);
+  const remoteUrl = useFotoUrl(token, valore);
+  const preview = localPreview ?? remoteUrl;
+
+  // Revoca l'object URL locale quando non serve più.
+  useEffect(() => () => { if (localPreview) URL.revokeObjectURL(localPreview); }, [localPreview]);
 
   const handle = async (f: File | undefined) => {
     if (!f || busy) return;
@@ -25,6 +34,7 @@ export function SlotFoto({
       const res = await fetch(`/api/r/${token}/foto-campo`, { method: 'POST', body: fd });
       if (!res.ok) { setErr(true); onUploaded(null); return; }
       const json = (await res.json()) as { path?: string };
+      setLocalPreview((prev) => { if (prev) URL.revokeObjectURL(prev); return URL.createObjectURL(compressed); });
       onUploaded(json.path ?? null);
     } catch { setErr(true); onUploaded(null); } finally { setBusy(false); }
   };
@@ -35,9 +45,15 @@ export function SlotFoto({
         <span className="text-sm font-medium text-[var(--brand-text-main)]">{etichetta}{obbligatoria ? ' *' : ''}</span>
         {valore ? <span className="text-xs text-[var(--success)]">✓ caricata</span> : err ? <span className="text-xs text-[var(--danger)]">errore</span> : null}
       </div>
+      {preview ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={preview} alt={etichetta} className="mb-2 max-h-48 w-full rounded-lg object-cover" />
+      ) : valore ? (
+        <div className="mb-2 flex h-24 items-center justify-center rounded-lg bg-[var(--brand-surface)] text-xs text-[var(--brand-text-muted)]">Anteprima…</div>
+      ) : null}
       {!disabilitato && (
         <div className="flex gap-2">
-          <button type="button" disabled={busy} onClick={() => camRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">📷 {busy ? '…' : 'Scatta'}</button>
+          <button type="button" disabled={busy} onClick={() => camRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">📷 {busy ? '…' : valore ? 'Rifai' : 'Scatta'}</button>
           <button type="button" disabled={busy} onClick={() => libRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">🖼️ Libreria</button>
         </div>
       )}
