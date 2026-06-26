@@ -45,7 +45,6 @@ export function RisanamentoView({
   /* ── State ──────────────────────────────────────────────────────────────── */
   const [righe, setRighe] = useState<RigaRisanamento[]>(righeIniziali);
   const [civicoApertoId, setCivicoApertoId] = useState<string | null>(null);
-  const [accessorieAttive, setAccessorieAttive] = useState<Set<string>>(new Set<string>());
   const [mat, setMat] = useState('');
   const [pdr, setPdr] = useState('');
   const [nom, setNom] = useState('');
@@ -78,9 +77,8 @@ export function RisanamentoView({
     if (civicoApertoId !== null && !voci.find((v) => v.id === civicoApertoId)) setCivicoApertoId(null);
   }, [civicoApertoId, voci]);
 
-  // Fix 4: reset accessorieAttive + stato lista misuratori al cambio di civico
+  // Fix 4: reset stato lista misuratori al cambio di civico
   useEffect(() => {
-    setAccessorieAttive(new Set());
     setEspansi(new Set());
   }, [civicoApertoId]);
 
@@ -278,10 +276,6 @@ export function RisanamentoView({
     } finally {
       setAggiungendoRiga(false);
     }
-  };
-
-  const attivaAccessoria = (chiave: string) => {
-    setAccessorieAttive((prev) => new Set([...prev, chiave]));
   };
 
   // Scanner unico "trova-o-crea": se la matricola è già in questo civico la evidenzia (niente doppioni),
@@ -662,39 +656,24 @@ export function RisanamentoView({
           </div>
         )}
 
-        {/* ── Sezione 3: Accessorie ─────────────────────────────────────────── */}
+        {/* ── Sezione 3: Accessorie (slot sempre visibili, facoltativi) ─────── */}
         {scope.accessoria.length > 0 && (
           <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Accessorie</h2>
+            <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Accessorie</h2>
+            <p className="mb-3 text-[11px] text-[var(--brand-text-muted)]">Foto facoltative: compila solo quelle che servono.</p>
             <div className="space-y-2">
-              {scope.accessoria.map((campo) => {
-                const attiva = accessorieAttive.has(campo.chiave) || comeArrayFoto(risposteVoce[campo.chiave]).length > 0;
-                if (attiva) {
-                  return (
-                    <GalleriaFoto
-                      key={campo.chiave}
-                      token={token}
-                      etichetta={campo.etichetta}
-                      obbligatoria={campo.obbligatoria}
-                      valori={comeArrayFoto(risposteVoce[campo.chiave])}
-                      disabilitato={readOnly}
-                      onAdd={(path) => { void aggiungiFotoVoce(campo.chiave, path); }}
-                      onRemove={(path) => { void rimuoviFotoVoce(campo.chiave, path); }}
-                    />
-                  );
-                }
-                if (readOnly) return null;
-                return (
-                  <button
-                    key={campo.chiave}
-                    type="button"
-                    onClick={() => attivaAccessoria(campo.chiave)}
-                    className="w-full rounded-xl border border-dashed border-[var(--brand-border)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
-                  >
-                    + {campo.etichetta}
-                  </button>
-                );
-              })}
+              {scope.accessoria.map((campo) => (
+                <GalleriaFoto
+                  key={campo.chiave}
+                  token={token}
+                  etichetta={campo.etichetta}
+                  obbligatoria={campo.obbligatoria}
+                  valori={comeArrayFoto(risposteVoce[campo.chiave])}
+                  disabilitato={readOnly}
+                  onAdd={(path) => { void aggiungiFotoVoce(campo.chiave, path); }}
+                  onRemove={(path) => { void rimuoviFotoVoce(campo.chiave, path); }}
+                />
+              ))}
             </div>
           </div>
         )}
