@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import PannelloContabilita from './PannelloContabilita';
 import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
@@ -24,6 +24,16 @@ function EditableCell({ id, campo, valore, tipo = 'testo', onSaved }: {
   if (tipo === 'data') return <input type="date" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} className={cls} />;
   if (tipo === 'ora') return <input type="time" value={v} onChange={(e) => setV(e.target.value)} onBlur={save} className={cls} />;
   return <input type="text" value={v} onChange={(e) => setV(e.target.value.toUpperCase())} onBlur={save} className={`${cls} uppercase`} />;
+}
+
+/** Campo etichettato che incornicia una EditableCell (usato nell'apertura del task in coda). */
+function CampoMod({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="text-xs">
+      <span className="mb-0.5 block text-[var(--brand-text-muted)]">{label}</span>
+      <div className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1 py-0.5">{children}</div>
+    </div>
+  );
 }
 type CodaRiga = {
   id: string; data: string | null; esecutore: string | null; indirizzo: unknown; comune: unknown;
@@ -129,6 +139,7 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
   const [genera, setGenera] = useState(false);
+  const [apertoId, setApertoId] = useState<string | null>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
 
@@ -184,18 +195,33 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
         ) : (
           <ul className="space-y-2">
             {coda.map((r) => (
-              <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] p-3">
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
-                  <div className="text-xs text-[var(--brand-text-muted)]">
-                    {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
-                    {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+              <li key={r.id} className="rounded-lg border border-[var(--brand-border)] p-3">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
+                    <div className="text-xs text-[var(--brand-text-muted)]">
+                      {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
+                      {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button type="button" onClick={() => setApertoId(apertoId === r.id ? null : r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">{apertoId === r.id ? 'Chiudi' : 'Apri'}</button>
+                    <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
+                    <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
                   </div>
                 </div>
-                <div className="flex gap-2">
-                  <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
-                  <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
-                </div>
+                {apertoId === r.id && (
+                  <div className="mt-3 grid gap-x-4 gap-y-2 border-t border-[var(--brand-border)] pt-3 sm:grid-cols-2">
+                    <CampoMod label="N° segnalazione"><EditableCell id={r.id} campo="n_segnalazione" valore={s(r.n_segnalazione)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Data"><EditableCell id={r.id} campo="data" tipo="data" valore={s(r.data)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Comune"><EditableCell id={r.id} campo="comune" valore={s(r.comune)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Indirizzo"><EditableCell id={r.id} campo="indirizzo" valore={s(r.indirizzo)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Ora inizio"><EditableCell id={r.id} campo="ora_inizio" tipo="ora" valore={s(r.ora_inizio)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Ora fine"><EditableCell id={r.id} campo="ora_fine" tipo="ora" valore={s(r.ora_fine)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Assistente TE"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></CampoMod>
+                    <CampoMod label="Note"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></CampoMod>
+                  </div>
+                )}
               </li>
             ))}
           </ul>

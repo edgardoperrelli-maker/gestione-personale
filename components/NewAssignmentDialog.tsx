@@ -6,6 +6,7 @@ import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import type { CostCenter } from '@/constants/cost-centers';
 import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
+import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
 
 export default function NewAssignmentDialog({
   dayId, iso, staffList, actList, terrList, costCenterRangesByStaff, onClose, onCreated
@@ -35,6 +36,7 @@ export default function NewAssignmentDialog({
   const [activityId, setActivityId]   = useState<string>('');
   const [territoryId, setTerritoryId] = useState<string>('');
   const [reperibile, setReperibile]   = useState<boolean>(false);
+const [zonaReperibilita, setZonaReperibilita] = useState<string>('');
 const [notes, setNotes]             = useState<string>('');
 const [err, setErr]                 = useState<string | undefined>();
 const [saving, setSaving]           = useState<boolean>(false);
@@ -44,7 +46,7 @@ const [fromIso, setFromIso] = useState(iso);
 const [toIso, setToIso]     = useState(iso);
 useEffect(() => {
   setErr(undefined);
-}, [staffId, activityId, territoryId, reperibile, notes]);
+}, [staffId, activityId, territoryId, reperibile, zonaReperibilita, notes]);
 
 const canSave = !!staffId && !saving; // unica dichiarazione
 
@@ -132,6 +134,7 @@ const ins = await sb
     activity_id:  activityId || null,
     territory_id: territoryId || null,
     reperibile:   !!reperibile,
+    zona_reperibilita: reperibile ? (zonaReperibilita || null) : null,
     notes:        notes ?? null,
     cost_center:  cc,
   })
@@ -153,6 +156,7 @@ if (ins.error || !ins.data) {
       id: ins.data.id,
       day_id: ins.data.day_id,
       reperibile: !!reperibile,
+      zona_reperibilita: reperibile ? (zonaReperibilita || null) : null,
       notes: notes ?? null,
       cost_center: cc as CostCenter | null,
 
@@ -286,6 +290,23 @@ if (ins.error || !ins.data) {
               />
               <span>Reperibile</span>
             </label>
+
+            {reperibile && (
+              <label className="text-sm md:col-span-2">
+                <span className="block text-[var(--brand-text-muted)] mb-1">Zona reperibilità (P.I.)</span>
+                <select
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+                  value={zonaReperibilita}
+                  onChange={(e)=>setZonaReperibilita(e.target.value)}
+                  disabled={saving}
+                >
+                  <option value="">— Seleziona zona —</option>
+                  {FOGLIE_REPERIBILITA.map((f) => (
+                    <option key={f.codice} value={f.codice}>{f.label}</option>
+                  ))}
+                </select>
+              </label>
+            )}
           </div>
 
           <label className="text-sm block">

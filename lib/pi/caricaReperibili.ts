@@ -3,9 +3,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { RigaReperibile } from './reperibili';
 
 /**
- * Mappatura foglia → territori del cronoprogramma (per NOME, automatica): la foglia
- * È già un territorio. Lazio Centro/Est accorpa "LAZIO CENTRO" e "LAZIO EST".
- * Match case-insensitive su `includes`, così non serve alcuna configurazione manuale.
+ * Fallback per la mappatura foglia → territori del cronoprogramma (per NOME), usato
+ * solo per le reperibilità senza `zona_reperibilita` esplicita. Lazio Centro/Est
+ * accorpa "LAZIO CENTRO" e "LAZIO EST".
  */
 const AREA_TERRITORI: Record<string, string[]> = {
   firenze: ['firenze'],
@@ -13,8 +13,7 @@ const AREA_TERRITORI: Record<string, string[]> = {
   perugia: ['perugia'],
 };
 
-/** Id dei territori della foglia (vuoto = area non mappata → nessun filtro, tutti). */
-export async function territoriDellArea(areaCodice: string): Promise<string[]> {
+async function territoriDellArea(areaCodice: string): Promise<string[]> {
   const termini = AREA_TERRITORI[areaCodice];
   if (!termini || termini.length === 0) return [];
   const { data } = await supabaseAdmin.from('territories').select('id, name');
@@ -23,19 +22,23 @@ export async function territoriDellArea(areaCodice: string): Promise<string[]> {
     .map((t) => t.id);
 }
 
-/**
- * Carica i reperibili del cronoprogramma nella finestra [dal, al] (YYYY-MM-DD):
- * assignments con reperibile=true, risolti alla data di calendario e al nome staff.
- * Se `territoryIds` è valorizzato, filtra ai soli territori della foglia.
- * Stesso schema del join in /api/export/assignments.
- */
-export async function caricaReperibili(dal: string, al: string, territoryIds?: string[]): Promise<RigaReperibile[]> {
-  const { data: days } = await supabaseAdmin
-    .from('calendar_days')
-    .select('id, day')
-    .gte('day', dal)
-    .lte('day', al);
+type AsgRow = {
+  day_id: string;
+  staff_id: string | null;
+  territory_id: string | null;
+  zona_reperibilita: string | null;
+  staff: { display_name?: string } | { display_name?: string }[] | null;
+};
 
+/**
+ * Carica i reperibili del cronoprogramma nella finestra [dal, al] (YYYY-MM-DD).
+ * Se `areaCodice` è valorizzato, tiene solo i reperibili la cui ZONA reperibilità è
+ * quella foglia (`zona_reperibilita = areaCodice`), con fallback per NOME territorio
+ * per le reperibilità che non hanno ancora la zona impostata.
+ * Resiliente se la colonna `zona_reperibilita` non è ancora in DB.
+ */
+export async function caricaReperibili(dal: string, al: string, areaCodice?: string): Promise<RigaReperibile[]> {
+  const { data: days } = await supabaseAdmin.from('calendar_days').select('id, day').gte('day', dal).lte('day', al);
   const dayMap = new Map<string, string>();
   const dayIds: string[] = [];
   for (const d of (days ?? []) as Array<{ id: string; day: string }>) {
@@ -44,22 +47,35 @@ export async function caricaReperibili(dal: string, al: string, territoryIds?: s
   }
   if (dayIds.length === 0) return [];
 
-  let q = supabaseAdmin
+  const territoryIds = areaCodice ? await territoriDellArea(areaCodice) : [];
+
+  // Select con zona_reperibilita; fallback senza la colonna (DB non ancora migrato).
+  const full = await supabaseAdmin
     .from('assignments')
-    .select('day_id, staff_id, reperibile, territory_id, staff:staff_id ( display_name )')
+    .select('day_id, staff_id, reperibile, territory_id, zona_reperibilita, staff:staff_id ( display_name )')
     .in('day_id', dayIds)
     .eq('reperibile', true);
-  if (territoryIds && territoryIds.length > 0) q = q.in('territory_id', territoryIds);
-  const { data: asg } = await q;
+  let rows: AsgRow[];
+  if (!full.error) {
+    rows = (full.data ?? []) as AsgRow[];
+  } else {
+    const base = await supabaseAdmin
+      .from('assignments')
+      .select('day_id, staff_id, reperibile, territory_id, staff:staff_id ( display_name )')
+      .in('day_id', dayIds)
+      .eq('reperibile', true);
+    rows = ((base.data ?? []) as Array<Omit<AsgRow, 'zona_reperibilita'>>).map((r) => ({ ...r, zona_reperibilita: null }));
+  }
 
   const out: RigaReperibile[] = [];
-  for (const a of (asg ?? []) as Array<{
-    day_id: string;
-    staff_id: string | null;
-    staff: { display_name?: string } | { display_name?: string }[] | null;
-  }>) {
+  for (const a of rows) {
     const data = dayMap.get(a.day_id);
     if (!data || !a.staff_id) continue;
+    if (areaCodice) {
+      const zonaOk = a.zona_reperibilita === areaCodice;
+      const fallbackOk = !a.zona_reperibilita && !!a.territory_id && territoryIds.includes(a.territory_id);
+      if (!zonaOk && !fallbackOk) continue;
+    }
     const staff = Array.isArray(a.staff) ? a.staff[0] : a.staff;
     out.push({ data, staff_id: a.staff_id, staff_name: staff?.display_name ?? null });
   }

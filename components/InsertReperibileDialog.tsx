@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Territory } from '@/types';
+import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
 
 type Staff = { id:string; display_name:string; active?:boolean };
 
@@ -22,6 +23,7 @@ export default function InsertReperibileDialog({
   const [err, setErr] = useState<string|undefined>();
   const [staffId, setStaffId] = useState<string>('');
   const [terrId, setTerrId] = useState<string>('');
+  const [zonaRep, setZonaRep] = useState<string>('');
   const [startIso, setStartIso] = useState<string>(''); // YYYY-MM-DD
   const [endIso, setEndIso] = useState<string>('');
   const todayIso = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
@@ -32,6 +34,7 @@ export default function InsertReperibileDialog({
       setErr(undefined);
       setStaffId('');
       setTerrId('');
+      setZonaRep('');
       setStartIso('');
       setEndIso('');
     }
@@ -106,6 +109,7 @@ export default function InsertReperibileDialog({
             territory_id: terrId,
             activity_id: null,
             reperibile: true,
+            zona_reperibilita: zonaRep || null,
             notes: null,
           });
 
@@ -117,6 +121,7 @@ export default function InsertReperibileDialog({
               territory_id: terrId,
               activity_id: null,
               reperibile: true,
+              zona_reperibilita: zonaRep || null,
               updated_at: new Date().toISOString(),
             })
             .eq('day_id', dayRow.id)
@@ -176,6 +181,20 @@ export default function InsertReperibileDialog({
                   <option value="">— Seleziona —</option>
                   {terrList.map(t=>(
                     <option key={t.id} value={t.id}>{t.name}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="text-sm">
+                <span className="block text-[var(--brand-text-muted)] mb-1">Zona reperibilità (P.I.)</span>
+                <select
+                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+                  value={zonaRep}
+                  onChange={(e)=>setZonaRep(e.target.value)}
+                >
+                  <option value="">— Seleziona zona —</option>
+                  {FOGLIE_REPERIBILITA.map((f) => (
+                    <option key={f.codice} value={f.codice}>{f.label}</option>
                   ))}
                 </select>
               </label>
