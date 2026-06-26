@@ -85,11 +85,12 @@ export function costruisciDatiPdf(params: {
   /** Template task-via (es. BONIFICHE EXTRA): le voci pianificate sono "contenitori" (le vie); il
    * dettaglio sono gli ordini creati col "+" (manuale=true). Il PDF mostra gli ordini, non i contenitori. */
   taskVia?: boolean;
-  /** Template ibrido: tiene le voci CLASSICHE e gli ordini "+", scartando solo i contenitori
-   * BONIFICHE EXTRA (voci pianificate con quell'attività). Ortogonale a `taskVia` (che è "tutto"). */
+  /** Legacy/UI: il flag ibrido del template. NON più necessario qui — i contenitori BONIFICHE EXTRA
+   * vengono scartati in base all'ATTIVITÀ a prescindere dal flag (coerente con il form). Mantenuto
+   * nella firma per retro-compatibilità dei chiamanti. */
   taskViaIbrido?: boolean;
 }): DatiRiepilogoPdf {
-  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia, taskViaIbrido } = params;
+  const { staffName, dataLabel, voci: vociInput, campi, infoCampi, taskVia } = params;
   // Le voci RIFIUTATE dall'ufficio sono scartate dal PDF: non sono interventi validi → fuori da
   // stats, lavorazioni e liste (coerente con `riepilogoRapportino`). Tutto il resto usa `voci`.
   let voci = vociInput.filter((v) => v.approvazione_stato !== 'rifiutato');
@@ -102,11 +103,16 @@ export function costruisciDatiPdf(params: {
     // un template classico flaggato task-via per errore), NON svuotare il PDF: mostra le voci così.
     const ordini = voci.filter((v) => v.manuale === true);
     if (ordini.length > 0) voci = ordini;
+  } else {
+    // Fuori dal task-via puro: scarta i contenitori BONIFICHE EXTRA (voci pianificate con quell'attività,
+    // manuale=false). Le voci classiche e gli ordini "+" restano. L'attività BONIFICHE EXTRA è di per sé
+    // il segnale di contenitore, quindi vale a prescindere dal flag `task_via_ibrido` del template —
+    // coerente con il form (la voce apre il contenitore e non ha esito proprio). Gli ordini figli sono
+    // già esclusi a monte (parent_voce_id). Stessa guardia anti-PDF-vuoto del task-via puro: se dopo lo
+    // scarto non resta nulla (rapportino di soli contenitori senza ordini), NON svuotare il PDF.
+    const senzaContenitori = voci.filter((v) => !(isTaskVia(v) && v.manuale !== true));
+    if (senzaContenitori.length > 0) voci = senzaContenitori;
   }
-  // Ibrido: il rapportino è classico, ma alcune voci sono contenitori BONIFICHE EXTRA. Scarta
-  // SOLO quei contenitori (attività BONIFICHE EXTRA, non manuali); le voci classiche e gli
-  // ordini "+" restano. Gli ordini figli del contenitore sono già esclusi a monte (parent_voce_id).
-  else if (taskViaIbrido) voci = voci.filter((v) => !(isTaskVia(v) && v.manuale !== true));
   const riep = riepilogoRapportino(voci, campi);
 
   // Stesse colonne del rapportino digitale/Excel:

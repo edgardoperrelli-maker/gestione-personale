@@ -45,15 +45,18 @@ describe('campiEsportabili', () => {
 });
 
 describe('costruisciDatiPdf', () => {
+  // Esito negativo = campo "negativo" (es. crocetta "Cliente assente") + nota obbligatoria. Un select
+  // secondario come "Sost. saracinesca" = NO NON è un esito negativo (vedi voceColore.test.ts), quindi
+  // le voci non-eseguite qui usano `assente:true` + nota.
   const voci = [
     { nominativo: 'Esposito Anna', odl: 'ODL-100', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', risposte: { cambio: true, saracinesca: 'SI', foto_contatore: 'https://x/p.jpg' } },
     { nominativo: 'Russo Luigi', odl: 'ODL-200', pdr: '222', via: 'Via Chiaia 12', comune: 'Napoli', risposte: { saracinesca: 'SI' } },
-    { nominativo: 'Conte Rosa', odl: 'ODL-300', pdr: '333', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true } },
-    { nominativo: 'Gallo Sara', odl: 'ODL-400', pdr: '444', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { saracinesca: 'NO', note: 'Valvola bloccata' } },
+    { nominativo: 'Conte Rosa', odl: 'ODL-300', pdr: '333', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true, note: 'Cliente assente' } },
+    { nominativo: 'Gallo Sara', odl: 'ODL-400', pdr: '444', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { assente: true, note: 'Locale chiuso' } },
   ];
   const dati = costruisciDatiPdf({ staffName: 'Mario Rossi', dataLabel: '04/06/2026', voci, campi, infoCampi });
 
-  it('conteggi corretti (select SI = eseguito, select NO/assente = non eseguito)', () => {
+  it('conteggi corretti (lavorazione/SI = eseguito, "Cliente assente" + nota = non eseguito)', () => {
     expect(dati.stats).toEqual({ totali: 4, eseguiti: 2, nonEseguiti: 2 });
   });
   it('barre lavorazioni: crocette + select positivi (saracinesca SI), escluso assente', () => {
@@ -71,7 +74,7 @@ describe('costruisciDatiPdf', () => {
   });
   it('valori riga allineati alle colonne (info poi campi)', () => {
     expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'X', 'X', '', '']);
-    expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-400', 'Via Petrarca 3', 'Napoli', '', 'NO', '', 'Valvola bloccata']);
+    expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-400', 'Via Petrarca 3', 'Napoli', '', '', 'X', 'Locale chiuso']);
   });
   it('numerazione globale eseguiti/non eseguiti', () => {
     expect(dati.eseguiti.map((r) => r.n)).toEqual([1, 2]);
@@ -197,11 +200,13 @@ describe('costruisciDatiPdf — task-via (BONIFICHE EXTRA): mostra gli ORDINI, n
     expect(dati.nonEseguiti.length + dati.daFare.length).toBe(0); // nessun contenitore
   });
 
-  it('senza taskVia: comportamento invariato (contenitori in daFare, ordini in eseguiti)', () => {
+  it('senza taskVia: i contenitori BONIFICHE EXTRA sono scartati comunque (l\'attività è il segnale), restano gli ordini', () => {
+    // Fix definitivo: una voce BONIFICHE EXTRA (manuale=false) è un contenitore in base all'attività,
+    // quindi viene scartata dal corpo del PDF anche senza il flag — restano i 2 ordini "+".
     const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiTV, infoCampi: null });
-    expect(dati.stats.totali).toBe(4);
+    expect(dati.stats.totali).toBe(2);     // i 2 ordini; i 2 contenitori BONIFICHE EXTRA spariti
     expect(dati.eseguiti.length).toBe(2);
-    expect(dati.daFare.length).toBe(2);
+    expect(dati.daFare.length).toBe(0);
   });
 
   it('taskVia ma NESSUN ordine (template normale flaggato task-via per errore): NON svuota il PDF', () => {
@@ -239,10 +244,14 @@ describe('costruisciDatiPdf — ibrido: classiche + contenitori BONIFICHE EXTRA 
     expect(dati.daFare.length).toBe(0);             // nessun contenitore vuoto residuo
   });
 
-  it('senza flag: comportamento invariato (i contenitori restano e vanno in daFare)', () => {
+  it('senza flag: i contenitori BONIFICHE EXTRA sono scartati lo stesso (l\'attività è il segnale)', () => {
+    // Fix definitivo: lo scarto dei contenitori non dipende più dal flag task_via_ibrido — coerente
+    // con il form, dove una voce BONIFICHE EXTRA apre il contenitore anche senza la spunta.
     const dati = costruisciDatiPdf({ staffName: 'X', dataLabel: 'd', voci, campi: campiH, infoCampi: null });
-    expect(dati.stats.totali).toBe(5);
-    expect(dati.daFare.length).toBe(2);             // i 2 contenitori senza esito
+    expect(dati.stats.totali).toBe(3);              // 2 classiche + 1 ordine; i 2 contenitori spariti
+    expect(dati.eseguiti.length).toBe(2);           // C1 (SI) + M1 (manuale)
+    expect(dati.nonEseguiti.length).toBe(1);        // C2 (NO)
+    expect(dati.daFare.length).toBe(0);
   });
 });
 
