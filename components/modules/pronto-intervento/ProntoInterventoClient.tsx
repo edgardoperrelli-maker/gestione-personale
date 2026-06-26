@@ -5,7 +5,7 @@ import PannelloContabilita from './PannelloContabilita';
 import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 
-type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean };
+type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean; in_attesa?: number };
 
 /** Cella modificabile per correzioni dell'ufficio (salva su blur). */
 function EditableCell({ id, campo, valore, tipo = 'testo', onSaved }: {
@@ -110,6 +110,11 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
           <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
             {a.attiva ? 'Apri il sottomodulo: link, approvazioni, contabilità ed export.' : 'Sottomodulo non ancora attivo.'}
           </p>
+          {a.attiva && (a.in_attesa ?? 0) > 0 && (
+            <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-[var(--warning-soft,var(--brand-surface-muted))] px-2.5 py-1 text-xs font-semibold text-[var(--warning,var(--brand-text-main))]">
+              {a.in_attesa} in approvazione
+            </div>
+          )}
         </button>
       ))}
     </div>
