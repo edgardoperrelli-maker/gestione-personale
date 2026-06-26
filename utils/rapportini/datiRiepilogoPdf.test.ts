@@ -45,15 +45,18 @@ describe('campiEsportabili', () => {
 });
 
 describe('costruisciDatiPdf', () => {
+  // Esito negativo = campo "negativo" (es. crocetta "Cliente assente") + nota obbligatoria. Un select
+  // secondario come "Sost. saracinesca" = NO NON è un esito negativo (vedi voceColore.test.ts), quindi
+  // le voci non-eseguite qui usano `assente:true` + nota.
   const voci = [
     { nominativo: 'Esposito Anna', odl: 'ODL-100', pdr: '111', via: 'Via Toledo 45', comune: 'Napoli', risposte: { cambio: true, saracinesca: 'SI', foto_contatore: 'https://x/p.jpg' } },
     { nominativo: 'Russo Luigi', odl: 'ODL-200', pdr: '222', via: 'Via Chiaia 12', comune: 'Napoli', risposte: { saracinesca: 'SI' } },
-    { nominativo: 'Conte Rosa', odl: 'ODL-300', pdr: '333', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true } },
-    { nominativo: 'Gallo Sara', odl: 'ODL-400', pdr: '444', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { saracinesca: 'NO', note: 'Valvola bloccata' } },
+    { nominativo: 'Conte Rosa', odl: 'ODL-300', pdr: '333', via: 'Via Diaz 22', comune: 'Napoli', risposte: { assente: true, note: 'Cliente assente' } },
+    { nominativo: 'Gallo Sara', odl: 'ODL-400', pdr: '444', via: 'Via Petrarca 3', comune: 'Napoli', risposte: { assente: true, note: 'Locale chiuso' } },
   ];
   const dati = costruisciDatiPdf({ staffName: 'Mario Rossi', dataLabel: '04/06/2026', voci, campi, infoCampi });
 
-  it('conteggi corretti (select SI = eseguito, select NO/assente = non eseguito)', () => {
+  it('conteggi corretti (lavorazione/SI = eseguito, "Cliente assente" + nota = non eseguito)', () => {
     expect(dati.stats).toEqual({ totali: 4, eseguiti: 2, nonEseguiti: 2 });
   });
   it('barre lavorazioni: crocette + select positivi (saracinesca SI), escluso assente', () => {
@@ -71,7 +74,7 @@ describe('costruisciDatiPdf', () => {
   });
   it('valori riga allineati alle colonne (info poi campi)', () => {
     expect(dati.eseguiti[0].valori).toEqual(['Esposito Anna', 'ODL-100', 'Via Toledo 45', 'Napoli', 'X', 'X', '', '']);
-    expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-400', 'Via Petrarca 3', 'Napoli', '', 'NO', '', 'Valvola bloccata']);
+    expect(dati.nonEseguiti[1].valori).toEqual(['Gallo Sara', 'ODL-400', 'Via Petrarca 3', 'Napoli', '', '', 'X', 'Locale chiuso']);
   });
   it('numerazione globale eseguiti/non eseguiti', () => {
     expect(dati.eseguiti.map((r) => r.n)).toEqual([1, 2]);

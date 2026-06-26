@@ -11,7 +11,9 @@ const campi: TemplateCampo[] = [
 
 describe('statoVoce', () => {
   it('select SI → eseguito', () => expect(statoVoce({ eseguito: 'SI' }, campi)).toBe('eseguito'));
-  it('select NO → non_eseguito', () => expect(statoVoce({ eseguito: 'NO' }, campi)).toBe('non_eseguito'));
+  // Esito negativo: la nota è obbligatoria → con nota è "non_eseguito", senza nota resta "da_fare".
+  it('select NO + nota → non_eseguito', () => expect(statoVoce({ eseguito: 'NO', note: 'Motivo' }, campi)).toBe('non_eseguito'));
+  it('select NO senza nota → da_fare (nota obbligatoria con esito negativo)', () => expect(statoVoce({ eseguito: 'NO' }, campi)).toBe('da_fare'));
   it('crocetta positiva → eseguito', () => expect(statoVoce({ cambio: true }, campi)).toBe('eseguito'));
   it('vuoto → da_fare', () => expect(statoVoce({}, campi)).toBe('da_fare'));
   it('solo note → da_fare', () => expect(statoVoce({ note: 'x' }, campi)).toBe('da_fare'));
@@ -19,7 +21,8 @@ describe('statoVoce', () => {
 
 describe('riepilogoRapportino', () => {
   it('conta esiti e da fare', () => {
-    const voci = [{ risposte: { eseguito: 'SI' } }, { risposte: { eseguito: 'NO' } }, { risposte: {} }];
+    // L'esito negativo richiede la nota per essere "non eseguito" (altrimenti resta "da fare").
+    const voci = [{ risposte: { eseguito: 'SI' } }, { risposte: { eseguito: 'NO', note: 'Motivo' } }, { risposte: {} }];
     expect(riepilogoRapportino(voci, campi)).toMatchObject({ eseguiti: 1, nonEseguiti: 1, daFare: 1, totali: 3 });
   });
   it('conta le lavorazioni (solo crocette con count>0, in ordine di template)', () => {
