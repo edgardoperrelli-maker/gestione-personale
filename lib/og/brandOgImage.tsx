@@ -1,24 +1,12 @@
 import { ImageResponse } from 'next/og';
 import { BRAND } from '@/lib/brand';
-
-/** Fiamma del marchio, disegnata vettoriale così l'anteprima è brandizzata
- *  anche senza caricare file esterni (compatibile con il renderer di next/og). */
-function Fiamma({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 96 96" fill="none">
-      <rect x="40" y="34" width="86" height="10" rx="5" transform="rotate(36 40 34)" fill="#1e3a63" />
-      <path
-        d="M50 8 C 61 25, 65 32, 56 46 C 65 41, 68 33, 68 33 C 78 51, 69 78, 49 78 C 30 78, 23 60, 34 44 C 37 52, 42 52, 42 52 C 34 35, 39 19, 50 8 Z"
-        fill={BRAND.colori.rosso}
-      />
-    </svg>
-  );
-}
+import { BRAND_LOGO_DATA_URI, BRAND_LOGO_W, BRAND_LOGO_H } from '@/lib/og/brandLogo';
 
 /**
  * Genera l'immagine di anteprima (1200×630) condivisa da tutti i link operatore.
- * Stesso "vestito" brandizzato — logo, titolo del modulo, sottotitolo, call-to-action —
- * così ogni link incollato su WhatsApp/Telegram mostra una card riconoscibile.
+ * Mostra il LOGO REALE dell'azienda (lo stesso file caricato, sfondo trasparente)
+ * dentro un badge bianco, così resta nitido e leggibile sul fondo navy — l'identità
+ * del marchio è preservata su ogni link incollato in chat.
  */
 export function brandOgImage(opts: {
   title: string;
@@ -28,6 +16,8 @@ export function brandOgImage(opts: {
 }) {
   const C = BRAND.colori;
   const size = opts.size ?? { width: 1200, height: 630 };
+  const logoH = 66;
+  const logoW = Math.round((BRAND_LOGO_W * logoH) / BRAND_LOGO_H);
   return new ImageResponse(
     (
       <div
@@ -43,15 +33,20 @@ export function brandOgImage(opts: {
           fontFamily: 'sans-serif',
         }}
       >
-        {/* Intestazione: fiamma + wordmark */}
-        <div style={{ display: 'flex', alignItems: 'center' }}>
-          <Fiamma size={66} />
-          <div style={{ display: 'flex', alignItems: 'baseline', marginLeft: 20 }}>
-            <span style={{ fontSize: 36, fontWeight: 800, color: C.rosso, display: 'flex' }}>P</span>
-            <span style={{ fontSize: 36, fontWeight: 800, color: C.grigioChiaro, display: 'flex' }}>LENZICH</span>
-            <span style={{ fontSize: 22, fontWeight: 700, color: C.grigioTenue, marginLeft: 12, display: 'flex' }}>
-              S.p.A.
-            </span>
+        {/* Logo reale dentro un badge bianco */}
+        <div style={{ display: 'flex' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              background: '#ffffff',
+              borderRadius: 18,
+              padding: '16px 26px',
+              boxShadow: '0 6px 20px rgba(0,0,0,0.25)',
+            }}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element -- data URI inline per next/og */}
+            <img src={BRAND_LOGO_DATA_URI} width={logoW} height={logoH} alt={BRAND.nomeLegale} />
           </div>
         </div>
 
