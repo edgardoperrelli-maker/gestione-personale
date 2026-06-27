@@ -1,5 +1,3 @@
-import { BRAND } from '@/lib/brand';
-
 export interface RapportinoStato {
   id: string;
   staff_id: string;
@@ -28,19 +26,11 @@ export function statoBadge(
   return { label: 'In corso', className: 'bg-[var(--warning-soft)] text-[var(--warning)]' };
 }
 
-export function whatsappHref(
-  staffName: string | null,
-  dataLabel: string,
-  url: string,
-): string {
-  const saluto = staffName ? `Ciao ${staffName} 👋` : 'Ciao 👋';
-  const testo = [
-    saluto,
-    `Ecco il tuo rapportino del ${dataLabel}.`,
-    'Aprilo dal telefono, compila gli esiti e invialo a fine giornata 👇',
-    url,
-    '',
-    `— ${BRAND.firma}`,
-  ].join('\n');
-  return `https://wa.me/?text=${encodeURIComponent(testo)}`;
+/**
+ * Condivisione su WhatsApp: SOLO il link. Niente testo precompilato — il messaggio
+ * (saluto, istruzioni, firma) è già dentro l'anteprima del link (immagine OG), così
+ * non viene ripetuto due volte in chat.
+ */
+export function whatsappHref(url: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(url)}`;
 }

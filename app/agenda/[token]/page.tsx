@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import AgendaOperatoreClient, { type AgendaIntervento } from '@/components/modules/agenda/AgendaOperatoreClient';
 import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import { BrandHeader } from '@/components/brand/BrandHeader';
-import { BRAND, appBaseUrl, dataItaliana } from '@/lib/brand';
+import { BRAND, appBaseUrl } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -13,26 +13,13 @@ function oggiRoma(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
 }
 
-/** Anteprima ricca (Open Graph) per la condivisione su WhatsApp: nome operatore e data. */
-export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
-  const { token } = await params;
-  const base = appBaseUrl();
-  const { data: tok } = await supabaseAdmin
-    .from('agenda_token')
-    .select('staff_id, data')
-    .eq('token', token)
-    .maybeSingle();
-  if (!tok) return { metadataBase: new URL(base), title: `Agenda operatore — ${BRAND.nomeLegale}` };
-  const { data: staff } = await supabaseAdmin
-    .from('staff')
-    .select('display_name')
-    .eq('id', (tok as { staff_id: string }).staff_id)
-    .maybeSingle();
-  const nome = (staff as { display_name?: string | null } | null)?.display_name ?? '';
-  const titolo = `🗓️ Agenda${nome ? ` · ${nome}` : ''}`;
-  const desc = `Il giro di interventi del ${dataItaliana((tok as { data?: string }).data)} — tocca per vederlo e segnare gli esiti.`;
+/** Anteprima del link: titolo/descrizione generici. Saluto col nome, data e
+ *  istruzioni stanno SOLO nell'immagine (opengraph-image), senza ripetizioni. */
+export function generateMetadata(): Metadata {
+  const titolo = '🗓️ Agenda';
+  const desc = BRAND.tagline;
   return {
-    metadataBase: new URL(base),
+    metadataBase: new URL(appBaseUrl()),
     title: titolo,
     description: desc,
     openGraph: { title: titolo, description: desc, type: 'website' },

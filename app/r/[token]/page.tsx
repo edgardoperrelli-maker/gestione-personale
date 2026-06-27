@@ -11,27 +11,19 @@ import RapportinoForm, {
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { BrandHeader } from '@/components/brand/BrandHeader';
-import { BRAND, appBaseUrl, dataItaliana } from '@/lib/brand';
+import { BRAND, appBaseUrl } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-/** Anteprima ricca (Open Graph) per la condivisione su WhatsApp: nome operatore e data,
- *  così il link non arriva "anonimo" ma riconoscibile nella chat. */
-export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
-  const { token } = await params;
-  const base = appBaseUrl();
-  const { data: rap } = await supabaseAdmin
-    .from('rapportini')
-    .select('staff_name, data')
-    .eq('token', token)
-    .maybeSingle();
-  if (!rap) return { metadataBase: new URL(base), title: `Rapportino — ${BRAND.nomeLegale}` };
-  const nome = (rap as { staff_name?: string | null }).staff_name ?? '';
-  const titolo = `📋 Rapportino${nome ? ` · ${nome}` : ''}`;
-  const desc = `Interventi del ${dataItaliana((rap as { data?: string }).data)} — tocca per compilare gli esiti e inviare.`;
+/** Anteprima del link: titolo/descrizione volutamente generici. Il saluto col nome,
+ *  la data e le istruzioni stanno SOLO nell'immagine (opengraph-image), così non
+ *  vengono ripetuti nel testo della card. */
+export function generateMetadata(): Metadata {
+  const titolo = '📋 Rapportino';
+  const desc = BRAND.tagline;
   return {
-    metadataBase: new URL(base),
+    metadataBase: new URL(appBaseUrl()),
     title: titolo,
     description: desc,
     openGraph: { title: titolo, description: desc, type: 'website' },

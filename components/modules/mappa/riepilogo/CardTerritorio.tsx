@@ -126,7 +126,7 @@ export default function CardTerritorio({
                       title={r.statoCalcolato === 'valido' ? 'Aperto: l\'operatore può modificare' : 'Riapri per la modifica'}
                       className="rounded border border-[var(--brand-border)] px-2 py-0.5 disabled:opacity-60"
                     >{r.statoCalcolato === 'valido' ? '🔓' : '🔒'}</button>
-                    <a href={whatsappHref(r.staff_name, dataLabel, r.url)} target="_blank" rel="noopener noreferrer" className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[var(--success)]">📲</a>
+                    <a href={whatsappHref(r.url)} target="_blank" rel="noopener noreferrer" className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-2 py-0.5 text-[var(--success)]">📲</a>
                     <a href={`/hub/rapportini/contenuto/${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">👁</a>
                     <a href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`} className="rounded border border-[var(--brand-border)] px-2 py-0.5">⤓</a>
                     <button
