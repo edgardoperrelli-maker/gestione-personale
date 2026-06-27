@@ -2015,11 +2015,6 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return m;
   }, [rapStato]);
 
-  const rapDataLabel = useMemo(
-    () => new Date(planningDate).toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' }),
-    [planningDate],
-  );
-
   const handleCopyLink = useCallback(async (r: RapportinoStato) => {
     try {
       await navigator.clipboard.writeText(r.url);
@@ -3020,7 +3015,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                       {copiedToken === r.token ? '✓ Copiato!' : '🔗 Copia link'}
                                     </button>
                                     <a
-                                      href={whatsappHref(r.staff_name, rapDataLabel, r.url)}
+                                      href={whatsappHref(r.url)}
                                       target="_blank"
                                       rel="noopener noreferrer"
                                       className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--success)] hover:opacity-80"

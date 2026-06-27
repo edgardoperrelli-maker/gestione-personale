@@ -26,11 +26,11 @@ export function statoBadge(
   return { label: 'In corso', className: 'bg-[var(--warning-soft)] text-[var(--warning)]' };
 }
 
-export function whatsappHref(
-  staffName: string | null,
-  dataLabel: string,
-  url: string,
-): string {
-  const testo = `Ciao ${staffName ?? ''}, ecco il link per il rapportino del ${dataLabel}:`;
-  return `https://wa.me/?text=${encodeURIComponent(`${testo} ${url}`)}`;
+/**
+ * Condivisione su WhatsApp: SOLO il link. Niente testo precompilato — il messaggio
+ * (saluto, istruzioni, firma) è già dentro l'anteprima del link (immagine OG), così
+ * non viene ripetuto due volte in chat.
+ */
+export function whatsappHref(url: string): string {
+  return `https://wa.me/?text=${encodeURIComponent(url)}`;
 }

@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
@@ -9,9 +10,26 @@ import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { BrandHeader } from '@/components/brand/BrandHeader';
+import { BRAND, appBaseUrl } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/** Anteprima del link: titolo/descrizione volutamente generici. Il saluto col nome,
+ *  la data e le istruzioni stanno SOLO nell'immagine (opengraph-image), così non
+ *  vengono ripetuti nel testo della card. */
+export function generateMetadata(): Metadata {
+  const titolo = '📋 Rapportino';
+  const desc = BRAND.tagline;
+  return {
+    metadataBase: new URL(appBaseUrl()),
+    title: titolo,
+    description: desc,
+    openGraph: { title: titolo, description: desc, type: 'website' },
+    twitter: { card: 'summary_large_image', title: titolo, description: desc },
+  };
+}
 
 type VoceRow = {
   id: string;
@@ -39,7 +57,12 @@ type VoceRow = {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)] sm:py-10">
-      <div className="mx-auto w-full max-w-2xl">{children}</div>
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="mb-6">
+          <BrandHeader subtitle="Rapportino interventi" />
+        </div>
+        {children}
+      </div>
     </main>
   );
 }

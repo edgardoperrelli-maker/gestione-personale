@@ -2,34 +2,18 @@ import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import PILinkClient from '@/components/modules/pronto-intervento/campo/PILinkClient';
+import { BRAND, appBaseUrl } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 
-const fmtDataIt = (d?: string | null): string => (d ? d.split('-').reverse().join('/') : '');
-
-/** Anteprima ricca (Open Graph) per la condivisione su WhatsApp: titolo con la foglia
- *  e il periodo di validità, così nel gruppo reperibilità il link attivo è riconoscibile. */
-export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
-  const { token } = await params;
-  const { data: tok } = await supabaseAdmin
-    .from('pi_token')
-    .select('area_codice, valido_dal, valido_al, revocato_at')
-    .eq('token', token)
-    .maybeSingle();
-  if (!tok) return { title: 'Pronto Intervento — Plenzich' };
-  const { data: area } = await supabaseAdmin.from('pi_aree').select('label').eq('codice', tok.area_codice).maybeSingle();
-  const label = (area as { label?: string } | null)?.label;
-  const revocato = !!tok.revocato_at;
-  const titolo = `🔧 Pronto Intervento${label ? ` · ${label}` : ''}`;
-  const desc = revocato
-    ? 'Link revocato dall’ufficio.'
-    : `Link attivo dal ${fmtDataIt(tok.valido_dal)} al ${fmtDataIt(tok.valido_al)} — tocca per registrare le chiamate P.I.`;
-  const base =
-    process.env.NEXT_PUBLIC_BASE_URL ||
-    (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://gestione-personale.vercel.app');
+/** Anteprima del link: titolo/descrizione generici. Foglia e periodo di validità
+ *  stanno SOLO nell'immagine (opengraph-image), senza ripeterli nel testo della card. */
+export function generateMetadata(): Metadata {
+  const titolo = '🔧 Pronto Intervento';
+  const desc = BRAND.tagline;
   return {
-    metadataBase: new URL(base),
+    metadataBase: new URL(appBaseUrl()),
     title: titolo,
     description: desc,
     openGraph: { title: titolo, description: desc, type: 'website' },
