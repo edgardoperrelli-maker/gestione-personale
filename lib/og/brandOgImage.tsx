@@ -16,6 +16,8 @@ import {
  */
 export function brandOgImage(opts: {
   headline: string;
+  /** Riga in risalto (pill rossa) tra titolo e corpo — es. il periodo di validità del link. */
+  subtitle?: string;
   body: string;
   footer?: string;
   size?: { width: number; height: number };
@@ -55,7 +57,24 @@ export function brandOgImage(opts: {
           <div style={{ fontSize: 58, fontWeight: 800, color: C.navy, lineHeight: 1.1, display: 'flex' }}>
             {opts.headline}
           </div>
-          <div style={{ fontSize: 38, color: '#51607a', lineHeight: 1.32, marginTop: 20, maxWidth: 980 }}>
+          {opts.subtitle && (
+            <div style={{ display: 'flex', marginTop: 16 }}>
+              <div
+                style={{
+                  display: 'flex',
+                  background: '#fdecec',
+                  color: C.rosso,
+                  fontSize: 34,
+                  fontWeight: 700,
+                  padding: '8px 22px',
+                  borderRadius: 12,
+                }}
+              >
+                {opts.subtitle}
+              </div>
+            </div>
+          )}
+          <div style={{ fontSize: 38, color: '#51607a', lineHeight: 1.32, marginTop: 18, maxWidth: 980 }}>
             {opts.body}
           </div>
         </div>
