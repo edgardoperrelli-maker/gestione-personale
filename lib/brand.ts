@@ -14,11 +14,12 @@ export const BRAND = {
   /** Sottotitolo mostrato sotto il logo nelle pagine che apre l'operatore. */
   tagline: 'Gestione interventi sul campo',
   /**
-   * Logo completo (SVG in /public). È una ricostruzione fedele:
-   * per usare il file aziendale originale basta sostituire questo singolo file,
-   * mantenendo lo stesso percorso, e tutta l'app si aggiorna.
+   * Logo aziendale (PNG con sfondo reso trasparente, in /public). Per cambiarlo
+   * basta sostituire questo singolo file mantenendo lo stesso percorso: tutta
+   * l'app si aggiorna. Va mostrato su sfondo chiaro (vedi BrandHeader): la scritta
+   * è blu scuro e su fondo scuro non sarebbe leggibile.
    */
-  logo: '/brand/logo.svg',
+  logo: '/brand/logo-plenzich.png',
   /** Solo il simbolo (fiamma), per spazi stretti. */
   mark: '/brand/mark.svg',
   /** Palette del brand, usata per disegnare le immagini di anteprima (Open Graph). */
