@@ -30,6 +30,9 @@ export const BRAND = {
     grigioChiaro: '#cbd5e1',
     grigioTenue: '#94a3b8',
     azzurro: '#9fb2d4',
+    /** Blu del logo Gestilab (accento su sfondo chiaro) + tinta soft per le pill. */
+    gestilabBlu: '#0596BC',
+    gestilabBluSoft: '#e6f6fb',
   },
   /** Firma usata in coda ai messaggi di condivisione (WhatsApp ecc.). */
   firma: 'Ufficio Plenzich',

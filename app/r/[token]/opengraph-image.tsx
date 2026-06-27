@@ -28,5 +28,5 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   } catch {
     /* fallback senza pill */
   }
-  return brandOgImage({ headline, subtitle, body });
+  return brandOgImage({ headline, subtitle, body, tone: 'blu' });
 }
