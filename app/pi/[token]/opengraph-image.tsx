@@ -40,5 +40,5 @@ export default async function Image({ params }: { params: Promise<{ token: strin
   } catch {
     /* fallback al testo generico */
   }
-  return brandOgImage({ headline, subtitle, body });
+  return brandOgImage({ headline, subtitle, body, tone: 'blu' });
 }
