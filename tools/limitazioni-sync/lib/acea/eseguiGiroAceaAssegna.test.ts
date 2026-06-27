@@ -34,6 +34,43 @@ describe('eseguiGiroAceaAssegna', () => {
     expect(rep.scartati).toHaveLength(1);
   });
 
+  it('salta gli ODL già assegnati alla risorsa giusta (esito gia-assegnato; assegna riceve solo i residui)', async () => {
+    const { cfg } = cfgConDir();
+    cfg.acea.export = { colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione', colonnaOperatore: 'Cognome C.I.D.' };
+    const fetchLista = async () => ({ data: '2026-06-27', righe: [
+      { odl: '111', operatoreAcea: 'ROSSI Mario', matricola: 'M1', comune: 'ROMA', interventoId: 'i1' },
+      { odl: '222', operatoreAcea: 'ROSSI Mario', matricola: 'M2', comune: 'ROMA', interventoId: 'i2' },
+    ], scartati: [] });
+    // export: 111 già assegnato a ROSSI (giusto), 222 a BIANCHI (sbagliato → va riassegnato)
+    const scaricaExport = async () => 'fake.xlsx';
+    const leggiExport = async () => ({ righe: [
+      { ordine: '111', stato: 'x', operatore: 'ROSSI MARIO' },
+      { ordine: '222', stato: 'x', operatore: 'BIANCHI' },
+    ], erroreColonne: false });
+    let ricevuti: string[] = [];
+    const assegna = async (_a: unknown, righe: { odl: string }[]) => {
+      ricevuti = righe.map((r) => r.odl);
+      return { esiti: righe.map((r) => ({ odl: r.odl, esito: 'assegnato' })) };
+    };
+    const rep = await eseguiGiroAceaAssegna({ cfg, stamp: 's', data: '2026-06-27', dryRun: false, nowMs: 1000, fetchLista, assegna, scaricaExport, leggiExport });
+    expect(ricevuti).toEqual(['222']); // solo il residuo va al driver
+    expect(rep.righe.find((r: { odl: string }) => r.odl === '111')?.esito).toBe('gia-assegnato');
+    expect(rep.righe.find((r: { odl: string }) => r.odl === '222')?.esito).toBe('assegnato');
+    expect(rep.file[0].aggiornate).toBe(2); // gia-assegnato + assegnato contano entrambi OK
+  });
+
+  it('export non leggibile → fail-soft: assegna riceve tutti (comportamento odierno)', async () => {
+    const { cfg } = cfgConDir();
+    cfg.acea.export = { colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione', colonnaOperatore: 'Cognome C.I.D.' };
+    const fetchLista = async () => ({ data: '2026-06-27', righe: [{ odl: '111', operatoreAcea: 'ROSSI Mario' }], scartati: [] });
+    const scaricaExport = async () => { throw new Error('login fallito'); };
+    let chiamato = false;
+    const assegna = async (_a: unknown, righe: { odl: string }[]) => { chiamato = true; return { esiti: righe.map((r) => ({ odl: r.odl, esito: 'assegnato' })) }; };
+    const rep = await eseguiGiroAceaAssegna({ cfg, stamp: 's', data: '2026-06-27', dryRun: false, nowMs: 1000, fetchLista, assegna, scaricaExport, leggiExport: async () => ({ righe: [] }) });
+    expect(chiamato).toBe(true);
+    expect(rep.righe[0].esito).toBe('assegnato');
+  });
+
   it('lock occupato → saltato', async () => {
     const { cfg } = cfgConDir();
     fs.writeFileSync(path.join(path.dirname(cfg.acea.masterPath), 'acea.lock'), JSON.stringify({ pid: 1, ms: 1000 }));

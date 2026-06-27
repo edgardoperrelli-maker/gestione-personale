@@ -4,8 +4,9 @@ import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { GruppoOperatore } from '@/lib/agente/costruisciAnteprima';
-import type { RigaPianificabile, FileConfig, AceaEsiti, StoricoRiga } from '../tipi';
+import type { RigaPianificabile, FileConfig, AceaEsiti, AceaEsitoRiga, StoricoRiga } from '../tipi';
 import { AnteprimaPianificazione, righeLibere } from '../AnteprimaPianificazione';
+import { esitoEffettivoPerOdl } from '@/lib/agente/aceaBadgePerRisorsa';
 import { PannelloAceaAssegna } from '../PannelloAceaAssegna';
 import { useAttesaAgente } from '../useAttesaAgente';
 import { BarraAttesaAgente } from '../BarraAttesaAgente';
@@ -65,6 +66,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
   const [aceaEsiti, setAceaEsiti] = useState<AceaEsiti | null>(null);
+  const [preEsiti, setPreEsiti] = useState<AceaEsitoRiga[]>([]);
   const [aceaCheck, setAceaCheck] = useState(false);
   const [esitoAperto, setEsitoAperto] = useState(false); // card esiti ACEA: chiusa, si apre quando assegni
   const [dispatchedAtAcea, setDispatchedAtAcea] = useState<number | null>(null);
@@ -113,6 +115,15 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
       const j = await res.json().catch(() => ({}));
       if (res.ok) setAceaEsiti(j as AceaEsiti);
     } catch { /* informativo */ } finally { setAceaCheck(false); }
+  }, []);
+
+  // pre-marcatura proattiva: ODL già assegnati su ACEA alla risorsa giusta (prima ancora di assegnare)
+  const caricaPreassegnati = useCallback(async (giorno: string) => {
+    try {
+      const res = await fetch(`/api/admin/agente/acea-preassegnati?data=${encodeURIComponent(giorno)}`);
+      const j = await res.json().catch(() => ({}));
+      setPreEsiti(res.ok ? ((j.righe ?? []) as AceaEsitoRiga[]) : []);
+    } catch { setPreEsiti([]); }
   }, []);
 
   const caricaAnteprima = useCallback(async (ids: string[]) => {
@@ -219,7 +230,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   }
 
   function toggleOperatore(o: GruppoOperatore) {
-    const ids = righeLibere(o);
+    const ids = righeLibere(o, okIds);
     if (ids.length === 0) return;
     setSelezione((prev) => {
       const n = new Set(prev);
@@ -240,8 +251,24 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   }, [idsAttivitaKey, caricaAnteprima]);
 
   useEffect(() => {
-    if (!isLm) void caricaAceaEsiti(data);
-  }, [isLm, data, caricaAceaEsiti]);
+    if (!isLm) { void caricaAceaEsiti(data); void caricaPreassegnati(data); }
+  }, [isLm, data, caricaAceaEsiti, caricaPreassegnati]);
+
+  // Quando arrivano gli esiti ACEA (o i pre-assegnati), togli dalla selezione gli ODL già OK: non azionabili.
+  useEffect(() => {
+    const okOdl = new Set([...(aceaEsiti?.righe ?? []), ...preEsiti]
+      .filter((r) => r.odl && (r.esito === 'assegnato' || r.esito === 'gia-assegnato'))
+      .map((r) => r.odl));
+    if (okOdl.size === 0) return;
+    setSelezione((prev) => {
+      let cambiato = false;
+      const n = new Set(prev);
+      for (const o of gruppi) for (const r of o.righe) {
+        if (r.odl && okOdl.has(r.odl) && n.has(r.id)) { n.delete(r.id); cambiato = true; }
+      }
+      return cambiato ? n : prev;
+    });
+  }, [aceaEsiti?.righe, preEsiti, gruppi]);
 
   useEffect(() => {
     void caricaStorico();
@@ -258,9 +285,19 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
 
   // ── Contatori barra azioni ────────────────────────────────────────────────
 
+  // Esiti per-ODL (dry_run-aware) + pre-marcatura proattiva (pre-assegnati su ACEA) → lock/badge.
+  const esitoPerOdl = esitoEffettivoPerOdl(aceaEsiti?.righe ?? null);
+  for (const r of preEsiti) if (r.odl && !esitoPerOdl.has(r.odl)) esitoPerOdl.set(r.odl, r);
+  const odlOk = (e?: string) => e === 'assegnato' || e === 'gia-assegnato';
+  const okIds = new Set<string>();
+  for (const o of gruppi) for (const r of o.righe) {
+    const e = r.odl ? esitoPerOdl.get(r.odl) : undefined;
+    if (e && !e.dry_run && odlOk(e.esito)) okIds.add(r.id);
+  }
+
   // Raggruppamento per TERRITORIO (scelto al "Crea rapportini"): un rapportino per
   // operatore, i comuni vengono accorpati → niente più conteggio per-comune.
-  const operatoriDaCreare = gruppi.filter((o) => righeLibere(o).some((id) => selezione.has(id)));
+  const operatoriDaCreare = gruppi.filter((o) => righeLibere(o, okIds).some((id) => selezione.has(id)));
 
   // ODL delle righe SELEZIONATE → pilotano "Assegna su ACEA" (sottoinsieme, non tutto il giorno).
   const righeSelez = gruppi.flatMap((o) => o.comuni.flatMap((c) => c.righe)).filter((r) => selezione.has(r.id));
@@ -342,6 +379,8 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
           onToggleOperatore={toggleOperatore}
           onToggleEspandi={toggleEspandi}
           onScarta={scarta}
+          esitoPerOdl={esitoPerOdl}
+          okIds={okIds}
         />
       )}
 

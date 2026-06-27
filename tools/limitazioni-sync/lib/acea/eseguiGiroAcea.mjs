@@ -24,10 +24,22 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
     const fileExport = await driver(a, { stamp });
     const { righe, erroreColonne } = await parseExport(fileExport, {
       foglio: a.export?.foglio, colonnaOdl: a.export.colonnaOdl, colonnaStato: a.export.colonnaStato,
+      colonnaOperatore: a.export?.colonnaOperatore, colonnaOperatoreNome: a.export?.colonnaOperatoreNome,
     });
     if (erroreColonne) {
       return reportBase({ erroreGlobale: `Export: colonne "${a.export.colonnaOdl}"/"${a.export.colonnaStato}" non trovate.` });
     }
+
+    // Pre-marcatura proattiva: assegnatario CORRENTE per-ODL dall'export (se è configurata la colonna
+    // operatore). L'app la usa per pre-segnare gli ODL già assegnati alla risorsa giusta prima del giro
+    // di assegnazione. Dedup per ODL (primo vince); solo righe con un assegnatario valorizzato.
+    const preMap = new Map();
+    for (const r of righe) {
+      const odl = String(r.ordine ?? '').trim();
+      const ass = String(r.operatore ?? '').trim();
+      if (odl && ass && !preMap.has(odl)) preMap.set(odl, ass);
+    }
+    const preassegnati = [...preMap.entries()].map(([odl, assegnatario]) => ({ odl, assegnatario }));
 
     // Scrittura CHIRURGICA: tocca solo le celle dello Stato Operazione (preserva AutoFiltro,
     // formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
@@ -53,6 +65,7 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
       extraNonCollocate: rep.nonAgganciate.map((odl) => ({ odl })),
       invariate: rep.invariate,
       daChiedere: rep.daChiedere ?? 0,
+      preassegnati,
     });
   } catch (e) {
     return reportBase({ erroreGlobale: e instanceof Error ? e.message : String(e) });
