@@ -10,6 +10,7 @@ export const contentType = 'image/png';
 
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   let headline = 'Pronto Intervento';
+  let subtitle: string | undefined;
   let body = 'Sei di reperibilità: registra qui le chiamate ricevute sul campo. Apri il link e aggiungi una chiamata.';
   try {
     const { token } = await params;
@@ -26,12 +27,18 @@ export default async function Image({ params }: { params: Promise<{ token: strin
         .maybeSingle();
       const label = (area as { label?: string } | null)?.label;
       headline = label ? `Pronto Intervento · ${label}` : 'Pronto Intervento';
-      body = (tok as { revocato_at?: string | null }).revocato_at
-        ? 'Link revocato dall’ufficio. Contatta l’ufficio per il collegamento aggiornato.'
-        : `Reperibilità attiva dal ${dataItaliana((tok as { valido_dal?: string }).valido_dal)} al ${dataItaliana((tok as { valido_al?: string }).valido_al)}. Registra qui le chiamate ricevute sul campo.`;
+      if ((tok as { revocato_at?: string | null }).revocato_at) {
+        body = 'Link revocato dall’ufficio. Contatta l’ufficio per il collegamento aggiornato.';
+      } else {
+        // Periodo di validità del link, in risalto (pill rossa).
+        const dal = dataItaliana((tok as { valido_dal?: string }).valido_dal);
+        const al = dataItaliana((tok as { valido_al?: string }).valido_al);
+        subtitle = dal && al ? `Valido dal ${dal} al ${al}` : dal ? `Valido dal ${dal}` : undefined;
+        body = 'Sei di reperibilità: registra qui le chiamate ricevute sul campo.';
+      }
     }
   } catch {
     /* fallback al testo generico */
   }
-  return brandOgImage({ headline, body });
+  return brandOgImage({ headline, subtitle, body });
 }
