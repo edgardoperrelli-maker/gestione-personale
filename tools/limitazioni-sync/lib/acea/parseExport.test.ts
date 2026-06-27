@@ -52,4 +52,29 @@ describe('estraiRigheExport', () => {
     const sheet = ws([['Pippo', 'Pluto'], ['1', '2']]);
     expect(estraiRigheExport(sheet, { colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione' }).erroreColonne).toBe(true);
   });
+  it('legge la colonna operatore (cognome + nome) quando richiesta', () => {
+    const sheet = ws([
+      ['Ordine', 'Stato Operazione', 'Cognome C.I.D.', 'Nome C.I.D.'],
+      ['957364267', 'completato', 'SIKORA', 'FRANCO'],
+      ['957362111', 'Ricevuto', 'DIONISI', ''],
+      ['957999999', 'completato', '', ''],
+    ]);
+    const { righe } = estraiRigheExport(sheet, {
+      colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione',
+      colonnaOperatore: 'Cognome C.I.D.', colonnaOperatoreNome: 'Nome C.I.D.',
+    });
+    expect(righe).toEqual([
+      { ordine: '957364267', stato: 'completato', operatore: 'SIKORA FRANCO' },
+      { ordine: '957362111', stato: 'Ricevuto', operatore: 'DIONISI' },
+      { ordine: '957999999', stato: 'completato', operatore: '' },
+    ]);
+  });
+  it('colonna operatore assente nell\'header → operatore vuoto (degradazione morbida)', () => {
+    const sheet = ws([['Ordine', 'Stato Operazione'], ['957364267', 'completato']]);
+    const { righe, erroreColonne } = estraiRigheExport(sheet, {
+      colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione', colonnaOperatore: 'Cognome C.I.D.',
+    });
+    expect(erroreColonne).toBe(false);
+    expect(righe).toEqual([{ ordine: '957364267', stato: 'completato', operatore: '' }]);
+  });
 });

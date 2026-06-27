@@ -64,6 +64,21 @@ export async function POST(req: Request) {
       }
     }
 
+    // Giro "Richiedi stato ACEA" (Dunning/Zagarolo): aggiorna l'assegnatario corrente per-ODL dall'export
+    // (pre-marcatura proattiva nell'anteprima). Best-effort: se la tabella non esiste ancora → logga e prosegue.
+    const bodyStato = body as unknown as { preassegnati?: Array<{ odl?: string; assegnatario?: string }> };
+    if (tipo === 'acea-stato' && Array.isArray(bodyStato.preassegnati) && bodyStato.preassegnati.length > 0) {
+      const seen = new Set<string>();
+      const preRows = bodyStato.preassegnati
+        .filter((x) => x && typeof x.odl === 'string' && x.odl && typeof x.assegnatario === 'string' && x.assegnatario)
+        .filter((x) => { const k = x.odl as string; if (seen.has(k)) return false; seen.add(k); return true; })
+        .map((x) => ({ odl: x.odl as string, assegnatario: x.assegnatario as string, aggiornato_il: now.toISOString() }));
+      if (preRows.length > 0) {
+        const { error: ePre } = await supabaseAdmin.from('acea_preassegnati').upsert(preRows, { onConflict: 'odl' });
+        if (ePre) console.error('[report] acea_preassegnati upsert:', ePre.message);
+      }
+    }
+
     await supabaseAdmin
       .from('agente_config')
       .update({ ultimo_giro_il: now.toISOString() })
