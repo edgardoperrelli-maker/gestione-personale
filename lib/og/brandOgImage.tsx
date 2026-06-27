@@ -11,21 +11,23 @@ import {
 
 /**
  * Genera l'immagine di anteprima (1200×630) condivisa da tutti i link operatore.
- * Sfondo bianco con il LOGO REALE Plenzich in alto a sinistra (identico al file) e
- * la "G" di Gestilab in alto a destra. Identità del marchio preservata su ogni link.
+ * Sfondo bianco, logo Plenzich reale a sinistra e "G" Gestilab (più piccola) a destra;
+ * al centro lo stesso testo del messaggio che mandiamo all'operatore, in coda la firma.
  */
 export function brandOgImage(opts: {
-  title: string;
-  subtitle?: string;
+  headline: string;
+  body: string;
   footer?: string;
   size?: { width: number; height: number };
 }) {
   const C = BRAND.colori;
   const size = opts.size ?? { width: 1200, height: 630 };
-  const logoH = 92;
+  const logoH = 84;
   const logoW = Math.round((BRAND_LOGO_W * logoH) / BRAND_LOGO_H);
-  const gH = 104;
+  // "G" Gestilab volutamente piccola: è il mark del fornitore, non deve competere col logo Plenzich.
+  const gH = 54;
   const gW = Math.round((GESTILAB_G_W * gH) / GESTILAB_G_H);
+  const footer = opts.footer ?? BRAND.firma;
   return new ImageResponse(
     (
       <div
@@ -36,11 +38,11 @@ export function brandOgImage(opts: {
           flexDirection: 'column',
           justifyContent: 'space-between',
           background: '#ffffff',
-          padding: '64px 84px',
+          padding: '60px 84px',
           fontFamily: 'sans-serif',
         }}
       >
-        {/* Riga loghi: Plenzich a sinistra, "G" Gestilab a destra */}
+        {/* Riga loghi: Plenzich a sinistra, "G" Gestilab (piccola) a destra */}
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           {/* eslint-disable-next-line @next/next/no-img-element -- data URI inline per next/og */}
           <img src={BRAND_LOGO_DATA_URI} width={logoW} height={logoH} alt={BRAND.nomeLegale} />
@@ -48,20 +50,20 @@ export function brandOgImage(opts: {
           <img src={GESTILAB_G_DATA_URI} width={gW} height={gH} alt="Gestilab" />
         </div>
 
-        {/* Titolo del modulo + sottotitolo */}
+        {/* Testo del messaggio */}
         <div style={{ display: 'flex', flexDirection: 'column' }}>
-          <div style={{ fontSize: 96, fontWeight: 800, lineHeight: 1.03, color: C.navy, display: 'flex' }}>
-            {opts.title}
+          <div style={{ fontSize: 58, fontWeight: 800, color: C.navy, lineHeight: 1.1, display: 'flex' }}>
+            {opts.headline}
           </div>
-          {opts.subtitle && (
-            <div style={{ fontSize: 44, color: '#51607a', marginTop: 18, display: 'flex' }}>{opts.subtitle}</div>
-          )}
+          <div style={{ fontSize: 38, color: '#51607a', lineHeight: 1.32, marginTop: 20, maxWidth: 980 }}>
+            {opts.body}
+          </div>
         </div>
 
-        {/* Call to action */}
+        {/* Firma */}
         <div style={{ display: 'flex', alignItems: 'center', fontSize: 30, color: '#8a9aa1' }}>
           <div style={{ width: 14, height: 36, background: C.rosso, borderRadius: 5, display: 'flex' }} />
-          <div style={{ marginLeft: 18, display: 'flex' }}>{opts.footer ?? 'Tocca il link per aprire'}</div>
+          <div style={{ marginLeft: 18, display: 'flex' }}>{`— ${footer}`}</div>
         </div>
       </div>
     ),
