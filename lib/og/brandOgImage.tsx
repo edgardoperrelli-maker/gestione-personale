@@ -16,10 +16,12 @@ import {
  */
 export function brandOgImage(opts: {
   headline: string;
-  /** Riga in risalto (pill rossa) tra titolo e corpo — es. il periodo di validità del link. */
+  /** Riga in risalto (pill) tra titolo e corpo — es. esecutore · data o periodo di validità. */
   subtitle?: string;
   body: string;
   footer?: string;
+  /** Colore dell'accento (pill + barra firma): 'rosso' Plenzich (default) o 'blu' Gestilab. */
+  tone?: 'rosso' | 'blu';
   size?: { width: number; height: number };
 }) {
   const C = BRAND.colori;
@@ -30,6 +32,8 @@ export function brandOgImage(opts: {
   const gH = 54;
   const gW = Math.round((GESTILAB_G_W * gH) / GESTILAB_G_H);
   const footer = opts.footer ?? BRAND.firma;
+  const accent = opts.tone === 'blu' ? C.gestilabBlu : C.rosso;
+  const pillBg = opts.tone === 'blu' ? C.gestilabBluSoft : '#fdecec';
   return new ImageResponse(
     (
       <div
@@ -62,8 +66,8 @@ export function brandOgImage(opts: {
               <div
                 style={{
                   display: 'flex',
-                  background: '#fdecec',
-                  color: C.rosso,
+                  background: pillBg,
+                  color: accent,
                   fontSize: 34,
                   fontWeight: 700,
                   padding: '8px 22px',
@@ -81,7 +85,7 @@ export function brandOgImage(opts: {
 
         {/* Firma */}
         <div style={{ display: 'flex', alignItems: 'center', fontSize: 30, color: '#8a9aa1' }}>
-          <div style={{ width: 14, height: 36, background: C.rosso, borderRadius: 5, display: 'flex' }} />
+          <div style={{ width: 14, height: 36, background: accent, borderRadius: 5, display: 'flex' }} />
           <div style={{ marginLeft: 18, display: 'flex' }}>{`— ${footer}`}</div>
         </div>
       </div>
