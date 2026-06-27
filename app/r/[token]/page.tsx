@@ -1,3 +1,4 @@
+import type { Metadata } from 'next';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegister';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
@@ -9,9 +10,34 @@ import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { BrandHeader } from '@/components/brand/BrandHeader';
+import { BRAND, appBaseUrl, dataItaliana } from '@/lib/brand';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
+
+/** Anteprima ricca (Open Graph) per la condivisione su WhatsApp: nome operatore e data,
+ *  così il link non arriva "anonimo" ma riconoscibile nella chat. */
+export async function generateMetadata({ params }: { params: Promise<{ token: string }> }): Promise<Metadata> {
+  const { token } = await params;
+  const base = appBaseUrl();
+  const { data: rap } = await supabaseAdmin
+    .from('rapportini')
+    .select('staff_name, data')
+    .eq('token', token)
+    .maybeSingle();
+  if (!rap) return { metadataBase: new URL(base), title: `Rapportino — ${BRAND.nomeLegale}` };
+  const nome = (rap as { staff_name?: string | null }).staff_name ?? '';
+  const titolo = `📋 Rapportino${nome ? ` · ${nome}` : ''}`;
+  const desc = `Interventi del ${dataItaliana((rap as { data?: string }).data)} — tocca per compilare gli esiti e inviare.`;
+  return {
+    metadataBase: new URL(base),
+    title: titolo,
+    description: desc,
+    openGraph: { title: titolo, description: desc, type: 'website' },
+    twitter: { card: 'summary_large_image', title: titolo, description: desc },
+  };
+}
 
 type VoceRow = {
   id: string;
@@ -39,7 +65,12 @@ type VoceRow = {
 function Shell({ children }: { children: React.ReactNode }) {
   return (
     <main className="min-h-screen w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)] sm:py-10">
-      <div className="mx-auto w-full max-w-2xl">{children}</div>
+      <div className="mx-auto w-full max-w-2xl">
+        <div className="mb-6">
+          <BrandHeader subtitle="Rapportino interventi" />
+        </div>
+        {children}
+      </div>
     </main>
   );
 }

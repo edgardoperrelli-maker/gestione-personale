@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 440 96" width="440" height="96" role="img" aria-label="PLENZICH S.p.A.">
+  <!-- lancia/torcia diagonale (dietro la fiamma) -->
+  <rect x="44" y="30" width="98" height="11" rx="5.5" transform="rotate(36 44 30)" fill="#16243f"/>
+  <!-- scintille verso il basso-sinistra -->
+  <g stroke="#16243f" stroke-width="4.5" stroke-linecap="round">
+    <line x1="8" y1="60" x2="30" y2="50"/>
+    <line x1="6" y1="48" x2="28" y2="40"/>
+    <line x1="14" y1="72" x2="36" y2="62"/>
+  </g>
+  <!-- fiamma -->
+  <path d="M52 8 C 63 24, 67 31, 58 44 C 67 40, 70 32, 70 32 C 80 49, 71 74, 51 74 C 32 74, 25 57, 36 42 C 39 50, 44 50, 44 50 C 36 33, 41 18, 52 8 Z" fill="#E1251B"/>
+  <!-- wordmark -->
+  <text x="108" y="62" font-family="Arial, Helvetica, sans-serif" font-size="48" font-weight="800" letter-spacing="0.5">
+    <tspan fill="#E1251B">P</tspan><tspan fill="#16243f">LENZICH</tspan>
+  </text>
+  <text x="360" y="62" font-family="Arial, Helvetica, sans-serif" font-size="22" font-weight="700" fill="#16243f">S.p.A.</text>
+</svg>

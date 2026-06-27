@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import { esitiPerCommessa } from '@/lib/interventi/esitiCommessa';
+import { BrandHeader } from '@/components/brand/BrandHeader';
+import { dataItaliana } from '@/lib/brand';
 
 export type AgendaIntervento = {
   id: string;
@@ -83,10 +85,11 @@ export default function AgendaOperatoreClient({
       style={{ paddingBottom: '4rem' }}
     >
       <div className="mx-auto w-full max-w-2xl space-y-4">
+        <BrandHeader />
         <header className="space-y-1">
-          <h1 className="text-xl font-bold">Agenda · {operatore}</h1>
+          <h1 className="text-xl font-bold">Ciao {operatore} 👋</h1>
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-            {data} · {fatti}/{items.length} completati{readOnly ? ' · sola lettura' : ''}
+            La tua agenda del {dataItaliana(data)} · {fatti}/{items.length} completati{readOnly ? ' · sola lettura' : ''}
           </p>
         </header>
 

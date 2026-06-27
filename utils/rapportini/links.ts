@@ -1,3 +1,5 @@
+import { BRAND } from '@/lib/brand';
+
 export interface RapportinoStato {
   id: string;
   staff_id: string;
@@ -31,6 +33,14 @@ export function whatsappHref(
   dataLabel: string,
   url: string,
 ): string {
-  const testo = `Ciao ${staffName ?? ''}, ecco il link per il rapportino del ${dataLabel}:`;
-  return `https://wa.me/?text=${encodeURIComponent(`${testo} ${url}`)}`;
+  const saluto = staffName ? `Ciao ${staffName} 👋` : 'Ciao 👋';
+  const testo = [
+    saluto,
+    `Ecco il tuo rapportino del ${dataLabel}.`,
+    'Aprilo dal telefono, compila gli esiti e invialo a fine giornata 👇',
+    url,
+    '',
+    `— ${BRAND.firma}`,
+  ].join('\n');
+  return `https://wa.me/?text=${encodeURIComponent(testo)}`;
 }
