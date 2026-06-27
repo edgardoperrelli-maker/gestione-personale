@@ -43,6 +43,13 @@ export const BRAND = {
 export function appBaseUrl(): string {
   return (
     process.env.NEXT_PUBLIC_BASE_URL ||
+    // Dominio di produzione PUBBLICO (Vercel lo espone sempre). Va usato per le URL
+    // assolute delle anteprime (og:image): VERCEL_URL è invece l'host SPECIFICO del
+    // deploy, protetto da SSO/Deployment Protection → i crawler (WhatsApp) vengono
+    // rediretti al login e l'immagine non si carica.
+    (process.env.VERCEL_PROJECT_PRODUCTION_URL
+      ? `https://${process.env.VERCEL_PROJECT_PRODUCTION_URL}`
+      : '') ||
     (process.env.VERCEL_URL ? `https://${process.env.VERCEL_URL}` : 'https://gestione-personale.vercel.app')
   );
 }

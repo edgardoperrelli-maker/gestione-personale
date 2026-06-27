@@ -10,7 +10,7 @@ export const contentType = 'image/png';
 
 export default async function Image({ params }: { params: Promise<{ token: string }> }) {
   let headline = 'Pronto Intervento';
-  let body = 'Registra le chiamate P.I. sul campo. Tocca il link per aprire il modulo e aggiungere una chiamata.';
+  let body = 'Sei di reperibilità: registra qui le chiamate ricevute sul campo. Apri il link e aggiungi una chiamata.';
   try {
     const { token } = await params;
     const { data: tok } = await supabaseAdmin
@@ -27,8 +27,8 @@ export default async function Image({ params }: { params: Promise<{ token: strin
       const label = (area as { label?: string } | null)?.label;
       headline = label ? `Pronto Intervento · ${label}` : 'Pronto Intervento';
       body = (tok as { revocato_at?: string | null }).revocato_at
-        ? 'Link revocato dall’ufficio.'
-        : `Link attivo dal ${dataItaliana((tok as { valido_dal?: string }).valido_dal)} al ${dataItaliana((tok as { valido_al?: string }).valido_al)}. Tocca per registrare le chiamate P.I.`;
+        ? 'Link revocato dall’ufficio. Contatta l’ufficio per il collegamento aggiornato.'
+        : `Reperibilità attiva dal ${dataItaliana((tok as { valido_dal?: string }).valido_dal)} al ${dataItaliana((tok as { valido_al?: string }).valido_al)}. Registra qui le chiamate ricevute sul campo.`;
     }
   } catch {
     /* fallback al testo generico */
