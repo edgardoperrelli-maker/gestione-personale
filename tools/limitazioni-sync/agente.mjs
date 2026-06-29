@@ -140,6 +140,11 @@ export async function eseguiGiro({
       // applicaModificheXlsx. Righe oltre maxRigaOriginale = righe nuove (extra) → append.
       const modifiche = [];
       const maxRigaOriginale = ws.rowCount;
+      // indice matricola → riga ORIGINALE del file (prima occorrenza). Serve a NON duplicare un
+      // intervento manuale la cui matricola è già fisicamente presente nel file (anche se quella
+      // riga è stata agganciata per ODL ad un ALTRO lavoro): in quel caso si scrive sulla riga
+      // esistente invece di aggiungerne una nuova.
+      const righePerMatricola = new Map();
       const registra = (row, idx, valore) => {
         modifiche.push({ riga: row.number, col: idx, valore, tipo: valore instanceof Date ? 'date' : 'str' });
       };
@@ -224,6 +229,10 @@ export async function eseguiGiro({
         const row = ws.getRow(r);
         const odl = col.odl != null ? row.getCell(col.odl + 1).value : null;
         const matricola = col.matricola != null ? row.getCell(col.matricola + 1).value : null;
+        if (matricola) {
+          const k = norm(matricola);
+          if (k && !righePerMatricola.has(k)) righePerMatricola.set(k, row);
+        }
         if (!odl && !matricola) continue;
         const hit = agganciaRiga({ odl, matricola }, indice, comuneFile);
         if (!hit) continue;
@@ -287,6 +296,41 @@ export async function eseguiGiro({
       const extraComune = trovaExtra(lavori, idConsumati).filter((l) => norm(l.comune) === comuneFile);
       for (const l of extraComune) {
         idConsumati.add(l.id);
+
+        // ANTI-DUPLICATO: se la matricola è già una riga del file, NON aggiungere una riga nuova
+        // (era il bug del "doppio intervento": un manuale senza ODL appeso accanto alla riga che
+        // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la solita policy.
+        const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
+        if (rigaEsistente) {
+          // REGOLA: il positivo SOVRASCRIVE SEMPRE negativo/"nessun passaggio" (mai il contrario).
+          // Anche su questo aggancio per matricola: se la riga è dell'agente e ha "No"/nota in cella e
+          // il lavoro è POSITIVO, si forza l'upgrade come sul ramo pianificato. Altrimenti policy normale
+          // (riempi-vuote / conflitti), così un "No" scritto a mano resta un conflitto da risolvere.
+          const autoEsistente = automazioneCol >= 0 ? String(rigaEsistente.getCell(automazioneCol + 1).value ?? '').trim() : '';
+          const rigaDellAgente = autoEsistente !== '';
+          const esitoCella = regolaEsito ? rigaEsistente.getCell(regolaEsito.idx + 1).value : null;
+          const forza = rigaDellAgente && l.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
+          const notaPrecedente = forza && regolaNote ? String(rigaEsistente.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
+
+          let toccata = false;
+          const completate = [];
+          for (const regola of regoleScrittura) {
+            const { scritto } = scriviCella(rigaEsistente, regola, l, forza);
+            if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
+          }
+          if (toccata) {
+            if (completate.length > 0) {
+              scriviAutomazione(rigaEsistente, `SI + ${completate.join(' + ')}`, l, forza);
+            }
+            fileReport.aggiornate++;
+          }
+          const rep = rigaReport(l, rigaEsistente.number, forza ? 'upgrade' : 'extra-esistente');
+          if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
+          fileReport.righe.push(rep);
+          continue;
+        }
+
         const row = ws.addRow([]);
         // aggancio fields scritti sempre sulle righe extra (matricola e via per identificare la riga)
         if (col.matricola != null && l.matricola) { row.getCell(col.matricola + 1).value = l.matricola; registra(row, col.matricola, l.matricola); }

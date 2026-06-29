@@ -4,6 +4,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { colonneAnagraficaVoce } from '@/lib/interventi/manuali/buildVoceManuale';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
+import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigillo';
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
@@ -22,13 +23,75 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   // dati_correnti di default (servono prima del check atomico per costruire il record).
   const { data: richiesta } = await supabaseAdmin
     .from('interventi_manuali')
-    .select('id, stato, voce_id, piano_id, staff_id, data, committente, dati_correnti')
+    .select('id, stato, voce_id, intervento_id, piano_id, staff_id, data, committente, dati_correnti')
     .eq('id', id)
     .maybeSingle();
   if (!richiesta) return NextResponse.json({ error: 'not_found' }, { status: 404 });
 
   const dati = (body.dati_correnti ?? richiesta.dati_correnti) as DatiInterventoManuale;
   const committente = (dati.committente ?? richiesta.committente) as CommittenteManuale;
+
+  // ── CONTROLLO SIGILLO DUPLICATO (BLOCCANTE, NON forzabile) ───────────────────
+  // Un sigillo è un identificativo fisico unico: lo stesso sigillo su due interventi è
+  // SEMPRE un errore di battitura. Se è già presente su un intervento che finisce nel file
+  // master (limitazioni completate), l'approvazione si BLOCCA: va corretto qui, non spedito
+  // come duplicato. A differenza del controllo matricola, non c'è alcun bypass.
+  const sigillo = estraiSigillo(dati);
+  if (sigillo) {
+    // voci con lo STESSO sigillo già collegate a un intervento (≠ questa richiesta).
+    // Il file master legge il sigillo da rapportino_voci.risposte->>'sigillo': è la fonte giusta.
+    const { data: vociDup } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('intervento_id, risposte')
+      .not('intervento_id', 'is', null)
+      .ilike('risposte->>sigillo', sigillo);
+    const intIds = [
+      ...new Set(
+        ((vociDup ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>)
+          .filter((v) => v.intervento_id && normSigillo(v.risposte?.sigillo) === normSigillo(sigillo))
+          .map((v) => v.intervento_id as string),
+      ),
+    ].filter((iid) => iid !== richiesta.intervento_id);
+
+    if (intIds.length > 0) {
+      // Restringi agli interventi che vanno DAVVERO nel master (limitazioni completate),
+      // così non si blocca su sigilli omonimi di flussi diversi.
+      const { data: intRows } = await supabaseAdmin
+        .from('interventi')
+        .select('id, data, comune, odl, matricola_contatore, staff_id')
+        .in('id', intIds)
+        .eq('stato', 'completato')
+        .or('committente.eq.lim_massive,intervento_tipo.ilike.%limitaz%,intervento_tipo.ilike.%massiv%');
+
+      const rows = (intRows ?? []) as Array<{
+        id: string; data: string | null; comune: string | null; odl: string | null;
+        matricola_contatore: string | null; staff_id: string | null;
+      }>;
+      if (rows.length > 0) {
+        // Risolvi i nomi esecutore dalla tabella staff (staff_id è text).
+        const staffIds = [...new Set(rows.map((r) => r.staff_id).filter((v): v is string => !!v))];
+        const nomi: Record<string, string> = {};
+        if (staffIds.length > 0) {
+          const { data: staffRows } = await supabaseAdmin
+            .from('staff')
+            .select('id, display_name')
+            .in('id', staffIds);
+          for (const s of (staffRows ?? []) as Array<{ id: string; display_name: string }>) {
+            nomi[s.id] = s.display_name;
+          }
+        }
+        const duplicati = rows.map((r) => ({
+          id: r.id,
+          data: r.data,
+          comune: r.comune,
+          odl: r.odl,
+          matricola: r.matricola_contatore,
+          staff_name: r.staff_id ? (nomi[r.staff_id] ?? null) : null,
+        }));
+        return NextResponse.json({ error: 'sigillo_duplicato', sigillo, duplicati }, { status: 409 });
+      }
+    }
+  }
 
   // ── CONTROLLO MATRICOLA DUPLICATA ────────────────────────────────────────────
   // Avvisa se esiste già un intervento APPROVATO con la stessa matricola e lo
