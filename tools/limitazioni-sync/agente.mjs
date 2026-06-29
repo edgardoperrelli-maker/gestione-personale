@@ -299,21 +299,35 @@ export async function eseguiGiro({
 
         // ANTI-DUPLICATO: se la matricola è già una riga del file, NON aggiungere una riga nuova
         // (era il bug del "doppio intervento": un manuale senza ODL appeso accanto alla riga che
-        // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la policy normale
-        // (riempi-vuote / conflitti); niente upgrade/refresh, come per una riga extra.
+        // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la solita policy.
         const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
         if (rigaEsistente) {
+          // REGOLA: il positivo SOVRASCRIVE SEMPRE negativo/"nessun passaggio" (mai il contrario).
+          // Anche su questo aggancio per matricola: se la riga è dell'agente e ha "No"/nota in cella e
+          // il lavoro è POSITIVO, si forza l'upgrade come sul ramo pianificato. Altrimenti policy normale
+          // (riempi-vuote / conflitti), così un "No" scritto a mano resta un conflitto da risolvere.
+          const autoEsistente = automazioneCol >= 0 ? String(rigaEsistente.getCell(automazioneCol + 1).value ?? '').trim() : '';
+          const rigaDellAgente = autoEsistente !== '';
+          const esitoCella = regolaEsito ? rigaEsistente.getCell(regolaEsito.idx + 1).value : null;
+          const forza = rigaDellAgente && l.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
+          const notaPrecedente = forza && regolaNote ? String(rigaEsistente.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
+
           let toccata = false;
           const completate = [];
           for (const regola of regoleScrittura) {
-            const { scritto } = scriviCella(rigaEsistente, regola, l);
+            const { scritto } = scriviCella(rigaEsistente, regola, l, forza);
             if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
           }
           if (toccata) {
-            scriviAutomazione(rigaEsistente, completate.length > 0 ? `SI + ${completate.join(' + ')}` : MARKER_AUTOMAZIONE, l);
+            if (completate.length > 0) {
+              scriviAutomazione(rigaEsistente, `SI + ${completate.join(' + ')}`, l, forza);
+            }
             fileReport.aggiornate++;
           }
-          fileReport.righe.push(rigaReport(l, rigaEsistente.number, 'extra-esistente'));
+          const rep = rigaReport(l, rigaEsistente.number, forza ? 'upgrade' : 'extra-esistente');
+          if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
+          fileReport.righe.push(rep);
           continue;
         }
 
