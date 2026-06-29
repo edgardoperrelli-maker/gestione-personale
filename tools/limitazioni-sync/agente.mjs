@@ -140,6 +140,11 @@ export async function eseguiGiro({
       // applicaModificheXlsx. Righe oltre maxRigaOriginale = righe nuove (extra) → append.
       const modifiche = [];
       const maxRigaOriginale = ws.rowCount;
+      // indice matricola → riga ORIGINALE del file (prima occorrenza). Serve a NON duplicare un
+      // intervento manuale la cui matricola è già fisicamente presente nel file (anche se quella
+      // riga è stata agganciata per ODL ad un ALTRO lavoro): in quel caso si scrive sulla riga
+      // esistente invece di aggiungerne una nuova.
+      const righePerMatricola = new Map();
       const registra = (row, idx, valore) => {
         modifiche.push({ riga: row.number, col: idx, valore, tipo: valore instanceof Date ? 'date' : 'str' });
       };
@@ -224,6 +229,10 @@ export async function eseguiGiro({
         const row = ws.getRow(r);
         const odl = col.odl != null ? row.getCell(col.odl + 1).value : null;
         const matricola = col.matricola != null ? row.getCell(col.matricola + 1).value : null;
+        if (matricola) {
+          const k = norm(matricola);
+          if (k && !righePerMatricola.has(k)) righePerMatricola.set(k, row);
+        }
         if (!odl && !matricola) continue;
         const hit = agganciaRiga({ odl, matricola }, indice, comuneFile);
         if (!hit) continue;
@@ -287,6 +296,27 @@ export async function eseguiGiro({
       const extraComune = trovaExtra(lavori, idConsumati).filter((l) => norm(l.comune) === comuneFile);
       for (const l of extraComune) {
         idConsumati.add(l.id);
+
+        // ANTI-DUPLICATO: se la matricola è già una riga del file, NON aggiungere una riga nuova
+        // (era il bug del "doppio intervento": un manuale senza ODL appeso accanto alla riga che
+        // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la policy normale
+        // (riempi-vuote / conflitti); niente upgrade/refresh, come per una riga extra.
+        const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
+        if (rigaEsistente) {
+          let toccata = false;
+          const completate = [];
+          for (const regola of regoleScrittura) {
+            const { scritto } = scriviCella(rigaEsistente, regola, l);
+            if (scritto) { toccata = true; completate.push(String(header[regola.idx] ?? regola.colonna)); }
+          }
+          if (toccata) {
+            scriviAutomazione(rigaEsistente, completate.length > 0 ? `SI + ${completate.join(' + ')}` : MARKER_AUTOMAZIONE, l);
+            fileReport.aggiornate++;
+          }
+          fileReport.righe.push(rigaReport(l, rigaEsistente.number, 'extra-esistente'));
+          continue;
+        }
+
         const row = ws.addRow([]);
         // aggancio fields scritti sempre sulle righe extra (matricola e via per identificare la riga)
         if (col.matricola != null && l.matricola) { row.getCell(col.matricola + 1).value = l.matricola; registra(row, col.matricola, l.matricola); }

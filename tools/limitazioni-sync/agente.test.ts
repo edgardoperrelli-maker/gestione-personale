@@ -126,6 +126,54 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
     expect(fs.existsSync(path.join(dir, '_backup', 'ZAGAROLO__20260616-2100.xlsx'))).toBe(true);
   });
 
+  it('anti-duplicato: un manuale con matricola GIÀ nel file (riga agganciata per ODL) NON crea una riga doppia, scrive su quella esistente', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-dedup-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFile(file); // riga 2: ODL 912231020 + matricola 20000020750 (colonne esito/esecutore/sigillo vuote)
+
+    // Stesso contatore lavorato due volte nella finestra: un intervento ODL (K) e un manuale (J)
+    // senza ODL. J è più recente → vince la chiave comune|matricola; K resta sul byOdl e aggancia la
+    // riga 2 per ODL. Prima del fix, J non veniva "consumato" e finiva APPESO come riga doppia.
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'k', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-18', esito: 'eseguito', esitoOk: true,
+          sigillo: 'AA728566', manuale: false },
+        { id: 'j', odl: '', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-19', esito: 'eseguito', esitoOk: true,
+          sigillo: 'AA728566', manuale: true },
+      ],
+      dryRun: false,
+      stamp: '20260620-2100',
+      mappatura: [
+        { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'sigillo', colonna: 'sigillo posato', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // NESSUNA riga aggiunta: restano solo le 2 righe originali (intestazione + 2 dati)
+    expect(ws.rowCount).toBe(3);
+    // la riga esistente è stata compilata (dall'intervento ODL), non duplicata
+    expect(ws.getRow(2).getCell(9).value).toBe('20000020750');
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    // nessuna riga oltre la 3 con quella matricola (nessun doppione)
+    expect(ws.getRow(4).getCell(9).value ?? '').toBe('');
+    // report: 0 extra aggiunte + il manuale tracciato come redirezione su riga esistente
+    expect(report.file[0].extraAggiunte).toBe(0);
+    expect(
+      report.file[0].righe.some(
+        (r: { tipo: string; matricola: string }) => r.tipo === 'extra-esistente' && r.matricola === '20000020750',
+      ),
+    ).toBe(true);
+  });
+
   it('regola con colonna assente -> salta e la segnala nel report (mai scrive in coda)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-miss-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');
