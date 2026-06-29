@@ -6,6 +6,7 @@ import { comprimiImmagine } from './CampoFoto';
 import { useUploadFoto } from './RapportinoFotoCtx';
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { leggiBlobFoto } from '@/lib/offline/persistFoto';
+import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 
 const inputCls =
   'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none disabled:opacity-70';
@@ -264,8 +265,11 @@ function TextareaAuto({ valore, disabilitato, onChange, evidenzia }: { valore: s
       rows={1}
       value={valore}
       disabled={disabilitato}
-      // DB pulito: il testo libero viene scritto SEMPRE in MAIUSCOLO (anche se digitato minuscolo).
-      onChange={(e) => onChange(e.target.value.toUpperCase())}
+      // DB pulito: il testo libero viene scritto SEMPRE in MAIUSCOLO. La conversione è "IME-safe"
+      // (maiuscoloDigitando): su Android non muta il testo mentre la tastiera compone la parola, così
+      // lo SPAZIO non cancella il campo. Il MAIUSCOLO definitivo lo garantisce comunque il server.
+      onChange={(e) => onChange(maiuscoloDigitando(e))}
+      onCompositionEnd={(e) => onChange(e.currentTarget.value.toUpperCase())}
       className={`${inputCls} resize-none overflow-hidden uppercase ${evidenzia ? 'border-[var(--status-ko)] ring-1 ring-[var(--status-ko)]' : ''}`}
     />
   );

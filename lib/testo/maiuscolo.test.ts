@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
-import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto, maiuscolaEtichette } from './maiuscolo';
+import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto, maiuscolaEtichette, maiuscoloDigitando } from './maiuscolo';
 
 describe('maiuscolo', () => {
   it('porta in MAIUSCOLO le stringhe', () => {
@@ -14,6 +14,19 @@ describe('maiuscolo', () => {
     expect(maiuscolo(true)).toBe(true);
     expect(maiuscolo(null)).toBe(null);
     expect(maiuscolo(undefined)).toBe(undefined);
+  });
+});
+
+describe('maiuscoloDigitando', () => {
+  it('maiuscola fuori composizione IME', () => {
+    expect(maiuscoloDigitando({ target: { value: 'via roma' }, nativeEvent: { isComposing: false } })).toBe('VIA ROMA');
+  });
+  it('NON maiuscola durante la composizione IME (Android: lo spazio cancellerebbe il campo)', () => {
+    expect(maiuscoloDigitando({ target: { value: 'via' }, nativeEvent: { isComposing: true } })).toBe('via');
+  });
+  it('maiuscola quando isComposing è assente (incolla/autofill/PC)', () => {
+    expect(maiuscoloDigitando({ target: { value: 'via' }, nativeEvent: {} })).toBe('VIA');
+    expect(maiuscoloDigitando({ target: { value: 'via' }, nativeEvent: null })).toBe('VIA');
   });
 });
 

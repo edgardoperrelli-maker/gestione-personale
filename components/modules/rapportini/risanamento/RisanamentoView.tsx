@@ -11,6 +11,7 @@ import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { ScannerMisuratore } from './ScannerMisuratore';
 import { righeIncomplete, type DettaglioIncompleto } from '@/utils/rapportini/righeIncomplete';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
+import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 import { datiPdfRisanamento } from '@/utils/rapportini/datiPdfRisanamento';
 import { generaPdfRisanamentoBlob, nomeFilePdfRisanamento } from '@/utils/rapportini/pdfRisanamento';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
@@ -594,7 +595,9 @@ export function RisanamentoView({
                 placeholder="Matricola"
                 aria-label="Matricola"
                 value={mat}
-                onChange={(e) => { setMat(e.target.value.toUpperCase()); setErrore(null); }}
+                // MAIUSCOLO "IME-safe" (vedi maiuscoloDigitando): su Android lo SPAZIO non cancella il campo.
+                onChange={(e) => { setMat(maiuscoloDigitando(e)); setErrore(null); }}
+                onCompositionEnd={(e) => setMat(e.currentTarget.value.toUpperCase())}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void aggiungiRiga(); } }}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
@@ -603,7 +606,8 @@ export function RisanamentoView({
                 placeholder="PDR (facoltativo)"
                 aria-label="PDR"
                 value={pdr}
-                onChange={(e) => { setPdr(e.target.value.toUpperCase()); }}
+                onChange={(e) => { setPdr(maiuscoloDigitando(e)); }}
+                onCompositionEnd={(e) => setPdr(e.currentTarget.value.toUpperCase())}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <input
@@ -611,7 +615,8 @@ export function RisanamentoView({
                 placeholder="Nominativo (facoltativo)"
                 aria-label="Nominativo"
                 value={nom}
-                onChange={(e) => { setNom(e.target.value.toUpperCase()); }}
+                onChange={(e) => { setNom(maiuscoloDigitando(e)); }}
+                onCompositionEnd={(e) => setNom(e.currentTarget.value.toUpperCase())}
                 className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
               />
               <div className="flex gap-2">
