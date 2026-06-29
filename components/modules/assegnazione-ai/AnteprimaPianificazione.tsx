@@ -92,7 +92,6 @@ export function AnteprimaPianificazione({
           return visti ? { ok, errore } : null;
         })();
         const inErrore = !!bdg && bdg.errore > 0;
-        const okSenzaErrore = !!bdg && bdg.errore === 0 && bdg.ok > 0;
         return (
           <Card key={o.key} className="overflow-hidden" animated={false}
             style={inErrore ? { borderColor: 'var(--danger)', borderLeftWidth: 4, borderLeftColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)' } : undefined}>
@@ -127,29 +126,33 @@ export function AnteprimaPianificazione({
                 className="flex flex-1 items-center gap-2 text-left min-w-0 justify-start"
               >
                 <span className="text-sm font-semibold truncate" style={{ color: 'var(--brand-text-main)' }}>{o.nome}</span>
-                {inErrore && (
-                  <span
-                    className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold flex-none"
-                    style={{ backgroundColor: 'var(--danger)', color: '#fff' }}
-                    aria-label={`${bdg?.errore} ODL in errore`}
-                    title={`${bdg?.errore} ODL in errore — espandi per i dettagli`}
-                  >
-                    <span aria-hidden>⚠</span>{bdg?.errore}
-                  </span>
-                )}
-                {okSenzaErrore && (
-                  <span
-                    className="inline-flex h-4 w-4 flex-none items-center justify-center rounded-full text-[10px] font-bold"
-                    style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}
-                    title={`Tutti i ${bdg?.ok} ODL assegnati su ACEA`}
-                    aria-label={`tutti i ${bdg?.ok} ODL ok`}
-                  >
-                    ✓
-                  </span>
-                )}
                 <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs flex-none">
                   · {ddmm(o.data)} · {nComuni} {nComuni === 1 ? 'comune' : 'comuni'}
                 </span>
+                {bdg && (bdg.ok > 0 || bdg.errore > 0) && (
+                  <span className="inline-flex items-center gap-1 flex-none">
+                    {bdg.ok > 0 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold"
+                        style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}
+                        title={`${bdg.ok} assegnati / già assegnati su ACEA`}
+                        aria-label={`${bdg.ok} assegnati su ACEA`}
+                      >
+                        ✓ {bdg.ok}
+                      </span>
+                    )}
+                    {bdg.errore > 0 && (
+                      <span
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold"
+                        style={{ backgroundColor: 'var(--danger)', color: '#fff' }}
+                        title={`${bdg.errore} falliti su ACEA — espandi per i dettagli`}
+                        aria-label={`${bdg.errore} falliti su ACEA`}
+                      >
+                        <span aria-hidden>⚠</span> {bdg.errore}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {o.stato !== 'libero' && (
                   <span
                     className="rounded-full px-2 py-0.5 text-[11px] font-medium flex-none"
