@@ -70,14 +70,15 @@ export function PannelloRevisioneRichiesta({
         method: 'POST', headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ dati_correnti, confermaDuplicato: forza, confermaFotoMancanti: forzaFoto }),
       });
-      if (res.status === 409) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; sigillo?: string; duplicati?: DuplicatoMatricola[] | DuplicatoSigillo[]; mancanti?: number };
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string; messaggio?: string; matricola?: string; sigillo?: string; duplicati?: DuplicatoMatricola[] | DuplicatoSigillo[]; mancanti?: number };
         // Sigillo duplicato: BLOCCANTE (nessun bypass) → va corretto prima di approvare.
         if (j.error === 'sigillo_duplicato') { setSigBloccante({ sigillo: j.sigillo ?? '', duplicati: (j.duplicati as DuplicatoSigillo[]) ?? [] }); return; }
         if (j.error === 'matricola_duplicata') { setDupAvviso({ matricola: j.matricola ?? '', duplicati: (j.duplicati as DuplicatoMatricola[]) ?? [] }); return; }
         if (j.error === 'foto_mancanti') { setFotoAvviso(j.mancanti ?? 0); return; }
+        // Qualunque altro errore (doppione intervento, errore DB, ecc.): mostra il messaggio REALE dal server.
+        throw new Error(j.messaggio || j.error || `HTTP ${res.status}`);
       }
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setDupAvviso(null); setFotoAvviso(null);
       onDecisa();
     } catch (e) { setErrore(e instanceof Error ? e.message : 'Errore'); } finally { setBusy(false); }
