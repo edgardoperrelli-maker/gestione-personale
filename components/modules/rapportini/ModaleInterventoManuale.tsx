@@ -19,6 +19,7 @@ import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { accodaManuale } from '@/lib/offline/persistManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
+import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
@@ -187,8 +188,12 @@ export function ModaleInterventoManuale({
                   <input
                     type="text"
                     value={anagrafica[c.chiave] ?? ''}
-                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO.
-                    onChange={(e) => setAnagrafica((prev) => ({ ...prev, [c.chiave]: e.target.value.toUpperCase() }))}
+                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
+                    // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
+                    // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
+                    // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
+                    onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                    onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
                     className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
                   />
                 </div>

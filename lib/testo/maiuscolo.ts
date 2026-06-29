@@ -15,6 +15,28 @@ export function maiuscolo<T>(v: T): T {
 }
 
 /**
+ * MAIUSCOLO "IME-safe" per gli input controllati, da usare nell'`onChange`.
+ *
+ * Bug Android (GBoard): un input controllato React che fa `value.toUpperCase()` ad OGNI
+ * tasto muta il testo sotto la tastiera mentre questa tiene la parola corrente "in
+ * composizione". Al primo SPAZIO la composizione viene committata su un range ormai sfasato
+ * e l'intero campo si svuota (i tecnici: «scrivo "Via", premo spazio e si cancella tutto»,
+ * solo su smartphone Android).
+ *
+ * Fix: durante la composizione IME (`isComposing`) NON trasformiamo — restituiamo il testo
+ * grezzo, così il `value` controllato combacia col DOM e React non tocca la regione in
+ * composizione. Il MAIUSCOLO resta visivamente garantito dal CSS `uppercase` sull'input e,
+ * in modo definitivo, dalla normalizzazione lato server prima della scrittura su DB.
+ * Fuori composizione (PC, incolla, autofill, fine parola) maiuscoliamo subito; da abbinare
+ * a `onCompositionEnd` per maiuscolare l'ultima parola appena conclusa.
+ */
+export function maiuscoloDigitando(e: { target: { value: string }; nativeEvent: unknown }): string {
+  const grezzo = e.target.value;
+  const inComposizione = (e.nativeEvent as { isComposing?: boolean } | null)?.isComposing === true;
+  return inComposizione ? grezzo : grezzo.toUpperCase();
+}
+
+/**
  * Copia dell'oggetto con TUTTI i valori stringa di primo livello in MAIUSCOLO.
  * Da usare solo su oggetti di soli dati umani (es. anagrafica): nessuna chiave tecnica.
  */

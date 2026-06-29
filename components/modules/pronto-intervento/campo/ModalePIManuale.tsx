@@ -6,6 +6,7 @@ import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { ReperibileRef } from '@/lib/pi/types';
+import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 
 function oggiRoma(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -130,7 +131,10 @@ export default function ModalePIManuale({
             <input
               type="text"
               value={anagrafica[c.chiave] ?? ''}
-              onChange={(e) => setAnagrafica((a) => ({ ...a, [c.chiave]: e.target.value.toUpperCase() }))}
+              // MAIUSCOLO "IME-safe": su Android non muta il testo durante la composizione, così lo
+              // SPAZIO non cancella il campo (il MAIUSCOLO definitivo è garantito dal server).
+              onChange={(e) => setAnagrafica((a) => ({ ...a, [c.chiave]: maiuscoloDigitando(e) }))}
+              onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((a) => ({ ...a, [c.chiave]: v })); }}
               className={`${inputCls} uppercase`}
             />
           </div>
