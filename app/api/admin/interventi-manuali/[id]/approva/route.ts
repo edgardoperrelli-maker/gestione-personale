@@ -11,7 +11,19 @@ import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi
 
 export const runtime = 'nodejs';
 
-export async function POST(req: Request, { params }: { params: Promise<{ id: string }> }) {
+export async function POST(req: Request, ctx: { params: Promise<{ id: string }> }) {
+  // Catch globale: qualunque errore inatteso torna come JSON { error } (così la UI può
+  // mostrare il messaggio REALE invece di un opaco "HTTP 500") e finisce nei log runtime.
+  try {
+    return await handlePOST(req, ctx);
+  } catch (e) {
+    const messaggio = e instanceof Error ? e.message : String(e);
+    console.error('[approva] errore non gestito:', messaggio);
+    return NextResponse.json({ error: messaggio }, { status: 500 });
+  }
+}
+
+async function handlePOST(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
   const { user } = auth;
@@ -176,6 +188,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .select('id')
     .single();
   if (eInt) {
+    console.error('[approva] insert intervento fallito:', eInt.code, eInt.message);
     // Compensazione: l'insert dell'intervento è fallito DOPO il check-and-set che ha già
     // marcato la richiesta 'approvato'. Senza rollback resta uno stato rotto irrecuperabile
     // (richiesta approvata + nessun intervento + voce bloccata 'in_attesa', e il guard
@@ -185,6 +198,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       .from('interventi_manuali')
       .update({ stato: 'in_attesa', deciso_da: null, deciso_at: null })
       .eq('id', id);
+    // 23505 = unique_violation: l'indice dedup (committente, odl, data) impedisce un doppione.
+    // Messaggio chiaro al posto del raw Postgres "duplicate key…".
+    if (eInt.code === '23505') {
+      return NextResponse.json({
+        error: 'intervento_duplicato',
+        messaggio: `Esiste già un intervento per ODL ${record.odl ?? '—'} in data ${record.data} (${committente}). Impossibile creare un doppione: verifica ODL e matricola.`,
+      }, { status: 409 });
+    }
     return NextResponse.json({ error: eInt.message }, { status: 500 });
   }
 
@@ -208,7 +229,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
     .from('interventi_manuali')
     .update({ intervento_id: intRow!.id })
     .eq('id', id);
-  if (eReq) return NextResponse.json({ error: eReq.message }, { status: 500 });
+  if (eReq) { console.error('[approva] update interventi_manuali fallito:', eReq.message); return NextResponse.json({ error: eReq.message }, { status: 500 }); }
 
   return NextResponse.json({ ok: true, interventoId: intRow!.id });
 }
