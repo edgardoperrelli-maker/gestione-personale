@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Dialog from '@/components/ui/Dialog';
 
-type Foto = { etichetta: string; fileName: string; url: string };
+type Foto = { etichetta: string; fileName: string; url: string; path: string };
 
 export default function ModaleFotoVoce({
   voceId, puoCaricare, onClose,
@@ -17,6 +17,7 @@ export default function ModaleFotoVoce({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
+  const [deleting, setDeleting] = useState<string | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const caricaFoto = useCallback(async () => {
@@ -38,6 +39,28 @@ export default function ModaleFotoVoce({
   }, [voceId]);
 
   useEffect(() => { void caricaFoto(); }, [caricaFoto]);
+
+  const elimina = async (path: string) => {
+    if (!window.confirm('Eliminare definitivamente questa foto? Verrà rimossa anche dallo storage. Operazione non reversibile.')) return;
+    setDeleting(path);
+    setError(null);
+    try {
+      const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}/foto`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ path }),
+      });
+      if (!res.ok) {
+        const body = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(body.error ?? 'Errore eliminazione foto.');
+      }
+      await caricaFoto();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Errore eliminazione foto.');
+    } finally {
+      setDeleting(null);
+    }
+  };
 
   const onPick = async (e: ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -93,18 +116,28 @@ export default function ModaleFotoVoce({
       {!loading && foto.length > 0 && (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
           {foto.map((f, i) => (
-            <a
-              key={`${f.fileName}-${i}`}
-              href={f.url}
-              target="_blank"
-              rel="noreferrer"
-              className="group block overflow-hidden rounded-[var(--radius-md)] border border-[var(--brand-border)]"
-              title={f.etichetta}
+            <div
+              key={`${f.path}-${i}`}
+              className="group relative overflow-hidden rounded-[var(--radius-md)] border border-[var(--brand-border)]"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src={f.url} alt={f.etichetta} className="h-32 w-full object-cover transition group-hover:opacity-90" />
-              <div className="truncate px-2 py-1 text-xs text-[var(--brand-text-muted)]">{f.etichetta}</div>
-            </a>
+              <a href={f.url} target="_blank" rel="noreferrer" className="block" title={f.etichetta}>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={f.url} alt={f.etichetta} className="h-32 w-full object-cover transition group-hover:opacity-90" />
+                <div className="truncate px-2 py-1 text-xs text-[var(--brand-text-muted)]">{f.etichetta}</div>
+              </a>
+              {puoCaricare && (
+                <button
+                  type="button"
+                  onClick={() => void elimina(f.path)}
+                  disabled={deleting === f.path}
+                  title="Elimina foto"
+                  aria-label="Elimina foto"
+                  className="absolute right-1.5 top-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)]/90 px-2 py-1 text-sm text-[var(--brand-text-main)] shadow-sm transition hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--danger)] focus-visible:outline-none"
+                >
+                  {deleting === f.path ? '…' : '🗑'}
+                </button>
+              )}
+            </div>
           ))}
         </div>
       )}
