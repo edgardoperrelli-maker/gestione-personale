@@ -22,6 +22,15 @@ type DuplicatoMatricola = {
   deciso_da_name: string | null;
 };
 
+type DuplicatoSigillo = {
+  id: string;
+  data: string | null;
+  comune: string | null;
+  odl: string | null;
+  matricola: string | null;
+  staff_name: string | null;
+};
+
 export function PannelloRevisioneRichiesta({
   riga,
   infoCampi,
@@ -40,6 +49,7 @@ export function PannelloRevisioneRichiesta({
   const [busy, setBusy] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [dupAvviso, setDupAvviso] = useState<{ matricola: string; duplicati: DuplicatoMatricola[] } | null>(null);
+  const [sigBloccante, setSigBloccante] = useState<{ sigillo: string; duplicati: DuplicatoSigillo[] } | null>(null);
   const [fotoAvviso, setFotoAvviso] = useState<number | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }>>([]);
@@ -53,7 +63,7 @@ export function PannelloRevisioneRichiesta({
   useEffect(() => { void caricaFoto(); }, [caricaFoto]);
 
   const approva = async (forza = false, forzaFoto = false) => {
-    setBusy(true); setErrore(null);
+    setBusy(true); setErrore(null); setSigBloccante(null);
     try {
       const dati_correnti: DatiInterventoManuale = { committente: iniziali.committente, anagrafica, risposte };
       const res = await fetch(`/api/admin/interventi-manuali/${riga.id}/approva`, {
@@ -61,8 +71,10 @@ export function PannelloRevisioneRichiesta({
         body: JSON.stringify({ dati_correnti, confermaDuplicato: forza, confermaFotoMancanti: forzaFoto }),
       });
       if (res.status === 409) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; duplicati?: DuplicatoMatricola[]; mancanti?: number };
-        if (j.error === 'matricola_duplicata') { setDupAvviso({ matricola: j.matricola ?? '', duplicati: j.duplicati ?? [] }); return; }
+        const j = (await res.json().catch(() => ({}))) as { error?: string; matricola?: string; sigillo?: string; duplicati?: DuplicatoMatricola[] | DuplicatoSigillo[]; mancanti?: number };
+        // Sigillo duplicato: BLOCCANTE (nessun bypass) → va corretto prima di approvare.
+        if (j.error === 'sigillo_duplicato') { setSigBloccante({ sigillo: j.sigillo ?? '', duplicati: (j.duplicati as DuplicatoSigillo[]) ?? [] }); return; }
+        if (j.error === 'matricola_duplicata') { setDupAvviso({ matricola: j.matricola ?? '', duplicati: (j.duplicati as DuplicatoMatricola[]) ?? [] }); return; }
         if (j.error === 'foto_mancanti') { setFotoAvviso(j.mancanti ?? 0); return; }
       }
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -154,6 +166,39 @@ export function PannelloRevisioneRichiesta({
       />
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
+
+      {/* Sigillo duplicato — alert BLOCCANTE (nessun "approva comunque"): va corretto qui */}
+      {sigBloccante && (
+        <div
+          className="space-y-2 rounded-[var(--radius-md)] border p-3"
+          style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)' }}
+        >
+          <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>
+            &#9940; Sigillo {sigBloccante.sigillo} GIÀ presente nel database ({sigBloccante.duplicati.length})
+          </p>
+          <p className="text-xs text-[var(--brand-text-main)]">
+            Per evitare un doppione nel file master, correggi il sigillo nei campi esito qui sopra e riprova. L&apos;approvazione è bloccata finché il sigillo resta duplicato.
+          </p>
+          {sigBloccante.duplicati.length > 0 && (
+            <ul className="space-y-1 text-xs text-[var(--brand-text-main)]">
+              {sigBloccante.duplicati.map((d) => (
+                <li key={d.id}>
+                  &bull; {formatDataIt(d.data)}
+                  {d.comune ? ` · ${d.comune}` : ''}
+                  {d.odl ? ` · ODL ${d.odl}` : ''}
+                  {d.matricola ? ` · matr. ${d.matricola}` : ''}
+                  {d.staff_name ? ` · ${d.staff_name}` : ''}
+                </li>
+              ))}
+            </ul>
+          )}
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" animated={false} disabled={busy} onClick={() => setSigBloccante(null)}>
+              Chiudi
+            </Button>
+          </div>
+        </div>
+      )}
 
       {/* Avviso duplicato matricola — callout sobrio */}
       {dupAvviso && (
