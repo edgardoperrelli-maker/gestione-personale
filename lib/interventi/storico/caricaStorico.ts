@@ -50,7 +50,7 @@ export async function caricaRigheStorico(
     if (f.comune) q = q.ilike('comune', `%${puliziaQ(f.comune)}%`);
     if (qPulita) {
       q = q.or(
-        `odl.ilike.%${qPulita}%,via.ilike.%${qPulita}%,matricola.ilike.%${qPulita}%,nominativo.ilike.%${qPulita}%,pdr.ilike.%${qPulita}%`,
+        `odl.ilike.%${qPulita}%,via.ilike.%${qPulita}%,matricola.ilike.%${qPulita}%,nominativo.ilike.%${qPulita}%,pdr.ilike.%${qPulita}%,risposte->>sigillo.ilike.%${qPulita}%`,
       );
     }
     const { data: batch, error } = await q;

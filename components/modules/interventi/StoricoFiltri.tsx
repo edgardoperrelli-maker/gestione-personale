@@ -54,7 +54,7 @@ export default function StoricoFiltri({
           id="storico-ricerca"
           type="search"
           className={`${sel} w-full`}
-          placeholder="🔍 ODL / via / matricola / PDR / nominativo… (cerca su tutto lo storico)"
+          placeholder="🔍 ODL / via / matricola / sigillo / PDR / nominativo… (cerca su tutto lo storico)"
           value={filtri.q}
           onChange={(e) => set({ q: e.target.value })}
           aria-label="Ricerca interventi"

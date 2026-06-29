@@ -10,6 +10,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
 import { resolveAssignableRole, canEditStorico } from '@/lib/moduleAccess';
 import { estraiFotoPaths } from '@/lib/interventi/storico/modifica';
+import { rimuoviFotoDaRisposte } from '@/lib/interventi/storico/fotoModifica';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -87,15 +88,15 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
     sorgenti.push({ etichetta: 'Aggiuntiva', path: p });
   }
 
-  // Dedup per path + signed URL (10 min).
+  // Dedup per path + signed URL (10 min). `path` torna al client per l'eventuale eliminazione.
   const seen = new Set<string>();
-  const foto: Array<{ etichetta: string; fileName: string; url: string }> = [];
+  const foto: Array<{ etichetta: string; fileName: string; url: string; path: string }> = [];
   for (const { etichetta, path } of sorgenti) {
     if (!path || seen.has(path)) continue;
     seen.add(path);
     const { data: signed } = await supabaseAdmin.storage.from('interventi-foto').createSignedUrl(path, TTL);
     if (signed?.signedUrl) {
-      foto.push({ etichetta, fileName: path.split('/').pop() ?? path, url: signed.signedUrl });
+      foto.push({ etichetta, fileName: path.split('/').pop() ?? path, url: signed.signedUrl, path });
     }
   }
   return NextResponse.json({ foto });
@@ -162,4 +163,74 @@ export async function POST(req: Request, { params }: { params: Promise<{ voceId:
   }
 
   return NextResponse.json({ ok: true, count: ok.length });
+}
+
+// DELETE: elimina una singola foto (per allineare/pulire storage dopo errori sul campo).
+// Identifica la fonte del `path` tra le 4 (foto voce, manuale, righe-misuratore, foto_extra),
+// rimuove il riferimento in DB e poi l'oggetto dallo storage. admin_plus o flag modificaInterventi.
+export async function DELETE(req: Request, { params }: { params: Promise<{ voceId: string }> }) {
+  const guard = await requireEditStorico();
+  if (guard instanceof NextResponse) return guard;
+  const { voceId } = await params;
+
+  let body: { path?: unknown };
+  try { body = await req.json(); } catch { return NextResponse.json({ error: 'Body non valido.' }, { status: 400 }); }
+  const path = typeof body.path === 'string' ? body.path.trim() : '';
+  if (!path) return NextResponse.json({ error: 'Path foto mancante.' }, { status: 400 });
+
+  const { data: voce } = await supabaseAdmin
+    .from('rapportino_voci').select('id, richiesta_id, risposte').eq('id', voceId).maybeSingle();
+  if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
+  const v = voce as { richiesta_id: string | null; risposte: Record<string, unknown> | null };
+
+  let rimosso = false;
+
+  // Fonte B: foto di intervento MANUALE (riga interventi_manuali_foto). Lo scope richiesta_id
+  // garantisce che il path appartenga a questa voce.
+  if (v.richiesta_id) {
+    const { data: del, error } = await supabaseAdmin
+      .from('interventi_manuali_foto')
+      .delete()
+      .eq('richiesta_id', v.richiesta_id)
+      .eq('storage_path', path)
+      .select('id');
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if ((del?.length ?? 0) > 0) rimosso = true;
+  }
+
+  // Fonte A/D: campi-foto e foto_extra nelle risposte della voce.
+  if (!rimosso) {
+    const res = rimuoviFotoDaRisposte(v.risposte, path);
+    if (res.rimosso) {
+      const { error } = await supabaseAdmin.from('rapportino_voci').update({ risposte: res.risposte }).eq('id', voceId);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      rimosso = true;
+    }
+  }
+
+  // Fonte C: foto delle righe-misuratore collegate alla voce (risanamento).
+  if (!rimosso) {
+    const { data: righe } = await supabaseAdmin
+      .from('rapportino_righe').select('id, risposte').eq('voce_id', voceId);
+    for (const r of (righe ?? []) as Array<{ id: string; risposte: Record<string, unknown> | null }>) {
+      const res = rimuoviFotoDaRisposte(r.risposte, path);
+      if (!res.rimosso) continue;
+      const { error } = await supabaseAdmin.from('rapportino_righe').update({ risposte: res.risposte }).eq('id', r.id);
+      if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+      rimosso = true;
+    }
+  }
+
+  // Path non riferito da questa voce: niente da eliminare (no deletion arbitraria dallo storage).
+  if (!rimosso) return NextResponse.json({ error: 'Foto non trovata per questo intervento.' }, { status: 404 });
+
+  // Riferimento rimosso: ora pulisci lo storage (best-effort, il DB è già allineato).
+  try {
+    const { error } = await supabaseAdmin.storage.from('interventi-foto').remove([path]);
+    if (error) console.error('[storico/voce/foto DELETE] rimozione storage fallita:', error.message);
+  } catch (e) {
+    console.error('[storico/voce/foto DELETE] rimozione storage fallita:', e instanceof Error ? e.message : String(e));
+  }
+
+  return NextResponse.json({ ok: true });
 }

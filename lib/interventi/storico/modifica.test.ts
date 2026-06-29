@@ -8,10 +8,15 @@ const c = (p: Partial<TemplateCampo> & { chiave: string; tipo: TemplateCampo['ti
 });
 
 describe('buildCampiEditor', () => {
-  it('esclude i campi foto e aggiunge Note se mancante', () => {
+  it('esclude i campi foto e aggiunge Sigillo + Note se mancanti', () => {
     const campi = buildCampiEditor([c({ chiave: 'eseguito', tipo: 'select', ordine: 1 }), c({ chiave: 'f', tipo: 'foto', ordine: 2 })]);
-    expect(campi.map((x) => x.chiave)).toEqual(['eseguito', 'note']);
+    expect(campi.map((x) => x.chiave)).toEqual(['eseguito', 'sigillo', 'note']);
     expect(campi.find((x) => x.chiave === 'note')?.tipo).toBe('testo');
+    expect(campi.find((x) => x.chiave === 'sigillo')?.tipo).toBe('testo');
+  });
+  it('non duplica Sigillo se già presente nel template', () => {
+    const campi = buildCampiEditor([c({ chiave: 'sigillo', tipo: 'testo', ordine: 1 })]);
+    expect(campi.filter((x) => x.chiave === 'sigillo').length).toBe(1);
   });
   it('non duplica Note se già presente', () => {
     const campi = buildCampiEditor([c({ chiave: 'note', tipo: 'testo', ordine: 1 })]);
@@ -21,8 +26,8 @@ describe('buildCampiEditor', () => {
     const campi = buildCampiEditor([c({ chiave: 'b', tipo: 'testo', ordine: 2 }), c({ chiave: 'a', tipo: 'testo', ordine: 1 })]);
     expect(campi.map((x) => x.chiave).slice(0, 2)).toEqual(['a', 'b']);
   });
-  it('snapshot vuoto/null → solo note', () => {
-    expect(buildCampiEditor(null).map((x) => x.chiave)).toEqual(['note']);
+  it('snapshot vuoto/null → sigillo + note', () => {
+    expect(buildCampiEditor(null).map((x) => x.chiave)).toEqual(['sigillo', 'note']);
   });
 });
 

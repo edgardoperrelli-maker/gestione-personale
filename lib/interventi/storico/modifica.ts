@@ -42,6 +42,9 @@ export function buildCampiEditor(campiSnapshot: TemplateCampo[] | null | undefin
     .filter((c): c is TemplateCampo => Boolean(c) && c.tipo !== 'foto')
     .slice()
     .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+  if (!base.some((c) => c.chiave === 'sigillo')) {
+    base.push({ chiave: 'sigillo', etichetta: 'Sigillo', tipo: 'testo', ordine: 998 });
+  }
   if (!base.some((c) => c.chiave === 'note')) {
     base.push({ chiave: 'note', etichetta: 'Note', tipo: 'testo', ordine: 999 });
   }
