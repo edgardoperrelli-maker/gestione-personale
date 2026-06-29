@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
 import { ymdLocal } from '@/utils/date-it';
 
 export const runtime = 'nodejs';
@@ -16,13 +17,16 @@ export async function POST() {
   //    legittimi. La matricola è già garantita non nulla sui record esistenti
   //    (vincolo NOT NULL) e viene ri-controllata su voci.matricola nel solo
   //    ramo di inserimento.
-  const { data: interventi, error: errInt } = await supabaseAdmin
+  // Pre-filtro DB ampio (`%rim%`, superset) + classificazione precisa lato JS:
+  // intercetta sia "Rimozione …" sia l'abbreviazione ACEA "Rim Mis/Mod radio…".
+  const { data: interventiRaw, error: errInt } = await supabaseAdmin
     .from('interventi')
-    .select('id, data, chiuso_at')
+    .select('id, data, chiuso_at, intervento_tipo')
     .eq('committente', 'acea')
-    .ilike('intervento_tipo', '%rimozione%')
+    .ilike('intervento_tipo', '%rim%')
     .eq('esito', 'eseguito_positivo');
   if (errInt) return NextResponse.json({ error: errInt.message }, { status: 500 });
+  const interventi = (interventiRaw ?? []).filter((i) => isRimozioneTipo(i.intervento_tipo));
 
   const qualifyingIds = new Set((interventi ?? []).map(i => i.id));
 
