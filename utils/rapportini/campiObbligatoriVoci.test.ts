@@ -38,6 +38,21 @@ describe('campiObbligatoriMancantiVoci', () => {
     expect(campiObbligatoriMancantiVoci(voci, campi)).toEqual([]);
   });
 
+  it('esito NEGATIVO → i campi obbligatori (es. sigillo) non bloccano l’invio', () => {
+    const campi = [
+      campo('esito', { tipo: 'select', etichetta: 'Esito' }),
+      campo('sigillo', { obbligatoria: true, etichetta: 'Sigillo' }),
+    ];
+    // voce negativa (Esito = "No") con sigillo vuoto → NON deve comparire tra le mancanti
+    const vociNeg = [{ nominativo: 'Mario', risposte: { esito: 'No' } }];
+    expect(campiObbligatoriMancantiVoci(vociNeg, campi)).toEqual([]);
+    // controprova: stessa voce POSITIVA (Esito = "Eseguito") col sigillo vuoto → blocca
+    const vociPos = [{ nominativo: 'Mario', risposte: { esito: 'Eseguito' } }];
+    expect(campiObbligatoriMancantiVoci(vociPos, campi, ['nominativo'])).toEqual([
+      { index: 0, titolo: 'Mario', campi: ['Sigillo'] },
+    ]);
+  });
+
   it('più campi mancanti nella stessa voce + più voci, con index originale', () => {
     const campi = [
       campo('a', { obbligatoria: true, etichetta: 'A' }),
