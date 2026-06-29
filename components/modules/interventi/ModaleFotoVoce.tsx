@@ -132,9 +132,9 @@ export default function ModaleFotoVoce({
                   disabled={deleting === f.path}
                   title="Elimina foto"
                   aria-label="Elimina foto"
-                  className="absolute right-1.5 top-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)]/90 px-2 py-1 text-sm text-[var(--brand-text-main)] shadow-sm transition hover:border-[var(--danger)] hover:text-[var(--danger)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--danger)] focus-visible:outline-none"
+                  className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[var(--danger)] text-sm font-bold leading-none text-white shadow-md transition hover:brightness-110 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
                 >
-                  {deleting === f.path ? '…' : '🗑'}
+                  {deleting === f.path ? '…' : '✕'}
                 </button>
               )}
             </div>
