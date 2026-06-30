@@ -12,7 +12,7 @@ function fmtOra(iso: string | null): string {
 }
 
 export default function CardTerritorio({
-  terr, dataLabel, copiedToken, onCopia, onRiapriHref,
+  terr, dataLabel, copiedToken, onCopia, onRiapriHref, onRiapriTerritorioHref,
   onEliminaPiano, onRimuoviOp, onRiapriRapportino,
   confirmPiano, setConfirmPiano, confirmOp, setConfirmOp,
   busy, territori, onSpostaTerritorioOperatore, onSpostaDataOperatore, onSpostaPiano,
@@ -22,6 +22,7 @@ export default function CardTerritorio({
   copiedToken: string | null;
   onCopia: (r: RapportinoStato & { url: string; token: string }) => void;
   onRiapriHref: (pianoId: string) => string;
+  onRiapriTerritorioHref: (terr: TerritorioGruppo) => string;
   onEliminaPiano: (pianoId: string) => void;
   onRimuoviOp: (pianoId: string, staffId: string) => void;
   onRiapriRapportino: (rapportinoId: string) => void;
@@ -77,6 +78,13 @@ export default function CardTerritorio({
             </span>
           )}
           <span className="text-xs text-[var(--brand-text-muted)]">{terr.nOperatori} operatori</span>
+          {multiPiano && (
+            <a
+              href={onRiapriTerritorioHref(terr)}
+              title="Riapri tutte le pianificazioni del territorio insieme, per spostare interventi tra operatori di piani diversi"
+              className="font-semibold text-[var(--brand-primary)] hover:opacity-90"
+            >↗ Riapri territorio</a>
+          )}
           {!multiPiano && <AzioniPiano piano={terr.piani[0]} />}
         </span>
       </div>

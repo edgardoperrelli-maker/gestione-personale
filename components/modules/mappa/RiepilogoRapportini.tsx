@@ -238,6 +238,7 @@ export default function RiepilogoRapportini() {
                   copiedToken={copiedToken}
                   onCopia={copia}
                   onRiapriHref={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
+                  onRiapriTerritorioHref={(terr) => `/hub/mappa?vista=pianifica&pianoId=${terr.piani[0]?.piano_id ?? ''}&scope=territorio`}
                   onEliminaPiano={eliminaPiano}
                   onRimuoviOp={rimuoviOperatore}
                   onRiapriRapportino={riapriRapportino}
