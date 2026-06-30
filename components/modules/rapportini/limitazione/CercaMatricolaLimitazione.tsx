@@ -34,6 +34,7 @@ export function CercaMatricolaLimitazione({
   const [errore, setErrore] = useState<string | null>(null);
   const [offline, setOffline] = useState(false);
   const [daVerificare, setDaVerificare] = useState(false);
+  const [bloccato, setBloccato] = useState<{ odl?: string | null; esecutore?: string | null; fonte?: 'master' | 'db' } | null>(null);
 
   // All'apertura della ricerca (online) allinea la cache locale del censimento: così
   // l'autofill funziona offline. Best-effort, no-op offline. Riuso cross-giorno (chiave stabile).
@@ -43,7 +44,7 @@ export function CercaMatricolaLimitazione({
 
   const reset = () => {
     setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]);
-    setAltroOperatore(null); setMisuratore(null); setOffline(false); setDaVerificare(false);
+    setAltroOperatore(null); setMisuratore(null); setOffline(false); setDaVerificare(false); setBloccato(null);
   };
 
   // Le voci RIFIUTATE non sono task attivi: vanno rifatte da capo, quindi non devono
@@ -85,9 +86,16 @@ export function CercaMatricolaLimitazione({
       // Online ma server in errore (es. link scaduto/non più modificabile): NON è "offline".
       // Mostra l'errore reale e rivela comunque l'inserimento a mano (niente vicolo cieco).
       if (!res.ok) { setErrore('Ricerca non riuscita.'); setSuggVoci(simili); setCercato(true); return; }
+      type Esecuzione = { bloccato: boolean; fonte?: 'master' | 'db'; odl?: string | null; esecutore?: string | null };
       const j = (await res.json()) as
-        | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null }
-        | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null };
+        | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null; esecuzione?: Esecuzione }
+        | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null; esecuzione?: Esecuzione };
+      // BLOCCO anti-duplicato: la matricola risulta già eseguita → stop, niente Procedi/Inserisci.
+      if (j.esecuzione?.bloccato) {
+        setBloccato({ odl: j.esecuzione.odl, esecutore: j.esecuzione.esecutore, fonte: j.esecuzione.fonte });
+        setCercato(true);
+        return;
+      }
       setAltroOperatore(j.altroOperatore);
       setSuggVoci(simili);
       if (j.trovato) {
@@ -131,13 +139,26 @@ export function CercaMatricolaLimitazione({
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">{errore}</p>}
 
-      {altroOperatore && (
+      {altroOperatore && !bloccato && (
         <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm font-medium text-[var(--danger)]">
           ⚠️ Matricola assegnata a <b>{altroOperatore}</b> — contatta l&apos;ufficio per fartela assegnare.
         </div>
       )}
 
-      {cercato && (
+      {bloccato && (
+        <div className="rounded-xl border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">
+          <p className="font-bold">⛔ Intervento già eseguito su questo misuratore.</p>
+          {(bloccato.odl || bloccato.esecutore) && (
+            <p className="mt-1 text-xs">
+              {bloccato.odl ? <>ODL <b>{bloccato.odl}</b></> : null}
+              {bloccato.esecutore ? <> · eseguito da <b>{bloccato.esecutore}</b></> : null}
+            </p>
+          )}
+          <p className="mt-1 font-semibold">Contatta l&apos;ufficio per la verifica.</p>
+        </div>
+      )}
+
+      {cercato && !bloccato && (
         <div className="space-y-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
           {misuratore && (altroOperatore || daVerificare) ? (
             <>
