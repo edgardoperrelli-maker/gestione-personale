@@ -449,6 +449,29 @@ async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) 
     const file = path.basename(acea.masterPath);
     await inviaPianificabili({ baseUrl, exportKey, file, data: dataTarget, righe });
     console.log(`[lim-sync] pianificabili ACEA ${file} ${dataTarget}: ${righe.length} righe.`);
+
+    // Snapshot MASTER per l'audit a tre vie della Produzione economica: foto corrente di TUTTE le righe
+    // del DUNNING (non solo le pianificabili del giorno). L'app la ingerisce in acea_master_snapshot.
+    try {
+      const masterSnapshot = grezze
+        .filter((g) => String(g.odl ?? '').trim())
+        .map((g) => ({
+          odl: String(g.odl).trim(),
+          attivita: g.attivita ?? '',
+          esecutore: g.esecutore ?? '',
+          dataRaw: g.dataRaw ?? '',
+          statoRaw: g.statoRaw ?? '',
+          matricola: g.matricola ?? '',
+          comune: g.comune ?? '',
+        }));
+      await inviaReport({
+        baseUrl,
+        exportKey,
+        report: { tipo: 'acea-master', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], masterSnapshot },
+      });
+    } catch (eSnap) {
+      console.error(`[lim-sync] invio masterSnapshot fallito: ${eSnap instanceof Error ? eSnap.message : eSnap}`);
+    }
   } catch (e) {
     console.error(`[lim-sync] leggiMasterAceaDunning fallito: ${e instanceof Error ? e.message : e}`);
   }

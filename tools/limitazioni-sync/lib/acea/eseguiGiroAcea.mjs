@@ -41,6 +41,16 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
     }
     const preassegnati = [...preMap.entries()].map(([odl, assegnatario]) => ({ odl, assegnatario }));
 
+    // Snapshot PORTALE per la Produzione economica (SAL/audit): foto corrente ODL→stato dall'intero
+    // export ACEA (non solo le righe cambiate). L'app la ingerisce in acea_portale_snapshot.
+    const portaleSnapshot = righe
+      .filter((r) => String(r.ordine ?? '').trim())
+      .map((r) => ({
+        odl: String(r.ordine).trim(),
+        stato: String(r.stato ?? ''),
+        operatore: String(r.operatore ?? '').trim() || undefined,
+      }));
+
     // Scrittura CHIRURGICA: tocca solo le celle dello Stato Operazione (preserva AutoFiltro,
     // formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
     const rep = await aggiornaStatoXlsx(a.masterPath, righe, {
@@ -66,6 +76,7 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
       invariate: rep.invariate,
       daChiedere: rep.daChiedere ?? 0,
       preassegnati,
+      portaleSnapshot,
     });
   } catch (e) {
     return reportBase({ erroreGlobale: e instanceof Error ? e.message : String(e) });

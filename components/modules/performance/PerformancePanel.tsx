@@ -7,6 +7,7 @@ import PerformanceGiornaliera from './PerformanceGiornaliera';
 import PerformanceConfronto from './PerformanceConfronto';
 import PerformanceDistribuzioni from './PerformanceDistribuzioni';
 import PerformanceDettaglio from './PerformanceDettaglio';
+import PerformanceEconomica from './PerformanceEconomica';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
@@ -38,6 +39,7 @@ export default function PerformancePanel({
       <PerformanceConfronto allRows={rows} options={options} initial={initial} />
       <PerformanceDistribuzioni allRows={rows} options={options} initial={initial} />
       <PerformanceDettaglio allRows={rows} options={options} initial={initial} />
+      <PerformanceEconomica />
     </div>
   );
 }

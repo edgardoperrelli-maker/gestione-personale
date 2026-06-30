@@ -2,7 +2,13 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
-import { resolveUserRole, type ValidRole } from '@/lib/moduleAccess';
+import {
+  canViewPremialita,
+  resolveAssignableRole,
+  resolveUserRole,
+  type AssignableRole,
+  type ValidRole,
+} from '@/lib/moduleAccess';
 import type { User } from '@supabase/supabase-js';
 
 /**
@@ -48,6 +54,26 @@ export async function requireAdmin(): Promise<{ user: User; role: ValidRole } | 
   const role = resolveUserRole(profile?.role, user.app_metadata?.role);
   if (role !== 'admin') {
     return NextResponse.json({ error: 'Accesso riservato agli admin.' }, { status: 403 });
+  }
+  return { user, role };
+}
+
+/**
+ * Richiede un utente `admin_plus` (dati riservati: economici/premialità).
+ * `requireAdmin` ammette anche `admin`; questo helper restringe al solo admin_plus.
+ */
+export async function requireAdminPlus(): Promise<{ user: User; role: AssignableRole } | NextResponse> {
+  const supabase = await routeClient();
+  const { data: { user } } = await supabase.auth.getUser();
+  if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
+  const { data: profile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .maybeSingle();
+  const role = resolveAssignableRole(profile?.role, user.app_metadata?.role);
+  if (!canViewPremialita(role)) {
+    return NextResponse.json({ error: 'Accesso riservato (admin_plus).' }, { status: 403 });
   }
   return { user, role };
 }
