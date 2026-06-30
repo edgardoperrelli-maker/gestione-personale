@@ -54,6 +54,28 @@ describe('eseguiGiroAcea', () => {
     expect(wb.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(3).value).toBe('CIARALLO');
   });
 
+  it('include nel report il portaleSnapshot (ODL→stato) dell\'intero export per il SAL', async () => {
+    const masterPath = path.join(dir, 'master_snap.xlsx');
+    const exportPath = path.join(dir, 'export_snap.xlsx');
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'Intervento Richiesto'],
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'completato'],
+      [111222333, 'assegnato'],
+    ]);
+
+    const report = await eseguiGiroAcea({
+      cfg: cfg(masterPath), stamp: 's', driver: async () => exportPath, nowMs: 5000,
+    });
+
+    expect(Array.isArray(report.portaleSnapshot)).toBe(true);
+    expect(report.portaleSnapshot).toHaveLength(2);
+    expect(report.portaleSnapshot).toContainEqual({ odl: '957276080', stato: 'completato', operatore: undefined });
+  });
+
   it('se il lock è attivo, salta senza scrivere', async () => {
     const masterPath = path.join(dir, 'master2.xlsx');
     await scriviXlsx(masterPath, 'PIANIFICAZIONE', [['Ordine', 'Stato Operazione'], [1, 'x']]);
