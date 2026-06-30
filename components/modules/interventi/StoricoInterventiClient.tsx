@@ -137,23 +137,68 @@ export default function StoricoInterventiClient({ staff, isAdminPlus, puoModific
     }
   };
 
+  // Applica un patch ai filtri e ricarica (usato dalle card-filtro rapide).
+  const applicaPatch = (patch: Partial<StatoFiltriUI>) => {
+    const next = { ...filtri, ...patch };
+    setFiltri(next);
+    setPage(0);
+    void carica(next, 0);
+  };
+  // Stato "attivo" della card in base al filtro corrispondente.
+  const cardAttiva = (key: keyof ContatoriStorico): boolean => {
+    switch (key) {
+      case 'eseguiti':    return filtri.eseguito === 'SI';
+      case 'negativi':    return filtri.eseguito === 'NO';
+      case 'sostValvola': return filtri.sostValvola === 'SI';
+      case 'miniBag':     return filtri.miniBag === 'SI';
+      case 'rgStop':      return filtri.rgStop === 'SI';
+      case 'esitati':     return filtri.eseguito === '';
+      default:            return false;
+    }
+  };
+  // Click su una card → imposta/azzera (toggle) il filtro corrispondente e ricarica.
+  const onCardClick = (key: keyof ContatoriStorico) => {
+    switch (key) {
+      case 'esitati':     return applicaPatch({ eseguito: '' });
+      case 'eseguiti':    return applicaPatch({ eseguito: filtri.eseguito === 'SI' ? '' : 'SI' });
+      case 'negativi':    return applicaPatch({ eseguito: filtri.eseguito === 'NO' ? '' : 'NO' });
+      case 'sostValvola': return applicaPatch({ sostValvola: filtri.sostValvola === 'SI' ? '' : 'SI' });
+      case 'miniBag':     return applicaPatch({ miniBag: filtri.miniBag === 'SI' ? '' : 'SI' });
+      case 'rgStop':      return applicaPatch({ rgStop: filtri.rgStop === 'SI' ? '' : 'SI' });
+    }
+  };
+
   const totPagine = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
-        {CARDS.map((c) => (
-          <div key={c.key} className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
-            <div className="text-xs text-[var(--brand-text-muted)]">{c.label}</div>
-            <div
-              className={`text-2xl font-semibold ${
-                c.tone === 'ok' ? 'text-[var(--status-ok)]' : c.tone === 'no' ? 'text-[var(--status-ko)]' : 'text-[var(--brand-text-main)]'
+    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-4">
+      <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
+        {CARDS.map((c) => {
+          const active = cardAttiva(c.key);
+          return (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => onCardClick(c.key)}
+              aria-pressed={active}
+              title={`Filtra: ${c.label}`}
+              className={`flex flex-col items-start rounded-xl border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+                active
+                  ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]'
+                  : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
               }`}
             >
-              {contatori[c.key].toLocaleString('it-IT')}
-            </div>
-          </div>
-        ))}
+              <span className="text-xs text-[var(--brand-text-muted)]">{c.label}</span>
+              <span
+                className={`text-2xl font-semibold ${
+                  c.tone === 'ok' ? 'text-[var(--status-ok)]' : c.tone === 'no' ? 'text-[var(--status-ko)]' : 'text-[var(--brand-text-main)]'
+                }`}
+              >
+                {contatori[c.key].toLocaleString('it-IT')}
+              </span>
+            </button>
+          );
+        })}
       </div>
 
       <StoricoFiltri
@@ -178,9 +223,9 @@ export default function StoricoInterventiClient({ staff, isAdminPlus, puoModific
         </div>
       )}
 
-      <div className="relative">
+      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
         {loading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 rounded-2xl bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
+          <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
             Caricamento…
           </div>
@@ -195,7 +240,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus, puoModific
         />
       </div>
 
-      <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
         <span>{total.toLocaleString('it-IT')} righe</span>
         {totPagine > 1 && (
           <div className="flex items-center gap-2">
