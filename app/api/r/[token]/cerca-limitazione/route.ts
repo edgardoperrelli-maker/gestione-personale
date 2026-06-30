@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
 import { matchVociMatricola } from '@/lib/limitazione/matchVociMatricola';
+import { normMatricola, verdettoEsecuzione, type VerdettoEsecuzione } from '@/lib/limitazione/verdettoEsecuzione';
 
 export const runtime = 'nodejs';
 
@@ -18,6 +19,27 @@ type RigaRef = {
   id: number; matricola: string; pdr: string | null; nominativo: string | null;
   indirizzo: string | null; civico: string | null; comune: string | null; cap: string | null;
 };
+
+/** Verdetto "già eseguita" per la matricola: fonte master (limitazione_misuratori_stato, riportata
+ *  dall'agente al sync) OPPURE fonte DB (una voce di rapportino con esito positivo). */
+async function leggiVerdetto(committente: string, q: string): Promise<VerdettoEsecuzione> {
+  const qn = normMatricola(q);
+  const { data: st } = await supabaseAdmin
+    .from('limitazione_misuratori_stato')
+    .select('esito, stato_odl, odl, esecutore')
+    .eq('committente', committente).eq('matricola_norm', qn).limit(1);
+  const statoMaster = (st && st[0]) || null;
+  const { data: voci } = await supabaseAdmin
+    .from('rapportino_voci')
+    .select('odl, risposte')
+    .eq('matricola', q).limit(50);
+  const vocePositivaDb = ((voci ?? []) as Array<{ odl: string | null; risposte: Record<string, unknown> | null }>)
+    .find((v) => String(v.risposte?.['eseguito'] ?? '').trim().toUpperCase() === 'SI') ?? null;
+  return verdettoEsecuzione({
+    statoMaster,
+    vocePositivaDb: vocePositivaDb ? { odl: vocePositivaDb.odl, data: null } : null,
+  });
+}
 
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -53,6 +75,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     }
   }
 
+  // Verdetto anti-duplicato (matricola già eseguita): valutato sempre, incluso in ogni risposta.
+  const esecuzione = await leggiVerdetto(COMMITTENTE_LIMITAZIONE, q);
+
   // 1) match esatto
   const { data: esatti } = await supabaseAdmin
     .from('limitazione_misuratori_ref')
@@ -61,7 +86,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     .eq('matricola', q)
     .limit(1);
   if (esatti && esatti.length > 0) {
-    return NextResponse.json({ trovato: true, misuratore: esatti[0], altroOperatore });
+    return NextResponse.json({ trovato: true, misuratore: esatti[0], altroOperatore, esecuzione });
   }
 
   // 2) nessun esatto → suggerimenti simili (bidirezionali):
@@ -78,5 +103,5 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   const perId = new Map<number, RigaRef>();
   for (const r of ([...(resLike.data ?? []), ...(resSample.data ?? [])] as RigaRef[])) perId.set(r.id, r);
   const suggerimenti = matricoleSimili(q, [...perId.values()], 8);
-  return NextResponse.json({ trovato: false, suggerimenti, altroOperatore });
+  return NextResponse.json({ trovato: false, suggerimenti, altroOperatore, esecuzione });
 }
