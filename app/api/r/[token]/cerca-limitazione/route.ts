@@ -24,17 +24,19 @@ type RigaRef = {
  *  dall'agente al sync) OPPURE fonte DB (una voce di rapportino con esito positivo). */
 async function leggiVerdetto(committente: string, q: string): Promise<VerdettoEsecuzione> {
   const qn = normMatricola(q);
-  const { data: st } = await supabaseAdmin
-    .from('limitazione_misuratori_stato')
-    .select('esito, stato_odl, odl, esecutore')
-    .eq('committente', committente).eq('matricola_norm', qn).limit(1);
-  const statoMaster = (st && st[0]) || null;
-  const { data: voci } = await supabaseAdmin
-    .from('rapportino_voci')
-    .select('odl, risposte')
-    .eq('matricola', q).limit(50);
-  const vocePositivaDb = ((voci ?? []) as Array<{ odl: string | null; risposte: Record<string, unknown> | null }>)
-    .find((v) => String(v.risposte?.['eseguito'] ?? '').trim().toUpperCase() === 'SI') ?? null;
+  // Le due fonti sono indipendenti → in parallelo. La fonte DB usa un pre-filtro ampio (ilike '%q%')
+  // e poi un confronto NORMALIZZATO lato JS (case/trattini/spazi), coerente con la fonte master.
+  const [stRes, vociRes] = await Promise.all([
+    supabaseAdmin.from('limitazione_misuratori_stato')
+      .select('esito, stato_odl, odl, esecutore')
+      .eq('committente', committente).eq('matricola_norm', qn).limit(1),
+    supabaseAdmin.from('rapportino_voci')
+      .select('odl, matricola, risposte')
+      .ilike('matricola', `%${escLike(q)}%`).limit(100),
+  ]);
+  const statoMaster = (stRes.data && stRes.data[0]) || null;
+  const vocePositivaDb = ((vociRes.data ?? []) as Array<{ odl: string | null; matricola: string | null; risposte: Record<string, unknown> | null }>)
+    .find((v) => normMatricola(v.matricola ?? '') === qn && String(v.risposte?.['eseguito'] ?? '').trim().toUpperCase() === 'SI') ?? null;
   return verdettoEsecuzione({
     statoMaster,
     vocePositivaDb: vocePositivaDb ? { odl: vocePositivaDb.odl, data: null } : null,

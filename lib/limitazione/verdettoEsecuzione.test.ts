@@ -31,6 +31,15 @@ describe('verdettoEsecuzione', () => {
     expect(v.fonte).toBe('master');
     expect(v.odl).toBe('M1');
   });
+  it('master indeterminato (esito null, stato null) -> libero', () => {
+    expect(verdettoEsecuzione({ statoMaster: { esito: null, stato_odl: null } })).toEqual({ bloccato: false });
+  });
+  it('stato "IN COMPLETAMENTO" (transizione) -> NON bloccato', () => {
+    expect(verdettoEsecuzione({ statoMaster: { stato_odl: 'IN COMPLETAMENTO' } }).bloccato).toBe(false);
+  });
+  it('master null esplicito + voce db -> bloccato (fonte db)', () => {
+    expect(verdettoEsecuzione({ statoMaster: null, vocePositivaDb: { odl: 'D9' } }).fonte).toBe('db');
+  });
   it('niente fonti -> libero', () => {
     expect(verdettoEsecuzione({})).toEqual({ bloccato: false });
   });

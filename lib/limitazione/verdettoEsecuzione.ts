@@ -19,7 +19,8 @@ const t = (v?: string | null) => String(v ?? '').trim().toUpperCase();
 
 /** True se l'esito/stato della fonte master indica un intervento POSITIVO già fatto. */
 function masterPositivo(m: { esito?: string | null; stato_odl?: string | null }): boolean {
-  return t(m.esito) === 'POSITIVO' || t(m.stato_odl).includes('COMPLET');
+  // 'COMPLETAT' copre COMPLETATO/COMPLETATA ma NON "IN COMPLETAMENTO" (stato in transizione).
+  return t(m.esito) === 'POSITIVO' || t(m.stato_odl).includes('COMPLETAT');
 }
 
 export function verdettoEsecuzione(input: {
