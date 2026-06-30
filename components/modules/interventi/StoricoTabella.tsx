@@ -49,14 +49,13 @@ export default function StoricoTabella({
 }) {
   if (righe.length === 0) {
     return (
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] py-12 text-center text-sm text-[var(--brand-text-muted)]">
+      <div className="py-12 text-center text-sm text-[var(--brand-text-muted)]">
         Nessun intervento trovato.
       </div>
     );
   }
   return (
-    <div className="max-h-[calc(100vh-280px)] overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)]">
-      <table className="min-w-full text-left text-sm">
+    <table className="min-w-full text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-[var(--brand-border-strong)] text-xs text-[var(--brand-text-muted)]">
           <tr>
             {COLS.map((c) => (
@@ -117,7 +116,6 @@ export default function StoricoTabella({
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+    </table>
   );
 }
