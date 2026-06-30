@@ -23,7 +23,6 @@ import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
-  { value: 'acea', label: 'Acea' },
   { value: 'lim_massive', label: 'Limitazioni massive' },
   { value: 'altro', label: 'Altro' },
 ];
