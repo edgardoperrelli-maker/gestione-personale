@@ -64,10 +64,9 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
   }
 
   return (
-    <div className="overflow-x-auto rounded-lg border border-[var(--brand-border)]">
-      <table className="min-w-full divide-y divide-[var(--brand-border)] text-sm">
-        <thead className="bg-[var(--brand-surface)]">
-          <tr>
+    <table className="min-w-full divide-y divide-[var(--brand-border)] text-sm">
+      <thead className="sticky top-0 z-10 bg-[var(--brand-surface)]">
+        <tr>
             {(
               [
                 { key: null,              label: 'ODS/ODL' },
@@ -157,7 +156,6 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
             </tr>
           ))}
         </tbody>
-      </table>
-    </div>
+    </table>
   );
 }
