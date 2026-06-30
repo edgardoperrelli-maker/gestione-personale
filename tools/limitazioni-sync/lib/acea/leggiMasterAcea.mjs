@@ -29,6 +29,7 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
     matricola: risolviColonna(header, colonne.matricola),
     indirizzo: risolviColonna(header, colonne.indirizzo),
     comune: risolviColonna(header, colonne.comune),
+    attivita: risolviColonna(header, colonne.attivita), // "Operazione testo breve" (B); -1 se non configurata
     stato: risolviColonna(header, colonne.stato),
   };
   const cella = (row, i) => (i >= 0 && row[i] != null ? t(row[i]) : '');
@@ -42,6 +43,7 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
       indirizzo: cella(row, idx.indirizzo),
       comune: cella(row, idx.comune),
       esecutore: cella(row, idx.esecutore),
+      attivita: cella(row, idx.attivita), // attività specifica della riga (es. SOSPENSIONE)
       dataRaw: cella(row, idx.data),
       esitoRaw: '', // il master DUNNING non ha "esito" in lettura: sempre pianificabile
       statoRaw: cella(row, idx.stato), // Stato Operazione (DUNNING); '' se colonne.stato assente

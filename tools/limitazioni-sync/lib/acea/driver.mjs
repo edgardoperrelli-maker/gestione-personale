@@ -29,7 +29,9 @@ export async function apriCruscotto(acea, { stamp = 'manual' } = {}) {
   });
   const ctx = await browser.newContext({ acceptDownloads: true, permissions: ['clipboard-read', 'clipboard-write'] });
   const page = await ctx.newPage();
-  page.setDefaultTimeout(acea.timeoutMs ?? 60_000);
+  // timeout d'azione di default (es. i .click() senza timeout esplicito): scalato da attesaScala
+  // così alzando la pazienza in config si copre anche i click su ACEA lenta.
+  page.setDefaultTimeout(Math.round((acea.timeoutMs ?? 60_000) * (acea.attesaScala ?? 1)));
 
   let passo = 'init';
   const shot = async (nome) => {

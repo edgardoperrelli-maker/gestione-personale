@@ -22,7 +22,14 @@ describe('mappaRigheMaster', () => {
   it('mappa le colonne per nome e legge lo stato', () => {
     const matrix = [['completato', '12345', 'M9', 'Via Roma 1', 'ROMA', '2026-06-22', 'ROSSI']];
     const g = mappaRigheMaster(matrix, header, colonne);
-    expect(g).toEqual([{ riga: 2, odl: '12345', matricola: 'M9', indirizzo: 'Via Roma 1', comune: 'ROMA', esecutore: 'ROSSI', dataRaw: '2026-06-22', esitoRaw: '', statoRaw: 'completato' }]);
+    expect(g).toEqual([{ riga: 2, odl: '12345', matricola: 'M9', indirizzo: 'Via Roma 1', comune: 'ROMA', esecutore: 'ROSSI', attivita: '', dataRaw: '2026-06-22', esitoRaw: '', statoRaw: 'completato' }]);
+  });
+
+  it('legge l\'attività dalla colonna "Operazione testo breve" quando configurata', () => {
+    const headerA = ['Ordine', 'Operazione testo breve', 'Esecutore', 'Data'];
+    const colonneA = { ...colonne, attivita: 'Operazione testo breve' };
+    const g = mappaRigheMaster([['777', 'SOSPENSIONE', 'ROSSI', '2026-06-22']], headerA, colonneA);
+    expect(g[0].attivita).toBe('SOSPENSIONE');
   });
 
   it('numera le righe a partire da 2 (header su riga 1)', () => {

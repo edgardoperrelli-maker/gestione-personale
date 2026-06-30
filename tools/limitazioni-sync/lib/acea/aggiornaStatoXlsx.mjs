@@ -75,13 +75,54 @@ function valoreCella(cella, ss) {
   return v ?? '';
 }
 
-/** Lettera colonna del primo header (riga 1) il cui testo == nome; null se assente. */
-function colonnaDaHeader(headerRow, nome, ss) {
+/** Lettera colonna, nella riga `rigaN`, del primo header il cui testo == nome; null se assente. */
+function colonnaDaHeader(headerXml, nome, ss, rigaN) {
   if (!nome) return null;
-  for (const hc of headerRow.matchAll(/<c r="([A-Z]+)1"([^>]*?)(?:\/>|>([\s\S]*?)<\/c>)/g)) {
+  const re = new RegExp(`<c r="([A-Z]+)${rigaN}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`, 'g');
+  for (const hc of headerXml.matchAll(re)) {
     if (valoreCella({ attrs: hc[2] || '', inner: hc[3] || '' }, ss) === nome) return hc[1];
   }
   return null;
+}
+
+/** Prima riga (in ordine di documento, entro `maxScan`) che contiene TUTTI i `nomi`.
+ *  Ritorna { riga, xml } (riga 1-based) o { riga: 0, xml: '' } se nessuna combacia.
+ *  NB: l'intestazione del master non è garantita sulla riga 1 (può esserci una riga-titolo sopra). */
+function trovaRigaHeader(sheet, ss, nomi, maxScan = 15) {
+  let visti = 0;
+  for (const rm of sheet.matchAll(/<row r="(\d+)"[\s\S]*?<\/row>/g)) {
+    if (++visti > maxScan) break;
+    const n = +rm[1];
+    if (nomi.every((nome) => colonnaDaHeader(rm[0], nome, ss, n) != null)) return { riga: n, xml: rm[0] };
+  }
+  return { riga: 0, xml: '' };
+}
+
+// Ciclo di vita ACEA dell'ordine (rank più alto = più avanzato). Serve a deduplicare gli ODL che
+// nell'export compaiono su più righe (una per operazione): a parità di Ordine si tiene lo stato più
+// avanzato, così "Intervento Richiesto" (il baseline) non sovrascrive mai uno stato reale per via
+// dell'ordine delle righe. Stato SCONOSCIUTO: appena sopra "Intervento Richiesto" (è comunque un
+// avanzamento) ma sotto ogni stato noto più avanzato.
+const RANK_STATO = {
+  INTERVENTORICHIESTO: 10,
+  ASSEGNATO: 30,
+  RICEVUTO: 40,
+  INVIAGGIO: 50,
+  SULPOSTO: 60,
+  INIZIATO: 70,
+  SOSPENSIONE: 80,
+  ANNULLATO: 90,
+  COMPLETATO: 100,
+};
+const RANK_SCONOSCIUTO = 20;
+function rankStato(s) {
+  const k = norm(s); // norm: maiuscolo, senza spazi → "Intervento Richiesto" → "INTERVENTORICHIESTO"
+  if (k === '') return -1;
+  return RANK_STATO[k] ?? RANK_SCONOSCIUTO;
+}
+/** A parità di chiave ODL tiene lo stato più avanzato; a parità di rank il primo visto (stabile). */
+function statoPiuAvanzato(a, b) {
+  return rankStato(b) > rankStato(a) ? b : a;
 }
 
 /**
@@ -105,18 +146,26 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   const ssFile = zip.file('xl/sharedStrings.xml');
   const ss = ssFile ? parseSharedStrings(await ssFile.async('string')) : [];
 
-  // 2) lettere colonna dalla riga 1
-  const headerRow = (sheet.match(/<row r="1"[\s\S]*?<\/row>/) || [''])[0];
-  const colOdl = colonnaDaHeader(headerRow, masterColonnaOdl, ss);
-  const colStato = colonnaDaHeader(headerRow, masterColonnaStato, ss);
-  const colAutomazione = colonnaDaHeader(headerRow, masterColonnaAutomazione, ss); // opzionale
+  // 2) riga di intestazione rilevata in modo dinamico (la prima, entro le prime righe, che contiene
+  //    sia la colonna Ordine sia la colonna Stato) → poi le lettere colonna da QUELLA riga.
+  const { riga: rigaHeader, xml: headerRow } = trovaRigaHeader(
+    sheet, ss, [masterColonnaOdl, masterColonnaStato].filter(Boolean),
+  );
+  const colOdl = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaOdl, ss, rigaHeader) : null;
+  const colStato = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaStato, ss, rigaHeader) : null;
+  const colAutomazione = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaAutomazione, ss, rigaHeader) : null; // opzionale
   if (!colOdl || !colStato) {
     return { erroreColonne: true, aggiornate: 0, invariate: 0, nonAgganciate: [], righe: [] };
   }
 
-  // 3) indice export per ODL
+  // 3) indice export per ODL. L'export è a livello OPERAZIONE: lo stesso Ordine può comparire su più
+  //    righe → a parità di Ordine si tiene lo stato più avanzato (deterministico, niente "ultimo vince").
   const mappa = new Map();
-  for (const r of righeExport) if (r.ordine) mappa.set(r.ordine, r.stato);
+  for (const r of righeExport) {
+    if (!r.ordine) continue;
+    const prev = mappa.get(r.ordine);
+    mappa.set(r.ordine, prev === undefined ? r.stato : statoPiuAvanzato(prev, r.stato));
+  }
 
   // 4) scorri le righe dati, raccogli le sostituzioni
   const visti = new Set();
@@ -128,7 +177,7 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   const sAttrDi = (cella) => (cella ? ((cella.attrs.match(/\bs="[^"]*"/) || [''])[0]) : '');
   for (const rm of sheet.matchAll(/<row r="(\d+)"[\s\S]*?<\/row>/g)) {
     const n = +rm[1];
-    if (n === 1) continue;
+    if (n <= rigaHeader) continue; // salta riga-titolo + intestazione
     const ordine = norm(valoreCella(trovaCella(rm[0], `${colOdl}${n}`), ss));
     if (!ordine) continue;
     const statoCell = trovaCella(rm[0], `${colStato}${n}`);

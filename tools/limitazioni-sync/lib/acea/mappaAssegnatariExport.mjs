@@ -1,12 +1,23 @@
 // tools/limitazioni-sync/lib/acea/mappaAssegnatariExport.mjs
 // PURO: dato l'export ACEA (righe { ordine, operatore }) costruisce la mappa odl→assegnatario e
-// decide se un ODL è GIÀ assegnato alla risorsa giusta. Il confronto è per COGNOME (primo token),
-// coerente col driver (assegnaInterventi seleziona per cognome). Nessun side-effect, niente I/O.
+// decide se un ODL è GIÀ assegnato alla risorsa giusta. Il confronto è per COGNOME INTERO (anche
+// composto), coerente con cognomeDa di assegnaInterventi.mjs. Nessun side-effect, niente I/O.
 import { norm } from '../match.mjs';
 import { risolviNomeOperatore } from './risolviNomeOperatore.mjs';
 
-/** Cognome = primo token, in maiuscolo. */
-const cognome = (s) => String(s ?? '').trim().split(/\s+/)[0].toUpperCase();
+/** Cognome normalizzato: spazi compattati, maiuscolo. NON spezza al primo token, così il cognome
+ *  composto resta intero ("DE SANTIS") e non si confonde con altri "DE ...". */
+const cognome = (s) => String(s ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+
+/** Due cognomi combaciano se uguali, o se uno è prefisso dell'altro su confine di parola: copre sia
+ *  il cognome composto ("DE SANTIS") sia l'export che porta anche il nome ("SIKORA FRANCO" combacia
+ *  con "SIKORA"). Su confine di parola per evitare falsi positivi tipo "DE LUCA" vs "DE SANTIS". */
+function cognomiCombaciano(a, b) {
+  if (!a || !b) return false;
+  const piu = a.length >= b.length ? a : b;
+  const meno = a.length >= b.length ? b : a;
+  return piu === meno || piu.startsWith(meno + ' ');
+}
 
 /** Map<odl(norm), operatoreGrezzo> dalle righe export. Salta righe senza odl o senza operatore;
  *  a parità di ODL tiene la prima (stabile). */
@@ -28,5 +39,5 @@ export function preassegnatoGiusto(odl, operatoreVoluto, mappa, operatoriCfg) {
   if (!attuale) return false;
   const cAtt = cognome(risolviNomeOperatore(attuale, operatoriCfg));
   const cVol = cognome(risolviNomeOperatore(operatoreVoluto, operatoriCfg));
-  return !!cAtt && cAtt === cVol;
+  return cognomiCombaciano(cAtt, cVol);
 }

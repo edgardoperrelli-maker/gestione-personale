@@ -8,6 +8,8 @@
     "password": "<PASSWORD-ACEA>",
     "browser": "msedge",
     "headless": true,
+    "timeoutMs": 60000,
+    "attesaScala": 2,
     "masterPath": "C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\DUNNING\\2026\\LIMITAZIONI CON ORDINE.xlsx",
     "foglio": "PIANIFICAZIONE",
     "download": "C:\\Users\\Edgardo\\Desktop\\tools\\_acea_download",
@@ -26,6 +28,7 @@
     "masterColonnaMatricola": "Matricola misuratore",
     "masterColonnaIndirizzo": "INDIRIZZO",
     "masterColonnaComune": "Località",
+    "masterColonnaAttivita": "Operazione testo breve",
     "operatori": {
       "Mario Rossi": "ROSSI MARIO"
     },

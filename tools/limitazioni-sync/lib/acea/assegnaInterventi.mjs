@@ -16,9 +16,29 @@
 // Robustezza "ordine bloccato": se SAP risponde che l'ordine è bloccato da un utente (lock di una
 // sessione precedente), l'ODL viene RIMANDATO. A fine giro si ritenta in una sessione FRESCA (chiudere
 // il primo browser rilascia i lock auto-inflitti). Se ancora bloccato → esito "non assegnato".
+import fs from 'node:fs';
+import path from 'node:path';
 import { apriCruscotto } from './driver.mjs';
 
-const cognomeDa = (s) => String(s ?? '').trim().split(/\s+/)[0] || '';
+// Log append per-ODL (NDJSON): traccia OGNI tentativo SUBITO su disco, indipendente dal report finale
+// (robusto a crash / inviaReport fallito). Una riga per esito → dataset per gli errori più comuni.
+// Estrae il "passo" dal motivo per categorizzare al volo. Best-effort: non deve MAI bloccare il giro.
+function appendEsitoLog(acea, stamp, r, esito, motivo) {
+  try {
+    const dir = acea?.debug || acea?.download || '.';
+    fs.mkdirSync(dir, { recursive: true });
+    const passo = (/passo "([^"]+)"/.exec(String(motivo ?? '')) || [])[1] || null;
+    const riga = { ts: new Date().toISOString(), stamp, odl: r?.odl ?? null, operatore: r?.operatoreAcea ?? null, esito, passo, motivo: motivo ?? null };
+    fs.appendFileSync(path.join(dir, 'acea-assegna-esiti.ndjson'), JSON.stringify(riga) + '\n', 'utf8');
+  } catch { /* best-effort: il log non deve mai bloccare l'assegnazione */ }
+}
+
+// L'`esecutore`/operatoreAcea del master è GIÀ solo il COGNOME, anche COMPOSTO ("DE SANTIS",
+// "DI MARCO", "LA ROSA"). NON spezzare alla prima parola: per "DE SANTIS" darebbe "DE" → la regex
+// /DE/i (case-insensitive) matcha "de" ovunque (Ad-de-tto, qualifiche, descrizioni) e rompe SIA la
+// selezione nella modale SIA il ciclo Team Leader (ogni riga sembra "l'operatore"). Si usa il cognome
+// INTERO con spazi normalizzati, così il match resta preciso ("DE SANTIS" → /DE SANTIS/i).
+const cognomeDa = (s) => String(s ?? '').trim().replace(/\s+/g, ' ');
 
 /** Se è aperto il dialog "L'ordine … è attualmente bloccato dall'utente …": lo chiude e ritorna il
  *  testo dell'errore. Altrimenti ritorna null. Attende fino a 3s perché compaia dopo Modificare/Salva. */
@@ -38,13 +58,16 @@ async function rilevaBlocco(app) {
  *  Ritorna un esito {odl,esito,motivo} OPPURE {bloccato:true,odl,motivo} se l'ordine è bloccato.
  *  Lancia (con "passo …" nel messaggio) sugli altri errori; se la sessione è morta il messaggio
  *  contiene "has been closed" → il chiamante rimanda l'ODL a un giro fresco. */
-async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto }) {
+async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto, scala = 1 }) {
   const cognome = cognomeDa(r.operatoreAcea);
+  // Pazienza: moltiplica i tempi d'attesa (config acea.attesaScala) quando ACEA è lenta a renderizzare.
+  // Alzare un timeout NON rallenta gli ODL che vanno a buon fine: l'attesa finisce appena l'elemento c'è.
+  const T = (ms) => Math.round(ms * scala);
   let passo = `form-${r.odl}`;
   try {
     // 0) torna al form di ricerca
     await tornaAlForm();
-    await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: 30_000 });
+    await app.getByRole('button', { name: 'Ricerca' }).first().waitFor({ state: 'visible', timeout: T(30_000) });
 
     // 1) Contratto: fill se editabile (form fresco lo "attiva"); se disabilitato è già impostato
     passo = `contratto-${r.odl}`;
@@ -53,7 +76,7 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
       if (contratto && await c.isEditable().catch(() => false)) {
         await c.fill(String(contratto));
         await c.press('Enter');
-        await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: 15_000 }).catch(() => {});
+        await app.getByText('PLENZICH', { exact: false }).first().waitFor({ state: 'visible', timeout: T(15_000) }).catch(() => {});
       }
     } catch { /* già impostato */ }
 
@@ -71,7 +94,7 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
     const inputModale = (await cellaOdl.isVisible().catch(() => false))
       ? cellaOdl
       : app.getByRole('textbox', { name: 'Numero OdM' }).last();
-    await inputModale.waitFor({ state: 'visible', timeout: 20_000 });
+    await inputModale.waitFor({ state: 'visible', timeout: T(20_000) });
     await inputModale.click();
     await inputModale.fill(String(r.odl));
     await app.getByRole('button', { name: 'Inserisci OdM' }).click();
@@ -81,7 +104,7 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
     await app.getByRole('button', { name: 'Ricerca' }).first().click();
     await page.waitForLoadState('networkidle').catch(() => {});
     const rigaLavoro = app.getByRole('row', { name: new RegExp(String(r.odl)) }).first();
-    await rigaLavoro.waitFor({ state: 'visible', timeout: 25_000 });
+    await rigaLavoro.waitFor({ state: 'visible', timeout: T(25_000) });
     await shot(`trovato-${r.odl}`);
 
     if (dryRun) return { odl: r.odl, esito: 'simulato', motivo: 'dry-run (riga trovata, non salvato)' };
@@ -97,39 +120,62 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
     if (bloccoEdit) return { bloccato: true, odl: r.odl, motivo: bloccoEdit };
 
     passo = `risorse-${r.odl}`;
-    await app.getByText('Definizione risorse').first().click();
-    const btnInserire = app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]');
-    await btnInserire.waitFor({ state: 'visible', timeout: 20_000 });
+    // SAP carica il pannello in modo ASINCRONO: la scheda può restare vuota un attimo (è la causa
+    // dei fallimenti intermittenti "inserisci"/"seleziona" anche quando l'operatore C'È). Clicca la
+    // scheda, attendi il caricamento, e RIPROVA se il bottone "Inserire" non compare.
+    const btnInserire = app.locator('[id$="addDipendenteFromDefinizioneRisorseSingle"]').first();
+    const btnModificaEdit = app.getByRole('button', { name: 'Modificare' }).first();
+    let pannelloPronto = false;
+    for (let t = 0; t < 3 && !pannelloPronto; t++) {
+      // GARANZIA modalità modifica: "Modificare" è il tasto che abilita la modifica e l'inserimento
+      // operatori. Se è ANCORA visibile, il click iniziale NON ha scattato (ACEA lenta) → la scheda
+      // resta in SOLA LETTURA e "Inserire" non comparirà mai. Ri-clicca finché entra in modifica.
+      if (await btnModificaEdit.isVisible().catch(() => false)) {
+        await btnModificaEdit.click().catch(() => {});
+        const bloccoRetry = await rilevaBlocco(app);
+        if (bloccoRetry) return { bloccato: true, odl: r.odl, motivo: bloccoRetry };
+        await page.waitForLoadState('networkidle').catch(() => {});
+      }
+      await app.getByText('Definizione risorse').first().click().catch(() => {});
+      await page.waitForLoadState('networkidle').catch(() => {});
+      pannelloPronto = await btnInserire.isVisible().catch(() => false);
+      if (!pannelloPronto) await page.waitForTimeout(T(1500));
+    }
+    if (!pannelloPronto) throw new Error('scheda "Definizione risorse" non caricata (Modificare/Inserire non scattati)');
 
     // L'operatore è GIÀ nella griglia Dipendenti? (es. già assegnato): in tal caso non è tra i
     // "Dipendenti disponibili" della modale → niente aggiunta, solo Team Leader.
     let giaPresente = false;
     try {
       await app.getByRole('row', { name: new RegExp(`Team Leader.*${cognome}`, 'i') }).first()
-        .waitFor({ state: 'visible', timeout: 6_000 });
+        .waitFor({ state: 'visible', timeout: T(6_000) });
       giaPresente = true;
     } catch { giaPresente = false; }
 
     if (!giaPresente) {
       passo = `inserisci-${r.odl}`;
+      await btnInserire.waitFor({ state: 'visible', timeout: T(15_000) }); // il pannello può ri-renderizzarsi: ri-conferma
       await btnInserire.click();
 
       passo = `seleziona-${r.odl}`;
-      // La griglia "Selezione dipendenti" è VIRTUALIZZATA: solo le righe a schermo sono nel DOM,
-      // quindi l'operatore può stare "sotto la prima schermata". Scorri (mouse wheel sulla tabella)
-      // finché la riga col cognome compare, poi cliccala. (root cause del timeout su seleziona-*)
+      // La modale "Selezione dipendenti" carica la lista in modo ASINCRONO e VIRTUALIZZA le righe
+      // (solo quelle a schermo sono nel DOM). L'operatore C'È sempre, ma può stare sopra o sotto la
+      // schermata iniziale. Quindi: attendi che la lista sia popolata, RIPARTI DALL'ALTO, poi scorri
+      // a PICCOLI passi controllando a ogni passo (i falsi "non trovato"/timeout su seleziona-* nascono
+      // dal cercare su lista non ancora caricata e dallo scroll grossolano solo verso il basso).
       const tabella = app.locator('#tableSelezioneDipendenti');
-      await tabella.waitFor({ state: 'visible', timeout: 20_000 });
+      await tabella.waitFor({ state: 'visible', timeout: T(20_000) });
+      await tabella.locator('[id*="-rowsel"]').first().waitFor({ state: 'visible', timeout: T(15_000) }).catch(() => {});
       const rigaDialogo = tabella.getByRole('row', { name: new RegExp(cognome, 'i') }).first();
+      const box = await tabella.boundingBox().catch(() => null);
+      if (box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+      // riparti dall'alto: l'operatore può essere SOPRA la posizione iniziale della lista
+      for (let s = 0; s < 25; s++) { await page.mouse.wheel(0, -200); await page.waitForTimeout(60); }
       let visibile = await rigaDialogo.isVisible().catch(() => false);
-      if (!visibile) {
-        const box = await tabella.boundingBox().catch(() => null);
-        if (box) await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        for (let s = 0; s < 40 && !visibile; s++) {
-          await page.mouse.wheel(0, 320);
-          await page.waitForTimeout(180);
-          visibile = await rigaDialogo.isVisible().catch(() => false);
-        }
+      for (let s = 0; s < 120 && !visibile; s++) {
+        await page.mouse.wheel(0, 80); // passo piccolo: non saltare righe
+        await page.waitForTimeout(90);
+        visibile = await rigaDialogo.isVisible().catch(() => false);
       }
       if (!visibile) throw new Error(`operatore "${cognome}" non trovato nella lista Selezione dipendenti (scroll esaurito)`);
       // SELEZIONE: in sap.ui.table cliccare la cella DATI dà solo focus, NON seleziona la riga.
@@ -148,24 +194,44 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
       await app.getByRole('button', { name: 'Ok' }).click();
       // la modale si chiude e l'operatore appare nella griglia Dipendenti. Conferma per COGNOME:
       // il nome accessibile della riga non sempre contiene il testo "Team Leader" (colonna checkbox).
-      await app.locator('#tableSelezioneDipendenti').waitFor({ state: 'hidden', timeout: 10_000 }).catch(() => {});
+      await app.locator('#tableSelezioneDipendenti').waitFor({ state: 'hidden', timeout: T(10_000) }).catch(() => {});
       await app.getByRole('row', { name: new RegExp(cognome, 'i') }).first()
-        .waitFor({ state: 'visible', timeout: 20_000 });
+        .waitFor({ state: 'visible', timeout: T(20_000) });
     }
 
-    // REGOLA: l'operatore dev'essere l'UNICO Team Leader. Per riga: spunta l'operatore, togli gli altri.
+    // REGOLA: l'operatore dev'essere l'UNICO Team Leader.
+    // Caso critico "ODL già assegnato a un ALTRO operatore" (il destinatario di oggi è diverso da chi
+    // c'è già): vanno fatte due cose nell'ORDINE giusto → 1) togliere il flag Team Leader al/ai
+    // vecchio/i operatore/i; 2) spuntare come Team Leader il nuovo operatore. Altrimenti restano DUE
+    // Team Leader e SAP blocca il Salva con "Selezionare un solo Team Leader".
+    // NON filtriamo le righe per accessible-name "Team Leader": quel nome NON lo contiene sempre (vedi
+    // commento sopra) → la riga del vecchio operatore sfuggiva al ciclo e restava TL. Prendiamo invece
+    // TUTTE le righe della griglia Dipendenti = quelle che ESPONGONO il checkbox "Team Leader".
     passo = `teamleader-${r.odl}`;
     let modificato = !giaPresente;
-    const righeTL = app.getByRole('row', { name: /Team Leader/ });
-    const nR = await righeTL.count();
+    let righeDip = app.getByRole('row').filter({ has: app.getByLabel('Team Leader') });
+    let nR = await righeDip.count();
+    if (nR === 0) { // fallback difensivo: vecchia strategia (righe col nome che contiene "Team Leader")
+      righeDip = app.getByRole('row', { name: /Team Leader/ });
+      nR = await righeDip.count();
+    }
+    // 1) togli il flag Team Leader a TUTTI gli operatori che NON sono il destinatario
     for (let i = 0; i < nR; i++) {
-      const riga = righeTL.nth(i);
+      const riga = righeDip.nth(i);
       const testo = (await riga.textContent().catch(() => '')) ?? '';
-      const isOp = new RegExp(cognome, 'i').test(testo);
+      if (!testo.trim()) continue;                        // riga senza dati (header/placeholder): salta
+      if (new RegExp(cognome, 'i').test(testo)) continue; // è il nuovo operatore: lo gestiamo al passo 2
       const box = riga.getByLabel('Team Leader').first();
-      const checked = await box.isChecked().catch(() => false);
-      if (isOp && !checked) { await box.click(); modificato = true; }
-      else if (!isOp && checked) { await box.click(); modificato = true; }
+      if (await box.isChecked().catch(() => false)) { await box.click(); modificato = true; }
+    }
+    // 2) spunta come Team Leader il nuovo operatore (destinatario di oggi), se non già spuntato
+    for (let i = 0; i < nR; i++) {
+      const riga = righeDip.nth(i);
+      const testo = (await riga.textContent().catch(() => '')) ?? '';
+      if (!new RegExp(cognome, 'i').test(testo)) continue;
+      const box = riga.getByLabel('Team Leader').first();
+      if (!(await box.isChecked().catch(() => false))) { await box.click(); modificato = true; }
+      break; // un solo destinatario
     }
 
     // 6) Salva → dopo può comparire l'OK di conferma (successo) o l'errore "ordine bloccato"
@@ -173,8 +239,8 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
     await app.getByRole('button', { name: 'Salva' }).click();
     const bloccoSalva = await rilevaBlocco(app);
     if (bloccoSalva) return { bloccato: true, odl: r.odl, motivo: bloccoSalva };
-    if (modificato) await app.getByRole('button', { name: 'OK' }).click({ timeout: 15_000 });
-    else await app.getByRole('button', { name: 'OK' }).click({ timeout: 6_000 }).catch(() => {});
+    if (modificato) await app.getByRole('button', { name: 'OK' }).click({ timeout: T(15_000) });
+    else await app.getByRole('button', { name: 'OK' }).click({ timeout: T(6_000) }).catch(() => {});
     await page.waitForLoadState('networkidle').catch(() => {});
     await shot(`ok-${r.odl}`);
     return {
@@ -190,9 +256,53 @@ async function processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto 
   }
 }
 
-export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun = true } = {}) {
+/** Orchestrazione dei giri di assegnazione: sessioni fresche a BLOCCHI + ritentativi.
+ *  `runGiro(lista)` esegue UN giro in una sessione propria e ritorna `{ fatti, daRitentare:[{r,motivo}] }`.
+ *  Recupero su due livelli (sempre in una sessione FRESCA):
+ *   - cascata: gli ODL rimandati dal giro (form perso / sessione chiusa / ordine bloccato) → ritentati;
+ *   - flake di passo: un `fallito` di passo intermedio (pannello "Definizione risorse" non caricato,
+ *     scroll della modale dipendenti, ecc.) è spesso intermittente → UN ritentativo prima di darlo
+ *     per perso (es. lo stesso operatore va a buon fine in un'altra sessione).
+ *  Niente Playwright qui dentro → testabile con un runGiro finto. */
+export async function orchestraAssegnazioni(righe, runGiro, { chunk = 20, maxPassi = 8, stopDopoFermi = 2 } = {}) {
   const esiti = [];
   if (!Array.isArray(righe) || righe.length === 0) return { esiti };
+  const giaRitentato = new Set(); // odl 'fallito' a cui è già stato concesso il ritentativo
+  let pending = righe.map((r) => ({ r, motivo: null }));
+  let fermi = 0;
+  for (let passo = 0; passo < maxPassi && pending.length; passo++) {
+    const prossimo = [];
+    let chiusi = 0; // esiti definitivi prodotti in questo passo (= "progresso")
+    for (let i = 0; i < pending.length; i += chunk) {
+      const blocco = pending.slice(i, i + chunk);
+      const byOdl = new Map(blocco.map((x) => [String(x.r.odl), x.r]));
+      const esito = (await runGiro(blocco.map((x) => x.r))) ?? {};
+      const fatti = Array.isArray(esito.fatti) ? esito.fatti : [];
+      const daRitentare = Array.isArray(esito.daRitentare) ? esito.daRitentare : [];
+      for (const e of fatti) {
+        const key = String(e.odl);
+        if (e.esito === 'fallito' && !giaRitentato.has(key) && byOdl.has(key)) {
+          giaRitentato.add(key); // un solo ritentativo per ODL → niente loop
+          prossimo.push({ r: byOdl.get(key), motivo: e.motivo });
+        } else {
+          esiti.push(e);
+          chiusi++;
+        }
+      }
+      for (const x of daRitentare) prossimo.push(x);
+    }
+    fermi = chiusi === 0 ? fermi + 1 : 0;
+    pending = prossimo;
+    if (fermi >= stopDopoFermi) break;
+  }
+  for (const x of pending) {
+    esiti.push({ odl: x.r.odl, esito: 'non assegnato', motivo: x.motivo || 'non recuperabile dopo ritentativi' });
+  }
+  return { esiti };
+}
+
+export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun = true } = {}) {
+  if (!Array.isArray(righe) || righe.length === 0) return { esiti: [] };
 
   // Esegue UN giro su `lista` in una sessione propria. Ritorna gli esiti chiusi (`fatti`) e gli ODL
   // da ritentare (`daRitentare`: bloccati o interrotti per sessione morta).
@@ -230,18 +340,27 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
       for (let k = 0; k < lista.length; k++) {
         const r = lista[k];
         try {
-          const res = await processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto: acea.ricerca?.contratto });
-          if (res?.bloccato) daRitentare.push({ r, motivo: res.motivo });
-          else fatti.push(res);
+          const res = await processaOdl({ app, page, shot, tornaAlForm, r, dryRun, contratto: acea.ricerca?.contratto, scala: acea.attesaScala ?? 1.5 });
+          if (res?.bloccato) { daRitentare.push({ r, motivo: res.motivo }); appendEsitoLog(acea, stamp, r, 'bloccato', res.motivo); }
+          else { fatti.push(res); appendEsitoLog(acea, stamp, r, res?.esito ?? '?', res?.motivo ?? null); }
         } catch (e) {
           const msg = e instanceof Error ? e.message : String(e);
           await shot(`errore-${r.odl}`).catch(() => {});
-          if (/has been closed/i.test(msg)) {
-            // sessione morta: rimanda QUESTO e tutti i successivi a un giro fresco
-            for (let j = k; j < lista.length; j++) daRitentare.push({ r: lista[j], motivo: 'sessione interrotta, da ritentare' });
+          // Sessione inutilizzabile per gli ODL SUCCESSIVI → rimanda QUESTO e i restanti a una
+          // sessione FRESCA (è la causa della cascata di fallimenti "form-*"):
+          //  - "has been closed": browser/sessione morto;
+          //  - fallimento allo step "form": la maschera di ricerca non è più tornata (tornaAlForm
+          //    non ha recuperato) → ogni ODL seguente fallirebbe a catena allo stesso punto.
+          const sessionePersa = /has been closed/i.test(msg);
+          const formPerso = /passo "form-/.test(msg);
+          if (sessionePersa || formPerso) {
+            const motivo = formPerso ? 'maschera di ricerca persa: sessione rinfrescata' : 'sessione interrotta, da ritentare';
+            appendEsitoLog(acea, stamp, r, 'rimandato', `${motivo} :: ${msg}`);
+            for (let j = k; j < lista.length; j++) daRitentare.push({ r: lista[j], motivo });
             break;
           }
           fatti.push({ odl: r.odl, esito: 'fallito', motivo: msg });
+          appendEsitoLog(acea, stamp, r, 'fallito', msg);
         }
       }
     } finally {
@@ -250,18 +369,8 @@ export async function assegnaInterventi(acea, righe, { stamp = 'manual', dryRun 
     return { fatti, daRitentare };
   };
 
-  // Giro 1
-  const g1 = await eseguiGiro(righe);
-  esiti.push(...g1.fatti);
-
-  // Giro 2 (solo i rimandati): sessione FRESCA → libera i lock auto-inflitti dal giro 1
-  if (g1.daRitentare.length) {
-    const g2 = await eseguiGiro(g1.daRitentare.map((x) => x.r));
-    esiti.push(...g2.fatti);
-    for (const x of g2.daRitentare) {
-      esiti.push({ odl: x.r.odl, esito: 'non assegnato', motivo: x.motivo || 'ordine bloccato' });
-    }
-  }
-
-  return { esiti };
+  // Sessioni fresche a BLOCCHI + ritentativo finché si fa progresso (orchestraAssegnazioni):
+  // blocchi piccoli = niente degrado da sessione di ore; "form perso"/sessione chiusa/ordine
+  // bloccato → i restanti a una sessione fresca; chiudere il browser libera i lock auto-inflitti.
+  return orchestraAssegnazioni(righe, eseguiGiro, { chunk: acea?.assegna?.chunk ?? 20 });
 }

@@ -116,4 +116,89 @@ describe('aggiornaStatoXlsx', () => {
     });
     expect(rep.erroreColonne).toBe(true);
   });
+
+  // --- BLINDATURA 1: intestazione rilevata in modo dinamico (non solo riga 1) ---
+  it('trova l’intestazione anche se NON è sulla riga 1 (riga-titolo sopra)', async () => {
+    const file = path.join(dir, 'header-riga2.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['LIMITAZIONI CON ORDINE — pianificazione']);            // riga 1: titolo
+    ws.addRow(['Ordine', 'Stato Operazione', 'Esecutore', 'Automazione']); // riga 2: intestazione
+    ws.addRow([957276080, 'Intervento Richiesto', 'CIARALLO', '']);    // riga 3: dati
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(file, [{ ordine: '957276080', stato: 'completato' }], {
+      foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+      masterColonnaAutomazione: 'Automazione',
+    });
+
+    expect(rep.erroreColonne).toBe(false);
+    expect(rep.aggiornate).toBe(1);
+
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    const w = chk.getWorksheet('PIANIFICAZIONE')!;
+    expect(w.getRow(3).getCell(2).value).toBe('completato');       // stato aggiornato
+    expect(w.getRow(3).getCell(3).value).toBe('CIARALLO');         // altra cella intatta
+    expect(w.getRow(3).getCell(4).value).toBe('SI + Stato Operazione'); // marcatore
+  });
+
+  // --- BLINDATURA 2: ODL duplicato nell'export (multi-operazione) → vince lo stato più avanzato ---
+  it('ODL duplicato con stati diversi: vince il più avanzato, NON "Intervento Richiesto" (anche se ultimo)', async () => {
+    const file = path.join(dir, 'dup.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione']);
+    ws.addRow([957276080, 'Intervento Richiesto']);
+    await wb.xlsx.writeFile(file);
+
+    // stesso ordine due volte; "Intervento Richiesto" è l'ULTIMA riga: con last-wins vincerebbe (errato)
+    const rep = await aggiornaStatoXlsx(file, [
+      { ordine: '957276080', stato: 'completato' },
+      { ordine: '957276080', stato: 'Intervento Richiesto' },
+    ], { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione' });
+
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(2).value).toBe('completato');
+  });
+
+  it('ODL duplicato: l’ordine delle righe export non conta (determinismo)', async () => {
+    const file = path.join(dir, 'dup2.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione']);
+    ws.addRow([957276080, 'Intervento Richiesto']);
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(file, [
+      { ordine: '957276080', stato: 'Intervento Richiesto' },
+      { ordine: '957276080', stato: 'completato' },
+    ], { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione' });
+
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(2).value).toBe('completato');
+  });
+
+  it('ODL duplicato: uno stato sconosciuto vince comunque su "Intervento Richiesto"', async () => {
+    const file = path.join(dir, 'dup3.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione']);
+    ws.addRow([957276080, 'Intervento Richiesto']);
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(file, [
+      { ordine: '957276080', stato: 'Stato Nuovo ACEA' }, // sconosciuto → comunque oltre "richiesto"
+      { ordine: '957276080', stato: 'Intervento Richiesto' },
+    ], { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione' });
+
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(2).value).toBe('Stato Nuovo ACEA');
+  });
 });
