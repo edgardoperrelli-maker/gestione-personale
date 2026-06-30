@@ -1,42 +1,30 @@
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { redirect } from 'next/navigation';
-import { getAllowedModulesForUser, resolveAssignableRole, resolveUserRole } from '@/lib/moduleAccess';
-import { loadPerformanceBundle } from '@/lib/performance/load';
-import PerformancePanel from '@/components/modules/performance/PerformancePanel';
+import Link from 'next/link';
+import { assertKpiAccess } from '@/lib/performance/kpiGate';
 
 export const dynamic = 'force-dynamic';
 
-export default async function PerformancePage() {
-  const cookieStore = await cookies();
-  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
-  const supabase = createServerComponentClient({ cookies: cookieMethods });
+const cardClass =
+  'group rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-sm transition hover:border-[var(--brand-primary)] hover:shadow-md';
 
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-
-  // Gate FORTE: solo admin_plus (come il cruscotto premialità).
-  const assignable = resolveAssignableRole(profile?.role, user.app_metadata?.role);
-  if (assignable !== 'admin_plus') redirect('/hub');
-  const role = resolveUserRole(profile?.role, user.app_metadata?.role);
-  if (!getAllowedModulesForUser(user.app_metadata, role).includes('performance')) redirect('/hub');
-
-  const bundle = await loadPerformanceBundle();
+export default async function KpiLandingPage() {
+  await assertKpiAccess();
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-4">
+    <div className="mx-auto max-w-4xl space-y-4 p-4">
       <div>
-        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Performance operatori</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Cosa hanno fatto gli operatori: interventi completati, con produzione giornaliera e filtri indipendenti per ogni grafico.</p>
+        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">KPI</h1>
+        <p className="text-sm text-[var(--brand-text-muted)]">Scegli la vista.</p>
       </div>
-      <PerformancePanel
-        rows={bundle.rows}
-        operatori={bundle.operatori}
-        territori={bundle.territori}
-        committenti={bundle.committenti}
-        minDate={bundle.minDate}
-      />
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+        <Link href="/hub/performance/operatori" className={cardClass}>
+          <h2 className="text-lg font-semibold text-[var(--brand-text-main)] group-hover:text-[var(--brand-primary)]">Performance operatori</h2>
+          <p className="mt-1 text-sm text-[var(--brand-text-muted)]">Interventi completati per operatore: produzione giornaliera, confronto, distribuzioni e dettaglio.</p>
+        </Link>
+        <Link href="/hub/performance/economica" className={cardClass}>
+          <h2 className="text-lg font-semibold text-[var(--brand-text-main)] group-hover:text-[var(--brand-primary)]">Produzione economica</h2>
+          <p className="mt-1 text-sm text-[var(--brand-text-muted)]">Valorizzazione € (Produzione vs SAL), listino tariffe, audit a tre vie ed export Excel.</p>
+        </Link>
+      </div>
     </div>
   );
 }

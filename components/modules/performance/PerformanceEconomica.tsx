@@ -18,6 +18,8 @@ interface DatiProduzione {
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
   auditTruncated: boolean;
+  masterPopolato: boolean;
+  portalePopolato: boolean;
 }
 
 const eur = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
@@ -64,9 +66,14 @@ function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string
 export default function PerformanceEconomica() {
   const now = useMemo(() => new Date(), []);
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const monthStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  // Default = ultimi 30 giorni (così non è vuoto il 1° del mese, quando il "mese corrente" non ha dati).
+  const trentaGiorniFa = useMemo(() => {
+    const d = new Date(now);
+    d.setDate(now.getDate() - 30);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, [now]);
 
-  const [from, setFrom] = useState(monthStart);
+  const [from, setFrom] = useState(trentaGiorniFa);
   const [to, setTo] = useState(today);
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [loading, setLoading] = useState(false);
@@ -102,6 +109,24 @@ export default function PerformanceEconomica() {
   const presetTrimestre = () => setRange(`${now.getFullYear()}-${pad(now.getMonth() - (now.getMonth() % 3) + 1)}-01`, today);
   const presetAnno = () => setRange(`${now.getFullYear()}-01-01`, today);
 
+  // "Allinea da ACEA": comanda l'agente a rileggere i master (DUNNING/ZAGAROLO). L'agente esegue al
+  // prossimo giro (stesso flag di "Richiedi stato ACEA"); poi ricarica la foglietta per vedere i dati.
+  const [allineaMsg, setAllineaMsg] = useState<string | null>(null);
+  const allinea = async (target: 'dunning' | 'zagarolo') => {
+    setAllineaMsg('Invio richiesta…');
+    try {
+      const res = await fetch('/api/admin/agente/acea-stato', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+      setAllineaMsg(`Richiesto: l’agente leggerà il master ${target === 'zagarolo' ? 'ZAGAROLO (massive)' : 'DUNNING'} al prossimo giro.`);
+    } catch (e) {
+      setAllineaMsg(e instanceof Error ? e.message : 'Errore richiesta allineamento.');
+    }
+  };
+
   const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}`;
   const invalid = Boolean(from && to && from > to);
 
@@ -111,7 +136,11 @@ export default function PerformanceEconomica() {
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-[var(--brand-text-subtle)]">Allinea master:</span>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('dunning')}>Dunning</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('zagarolo')}>Zagarolo</Button>
+          <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => setEditorOpen((v) => !v)}>
             {editorOpen ? 'Chiudi listino' : 'Listino tariffe'}
           </Button>
@@ -123,6 +152,7 @@ export default function PerformanceEconomica() {
           </a>
         </div>
       </div>
+      {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
 
       {editorOpen && (
         <div className="mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
@@ -223,11 +253,28 @@ export default function PerformanceEconomica() {
           <div className="rounded-xl border border-[var(--brand-border)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">Audit a tre vie (DB · master · portale)</h3>
-              {auditClassi.length === 0 && <Badge variant="success">Nessuna discrepanza</Badge>}
+              {(!dati.masterPopolato || !dati.portalePopolato) && (
+                <Badge variant="warn">
+                  {!dati.masterPopolato && !dati.portalePopolato
+                    ? 'Snapshot master e portale non ancora popolati'
+                    : !dati.masterPopolato
+                      ? 'Snapshot master non popolato'
+                      : 'Snapshot portale non popolato'}
+                </Badge>
+              )}
+              {dati.masterPopolato && dati.portalePopolato && auditClassi.length === 0 && (
+                <Badge variant="success">Nessuna discrepanza</Badge>
+              )}
               {auditClassi.map((c) => (
                 <Badge key={c} variant="warning">{AUDIT_LABEL[c]}: {num(dati.auditSummary[c])}</Badge>
               ))}
             </div>
+            {(!dati.masterPopolato || !dati.portalePopolato) && (
+              <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
+                L’audit DB↔master↔portale è limitato finché l’agente non carica gli snapshot. Usa
+                «Allinea master» e lancia il giro «Richiedi stato ACEA» dall’agente, poi ricarica.
+              </p>
+            )}
             {dati.audit.length > 0 && (
               <div className="max-h-72 overflow-auto">
                 <table className="w-full text-xs">

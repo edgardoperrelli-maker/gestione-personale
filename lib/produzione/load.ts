@@ -45,6 +45,8 @@ export interface ProduzioneEconomica {
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
   auditTruncated: boolean;
+  masterPopolato: boolean;
+  portalePopolato: boolean;
 }
 
 interface InterventoRow {
@@ -68,13 +70,17 @@ interface PortaleRow {
   stato_norm: string | null;
 }
 
+// Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
+// limitazioni massive ZAGAROLO (committente='lim_massive'), valorizzate con lo stesso listino.
+const COMMITTENTI = ['acea', 'lim_massive'];
+
 async function caricaInterventiAcea(): Promise<InterventoRow[]> {
   const rows: InterventoRow[] = [];
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
       .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato')
-      .eq('committente', 'acea')
+      .in('committente', COMMITTENTI)
       .order('id', { ascending: true })
       .range(off, off + PAGE - 1);
     if (error) throw error;
@@ -223,7 +229,12 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
 
   const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
 
-  const auditTutte = riconcilia({ db: dbAudit, master: masterAudit, portale: portaleAudit });
+  const masterPopolato = masterAudit.size > 0;
+  const portalePopolato = portaleAudit.size > 0;
+  const auditTutte = riconcilia(
+    { db: dbAudit, master: masterAudit, portale: portaleAudit },
+    { masterPopolato, portalePopolato },
+  );
   const auditSummary: Record<ClasseDiscrepanza, number> = {
     SOLO_PORTALE: 0,
     DB_NON_IN_MASTER: 0,
@@ -246,5 +257,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     auditSummary,
     auditTotale: auditTutte.length,
     auditTruncated: auditTutte.length > AUDIT_CAP,
+    masterPopolato,
+    portalePopolato,
   };
 }
