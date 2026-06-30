@@ -3,11 +3,14 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
 import { matchVociMatricola } from '@/lib/limitazione/matchVociMatricola';
-import { normMatricola, verdettoEsecuzione, type VerdettoEsecuzione } from '@/lib/limitazione/verdettoEsecuzione';
+import { verdettoEsecuzione, type VerdettoEsecuzione } from '@/lib/limitazione/verdettoEsecuzione';
 
 export const runtime = 'nodejs';
 
 const COMMITTENTE_LIMITAZIONE = 'acea';
+// Scope del blocco anti-duplicato: stesso cliente ACEA sotto due etichette
+// ('acea' = interventi da ODL, 'lim_massive' = interventi caricati a mano dal "+").
+const COMMITTENTI_BLOCCO = ['acea', 'lim_massive'];
 const CAMPI = 'id, matricola, pdr, nominativo, indirizzo, civico, comune, cap, odl';
 
 /** Escapa i metacaratteri ilike (% _ \) così l'input utente non agisce da wildcard. */
@@ -20,27 +23,43 @@ type RigaRef = {
   indirizzo: string | null; civico: string | null; comune: string | null; cap: string | null;
 };
 
-/** Verdetto "già eseguita" per la matricola: fonte master (limitazione_misuratori_stato, riportata
- *  dall'agente al sync) OPPURE fonte DB (una voce di rapportino con esito positivo). */
-async function leggiVerdetto(committente: string, q: string): Promise<VerdettoEsecuzione> {
-  const qn = normMatricola(q);
-  // Le due fonti sono indipendenti → in parallelo. La fonte DB usa un pre-filtro ampio (ilike '%q%')
-  // e poi un confronto NORMALIZZATO lato JS (case/trattini/spazi), coerente con la fonte master.
-  const [stRes, vociRes] = await Promise.all([
-    supabaseAdmin.from('limitazione_misuratori_stato')
-      .select('esito, stato_odl, odl, esecutore')
-      .eq('committente', committente).eq('matricola_norm', qn).limit(1),
+/** Verdetto "già eseguita" per la matricola, fonte DB: un intervento ACEA con esito
+ *  'eseguito_positivo' OPPURE una voce di rapportino con `eseguito = SI`, nello scope
+ *  COMMITTENTI_BLOCCO. Lo stato ordine (COMPLETATO) NON conta. Pre-filtro SQL ilike '%q%';
+ *  il match per matricola normalizzata e la regola "vince il positivo" sono in verdettoEsecuzione. */
+async function leggiVerdetto(q: string): Promise<VerdettoEsecuzione> {
+  const like = `%${escLike(q)}%`;
+  // Le due fonti sono indipendenti → in parallelo.
+  const [intRes, vociRes] = await Promise.all([
+    supabaseAdmin.from('interventi')
+      .select('odl, matricola_contatore, data')
+      .in('committente', COMMITTENTI_BLOCCO)
+      // ATTENZIONE: questo filtro è ciò che garantisce "lo STATO COMPLETATO non blocca": un
+      // intervento completato con esito negativo NON entra qui. NON allargare a `stato` o ad
+      // altri esiti, o si reintroduce il falso blocco sui completati-negativi.
+      .eq('esito', 'eseguito_positivo')
+      .ilike('matricola_contatore', like).limit(100),
     supabaseAdmin.from('rapportino_voci')
-      .select('odl, matricola, risposte')
-      .ilike('matricola', `%${escLike(q)}%`).limit(100),
+      .select('odl, matricola, risposte, interventi(committente)')
+      .ilike('matricola', like).limit(100),
   ]);
-  const statoMaster = (stRes.data && stRes.data[0]) || null;
-  const vocePositivaDb = ((vociRes.data ?? []) as Array<{ odl: string | null; matricola: string | null; risposte: Record<string, unknown> | null }>)
-    .find((v) => normMatricola(v.matricola ?? '') === qn && String(v.risposte?.['eseguito'] ?? '').trim().toUpperCase() === 'SI') ?? null;
-  return verdettoEsecuzione({
-    statoMaster,
-    vocePositivaDb: vocePositivaDb ? { odl: vocePositivaDb.odl, data: null } : null,
-  });
+
+  const interventiPositivi = ((intRes.data ?? []) as Array<{
+    odl: string | null; matricola_contatore: string | null; data: string | null;
+  }>).map((r) => ({ odl: r.odl, matricola_contatore: r.matricola_contatore, data: r.data }));
+
+  // Una voce conta solo se l'intervento collegato è nello scope ACEA (committente via embedded FK).
+  const voci = ((vociRes.data ?? []) as Array<{
+    odl: string | null; matricola: string | null; risposte: Record<string, unknown> | null;
+    interventi: { committente: string | null } | { committente: string | null }[] | null;
+  }>)
+    .filter((v) => {
+      const c = Array.isArray(v.interventi) ? v.interventi[0]?.committente : v.interventi?.committente;
+      return typeof c === 'string' && COMMITTENTI_BLOCCO.includes(c);
+    })
+    .map((v) => ({ odl: v.odl, matricola: v.matricola, eseguito: String(v.risposte?.['eseguito'] ?? '') }));
+
+  return verdettoEsecuzione(q, interventiPositivi, voci);
 }
 
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
@@ -78,7 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
   }
 
   // Verdetto anti-duplicato (matricola già eseguita): valutato sempre, incluso in ogni risposta.
-  const esecuzione = await leggiVerdetto(COMMITTENTE_LIMITAZIONE, q);
+  const esecuzione = await leggiVerdetto(q);
 
   // 1) match esatto
   const { data: esatti } = await supabaseAdmin
