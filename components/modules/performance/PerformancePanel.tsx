@@ -7,7 +7,6 @@ import PerformanceGiornaliera from './PerformanceGiornaliera';
 import PerformanceConfronto from './PerformanceConfronto';
 import PerformanceDistribuzioni from './PerformanceDistribuzioni';
 import PerformanceDettaglio from './PerformanceDettaglio';
-import PerformanceEconomica from './PerformanceEconomica';
 
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
@@ -25,8 +24,11 @@ export default function PerformancePanel({
   const initial = useMemo<PerfFilters>(() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-    const monthStart = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-01`;
-    return emptyFilters(monthStart, today);
+    // Default = ultimi 30 giorni (non "mese corrente": il 1° del mese sarebbe vuoto).
+    const ago = new Date(d);
+    ago.setDate(d.getDate() - 30);
+    const from = `${ago.getFullYear()}-${pad(ago.getMonth() + 1)}-${pad(ago.getDate())}`;
+    return emptyFilters(from, today);
   }, []);
 
   return (
@@ -39,7 +41,6 @@ export default function PerformancePanel({
       <PerformanceConfronto allRows={rows} options={options} initial={initial} />
       <PerformanceDistribuzioni allRows={rows} options={options} initial={initial} />
       <PerformanceDettaglio allRows={rows} options={options} initial={initial} />
-      <PerformanceEconomica />
     </div>
   );
 }

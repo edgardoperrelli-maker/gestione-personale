@@ -31,6 +31,13 @@ export interface Discrepanza {
   odl: string;
   classe: ClasseDiscrepanza;
 }
+export interface RiconciliaOpts {
+  /** Default: master.size > 0. Se false, le classi che dipendono dal master NON vengono emesse
+   *  (uno snapshot vuoto non significa "tutto assente dal master" → eviterebbe migliaia di falsi). */
+  masterPopolato?: boolean;
+  /** Default: portale.size > 0. Idem per le classi SAL (basate sullo stato portale). */
+  portalePopolato?: boolean;
+}
 export interface Totale {
   conteggio: number;
   valore: number;
@@ -51,8 +58,10 @@ function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
 }
 
-export function riconcilia(input: RiconciliazioneInput): Discrepanza[] {
+export function riconcilia(input: RiconciliazioneInput, opts: RiconciliaOpts = {}): Discrepanza[] {
   const { db, master, portale } = input;
+  const masterPop = opts.masterPopolato ?? master.size > 0;
+  const portalePop = opts.portalePopolato ?? portale.size > 0;
   const odls = new Set<string>([...db.keys(), ...master.keys(), ...portale.keys()]);
   const out: Discrepanza[] = [];
 
@@ -70,22 +79,24 @@ export function riconcilia(input: RiconciliazioneInput): Discrepanza[] {
 
     const classi: ClasseDiscrepanza[] = [];
 
-    // presenza (riconciliazione DB ↔ master, e ODL orfani del portale)
+    // presenza (riconciliazione DB ↔ master, e ODL orfani del portale).
+    // Le classi master si emettono SOLO se lo snapshot master è popolato (altrimenti tutto risulterebbe
+    // "non nel master" → migliaia di falsi finché l'agente non ha caricato lo snapshot).
     if (inPortale && !inDb && !inMaster) {
-      classi.push('SOLO_PORTALE');
-    } else {
+      if (portalePop) classi.push('SOLO_PORTALE');
+    } else if (masterPop) {
       if (inDb && !inMaster) classi.push('DB_NON_IN_MASTER');
       if (inMaster && !inDb) classi.push('MASTER_NON_IN_DB');
     }
 
-    // produzione vs SAL (solo per ODL che conosciamo: inDb o inMaster)
-    if (inDb || inMaster) {
+    // produzione vs SAL (basata sul portale): solo se lo snapshot portale è popolato.
+    if (portalePop && (inDb || inMaster)) {
       if (positivo && !completato) classi.push('POSITIVO_DB_NON_COMPLETATO_PORTALE');
       if (completato && !positivo) classi.push('COMPLETATO_PORTALE_NON_POSITIVO_DB');
     }
 
-    // voce
-    if (inDb && inMaster && d!.voce != null && m!.voce != null && d!.voce !== m!.voce) {
+    // voce discorde (richiede il master popolato)
+    if (masterPop && inDb && inMaster && d!.voce != null && m!.voce != null && d!.voce !== m!.voce) {
       classi.push('VOCE_DISCORDE');
     }
     if (produttivo && (inDb || inMaster) && voceNota == null) {

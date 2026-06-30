@@ -18,6 +18,8 @@ interface DatiProduzione {
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
   auditTruncated: boolean;
+  masterPopolato: boolean;
+  portalePopolato: boolean;
 }
 
 const eur = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
@@ -64,9 +66,14 @@ function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string
 export default function PerformanceEconomica() {
   const now = useMemo(() => new Date(), []);
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
-  const monthStart = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-01`;
+  // Default = ultimi 30 giorni (così non è vuoto il 1° del mese, quando il "mese corrente" non ha dati).
+  const trentaGiorniFa = useMemo(() => {
+    const d = new Date(now);
+    d.setDate(now.getDate() - 30);
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  }, [now]);
 
-  const [from, setFrom] = useState(monthStart);
+  const [from, setFrom] = useState(trentaGiorniFa);
   const [to, setTo] = useState(today);
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [loading, setLoading] = useState(false);
@@ -246,11 +253,28 @@ export default function PerformanceEconomica() {
           <div className="rounded-xl border border-[var(--brand-border)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">Audit a tre vie (DB · master · portale)</h3>
-              {auditClassi.length === 0 && <Badge variant="success">Nessuna discrepanza</Badge>}
+              {(!dati.masterPopolato || !dati.portalePopolato) && (
+                <Badge variant="warn">
+                  {!dati.masterPopolato && !dati.portalePopolato
+                    ? 'Snapshot master e portale non ancora popolati'
+                    : !dati.masterPopolato
+                      ? 'Snapshot master non popolato'
+                      : 'Snapshot portale non popolato'}
+                </Badge>
+              )}
+              {dati.masterPopolato && dati.portalePopolato && auditClassi.length === 0 && (
+                <Badge variant="success">Nessuna discrepanza</Badge>
+              )}
               {auditClassi.map((c) => (
                 <Badge key={c} variant="warning">{AUDIT_LABEL[c]}: {num(dati.auditSummary[c])}</Badge>
               ))}
             </div>
+            {(!dati.masterPopolato || !dati.portalePopolato) && (
+              <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
+                L’audit DB↔master↔portale è limitato finché l’agente non carica gli snapshot. Usa
+                «Allinea master» e lancia il giro «Richiedi stato ACEA» dall’agente, poi ricarica.
+              </p>
+            )}
             {dati.audit.length > 0 && (
               <div className="max-h-72 overflow-auto">
                 <table className="w-full text-xs">

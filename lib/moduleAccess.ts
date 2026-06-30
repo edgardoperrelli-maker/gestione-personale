@@ -160,8 +160,8 @@ export const APP_MODULES: AppModuleDefinition[] = [
   {
     key: 'performance',
     href: '/hub/performance',
-    label: 'Performance operatori',
-    description: 'KPI interventi per operatore (solo Admin Plus)',
+    label: 'KPI',
+    description: 'Performance operatori e Produzione economica (solo Admin Plus)',
     section: 'modules',
     group: 'analisi',
     matchPrefixes: ['/hub/performance'],
