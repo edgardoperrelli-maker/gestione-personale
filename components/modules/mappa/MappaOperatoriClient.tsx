@@ -91,6 +91,8 @@ type Props = {
   initialPianoId?: string;
   initialDistribution?: DistEntry[];
   initialPlanningDate?: string;
+  /** 'territorio' = riapertura unificata di tutti i piani dello stesso giorno+territorio. */
+  initialScope?: 'piano' | 'territorio';
 };
 
 type DistEntry = {
@@ -103,6 +105,9 @@ type DistEntry = {
   base: OperatorBase | null;
   startAddress: string | null;
   schedule?: ScheduleEntry[];
+  /** Piano di origine dell'operatore (riapertura "intero territorio"): al salvataggio i
+   *  task vengono ripartiti per piano d'origine, così i piani restano distinti. */
+  pianoId?: string;
 };
 type OpConfig = { id: string; name: string; qty: number; base: OperatorBase | null; startAddress: string | null };
 type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
@@ -648,7 +653,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution, initialPlanningDate }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution, initialPlanningDate, initialScope = 'piano' }: Props) {
   const mapRef = useRef<HTMLDivElement | null>(null);
   const mapInstanceRef = useRef<Leaflet.Map | null>(null);
   const layerRef = useRef<Leaflet.LayerGroup | null>(null);
@@ -707,6 +712,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [assenzaMsg, setAssenzaMsg] = useState<string | null>(null);
   const [pianoId, setPianoId] = useState<string | undefined>(initialPianoId);
   const [currentPianoId, setCurrentPianoId] = useState<string | undefined>(initialPianoId);
+  // Riapertura "intero territorio": l'editor contiene gli operatori di PIÙ piani dello stesso
+  // giorno+territorio. Il salvataggio ripartisce i task per piano d'origine (vedi handleSave).
+  const isTerritorioScope = initialScope === 'territorio';
 
   // Modalità modifica: quando si riapre un piano salvato
   const isEditMode = !!initialPianoId;
@@ -1794,6 +1802,49 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     setSavingDistribution(true);
     setSavedDistribution(false);
     try {
+      // Riapertura "intero territorio": salva ripartendo gli operatori per piano d'origine.
+      // Un task spostato tra operatori di piani diversi segue l'operatore di destinazione → finisce
+      // nel suo piano. I piani restano distinti (giorno/territorio/rapportini invariati); il server
+      // rigenera gli interventi di tutti i piani in due passate (libera gli ODL ceduti, poi li
+      // riassegna) per rispettare l'indice unico (committente, odl, data).
+      if (isTerritorioScope && distribution) {
+        const perPiano: Record<string, Array<{
+          staff_id: string; staff_name: string; colore: string; km: number;
+          task_count: number; start_address: string | null;
+          tasks: Task[]; polyline: Array<{ lat: number; lng: number }>;
+        }>> = {};
+        for (const d of distribution) {
+          const pid = d.pianoId ?? currentPianoId; // operatori aggiunti ex novo → piano primario
+          if (!pid) continue;
+          (perPiano[pid] ??= []).push({
+            staff_id: d.staffId, staff_name: d.op, colore: d.color, km: d.km,
+            task_count: d.tasks.length, start_address: d.startAddress || null,
+            tasks: d.tasks, polyline: d.polyline,
+          });
+        }
+        const piani = Object.entries(perPiano).map(([id, operatori]) => ({ id, operatori }));
+        if (piani.length === 0) {
+          alert('Nessuna pianificazione da salvare.');
+          return;
+        }
+        const res = await fetch('/api/mappa/piani/territorio', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ piani }),
+        });
+        const json = (await res.json().catch(() => ({}))) as {
+          ok?: boolean; creati?: number; preservati?: number; rapportiniWarning?: string; error?: string;
+        };
+        if (!res.ok || !json.ok) {
+          alert(`Salvataggio territorio non riuscito — ${json.error ?? res.status}.`);
+        } else {
+          setSavedDistribution(true);
+          const avviso = json.rapportiniWarning ? `\n\n⚠️ Rapportini: ${json.rapportiniWarning}` : '';
+          alert(`Territorio salvato: ${json.creati ?? 0} interventi aggiornati per la torre di controllo (${json.preservati ?? 0} già chiusi preservati).${avviso}`);
+        }
+        return;
+      }
+
       const operatori = selectedOps.map((op, idx) => {
         const dist = distribution[idx];
         return {
@@ -1912,7 +1963,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini, eliminatiAnnullati]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini, eliminatiAnnullati, isTerritorioScope]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -3732,36 +3783,45 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
       {distribution !== null && (
         <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-4 py-3 shadow-sm">
+          {isTerritorioScope && (
+            <div className="basis-full rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-2 text-xs text-[var(--brand-primary)]">
+              🗺️ Modifica <strong>intero territorio</strong>: qui vedi gli operatori di tutte le pianificazioni del giorno. Sposta gli interventi tra operatori anche di piani diversi; al salvataggio le pianificazioni restano separate.
+            </div>
+          )}
           <span className="flex items-center gap-2 text-sm font-semibold text-[var(--brand-text-main)]">
             Conferma piano
           </span>
           <div className="flex flex-wrap items-center gap-2">
             {/* Scelta modello rapportino PRIMA del salvataggio/generazione:
                 il salvataggio auto-genera i rapportini, quindi il template va
-                scelto a monte. Obbligatorio e bloccante quando esistono modelli. */}
-            <label className="flex items-center gap-1.5 text-xs text-[var(--brand-text-muted)]">
-              <span className="font-medium">Modello:</span>
-              <select
-                value={rapTemplateId}
-                onChange={(e) => setRapTemplateId(e.target.value)}
-                title="Modello rapportino"
-                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
-              >
-                {rapTemplates.length === 0
-                  ? <option value="">Nessun modello</option>
-                  : <option value="">— Seleziona modello —</option>}
-                {rapTemplates.map((t) => (
-                  <option key={t.id} value={t.id}>
-                    {t.nome}{t.is_default ? ' (default)' : ''}
-                  </option>
-                ))}
-              </select>
-            </label>
+                scelto a monte. Obbligatorio e bloccante quando esistono modelli.
+                In modalità "intero territorio" il template è quello GIÀ stabilito
+                per ciascun piano (il server lo recupera per piano): selettore nascosto. */}
+            {!isTerritorioScope && (
+              <label className="flex items-center gap-1.5 text-xs text-[var(--brand-text-muted)]">
+                <span className="font-medium">Modello:</span>
+                <select
+                  value={rapTemplateId}
+                  onChange={(e) => setRapTemplateId(e.target.value)}
+                  title="Modello rapportino"
+                  className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
+                >
+                  {rapTemplates.length === 0
+                    ? <option value="">Nessun modello</option>
+                    : <option value="">— Seleziona modello —</option>}
+                  {rapTemplates.map((t) => (
+                    <option key={t.id} value={t.id}>
+                      {t.nome}{t.is_default ? ' (default)' : ''}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
             <button
               type="button"
               onClick={saveDistribution}
-              disabled={savingDistribution || (rapTemplates.length > 0 && !rapTemplateId)}
-              title={rapTemplates.length > 0 && !rapTemplateId ? 'Seleziona prima un modello rapportino' : undefined}
+              disabled={savingDistribution || (!isTerritorioScope && rapTemplates.length > 0 && !rapTemplateId)}
+              title={!isTerritorioScope && rapTemplates.length > 0 && !rapTemplateId ? 'Seleziona prima un modello rapportino' : undefined}
               className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                 savedDistribution
                   ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
@@ -3774,7 +3834,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   ? '✓ Salvata'
                   : 'Salva distribuzione'}
             </button>
-            {currentPianoId && (
+            {currentPianoId && !isTerritorioScope && (
               <button
                 type="button"
                 onClick={generaRapportini}

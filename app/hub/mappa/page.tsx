@@ -30,8 +30,10 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 
 async function MappaPageContent({
   pianoId,
+  scope,
 }: {
   pianoId?: string;
+  scope?: string;
 }) {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
@@ -196,6 +198,7 @@ async function MappaPageContent({
 
   // Fetch saved piano if pianoId is provided
   type SavedPianoOperatorRow = {
+    piano_id: string | null;
     staff_id: string | null;
     staff_name: string | null;
     colore: string | null;
@@ -215,17 +218,47 @@ async function MappaPageContent({
     polyline: Array<{ lat: number; lng: number }>;
     base: null;
     startAddress: string | null;
+    pianoId?: string;
   };
 
   let initialDistribution: InitialDistributionEntry[] | undefined = undefined;
   let initialPianoId: string | undefined = undefined;
   let initialPlanningDate: string | undefined = undefined;
+  let initialScope: 'piano' | 'territorio' = 'piano';
 
   if (pianoId) {
+    // In scope 'territorio' carico TUTTI i piani dello stesso giorno+territorio del piano
+    // indicato, così l'editor mostra gli operatori dell'intero territorio e si possono spostare
+    // interventi anche tra operatori di pianificazioni diverse. Il piano indicato resta il
+    // "primario" (riferimento); ogni operatore porta con sé il proprio piano_id d'origine.
+    let pianoIds: string[] = [pianoId];
+    if (scope === 'territorio') {
+      const { data: ref } = await supabaseAdmin
+        .from('mappa_piani')
+        .select('data, territorio')
+        .eq('id', pianoId)
+        .maybeSingle();
+      const refRow = ref as { data: string; territorio: string | null } | null;
+      if (refRow) {
+        let q = supabaseAdmin
+          .from('mappa_piani')
+          .select('id')
+          .eq('data', refRow.data)
+          .order('created_at', { ascending: true });
+        q = refRow.territorio == null ? q.is('territorio', null) : q.eq('territorio', refRow.territorio);
+        const { data: piani } = await q;
+        const ids = ((piani ?? []) as { id: string }[]).map((p) => p.id);
+        if (ids.length > 0) {
+          pianoIds = ids;
+          initialScope = 'territorio';
+        }
+      }
+    }
+
     const { data: opRows } = await supabaseAdmin
       .from('mappa_piani_operatori')
-      .select('staff_id, staff_name, colore, km, task_count, start_address, tasks, polyline')
-      .eq('piano_id', pianoId);
+      .select('piano_id, staff_id, staff_name, colore, km, task_count, start_address, tasks, polyline')
+      .in('piano_id', pianoIds);
 
     if (opRows && opRows.length > 0) {
       initialPianoId = pianoId;
@@ -238,6 +271,7 @@ async function MappaPageContent({
         polyline: Array.isArray(op.polyline) ? op.polyline : [],
         base: null,
         startAddress: op.start_address ?? null,
+        pianoId: op.piano_id ?? undefined,
       }));
 
       // Data del piano riaperto: inizializza il giorno di pianificazione
@@ -263,6 +297,7 @@ async function MappaPageContent({
       initialPianoId={initialPianoId}
       initialDistribution={initialDistribution}
       initialPlanningDate={initialPlanningDate}
+      initialScope={initialScope}
     />
   );
 }
@@ -270,11 +305,12 @@ async function MappaPageContent({
 export default async function MappaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ vista?: string; pianoId?: string }>;
+  searchParams: Promise<{ vista?: string; pianoId?: string; scope?: string }>;
 }) {
   const params = await searchParams;
   const vista = params.vista ?? '';
   const pianoId = params.pianoId;
+  const scope = params.scope;
 
   return (
     <div className="space-y-6">
@@ -348,7 +384,7 @@ export default async function MappaPage({
               </div>
             }
           >
-            <MappaPageContent pianoId={pianoId} />
+            <MappaPageContent pianoId={pianoId} scope={scope} />
           </Suspense>
         </div>
       )}
