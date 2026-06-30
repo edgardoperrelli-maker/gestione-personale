@@ -439,6 +439,7 @@ async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) 
     const colonne = {
       odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
       matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
+      attivita: acea.masterColonnaAttivita, // colonna "Operazione testo breve" (B): attività specifica per riga
     };
     const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
     const header = tutte[rIntest - 1] || [];

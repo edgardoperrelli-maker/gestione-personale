@@ -19,6 +19,7 @@ export function estraiPianificabili(righe, dataTarget) {
       riga: r.riga,
       odl: t(r.odl), matricola: t(r.matricola), indirizzo: t(r.indirizzo),
       comune: t(r.comune), data, esecutore: t(r.esecutore),
+      attivita: t(r.attivita), // attività per riga → sale fino al rapportino (override del DUNNING)
       statoOdl: t(r.statoRaw),
     });
   }

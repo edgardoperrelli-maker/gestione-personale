@@ -6,17 +6,32 @@ export function baseUrlDaEndpoint(url) {
   return new URL(url).origin;
 }
 
-async function postJson(url, exportKey, body, fetchImpl) {
-  const res = await fetchImpl(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json', 'x-export-key': exportKey },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
-    const corpo = await res.text().catch(() => '');
-    throw new Error(`POST ${url} ${res.status}: ${corpo}`);
+// Retry su errori di rete/5xx: il report di fine giro (anche dopo ore di assegnazione) NON deve
+// perdersi per un singolo errore transitorio sull'invio finale. È successo col giro del 30/06:
+// 71 ODL assegnati su ACEA ma report mai arrivato → pannello "Esito assegnazione ACEA" vuoto.
+async function postJson(url, exportKey, body, fetchImpl, { tentativi = 4, attesaMs = 2000 } = {}) {
+  let ultimoErr;
+  for (let t = 1; t <= tentativi; t++) {
+    try {
+      const res = await fetchImpl(url, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', 'x-export-key': exportKey },
+        body: JSON.stringify(body),
+      });
+      if (res.ok) return await res.json();
+      const corpo = await res.text().catch(() => '');
+      const err = new Error(`POST ${url} ${res.status}: ${corpo}`);
+      err.status = res.status;
+      throw err;
+    } catch (e) {
+      ultimoErr = e;
+      // 4xx = errore client permanente (es. 401 chiave errata): ritentare non aiuta → fallisci subito.
+      // Si ritenta solo su errori di rete o 5xx transitori (il report di fine giro non deve perdersi).
+      if (e && e.status >= 400 && e.status < 500) throw e;
+      if (t < tentativi) await new Promise((r) => setTimeout(r, attesaMs * t));
+    }
   }
-  return res.json();
+  throw ultimoErr;
 }
 
 /** POST /api/agente/tick con le colonne rilevate -> { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo }. */

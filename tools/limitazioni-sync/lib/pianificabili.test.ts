@@ -15,7 +15,7 @@ describe('estraiPianificabili', () => {
       base({ riga: 5, esitoRaw: 'eseguito' }),             // già lavorata
     ], '2026-06-19');
     expect(out).toHaveLength(1);
-    expect(out[0]).toEqual({ riga: 2, odl: '912', matricola: 'M1', indirizzo: 'VIA X', comune: 'ZAGAROLO', data: '2026-06-19', esecutore: 'CIARALLO', statoOdl: '' });
+    expect(out[0]).toEqual({ riga: 2, odl: '912', matricola: 'M1', indirizzo: 'VIA X', comune: 'ZAGAROLO', data: '2026-06-19', esecutore: 'CIARALLO', attivita: '', statoOdl: '' });
   });
 
   it('scarta gli ordini chiusi (completato/annullato) e propaga lo stato aperto', () => {
@@ -37,5 +37,10 @@ describe('estraiPianificabili', () => {
   it('normalizza la data via giornoDa (accetta Date/locale)', () => {
     const out = estraiPianificabili([base({ dataRaw: new Date('2026-06-19T00:00:00') })], '2026-06-19');
     expect(out).toHaveLength(1);
+  });
+
+  it('propaga l\'attività della riga (es. SOSPENSIONE)', () => {
+    const out = estraiPianificabili([base({ attivita: 'RIATTIVAZIONE' })], '2026-06-19');
+    expect(out[0].attivita).toBe('RIATTIVAZIONE');
   });
 });
