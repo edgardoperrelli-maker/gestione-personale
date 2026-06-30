@@ -102,6 +102,24 @@ export default function PerformanceEconomica() {
   const presetTrimestre = () => setRange(`${now.getFullYear()}-${pad(now.getMonth() - (now.getMonth() % 3) + 1)}-01`, today);
   const presetAnno = () => setRange(`${now.getFullYear()}-01-01`, today);
 
+  // "Allinea da ACEA": comanda l'agente a rileggere i master (DUNNING/ZAGAROLO). L'agente esegue al
+  // prossimo giro (stesso flag di "Richiedi stato ACEA"); poi ricarica la foglietta per vedere i dati.
+  const [allineaMsg, setAllineaMsg] = useState<string | null>(null);
+  const allinea = async (target: 'dunning' | 'zagarolo') => {
+    setAllineaMsg('Invio richiesta…');
+    try {
+      const res = await fetch('/api/admin/agente/acea-stato', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ target }),
+      });
+      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
+      setAllineaMsg(`Richiesto: l’agente leggerà il master ${target === 'zagarolo' ? 'ZAGAROLO (massive)' : 'DUNNING'} al prossimo giro.`);
+    } catch (e) {
+      setAllineaMsg(e instanceof Error ? e.message : 'Errore richiesta allineamento.');
+    }
+  };
+
   const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}`;
   const invalid = Boolean(from && to && from > to);
 
@@ -111,7 +129,11 @@ export default function PerformanceEconomica() {
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-[10px] text-[var(--brand-text-subtle)]">Allinea master:</span>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('dunning')}>Dunning</Button>
+          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('zagarolo')}>Zagarolo</Button>
+          <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => setEditorOpen((v) => !v)}>
             {editorOpen ? 'Chiudi listino' : 'Listino tariffe'}
           </Button>
@@ -123,6 +145,7 @@ export default function PerformanceEconomica() {
           </a>
         </div>
       </div>
+      {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
 
       {editorOpen && (
         <div className="mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">

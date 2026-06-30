@@ -68,13 +68,17 @@ interface PortaleRow {
   stato_norm: string | null;
 }
 
+// Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
+// limitazioni massive ZAGAROLO (committente='lim_massive'), valorizzate con lo stesso listino.
+const COMMITTENTI = ['acea', 'lim_massive'];
+
 async function caricaInterventiAcea(): Promise<InterventoRow[]> {
   const rows: InterventoRow[] = [];
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
       .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato')
-      .eq('committente', 'acea')
+      .in('committente', COMMITTENTI)
       .order('id', { ascending: true })
       .range(off, off + PAGE - 1);
     if (error) throw error;

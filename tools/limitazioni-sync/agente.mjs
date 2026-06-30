@@ -14,6 +14,7 @@ import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 import { estraiPianificabili } from './lib/pianificabili.mjs';
 import { mappaRigheMaster, trovaIntestazioneAcea } from './lib/acea/leggiMasterAcea.mjs';
+import { mappaMasterSnapshot } from './lib/acea/masterSnapshot.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 export const MARKER_AUTOMAZIONE = 'SI';
@@ -426,48 +427,58 @@ async function leggiPianificabili({ baseUrl, exportKey, cartella, dataTarget }) 
   }
 }
 
+/** Legge le righe grezze di un master ACEA (colonne esplicite dal config). [] se assente. */
+async function leggiGrezzeMaster(acea) {
+  if (!acea?.masterPath || !fs.existsSync(acea.masterPath)) return [];
+  const wb = await caricaWorkbook(acea.masterPath);
+  const ws = acea.foglio ? (wb.getWorksheet(acea.foglio) ?? wb.worksheets[0]) : wb.worksheets[0];
+  // Legge tutte le righe una volta e trova l'header per NOME colonna (Ordine), NON per isFileMaster:
+  // nel DUNNING la matricola è "Matricola misuratore" e isFileMaster fallirebbe (header vuoto).
+  const tutte = [];
+  for (let r = 1; r <= ws.rowCount; r++) tutte.push((ws.getRow(r).values || []).slice(1));
+  const colonne = {
+    odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
+    matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
+    attivita: acea.masterColonnaAttivita, // colonna "Operazione testo breve" (B): attività specifica per riga
+  };
+  const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
+  const header = tutte[rIntest - 1] || [];
+  const matrix = tutte.slice(rIntest);
+  return mappaRigheMaster(matrix, header, colonne, rIntest + 1);
+}
+
+/** Invia all'app lo snapshot del master per l'audit a tre vie (acea_master_snapshot). Best-effort.
+ *  Riusato per DUNNING e ZAGAROLO (limitazioni massive): foto corrente di TUTTE le righe del master. */
+async function inviaMasterSnapshot({ baseUrl, exportKey, acea }) {
+  if (!acea?.masterPath || !fs.existsSync(acea.masterPath)) return;
+  try {
+    const masterSnapshot = mappaMasterSnapshot(await leggiGrezzeMaster(acea));
+    if (masterSnapshot.length === 0) return;
+    await inviaReport({
+      baseUrl, exportKey,
+      report: { tipo: 'acea-master', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], masterSnapshot },
+    });
+  } catch (e) {
+    console.error(`[lim-sync] invio masterSnapshot fallito: ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 /** Legge il master DUNNING (acea.masterPath) per colonne esplicite e invia le righe pianificabili. */
 async function leggiMasterAceaDunning({ baseUrl, exportKey, acea, dataTarget }) {
   if (!acea?.masterPath || !fs.existsSync(acea.masterPath)) return;
   try {
-    const wb = await caricaWorkbook(acea.masterPath);
-    const ws = acea.foglio ? (wb.getWorksheet(acea.foglio) ?? wb.worksheets[0]) : wb.worksheets[0];
-    // Legge tutte le righe una volta e trova l'header per NOME colonna (Ordine), NON per isFileMaster:
-    // nel DUNNING la matricola è "Matricola misuratore" e isFileMaster fallirebbe (header vuoto).
-    const tutte = [];
-    for (let r = 1; r <= ws.rowCount; r++) tutte.push((ws.getRow(r).values || []).slice(1));
-    const colonne = {
-      odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
-      matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
-      attivita: acea.masterColonnaAttivita, // colonna "Operazione testo breve" (B): attività specifica per riga
-    };
-    const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
-    const header = tutte[rIntest - 1] || [];
-    const matrix = tutte.slice(rIntest);
-    const grezze = mappaRigheMaster(matrix, header, colonne, rIntest + 1);
+    const grezze = await leggiGrezzeMaster(acea);
     const righe = estraiPianificabili(grezze, dataTarget);
     const file = path.basename(acea.masterPath);
     await inviaPianificabili({ baseUrl, exportKey, file, data: dataTarget, righe });
     console.log(`[lim-sync] pianificabili ACEA ${file} ${dataTarget}: ${righe.length} righe.`);
 
-    // Snapshot MASTER per l'audit a tre vie della Produzione economica: foto corrente di TUTTE le righe
-    // del DUNNING (non solo le pianificabili del giorno). L'app la ingerisce in acea_master_snapshot.
+    // Snapshot MASTER per l'audit a tre vie della Produzione economica (riusa la stessa lettura).
     try {
-      const masterSnapshot = grezze
-        .filter((g) => String(g.odl ?? '').trim())
-        .map((g) => ({
-          odl: String(g.odl).trim(),
-          attivita: g.attivita ?? '',
-          esecutore: g.esecutore ?? '',
-          dataRaw: g.dataRaw ?? '',
-          statoRaw: g.statoRaw ?? '',
-          matricola: g.matricola ?? '',
-          comune: g.comune ?? '',
-        }));
       await inviaReport({
         baseUrl,
         exportKey,
-        report: { tipo: 'acea-master', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], masterSnapshot },
+        report: { tipo: 'acea-master', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], masterSnapshot: mappaMasterSnapshot(grezze) },
       });
     } catch (eSnap) {
       console.error(`[lim-sync] invio masterSnapshot fallito: ${eSnap instanceof Error ? eSnap.message : eSnap}`);
@@ -552,6 +563,9 @@ async function main() {
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
       console.log(`[lim-sync] giro ACEA (${aceaTarget}): aggiornate=${report.file?.[0]?.aggiornate ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+      // Snapshot MASTER del target letto (audit a tre vie): DUNNING o ZAGAROLO (limitazioni massive).
+      const aceaCfg = aceaTarget === 'zagarolo' && cfg.acea?.zagarolo ? { ...cfg.acea, ...cfg.acea.zagarolo } : cfg.acea;
+      await inviaMasterSnapshot({ baseUrl, exportKey: cfg.exportKey, acea: aceaCfg });
     } catch (e) {
       console.error(`[lim-sync] giro ACEA fallito: ${e instanceof Error ? e.message : e}`);
     }
