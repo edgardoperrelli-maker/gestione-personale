@@ -2,11 +2,10 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
-import { normalizzaAttivita } from './normalizzaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
 import { caricaAliasAttivita } from './aliasAttivita';
-import { aggregaProduzione, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
+import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import {
   riconcilia,
   scartoProduzioneSal,
@@ -75,6 +74,7 @@ interface InterventoRow {
   stato: string | null;
   committente: string | null;
   comune: string | null;
+  matricola_contatore: string | null;
 }
 interface MasterRow {
   odl: string;
@@ -101,7 +101,7 @@ async function caricaInterventiAcea(): Promise<InterventoRow[]> {
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato, committente, comune')
+      .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato, committente, comune, matricola_contatore')
       .in('committente', COMMITTENTI)
       .order('id', { ascending: true })
       .range(off, off + PAGE - 1);
@@ -217,7 +217,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     if (esitoOk === true && data && data >= from && data <= to) {
       produzioneRighe.push({
         odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
-        attivitaKey, attivitaLabel: canon.attivitaPulita,
+        attivitaKey, attivitaLabel: canon.attivitaPulita, matricola: it.matricola_contatore ?? '',
         data, staffId, operatore, territorioId, territorio,
         valore: valore(attivitaKey, data),
       });
@@ -232,8 +232,10 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const odl = (m.odl ?? '').trim();
     if (!odl) continue;
     masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
-    const attK = normalizzaAttivita(m.attivita)?.key;
-    if (attK) masterAttivita.set(odl, attK);
+    // Attività CANONICA (via alias) anche per il master: la chiave GREZZA non aggancia il listino
+    // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
+    const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
+    if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
     // saracinesca=SI + esito=eseguito → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre
     if ((m.saracinesca ?? '').trim().toUpperCase() === 'SI' && (m.esito ?? '').trim().toLowerCase() === 'eseguito') {
       const info = dbInfo.get(odl);
@@ -251,7 +253,13 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       }
     }
   }
-  const produzione = aggregaProduzione(produzioneRighe);
+  // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
+  const produzione = aggregaProduzione(deduplicaMassivePerMatricola(produzioneRighe));
+
+  // Odl figli saracinesca → data del padre: valorizzano la "Sostituzione saracinesca" nel SAL
+  // quando l'Odl figlio risulta COMPLETATO sul portale (Fix B, niente riga fantasma a 0).
+  const saracinescaByFiglio = new Map<string, string>();
+  for (const s of saracinesca) if (s.odlFiglio) saracinescaByFiglio.set(s.odlFiglio, s.data);
 
   // portale per ODL + SAL (limitazioni per ODL + saracinesca per Odl figlio).
   const portaleAudit = new Map<string, PortaleRiga>();
@@ -264,26 +272,26 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
     if (statoNorm === 'COMPLETATO') {
-      const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
-      const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
-      const data = dbDataByOdl.get(odl) ?? to;
-      salRighe.push({
-        odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
-        attivitaKey, attivitaLabel: attivitaKey, data,
-        staffId: '', operatore: '', territorioId: '', territorio: '',
-        valore: valore(attivitaKey, data),
-      });
-    }
-  }
-  // SAL saracinesca: l'Odl saracinesca (figlio) COMPLETATO sul portale.
-  for (const s of saracinesca) {
-    if (s.odlFiglio && portaleAudit.get(s.odlFiglio)?.statoNorm === 'COMPLETATO') {
-      const data = s.data || to;
-      salRighe.push({
-        odl: s.odlFiglio, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
-        staffId: '', operatore: '', territorioId: '', territorio: '',
-        valore: valore(SARA_KEY, data),
-      });
+      if (saracinescaByFiglio.has(odl)) {
+        // Odl figlio di una saracinesca consuntivato → vale la Sostituzione saracinesca (91,12),
+        // non una limitazione con attività vuota. Evita la riga fantasma a 0 (niente doppio conteggio).
+        const data = saracinescaByFiglio.get(odl) || to;
+        salRighe.push({
+          odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
+          staffId: '', operatore: '', territorioId: '', territorio: '',
+          valore: valore(SARA_KEY, data),
+        });
+      } else {
+        const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
+        const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
+        const data = dbDataByOdl.get(odl) ?? to;
+        salRighe.push({
+          odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+          attivitaKey, attivitaLabel: attivitaKey, data,
+          staffId: '', operatore: '', territorioId: '', territorio: '',
+          valore: valore(attivitaKey, data),
+        });
+      }
     }
   }
   const salAgg = aggregaProduzione(salRighe);

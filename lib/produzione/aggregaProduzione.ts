@@ -9,6 +9,7 @@ export interface RigaProduzione {
   kpi: string | null; // 'EL'|'ES'|'ERC'|'ERA'|null (raggruppamento KPI)
   attivitaKey: string; // chiave normalizzata dell'attività (aggancio prezzo/listino)
   attivitaLabel: string; // etichetta leggibile dell'attività
+  matricola?: string; // matricola misuratore (unità di conteggio delle limitazioni massive)
   data: string; // 'YYYY-MM-DD'
   staffId: string;
   operatore: string;
@@ -35,6 +36,37 @@ export interface ProduzioneAggregata {
 }
 
 const ORDINE_VOCE = ['EL', 'ES', 'ERC', 'ERA', 'NON_RISOLTA'];
+
+// Chiave attività delle limitazioni massive (unità = matricola, non riga-intervento).
+const KEY_LIM_MASSIVA = 'LIMITAZIONE MASSIVA';
+
+/**
+ * Deduplica le righe di produzione delle LIMITAZIONI MASSIVE per MATRICOLA (fallback ODL):
+ * più interventi/rapportini positivi sulla stessa matricola contano come UNA sola limitazione,
+ * come le conta ACEA (che valorizza per matricola). I lavori manuali dal campo a volte hanno
+ * solo la matricola, per questo è la chiave primaria. Le righe massive prive sia di matricola
+ * sia di ODL restano distinte (nessun identificativo per collassarle). Le voci diverse dalla
+ * limitazione massiva passano invariate.
+ */
+export function deduplicaMassivePerMatricola(righe: RigaProduzione[]): RigaProduzione[] {
+  const vistiMassive = new Set<string>();
+  const out: RigaProduzione[] = [];
+  for (const r of righe) {
+    if (r.attivitaKey !== KEY_LIM_MASSIVA) {
+      out.push(r);
+      continue;
+    }
+    const chiave = (r.matricola ?? '').trim() || (r.odl ?? '').trim();
+    if (!chiave) {
+      out.push(r); // nessun identificativo → non collassabile
+      continue;
+    }
+    if (vistiMassive.has(chiave)) continue; // duplicato della stessa matricola/ODL
+    vistiMassive.add(chiave);
+    out.push(r);
+  }
+  return out;
+}
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
