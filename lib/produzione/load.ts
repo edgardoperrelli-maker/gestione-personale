@@ -4,6 +4,8 @@ import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
 import { normalizzaAttivita } from './normalizzaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
+import { attivitaCanonica } from './attivitaCanonica';
+import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import {
   riconcilia,
@@ -71,6 +73,8 @@ interface InterventoRow {
   intervento_tipo: string | null;
   esito: string | null;
   stato: string | null;
+  committente: string | null;
+  comune: string | null;
 }
 interface MasterRow {
   odl: string;
@@ -97,7 +101,7 @@ async function caricaInterventiAcea(): Promise<InterventoRow[]> {
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato')
+      .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato, committente, comune')
       .in('committente', COMMITTENTI)
       .order('id', { ascending: true })
       .range(off, off + PAGE - 1);
@@ -141,7 +145,7 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 }
 
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
-  const [listinoRows, interventi, masterRows, portaleRows, maps] = await Promise.all([
+  const [listinoRows, interventi, masterRows, portaleRows, maps, alias] = await Promise.all([
     supabaseAdmin
       .from('acea_listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
@@ -150,6 +154,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     caricaSnapshot<MasterRow>('acea_master_snapshot', 'odl, voce, attivita, esito, saracinesca, odl_saracinesca, esecutore, data_raw, comune'),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm'),
     nomi(),
+    caricaAliasAttivita(),
   ]);
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
@@ -181,12 +186,18 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const dbDataByOdl = new Map<string, string>();
   const dbAttivita = new Map<string, string>(); // odl → attività (per valorizzare il SAL)
   const dbInfo = new Map<string, { staffId: string; operatore: string; territorioId: string; territorio: string; data: string }>();
+  const effByOdl = new Map<string, string>(); // odl → committente EFFETTIVO (per escludere il gas dal SAL)
   const produzioneRighe: RigaProduzione[] = [];
   for (const it of interventi) {
     const odl = (it.odl ?? '').trim();
-    const voce = risolviVoce(it.voce, it.intervento_tipo);
-    const att = normalizzaAttivita(it.intervento_tipo);
-    const attivitaKey = att?.key ?? '';
+    // attività CANONICA via alias (+ regole comune per le righe senza attività) → committente effettivo,
+    // attività pulita e voce. La riclassificazione (gas→italgas, massive→acea) vive qui, non nel DB.
+    const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias);
+    if (odl && canon) effByOdl.set(odl, canon.committenteEff);
+    // Produzione economica ACEA: solo committente effettivo 'acea' e attività non scartata.
+    if (!canon || !canon.attivo || canon.committenteEff !== 'acea') continue;
+    const voce = canon.voce;
+    const attivitaKey = canon.attivitaKey;
     const esitoOk = esitoOkDaIntervento(it.stato, it.esito);
     const data = (it.data ?? '').slice(0, 10);
     const staffId = it.staff_id ?? '';
@@ -206,7 +217,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     if (esitoOk === true && data && data >= from && data <= to) {
       produzioneRighe.push({
         odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
-        attivitaKey, attivitaLabel: att?.etichetta ?? '(senza attività)',
+        attivitaKey, attivitaLabel: canon.attivitaPulita,
         data, staffId, operatore, territorioId, territorio,
         valore: valore(attivitaKey, data),
       });
@@ -248,6 +259,8 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   for (const p of portaleRows) {
     const odl = (p.odl ?? '').trim();
     if (!odl) continue;
+    // il gas riclassificato (committente effettivo italgas) è fuori dalla vista ACEA (audit + SAL)
+    if (effByOdl.get(odl) === 'italgas') continue;
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
     if (statoNorm === 'COMPLETATO') {
