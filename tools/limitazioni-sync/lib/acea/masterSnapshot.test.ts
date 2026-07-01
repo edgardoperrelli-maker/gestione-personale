@@ -4,22 +4,25 @@ import { mappaMasterSnapshot } from './masterSnapshot.mjs';
 describe('mappaMasterSnapshot', () => {
   it('mappa le righe grezze del master a snapshot {odl, attivita, ...} scartando gli ODL vuoti', () => {
     const grezze = [
-      { odl: ' 957276080 ', attivita: 'LIMITAZIONE', esecutore: 'ROSSI', dataRaw: '01/06/2026', statoRaw: 'eseguito', matricola: 'M1', comune: 'ROMA' },
+      { odl: ' 912212680 ', attivita: '', esecutore: 'PASTORELLI', dataRaw: '2026-06-03 00:00:00', statoRaw: 'completato', matricola: 'M1', comune: 'ZAGAROLO', esito: 'eseguito', saracinesca: 'SI', odlSaracinesca: '999' },
       { odl: '', attivita: 'X' }, // scartata
       { odl: 'A2' }, // campi mancanti → stringhe vuote
     ];
     const out = mappaMasterSnapshot(grezze);
     expect(out).toHaveLength(2);
     expect(out[0]).toEqual({
-      odl: '957276080',
-      attivita: 'LIMITAZIONE',
-      esecutore: 'ROSSI',
-      dataRaw: '01/06/2026',
-      statoRaw: 'eseguito',
+      odl: '912212680',
+      attivita: '',
+      esecutore: 'PASTORELLI',
+      dataRaw: '2026-06-03 00:00:00',
+      statoRaw: 'completato',
       matricola: 'M1',
-      comune: 'ROMA',
+      comune: 'ZAGAROLO',
+      esito: 'eseguito',
+      saracinesca: 'SI',
+      odlSaracinesca: '999',
     });
-    expect(out[1]).toEqual({ odl: 'A2', attivita: '', esecutore: '', dataRaw: '', statoRaw: '', matricola: '', comune: '' });
+    expect(out[1]).toEqual({ odl: 'A2', attivita: '', esecutore: '', dataRaw: '', statoRaw: '', matricola: '', comune: '', esito: '', saracinesca: '', odlSaracinesca: '' });
   });
 
   it('input vuoto → array vuoto', () => {

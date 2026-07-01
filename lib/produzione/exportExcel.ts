@@ -129,6 +129,7 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
       row.getCell(3).numFmt = EUR;
     }
   };
+  aggSheet('Dati - attività', dati.produzione.perAttivita);
   aggSheet('Dati - operatori', dati.produzione.perOperatore);
   aggSheet('Dati - territori', dati.produzione.perTerritorio);
   aggSheet(

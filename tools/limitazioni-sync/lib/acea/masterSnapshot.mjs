@@ -12,5 +12,8 @@ export function mappaMasterSnapshot(grezze) {
       statoRaw: g.statoRaw ?? '',
       matricola: g.matricola ?? '',
       comune: g.comune ?? '',
+      esito: g.esito ?? '', // ZAGAROLO
+      saracinesca: g.saracinesca ?? '', // ZAGAROLO (SI)
+      odlSaracinesca: g.odlSaracinesca ?? '', // ZAGAROLO (ODL figlio)
     }));
 }

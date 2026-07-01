@@ -243,6 +243,11 @@ export default function PerformanceEconomica() {
             </div>
           </div>
 
+          {/* Per attività (dettaglio granulare del listino) */}
+          <div className="mb-4">
+            <TabellaAgg titolo="Produzione per attività" righe={dati.produzione.perAttivita} max={30} />
+          </div>
+
           {/* Per operatore / territorio */}
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <TabellaAgg titolo="Per operatore" righe={dati.produzione.perOperatore} />
@@ -305,8 +310,8 @@ export default function PerformanceEconomica() {
   );
 }
 
-function TabellaAgg({ titolo, righe }: { titolo: string; righe: Aggregato[] }) {
-  const top = righe.slice(0, 12);
+function TabellaAgg({ titolo, righe, max = 12 }: { titolo: string; righe: Aggregato[]; max?: number }) {
+  const top = righe.slice(0, max);
   return (
     <div className="rounded-xl border border-[var(--brand-border)] p-3">
       <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">{titolo}</h3>

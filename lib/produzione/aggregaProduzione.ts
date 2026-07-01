@@ -6,13 +6,15 @@
 export interface RigaProduzione {
   odl: string;
   voce: number | null;
-  kpi: string | null; // 'EL'|'ES'|'ERC'|'ERA'|null
+  kpi: string | null; // 'EL'|'ES'|'ERC'|'ERA'|null (raggruppamento KPI)
+  attivitaKey: string; // chiave normalizzata dell'attività (aggancio prezzo/listino)
+  attivitaLabel: string; // etichetta leggibile dell'attività
   data: string; // 'YYYY-MM-DD'
   staffId: string;
   operatore: string;
   territorioId: string;
   territorio: string;
-  valore: number; // già valorizzato (prezzo×qty); 0 se voce/prezzo mancante
+  valore: number; // già valorizzato (prezzo×qty); 0 se attività/prezzo mancante
 }
 
 export interface Aggregato {
@@ -25,6 +27,7 @@ export interface Aggregato {
 export interface ProduzioneAggregata {
   totale: { conteggio: number; valore: number };
   perVoce: Aggregato[];
+  perAttivita: Aggregato[];
   perOperatore: Aggregato[];
   perTerritorio: Aggregato[];
   perGiorno: Aggregato[];
@@ -73,6 +76,14 @@ export function aggregaProduzione(righe: RigaProduzione[]): ProduzioneAggregata 
     ).values(),
   ).sort((a, b) => ORDINE_VOCE.indexOf(a.chiave) - ORDINE_VOCE.indexOf(b.chiave));
 
+  const perAttivita = Array.from(
+    raggruppa(
+      righe,
+      (r) => r.attivitaKey || '—',
+      (r) => r.attivitaLabel || 'Senza attività',
+    ).values(),
+  ).sort((a, b) => b.valore - a.valore || b.conteggio - a.conteggio);
+
   const perOperatore = Array.from(
     raggruppa(
       righe,
@@ -99,5 +110,5 @@ export function aggregaProduzione(righe: RigaProduzione[]): ProduzioneAggregata 
 
   const nonRisolte = righe.reduce((n, r) => n + (r.voce == null ? 1 : 0), 0);
 
-  return { totale, perVoce, perOperatore, perTerritorio, perGiorno, nonRisolte };
+  return { totale, perVoce, perAttivita, perOperatore, perTerritorio, perGiorno, nonRisolte };
 }

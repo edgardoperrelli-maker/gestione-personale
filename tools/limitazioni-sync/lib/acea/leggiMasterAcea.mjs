@@ -31,6 +31,9 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
     comune: risolviColonna(header, colonne.comune),
     attivita: risolviColonna(header, colonne.attivita), // "Operazione testo breve" (B); -1 se non configurata
     stato: risolviColonna(header, colonne.stato),
+    esito: risolviColonna(header, colonne.esito), // ZAGAROLO "esito" (eseguito/no); -1 se assente
+    saracinesca: risolviColonna(header, colonne.saracinesca), // ZAGAROLO "saracinesca" (SI)
+    odlSaracinesca: risolviColonna(header, colonne.odlSaracinesca), // ZAGAROLO "Odl saracinesca" (figlio)
   };
   const cella = (row, i) => (i >= 0 && row[i] != null ? t(row[i]) : '');
   const out = [];
@@ -47,6 +50,9 @@ export function mappaRigheMaster(matrix, header, colonne, primaRigaDati = 2) {
       dataRaw: cella(row, idx.data),
       esitoRaw: '', // il master DUNNING non ha "esito" in lettura: sempre pianificabile
       statoRaw: cella(row, idx.stato), // Stato Operazione (DUNNING); '' se colonne.stato assente
+      esito: cella(row, idx.esito), // ZAGAROLO esito (eseguito/no)
+      saracinesca: cella(row, idx.saracinesca), // ZAGAROLO saracinesca (SI)
+      odlSaracinesca: cella(row, idx.odlSaracinesca), // ZAGAROLO Odl saracinesca (figlio)
     });
   }
   return out;

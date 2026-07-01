@@ -14,6 +14,7 @@ const dati = {
       { chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 },
       { chiave: 'ES', label: 'ES', conteggio: 1, valore: 100 },
     ],
+    perAttivita: [{ chiave: 'LIMITAZIONE', label: 'Limitazione', conteggio: 3, valore: 300 }],
     perOperatore: [{ chiave: 's1', label: 'ROSSI', conteggio: 3, valore: 300 }],
     perTerritorio: [{ chiave: 't1', label: 'Roma', conteggio: 3, valore: 300 }],
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 3, valore: 300 }],

@@ -1,12 +1,34 @@
 import 'server-only';
 import { NextResponse } from 'next/server';
 import { requireAdminPlus } from '@/lib/apiAuth';
-import { caricaProduzioneEconomica } from '@/lib/produzione/load';
+import { caricaProduzioneEconomica, type ProduzioneEconomica } from '@/lib/produzione/load';
 import { buildWorkbookProduzione } from '@/lib/produzione/exportExcel';
+import { iniettaTemplate, mappaCelleProduzione } from '@/lib/produzione/excelInject';
+import templateDashboard from '@/lib/produzione/templateDashboard.json';
 
 export const runtime = 'nodejs';
 
-/** GET ?from&to (YYYY-MM-DD): scarica il workbook "Produzione economica ACEA" (Dashboard + Dati). */
+const XLSX_HEADERS = (fileName: string) => ({
+  'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  'Content-Disposition': `attachment; filename="${fileName}"`,
+  'Cache-Control': 'no-store',
+});
+
+/**
+ * Produce il workbook: prima prova a INIETTARE i dati nel template con GRAFICI NATIVI (via jszip,
+ * preserva i grafici); se qualcosa va storto ripiega sul workbook tabellare ExcelJS (sempre apribile).
+ */
+async function costruisciBuffer(dati: ProduzioneEconomica): Promise<Buffer | ArrayBuffer> {
+  try {
+    const tpl = Buffer.from((templateDashboard as { b64: string }).b64, 'base64');
+    return await iniettaTemplate(tpl, mappaCelleProduzione(dati));
+  } catch (e) {
+    console.error('[export] iniezione template fallita, fallback ExcelJS:', e instanceof Error ? e.message : e);
+    return buildWorkbookProduzione(dati);
+  }
+}
+
+/** GET ?from&to (YYYY-MM-DD): scarica il workbook "Produzione economica ACEA" (Dashboard + grafici). */
 export async function GET(req: Request) {
   const auth = await requireAdminPlus();
   if (auth instanceof NextResponse) return auth;
@@ -20,15 +42,10 @@ export async function GET(req: Request) {
 
   try {
     const dati = await caricaProduzioneEconomica(from, to);
-    const buf = await buildWorkbookProduzione(dati);
-    const fileName = `Produzione-economica-ACEA_${from}_${to}.xlsx`;
+    const buf = await costruisciBuffer(dati);
     return new NextResponse(buf as unknown as BodyInit, {
       status: 200,
-      headers: {
-        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-        'Content-Disposition': `attachment; filename="${fileName}"`,
-        'Cache-Control': 'no-store',
-      },
+      headers: XLSX_HEADERS(`Produzione-economica-ACEA_${from}_${to}.xlsx`),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Errore export Excel.';

@@ -440,6 +440,10 @@ async function leggiGrezzeMaster(acea) {
     odl: acea.masterColonnaOdl, esecutore: acea.masterColonnaEsecutore, data: acea.masterColonnaData,
     matricola: acea.masterColonnaMatricola, indirizzo: acea.masterColonnaIndirizzo, comune: acea.masterColonnaComune,
     attivita: acea.masterColonnaAttivita, // colonna "Operazione testo breve" (B): attività specifica per riga
+    stato: acea.masterColonnaStato,
+    esito: acea.masterColonnaEsito, // ZAGAROLO "esito"
+    saracinesca: acea.masterColonnaSaracinesca, // ZAGAROLO "saracinesca"
+    odlSaracinesca: acea.masterColonnaOdlSaracinesca, // ZAGAROLO "Odl saracinesca"
   };
   const rIntest = trovaIntestazioneAcea(tutte, acea.masterColonnaOdl);
   const header = tutte[rIntest - 1] || [];
