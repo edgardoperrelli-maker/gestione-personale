@@ -84,7 +84,7 @@ export async function POST(req: Request) {
     // Snapshot PORTALE ACEA (Produzione economica → SAL/audit): foto corrente ODL→stato dall'export.
     // Tipo-agnostico: si ingerisce ogni report che porta `portaleSnapshot`. Best-effort.
     const bodySnap = body as unknown as {
-      portaleSnapshot?: Array<{ odl?: string; stato?: string; operatore?: string }>;
+      portaleSnapshot?: Array<{ odl?: string; stato?: string; operatore?: string; causa?: string }>;
       masterSnapshot?: Array<{
         odl?: string; attivita?: string; esecutore?: string; dataRaw?: string; statoRaw?: string; matricola?: string; comune?: string;
         esito?: string; saracinesca?: string; odlSaracinesca?: string;
@@ -100,6 +100,7 @@ export async function POST(req: Request) {
           stato: x.stato as string,
           stato_norm: normalizzaStatoPortale(x.stato),
           operatore: x.operatore ?? null,
+          causa_scostamento: x.causa ?? null,
           raccolto_at: now.toISOString(),
           run_id: runId,
         }));

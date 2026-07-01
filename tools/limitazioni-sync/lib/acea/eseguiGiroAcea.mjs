@@ -25,6 +25,9 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
     const { righe, erroreColonne } = await parseExport(fileExport, {
       foglio: a.export?.foglio, colonnaOdl: a.export.colonnaOdl, colonnaStato: a.export.colonnaStato,
       colonnaOperatore: a.export?.colonnaOperatore, colonnaOperatoreNome: a.export?.colonnaOperatoreNome,
+      // Causa di scostamento ACEA (per il SAL "pagato": solo causali E). Default sul nome standard
+      // dell'export; se la colonna manca, parseExport degrada morbido (causale '').
+      colonnaCausale: a.export?.colonnaCausale ?? 'Causa dello scostamento',
     });
     if (erroreColonne) {
       return reportBase({ erroreGlobale: `Export: colonne "${a.export.colonnaOdl}"/"${a.export.colonnaStato}" non trovate.` });
@@ -49,6 +52,7 @@ export async function eseguiGiroAcea({ cfg, stamp, target = 'dunning', driver = 
         odl: String(r.ordine).trim(),
         stato: String(r.stato ?? ''),
         operatore: String(r.operatore ?? '').trim() || undefined,
+        causa: String(r.causale ?? '').trim() || undefined,
       }));
 
     // Scrittura CHIRURGICA: tocca solo le celle dello Stato Operazione (preserva AutoFiltro,

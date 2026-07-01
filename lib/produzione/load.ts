@@ -4,6 +4,7 @@ import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
+import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import {
@@ -90,6 +91,7 @@ interface MasterRow {
 interface PortaleRow {
   odl: string;
   stato_norm: string | null;
+  causa_scostamento: string | null;
 }
 
 // Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
@@ -152,7 +154,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       .eq('committente', 'acea'),
     caricaInterventiAcea(),
     caricaSnapshot<MasterRow>('acea_master_snapshot', 'odl, voce, attivita, esito, saracinesca, odl_saracinesca, esecutore, data_raw, comune'),
-    caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm'),
+    caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento'),
     nomi(),
     caricaAliasAttivita(),
   ]);
@@ -271,7 +273,9 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     if (effByOdl.get(odl) === 'italgas') continue;
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
-    if (statoNorm === 'COMPLETATO') {
+    // SAL = ciò che ACEA REMUNERA: solo COMPLETATO con causa scostamento pagata (inizia per E).
+    // L'audit (portaleAudit) resta su tutti i COMPLETATO; qui filtriamo solo il valorizzato.
+    if (statoNorm === 'COMPLETATO' && scostamentoPagato(p.causa_scostamento)) {
       if (saracinescaByFiglio.has(odl)) {
         // Odl figlio di una saracinesca consuntivato → vale la Sostituzione saracinesca (91,12),
         // non una limitazione con attività vuota. Evita la riga fantasma a 0 (niente doppio conteggio).

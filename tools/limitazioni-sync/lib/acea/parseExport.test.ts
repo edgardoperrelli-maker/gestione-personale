@@ -77,4 +77,38 @@ describe('estraiRigheExport', () => {
     expect(erroreColonne).toBe(false);
     expect(righe).toEqual([{ ordine: '957364267', stato: 'completato', operatore: '' }]);
   });
+  it('legge la colonna causa di scostamento quando richiesta', () => {
+    const sheet = ws([
+      ['Ordine', 'Stato Operazione', 'Causa dello scostamento'],
+      ['957364267', 'completato', 'EFRE'],
+      ['957362111', 'completato', 'NMNT'],
+      ['957999999', 'completato', ''],
+    ]);
+    const { righe } = estraiRigheExport(sheet, {
+      colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione', colonnaCausale: 'Causa dello scostamento',
+    });
+    expect(righe).toEqual([
+      { ordine: '957364267', stato: 'completato', causale: 'EFRE' },
+      { ordine: '957362111', stato: 'completato', causale: 'NMNT' },
+      { ordine: '957999999', stato: 'completato', causale: '' },
+    ]);
+  });
+  it('colonna causale assente nell\'header → causale vuota (degradazione morbida)', () => {
+    const sheet = ws([['Ordine', 'Stato Operazione'], ['957364267', 'completato']]);
+    const { righe } = estraiRigheExport(sheet, {
+      colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione', colonnaCausale: 'Causa dello scostamento',
+    });
+    expect(righe).toEqual([{ ordine: '957364267', stato: 'completato', causale: '' }]);
+  });
+  it('operatore + causale insieme', () => {
+    const sheet = ws([
+      ['Ordine', 'Stato Operazione', 'Cognome C.I.D.', 'Causa dello scostamento'],
+      ['957364267', 'completato', 'SIKORA', 'EIES'],
+    ]);
+    const { righe } = estraiRigheExport(sheet, {
+      colonnaOdl: 'Ordine', colonnaStato: 'Stato Operazione',
+      colonnaOperatore: 'Cognome C.I.D.', colonnaCausale: 'Causa dello scostamento',
+    });
+    expect(righe).toEqual([{ ordine: '957364267', stato: 'completato', operatore: 'SIKORA', causale: 'EIES' }]);
+  });
 });

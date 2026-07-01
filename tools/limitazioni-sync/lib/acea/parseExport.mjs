@@ -40,19 +40,24 @@ export function trovaHeader(ws, nomi) {
  *  porta anche `operatore` (cognome + eventuale `colonnaOperatoreNome`); se la colonna manca
  *  nell'header → `operatore: ''` (degradazione morbida, nessun errore). Le colonne OBBLIGATORIE per
  *  l'aggancio dell'header restano solo [colonnaOdl, colonnaStato], così il giro stato non cambia. */
-export function estraiRigheExport(ws, { colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome }) {
+export function estraiRigheExport(ws, { colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome, colonnaCausale }) {
   const { riga, idx } = trovaHeader(ws, [colonnaOdl, colonnaStato]);
   if (riga < 0) return { righe: [], erroreColonne: true };
   const leggiOperatore = colonnaOperatore != null;
+  const leggiCausale = colonnaCausale != null;
   let idxOp = -1;
   let idxOpNome = -1;
-  if (leggiOperatore) {
+  let idxCausale = -1;
+  if (leggiOperatore || leggiCausale) {
     const header = (ws.getRow(riga).values || []).slice(1).map((c) => {
       const t = valoreCella(c);
       return t == null ? '' : String(t);
     });
-    idxOp = risolviColonna(header, colonnaOperatore);
-    idxOpNome = colonnaOperatoreNome ? risolviColonna(header, colonnaOperatoreNome) : -1;
+    if (leggiOperatore) {
+      idxOp = risolviColonna(header, colonnaOperatore);
+      idxOpNome = colonnaOperatoreNome ? risolviColonna(header, colonnaOperatoreNome) : -1;
+    }
+    if (leggiCausale) idxCausale = risolviColonna(header, colonnaCausale);
   }
   const righe = [];
   for (let r = riga + 1; r <= ws.rowCount; r++) {
@@ -60,22 +65,25 @@ export function estraiRigheExport(ws, { colonnaOdl, colonnaStato, colonnaOperato
     const ordine = norm(valoreCella(row.getCell(idx[colonnaOdl] + 1).value));
     if (!ordine) continue;
     const stato = String(valoreCella(row.getCell(idx[colonnaStato] + 1).value) ?? '').trim();
-    if (!leggiOperatore) {
-      righe.push({ ordine, stato });
-      continue;
+    const rec = { ordine, stato };
+    // operatore e causale: solo se richiesti; colonna mancante → campo vuoto (degradazione morbida).
+    if (leggiOperatore) {
+      const cognome = idxOp >= 0 ? String(valoreCella(row.getCell(idxOp + 1).value) ?? '').trim() : '';
+      const nome = idxOpNome >= 0 ? String(valoreCella(row.getCell(idxOpNome + 1).value) ?? '').trim() : '';
+      rec.operatore = [cognome, nome].filter(Boolean).join(' ').trim();
     }
-    const cognome = idxOp >= 0 ? String(valoreCella(row.getCell(idxOp + 1).value) ?? '').trim() : '';
-    const nome = idxOpNome >= 0 ? String(valoreCella(row.getCell(idxOpNome + 1).value) ?? '').trim() : '';
-    const operatore = [cognome, nome].filter(Boolean).join(' ').trim();
-    righe.push({ ordine, stato, operatore });
+    if (leggiCausale) {
+      rec.causale = idxCausale >= 0 ? String(valoreCella(row.getCell(idxCausale + 1).value) ?? '').trim() : '';
+    }
+    righe.push(rec);
   }
   return { righe, erroreColonne: false };
 }
 
 /** Carica il file scaricato e ne estrae le righe. */
-export async function parseExport(file, { foglio, colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome }) {
+export async function parseExport(file, { foglio, colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome, colonnaCausale }) {
   const wb = new ExcelJS.Workbook();
   await wb.xlsx.readFile(file);
   const ws = (foglio && wb.getWorksheet(foglio)) || wb.worksheets[0];
-  return estraiRigheExport(ws, { colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome });
+  return estraiRigheExport(ws, { colonnaOdl, colonnaStato, colonnaOperatore, colonnaOperatoreNome, colonnaCausale });
 }
