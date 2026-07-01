@@ -22,7 +22,7 @@ describe('mappaRigheMaster', () => {
   it('mappa le colonne per nome e legge lo stato', () => {
     const matrix = [['completato', '12345', 'M9', 'Via Roma 1', 'ROMA', '2026-06-22', 'ROSSI']];
     const g = mappaRigheMaster(matrix, header, colonne);
-    expect(g).toEqual([{ riga: 2, odl: '12345', matricola: 'M9', indirizzo: 'Via Roma 1', comune: 'ROMA', esecutore: 'ROSSI', attivita: '', dataRaw: '2026-06-22', esitoRaw: '', statoRaw: 'completato' }]);
+    expect(g).toEqual([{ riga: 2, odl: '12345', matricola: 'M9', indirizzo: 'Via Roma 1', comune: 'ROMA', esecutore: 'ROSSI', attivita: '', dataRaw: '2026-06-22', esitoRaw: '', statoRaw: 'completato', esito: '', saracinesca: '', odlSaracinesca: '' }]);
   });
 
   it('legge l\'attività dalla colonna "Operazione testo breve" quando configurata', () => {

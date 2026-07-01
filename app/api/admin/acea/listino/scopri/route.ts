@@ -60,9 +60,10 @@ export async function POST() {
       if (r.attivita) gia.add(r.attivita);
     }
 
-    // normalizza + dedup per chiave (prima etichetta vista vince)
+    // normalizza + dedup per chiave (prima etichetta vista vince). "Sostituzione saracinesca" è una
+    // voce a sé (dal master ZAGAROLO) e va sempre a listino, anche se non compare come intervento_tipo.
     const daInserire = new Map<string, string>();
-    for (const testo of [...tipi, ...master]) {
+    for (const testo of [...tipi, ...master, 'Sostituzione saracinesca']) {
       const norm = normalizzaAttivita(testo);
       if (!norm || gia.has(norm.key) || daInserire.has(norm.key)) continue;
       daInserire.set(norm.key, norm.etichetta);

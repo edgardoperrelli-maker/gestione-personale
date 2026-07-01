@@ -87,6 +87,7 @@ export async function POST(req: Request) {
       portaleSnapshot?: Array<{ odl?: string; stato?: string; operatore?: string }>;
       masterSnapshot?: Array<{
         odl?: string; attivita?: string; esecutore?: string; dataRaw?: string; statoRaw?: string; matricola?: string; comune?: string;
+        esito?: string; saracinesca?: string; odlSaracinesca?: string;
       }>;
     };
     if (Array.isArray(bodySnap.portaleSnapshot) && bodySnap.portaleSnapshot.length > 0) {
@@ -123,6 +124,9 @@ export async function POST(req: Request) {
           stato_op: x.statoRaw ?? null,
           matricola: x.matricola ?? null,
           comune: x.comune ?? null,
+          esito: x.esito ?? null,
+          saracinesca: x.saracinesca ?? null,
+          odl_saracinesca: x.odlSaracinesca ?? null,
           raccolto_at: now.toISOString(),
           run_id: runId,
         }));

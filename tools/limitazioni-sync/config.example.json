@@ -39,6 +39,12 @@
       "masterColonnaOdl": "ORDINE",
       "masterColonnaStato": "stato odl",
       "masterColonnaAutomazione": "AUTOMAZIONE",
+      "masterColonnaData": "data prevista",
+      "masterColonnaMatricola": "MATRICOLA",
+      "masterColonnaComune": "Località",
+      "masterColonnaEsito": "esito",
+      "masterColonnaSaracinesca": "saracinesca",
+      "masterColonnaOdlSaracinesca": "Odl saracinesca",
       "daChiedereSeVuoto": true
     }
   }
