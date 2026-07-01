@@ -4,6 +4,7 @@ import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
+import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
@@ -27,15 +28,6 @@ const KPI_DA_VOCE: Record<number, string> = { 10: 'EL', 11: 'ES', 12: 'ERC', 6: 
 const AUDIT_CAP = 500;
 const SARA_KEY = 'SOSTITUZIONE SARACINESCA';
 const SARA_LABEL = 'Sostituzione saracinesca';
-
-/** 'YYYY-MM-DD' da un testo data grezzo ("2026-06-03 00:00:00" o "03/06/2026"); null se non parsabile. */
-function dataDaRaw(raw: string | null): string | null {
-  const s = (raw ?? '').trim();
-  if (!s) return null;
-  if (/^\d{4}-\d{2}-\d{2}/.test(s)) return s.slice(0, 10);
-  const m = s.match(/^(\d{2})\/(\d{2})\/(\d{4})/);
-  return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
-}
 
 /** Voce affidabile: usa interventi.voce solo se valida, altrimenti la deriva dal testo attività. */
 function risolviVoce(voceRaw: number | null, attivita: string | null): number | null {
