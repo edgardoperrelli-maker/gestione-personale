@@ -41,4 +41,32 @@ describe('preparaRigheMasterSnapshot', () => {
     expect(out).toHaveLength(1);
     expect(out[0].odl).toBe('900');
   });
+
+  it('senza ordine vero (vuoto o DA CHIEDERE/RICHIEDERE) usa MAT:matricola', () => {
+    const out = preparaRigheMasterSnapshot([
+      { odl: '', matricola: '202015', saracinesca: 'SI', esito: 'eseguito' },
+      { odl: 'DA CHIEDERE', matricola: '202016', saracinesca: 'SI', esito: 'eseguito' },
+      { odl: 'DA RICHIEDERE', matricola: '202017' },
+    ]);
+    expect(out.map((r) => r.odl)).toEqual(['MAT:202015', 'MAT:202016', 'MAT:202017']);
+  });
+
+  it('ODL numerico vero resta invariato (DUNNING/ZAGAROLO ordinati)', () => {
+    const out = preparaRigheMasterSnapshot([{ odl: '912345', matricola: 'M1' }]);
+    expect(out[0].odl).toBe('912345');
+  });
+
+  it('Odl saracinesca ha precedenza anche con matricola presente', () => {
+    const out = preparaRigheMasterSnapshot([{ odl: 'DA CHIEDERE', matricola: 'M1', odlSaracinesca: '912354706' }]);
+    expect(out[0].odl).toBe('912354706');
+  });
+
+  it('due righe manuali stessa matricola → dedup a una (MAT:)', () => {
+    const out = preparaRigheMasterSnapshot([
+      { odl: '', matricola: '999', saracinesca: 'SI', esito: 'eseguito' },
+      { odl: '', matricola: '999', saracinesca: 'SI', esito: 'eseguito' },
+    ]);
+    expect(out).toHaveLength(1);
+    expect(out[0].odl).toBe('MAT:999');
+  });
 });

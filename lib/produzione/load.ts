@@ -233,11 +233,17 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   for (const m of masterRows) {
     const odl = (m.odl ?? '').trim();
     if (!odl) continue;
-    masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
-    // Attività CANONICA (via alias) anche per il master: la chiave GREZZA non aggancia il listino
-    // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
-    const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
-    if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
+    // Le chiavi per-matricola (prefisso "MAT:") sono righe ZAGAROLO senza ODL reale (manuali dal campo,
+    // "DA CHIEDERE"): valgono per la PRODUZIONE saracinesca ma NON per audit/SAL (non hanno un ODL sul
+    // portale, altrimenti gonfierebbero le discrepanze come "master non nel portale").
+    const odlReale = !odl.startsWith('MAT:');
+    if (odlReale) {
+      masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
+      // Attività CANONICA (via alias) anche per il master: la chiave GREZZA non aggancia il listino
+      // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
+      const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
+      if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
+    }
     // saracinesca=SI + esito=eseguito → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre
     if ((m.saracinesca ?? '').trim().toUpperCase() === 'SI' && (m.esito ?? '').trim().toLowerCase() === 'eseguito') {
       const info = dbInfo.get(odl);
