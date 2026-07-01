@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { aggregaProduzione, type RigaProduzione } from './aggregaProduzione';
+import { aggregaProduzione, deduplicaMassivePerMatricola, type RigaProduzione } from './aggregaProduzione';
 
 const base: RigaProduzione = {
   odl: '1',
@@ -85,5 +85,53 @@ describe('aggregaProduzione', () => {
     ]);
     expect(a.perAttivita.map((x) => x.label)).toEqual(['Sospensione fornitura', 'Limitazione flusso idrico']);
     expect(a.perAttivita[1]).toMatchObject({ chiave: 'LIMITAZIONE FLUSSO IDRICO', conteggio: 2, valore: 10 });
+  });
+});
+
+describe('deduplicaMassivePerMatricola', () => {
+  it('collassa le LIMITAZIONE MASSIVA con la stessa matricola in una sola riga', () => {
+    const out = deduplicaMassivePerMatricola([
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: 'M1', odl: 'A' }),
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: 'M1', odl: 'B' }), // stessa matricola → duplicato
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: 'M2', odl: 'C' }),
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.matricola).sort()).toEqual(['M1', 'M2']);
+  });
+
+  it('quando la matricola manca, deduplica per ODL', () => {
+    const out = deduplicaMassivePerMatricola([
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: '', odl: 'A' }),
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: '', odl: 'A' }), // stesso ODL → duplicato
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: '', odl: 'B' }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('non tocca le voci diverse dalla limitazione massiva', () => {
+    const out = deduplicaMassivePerMatricola([
+      riga({ attivitaKey: 'LIMITAZIONE EROGAZIONE', matricola: 'M1', odl: 'A' }),
+      riga({ attivitaKey: 'LIMITAZIONE EROGAZIONE', matricola: 'M1', odl: 'B' }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('preserva le righe massive prive sia di matricola sia di ODL (non le collassa)', () => {
+    const out = deduplicaMassivePerMatricola([
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: '', odl: '' }),
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: '', odl: '' }),
+    ]);
+    expect(out).toHaveLength(2);
+  });
+
+  it('mantiene una sola riga massiva per matricola anche mescolata ad altre voci', () => {
+    const out = deduplicaMassivePerMatricola([
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: 'M1', odl: 'A' }),
+      riga({ attivitaKey: 'SOSTITUZIONE SARACINESCA', matricola: 'M1', odl: 'A' }),
+      riga({ attivitaKey: 'LIMITAZIONE MASSIVA', matricola: 'M1', odl: 'A' }),
+    ]);
+    // 1 massiva (M1) + 1 saracinesca (non toccata) = 2
+    expect(out).toHaveLength(2);
+    expect(out.filter((r) => r.attivitaKey === 'LIMITAZIONE MASSIVA')).toHaveLength(1);
   });
 });
