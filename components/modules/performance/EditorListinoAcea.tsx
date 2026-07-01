@@ -99,10 +99,31 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
     onSaved?.();
   };
 
+  const riconcilia = async () => {
+    setErrore(null);
+    setMsg('Cerco attività non ancora mappate…');
+    const res = await fetch('/api/admin/acea/attivita/riconcilia', { method: 'POST' });
+    if (!res.ok) {
+      setMsg(null);
+      setErrore((await res.json().catch(() => ({}))).error ?? 'Errore riconciliazione.');
+      return;
+    }
+    const j = (await res.json()) as { aggiunte: number; attivita: { committente: string; attivita: string }[] };
+    if (j.aggiunte === 0) {
+      setMsg('Nessuna attività nuova: l’alias è già allineato.');
+    } else {
+      const elenco = j.attivita.slice(0, 8).map((a) => `${a.committente}: ${a.attivita}`).join(' · ');
+      setMsg(`Aggiunte ${j.aggiunte} attività "Da classificare"${j.aggiunte > 8 ? ' (prime 8)' : ''}: ${elenco}`);
+    }
+    await carica();
+    onSaved?.();
+  };
+
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         <Button type="button" variant="primary" size="sm" className="h-8" onClick={scopri}>Scopri attività dai dati</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-8" onClick={riconcilia}>Riconcilia attività non mappate</Button>
         {msg && <span className="text-xs text-[var(--brand-text-muted)]">{msg}</span>}
         {errore && <span className="text-xs text-[var(--danger)]">{errore}</span>}
       </div>
