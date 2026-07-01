@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { chiaveValida } from '@/lib/apiExportKey';
 import { riassumiReport, type ReportAgente } from '@/lib/agente/decisione';
 import { normalizzaStatoPortale } from '@/lib/produzione/statoPortale';
-import { voceDaAttivita } from '@/lib/produzione/voceDaAttivita';
+import { preparaRigheMasterSnapshot } from '@/lib/agente/masterSnapshotIngest';
 
 export const runtime = 'nodejs';
 
@@ -112,25 +112,11 @@ export async function POST(req: Request) {
 
     // Snapshot MASTER DUNNING (audit): foto corrente ODL→stato/attività dal master. `voce` derivata.
     if (Array.isArray(bodySnap.masterSnapshot) && bodySnap.masterSnapshot.length > 0) {
-      const seen = new Set<string>();
-      const rows = bodySnap.masterSnapshot
-        .filter((x) => x && typeof x.odl === 'string' && x.odl)
-        .filter((x) => { const k = x.odl as string; if (seen.has(k)) return false; seen.add(k); return true; })
-        .map((x) => ({
-          odl: x.odl as string,
-          attivita: x.attivita ?? null,
-          voce: voceDaAttivita(x.attivita ?? null),
-          esecutore: x.esecutore ?? null,
-          data_raw: x.dataRaw ?? null,
-          stato_op: x.statoRaw ?? null,
-          matricola: x.matricola ?? null,
-          comune: x.comune ?? null,
-          esito: x.esito ?? null,
-          saracinesca: x.saracinesca ?? null,
-          odl_saracinesca: x.odlSaracinesca ?? null,
-          raccolto_at: now.toISOString(),
-          run_id: runId,
-        }));
+      const rows = preparaRigheMasterSnapshot(bodySnap.masterSnapshot).map((r) => ({
+        ...r,
+        raccolto_at: now.toISOString(),
+        run_id: runId,
+      }));
       if (rows.length > 0) {
         const { error } = await supabaseAdmin.from('acea_master_snapshot').upsert(rows, { onConflict: 'odl' });
         if (error) console.error('[report] acea_master_snapshot upsert:', error.message);
