@@ -36,7 +36,12 @@ export function preparaRigheMasterSnapshot(snapshot: MasterSnapshotIn[]): Master
   const out: MasterRigaDb[] = [];
   for (const x of snapshot ?? []) {
     const odlSar = (x.odlSaracinesca ?? '').trim();
-    const odl = odlSar || (typeof x.odl === 'string' ? x.odl.trim() : '');
+    const odlRaw = typeof x.odl === 'string' ? x.odl.trim() : '';
+    const mat = (x.matricola ?? '').trim();
+    // Chiave: Odl saracinesca figlio > ODL vero (numerico) > MAT:matricola. Le righe ZAGAROLO senza
+    // ordine vero (vuoto = manuali dal campo, "DA CHIEDERE"/"DA RICHIEDERE" = non ancora ordinate)
+    // usano la matricola (sempre presente, univoca) così non collassano e vengono valorizzate.
+    const odl = odlSar || (/^\d+$/.test(odlRaw) ? odlRaw : mat ? `MAT:${mat}` : odlRaw);
     if (!odl) continue;
     if (seen.has(odl)) continue;
     seen.add(odl);

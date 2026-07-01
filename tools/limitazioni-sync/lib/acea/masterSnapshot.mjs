@@ -3,9 +3,11 @@
 // Riusato per DUNNING e ZAGAROLO (limitazioni massive).
 export function mappaMasterSnapshot(grezze) {
   return (grezze ?? [])
-    .filter((g) => String(g?.odl ?? '').trim())
+    // Tiene la riga se ha un ODL, oppure una matricola / un Odl saracinesca: le righe ZAGAROLO senza
+    // ordine (manuali dal campo, "DA CHIEDERE") vanno comunque inviate (l'app le chiavizza per matricola).
+    .filter((g) => String(g?.odl ?? '').trim() || String(g?.matricola ?? '').trim() || String(g?.odlSaracinesca ?? '').trim())
     .map((g) => ({
-      odl: String(g.odl).trim(),
+      odl: String(g.odl ?? '').trim(),
       attivita: g.attivita ?? '',
       esecutore: g.esecutore ?? '',
       dataRaw: g.dataRaw ?? '',
