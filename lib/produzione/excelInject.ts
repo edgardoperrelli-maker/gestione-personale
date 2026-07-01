@@ -110,6 +110,12 @@ export function mappaCelleProduzione(dati: ProduzioneEconomica): CellePerFoglio 
     Dettaglio[`I${r}`] = o.chiave;
     Dettaglio[`J${r}`] = o.valore;
   });
+  dati.produzione.perAttivita.slice(0, 40).forEach((o, i) => {
+    const r = 2 + i;
+    Dettaglio[`L${r}`] = o.label;
+    Dettaglio[`M${r}`] = o.conteggio;
+    Dettaglio[`N${r}`] = o.valore;
+  });
 
   const Audit: Record<string, Valore> = {};
   dati.audit.slice(0, 200).forEach((d, i) => {

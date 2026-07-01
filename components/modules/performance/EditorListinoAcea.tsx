@@ -2,26 +2,21 @@
 import { useEffect, useState } from 'react';
 import Button from '@/components/Button';
 
-// Editor del listino tariffe ACEA (4 voci × periodi di validità). CRUD su /api/admin/acea/listino.
-// Modellato sul pattern di PannelloContabilita (input inline + salvataggio per riga).
+// Editor del listino tariffe ACEA PER ATTIVITÀ (× periodi di validità). CRUD su /api/admin/acea/listino.
+// "Scopri attività" popola il listino dalle attività reali trovate nei dati (interventi + master).
 
 interface ListinoRow {
   id: string;
-  voce: number;
-  kpi: string;
+  attivita: string;
+  etichetta: string;
+  voce: number | null;
+  kpi: string | null;
   prezzo: number;
   valido_dal: string;
   valido_al: string | null;
   attivo: boolean;
   note: string | null;
 }
-
-const VOCI: { voce: number; kpi: string; label: string }[] = [
-  { voce: 10, kpi: 'EL', label: 'EL — Limitazioni' },
-  { voce: 11, kpi: 'ES', label: 'ES — Sospensioni' },
-  { voce: 12, kpi: 'ERC', label: 'ERC — Rimozione contatori' },
-  { voce: 6, kpi: 'ERA', label: 'ERA — Rimozione abusi' },
-];
 
 const field =
   'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
@@ -34,8 +29,9 @@ function oggiISO(): string {
 export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void }) {
   const [rows, setRows] = useState<ListinoRow[]>([]);
   const [loading, setLoading] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
-  const [nuovo, setNuovo] = useState({ voce: 10, prezzo: 0, valido_dal: oggiISO(), valido_al: '', note: '' });
+  const [nuovo, setNuovo] = useState({ etichetta: '', prezzo: 0, valido_dal: oggiISO() });
 
   const carica = async () => {
     setLoading(true);
@@ -64,14 +60,7 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
     const res = await fetch('/api/admin/acea/listino', {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({
-        id: r.id,
-        prezzo: r.prezzo,
-        valido_dal: r.valido_dal,
-        valido_al: r.valido_al ?? '',
-        attivo: r.attivo,
-        note: r.note ?? '',
-      }),
+      body: JSON.stringify({ id: r.id, prezzo: r.prezzo, valido_dal: r.valido_dal, valido_al: r.valido_al ?? '', attivo: r.attivo }),
     });
     if (!res.ok) setErrore((await res.json().catch(() => ({}))).error ?? 'Errore salvataggio.');
     else onSaved?.();
@@ -81,10 +70,7 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
     setErrore(null);
     const res = await fetch(`/api/admin/acea/listino?id=${encodeURIComponent(id)}`, { method: 'DELETE' });
     if (!res.ok) setErrore((await res.json().catch(() => ({}))).error ?? 'Errore eliminazione.');
-    else {
-      await carica();
-      onSaved?.();
-    }
+    else { await carica(); onSaved?.(); }
   };
 
   const aggiungi = async () => {
@@ -95,20 +81,37 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
       body: JSON.stringify(nuovo),
     });
     if (!res.ok) setErrore((await res.json().catch(() => ({}))).error ?? 'Errore inserimento.');
-    else {
-      setNuovo({ voce: 10, prezzo: 0, valido_dal: oggiISO(), valido_al: '', note: '' });
-      await carica();
-      onSaved?.();
+    else { setNuovo({ etichetta: '', prezzo: 0, valido_dal: oggiISO() }); await carica(); onSaved?.(); }
+  };
+
+  const scopri = async () => {
+    setErrore(null);
+    setMsg('Scopro le attività dai dati…');
+    const res = await fetch('/api/admin/acea/listino/scopri', { method: 'POST' });
+    if (!res.ok) {
+      setMsg(null);
+      setErrore((await res.json().catch(() => ({}))).error ?? 'Errore scoperta attività.');
+      return;
     }
+    const j = (await res.json()) as { aggiunte: number; gia: number };
+    setMsg(`Aggiunte ${j.aggiunte} attività (già a listino: ${j.gia}). Imposta i prezzi qui sotto.`);
+    await carica();
+    onSaved?.();
   };
 
   return (
     <div className="space-y-3">
-      {errore && <p className="text-xs text-[var(--danger)]">{errore}</p>}
-      <div className="overflow-x-auto">
+      <div className="flex flex-wrap items-center gap-2">
+        <Button type="button" variant="primary" size="sm" className="h-8" onClick={scopri}>Scopri attività dai dati</Button>
+        {msg && <span className="text-xs text-[var(--brand-text-muted)]">{msg}</span>}
+        {errore && <span className="text-xs text-[var(--danger)]">{errore}</span>}
+      </div>
+
+      <div className="max-h-96 overflow-auto">
         <table className="w-full text-xs">
-          <thead>
+          <thead className="sticky top-0 bg-[var(--brand-surface)]">
             <tr className="text-left text-[var(--brand-text-muted)]">
+              <th className="py-1 pr-2">Attività</th>
               <th className="py-1 pr-2">Voce</th>
               <th className="py-1 pr-2">Prezzo €</th>
               <th className="py-1 pr-2">Valido dal</th>
@@ -120,34 +123,19 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
           <tbody>
             {rows.map((r) => (
               <tr key={r.id} className="border-t border-[var(--brand-border)]">
-                <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{r.kpi}</td>
+                <td className="py-1 pr-2 text-[var(--brand-text-main)]">{r.etichetta}</td>
+                <td className="py-1 pr-2 text-[var(--brand-text-muted)]">{r.kpi ?? '—'}</td>
                 <td className="py-1 pr-2">
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={r.prezzo}
-                    onChange={(e) => aggiorna(r.id, { prezzo: Number(e.target.value) })}
-                    className={`${field} w-24`}
-                  />
+                  <input type="number" step="0.01" value={r.prezzo} onChange={(e) => aggiorna(r.id, { prezzo: Number(e.target.value) })} className={`${field} w-24`} />
                 </td>
                 <td className="py-1 pr-2">
                   <input type="date" value={r.valido_dal} onChange={(e) => aggiorna(r.id, { valido_dal: e.target.value })} className={field} />
                 </td>
                 <td className="py-1 pr-2">
-                  <input
-                    type="date"
-                    value={r.valido_al ?? ''}
-                    onChange={(e) => aggiorna(r.id, { valido_al: e.target.value || null })}
-                    className={field}
-                  />
+                  <input type="date" value={r.valido_al ?? ''} onChange={(e) => aggiorna(r.id, { valido_al: e.target.value || null })} className={field} />
                 </td>
                 <td className="py-1 pr-2">
-                  <input
-                    type="checkbox"
-                    checked={r.attivo}
-                    onChange={(e) => aggiorna(r.id, { attivo: e.target.checked })}
-                    className="accent-[var(--brand-primary)]"
-                  />
+                  <input type="checkbox" checked={r.attivo} onChange={(e) => aggiorna(r.id, { attivo: e.target.checked })} className="accent-[var(--brand-primary)]" />
                 </td>
                 <td className="py-1 pr-2">
                   <div className="flex gap-1">
@@ -158,9 +146,7 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
               </tr>
             ))}
             {rows.length === 0 && !loading && (
-              <tr>
-                <td colSpan={6} className="py-3 text-center text-[var(--brand-text-muted)]">Nessuna tariffa. Aggiungine una qui sotto.</td>
-              </tr>
+              <tr><td colSpan={7} className="py-3 text-center text-[var(--brand-text-muted)]">Nessuna tariffa. Usa «Scopri attività dai dati».</td></tr>
             )}
           </tbody>
         </table>
@@ -168,10 +154,8 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
 
       <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
         <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
-          Voce
-          <select value={nuovo.voce} onChange={(e) => setNuovo((n) => ({ ...n, voce: Number(e.target.value) }))} className={field}>
-            {VOCI.map((v) => <option key={v.voce} value={v.voce}>{v.label}</option>)}
-          </select>
+          Attività (manuale)
+          <input type="text" value={nuovo.etichetta} onChange={(e) => setNuovo((n) => ({ ...n, etichetta: e.target.value }))} className={`${field} w-56`} placeholder="es. Sostituzione saracinesca" />
         </label>
         <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
           Prezzo €
@@ -181,11 +165,7 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
           Valido dal
           <input type="date" value={nuovo.valido_dal} onChange={(e) => setNuovo((n) => ({ ...n, valido_dal: e.target.value }))} className={field} />
         </label>
-        <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
-          Valido al (vuoto = aperto)
-          <input type="date" value={nuovo.valido_al} onChange={(e) => setNuovo((n) => ({ ...n, valido_al: e.target.value }))} className={field} />
-        </label>
-        <Button type="button" variant="primary" size="sm" className="h-8" onClick={aggiungi}>Aggiungi tariffa</Button>
+        <Button type="button" variant="ghost" size="sm" className="h-8" onClick={aggiungi} disabled={!nuovo.etichetta.trim()}>Aggiungi</Button>
       </div>
     </div>
   );

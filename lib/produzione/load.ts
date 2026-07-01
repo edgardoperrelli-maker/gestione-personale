@@ -2,6 +2,7 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
+import { normalizzaAttivita } from './normalizzaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { aggregaProduzione, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import {
@@ -126,7 +127,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const [listinoRows, interventi, masterRows, portaleRows, maps] = await Promise.all([
     supabaseAdmin
       .from('acea_listino')
-      .select('id, voce, prezzo, valido_dal, valido_al, attivo')
+      .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
       .eq('committente', 'acea'),
     caricaInterventiAcea(),
     caricaSnapshot<MasterRow>('acea_master_snapshot', 'odl, voce, attivita'),
@@ -136,33 +137,38 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
     id: string;
-    voce: number;
+    attivita: string | null;
     prezzo: number;
     valido_dal: string;
     valido_al: string | null;
     attivo: boolean;
-  }>).map((r) => ({
-    id: r.id,
-    voce: r.voce,
-    prezzo: Number(r.prezzo),
-    valido_dal: r.valido_dal,
-    valido_al: r.valido_al,
-    attivo: r.attivo,
-  }));
+  }>)
+    .filter((r) => r.attivita)
+    .map((r) => ({
+      id: r.id,
+      attivita: r.attivita as string,
+      prezzo: Number(r.prezzo),
+      valido_dal: r.valido_dal,
+      valido_al: r.valido_al,
+      attivo: r.attivo,
+    }));
 
-  const valore = (voce: number | null, data: string): number => {
-    if (voce == null) return 0;
-    const sel = prezzoPerData(listino, voce, data);
+  const valore = (attivitaKey: string, data: string): number => {
+    if (!attivitaKey) return 0;
+    const sel = prezzoPerData(listino, attivitaKey, data);
     return sel ? valoreRiga(sel.prezzo) : 0;
   };
 
   // DB per ODL (per audit): a parità di ODL vince il positivo.
   const dbAudit = new Map<string, DbRiga>();
   const dbDataByOdl = new Map<string, string>();
+  const dbAttivita = new Map<string, string>(); // odl → attività (per valorizzare il SAL)
   const produzioneRighe: RigaProduzione[] = [];
   for (const it of interventi) {
     const odl = (it.odl ?? '').trim();
     const voce = risolviVoce(it.voce, it.intervento_tipo);
+    const att = normalizzaAttivita(it.intervento_tipo);
+    const attivitaKey = att?.key ?? '';
     const esitoOk = esitoOkDaIntervento(it.stato, it.esito);
     const data = (it.data ?? '').slice(0, 10);
     if (odl) {
@@ -170,6 +176,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       if (!prev || (esitoOk === true && prev.esitoOk !== true)) {
         dbAudit.set(odl, { voce, esitoOk });
         if (data) dbDataByOdl.set(odl, data);
+        if (attivitaKey) dbAttivita.set(odl, attivitaKey);
       }
     }
     // Produzione = positivo nel range
@@ -178,26 +185,28 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         odl,
         voce,
         kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+        attivitaKey,
+        attivitaLabel: att?.etichetta ?? '(senza attività)',
         data,
         staffId: it.staff_id ?? '',
         operatore: (it.staff_id && maps.staff.get(it.staff_id)) || 'Sconosciuto',
         territorioId: it.territorio_id ?? '',
         territorio: (it.territorio_id && maps.terr.get(it.territorio_id)) || 'Senza territorio',
-        valore: valore(voce, data),
+        valore: valore(attivitaKey, data),
       });
     }
   }
   const produzione = aggregaProduzione(produzioneRighe);
 
-  // master per ODL (voce dal snapshot o derivata da attivita).
+  // master per ODL (voce + attività dal snapshot).
   const masterAudit = new Map<string, MasterRiga>();
-  const masterVoce = new Map<string, number | null>();
+  const masterAttivita = new Map<string, string>();
   for (const m of masterRows) {
     const odl = (m.odl ?? '').trim();
     if (!odl) continue;
-    const voce = risolviVoce(m.voce, m.attivita);
-    masterAudit.set(odl, { voce });
-    masterVoce.set(odl, voce);
+    masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
+    const attK = normalizzaAttivita(m.attivita)?.key;
+    if (attK) masterAttivita.set(odl, attK);
   }
 
   // portale per ODL.
@@ -209,18 +218,21 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
     if (statoNorm === 'COMPLETATO') {
-      const voce = dbAudit.get(odl)?.voce ?? masterVoce.get(odl) ?? null;
+      const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
+      const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
       const data = dbDataByOdl.get(odl) ?? to;
       salRighe.push({
         odl,
         voce,
         kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+        attivitaKey,
+        attivitaLabel: attivitaKey,
         data,
         staffId: '',
         operatore: '',
         territorioId: '',
         territorio: '',
-        valore: valore(voce, data),
+        valore: valore(attivitaKey, data),
       });
     }
   }

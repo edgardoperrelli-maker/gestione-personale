@@ -1,10 +1,10 @@
-// PURA: valorizzazione economica di un ordine ACEA = prezzo della sua voce, alla data dell'intervento.
+// PURA: valorizzazione economica di un ordine ACEA = prezzo della sua ATTIVITÀ, alla data dell'intervento.
 // Il listino ha validità temporale (ACEA cambia le tariffe nei SAL): si seleziona la tariffa attiva
 // che copre la data. Nessuna premialità qui (valore = prezzo × quantità, quantità di norma 1).
 
 export interface ListinoRiga {
   id: string;
-  voce: number;
+  attivita: string; // chiave normalizzata (vedi normalizzaAttivita)
   prezzo: number;
   valido_dal: string; // 'YYYY-MM-DD'
   valido_al: string | null; // null = aperto
@@ -22,17 +22,18 @@ function round2(n: number): number {
 }
 
 /**
- * Tariffa attiva per (voce, data). Le date ISO 'YYYY-MM-DD' si confrontano lessicograficamente.
+ * Tariffa attiva per (attività, data). Le date ISO 'YYYY-MM-DD' si confrontano lessicograficamente.
  * Periodo inclusivo ai bordi. A parità di copertura vince il `valido_dal` più recente (deterministico).
  */
 export function prezzoPerData(
   listino: ListinoRiga[],
-  voce: number,
+  attivita: string | null,
   data: string,
 ): PrezzoSelezionato | null {
+  if (!attivita) return null;
   let scelta: ListinoRiga | null = null;
   for (const riga of listino) {
-    if (!riga.attivo || riga.voce !== voce) continue;
+    if (!riga.attivo || riga.attivita !== attivita) continue;
     if (riga.valido_dal > data) continue;
     if (riga.valido_al != null && riga.valido_al < data) continue;
     if (scelta == null || riga.valido_dal > scelta.valido_dal) scelta = riga;

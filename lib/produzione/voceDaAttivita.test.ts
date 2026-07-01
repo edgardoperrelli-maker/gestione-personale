@@ -15,6 +15,12 @@ describe('voceDaAttivita', () => {
   it('riconosce la rimozione del CONTATORE/MISURATORE come ERC (voce 12)', () => {
     expect(voceDaAttivita('RIMOZIONE CONTATORE')).toBe(12);
     expect(voceDaAttivita('Rimozione misuratore per morosità')).toBe(12);
+    expect(voceDaAttivita('Rim Mis/Mod radio per morosità')).toBe(12); // abbreviazione
+  });
+
+  it('una REVOCA non è l\'attività revocata (Revoca limitazione ≠ EL)', () => {
+    expect(voceDaAttivita('Revoca limitazione Flusso')).toBeNull();
+    expect(voceDaAttivita('Revoca Disattivazione cessata morosità')).toBeNull();
   });
 
   it('riconosce la rimozione ABUSIVA come ERA (voce 6) — prima di ERC', () => {

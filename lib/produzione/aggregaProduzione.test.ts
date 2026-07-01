@@ -5,6 +5,8 @@ const base: RigaProduzione = {
   odl: '1',
   voce: 10,
   kpi: 'EL',
+  attivitaKey: 'LIMITAZIONE FLUSSO IDRICO',
+  attivitaLabel: 'Limitazione flusso idrico',
   data: '2026-06-01',
   staffId: 's1',
   operatore: 'ROSSI',
@@ -73,5 +75,15 @@ describe('aggregaProduzione', () => {
     ]);
     expect(a.perGiorno.map((g) => g.chiave)).toEqual(['2026-06-01', '2026-06-03']);
     expect(a.perGiorno[0]).toMatchObject({ chiave: '2026-06-01', conteggio: 2, valore: 5 });
+  });
+
+  it('aggrega per ATTIVITÀ (label leggibile) ordinato per valore desc', () => {
+    const a = aggregaProduzione([
+      riga({ odl: '1', attivitaKey: 'LIMITAZIONE FLUSSO IDRICO', attivitaLabel: 'Limitazione flusso idrico', valore: 5 }),
+      riga({ odl: '2', attivitaKey: 'SOSPENSIONE FORNITURA', attivitaLabel: 'Sospensione fornitura', valore: 30 }),
+      riga({ odl: '3', attivitaKey: 'LIMITAZIONE FLUSSO IDRICO', attivitaLabel: 'Limitazione flusso idrico', valore: 5 }),
+    ]);
+    expect(a.perAttivita.map((x) => x.label)).toEqual(['Sospensione fornitura', 'Limitazione flusso idrico']);
+    expect(a.perAttivita[1]).toMatchObject({ chiave: 'LIMITAZIONE FLUSSO IDRICO', conteggio: 2, valore: 10 });
   });
 });

@@ -90,6 +90,14 @@ for r in range(2, 33):
     det.cell(row=r, column=9, value="")
     det.cell(row=r, column=10, value=0).number_format = EUR
 det.column_dimensions["I"].width = 14; det.column_dimensions["J"].width = 14
+# blocco ATTIVITÀ (L/M/N), fino a 40 righe
+for j, t in enumerate(["Attività", "Ordini", "Produzione"]):
+    c = det.cell(row=1, column=12 + j, value=t); c.font = hdr; c.fill = hfill
+for r in range(2, 42):
+    det.cell(row=r, column=12, value="")
+    det.cell(row=r, column=13, value=0)
+    det.cell(row=r, column=14, value=0).number_format = EUR
+det.column_dimensions["L"].width = 32; det.column_dimensions["N"].width = 14
 
 # ---- AUDIT (tabella injected) ----
 au = wb.create_sheet("Audit")

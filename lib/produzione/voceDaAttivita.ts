@@ -22,13 +22,16 @@ function norm(testo: string): string {
 export function voceDaAttivita(testo: string | null | undefined): Voce | null {
   const t = norm(String(testo ?? ''));
   if (!t) return null;
+  // Una REVOCA (di limitazione/disattivazione) è l'annullamento, NON l'attività revocata → nessuna voce.
+  if (t.includes('REVOCA')) return null;
   // ABUSIVO prima di tutto: "RIMOZIONE CONTATORE ABUSIVO" è ERA, non ERC.
   if (t.includes('ABUSIV')) return 6; // ERA
   if (t.includes('LIMITAZ')) return 10; // EL
   if (t.includes('SOSPENS')) return 11; // ES
   if (
-    (t.includes('RIMOZ') || t.includes('RIMOSS')) &&
-    (t.includes('CONTATORE') || t.includes('MISURATORE'))
+    ((t.includes('RIMOZ') || t.includes('RIMOSS')) && (t.includes('CONTATORE') || t.includes('MISURATORE'))) ||
+    t.includes('RIM MIS') || // abbreviazione "Rim Mis/Mod radio"
+    t.includes('RIM. MIS')
   ) {
     return 12; // ERC
   }
