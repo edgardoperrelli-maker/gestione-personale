@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
+import ExcelJS from 'exceljs';
+import { aggiungiFogli, fogliPersonale, iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
 
 type Dati = Parameters<typeof mappaCelleProduzione>[0];
 
@@ -88,5 +89,35 @@ describe('iniettaTemplate (integrazione sul template reale)', () => {
     expect(datiXml).toContain('<c r="C2" s="8" t="n"><v>200</v></c>'); // EL produzione
     expect(datiXml).toContain('<c r="B2" t="n"><v>2</v></c>'); // EL ordini
     expect(datiXml).toContain('2026-06-01'); // periodo B9
+  });
+});
+
+describe('aggiungiFogli', () => {
+  it('aggiungiFogli appende fogli leggibili senza rompere il workbook', async () => {
+    // workbook di partenza minimale costruito con ExcelJS
+    const wb0 = new ExcelJS.Workbook();
+    wb0.addWorksheet('Dati').getCell('A1').value = 'x';
+    const buf0 = Buffer.from(await wb0.xlsx.writeBuffer());
+
+    const out = await aggiungiFogli(buf0, [
+      { nome: 'Dati - personale', righe: [['Operatore', 'Giornate'], ['ROSSI', 1.5]] },
+    ]);
+
+    const wb1 = new ExcelJS.Workbook();
+    await wb1.xlsx.load(out as unknown as ArrayBuffer);
+    expect(wb1.getWorksheet('Dati')).toBeDefined(); // il foglio originale sopravvive
+    const pe = wb1.getWorksheet('Dati - personale');
+    expect(pe).toBeDefined();
+    expect(pe!.getCell('A1').value).toBe('Operatore');
+    expect(pe!.getCell('A2').value).toBe('ROSSI');
+    expect(pe!.getCell('B2').value).toBe(1.5);
+  });
+
+  it('fogliPersonale mappa personale e SAL per giorno', () => {
+    const fogli = fogliPersonale(mockDati);
+    expect(fogli.map((f) => f.nome)).toEqual(['Dati - personale', 'Dati - SAL giorni']);
+    expect(fogli[0].righe[0]).toEqual(['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg']);
+    expect(fogli[0].righe[1]).toEqual(['ROSSI', 1.5, 3, 300, 200]);
+    expect(fogli[1].righe[1]).toEqual(['2026-06-01', 2, 200]);
   });
 });

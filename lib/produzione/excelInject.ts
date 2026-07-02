@@ -126,3 +126,104 @@ export function mappaCelleProduzione(dati: ProduzioneEconomica): CellePerFoglio 
 
   return { Dati, Dettaglio, Audit };
 }
+
+// ── Fogli extra (personale / SAL per giorno) anche sulla via template ────────
+// Il template con grafici nativi non contiene questi fogli e non può riceverli via iniettaCelle
+// (best-effort su celle esistenti): li APPENDIAMO al package scrivendo raw XML — worksheet senza
+// stili + registrazione in workbook.xml / rels / [Content_Types].xml. I grafici restano intatti
+// perché non si ri-serializza nulla di esistente.
+
+export interface FoglioSemplice {
+  nome: string;
+  righe: Array<Array<string | number>>;
+}
+
+/** Nome colonna Excel 0-based: 0→A, 25→Z, 26→AA. */
+function colonna(i: number): string {
+  let s = '';
+  let n = i;
+  do {
+    s = String.fromCharCode(65 + (n % 26)) + s;
+    n = Math.floor(n / 26) - 1;
+  } while (n >= 0);
+  return s;
+}
+
+export async function aggiungiFogli(buf: Buffer, fogli: FoglioSemplice[]): Promise<Buffer> {
+  const zip = await JSZip.loadAsync(buf);
+  let wbXml = await zip.file('xl/workbook.xml')!.async('string');
+  let relsXml = await zip.file('xl/_rels/workbook.xml.rels')!.async('string');
+  let ctXml = await zip.file('[Content_Types].xml')!.async('string');
+
+  // Primi indici liberi (sheetN.xml, rIdN, sheetId) — il template può averne di arbitrari.
+  const maxDi = (xml: string, re: RegExp) => Math.max(0, ...[...xml.matchAll(re)].map((m) => Number(m[1])));
+  let nextFile = maxDi(ctXml, /worksheets\/sheet(\d+)\.xml/g) + 1;
+  let nextRid = maxDi(relsXml, /Id="rId(\d+)"/g) + 1;
+  let nextSheetId = maxDi(wbXml, /<sheet[^>]*sheetId="(\d+)"/g) + 1;
+
+  for (const f of fogli) {
+    const file = `worksheets/sheet${nextFile}.xml`;
+    const rowsXml = f.righe
+      .map((riga, ri) => {
+        const celle = riga
+          .map((v, ci) => {
+            const ref = `${colonna(ci)}${ri + 1}`;
+            return typeof v === 'number' && Number.isFinite(v)
+              ? `<c r="${ref}" t="n"><v>${v}</v></c>`
+              : `<c r="${ref}" t="inlineStr"><is><t xml:space="preserve">${escXml(String(v))}</t></is></c>`;
+          })
+          .join('');
+        return `<row r="${ri + 1}">${celle}</row>`;
+      })
+      .join('');
+    zip.file(
+      `xl/${file}`,
+      `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><sheetData>${rowsXml}</sheetData></worksheet>`,
+    );
+    ctXml = ctXml.replace(
+      '</Types>',
+      `<Override PartName="/xl/${file}" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/></Types>`,
+    );
+    relsXml = relsXml.replace(
+      '</Relationships>',
+      `<Relationship Id="rId${nextRid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="${file}"/></Relationships>`,
+    );
+    // xmlns:r dichiarato sul tag stesso (autosufficiente): il workbook.xml del template può
+    // dichiararlo per-sheet anziché sul root <workbook>, quindi non va dato per scontato ereditato.
+    wbXml = wbXml.replace(
+      '</sheets>',
+      `<sheet xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" name="${escXml(f.nome)}" sheetId="${nextSheetId}" r:id="rId${nextRid}"/></sheets>`,
+    );
+    nextFile += 1;
+    nextRid += 1;
+    nextSheetId += 1;
+  }
+
+  zip.file('xl/workbook.xml', wbXml);
+  zip.file('xl/_rels/workbook.xml.rels', relsXml);
+  zip.file('[Content_Types].xml', ctXml);
+  return zip.generateAsync({ type: 'nodebuffer', compression: 'DEFLATE' });
+}
+
+/** Fogli extra dell'export Produzione economica (personale + SAL per giorno). PURA. */
+export function fogliPersonale(dati: ProduzioneEconomica): FoglioSemplice[] {
+  return [
+    {
+      nome: 'Dati - personale',
+      righe: [
+        ['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg'],
+        ...dati.personale.perOperatore.map(
+          (o): Array<string | number> => [o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? ''],
+        ),
+        ['TOTALE', dati.personale.totaleGiornate, '', dati.produzione.totale.valore, ''],
+      ],
+    },
+    {
+      nome: 'Dati - SAL giorni',
+      righe: [
+        ['Giorno', 'ODL', 'SAL EUR'],
+        ...dati.sal.perGiorno.map((g): Array<string | number> => [g.chiave, g.conteggio, g.valore]),
+      ],
+    },
+  ];
+}
