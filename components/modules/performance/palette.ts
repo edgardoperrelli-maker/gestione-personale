@@ -97,6 +97,8 @@ interface ResolvedChartColors {
   warning: string;
   /** Colore risolto per --success (linea produzione / dedicati). */
   success: string;
+  /** Colore risolto per --danger (esiti negativi). */
+  danger: string;
   /** Colore risolto per --brand-primary (serie primaria). */
   brandPrimary: string;
 }
@@ -116,6 +118,7 @@ function readTokens(): ResolvedChartColors {
     brandTextMuted:  resolve('--brand-text-muted'),
     warning:      resolve('--warning'),
     success:      resolve('--success'),
+    danger:       resolve('--danger'),
     brandPrimary: resolve('--brand-primary'),
   };
 }
@@ -128,6 +131,7 @@ const FALLBACK: ResolvedChartColors = {
   brandTextMuted:'#94a3b8',
   warning:      '#d97706',
   success:      '#16a34a',
+  danger:       '#dc2626',
   brandPrimary: '#2563eb',
 };
 

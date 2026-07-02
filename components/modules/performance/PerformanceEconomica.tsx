@@ -9,6 +9,7 @@ import KpiDirezione from './economica/KpiDirezione';
 import TrendProduzioneSal from './economica/TrendProduzioneSal';
 import ComposizioneProduzione from './economica/ComposizioneProduzione';
 import PersonaleImpegno from './economica/PersonaleImpegno';
+import EsitiOperatore from './economica/EsitiOperatore';
 import { eur, num, type DatiProduzione } from './economica/tipi';
 
 const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
@@ -172,6 +173,11 @@ export default function PerformanceEconomica() {
           {/* Personale impegnato */}
           <div className="mb-4">
             <PersonaleImpegno dati={dati} />
+          </div>
+
+          {/* Esiti sull'assegnato per operatore */}
+          <div className="mb-4">
+            <EsitiOperatore dati={dati} />
           </div>
 
           {/* Produzione vs SAL per voce (tabella operativa) */}
