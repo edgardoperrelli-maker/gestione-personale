@@ -12,6 +12,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   const { id } = await params;
   const body = (await req.json().catch(() => ({}))) as { motivo?: string };
 
+  // intervento_id: null esplicito — un rifiuto non deve MAI lasciare (o produrre) un intervento
+  // canonico agganciato (stesso principio della lane rapportino, vedi interventi-manuali/rifiuta).
   const { data: locked } = await supabaseAdmin
     .from('interventi_manuali')
     .update({
@@ -19,6 +21,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
       motivo_rifiuto: body.motivo ?? null,
       deciso_da: user.id,
       deciso_at: new Date().toISOString(),
+      intervento_id: null,
     })
     .eq('id', id)
     .eq('fonte', 'pronto_intervento')

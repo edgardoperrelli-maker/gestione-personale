@@ -25,7 +25,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   if (richiesta.stato !== 'in_attesa')
     return NextResponse.json({ error: 'non_annullabile' }, { status: 409 });
 
-  await supabaseAdmin.from('interventi_manuali').update({ stato: 'annullato' }).eq('id', id);
+  // intervento_id: null esplicito — un annullamento non deve MAI lasciare un intervento
+  // canonico agganciato (stesso principio del rifiuto d'ufficio).
+  await supabaseAdmin.from('interventi_manuali').update({ stato: 'annullato', intervento_id: null }).eq('id', id);
   if (richiesta.voce_id) {
     await supabaseAdmin.from('rapportino_voci').delete().eq('id', richiesta.voce_id);
   }

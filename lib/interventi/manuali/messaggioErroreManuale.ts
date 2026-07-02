@@ -11,6 +11,7 @@ export function messaggioErroreManuale(
     template_mancante: 'Template non configurato per questo committente.',
     non_modificabile: 'Rapportino non più modificabile (scaduto o già inviato).',
     not_found: 'Rapportino non trovato.',
+    matricola_gia_eseguita: "Intervento già eseguito su questo misuratore. Contatta l'ufficio per la verifica.",
     tipo_file_non_valido: "Una delle foto non è un'immagine valida.",
     upload_foto_fallito: 'Caricamento foto non riuscito, riprova.',
   };

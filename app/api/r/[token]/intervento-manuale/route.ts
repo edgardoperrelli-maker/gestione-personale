@@ -20,6 +20,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
+import { leggiVerdettoEsecuzione, COMMITTENTI_BLOCCO_ESECUZIONE } from '@/lib/limitazione/leggiVerdettoEsecuzione';
 import { pathFotoTentativo, isViolazionePk } from '@/lib/interventi/manuali/fotoStorageHardening';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 
@@ -138,6 +139,31 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       .eq('id', rawDati.richiestaId)
       .maybeSingle();
     if (esistente) return rispostaIdempotente(esistente as RichiestaEsistente, received);
+  }
+
+  // Anti-duplicato "matricola già eseguita": stesso controllo di /cerca-limitazione, qui
+  // RI-VERIFICATO all'invio finale. Il flusso è offline-first (accodaManuale → sincronizzaToken):
+  // la ricerca che sblocca il "+" può essere avvenuta molto prima dell'invio effettivo (più foto
+  // da compilare/caricare, coda offline), quindi il verdetto "non bloccato" ottenuto in ricerca
+  // può nel frattempo essere superato da un esito positivo registrato da un'altra richiesta. Senza
+  // questa ri-verifica un secondo "+" sulla stessa matricola entra comunque in coda e dipende dalla
+  // revisione manuale per essere scartato (caso ODL 912215400: 2° invio rifiutato a mano 7 minuti
+  // dopo, invece di essere respinto subito).
+  if (COMMITTENTI_BLOCCO_ESECUZIONE.includes(committente)) {
+    const matricolaQ = String((anagrafica as { matricola?: unknown }).matricola ?? '').trim();
+    if (matricolaQ) {
+      const verdetto = await leggiVerdettoEsecuzione(matricolaQ);
+      if (verdetto.bloccato) {
+        return NextResponse.json(
+          {
+            error: 'matricola_gia_eseguita',
+            dettaglio: "Intervento già eseguito su questo misuratore. Contatta l'ufficio per la verifica.",
+            odl: verdetto.odl ?? null,
+          },
+          { status: 409 },
+        );
+      }
+    }
   }
 
   // Collegamento opzionale al task-via padre (BONIFICHE EXTRA). Il client può mandare l'UUID

@@ -13,6 +13,11 @@ describe('messaggioErroreManuale', () => {
   it('mappa i codici noti quando manca il dettaglio', () => {
     expect(messaggioErroreManuale({ error: 'campi_mancanti' }, 422)).toMatch(/identificativo/i);
     expect(messaggioErroreManuale({ error: 'non_modificabile' }, 409)).toMatch(/scaduto|inviato/i);
+    expect(messaggioErroreManuale({ error: 'matricola_gia_eseguita' }, 409)).toMatch(/già eseguito/i);
+  });
+  it('matricola già eseguita: usa il dettaglio del server (blocco anti-duplicato all\'invio)', () => {
+    expect(messaggioErroreManuale({ error: 'matricola_gia_eseguita', dettaglio: "Intervento già eseguito su questo misuratore. Contatta l'ufficio per la verifica." }, 409))
+      .toMatch(/già eseguito/i);
   });
   it('fallback su codice grezzo o status', () => {
     expect(messaggioErroreManuale({ error: 'boh' }, 500)).toBe('boh');
