@@ -9,6 +9,7 @@ import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
+import type { InterventoNonClassificato } from './nonClassificate';
 import {
   riconcilia,
   scartoProduzioneSal,
@@ -50,6 +51,7 @@ export interface ProduzioneEconomica {
   sal: ProduzioneSal;
   scarto: Totale;
   personale: ProduzionePersonale;
+  nonClassificate: InterventoNonClassificato[];
   audit: Discrepanza[];
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
@@ -222,6 +224,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const dbInfo = new Map<string, { staffId: string; operatore: string; territorioId: string; territorio: string; data: string }>();
   const effByOdl = new Map<string, string>(); // odl → committente EFFETTIVO (per escludere il gas dal SAL)
   const produzioneRighe: RigaProduzione[] = [];
+  const nonClassificate: InterventoNonClassificato[] = [];
   for (const it of interventi) {
     const odl = (it.odl ?? '').trim();
     // attività CANONICA via alias (+ regole comune per le righe senza attività) → committente effettivo,
@@ -255,6 +258,19 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         data, staffId, operatore, territorioId, territorio,
         valore: valore(attivitaKey, data),
       });
+      // "Non classificata" (dettaglio riga): voce non derivata dal testo attività. Il testo GREZZO
+      // (non canon.attivitaPulita, che nel caso alias è la stessa etichetta condivisa da più causali
+      // diverse) serve a chi deve riassociare correttamente l'intervento alla voce KPI corretta.
+      if (voce == null) {
+        nonClassificate.push({
+          odl, data, operatore, territorio,
+          committente: (it.committente ?? '').trim(),
+          comune: (it.comune ?? '').trim(),
+          descrizioneGrezza: (it.intervento_tipo ?? '').trim(),
+          attivitaCanonica: canon.attivitaPulita,
+          valore: valore(attivitaKey, data),
+        });
+      }
     }
   }
 
@@ -385,6 +401,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     sal,
     scarto,
     personale,
+    nonClassificate,
     audit: auditTutte.slice(0, AUDIT_CAP),
     auditSummary,
     auditTotale: auditTutte.length,

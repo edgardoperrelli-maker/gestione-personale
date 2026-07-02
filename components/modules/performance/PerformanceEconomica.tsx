@@ -100,6 +100,7 @@ export default function PerformanceEconomica() {
   };
 
   const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}`;
+  const exportNonClassificateUrl = `/api/admin/acea/produzione/non-classificate?from=${from}&to=${to}`;
   const invalid = Boolean(from && to && from > to);
 
   const auditClassi = dati ? ORDINE_AUDIT.filter((c) => dati.auditSummary[c] > 0) : [];
@@ -121,6 +122,12 @@ export default function PerformanceEconomica() {
             className={`inline-flex h-7 items-center rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-white ${invalid ? 'pointer-events-none opacity-50' : ''}`}
           >
             Scarica Excel (dashboard)
+          </a>
+          <a
+            href={invalid ? undefined : exportNonClassificateUrl}
+            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 text-xs font-medium text-[var(--brand-text-main)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            Esporta non classificate{dati ? ` (${dati.nonClassificate.length})` : ''}
           </a>
           <a
             href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}`}
