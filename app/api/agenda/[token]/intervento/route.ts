@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { pianificaChiusuraOperatore, type AzioneOperatore } from '@/lib/interventi/chiusuraOperatore';
+import { rilevaDoppioPositivo, type AltroCompletatoPositivo } from '@/lib/interventi/rilevaDoppioPositivo';
 import type { EsitoIntervento, StatoIntervento } from '@/lib/interventi/statoInterventi';
 
 export const runtime = 'nodejs';
@@ -47,11 +48,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     const { data: intRow } = await supabaseAdmin
       .from('interventi')
-      .select('id, stato, committente, staff_id, data')
+      .select('id, stato, committente, staff_id, data, odl')
       .eq('id', interventoId)
       .maybeSingle();
     const it = intRow as
-      | { id: string; stato: StatoIntervento; committente: string | null; staff_id: string | null; data: string }
+      | { id: string; stato: StatoIntervento; committente: string | null; staff_id: string | null; data: string; odl: string | null }
       | null;
     if (!it || it.staff_id !== tok.staff_id || it.data !== tok.data) {
       return NextResponse.json({ error: 'Intervento non valido per questa agenda.' }, { status: 400 });
@@ -66,6 +67,22 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     });
     if (!piano.ok) return NextResponse.json({ error: piano.errore }, { status: 400 });
 
+    // Doppio positivo: un altro intervento con lo stesso ODL è già completato+positivo
+    // (tipicamente perché il master non risultava ancora aggiornato quando è stato ripianificato).
+    // Non blocca l'operatore: chiude comunque, ma marca la riga per la riconciliazione ufficio.
+    let riconciliazione: { da_riconciliare: true; riconciliazione_rif_id: string } | null = null;
+    if (piano.patch.esito === 'eseguito_positivo' && it.odl) {
+      const { data: altriRows } = await supabaseAdmin
+        .from('interventi')
+        .select('id, created_at')
+        .eq('odl', it.odl)
+        .eq('stato', 'completato')
+        .eq('esito', 'eseguito_positivo')
+        .neq('id', interventoId);
+      const rif = rilevaDoppioPositivo((altriRows ?? []) as AltroCompletatoPositivo[]);
+      if (rif) riconciliazione = { da_riconciliare: true, riconciliazione_rif_id: rif.rifId };
+    }
+
     const { error: ue } = await supabaseAdmin
       .from('interventi')
       .update({
@@ -73,6 +90,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         esito: piano.patch.esito,
         esito_motivo: piano.patch.esito_motivo,
         chiuso_at: new Date().toISOString(),
+        ...(riconciliazione ?? {}),
       })
       .eq('id', interventoId);
     if (ue) return NextResponse.json({ error: ue.message }, { status: 500 });

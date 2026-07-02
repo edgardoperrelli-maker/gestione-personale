@@ -4,6 +4,7 @@ import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { canManageUsers, resolveAssignableRole, canEditStorico } from '@/lib/moduleAccess';
 import StoricoInterventiClient from '@/components/modules/interventi/StoricoInterventiClient';
+import RiconciliazioneBanner from '@/components/modules/interventi/RiconciliazioneBanner';
 
 export const dynamic = 'force-dynamic';
 
@@ -29,6 +30,7 @@ export default async function InterventiPage() {
 
   return (
     <main className="w-full space-y-4 px-4 py-6">
+      {isAdminPlus && <RiconciliazioneBanner />}
       <StoricoInterventiClient staff={staff} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
     </main>
   );
