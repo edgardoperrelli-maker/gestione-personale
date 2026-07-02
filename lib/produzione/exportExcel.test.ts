@@ -20,8 +20,18 @@ const dati = {
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 3, valore: 300 }],
     nonRisolte: 0,
   },
-  sal: { totale: { conteggio: 2, valore: 200 }, perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }] },
+  sal: {
+    totale: { conteggio: 2, valore: 200 },
+    perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }],
+    perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 2, valore: 200 }],
+  },
   scarto: { conteggio: 1, valore: 100 },
+  personale: {
+    totaleGiornate: 1.5,
+    operatoriAttivi: 1,
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, resa: 200 }],
+    perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
+  },
   audit: [{ odl: 'o1', classe: 'POSITIVO_DB_NON_COMPLETATO_PORTALE' }],
   auditSummary: {
     SOLO_PORTALE: 0,
