@@ -61,7 +61,8 @@ export default function PersonaleImpegno({ dati }: { dati: DatiProduzione }) {
           </div>
         )}
         <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
-          Giornate = quota di interventi ACEA lavorati sul totale lavorato nel giorno (gli assegnati non eseguiti non contano).
+          Giornate = quota di interventi ACEA lavorati sul totale lavorato nel giorno, nei soli giorni feriali lun–ven
+          (gli assegnati non eseguiti non contano).
         </p>
       </div>
 
@@ -91,6 +92,11 @@ export default function PersonaleImpegno({ dati }: { dati: DatiProduzione }) {
               </BarChart>
             </ResponsiveContainer>
           </div>
+        )}
+        {(dati.personale.sabato.giornate > 0 || dati.personale.sabato.valore > 0) && (
+          <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
+            Sabati (attivazioni): {num(dati.personale.sabato.giornate)} gg · {eur(dati.personale.sabato.valore)} — esclusi da giornate e resa.
+          </p>
         )}
       </div>
     </div>

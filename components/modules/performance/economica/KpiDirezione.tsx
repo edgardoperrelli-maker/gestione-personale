@@ -19,7 +19,7 @@ export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione
   const sal = dati.sal.totale.valore;
   const perc = prod > 0 ? Math.round((sal / prod) * 100) : null;
   const giornate = dati.personale.totaleGiornate;
-  const resa = giornate > 0 ? prod / giornate : null;
+  const resa = giornate > 0 ? dati.personale.valoreFeriale / giornate : null;
 
   return (
     <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
@@ -27,8 +27,12 @@ export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione
       <Card titolo="SAL (pagato)" valore={eur(sal)} nota={`${num(dati.sal.totale.conteggio)} ODL · causale E%`} />
       <Card titolo="Da richiedere ad ACEA" valore={eur(dati.scarto.valore)} nota="Produzione − SAL" accent={dati.scarto.valore > 0 ? 'warn' : undefined} />
       <Card titolo="% consuntivato" valore={perc == null ? '—' : `${num(perc)}%`} nota="SAL / Produzione" />
-      <Card titolo="Giornate-uomo" valore={num(giornate)} nota={`${num(dati.personale.operatoriAttivi)} operatori`} />
-      <Card titolo="Resa €/giornata" valore={resa == null ? '—' : eur(resa)} nota="Produzione / giornate" />
+      <Card
+        titolo="Personale impiegato"
+        valore={`${num(dati.personale.operatoriAttivi)} op × ${num(Math.round(giornate))} gg`}
+        nota="giornate feriali lun–ven; giorni misti pro-quota"
+      />
+      <Card titolo="Resa €/giornata" valore={resa == null ? '—' : eur(resa)} nota="produzione feriale / giornate feriali" />
       {operative && (
         <>
           <Card titolo="Voci non risolte" valore={num(dati.produzione.nonRisolte)} nota="da classificare" accent={dati.produzione.nonRisolte > 0 ? 'warn' : undefined} />
