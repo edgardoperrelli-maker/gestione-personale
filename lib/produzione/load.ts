@@ -7,8 +7,9 @@ import { attivitaCanonica } from './attivitaCanonica';
 import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
-import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
-import { aggregaPersonale, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
+import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
+import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
+import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
 import {
   riconcilia,
   scartoProduzioneSal,
@@ -50,6 +51,7 @@ export interface ProduzioneEconomica {
   sal: ProduzioneSal;
   scarto: Totale;
   personale: ProduzionePersonale;
+  esiti: EsitoOperatore[];
   audit: Discrepanza[];
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
@@ -221,6 +223,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const dbAttivita = new Map<string, string>(); // odl → attività (per valorizzare il SAL)
   const dbInfo = new Map<string, { staffId: string; operatore: string; territorioId: string; territorio: string; data: string }>();
   const effByOdl = new Map<string, string>(); // odl → committente EFFETTIVO (per escludere il gas dal SAL)
+  const righeEsito: RigaEsito[] = [];
   const produzioneRighe: RigaProduzione[] = [];
   for (const it of interventi) {
     const odl = (it.odl ?? '').trim();
@@ -246,6 +249,11 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         if (attivitaKey) dbAttivita.set(odl, attivitaKey);
         dbInfo.set(odl, { staffId, operatore, territorioId, territorio, data });
       }
+    }
+    // Esiti sull'assegnato (design 2026-07-02): ogni riga ACEA con operatore nel range,
+    // qualsiasi esito (anche mai lavorata). Niente dedup: vista di carico assegnato.
+    if (staffId && data && data >= from && data <= to) {
+      righeEsito.push({ staffId, operatore, esitoOk });
     }
     // Produzione = positivo nel range
     if (esitoOk === true && data && data >= from && data <= to) {
@@ -294,7 +302,8 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     }
   }
   // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
-  const produzione = aggregaProduzione(deduplicaMassivePerMatricola(produzioneRighe));
+  const righeDedup = deduplicaMassivePerMatricola(produzioneRighe);
+  const produzione = aggregaProduzione(righeDedup);
 
   // Odl figli saracinesca → data del padre: valorizzano la "Sostituzione saracinesca" nel SAL
   // quando l'Odl figlio risulta COMPLETATO sul portale (Fix B, niente riga fantasma a 0).
@@ -358,7 +367,28 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       acea: canon?.committenteEff === 'acea',
     });
   }
-  const personale = aggregaPersonale(righeLavoro, produzione.perOperatore);
+  // Split € feriale/sabato sulle stesse righe (dedup) della produzione: la resa deve essere
+  // feriale/feriale (spec 2026-07-02); la domenica resta solo nel totale generale.
+  const euroFer = new Map<string, number>();
+  let valFeriale = 0;
+  let valSabato = 0;
+  for (const rp of righeDedup) {
+    const gs = giornoSettimana(rp.data);
+    if (gs >= 1 && gs <= 5) {
+      valFeriale += rp.valore;
+      if (rp.staffId) euroFer.set(rp.staffId, (euroFer.get(rp.staffId) ?? 0) + rp.valore);
+    } else if (gs === 6) {
+      valSabato += rp.valore;
+    }
+  }
+  const euroFerialePerOperatore: Aggregato[] = [...euroFer.entries()].map(([chiave, v]) => ({
+    chiave, label: chiave, conteggio: 0, valore: v,
+  }));
+  const personale = aggregaPersonale(righeLavoro, produzione.perOperatore, euroFerialePerOperatore, {
+    valoreFeriale: valFeriale,
+    sabatoValore: valSabato,
+  });
+  const esiti = aggregaEsiti(righeEsito, produzione.perOperatore);
 
   const masterPopolato = masterAudit.size > 0;
   const portalePopolato = portaleAudit.size > 0;
@@ -385,6 +415,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     sal,
     scarto,
     personale,
+    esiti,
     audit: auditTutte.slice(0, AUDIT_CAP),
     auditSummary,
     auditTotale: auditTutte.length,

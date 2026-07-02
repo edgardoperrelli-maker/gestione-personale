@@ -32,9 +32,12 @@ const mockDati = {
   personale: {
     totaleGiornate: 1.5,
     operatoriAttivi: 1,
-    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, resa: 200 }],
+    valoreFeriale: 250,
+    sabato: { giornate: 0.5, valore: 50 },
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
     perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
   },
+  esiti: [{ chiave: 's1', label: 'ROSSI', assegnati: 5, positivi: 3, negativi: 1, nonLavorati: 1, valore: 300 }],
   audit: [{ odl: 'o1', classe: 'DB_NON_IN_MASTER' }],
   auditSummary: {} as Record<string, number>,
   auditTotale: 1,
@@ -116,8 +119,13 @@ describe('aggiungiFogli', () => {
   it('fogliPersonale mappa personale e SAL per giorno', () => {
     const fogli = fogliPersonale(mockDati);
     expect(fogli.map((f) => f.nome)).toEqual(['Dati - personale', 'Dati - SAL giorni']);
-    expect(fogli[0].righe[0]).toEqual(['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg']);
-    expect(fogli[0].righe[1]).toEqual(['ROSSI', 1.5, 3, 300, 200]);
+    expect(fogli[0].righe[0]).toEqual([
+      'Operatore', 'Giornate (feriali)', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg',
+      'Assegnati', 'Positivi', 'Negativi', 'Non lavorati',
+    ]);
+    expect(fogli[0].righe[1]).toEqual(['ROSSI', 1.5, 3, 300, 166.67, 5, 3, 1, 1]);
+    expect(fogli[0].righe[2]).toEqual(['Sabati (attivazioni)', 0.5, '', 50, '', '', '', '', '']);
+    expect(fogli[0].righe[3]).toEqual(['TOTALE (feriali)', 1.5, '', 250, '', '', '', '', '']);
     expect(fogli[1].righe[1]).toEqual(['2026-06-01', 2, 200]);
   });
 });

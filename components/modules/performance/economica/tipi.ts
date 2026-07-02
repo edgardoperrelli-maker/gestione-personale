@@ -3,6 +3,7 @@
 
 import type { Aggregato, ProduzioneAggregata } from '@/lib/produzione/aggregaProduzione';
 import type { ProduzionePersonale } from '@/lib/produzione/aggregaPersonale';
+import type { EsitoOperatore } from '@/lib/produzione/aggregaEsiti';
 import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/riconciliazione';
 
 export interface DatiProduzione {
@@ -12,6 +13,7 @@ export interface DatiProduzione {
   sal: { totale: Totale; perVoce: Aggregato[]; perGiorno: Aggregato[] };
   scarto: Totale;
   personale: ProduzionePersonale;
+  esiti: EsitoOperatore[];
   audit: Discrepanza[];
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
