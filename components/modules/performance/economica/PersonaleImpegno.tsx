@@ -2,6 +2,7 @@
 import { useMemo } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { PersonaleOperatore } from '@/lib/produzione/aggregaPersonale';
+import { lunediSettimana } from '@/lib/produzione/settimana';
 import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from '../palette';
 import { eur, num, giornoIT, type DatiProduzione } from './tipi';
 
@@ -19,9 +20,7 @@ export default function PersonaleImpegno({ dati }: { dati: DatiProduzione }) {
     if (g.length <= SOGLIA_SETTIMANE) return g.map((x) => ({ chiave: x.data, dedicate: x.dedicate, saturazione: x.saturazione }));
     const m = new Map<string, { chiave: string; dedicate: number; saturazione: number }>();
     for (const x of g) {
-      const d = new Date(`${x.data}T00:00:00Z`);
-      d.setUTCDate(d.getUTCDate() - ((d.getUTCDay() + 6) % 7));
-      const k = d.toISOString().slice(0, 10);
+      const k = lunediSettimana(x.data);
       const acc = m.get(k) ?? { chiave: k, dedicate: 0, saturazione: 0 };
       acc.dedicate += x.dedicate;
       acc.saturazione += x.saturazione;

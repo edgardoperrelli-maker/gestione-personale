@@ -10,6 +10,7 @@ import TrendProduzioneSal from './economica/TrendProduzioneSal';
 import ComposizioneProduzione from './economica/ComposizioneProduzione';
 import PersonaleImpegno from './economica/PersonaleImpegno';
 import EsitiOperatore from './economica/EsitiOperatore';
+import CandeleSettimanali from './economica/CandeleSettimanali';
 import { eur, num, type DatiProduzione } from './economica/tipi';
 
 const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
@@ -178,6 +179,11 @@ export default function PerformanceEconomica() {
           {/* Esiti sull'assegnato per operatore */}
           <div className="mb-4">
             <EsitiOperatore dati={dati} />
+          </div>
+
+          {/* Candele settimanali per operatore (settimana navigabile, filtro indipendente dal periodo di pagina) */}
+          <div className="mb-4">
+            <CandeleSettimanali />
           </div>
 
           {/* Produzione vs SAL per voce (tabella operativa) */}

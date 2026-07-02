@@ -4,6 +4,7 @@
 // con la card "SAL". Lo scarto è clampato a ≥ 0 (aree impilate: salCum + scartoCum = prodCum).
 
 import type { Aggregato } from './aggregaProduzione';
+import { lunediSettimana } from './settimana';
 
 export interface PuntoTrend {
   data: string; // 'YYYY-MM-DD'
@@ -53,19 +54,11 @@ export function serieTrend(
   return out;
 }
 
-/** Lunedì (ISO) della settimana di un giorno 'YYYY-MM-DD'. */
-function lunediDi(iso: string): string {
-  const d = new Date(`${iso}T00:00:00Z`);
-  const g = (d.getUTCDay() + 6) % 7; // 0=lunedì
-  d.setUTCDate(d.getUTCDate() - g);
-  return d.toISOString().slice(0, 10);
-}
-
 /** Raggruppa un aggregato per-giorno in per-settimana (chiave = lunedì ISO). */
 export function raggruppaPerSettimana(agg: Aggregato[]): Aggregato[] {
   const m = new Map<string, Aggregato>();
   for (const g of agg) {
-    const k = lunediDi(g.chiave);
+    const k = lunediSettimana(g.chiave);
     let a = m.get(k);
     if (!a) {
       a = { chiave: k, label: k, conteggio: 0, valore: 0 };
