@@ -5,6 +5,7 @@ import TrendProduzioneSal from './TrendProduzioneSal';
 import ComposizioneProduzione from './ComposizioneProduzione';
 import PersonaleImpegno from './PersonaleImpegno';
 import EsitiOperatore from './EsitiOperatore';
+import CandeleSettimanali from './CandeleSettimanali';
 import type { DatiProduzione } from './tipi';
 
 /** Vista presentazione per la dirigenza: schermo intero, TEMA CHIARO FORZATO, solo KPI + grafici.
@@ -83,6 +84,9 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
             </section>
             <section className="break-inside-avoid">
               <EsitiOperatore dati={dati} />
+            </section>
+            <section className="break-inside-avoid">
+              <CandeleSettimanali />
             </section>
             <p className="text-[10px] text-[var(--brand-text-subtle)]">
               Fonte: gestionale (interventi + snapshot master/portale ACEA). SAL = ordini COMPLETATI con causale di
