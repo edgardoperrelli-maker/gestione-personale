@@ -54,7 +54,10 @@ export function aggregaCandele(righe: RigaCandela[], settimana: string[]): Cande
     if (r.esitoOk === true) giorno.positivi += 1;
     else if (r.esitoOk === false) giorno.negativi += 1;
     else giorno.nonLavorati += 1;
-    giorno.valore = round2(giorno.valore + r.valoreDedup);
+    giorno.valore += r.valoreDedup;
+  }
+  for (const op of m.values()) {
+    for (const g of op.giorni) g.valore = round2(g.valore);
   }
   return [...m.values()].sort((a, b) => {
     const totA = a.giorni.reduce((s, g) => s + g.assegnati, 0);
