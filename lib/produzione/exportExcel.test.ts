@@ -65,4 +65,20 @@ describe('buildWorkbookProduzione', () => {
     expect(dv.getCell('B2').value).toBe(2); // ordini EL
     expect(dv.getCell('C2').value).toBe(200); // produzione EL
   });
+
+  it('include i fogli personale e SAL per giorno', async () => {
+    const buf = await buildWorkbookProduzione(dati);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as ArrayBuffer);
+    const pe = wb.getWorksheet('Dati - personale');
+    expect(pe).toBeDefined();
+    expect(pe!.getCell('A1').value).toBe('Operatore');
+    expect(pe!.getCell('A2').value).toBe('ROSSI');
+    expect(pe!.getCell('B2').value).toBe(1.5); // giornate
+    expect(pe!.getCell('E2').value).toBe(200); // resa €/gg
+    const sg = wb.getWorksheet('Dati - SAL giorni');
+    expect(sg).toBeDefined();
+    expect(sg!.getCell('A2').value).toBe('2026-06-01');
+    expect(sg!.getCell('C2').value).toBe(200);
+  });
 });
