@@ -9,6 +9,7 @@ import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
+import { ATTIVITA_NON_KPI_KEYS } from './composizioneVoce';
 import type { InterventoNonClassificato } from './nonClassificate';
 import {
   riconcilia,
@@ -258,10 +259,12 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         data, staffId, operatore, territorioId, territorio,
         valore: valore(attivitaKey, data),
       });
-      // "Non classificata" (dettaglio riga): voce non derivata dal testo attività. Il testo GREZZO
-      // (non canon.attivitaPulita, che nel caso alias è la stessa etichetta condivisa da più causali
-      // diverse) serve a chi deve riassociare correttamente l'intervento alla voce KPI corretta.
-      if (voce == null) {
+      // "Non classificata" (dettaglio riga): voce non derivata dal testo attività, ESCLUSE le
+      // attività note come "non KPI per struttura di contratto" (saracinesche, riattivazioni/revoche:
+      // stessa esclusione del donut in composizioneVoce.ts, per non avere due numeri diversi in UI).
+      // Il testo GREZZO (non canon.attivitaPulita, che nel caso alias è la stessa etichetta condivisa
+      // da più causali diverse) serve a chi deve riassociare correttamente l'intervento alla voce giusta.
+      if (voce == null && !ATTIVITA_NON_KPI_KEYS.includes(attivitaKey)) {
         nonClassificate.push({
           odl, data, operatore, territorio,
           committente: (it.committente ?? '').trim(),
