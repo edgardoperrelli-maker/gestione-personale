@@ -139,14 +139,18 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
 
   // ── DATI: personale (giornate-uomo frazionarie) ─────────────
   const pe = wb.addWorksheet('Dati - personale');
-  pe.columns = [{ width: 32 }, { width: 12 }, { width: 16 }, { width: 16 }, { width: 14 }];
-  intestazione(pe.addRow(['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione €', 'Resa €/gg']));
+  pe.columns = [{ width: 32 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 13 }];
+  intestazione(pe.addRow(['Operatore', 'Giornate (feriali)', 'Interventi ACEA', 'Produzione €', 'Resa €/gg', 'Assegnati', 'Positivi', 'Negativi', 'Non lavorati']));
+  const esitiByOp = new Map(dati.esiti.map((e) => [e.chiave, e]));
   for (const o of dati.personale.perOperatore) {
-    const r = pe.addRow([o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? '']);
+    const e = esitiByOp.get(o.chiave);
+    const r = pe.addRow([o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? '', e?.assegnati ?? 0, e?.positivi ?? 0, e?.negativi ?? 0, e?.nonLavorati ?? 0]);
     r.getCell(4).numFmt = EUR;
     if (o.resa != null) r.getCell(5).numFmt = EUR;
   }
-  const peTot = pe.addRow(['TOTALE', dati.personale.totaleGiornate, '', dati.produzione.totale.valore, '']);
+  const peSab = pe.addRow(['Sabati (attivazioni)', dati.personale.sabato.giornate, '', dati.personale.sabato.valore, '', '', '', '', '']);
+  peSab.getCell(4).numFmt = EUR;
+  const peTot = pe.addRow(['TOTALE (feriali)', dati.personale.totaleGiornate, '', dati.personale.valoreFeriale, '', '', '', '', '']);
   peTot.eachCell((c, col) => {
     c.font = { bold: true };
     if (col === 4) c.numFmt = EUR;

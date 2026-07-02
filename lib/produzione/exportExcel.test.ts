@@ -29,9 +29,12 @@ const dati = {
   personale: {
     totaleGiornate: 1.5,
     operatoriAttivi: 1,
-    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, resa: 200 }],
+    valoreFeriale: 250,
+    sabato: { giornate: 0.5, valore: 50 },
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
     perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
   },
+  esiti: [{ chiave: 's1', label: 'ROSSI', assegnati: 5, positivi: 3, negativi: 1, nonLavorati: 1, valore: 300 }],
   audit: [{ odl: 'o1', classe: 'POSITIVO_DB_NON_COMPLETATO_PORTALE' }],
   auditSummary: {
     SOLO_PORTALE: 0,
@@ -66,16 +69,26 @@ describe('buildWorkbookProduzione', () => {
     expect(dv.getCell('C2').value).toBe(200); // produzione EL
   });
 
-  it('include i fogli personale e SAL per giorno', async () => {
+  it('include i fogli personale (esiti + sabati) e SAL per giorno', async () => {
     const buf = await buildWorkbookProduzione(dati);
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as ArrayBuffer);
     const pe = wb.getWorksheet('Dati - personale');
     expect(pe).toBeDefined();
     expect(pe!.getCell('A1').value).toBe('Operatore');
+    expect(pe!.getCell('F1').value).toBe('Assegnati');
     expect(pe!.getCell('A2').value).toBe('ROSSI');
-    expect(pe!.getCell('B2').value).toBe(1.5); // giornate
-    expect(pe!.getCell('E2').value).toBe(200); // resa €/gg
+    expect(pe!.getCell('B2').value).toBe(1.5); // giornate feriali
+    expect(pe!.getCell('E2').value).toBe(166.67); // resa feriale €/gg
+    expect(pe!.getCell('F2').value).toBe(5); // assegnati
+    expect(pe!.getCell('G2').value).toBe(3); // positivi
+    expect(pe!.getCell('H2').value).toBe(1); // negativi
+    expect(pe!.getCell('I2').value).toBe(1); // non lavorati
+    expect(pe!.getCell('A3').value).toBe('Sabati (attivazioni)');
+    expect(pe!.getCell('B3').value).toBe(0.5);
+    expect(pe!.getCell('D3').value).toBe(50);
+    expect(pe!.getCell('A4').value).toBe('TOTALE (feriali)');
+    expect(pe!.getCell('D4').value).toBe(250); // valoreFeriale
     const sg = wb.getWorksheet('Dati - SAL giorni');
     expect(sg).toBeDefined();
     expect(sg!.getCell('A2').value).toBe('2026-06-01');
