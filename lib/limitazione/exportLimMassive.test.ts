@@ -1,5 +1,29 @@
 import { describe, it, expect } from 'vitest';
-import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, saracinescaPulita, type RigaDb } from './exportLimMassive';
+import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, saracinescaPulita, valoreSaracinesca, type RigaDb } from './exportLimMassive';
+
+describe('valoreSaracinesca', () => {
+  it('booleano true (template a checkbox) → SI', () => {
+    expect(valoreSaracinesca(true, null)).toBe('SI');
+  });
+  it('stringa "SI" → SI', () => {
+    expect(valoreSaracinesca('SI', null)).toBe('SI');
+  });
+  it('booleano false → vuoto (valvola non sostituita)', () => {
+    expect(valoreSaracinesca(false, null)).toBe('');
+  });
+  it('primo campo vuoto, secondo con path foto → scartato', () => {
+    expect(valoreSaracinesca('', 'rapportini/abc/x.jpg')).toBe('');
+  });
+  it('primo campo vuoto, fallback sul secondo valido', () => {
+    expect(valoreSaracinesca(null, 'SI')).toBe('SI');
+  });
+  it('booleano true vince sul secondo campo', () => {
+    expect(valoreSaracinesca(true, 'qualcosa')).toBe('SI');
+  });
+  it('entrambi assenti → vuoto', () => {
+    expect(valoreSaracinesca(null, undefined)).toBe('');
+  });
+});
 
 describe('cognomeDaDisplayName', () => {
   it('prende il primo token (cognome) in maiuscolo', () => {

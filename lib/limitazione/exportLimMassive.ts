@@ -85,6 +85,23 @@ export function saracinescaPulita(v: string | null | undefined): string {
   return sembraFileOLink ? '' : s;
 }
 
+/**
+ * Valore saracinesca dalle due chiavi possibili del rapportino (`sostituzione_valvola`,
+ * `sost_valvola`), tollerante al TIPO: alcuni template salvano un booleano (checkbox →
+ * `true`), altri una stringa ("SI"/testo) o un path-foto (da scartare). Il booleano `true`
+ * diventa "SI"; le stringhe passano da `saracinescaPulita` (che scarta i path). Ritorna il
+ * primo valore valido tra le due chiavi. Senza questa normalizzazione l'export scartava le
+ * valvole salvate come booleano (viste "SI" nello storico ma perse dall'agente).
+ */
+export function valoreSaracinesca(sostituzioneValvola: unknown, sostValvola: unknown): string {
+  const norm = (raw: unknown): string => {
+    if (raw === true) return 'SI';
+    if (typeof raw === 'string') return saracinescaPulita(raw);
+    return '';
+  };
+  return norm(sostituzioneValvola) || norm(sostValvola);
+}
+
 export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
   const esitoOk = esitoOkDaIntervento(r.stato, r.esito);
   return {

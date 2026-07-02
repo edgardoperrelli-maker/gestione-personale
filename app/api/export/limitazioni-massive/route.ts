@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { chiaveValida } from '@/lib/apiExportKey';
 import {
   buildRigaLimMassive,
-  saracinescaPulita,
+  valoreSaracinesca,
   type RigaDb,
   type RigaLimMassive,
 } from '@/lib/limitazione/exportLimMassive';
@@ -92,17 +92,12 @@ export async function GET(req: Request) {
             ? (v.risposte['sigillo'] as string)
             : '';
         if (sig && !sigilloById.has(v.intervento_id)) sigilloById.set(v.intervento_id, sig);
-        // saracinesca: primo non vuoto tra sostituzione_valvola e sost_valvola (due template)
-        const sv1 =
-          v.risposte && typeof v.risposte['sostituzione_valvola'] === 'string'
-            ? (v.risposte['sostituzione_valvola'] as string)
-            : '';
-        const sv2 =
-          v.risposte && typeof v.risposte['sost_valvola'] === 'string'
-            ? (v.risposte['sost_valvola'] as string)
-            : '';
-        // scarta foto/link/percorsi (es. sost_valvola = "rapportini/…/x.jpg") e prendi il primo valido
-        const sar = saracinescaPulita(sv1) || saracinescaPulita(sv2);
+        // saracinesca: primo valido tra sostituzione_valvola e sost_valvola (due template).
+        // Tollerante al tipo: booleano (checkbox) → "SI", stringa → ripulita dai path-foto.
+        const sar = valoreSaracinesca(
+          v.risposte?.['sostituzione_valvola'],
+          v.risposte?.['sost_valvola'],
+        );
         if (sar && !saracinescaById.has(v.intervento_id)) saracinescaById.set(v.intervento_id, sar);
         // note: nota del rapportino (usata sui soli negativi, vedi buildRigaLimMassive)
         const nota =
