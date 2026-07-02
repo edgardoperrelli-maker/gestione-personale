@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { requireAdminPlus } from '@/lib/apiAuth';
 import { caricaProduzioneEconomica, type ProduzioneEconomica } from '@/lib/produzione/load';
 import { buildWorkbookProduzione } from '@/lib/produzione/exportExcel';
-import { iniettaTemplate, mappaCelleProduzione } from '@/lib/produzione/excelInject';
+import { aggiungiFogli, fogliPersonale, iniettaTemplate, mappaCelleProduzione } from '@/lib/produzione/excelInject';
 import templateDashboard from '@/lib/produzione/templateDashboard.json';
 
 export const runtime = 'nodejs';
@@ -21,7 +21,8 @@ const XLSX_HEADERS = (fileName: string) => ({
 async function costruisciBuffer(dati: ProduzioneEconomica): Promise<Buffer | ArrayBuffer> {
   try {
     const tpl = Buffer.from((templateDashboard as { b64: string }).b64, 'base64');
-    return await iniettaTemplate(tpl, mappaCelleProduzione(dati));
+    const iniettato = await iniettaTemplate(tpl, mappaCelleProduzione(dati));
+    return await aggiungiFogli(iniettato, fogliPersonale(dati));
   } catch (e) {
     console.error('[export] iniezione template fallita, fallback ExcelJS:', e instanceof Error ? e.message : e);
     return buildWorkbookProduzione(dati);

@@ -2,7 +2,8 @@ import { describe, expect, it } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
-import { iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
+import ExcelJS from 'exceljs';
+import { aggiungiFogli, fogliPersonale, iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
 
 type Dati = Parameters<typeof mappaCelleProduzione>[0];
 
@@ -22,8 +23,18 @@ const mockDati = {
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 3, valore: 300 }],
     nonRisolte: 0,
   },
-  sal: { totale: { conteggio: 2, valore: 200 }, perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }] },
+  sal: {
+    totale: { conteggio: 2, valore: 200 },
+    perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }],
+    perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 2, valore: 200 }],
+  },
   scarto: { conteggio: 1, valore: 100 },
+  personale: {
+    totaleGiornate: 1.5,
+    operatoriAttivi: 1,
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, resa: 200 }],
+    perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
+  },
   audit: [{ odl: 'o1', classe: 'DB_NON_IN_MASTER' }],
   auditSummary: {} as Record<string, number>,
   auditTotale: 1,
@@ -78,5 +89,35 @@ describe('iniettaTemplate (integrazione sul template reale)', () => {
     expect(datiXml).toContain('<c r="C2" s="8" t="n"><v>200</v></c>'); // EL produzione
     expect(datiXml).toContain('<c r="B2" t="n"><v>2</v></c>'); // EL ordini
     expect(datiXml).toContain('2026-06-01'); // periodo B9
+  });
+});
+
+describe('aggiungiFogli', () => {
+  it('aggiungiFogli appende fogli leggibili senza rompere il workbook', async () => {
+    // workbook di partenza minimale costruito con ExcelJS
+    const wb0 = new ExcelJS.Workbook();
+    wb0.addWorksheet('Dati').getCell('A1').value = 'x';
+    const buf0 = Buffer.from(await wb0.xlsx.writeBuffer());
+
+    const out = await aggiungiFogli(buf0, [
+      { nome: 'Dati - personale', righe: [['Operatore', 'Giornate'], ['ROSSI', 1.5]] },
+    ]);
+
+    const wb1 = new ExcelJS.Workbook();
+    await wb1.xlsx.load(out as unknown as ArrayBuffer);
+    expect(wb1.getWorksheet('Dati')).toBeDefined(); // il foglio originale sopravvive
+    const pe = wb1.getWorksheet('Dati - personale');
+    expect(pe).toBeDefined();
+    expect(pe!.getCell('A1').value).toBe('Operatore');
+    expect(pe!.getCell('A2').value).toBe('ROSSI');
+    expect(pe!.getCell('B2').value).toBe(1.5);
+  });
+
+  it('fogliPersonale mappa personale e SAL per giorno', () => {
+    const fogli = fogliPersonale(mockDati);
+    expect(fogli.map((f) => f.nome)).toEqual(['Dati - personale', 'Dati - SAL giorni']);
+    expect(fogli[0].righe[0]).toEqual(['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg']);
+    expect(fogli[0].righe[1]).toEqual(['ROSSI', 1.5, 3, 300, 200]);
+    expect(fogli[1].righe[1]).toEqual(['2026-06-01', 2, 200]);
   });
 });

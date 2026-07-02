@@ -1,29 +1,15 @@
 'use client';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Bar, BarChart, CartesianGrid, Cell, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import Button from '@/components/Button';
 import Badge from '@/components/Badge';
-import type { Aggregato, ProduzioneAggregata } from '@/lib/produzione/aggregaProduzione';
-import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/riconciliazione';
+import type { Aggregato } from '@/lib/produzione/aggregaProduzione';
+import type { ClasseDiscrepanza } from '@/lib/produzione/riconciliazione';
 import EditorListinoAcea from './EditorListinoAcea';
-import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
-
-interface DatiProduzione {
-  from: string;
-  to: string;
-  produzione: ProduzioneAggregata;
-  sal: { totale: Totale; perVoce: Aggregato[] };
-  scarto: Totale;
-  audit: Discrepanza[];
-  auditSummary: Record<ClasseDiscrepanza, number>;
-  auditTotale: number;
-  auditTruncated: boolean;
-  masterPopolato: boolean;
-  portalePopolato: boolean;
-}
-
-const eur = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
-const num = (n: number) => n.toLocaleString('it-IT');
+import KpiDirezione from './economica/KpiDirezione';
+import TrendProduzioneSal from './economica/TrendProduzioneSal';
+import ComposizioneProduzione from './economica/ComposizioneProduzione';
+import PersonaleImpegno from './economica/PersonaleImpegno';
+import { eur, num, type DatiProduzione } from './economica/tipi';
 
 const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
   SOLO_PORTALE: 'Solo nel portale ACEA (assente da DB e master)',
@@ -51,18 +37,6 @@ function pad(n: number) {
 const field =
   'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
 
-function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string; nota?: string; accent?: 'pos' | 'neg' | 'warn' }) {
-  const color =
-    accent === 'pos' ? 'text-[var(--success)]' : accent === 'neg' ? 'text-[var(--danger)]' : accent === 'warn' ? 'text-[var(--warning)]' : 'text-[var(--brand-text-main)]';
-  return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
-      <div className="text-[11px] text-[var(--brand-text-muted)]">{titolo}</div>
-      <div className={`text-lg font-semibold tabular-nums ${color}`}>{valore}</div>
-      {nota && <div className="text-[10px] text-[var(--brand-text-subtle)]">{nota}</div>}
-    </div>
-  );
-}
-
 export default function PerformanceEconomica() {
   const now = useMemo(() => new Date(), []);
   const today = `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
@@ -79,8 +53,6 @@ export default function PerformanceEconomica() {
   const [loading, setLoading] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
-
-  const cc = useChartColors();
 
   const carica = useCallback(async () => {
     setLoading(true);
@@ -150,6 +122,14 @@ export default function PerformanceEconomica() {
           >
             Scarica Excel (dashboard)
           </a>
+          <a
+            href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}`}
+            target="_blank"
+            rel="noreferrer"
+            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--brand-primary)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+          >
+            Presentazione
+          </a>
         </div>
       </div>
       {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
@@ -177,70 +157,47 @@ export default function PerformanceEconomica() {
 
       {dati && (
         <>
-          {/* KPI cards */}
-          <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-            <Card titolo="Produzione" valore={eur(dati.produzione.totale.valore)} nota={`${num(dati.produzione.totale.conteggio)} ordini`} accent="pos" />
-            <Card titolo="SAL (consuntivato portale)" valore={eur(dati.sal.totale.valore)} nota={`${num(dati.sal.totale.conteggio)} ODL COMPLETATO`} />
-            <Card titolo="Scarto Produzione − SAL" valore={eur(dati.scarto.valore)} nota={`${num(dati.scarto.conteggio)} ordini`} accent={dati.scarto.valore > 0 ? 'warn' : undefined} />
-            <Card titolo="Voci non risolte" valore={num(dati.produzione.nonRisolte)} nota="da classificare" accent={dati.produzione.nonRisolte > 0 ? 'warn' : undefined} />
-            <Card titolo="Discrepanze audit" valore={num(dati.auditTotale)} nota="3 vie: DB · master · portale" accent={dati.auditTotale > 0 ? 'warn' : undefined} />
+          <KpiDirezione dati={dati} operative />
+
+          {/* Trend cumulato Produzione vs SAL */}
+          <div className="mb-4">
+            <TrendProduzioneSal dati={dati} />
           </div>
 
-          {/* Produzione € per voce */}
-          <div className="mb-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
-            <div className="rounded-xl border border-[var(--brand-border)] p-3">
-              <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione € per voce</h3>
-              {dati.produzione.perVoce.length === 0 ? (
-                <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">Nessun dato nel periodo.</p>
-              ) : (
-                <div style={{ width: '100%', height: 220 }}>
-                  <ResponsiveContainer>
-                    <BarChart data={dati.produzione.perVoce} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
-                      <CartesianGrid strokeDasharray="3 3" stroke={cc.brandBorder} vertical={false} />
-                      <XAxis dataKey="chiave" tick={{ fill: cc.brandTextMuted, fontSize: 11 }} axisLine={{ stroke: cc.brandBorder }} tickLine={false} />
-                      <YAxis tick={{ fill: cc.brandTextMuted, fontSize: 11 }} axisLine={false} tickLine={false} width={48} />
-                      <Tooltip
-                        formatter={(v, _n, p) => [`${eur(Number(v))} · ${num(Number((p?.payload as Aggregato)?.conteggio ?? 0))} ord.`, 'Produzione']}
-                        contentStyle={chartTooltipContent}
-                        itemStyle={chartItemStyle}
-                        labelStyle={chartLabelStyle}
-                      />
-                      <Bar dataKey="valore" radius={[4, 4, 0, 0]}>
-                        {dati.produzione.perVoce.map((d, i) => (
-                          <Cell key={d.chiave} fill={cc.palette[i % cc.palette.length]} />
-                        ))}
-                      </Bar>
-                    </BarChart>
-                  </ResponsiveContainer>
-                </div>
-              )}
-            </div>
+          {/* Composizione: donut per voce + top attività */}
+          <div className="mb-4">
+            <ComposizioneProduzione dati={dati} />
+          </div>
 
-            {/* Produzione vs SAL per voce (tabella) */}
-            <div className="rounded-xl border border-[var(--brand-border)] p-3">
-              <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs SAL per voce</h3>
-              <table className="w-full text-xs">
-                <thead>
-                  <tr className="text-left text-[var(--brand-text-muted)]">
-                    <th className="py-1 pr-2">Voce</th>
-                    <th className="py-1 pr-2 text-right">Produzione</th>
-                    <th className="py-1 pr-2 text-right">SAL</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dati.produzione.perVoce.map((v) => {
-                    const sal = dati.sal.perVoce.find((s) => s.chiave === v.chiave);
-                    return (
-                      <tr key={v.chiave} className="border-t border-[var(--brand-border)]">
-                        <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{v.chiave}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums">{eur(v.valore)}</td>
-                        <td className="py-1 pr-2 text-right tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
+          {/* Personale impegnato */}
+          <div className="mb-4">
+            <PersonaleImpegno dati={dati} />
+          </div>
+
+          {/* Produzione vs SAL per voce (tabella operativa) */}
+          <div className="mb-4 rounded-xl border border-[var(--brand-border)] p-3">
+            <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs SAL per voce</h3>
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="text-left text-[var(--brand-text-muted)]">
+                  <th className="py-1 pr-2">Voce</th>
+                  <th className="py-1 pr-2 text-right">Produzione</th>
+                  <th className="py-1 pr-2 text-right">SAL</th>
+                </tr>
+              </thead>
+              <tbody>
+                {dati.produzione.perVoce.map((v) => {
+                  const sal = dati.sal.perVoce.find((s) => s.chiave === v.chiave);
+                  return (
+                    <tr key={v.chiave} className="border-t border-[var(--brand-border)]">
+                      <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{v.chiave}</td>
+                      <td className="py-1 pr-2 text-right tabular-nums">{eur(v.valore)}</td>
+                      <td className="py-1 pr-2 text-right tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
 
           {/* Per attività (dettaglio granulare del listino) */}

@@ -93,6 +93,12 @@ interface ResolvedChartColors {
   brandBorder: string;
   /** Colore risolto per il token --brand-text-muted (axis tick fill). */
   brandTextMuted: string;
+  /** Colore risolto per --warning (area scarto / saturazione). */
+  warning: string;
+  /** Colore risolto per --success (linea produzione / dedicati). */
+  success: string;
+  /** Colore risolto per --brand-primary (serie primaria). */
+  brandPrimary: string;
 }
 
 function readTokens(): ResolvedChartColors {
@@ -108,6 +114,9 @@ function readTokens(): ResolvedChartColors {
     brandSurface:    resolve('--brand-surface'),
     brandBorder:     resolve('--brand-border'),
     brandTextMuted:  resolve('--brand-text-muted'),
+    warning:      resolve('--warning'),
+    success:      resolve('--success'),
+    brandPrimary: resolve('--brand-primary'),
   };
 }
 
@@ -117,6 +126,9 @@ const FALLBACK: ResolvedChartColors = {
   brandSurface:  '#1e293b',
   brandBorder:   '#334155',
   brandTextMuted:'#94a3b8',
+  warning:      '#d97706',
+  success:      '#16a34a',
+  brandPrimary: '#2563eb',
 };
 
 /**

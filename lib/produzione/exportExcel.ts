@@ -137,6 +137,30 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
     dati.produzione.perGiorno.map((g) => ({ label: g.chiave, conteggio: g.conteggio, valore: g.valore })),
   );
 
+  // ── DATI: personale (giornate-uomo frazionarie) ─────────────
+  const pe = wb.addWorksheet('Dati - personale');
+  pe.columns = [{ width: 32 }, { width: 12 }, { width: 16 }, { width: 16 }, { width: 14 }];
+  intestazione(pe.addRow(['Operatore', 'Giornate', 'Interventi ACEA', 'Produzione €', 'Resa €/gg']));
+  for (const o of dati.personale.perOperatore) {
+    const r = pe.addRow([o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? '']);
+    r.getCell(4).numFmt = EUR;
+    if (o.resa != null) r.getCell(5).numFmt = EUR;
+  }
+  const peTot = pe.addRow(['TOTALE', dati.personale.totaleGiornate, '', dati.produzione.totale.valore, '']);
+  peTot.eachCell((c, col) => {
+    c.font = { bold: true };
+    if (col === 4) c.numFmt = EUR;
+  });
+
+  // ── DATI: SAL per giorno ────────────────────────────────────
+  const sg = wb.addWorksheet('Dati - SAL giorni');
+  sg.columns = [{ width: 16 }, { width: 10 }, { width: 16 }];
+  intestazione(sg.addRow(['Giorno', 'ODL', 'SAL €']));
+  for (const g of dati.sal.perGiorno) {
+    const r = sg.addRow([g.chiave, g.conteggio, g.valore]);
+    r.getCell(3).numFmt = EUR;
+  }
+
   // ── DATI: audit ─────────────────────────────────────────────
   const au = wb.addWorksheet('Dati - audit');
   au.columns = [{ width: 22 }, { width: 48 }];

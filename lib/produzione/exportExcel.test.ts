@@ -20,8 +20,18 @@ const dati = {
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 3, valore: 300 }],
     nonRisolte: 0,
   },
-  sal: { totale: { conteggio: 2, valore: 200 }, perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }] },
+  sal: {
+    totale: { conteggio: 2, valore: 200 },
+    perVoce: [{ chiave: 'EL', label: 'EL', conteggio: 2, valore: 200 }],
+    perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 2, valore: 200 }],
+  },
   scarto: { conteggio: 1, valore: 100 },
+  personale: {
+    totaleGiornate: 1.5,
+    operatoriAttivi: 1,
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, resa: 200 }],
+    perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
+  },
   audit: [{ odl: 'o1', classe: 'POSITIVO_DB_NON_COMPLETATO_PORTALE' }],
   auditSummary: {
     SOLO_PORTALE: 0,
@@ -54,5 +64,21 @@ describe('buildWorkbookProduzione', () => {
     const dv = wb.getWorksheet('Dati - per voce')!;
     expect(dv.getCell('B2').value).toBe(2); // ordini EL
     expect(dv.getCell('C2').value).toBe(200); // produzione EL
+  });
+
+  it('include i fogli personale e SAL per giorno', async () => {
+    const buf = await buildWorkbookProduzione(dati);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(buf as ArrayBuffer);
+    const pe = wb.getWorksheet('Dati - personale');
+    expect(pe).toBeDefined();
+    expect(pe!.getCell('A1').value).toBe('Operatore');
+    expect(pe!.getCell('A2').value).toBe('ROSSI');
+    expect(pe!.getCell('B2').value).toBe(1.5); // giornate
+    expect(pe!.getCell('E2').value).toBe(200); // resa €/gg
+    const sg = wb.getWorksheet('Dati - SAL giorni');
+    expect(sg).toBeDefined();
+    expect(sg!.getCell('A2').value).toBe('2026-06-01');
+    expect(sg!.getCell('C2').value).toBe(200);
   });
 });

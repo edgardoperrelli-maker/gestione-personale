@@ -8,6 +8,7 @@ import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
+import { aggregaPersonale, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import {
   riconcilia,
   scartoProduzioneSal,
@@ -38,6 +39,7 @@ function risolviVoce(voceRaw: number | null, attivita: string | null): number | 
 export interface ProduzioneSal {
   totale: Totale;
   perVoce: { chiave: string; label: string; conteggio: number; valore: number }[];
+  perGiorno: { chiave: string; label: string; conteggio: number; valore: number }[];
 }
 
 export interface ProduzioneEconomica {
@@ -47,6 +49,7 @@ export interface ProduzioneEconomica {
   produzione: ProduzioneAggregata;
   sal: ProduzioneSal;
   scarto: Totale;
+  personale: ProduzionePersonale;
   audit: Discrepanza[];
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
@@ -85,6 +88,13 @@ interface PortaleRow {
   stato_norm: string | null;
   causa_scostamento: string | null;
 }
+interface LavoroRow {
+  staff_id: string | null;
+  data: string | null;
+  committente: string | null;
+  intervento_tipo: string | null;
+  comune: string | null;
+}
 
 // Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
 // limitazioni massive ZAGAROLO (committente='lim_massive'), valorizzate con lo stesso listino.
@@ -122,6 +132,35 @@ async function caricaSnapshot<T>(tabella: string, colonne: string): Promise<T[]>
   return rows;
 }
 
+/** Giorno successivo di 'YYYY-MM-DD' (bound esclusivo per query robuste a date/timestamp). */
+function giornoDopo(iso: string): string {
+  const d = new Date(`${iso}T00:00:00Z`);
+  d.setUTCDate(d.getUTCDate() + 1);
+  return d.toISOString().slice(0, 10);
+}
+
+// Interventi LAVORATI (stato='completato', qualsiasi committente) nel range: è il DENOMINATORE
+// delle giornate-uomo frazionarie (un operatore "doppio territorio" che fa ACEA a saturazione
+// non conta una giornata intera sulla commessa).
+async function caricaLavoroGiornaliero(from: string, to: string): Promise<LavoroRow[]> {
+  const rows: LavoroRow[] = [];
+  for (let off = 0; ; off += PAGE) {
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('staff_id, data, committente, intervento_tipo, comune')
+      .eq('stato', 'completato')
+      .gte('data', from)
+      .lt('data', giornoDopo(to))
+      .order('id', { ascending: true })
+      .range(off, off + PAGE - 1);
+    if (error) throw error;
+    const batch = (data ?? []) as LavoroRow[];
+    rows.push(...batch);
+    if (batch.length < PAGE) break;
+  }
+  return rows;
+}
+
 async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, string> }> {
   const [{ data: s }, { data: t }] = await Promise.all([
     supabaseAdmin.from('staff').select('id, display_name'),
@@ -139,7 +178,7 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 }
 
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
-  const [listinoRows, interventi, masterRows, portaleRows, maps, alias] = await Promise.all([
+  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows] = await Promise.all([
     supabaseAdmin
       .from('acea_listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
@@ -149,6 +188,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento'),
     nomi(),
     caricaAliasAttivita(),
+    caricaLavoroGiornaliero(from, to),
   ]);
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
@@ -297,9 +337,28 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     }
   }
   const salAgg = aggregaProduzione(salRighe);
-  const sal: ProduzioneSal = { totale: salAgg.totale, perVoce: salAgg.perVoce };
+  const sal: ProduzioneSal = { totale: salAgg.totale, perVoce: salAgg.perVoce, perGiorno: salAgg.perGiorno };
 
   const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
+
+  // Giornate-uomo: frazione ACEA/totale per (operatore, giorno). ACEA = committente EFFETTIVO
+  // 'acea' via alias (stessa riclassificazione della produzione: il gas→italgas resta fuori).
+  const righeLavoro: RigaLavoro[] = [];
+  for (const l of lavoroRows) {
+    const staffId = l.staff_id ?? '';
+    const data = (l.data ?? '').slice(0, 10);
+    if (!staffId || !data) continue;
+    const canon = COMMITTENTI.includes(l.committente ?? '')
+      ? attivitaCanonica(l.committente, l.intervento_tipo, l.comune, alias)
+      : null;
+    righeLavoro.push({
+      staffId,
+      operatore: maps.staff.get(staffId) ?? 'Operatore',
+      data,
+      acea: canon?.committenteEff === 'acea',
+    });
+  }
+  const personale = aggregaPersonale(righeLavoro, produzione.perOperatore);
 
   const masterPopolato = masterAudit.size > 0;
   const portalePopolato = portaleAudit.size > 0;
@@ -325,6 +384,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     produzione,
     sal,
     scarto,
+    personale,
     audit: auditTutte.slice(0, AUDIT_CAP),
     auditSummary,
     auditTotale: auditTutte.length,
