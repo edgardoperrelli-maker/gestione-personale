@@ -1,6 +1,7 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import type { ClientRow, SelectOption } from '@/lib/performance/shape';
+import { valoreSaracinesca } from '@/lib/limitazione/exportLimMassive';
 
 const STATO_CONTEGGIABILE = 'completato';
 const PAGE = 1000;
@@ -23,6 +24,7 @@ async function fetchInterventi(): Promise<RawRow[]> {
       .select('id, staff_id, data, territorio_id, committente, intervento_tipo, esito')
       .eq('stato', STATO_CONTEGGIABILE)
       .order('data', { ascending: true })
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) { console.error('[performance] fetchInterventi', error); break; }
     const batch = (data ?? []) as RawRow[];
@@ -32,18 +34,28 @@ async function fetchInterventi(): Promise<RawRow[]> {
   return rows;
 }
 
+/**
+ * Voci con saracinesca SI, tollerante al TIPO salvato (booleano o stringa, due chiavi
+ * possibili: `sostituzione_valvola`/`sost_valvola`). Filtro fatto in-memory con la stessa
+ * `valoreSaracinesca` usata dall'export agente: un filtro server-side su `->>chiave = 'SI'`
+ * perdeva le voci salvate come booleano `true` (stesso bug corretto in PR #70).
+ */
 async function fetchValvolaSet(): Promise<Set<string>> {
   const set = new Set<string>();
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('intervento_id')
-      .eq('risposte->>sostituzione_valvola', 'SI')
+      .select('intervento_id, risposte')
       .not('intervento_id', 'is', null)
+      .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
     if (error) { console.error('[performance] fetchValvolaSet', error); break; }
-    const batch = (data ?? []) as Array<{ intervento_id: string | null }>;
-    for (const r of batch) if (r.intervento_id) set.add(r.intervento_id);
+    const batch = (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>;
+    for (const r of batch) {
+      if (!r.intervento_id) continue;
+      const sar = valoreSaracinesca(r.risposte?.['sostituzione_valvola'], r.risposte?.['sost_valvola']);
+      if (sar === 'SI') set.add(r.intervento_id);
+    }
     if (batch.length < PAGE) break;
   }
   return set;
