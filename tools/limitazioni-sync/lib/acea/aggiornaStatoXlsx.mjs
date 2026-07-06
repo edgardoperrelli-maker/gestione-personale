@@ -75,12 +75,16 @@ function valoreCella(cella, ss) {
   return v ?? '';
 }
 
-/** Lettera colonna, nella riga `rigaN`, del primo header il cui testo == nome; null se assente. */
+/** Lettera colonna, nella riga `rigaN`, del primo header il cui testo == nome; null se assente.
+ *  Confronto TOLLERANTE (via norm: maiuscolo, senza spazi): così un master rigenerato in Excel con
+ *  casing/spaziatura diversi da config ("Ordine" vs "ORDINE", "stato odl" vs "Stato ODL") aggancia
+ *  comunque, invece di far fallire il giro con "colonne non trovate". */
 function colonnaDaHeader(headerXml, nome, ss, rigaN) {
   if (!nome) return null;
+  const bersaglio = norm(nome);
   const re = new RegExp(`<c r="([A-Z]+)${rigaN}"([^>]*?)(?:/>|>([\\s\\S]*?)</c>)`, 'g');
   for (const hc of headerXml.matchAll(re)) {
-    if (valoreCella({ attrs: hc[2] || '', inner: hc[3] || '' }, ss) === nome) return hc[1];
+    if (norm(valoreCella({ attrs: hc[2] || '', inner: hc[3] || '' }, ss)) === bersaglio) return hc[1];
   }
   return null;
 }

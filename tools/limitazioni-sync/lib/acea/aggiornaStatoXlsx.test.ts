@@ -105,6 +105,27 @@ describe('aggiornaStatoXlsx', () => {
     expect(w.getRow(4).getCell(2).value).toBe('gia presente');
   });
 
+  // --- BLINDATURA 3: intestazioni master con casing diverso da config (file rigenerato in Excel) ---
+  it('trova le colonne anche se il casing dell’intestazione differisce da config (ORDINE vs Ordine)', async () => {
+    const file = path.join(dir, 'header-casing.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Foglio1');
+    ws.addRow(['Ordine', 'stato odl']);              // file: casing "reale" ZAGAROLO
+    ws.addRow([957276080, 'Ricevuto']);
+    await wb.xlsx.writeFile(file);
+
+    // config chiede "ORDINE" (maiuscolo): deve agganciare comunque
+    const rep = await aggiornaStatoXlsx(file, [{ ordine: '957276080', stato: 'completato' }], {
+      foglio: 'Foglio1', masterColonnaOdl: 'ORDINE', masterColonnaStato: 'stato odl',
+    });
+
+    expect(rep.erroreColonne).toBe(false);
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('Foglio1')!.getRow(2).getCell(2).value).toBe('completato');
+  });
+
   it('erroreColonne=true se mancano le colonne', async () => {
     const file = path.join(dir, 'nomatch.xlsx');
     const wb = new ExcelJS.Workbook();
