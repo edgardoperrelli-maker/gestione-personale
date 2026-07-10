@@ -37,8 +37,10 @@ export default function SalStorico({ dati }: { dati: DatiProduzione }) {
               <td className="py-1 pr-2 text-right tabular-nums">{num(s.ordini)}</td>
               <td className="py-1 pr-2 text-right tabular-nums font-medium">{eur(s.valoreAps)}</td>
               <td className="py-1 pr-2 text-right tabular-nums text-[var(--brand-text-muted)]">{eur(s.valoreListino)}</td>
-              <td className={`py-1 pr-2 text-right tabular-nums ${Math.abs(s.deltaListino) > 0.01 ? 'text-[var(--warning)]' : 'text-[var(--brand-text-muted)]'}`}>
-                {eur(s.deltaListino)}
+              {/* Verdetto esplicito: il Δ è il controllo di taratura del listino e deve leggersi
+                  anche in stampa (il muted su carta sembra una cella vuota). */}
+              <td className={`py-1 pr-2 text-right tabular-nums font-medium ${Math.abs(s.deltaListino) > 0.01 ? 'text-[var(--warning)]' : 'text-[var(--success)]'}`}>
+                {Math.abs(s.deltaListino) > 0.01 ? `${eur(s.deltaListino)} · da tarare` : `${eur(0)} · allineato ✓`}
               </td>
               <td className={`py-1 pr-2 text-right tabular-nums ${s.odlSconosciuti > 0 ? 'text-[var(--warning)]' : 'text-[var(--brand-text-muted)]'}`}>
                 {num(s.odlSconosciuti)}
