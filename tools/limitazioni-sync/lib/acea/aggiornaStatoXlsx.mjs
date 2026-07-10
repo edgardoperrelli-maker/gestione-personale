@@ -217,6 +217,7 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, {
 
     const tagsAutomazione = [];
     let toccataStato = false;
+    let rigaStatoRef = null;
 
     if (mappa.has(ordine)) {
       visti.add(ordine);
@@ -228,10 +229,11 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, {
         tagsAutomazione.push(masterColonnaStato);
         toccataStato = true;
         aggiornate++;
-        righe.push({
+        rigaStatoRef = {
           riga: n, odl: ordine, tipo: 'acea-stato', comune: '', matricola: '',
           esecutore: '', esito: nuovo, sigillo: '', data: '', note: precedente ? `era: ${precedente}` : '',
-        });
+        };
+        righe.push(rigaStatoRef);
       }
     } else if (daChiedere && precedente === '') {
       // ODL non presente nell'export (aggiunto a mano) + stato vuoto → "DA CHIEDERE"
@@ -271,11 +273,18 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, {
       }
     }
 
-    if (toccataSaracinesca && !toccataStato) {
-      righe.push({
-        riga: n, odl: ordine, tipo: 'acea-saracinesca', comune: '', matricola: '',
-        esecutore: '', esito: '', sigillo: '', data: '', note: '',
-      });
+    // Riporta la saracinesca scritta nello storico (righe): sulla riga 'acea-stato' se già presente,
+    // altrimenti come riga dedicata 'acea-saracinesca' — così il run-export e il log dell'agente
+    // mostrano quando la scrittura saracinesca è avvenuta (prima il campo restava sempre vuoto).
+    if (toccataSaracinesca) {
+      if (rigaStatoRef) {
+        rigaStatoRef.saracinesca = 'SI';
+      } else {
+        righe.push({
+          riga: n, odl: ordine, tipo: 'acea-saracinesca', comune: '', matricola: '',
+          esecutore: '', esito: '', sigillo: '', data: '', note: '', saracinesca: 'SI',
+        });
+      }
     }
   }
 
