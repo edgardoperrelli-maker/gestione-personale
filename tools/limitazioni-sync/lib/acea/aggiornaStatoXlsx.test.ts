@@ -394,4 +394,48 @@ describe('aggiornaStatoXlsx', () => {
     // il tag estraneo "Nota manuale" NON deve andare perso, e "Stato Operazione" va aggiunto
     expect(w.getRow(2).getCell(3).value).toBe('SI + Nota manuale + Stato Operazione');
   });
+
+  it('righe: riga acea-saracinesca (solo saracinesca, stato invariato) valorizza il campo saracinesca', async () => {
+    const file = path.join(dir, 'righe-saracinesca-sola.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', '']);
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'Ricevuto' }], // stato invariato
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.righe).toHaveLength(1);
+    expect(rep.righe[0].tipo).toBe('acea-saracinesca');
+    expect(rep.righe[0].saracinesca).toBe('SI');
+  });
+
+  it('righe: riga acea-stato con saracinesca insieme valorizza ANCHE il campo saracinesca sulla stessa riga', async () => {
+    const file = path.join(dir, 'righe-saracinesca-e-stato.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', '']);
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'completato' }], // stato CAMBIA
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.righe).toHaveLength(1);
+    expect(rep.righe[0].tipo).toBe('acea-stato');
+    expect(rep.righe[0].saracinesca).toBe('SI');
+  });
 });
