@@ -83,4 +83,109 @@ describe('eseguiGiroAcea', () => {
     const report = await eseguiGiroAcea({ cfg: cfg(masterPath), stamp: 's', driver: async () => { throw new Error('non deve essere chiamato'); }, nowMs: 2000 });
     expect(report.saltato).toBe(true);
   });
+
+  it('DUNNING: scrive la Saracinesca dal nostro DB (best-effort, indipendente dallo stato)', async () => {
+    const masterPath = path.join(dir, 'master_sara.xlsx');
+    const exportPath = path.join(dir, 'export_sara.xlsx');
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione', 'Saracinesca'],
+      [957276080, 'Ricevuto', ''], // stato invariato in questo giro, ma la saracinesca va scritta
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'Ricevuto'],
+    ]);
+
+    const fetchSaracinesche = async () => [{ odl: '957276080', saracinesca: 'SI' }];
+    const cfgConSara = cfg(masterPath);
+    cfgConSara.acea.masterColonnaSaracinesca = 'Saracinesca';
+    const report = await eseguiGiroAcea({
+      cfg: cfgConSara, stamp: 's', driver: async () => exportPath, nowMs: 700000,
+      baseUrl: 'https://app.vercel.app', exportKey: 'K', fetchSaracinesche,
+    });
+
+    expect(report.saracinescaScritte).toBe(1);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(masterPath);
+    expect(wb.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(3).value).toBe('SI');
+  });
+
+  it('DUNNING: fetch saracinesche fallito → best-effort, il giro stato completa comunque', async () => {
+    const masterPath = path.join(dir, 'master_sara_err.xlsx');
+    const exportPath = path.join(dir, 'export_sara_err.xlsx');
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione', 'Saracinesca'],
+      [957276080, 'Intervento Richiesto', ''],
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'completato'],
+    ]);
+
+    const fetchSaracinesche = async () => { throw new Error('rete giù'); };
+    const cfgConSara = cfg(masterPath);
+    cfgConSara.acea.masterColonnaSaracinesca = 'Saracinesca';
+    const report = await eseguiGiroAcea({
+      cfg: cfgConSara, stamp: 's', driver: async () => exportPath, nowMs: 701000,
+      baseUrl: 'https://app.vercel.app', exportKey: 'K', fetchSaracinesche,
+    });
+
+    expect(report.erroreGlobale).toBeUndefined();
+    expect(report.file[0].aggiornate).toBe(1);
+    expect(report.saracinescaScritte).toBe(0);
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(masterPath);
+    expect(wb.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(2).value).toBe('completato');
+  });
+
+  it('target zagarolo: NON chiama fetchSaracinesche (la saracinesca di ZAGAROLO arriva dal giro cartella)', async () => {
+    const masterPath = path.join(dir, 'master_zag.xlsx');
+    const exportPath = path.join(dir, 'export_zag.xlsx');
+    await scriviXlsx(masterPath, 'Foglio1', [
+      ['ORDINE', 'stato odl'],
+      [957276080, 'Ricevuto'],
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'completato'],
+    ]);
+
+    let chiamato = false;
+    const fetchSaracinesche = async () => { chiamato = true; return []; };
+    const cfgZag = cfg(masterPath);
+    cfgZag.acea.zagarolo = {
+      masterPath, foglio: 'Foglio1', masterColonnaOdl: 'ORDINE', masterColonnaStato: 'stato odl',
+      masterColonnaSaracinesca: 'saracinesca',
+    };
+    await eseguiGiroAcea({
+      cfg: cfgZag, target: 'zagarolo', stamp: 's', driver: async () => exportPath, nowMs: 702000,
+      baseUrl: 'https://app.vercel.app', exportKey: 'K', fetchSaracinesche,
+    });
+
+    expect(chiamato).toBe(false);
+  });
+
+  it('senza baseUrl/exportKey (main() non li passa ancora) → NON chiama fetchSaracinesche, nessun errore', async () => {
+    const masterPath = path.join(dir, 'master_nobase.xlsx');
+    const exportPath = path.join(dir, 'export_nobase.xlsx');
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione', 'Saracinesca'],
+      [957276080, 'Ricevuto', ''],
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'completato'],
+    ]);
+
+    let chiamato = false;
+    const fetchSaracinesche = async () => { chiamato = true; return []; };
+    const cfgConSara = cfg(masterPath);
+    cfgConSara.acea.masterColonnaSaracinesca = 'Saracinesca';
+    const report = await eseguiGiroAcea({
+      cfg: cfgConSara, stamp: 's', driver: async () => exportPath, nowMs: 703000, fetchSaracinesche,
+    });
+
+    expect(chiamato).toBe(false);
+    expect(report.file[0].aggiornate).toBe(1);
+  });
 });

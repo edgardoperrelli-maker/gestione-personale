@@ -222,4 +222,176 @@ describe('aggiornaStatoXlsx', () => {
     await chk.xlsx.readFile(file);
     expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(2).value).toBe('Stato Nuovo ACEA');
   });
+
+  // --- SARACINESCA (dal nostro DB): riempi-vuote, indipendente dallo stato, integra Automazione ---
+  it('saracinesca: riempie la cella vuota per ODL agganciato, indipendentemente dal cambio stato', async () => {
+    const file = path.join(dir, 'saracinesca-riempi.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', '']); // stato NON cambia in questo giro
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [{ ordine: '957276080', stato: 'Ricevuto' }], // stato invariato
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.saracinescaScritte).toBe(1);
+    expect(rep.aggiornate).toBe(0); // lo stato NON è cambiato
+    expect(rep.invariate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(3).value).toBe('SI');
+  });
+
+  it('saracinesca: cella già "SI" → salta senza riscrivere (idempotente)', async () => {
+    const file = path.join(dir, 'saracinesca-idempotente.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', 'SI']);
+    await wb.xlsx.writeFile(file);
+    const prima = fs.readFileSync(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'Ricevuto' }],
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.saracinescaScritte).toBe(0);
+    expect(rep.conflitti).toEqual([]);
+    expect(fs.readFileSync(file).equals(prima)).toBe(true);
+  });
+
+  it('saracinesca: cella con valore DIVERSO già presente → conflitto, mai sovrascritta', async () => {
+    const file = path.join(dir, 'saracinesca-conflitto.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', 'NO']); // compilato a mano diversamente
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'Ricevuto' }],
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.saracinescaScritte).toBe(0);
+    expect(rep.conflitti).toEqual([{ riga: 2, odl: '957276080', campo: 'saracinesca', esistente: 'NO', nuovo: 'SI' }]);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(3).value).toBe('NO'); // NON sovrascritta
+  });
+
+  it('saracinesca + stato cambiano sulla STESSA riga: entrambe scritte, Automazione compone i due tag', async () => {
+    const file = path.join(dir, 'saracinesca-e-stato.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Automazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', '', '']);
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'completato' }], // stato CAMBIA
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaAutomazione: 'Automazione', masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.aggiornate).toBe(1);
+    expect(rep.saracinescaScritte).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    const w = chk.getWorksheet('PIANIFICAZIONE')!;
+    expect(w.getRow(2).getCell(2).value).toBe('completato');
+    expect(w.getRow(2).getCell(3).value).toBe('SI + Stato Operazione + Saracinesca');
+    expect(w.getRow(2).getCell(4).value).toBe('SI');
+    // report.righe: una SOLA riga (tipo acea-stato), non una entry duplicata per la saracinesca
+    expect(rep.righe).toHaveLength(1);
+    expect(rep.righe[0].tipo).toBe('acea-stato');
+  });
+
+  it('saracinesca: integra il tag "Saracinesca" senza perdere un tag "Stato Operazione" già scritto in un giro precedente', async () => {
+    const file = path.join(dir, 'saracinesca-integra.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Automazione', 'Saracinesca']);
+    ws.addRow([957276080, 'Ricevuto', 'SI + Stato Operazione', '']); // già marcata da un giro precedente
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'Ricevuto' }], // stato invariato in QUESTO giro
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaAutomazione: 'Automazione', masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.saracinescaScritte).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    expect(chk.getWorksheet('PIANIFICAZIONE')!.getRow(2).getCell(3).value).toBe('SI + Stato Operazione + Saracinesca');
+  });
+
+  it('saracinesca: colonna assente dal master → soft-skip, nessun errore, lo stato si aggiorna comunque', async () => {
+    const file = path.join(dir, 'saracinesca-assente.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione']); // NESSUNA colonna Saracinesca
+    ws.addRow([957276080, 'Ricevuto']);
+    await wb.xlsx.writeFile(file);
+
+    const saracinescaMap = new Map([['957276080', 'SI']]);
+    const rep = await aggiornaStatoXlsx(
+      file, [{ ordine: '957276080', stato: 'completato' }],
+      {
+        foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione',
+        masterColonnaSaracinesca: 'Saracinesca', saracinescaMap,
+      },
+    );
+
+    expect(rep.erroreColonne).toBe(false);
+    expect(rep.aggiornate).toBe(1);
+    expect(rep.saracinescaScritte).toBe(0);
+  });
+
+  it('automazione: se Stato cambia e la cella ha già un tag ESTRANEO (non "SI + Stato Operazione"), lo preserva e aggiunge il nuovo tag', async () => {
+    const file = path.join(dir, 'automazione-preserva-estraneo.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Automazione']);
+    ws.addRow([957276080, 'Ricevuto', 'SI + Nota manuale']); // contenuto estraneo pre-esistente
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [{ ordine: '957276080', stato: 'completato' }], // stato CAMBIA, saracinesca non coinvolta
+      { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione', masterColonnaAutomazione: 'Automazione' },
+    );
+
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    const w = chk.getWorksheet('PIANIFICAZIONE')!;
+    expect(w.getRow(2).getCell(2).value).toBe('completato');
+    // il tag estraneo "Nota manuale" NON deve andare perso, e "Stato Operazione" va aggiunto
+    expect(w.getRow(2).getCell(3).value).toBe('SI + Nota manuale + Stato Operazione');
+  });
 });

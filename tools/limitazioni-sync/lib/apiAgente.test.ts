@@ -1,6 +1,6 @@
 // tools/limitazioni-sync/lib/apiAgente.test.ts
 import { describe, it, expect, vi } from 'vitest';
-import { baseUrlDaEndpoint, tick, inviaReport } from './apiAgente.mjs';
+import { baseUrlDaEndpoint, tick, inviaReport, fetchSaracinesche } from './apiAgente.mjs';
 
 describe('baseUrlDaEndpoint', () => {
   it('estrae origin da un endpoint completo', () => {
@@ -50,5 +50,38 @@ describe('inviaReport', () => {
     expect(opts.headers['x-export-key']).toBe('K');
     expect(JSON.parse(opts.body)).toEqual(report);
     expect(out).toEqual({ ok: true });
+  });
+});
+
+describe('fetchSaracinesche', () => {
+  it('GET /api/export/acea-saracinesche con header chiave → righe', async () => {
+    const fetchImpl = vi.fn(async () => ({
+      ok: true,
+      json: async () => ({ count: 1, righe: [{ odl: '957276080', saracinesca: 'SI' }] }),
+    }));
+    const righe = await fetchSaracinesche(
+      { baseUrl: 'https://app.vercel.app', exportKey: 'K' },
+      fetchImpl as unknown as typeof fetch,
+    );
+
+    expect(fetchImpl).toHaveBeenCalledOnce();
+    const [url, opts] = fetchImpl.mock.calls[0];
+    expect(url).toBe('https://app.vercel.app/api/export/acea-saracinesche');
+    expect(opts.headers['x-export-key']).toBe('K');
+    expect(righe).toEqual([{ odl: '957276080', saracinesca: 'SI' }]);
+  });
+
+  it('risposta non ok → throw con status', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: false, status: 500, text: async () => 'errore' }));
+    await expect(
+      fetchSaracinesche({ baseUrl: 'https://x', exportKey: 'K' }, fetchImpl as unknown as typeof fetch),
+    ).rejects.toThrow(/500/);
+  });
+
+  it('risposta senza array righe → throw', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({ count: 0 }) }));
+    await expect(
+      fetchSaracinesche({ baseUrl: 'https://x', exportKey: 'K' }, fetchImpl as unknown as typeof fetch),
+    ).rejects.toThrow(/righe/);
   });
 });
