@@ -5,6 +5,7 @@ import type { Aggregato, ProduzioneAggregata } from '@/lib/produzione/aggregaPro
 import type { ProduzionePersonale } from '@/lib/produzione/aggregaPersonale';
 import type { EsitoOperatore } from '@/lib/produzione/aggregaEsiti';
 import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/riconciliazione';
+import type { SalStorico } from '@/lib/produzione/salUfficiale';
 
 export interface DatiProduzione {
   from: string;
@@ -12,6 +13,10 @@ export interface DatiProduzione {
   produzione: ProduzioneAggregata;
   sal: { totale: Totale; perVoce: Aggregato[]; perGiorno: Aggregato[] };
   scarto: Totale;
+  salStorico: SalStorico[];
+  preSal: { n: number; totale: Totale };
+  fuoriSal: Totale;
+  nonRemunerato: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];

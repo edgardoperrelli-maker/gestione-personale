@@ -63,7 +63,7 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   // KPI cards (4 riquadri valore + etichetta)
   const kpi: Array<[string, number, boolean]> = [
     ['Produzione', dati.produzione.totale.valore, true],
-    ['SAL (consuntivato portale)', dati.sal.totale.valore, true],
+    ['Esitato ACEA (consuntivato portale)', dati.sal.totale.valore, true],
     ['Scarto Produzione − SAL', dati.scarto.valore, true],
     ['Ordini prodotti', dati.produzione.totale.conteggio, false],
   ];
@@ -164,6 +164,23 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
     const r = sg.addRow([g.chiave, g.conteggio, g.valore]);
     r.getCell(3).numFmt = EUR;
   }
+
+  // ── DATI: SAL ufficiali (storico + pre-SAL/fuori-SAL/non remunerato) ──
+  const ds = wb.addWorksheet('Dati - SAL');
+  ds.columns = [{ width: 14 }, { width: 10 }, { width: 10 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }];
+  intestazione(ds.addRow(['SAL', 'Mese', 'ODL', 'Valore APS €', 'Valore listino €', 'Delta listino €', 'ODL sconosciuti']));
+  for (const s of dati.salStorico) {
+    const r = ds.addRow([`SAL ${s.n}`, s.mese, s.ordini, s.valoreAps, s.valoreListino, s.deltaListino, s.odlSconosciuti]);
+    r.getCell(4).numFmt = EUR;
+    r.getCell(5).numFmt = EUR;
+    r.getCell(6).numFmt = EUR;
+  }
+  const rPre = ds.addRow([`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', '']);
+  rPre.getCell(4).numFmt = EUR;
+  const rFuori = ds.addRow(['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', '']);
+  rFuori.getCell(4).numFmt = EUR;
+  const rNonRem = ds.addRow(['Non remunerato', '', dati.nonRemunerato.conteggio, dati.nonRemunerato.valore, '', '', '']);
+  rNonRem.getCell(4).numFmt = EUR;
 
   // ── DATI: audit ─────────────────────────────────────────────
   const au = wb.addWorksheet('Dati - audit');

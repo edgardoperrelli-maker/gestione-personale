@@ -1,4 +1,5 @@
 'use client';
+import Badge from '@/components/Badge';
 import { eur, num, type DatiProduzione } from './tipi';
 
 function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string; nota?: string; accent?: 'pos' | 'neg' | 'warn' }) {
@@ -16,29 +17,51 @@ function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string
 /** Fila di KPI per la dirigenza: economia + personale. Con `operative` aggiunge le 2 card di controllo. */
 export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione; operative?: boolean }) {
   const prod = dati.produzione.totale.valore;
-  const sal = dati.sal.totale.valore;
-  const perc = prod > 0 ? Math.round((sal / prod) * 100) : null;
+  const ultimoSal = dati.salStorico.length > 0 ? dati.salStorico[dati.salStorico.length - 1] : null;
   const giornate = dati.personale.totaleGiornate;
   const resa = giornate > 0 ? dati.personale.valoreFeriale / giornate : null;
 
   return (
-    <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
-      <Card titolo="Produzione" valore={eur(prod)} nota={`${num(dati.produzione.totale.conteggio)} ordini`} accent="pos" />
-      <Card titolo="SAL (pagato)" valore={eur(sal)} nota={`${num(dati.sal.totale.conteggio)} ODL · causale E%`} />
-      <Card titolo="Da richiedere ad ACEA" valore={eur(dati.scarto.valore)} nota="Produzione − SAL" accent={dati.scarto.valore > 0 ? 'warn' : undefined} />
-      <Card titolo="% consuntivato" valore={perc == null ? '—' : `${num(perc)}%`} nota="SAL / Produzione" />
-      <Card
-        titolo="Personale impiegato"
-        valore={`${num(dati.personale.operatoriAttivi)} op × ${num(Math.round(giornate))} gg`}
-        nota="giornate feriali lun–ven; giorni misti pro-quota"
-      />
-      <Card titolo="Resa €/giornata" valore={resa == null ? '—' : eur(resa)} nota="produzione feriale / giornate feriali" />
-      {operative && (
-        <>
-          <Card titolo="Voci non risolte" valore={num(dati.produzione.nonRisolte)} nota="da classificare" accent={dati.produzione.nonRisolte > 0 ? 'warn' : undefined} />
-          <Card titolo="Discrepanze audit" valore={num(dati.auditTotale)} nota="3 vie: DB · master · portale" accent={dati.auditTotale > 0 ? 'warn' : undefined} />
-        </>
+    <>
+      <div className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3 xl:grid-cols-6">
+        <Card titolo="Produzione" valore={eur(prod)} nota={`${num(dati.produzione.totale.conteggio)} ordini · nel periodo`} accent="pos" />
+        <Card
+          titolo={ultimoSal ? `SAL ${num(ultimoSal.n)} (pagato)` : 'SAL (pagato)'}
+          valore={ultimoSal ? eur(ultimoSal.valoreAps) : '—'}
+          nota={ultimoSal ? `${num(ultimoSal.ordini)} ODL · ${ultimoSal.mese || '—'} · non dipende dal periodo` : 'Nessun SAL caricato'}
+        />
+        <Card
+          titolo={`Pre-SAL ${num(dati.preSal.n)}`}
+          valore={eur(dati.preSal.totale.valore)}
+          nota={`${num(dati.preSal.totale.conteggio)} ODL esitati non pagati · vivo oggi`}
+          accent={dati.preSal.totale.valore > 0 ? 'warn' : undefined}
+        />
+        <Card
+          titolo="Fuori SAL"
+          valore={eur(dati.fuoriSal.valore)}
+          nota={`${num(dati.fuoriSal.conteggio)} interventi da esitare · nel periodo`}
+          accent={dati.fuoriSal.valore > 0 ? 'warn' : undefined}
+        />
+        <Card
+          titolo="Personale impiegato"
+          valore={`${num(dati.personale.operatoriAttivi)} op × ${num(Math.round(giornate))} gg`}
+          nota="giornate feriali lun–ven; giorni misti pro-quota"
+        />
+        <Card titolo="Resa €/giornata" valore={resa == null ? '—' : eur(resa)} nota="produzione feriale / giornate feriali" />
+        {operative && (
+          <>
+            <Card titolo="Voci non risolte" valore={num(dati.produzione.nonRisolte)} nota="da classificare" accent={dati.produzione.nonRisolte > 0 ? 'warn' : undefined} />
+            <Card titolo="Discrepanze audit" valore={num(dati.auditTotale)} nota="3 vie: DB · master · portale" accent={dati.auditTotale > 0 ? 'warn' : undefined} />
+          </>
+        )}
+      </div>
+      {dati.nonRemunerato.valore > 0 && (
+        <div className="mb-4">
+          <Badge variant="warning">
+            Esitato non remunerato: {eur(dati.nonRemunerato.valore)} ({num(dati.nonRemunerato.conteggio)} ODL, causale a nostro carico)
+          </Badge>
+        </div>
       )}
-    </div>
+    </>
   );
 }

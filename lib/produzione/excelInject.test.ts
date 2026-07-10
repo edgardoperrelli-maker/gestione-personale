@@ -3,7 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import JSZip from 'jszip';
 import ExcelJS from 'exceljs';
-import { aggiungiFogli, fogliPersonale, iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
+import { aggiungiFogli, fogliPersonale, fogliSal, iniettaCelle, iniettaTemplate, mappaCelleProduzione } from './excelInject';
 
 type Dati = Parameters<typeof mappaCelleProduzione>[0];
 
@@ -29,6 +29,10 @@ const mockDati = {
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 2, valore: 200 }],
   },
   scarto: { conteggio: 1, valore: 100 },
+  salStorico: [{ n: 1, mese: '2026-06', ordini: 2, valoreAps: 200, valoreListino: 190, deltaListino: 10, odlSconosciuti: 0 }],
+  preSal: { n: 2, totale: { conteggio: 1, valore: 90 } },
+  fuoriSal: { conteggio: 1, valore: 80 },
+  nonRemunerato: { conteggio: 0, valore: 0 },
   personale: {
     totaleGiornate: 1.5,
     operatoriAttivi: 1,
@@ -74,6 +78,13 @@ describe('mappaCelleProduzione', () => {
     expect(c.Dettaglio.C2).toBe(300);
     expect(c.Audit.A2).toBe('o1');
     expect(c.Audit.B2).toContain('non nel master');
+  });
+
+  it('rietichetta le celle statiche "SAL" residue (Dati!D1 e Dashboard!B4), che si riferiscono al consuntivato portale e non al SAL ufficiale pagato', () => {
+    const c = mappaCelleProduzione(mockDati);
+    expect(c.Dati.D1).toBe('Esitato ACEA');
+    expect(c.Dashboard).toBeDefined();
+    expect(c.Dashboard.B4).toBe('Esitato ACEA');
   });
 });
 
@@ -127,5 +138,17 @@ describe('aggiungiFogli', () => {
     expect(fogli[0].righe[2]).toEqual(['Sabati (attivazioni)', 0.5, '', 50, '', '', '', '', '']);
     expect(fogli[0].righe[3]).toEqual(['TOTALE (feriali)', 1.5, '', 250, '', '', '', '', '']);
     expect(fogli[1].righe[1]).toEqual(['2026-06-01', 2, 200]);
+  });
+});
+
+describe('fogliSal', () => {
+  it('un foglio "Dati - SAL" con storico + pre-SAL + fuori SAL + non remunerato', () => {
+    const fogli = fogliSal(mockDati as Dati);
+    expect(fogli).toHaveLength(1);
+    expect(fogli[0].nome).toBe('Dati - SAL');
+    const [header, riga1, righeExtra] = fogli[0].righe;
+    expect(header).toEqual(['SAL', 'Mese', 'ODL', 'Valore APS EUR', 'Valore listino EUR', 'Delta listino EUR', 'ODL sconosciuti']);
+    expect(riga1).toEqual([1, '2026-06', 2, 200, 190, 10, 0]);
+    expect(righeExtra[0]).toBe('Pre-SAL 2');
   });
 });

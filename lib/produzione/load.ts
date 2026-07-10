@@ -7,6 +7,7 @@ import { attivitaCanonica } from './attivitaCanonica';
 import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
+import { saracinescaProdotta } from './saracinescaProdotta';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -20,6 +21,7 @@ import {
   type PortaleRiga,
   type Totale,
 } from './riconciliazione';
+import { chiaveSalEffettiva, odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
 
 // Loader server-only della "Produzione economica" ACEA. Riusa la logica pura testata.
 // Condiviso tra l'endpoint dati (tab) e l'export Excel (così non si duplica il calcolo).
@@ -50,6 +52,10 @@ export interface ProduzioneEconomica {
   produzione: ProduzioneAggregata;
   sal: ProduzioneSal;
   scarto: Totale;
+  salStorico: SalStorico[];
+  preSal: { n: number; totale: Totale };
+  fuoriSal: Totale;
+  nonRemunerato: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];
@@ -89,6 +95,17 @@ interface PortaleRow {
   odl: string;
   stato_norm: string | null;
   causa_scostamento: string | null;
+}
+interface SalRow {
+  sal_n: number;
+  odl: string;
+  doc_acquisti: string;
+  posizione: string;
+  valore: number;
+  causa: string | null;
+  attivita: string | null;
+  data_completamento: string | null;
+  data_registrazione: string | null;
 }
 interface LavoroRow {
   staff_id: string | null;
@@ -180,7 +197,7 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 }
 
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
-  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows] = await Promise.all([
+  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows, salRows] = await Promise.all([
     supabaseAdmin
       .from('acea_listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
@@ -191,6 +208,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     nomi(),
     caricaAliasAttivita(),
     caricaLavoroGiornaliero(from, to),
+    caricaSnapshot<SalRow>('acea_sal', 'sal_n, odl, doc_acquisti, posizione, valore, causa, attivita, data_completamento, data_registrazione'),
   ]);
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
@@ -270,6 +288,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const masterAudit = new Map<string, MasterRiga>();
   const masterAttivita = new Map<string, string>();
   const saracinesca: Array<{ odlFiglio: string; data: string }> = [];
+  const saracinescaFiglioByParent = new Map<string, string>();
   for (const m of masterRows) {
     const odl = (m.odl ?? '').trim();
     if (!odl) continue;
@@ -284,11 +303,14 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
       if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
     }
-    // saracinesca=SI + esito=eseguito → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre
-    if ((m.saracinesca ?? '').trim().toUpperCase() === 'SI' && (m.esito ?? '').trim().toLowerCase() === 'eseguito') {
+    // saracinesca prodotta → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre.
+    // ZAGAROLO: fonte verità = colonna esito del master. DUNNING (senza quella colonna): fonte
+    // verità = il nostro DB (positivo sull'ODL) — vedi saracinescaProdotta().
+    if (saracinescaProdotta(m.saracinesca, m.esito, dbAudit.get(odl)?.esitoOk)) {
       const info = dbInfo.get(odl);
       const data = info?.data ?? dataDaRaw(m.data_raw) ?? '';
       saracinesca.push({ odlFiglio: (m.odl_saracinesca ?? '').trim(), data });
+      saracinescaFiglioByParent.set(odl, (m.odl_saracinesca ?? '').trim());
       if (data && data >= from && data <= to) {
         produzioneRighe.push({
           odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
@@ -310,9 +332,33 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const saracinescaByFiglio = new Map<string, string>();
   for (const s of saracinesca) if (s.odlFiglio) saracinescaByFiglio.set(s.odlFiglio, s.data);
 
-  // portale per ODL + SAL (limitazioni per ODL + saracinesca per Odl figlio).
+  // Riga "esitata a sistema" per un ODL, valorizzata come limitazione o come saracinesca figlio
+  // (stessa logica del blocco SAL preesistente, estratta per essere riusata anche dal ramo
+  // "non remunerato" sotto — comportamento identico, solo condivisione del codice).
+  const rigaEsitataDa = (odl: string): RigaProduzione => {
+    if (saracinescaByFiglio.has(odl)) {
+      const data = saracinescaByFiglio.get(odl) || to;
+      return {
+        odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
+        staffId: '', operatore: '', territorioId: '', territorio: '',
+        valore: valore(SARA_KEY, data),
+      };
+    }
+    const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
+    const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
+    const data = dbDataByOdl.get(odl) ?? to;
+    return {
+      odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+      attivitaKey, attivitaLabel: attivitaKey, data,
+      staffId: '', operatore: '', territorioId: '', territorio: '',
+      valore: valore(attivitaKey, data),
+    };
+  };
+
   const portaleAudit = new Map<string, PortaleRiga>();
+  const odlCompletatoAny = new Set<string>();
   const salRighe: RigaProduzione[] = [];
+  const nonRemuneratoRighe: RigaProduzione[] = [];
   for (const p of portaleRows) {
     const odl = (p.odl ?? '').trim();
     if (!odl) continue;
@@ -320,35 +366,54 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     if (effByOdl.get(odl) === 'italgas') continue;
     const statoNorm = (p.stato_norm ?? '').trim();
     portaleAudit.set(odl, { statoNorm });
-    // SAL = ciò che ACEA REMUNERA: solo COMPLETATO con causa scostamento pagata (inizia per E).
-    // L'audit (portaleAudit) resta su tutti i COMPLETATO; qui filtriamo solo il valorizzato.
-    if (statoNorm === 'COMPLETATO' && scostamentoPagato(p.causa_scostamento)) {
-      if (saracinescaByFiglio.has(odl)) {
-        // Odl figlio di una saracinesca consuntivato → vale la Sostituzione saracinesca (91,12),
-        // non una limitazione con attività vuota. Evita la riga fantasma a 0 (niente doppio conteggio).
-        const data = saracinescaByFiglio.get(odl) || to;
-        salRighe.push({
-          odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
-          staffId: '', operatore: '', territorioId: '', territorio: '',
-          valore: valore(SARA_KEY, data),
-        });
-      } else {
-        const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
-        const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
-        const data = dbDataByOdl.get(odl) ?? to;
-        salRighe.push({
-          odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
-          attivitaKey, attivitaLabel: attivitaKey, data,
-          staffId: '', operatore: '', territorioId: '', territorio: '',
-          valore: valore(attivitaKey, data),
-        });
-      }
+    if (statoNorm !== 'COMPLETATO') continue;
+    odlCompletatoAny.add(odl);
+    // SAL = ciò che ACEA REMUNERA: solo causa scostamento pagata (inizia per E).
+    if (scostamentoPagato(p.causa_scostamento)) {
+      salRighe.push(rigaEsitataDa(odl));
+    } else {
+      // consuntivato dal portale ma causale a nostro carico: esitato, mai remunerato da ACEA.
+      nonRemuneratoRighe.push(rigaEsitataDa(odl));
     }
   }
   const salAgg = aggregaProduzione(salRighe);
   const sal: ProduzioneSal = { totale: salAgg.totale, perVoce: salAgg.perVoce, perGiorno: salAgg.perGiorno };
 
   const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
+
+  const nonRemunerato: Totale = aggregaProduzione(nonRemuneratoRighe).totale;
+
+  const fuoriSalRighe = righeDedup.filter((r) => {
+    const k = chiaveSalEffettiva(r, SARA_KEY, saracinescaFiglioByParent);
+    return !k || !odlCompletatoAny.has(k);
+  });
+  const fuoriSal: Totale = aggregaProduzione(fuoriSalRighe).totale;
+
+  // ODL "conosciuti" (controllo leggero dello storico SAL): presenti in DB, master o portale.
+  const odlConosciuti = new Set<string>([...dbAudit.keys(), ...masterAudit.keys(), ...portaleAudit.keys()]);
+  const odlGiaPagati = odlPagatiDaSal(salRows);
+  const salPerN = new Map<number, SalRow[]>();
+  for (const r of salRows) {
+    if (!salPerN.has(r.sal_n)) salPerN.set(r.sal_n, []);
+    salPerN.get(r.sal_n)!.push(r);
+  }
+  const salStorico: SalStorico[] = [...salPerN.entries()]
+    .sort((a, b) => a[0] - b[0])
+    .map(([, righeSalN]) => {
+      const arricchite: SalRigaArricchita[] = righeSalN.map((r) => {
+        const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias) : null;
+        const attivitaKey = canonSal?.attivitaKey ?? '';
+        const dataVal = r.data_completamento ?? r.data_registrazione ?? to;
+        return { ...r, valoreListino: attivitaKey ? valore(attivitaKey, dataVal) : 0 };
+      });
+      return riepilogoUnSal(arricchite, odlConosciuti);
+    });
+
+  const preSalRighe = salRighe.filter((r) => !odlGiaPagati.has(r.odl));
+  const preSal = {
+    n: (salStorico.length > 0 ? Math.max(...salStorico.map((s) => s.n)) : 0) + 1,
+    totale: aggregaProduzione(preSalRighe).totale,
+  };
 
   // Giornate-uomo: frazione ACEA/totale per (operatore, giorno). ACEA = committente EFFETTIVO
   // 'acea' via alias (stessa riclassificazione della produzione: il gas→italgas resta fuori).
@@ -414,6 +479,10 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     produzione,
     sal,
     scarto,
+    salStorico,
+    preSal,
+    fuoriSal,
+    nonRemunerato,
     personale,
     esiti,
     audit: auditTutte.slice(0, AUDIT_CAP),

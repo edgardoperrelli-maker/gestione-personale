@@ -84,7 +84,7 @@ export function mappaCelleProduzione(dati: ProduzioneEconomica): CellePerFoglio 
   const perVoce = (ch: string) => dati.produzione.perVoce.find((v) => v.chiave === ch);
   const salVoce = (ch: string) => dati.sal.perVoce.find((v) => v.chiave === ch);
 
-  const Dati: Record<string, Valore> = { B9: dati.from, B10: dati.to };
+  const Dati: Record<string, Valore> = { B9: dati.from, B10: dati.to, D1: 'Esitato ACEA' };
   VOCI_ORDINE.forEach((ch, i) => {
     const r = 2 + i;
     Dati[`B${r}`] = perVoce(ch)?.conteggio ?? 0;
@@ -124,7 +124,9 @@ export function mappaCelleProduzione(dati: ProduzioneEconomica): CellePerFoglio 
     Audit[`B${r}`] = AUDIT_LABEL[d.classe] ?? d.classe;
   });
 
-  return { Dati, Dettaglio, Audit };
+  const Dashboard: Record<string, Valore> = { B4: 'Esitato ACEA' };
+
+  return { Dati, Dettaglio, Audit, Dashboard };
 }
 
 // ── Fogli extra (personale / SAL per giorno) anche sulla via template ────────
@@ -225,6 +227,22 @@ export function fogliPersonale(dati: ProduzioneEconomica): FoglioSemplice[] {
       righe: [
         ['Giorno', 'ODL', 'SAL EUR'],
         ...dati.sal.perGiorno.map((g): Array<string | number> => [g.chiave, g.conteggio, g.valore]),
+      ],
+    },
+  ];
+}
+
+/** Foglio storico SAL ufficiali (file CONTABILITA') + pre-SAL/fuori-SAL/non-remunerato. PURA. */
+export function fogliSal(dati: ProduzioneEconomica): FoglioSemplice[] {
+  return [
+    {
+      nome: 'Dati - SAL',
+      righe: [
+        ['SAL', 'Mese', 'ODL', 'Valore APS EUR', 'Valore listino EUR', 'Delta listino EUR', 'ODL sconosciuti'],
+        ...dati.salStorico.map((s): Array<string | number> => [s.n, s.mese, s.ordini, s.valoreAps, s.valoreListino, s.deltaListino, s.odlSconosciuti]),
+        [`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', ''],
+        ['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', ''],
+        ['Non remunerato', '', dati.nonRemunerato.conteggio, dati.nonRemunerato.valore, '', '', ''],
       ],
     },
   ];

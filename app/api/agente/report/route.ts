@@ -5,6 +5,7 @@ import { chiaveValida } from '@/lib/apiExportKey';
 import { riassumiReport, type ReportAgente } from '@/lib/agente/decisione';
 import { normalizzaStatoPortale } from '@/lib/produzione/statoPortale';
 import { preparaRigheMasterSnapshot } from '@/lib/agente/masterSnapshotIngest';
+import { preparaRigheSal } from '@/lib/produzione/salUfficiale';
 
 export const runtime = 'nodejs';
 
@@ -120,6 +121,31 @@ export async function POST(req: Request) {
       if (rows.length > 0) {
         const { error } = await supabaseAdmin.from('acea_master_snapshot').upsert(rows, { onConflict: 'odl' });
         if (error) console.error('[report] acea_master_snapshot upsert:', error.message);
+      }
+    }
+
+    // Storico SAL ufficiali (file CONTABILITA'): foto per sal_n, sostituita ad ogni giro «Leggi
+    // SAL» (il file può essere corretto/ricaricato da ACEA — delete+insert assorbe la correzione).
+    const bodySal = body as unknown as {
+      salFiles?: Array<{
+        n?: number;
+        file?: string;
+        righe?: Array<{
+          odl?: string; docAcquisti?: string; posizione?: string; valoreAps?: number;
+          causa?: string; attivita?: string; dataCompletamentoRaw?: string; dataRegistrazioneRaw?: string;
+        }>;
+      }>;
+    };
+    if (Array.isArray(bodySal.salFiles)) {
+      for (const f of bodySal.salFiles) {
+        if (typeof f?.n !== 'number' || !Array.isArray(f.righe)) continue;
+        const righe = preparaRigheSal(f.n, f.righe).map((r) => ({ ...r, raccolto_at: now.toISOString(), run_id: runId }));
+        const { error: eDel } = await supabaseAdmin.from('acea_sal').delete().eq('sal_n', f.n);
+        if (eDel) { console.error('[report] acea_sal delete:', eDel.message); continue; }
+        if (righe.length > 0) {
+          const { error: eIns } = await supabaseAdmin.from('acea_sal').insert(righe);
+          if (eIns) console.error('[report] acea_sal insert:', eIns.message);
+        }
       }
     }
 

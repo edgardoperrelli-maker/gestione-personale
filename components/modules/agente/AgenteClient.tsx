@@ -16,6 +16,7 @@ export type AgenteClientProps = {
   forzaGiro: boolean;
   forzaScan: boolean;
   forzaAcea: boolean;
+  forzaAceaSal: boolean;
 };
 
 /** Forma modificabile della config nel form (sottoinsieme salvabile). */
@@ -35,7 +36,7 @@ const cardStyle = {
   backgroundColor: 'var(--brand-surface)',
 } as const;
 
-export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea }: AgenteClientProps) {
+export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal }: AgenteClientProps) {
   const router = useRouter();
   const [form, setForm] = useState<ConfigForm>({
     enabled: config.enabled,
@@ -54,6 +55,8 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
   const [aceaTarget, setAceaTarget] = useState<'dunning' | 'zagarolo'>('dunning');
+  const [salArming, setSalArming] = useState(false);
+  const [salMsg, setSalMsg] = useState<string | null>(null);
 
   async function aggiornaStatoAcea() {
     setAceaArming(true); setAceaMsg(null);
@@ -69,6 +72,19 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
       setAceaMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
     } finally {
       setAceaArming(false);
+    }
+  }
+
+  async function leggiSal() {
+    setSalArming(true); setSalMsg(null);
+    try {
+      const res = await fetch('/api/admin/agente/acea-sal', { method: 'POST' });
+      const j = await res.json().catch(() => ({}));
+      setSalMsg(res.ok ? 'Richiesta inviata: parte al prossimo contatto dell\'agente.' : `Errore: ${j.error ?? res.status}`);
+    } catch (e) {
+      setSalMsg(`Errore: ${e instanceof Error ? e.message : 'rete'}`);
+    } finally {
+      setSalArming(false);
     }
   }
 
@@ -239,7 +255,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             · ultimo contatto {formattaContatto(minutiDaContatto)}
           </span>
         </div>
-        {(forzaGiro || forzaScan || forzaAcea) && (
+        {(forzaGiro || forzaScan || forzaAcea || forzaAceaSal) && (
           <div
             className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm"
             style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
@@ -258,6 +274,11 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {forzaAcea && (
               <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
                 stato ACEA
+              </span>
+            )}
+            {forzaAceaSal && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
+                leggi SAL
               </span>
             )}
             <button
@@ -312,6 +333,17 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {aceaArming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
           </button>
           {aceaMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</span>}
+          <button
+            type="button"
+            onClick={leggiSal}
+            disabled={salArming}
+            className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
+            title="Legge i file SAL N.xlsx dalla cartella CONTABILITA' e aggiorna lo storico SAL del KPI produzione economica."
+          >
+            {salArming ? 'Invio…' : 'Leggi SAL'}
+          </button>
+          {salMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{salMsg}</span>}
         </div>
       </section>
 

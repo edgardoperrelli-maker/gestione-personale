@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import KpiDirezione from './KpiDirezione';
 import TrendProduzioneSal from './TrendProduzioneSal';
+import SalStorico from './SalStorico';
 import ComposizioneProduzione from './ComposizioneProduzione';
 import PersonaleImpegno from './PersonaleImpegno';
 import EsitiOperatore from './EsitiOperatore';
@@ -48,7 +49,7 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
           <div>
             <h1 className="text-3xl font-semibold">Commessa ACEA — Produzione economica</h1>
             <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-              Periodo {dataIT(from)} → {dataIT(to)} · Produzione = lavorato valorizzato · SAL = pagato ACEA (causale E%)
+              Periodo {dataIT(from)} → {dataIT(to)} · Produzione = lavorato valorizzato · SAL = ordini pagati (file ufficiale ACEA)
             </p>
           </div>
           <div className="flex gap-2 print:hidden">
@@ -77,6 +78,9 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
               <TrendProduzioneSal dati={dati} />
             </section>
             <section className="break-inside-avoid">
+              <SalStorico dati={dati} />
+            </section>
+            <section className="break-inside-avoid">
               <ComposizioneProduzione dati={dati} />
             </section>
             <section className="break-inside-avoid">
@@ -89,9 +93,10 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
               <CandeleSettimanali />
             </section>
             <p className="text-[10px] text-[var(--brand-text-subtle)]">
-              Fonte: gestionale (interventi + snapshot master/portale ACEA). SAL = ordini COMPLETATI con causale di
-              scostamento pagata (E%). Giornate-uomo = quota di interventi ACEA lavorati sul totale lavorato, nei soli
-              giorni feriali lun–ven (sabato = attivazioni, mostrato a parte; domenica esclusa).
+              Fonte: gestionale (interventi + snapshot master/portale/SAL ACEA). SAL = ordini pagati dal file
+              ufficiale ACEA; Pre-SAL = ordini esitati (COMPLETATO, causale E%) non ancora in un SAL. Giornate-uomo =
+              quota di interventi ACEA lavorati sul totale lavorato, nei soli giorni feriali lun–ven (sabato =
+              attivazioni, mostrato a parte; domenica esclusa).
             </p>
           </div>
         )}
