@@ -25,6 +25,10 @@ describe('numeroSalDaNome', () => {
     expect(numeroSalDaNome('ZAGAROLO.xlsx')).toBeNull();
     expect(numeroSalDaNome('')).toBeNull();
   });
+  it('non ingerisce "PRE-SAL N.xlsx" come SAL ufficiale (rischio: cifra pagata gonfiata)', () => {
+    expect(numeroSalDaNome('PRE-SAL 2.xlsx')).toBeNull();
+    expect(numeroSalDaNome('pre-sal 3.xlsx')).toBeNull();
+  });
 });
 
 describe('leggiFileSal', () => {

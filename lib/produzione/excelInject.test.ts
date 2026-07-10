@@ -79,6 +79,13 @@ describe('mappaCelleProduzione', () => {
     expect(c.Audit.A2).toBe('o1');
     expect(c.Audit.B2).toContain('non nel master');
   });
+
+  it('rietichetta le celle statiche "SAL" residue (Dati!D1 e Dashboard!B4), che si riferiscono al consuntivato portale e non al SAL ufficiale pagato', () => {
+    const c = mappaCelleProduzione(mockDati);
+    expect(c.Dati.D1).toBe('Esitato ACEA');
+    expect(c.Dashboard).toBeDefined();
+    expect(c.Dashboard.B4).toBe('Esitato ACEA');
+  });
 });
 
 describe('iniettaTemplate (integrazione sul template reale)', () => {

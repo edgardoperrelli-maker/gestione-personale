@@ -21,7 +21,7 @@ const t = (v) => String(v ?? '').trim();
 
 /** Numero SAL dal nome file ("SAL 1.xlsx", "sal 12.xlsx"); null se non riconoscibile. */
 export function numeroSalDaNome(nomeFile) {
-  const m = t(nomeFile).match(/SAL\s*(\d+)/i);
+  const m = t(nomeFile).match(/^SAL\s*(\d+)/i);
   return m ? Number(m[1]) : null;
 }
 
