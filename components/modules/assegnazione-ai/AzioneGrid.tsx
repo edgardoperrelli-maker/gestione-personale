@@ -11,7 +11,7 @@ type AzioneGridProps = {
 
 const DESCRIZIONI: Record<string, string> = {
   'aggiorna-odl': 'Aggiorna lo stato ODL leggendolo dal portale ACEA.',
-  'aggiorna-stato': 'Aggiorna lo stato ODL leggendolo dal portale ACEA.',
+  'aggiorna-stato': 'Aggiorna lo stato ODL dal portale ACEA e riporta le sostituzioni saracinesca dai rapportini.',
   assegna: 'Leggi il file per un giorno e assegna gli interventi (app + ACEA).',
   'assegna-interventi': 'Leggi il file per un giorno e assegna gli interventi (app + ACEA).',
   sincronizza: 'Scrivi gli esiti dei rapportini sul file.',

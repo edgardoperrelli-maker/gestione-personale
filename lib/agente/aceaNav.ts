@@ -5,7 +5,7 @@ export const COMMESSA_LABEL: Record<string, string> = { acea: 'ACEA' };
 export const ATTIVITA_LABEL: Record<string, string> = { lm: 'Limitazioni massive', dunning: 'Dunning' };
 export const AZIONE_LABEL: Record<string, string> = {
   'aggiorna-odl': 'Aggiorna ODL',
-  'aggiorna-stato': 'Aggiorna stato ODL',
+  'aggiorna-stato': 'Aggiorna stato/rapportino',
   assegna: 'Assegna ODL',
   'assegna-interventi': 'Assegna interventi',
   sincronizza: 'Sincronizza rapportini',
