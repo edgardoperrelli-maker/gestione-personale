@@ -563,7 +563,7 @@ async function main() {
     const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '') + '-acea-' + aceaTarget;
     try {
       const { eseguiGiroAcea } = await import('./lib/acea/eseguiGiroAcea.mjs');
-      const report = await eseguiGiroAcea({ cfg, stamp, target: aceaTarget });
+      const report = await eseguiGiroAcea({ cfg, stamp, target: aceaTarget, baseUrl, exportKey: cfg.exportKey });
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
       console.log(`[lim-sync] giro ACEA (${aceaTarget}): aggiornate=${report.file?.[0]?.aggiornate ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
