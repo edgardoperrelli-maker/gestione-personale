@@ -59,3 +59,20 @@ export async function fetchAceaAssegnazioni({ baseUrl, exportKey, data }, fetchI
   }
   return res.json();
 }
+
+/** GET /api/export/acea-saracinesche → righe [{odl, saracinesca}] (header x-export-key). Lancia
+ *  su errore: la gestione best-effort (il giro ACEA non deve mai bloccarsi per questo) è del
+ *  chiamante, non di questa funzione — stesso pattern di fetchLavori/fetchAceaAssegnazioni. */
+export async function fetchSaracinesche({ baseUrl, exportKey }, fetchImpl = fetch) {
+  const url = `${baseUrl}/api/export/acea-saracinesche`;
+  const res = await fetchImpl(url, { headers: { 'x-export-key': exportKey } });
+  if (!res.ok) {
+    const corpo = await res.text().catch(() => '');
+    throw new Error(`GET ${url} ${res.status}: ${corpo}`);
+  }
+  const json = await res.json();
+  if (!Array.isArray(json.righe)) {
+    throw new Error(`Risposta endpoint inattesa (manca 'righe'): ${JSON.stringify(json).slice(0, 200)}`);
+  }
+  return json.righe;
+}
