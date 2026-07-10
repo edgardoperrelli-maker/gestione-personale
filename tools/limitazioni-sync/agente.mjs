@@ -596,6 +596,24 @@ async function main() {
     }
   }
 
+  // Giro "Leggi SAL" on-demand: indipendente da eseguiOra. Nessun Playwright (solo lettura file
+  // dalla cartella CONTABILITA').
+  if (ris.aceaSal) {
+    const now = new Date();
+    const stamp = oggi.replaceAll('-', '') + '-' + now.toISOString().slice(11, 16).replace(':', '') + '-acea-sal';
+    try {
+      const { leggiSal } = await import('./lib/acea/leggiSal.mjs');
+      const salFiles = await leggiSal(cfg.acea?.salPath ?? '');
+      const report = { tipo: 'acea-sal', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], salFiles };
+      try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
+      await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
+      const righeTot = salFiles.reduce((s, f) => s + f.righe.length, 0);
+      console.log(`[lim-sync] giro Leggi SAL: file=${salFiles.length} righe=${righeTot}`);
+    } catch (e) {
+      console.error(`[lim-sync] giro Leggi SAL fallito: ${e instanceof Error ? e.message : e}`);
+    }
+  }
+
   const { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo } = ris;
 
   if (!eseguiOra) {
