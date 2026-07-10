@@ -1599,8 +1599,11 @@ git commit -m "feat(acea): bottone «Leggi SAL» su /hub/agente"
 
 ## Dopo il merge (passi manuali, non delegabili a un worktree)
 
-1. **Applicare la migration al DB di produzione** (Task 2) via Supabase MCP `apply_migration`, con l'ok esplicito dell'utente (deroga puntuale come per le migration precedenti di questa feature).
-2. **Aggiornare il `config.json` reale** su questo PC (agente): aggiungere `acea.salPath` con il valore reale `C:\Users\Edgardo\Plenzich s.p.a\Commesse - Documenti\ANNO 2026\CP 20260002_ACEA_GU IDRICHE L2\8_LAVORI\CONTABILITA'` (il file è gitignored, il merge non lo tocca).
-3. **`git pull` nel repo principale** (l'agente gira da lì, non dai worktree) — vedi memoria di progetto `aggiorna-agente-su-questo-pc`. Nessun riavvio dell'agente: ricarica il codice ad ogni tick.
-4. **Lanciare «Aggiorna stato ODL da ACEA» (target Dunning)** dal modulo Agente, per scrivere/propagare le saracinesche DUNNING del Task 1 e verificare il conteggio via query (~196 attese, vedi spec).
-5. **Lanciare «Leggi SAL»** dal modulo Agente con `SAL 1.xlsx` già nella cartella, per popolare `acea_sal` e vedere le card/tabella valorizzate sul KPI.
+⚠️ **L'ordine conta** (trovato dalla review finale whole-branch): il tick dell'agente (`app/api/agente/tick/route.ts`) seleziona già `forza_acea_sal` e il loader KPI (`lib/produzione/load.ts`) interroga già `acea_sal` non appena il codice è in produzione — se la migration non è ancora applicata, ogni tick dell'agente va in 500 (niente heartbeat, niente giro serale) e la pagina KPI/presentazione/export lanciano un errore. La migration è additiva e innocua anche col codice vecchio: applicarla **prima** di mergiare/pushare elimina la finestra di rottura.
+
+1. **Applicare la migration al DB di produzione** (Task 2) via Supabase MCP `apply_migration`, con l'ok esplicito dell'utente (deroga puntuale come per le migration precedenti di questa feature) — **PRIMA del merge/push su main**.
+2. **Merge/push su main** (deploy Vercel automatico).
+3. **Aggiornare il `config.json` reale** su questo PC (agente): aggiungere `acea.salPath` con il valore reale `C:\Users\Edgardo\Plenzich s.p.a\Commesse - Documenti\ANNO 2026\CP 20260002_ACEA_GU IDRICHE L2\8_LAVORI\CONTABILITA'` (il file è gitignored, il merge non lo tocca). Verificare inoltre che i file nella cartella si chiamino esattamente `SAL N.xlsx` (non `PRE-SAL N.xlsx` — dal fix della review finale il parser non li ingerisce più come SAL ufficiale, ma vanno comunque rinominati per essere letti).
+4. **`git pull` nel repo principale** (l'agente gira da lì, non dai worktree) — vedi memoria di progetto `aggiorna-agente-su-questo-pc`. Nessun riavvio dell'agente: ricarica il codice ad ogni tick.
+5. **Lanciare «Aggiorna stato ODL da ACEA» (target Dunning)** dal modulo Agente, per scrivere/propagare le saracinesche DUNNING del Task 1 e verificare il conteggio via query (~196 attese, vedi spec).
+6. **Lanciare «Leggi SAL»** dal modulo Agente con `SAL 1.xlsx` già nella cartella, per popolare `acea_sal` e vedere le card/tabella valorizzate sul KPI.
