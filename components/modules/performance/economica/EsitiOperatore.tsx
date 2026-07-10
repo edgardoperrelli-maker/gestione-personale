@@ -14,6 +14,33 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
 
   const pct = (v: number, tot: number) => (tot > 0 ? `${Math.round((v / tot) * 100)}%` : '0%');
 
+  // % scritta dentro il segmento colorato: il tooltip non esiste in stampa (PDF direzione),
+  // quindi la quota deve essere leggibile sulla barra stessa. Sparisce se il segmento è
+  // troppo stretto per contenere il testo.
+  const etichettaPct = (fill: string) => function EtichettaPct(props: unknown) {
+    const { x, y, width, height, value, index } = props as {
+      x?: number | string; y?: number | string; width?: number | string;
+      height?: number | string; value?: number | string; index?: number;
+    };
+    const w = Number(width ?? 0);
+    const tot = righe[index ?? -1]?.assegnati ?? 0;
+    const p = tot > 0 ? Math.round((Number(value ?? 0) / tot) * 100) : 0;
+    if (p <= 0 || w < 26) return null;
+    return (
+      <text
+        x={Number(x ?? 0) + w / 2}
+        y={Number(y ?? 0) + Number(height ?? 0) / 2}
+        textAnchor="middle"
+        dominantBaseline="central"
+        fontSize={10}
+        fontWeight={600}
+        fill={fill}
+      >
+        {p}%
+      </text>
+    );
+  };
+
   return (
     <div className="rounded-xl border border-[var(--brand-border)] p-3">
       <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Esiti sull&apos;assegnato per operatore</h3>
@@ -40,10 +67,15 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
                 labelStyle={chartLabelStyle}
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="positivi" stackId="e" name="Positivi" fill={cc.success} />
-              <Bar dataKey="negativi" stackId="e" name="Negativi" fill={cc.danger} />
+              <Bar dataKey="positivi" stackId="e" name="Positivi" fill={cc.success}>
+                <LabelList content={etichettaPct('#ffffff')} />
+              </Bar>
+              <Bar dataKey="negativi" stackId="e" name="Negativi" fill={cc.danger}>
+                <LabelList content={etichettaPct('#ffffff')} />
+              </Bar>
               <Bar dataKey="nonLavorati" stackId="e" name="Non lavorati" fill={cc.brandTextMuted} radius={[0, 4, 4, 0]}>
                 <LabelList dataKey="valore" position="right" formatter={(v: unknown) => eur(Number(v))} style={{ fill: cc.brandTextMuted, fontSize: 10 }} />
+                <LabelList content={etichettaPct('var(--brand-text-main)')} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
