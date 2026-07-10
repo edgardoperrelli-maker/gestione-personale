@@ -566,7 +566,7 @@ async function main() {
       const report = await eseguiGiroAcea({ cfg, stamp, target: aceaTarget, baseUrl, exportKey: cfg.exportKey });
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
-      console.log(`[lim-sync] giro ACEA (${aceaTarget}): aggiornate=${report.file?.[0]?.aggiornate ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+      console.log(`[lim-sync] giro ACEA (${aceaTarget}): aggiornate=${report.file?.[0]?.aggiornate ?? 0} saracinesca=${report.saracinescaScritte ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
       // Snapshot MASTER del target letto (audit a tre vie): DUNNING o ZAGAROLO (limitazioni massive).
       const aceaCfg = aceaTarget === 'zagarolo' && cfg.acea?.zagarolo ? { ...cfg.acea, ...cfg.acea.zagarolo } : cfg.acea;
       await inviaMasterSnapshot({ baseUrl, exportKey: cfg.exportKey, acea: aceaCfg });
