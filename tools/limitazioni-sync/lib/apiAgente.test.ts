@@ -84,4 +84,20 @@ describe('fetchSaracinesche', () => {
       fetchSaracinesche({ baseUrl: 'https://x', exportKey: 'K' }, fetchImpl as unknown as typeof fetch),
     ).rejects.toThrow(/righe/);
   });
+
+  it('timeout: fetch che non risponde entro timeoutMs → throw con messaggio chiaro', async () => {
+    const fetchImpl = vi.fn((_url: string, opts: { signal: AbortSignal }) => new Promise((_resolve, reject) => {
+      opts.signal.addEventListener('abort', () => {
+        const err = new Error('aborted');
+        err.name = 'AbortError';
+        reject(err);
+      });
+    }));
+    await expect(
+      fetchSaracinesche(
+        { baseUrl: 'https://x', exportKey: 'K', timeoutMs: 20 },
+        fetchImpl as unknown as typeof fetch,
+      ),
+    ).rejects.toThrow(/timeout dopo 20ms/);
+  });
 });

@@ -61,11 +61,22 @@ export async function fetchAceaAssegnazioni({ baseUrl, exportKey, data }, fetchI
 }
 
 /** GET /api/export/acea-saracinesche → righe [{odl, saracinesca}] (header x-export-key). Lancia
- *  su errore: la gestione best-effort (il giro ACEA non deve mai bloccarsi per questo) è del
- *  chiamante, non di questa funzione — stesso pattern di fetchLavori/fetchAceaAssegnazioni. */
-export async function fetchSaracinesche({ baseUrl, exportKey }, fetchImpl = fetch) {
+ *  su errore (incluso timeout): la gestione best-effort (il giro ACEA non deve mai bloccarsi per
+ *  questo) è del chiamante, non di questa funzione — stesso pattern di fetchLavori/fetchAceaAssegnazioni.
+ *  `timeoutMs` (default 20s) limita quanto il giro può restare in attesa di un endpoint lento. */
+export async function fetchSaracinesche({ baseUrl, exportKey, timeoutMs = 20000 }, fetchImpl = fetch) {
   const url = `${baseUrl}/api/export/acea-saracinesche`;
-  const res = await fetchImpl(url, { headers: { 'x-export-key': exportKey } });
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  let res;
+  try {
+    res = await fetchImpl(url, { headers: { 'x-export-key': exportKey }, signal: controller.signal });
+  } catch (e) {
+    if (e && e.name === 'AbortError') throw new Error(`GET ${url} timeout dopo ${timeoutMs}ms`);
+    throw e;
+  } finally {
+    clearTimeout(timer);
+  }
   if (!res.ok) {
     const corpo = await res.text().catch(() => '');
     throw new Error(`GET ${url} ${res.status}: ${corpo}`);
