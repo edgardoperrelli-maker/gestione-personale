@@ -7,6 +7,7 @@ import type { ClasseDiscrepanza } from '@/lib/produzione/riconciliazione';
 import EditorListinoAcea from './EditorListinoAcea';
 import KpiDirezione from './economica/KpiDirezione';
 import TrendProduzioneSal from './economica/TrendProduzioneSal';
+import SalStorico from './economica/SalStorico';
 import ComposizioneProduzione from './economica/ComposizioneProduzione';
 import PersonaleImpegno from './economica/PersonaleImpegno';
 import EsitiOperatore from './economica/EsitiOperatore';
@@ -164,6 +165,10 @@ export default function PerformanceEconomica() {
           {/* Trend cumulato Produzione vs SAL */}
           <div className="mb-4">
             <TrendProduzioneSal dati={dati} />
+          </div>
+
+          <div className="mb-4">
+            <SalStorico dati={dati} />
           </div>
 
           {/* Composizione: donut per voce + top attività */}
