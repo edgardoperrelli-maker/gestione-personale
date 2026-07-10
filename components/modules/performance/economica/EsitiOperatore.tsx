@@ -6,26 +6,34 @@ import { eur, num, type DatiProduzione } from './tipi';
 
 const MAX_OPERATORI = 12;
 
-/** Esiti sull'ASSEGNATO per operatore: barre impilate al 100% (positivi/negativi/non lavorati)
- *  con la produzione € del periodo come etichetta. Base = ogni intervento ACEA assegnato. */
-export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
-  const cc = useChartColors();
-  const righe = dati.esiti.slice(0, MAX_OPERATORI);
+export interface RigaPctEsiti {
+  positivi: number;
+  negativi: number;
+  nonLavorati: number;
+  assegnati: number;
+}
 
-  const pct = (v: number, tot: number) => (tot > 0 ? `${Math.round((v / tot) * 100)}%` : '0%');
-
-  // % scritta dentro il segmento colorato: il tooltip non esiste in stampa (PDF direzione),
-  // quindi la quota deve essere leggibile sulla barra stessa. Sparisce se il segmento è
-  // troppo stretto per contenere il testo.
-  const etichettaPct = (fill: string) => function EtichettaPct(props: unknown) {
-    const { x, y, width, height, value, index } = props as {
+/** Etichetta % dentro il segmento colorato: il tooltip non esiste in stampa (PDF direzione),
+ *  quindi la quota deve leggersi sulla barra. La % viene dal CONTEGGIO della riga, MAI dal
+ *  `value` di recharts: con stackOffset="expand" quel valore è la frazione normalizzata 0..1
+ *  (mostrava "1%" ovunque). Sparisce se il testo non entra fisicamente nel segmento. */
+export function etichettaPctSegmento(
+  righe: RigaPctEsiti[],
+  campo: 'positivi' | 'negativi' | 'nonLavorati',
+  fill: string,
+) {
+  return function EtichettaPct(props: unknown) {
+    const { x, y, width, height, index } = props as {
       x?: number | string; y?: number | string; width?: number | string;
-      height?: number | string; value?: number | string; index?: number;
+      height?: number | string; index?: number;
     };
     const w = Number(width ?? 0);
-    const tot = righe[index ?? -1]?.assegnati ?? 0;
-    const p = tot > 0 ? Math.round((Number(value ?? 0) / tot) * 100) : 0;
-    if (p <= 0 || w < 26) return null;
+    const riga = righe[index ?? -1];
+    const tot = riga?.assegnati ?? 0;
+    const p = tot > 0 ? Math.round(((riga?.[campo] ?? 0) / tot) * 100) : 0;
+    const testo = `${p}%`;
+    // ~6.2px per carattere a font 10 + un margine: se non ci sta, meglio niente che illeggibile
+    if (p <= 0 || w < testo.length * 6.2 + 6) return null;
     return (
       <text
         x={Number(x ?? 0) + w / 2}
@@ -36,10 +44,19 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
         fontWeight={600}
         fill={fill}
       >
-        {p}%
+        {testo}
       </text>
     );
   };
+}
+
+/** Esiti sull'ASSEGNATO per operatore: barre impilate al 100% (positivi/negativi/non lavorati)
+ *  con la produzione € del periodo come etichetta. Base = ogni intervento ACEA assegnato. */
+export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
+  const cc = useChartColors();
+  const righe = dati.esiti.slice(0, MAX_OPERATORI);
+
+  const pct = (v: number, tot: number) => (tot > 0 ? `${Math.round((v / tot) * 100)}%` : '0%');
 
   return (
     <div className="rounded-xl border border-[var(--brand-border)] p-3">
@@ -68,14 +85,14 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="positivi" stackId="e" name="Positivi" fill={cc.success}>
-                <LabelList content={etichettaPct('#ffffff')} />
+                <LabelList content={etichettaPctSegmento(righe, 'positivi', '#ffffff')} />
               </Bar>
               <Bar dataKey="negativi" stackId="e" name="Negativi" fill={cc.danger}>
-                <LabelList content={etichettaPct('#ffffff')} />
+                <LabelList content={etichettaPctSegmento(righe, 'negativi', '#ffffff')} />
               </Bar>
               <Bar dataKey="nonLavorati" stackId="e" name="Non lavorati" fill={cc.brandTextMuted} radius={[0, 4, 4, 0]}>
                 <LabelList dataKey="valore" position="right" formatter={(v: unknown) => eur(Number(v))} style={{ fill: cc.brandTextMuted, fontSize: 10 }} />
-                <LabelList content={etichettaPct('var(--brand-text-main)')} />
+                <LabelList content={etichettaPctSegmento(righe, 'nonLavorati', 'var(--brand-text-main)')} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>
