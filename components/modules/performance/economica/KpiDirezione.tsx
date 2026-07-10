@@ -1,5 +1,4 @@
 'use client';
-import Badge from '@/components/Badge';
 import { eur, num, type DatiProduzione } from './tipi';
 
 function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string; nota?: string; accent?: 'pos' | 'neg' | 'warn' }) {
@@ -33,7 +32,7 @@ export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione
         <Card
           titolo={`Pre-SAL ${num(dati.preSal.n)}`}
           valore={eur(dati.preSal.totale.valore)}
-          nota={`${num(dati.preSal.totale.conteggio)} ODL esitati non pagati · vivo oggi`}
+          nota={`${num(dati.preSal.totale.conteggio)} ODL esitati sul portale, non in un SAL · vivo oggi`}
           accent={dati.preSal.totale.valore > 0 ? 'warn' : undefined}
         />
         <Card
@@ -55,13 +54,6 @@ export default function KpiDirezione({ dati, operative }: { dati: DatiProduzione
           </>
         )}
       </div>
-      {dati.nonRemunerato.valore > 0 && (
-        <div className="mb-4">
-          <Badge variant="warning">
-            Esitato non remunerato: {eur(dati.nonRemunerato.valore)} ({num(dati.nonRemunerato.conteggio)} ODL, causale a nostro carico)
-          </Badge>
-        </div>
-      )}
     </>
   );
 }
