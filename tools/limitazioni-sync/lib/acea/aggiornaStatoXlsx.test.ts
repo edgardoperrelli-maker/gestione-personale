@@ -371,4 +371,27 @@ describe('aggiornaStatoXlsx', () => {
     expect(rep.aggiornate).toBe(1);
     expect(rep.saracinescaScritte).toBe(0);
   });
+
+  it('automazione: se Stato cambia e la cella ha già un tag ESTRANEO (non "SI + Stato Operazione"), lo preserva e aggiunge il nuovo tag', async () => {
+    const file = path.join(dir, 'automazione-preserva-estraneo.xlsx');
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('PIANIFICAZIONE');
+    ws.addRow(['Ordine', 'Stato Operazione', 'Automazione']);
+    ws.addRow([957276080, 'Ricevuto', 'SI + Nota manuale']); // contenuto estraneo pre-esistente
+    await wb.xlsx.writeFile(file);
+
+    const rep = await aggiornaStatoXlsx(
+      file,
+      [{ ordine: '957276080', stato: 'completato' }], // stato CAMBIA, saracinesca non coinvolta
+      { foglio: 'PIANIFICAZIONE', masterColonnaOdl: 'Ordine', masterColonnaStato: 'Stato Operazione', masterColonnaAutomazione: 'Automazione' },
+    );
+
+    expect(rep.aggiornate).toBe(1);
+    const chk = new ExcelJS.Workbook();
+    await chk.xlsx.readFile(file);
+    const w = chk.getWorksheet('PIANIFICAZIONE')!;
+    expect(w.getRow(2).getCell(2).value).toBe('completato');
+    // il tag estraneo "Nota manuale" NON deve andare perso, e "Stato Operazione" va aggiunto
+    expect(w.getRow(2).getCell(3).value).toBe('SI + Nota manuale + Stato Operazione');
+  });
 });
