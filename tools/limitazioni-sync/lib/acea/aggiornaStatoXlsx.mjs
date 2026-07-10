@@ -129,12 +129,37 @@ function statoPiuAvanzato(a, b) {
   return rankStato(b) > rankStato(a) ? b : a;
 }
 
+/** Compone il marcatore Automazione aggiungendo i tag mancanti, senza duplicarli né perdere quelli
+ *  già presenti da giri precedenti. Es.: '' + ['Stato Operazione'] → 'SI + Stato Operazione';
+ *  'SI + Stato Operazione' + ['Saracinesca'] → 'SI + Stato Operazione + Saracinesca'; se un tag è
+ *  già presente resta invariato (idempotente, niente doppioni). */
+function componiAutomazione(valoreEsistente, tagsDaAggiungere) {
+  const pulisci = (s) => String(s ?? '').trim();
+  const esistenti = pulisci(valoreEsistente)
+    .split('+')
+    .map(pulisci)
+    .filter((s) => s && s !== 'SI');
+  for (const tag of tagsDaAggiungere) {
+    const t = pulisci(tag);
+    if (t && !esistenti.includes(t)) esistenti.push(t);
+  }
+  return ['SI', ...esistenti].join(' + ');
+}
+
 /**
  * Aggiorna in modo chirurgico masterPath: per ogni ODL agganciato che cambia, scrive lo
  * Stato Operazione e (se masterColonnaAutomazione è data) il marcatore "SI + <colonna>".
- * @returns {Promise<{erroreColonne:boolean, aggiornate:number, invariate:number, nonAgganciate:string[], righe:object[]}>}
+ * Se masterColonnaSaracinesca + saracinescaMap sono dati, scrive anche "SI" nella colonna
+ * Saracinesca per OGNI riga con un Ordine presente in saracinescaMap — indipendentemente dal
+ * cambio di Stato Operazione in questo giro (riempi-vuote: mai sovrascrive un valore diverso già
+ * presente, lo segnala come conflitto).
+ * @returns {Promise<{erroreColonne:boolean, aggiornate:number, invariate:number, daChiedere:number,
+ *   saracinescaScritte:number, conflitti:object[], nonAgganciate:string[], righe:object[]}>}
  */
-export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, masterColonnaOdl, masterColonnaStato, masterColonnaAutomazione, daChiedere, backup }) {
+export async function aggiornaStatoXlsx(masterPath, righeExport, {
+  foglio, masterColonnaOdl, masterColonnaStato, masterColonnaAutomazione,
+  masterColonnaSaracinesca, saracinescaMap, daChiedere, backup,
+}) {
   const zip = await JSZip.loadAsync(fs.readFileSync(masterPath));
 
   // 1) risolvi il foglio → sheetN.xml
@@ -158,6 +183,7 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   const colOdl = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaOdl, ss, rigaHeader) : null;
   const colStato = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaStato, ss, rigaHeader) : null;
   const colAutomazione = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaAutomazione, ss, rigaHeader) : null; // opzionale
+  const colSaracinesca = rigaHeader ? colonnaDaHeader(headerRow, masterColonnaSaracinesca, ss, rigaHeader) : null; // opzionale
   if (!colOdl || !colStato) {
     return { erroreColonne: true, aggiornate: 0, invariate: 0, nonAgganciate: [], righe: [] };
   }
@@ -176,7 +202,9 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   let aggiornate = 0;
   let invariate = 0;
   let daChiedereScritte = 0;
+  let saracinescaScritte = 0;
   const righe = [];
+  const conflitti = [];
   const sostituzioni = [];
   const sAttrDi = (cella) => (cella ? ((cella.attrs.match(/\bs="[^"]*"/) || [''])[0]) : '');
   for (const rm of sheet.matchAll(/<row r="(\d+)"[\s\S]*?<\/row>/g)) {
@@ -187,21 +215,24 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
     const statoCell = trovaCella(rm[0], `${colStato}${n}`);
     const precedente = String(valoreCella(statoCell, ss)).trim();
 
+    const tagsAutomazione = [];
+    let toccataStato = false;
+
     if (mappa.has(ordine)) {
       visti.add(ordine);
       const nuovo = String(mappa.get(ordine) ?? '').trim();
-      if (precedente === nuovo) { invariate++; continue; }
-      sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttrDi(statoCell), nuovo), riga: n });
-      // marcatore Automazione: "SI + <colonna toccata>"
-      if (colAutomazione) {
-        const autoCell = trovaCella(rm[0], `${colAutomazione}${n}`);
-        sostituzioni.push({ ref: `${colAutomazione}${n}`, vecchia: autoCell ? autoCell.full : null, nuova: cellaInline(`${colAutomazione}${n}`, sAttrDi(autoCell), `SI + ${masterColonnaStato}`), riga: n });
+      if (precedente === nuovo) {
+        invariate++;
+      } else {
+        sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttrDi(statoCell), nuovo), riga: n });
+        tagsAutomazione.push(masterColonnaStato);
+        toccataStato = true;
+        aggiornate++;
+        righe.push({
+          riga: n, odl: ordine, tipo: 'acea-stato', comune: '', matricola: '',
+          esecutore: '', esito: nuovo, sigillo: '', data: '', note: precedente ? `era: ${precedente}` : '',
+        });
       }
-      aggiornate++;
-      righe.push({
-        riga: n, odl: ordine, tipo: 'acea-stato', comune: '', matricola: '',
-        esecutore: '', esito: nuovo, sigillo: '', data: '', note: precedente ? `era: ${precedente}` : '',
-      });
     } else if (daChiedere && precedente === '') {
       // ODL non presente nell'export (aggiunto a mano) + stato vuoto → "DA CHIEDERE"
       sostituzioni.push({ ref: `${colStato}${n}`, vecchia: statoCell ? statoCell.full : null, nuova: cellaInline(`${colStato}${n}`, sAttrDi(statoCell), 'DA CHIEDERE'), riga: n });
@@ -211,13 +242,48 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
         esecutore: '', esito: 'DA CHIEDERE', sigillo: '', data: '', note: '',
       });
     }
+
+    // Saracinesca (dal nostro DB): indipendente dal cambio di stato in questo giro. Riempi-vuote,
+    // mai sovrascrive un valore diverso già presente (protegge un dato compilato a mano).
+    let toccataSaracinesca = false;
+    if (colSaracinesca && saracinescaMap && saracinescaMap.has(ordine)) {
+      const saraCell = trovaCella(rm[0], `${colSaracinesca}${n}`);
+      const precedenteSara = String(valoreCella(saraCell, ss)).trim();
+      const nuovoSara = String(saracinescaMap.get(ordine) ?? '').trim();
+      if (precedenteSara === '') {
+        sostituzioni.push({ ref: `${colSaracinesca}${n}`, vecchia: saraCell ? saraCell.full : null, nuova: cellaInline(`${colSaracinesca}${n}`, sAttrDi(saraCell), nuovoSara), riga: n });
+        tagsAutomazione.push('Saracinesca');
+        toccataSaracinesca = true;
+        saracinescaScritte++;
+      } else if (precedenteSara !== nuovoSara) {
+        conflitti.push({ riga: n, odl: ordine, campo: 'saracinesca', esistente: precedenteSara, nuovo: nuovoSara });
+      }
+    }
+
+    // marcatore Automazione: integra i tag di ciò che è stato scritto su QUESTA riga in questo giro,
+    // senza mai perdere i tag già presenti da giri precedenti (componiAutomazione legge la cella).
+    if (colAutomazione && tagsAutomazione.length > 0) {
+      const autoCell = trovaCella(rm[0], `${colAutomazione}${n}`);
+      const valoreEsistente = String(valoreCella(autoCell, ss)).trim();
+      const nuovoAuto = componiAutomazione(valoreEsistente, tagsAutomazione);
+      if (nuovoAuto !== valoreEsistente) {
+        sostituzioni.push({ ref: `${colAutomazione}${n}`, vecchia: autoCell ? autoCell.full : null, nuova: cellaInline(`${colAutomazione}${n}`, sAttrDi(autoCell), nuovoAuto), riga: n });
+      }
+    }
+
+    if (toccataSaracinesca && !toccataStato) {
+      righe.push({
+        riga: n, odl: ordine, tipo: 'acea-saracinesca', comune: '', matricola: '',
+        esecutore: '', esito: '', sigillo: '', data: '', note: '',
+      });
+    }
   }
 
   const nonAgganciate = [...mappa.keys()].filter((o) => !visti.has(o));
 
   // 5) nessuna modifica → non toccare il file (niente write, niente backup)
   if (sostituzioni.length === 0) {
-    return { erroreColonne: false, aggiornate: 0, invariate, daChiedere: 0, nonAgganciate, righe: [] };
+    return { erroreColonne: false, aggiornate: 0, invariate, daChiedere: 0, saracinescaScritte: 0, conflitti, nonAgganciate, righe: [] };
   }
 
   // 6) applica le sostituzioni sul testo del foglio (ref unici → replace sicuro; insert in ordine)
@@ -235,5 +301,5 @@ export async function aggiornaStatoXlsx(masterPath, righeExport, { foglio, maste
   if (typeof backup === 'function') backup();
   fs.writeFileSync(masterPath, outBuf);
 
-  return { erroreColonne: false, aggiornate, invariate, daChiedere: daChiedereScritte, nonAgganciate, righe };
+  return { erroreColonne: false, aggiornate, invariate, daChiedere: daChiedereScritte, saracinescaScritte, conflitti, nonAgganciate, righe };
 }
