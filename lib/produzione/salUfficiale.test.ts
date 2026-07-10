@@ -19,12 +19,15 @@ describe('preparaRigheSal', () => {
     expect(preparaRigheSal(1, [{ odl: '', docAcquisti: 'x', posizione: '1', valoreAps: 1 }])).toEqual([]);
   });
 
-  it('dedup per (docAcquisti, posizione)', () => {
+  it('dedup per (docAcquisti, posizione), non per odl da solo', () => {
     const grezze = [
       { odl: '1', docAcquisti: 'D1', posizione: '10', valoreAps: 5 },
-      { odl: '1', docAcquisti: 'D1', posizione: '10', valoreAps: 5 },
+      { odl: '1', docAcquisti: 'D1', posizione: '10', valoreAps: 5 }, // duplicato esatto -> collassa
+      { odl: '1', docAcquisti: 'D1', posizione: '20', valoreAps: 7 }, // stesso odl, posizione diversa -> resta distinta
     ];
-    expect(preparaRigheSal(1, grezze)).toHaveLength(1);
+    const out = preparaRigheSal(1, grezze);
+    expect(out).toHaveLength(2);
+    expect(out.map((r) => r.posizione).sort()).toEqual(['10', '20']);
   });
 
   it('valoreAps non numerico -> 0', () => {
