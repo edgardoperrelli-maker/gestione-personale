@@ -7,6 +7,7 @@ import { attivitaCanonica } from './attivitaCanonica';
 import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
+import { saracinescaProdotta } from './saracinescaProdotta';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -284,8 +285,10 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
       if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
     }
-    // saracinesca=SI + esito=eseguito → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre
-    if ((m.saracinesca ?? '').trim().toUpperCase() === 'SI' && (m.esito ?? '').trim().toLowerCase() === 'eseguito') {
+    // saracinesca prodotta → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre.
+    // ZAGAROLO: fonte verità = colonna esito del master. DUNNING (senza quella colonna): fonte
+    // verità = il nostro DB (positivo sull'ODL) — vedi saracinescaProdotta().
+    if (saracinescaProdotta(m.saracinesca, m.esito, dbAudit.get(odl)?.esitoOk)) {
       const info = dbInfo.get(odl);
       const data = info?.data ?? dataDaRaw(m.data_raw) ?? '';
       saracinesca.push({ odlFiglio: (m.odl_saracinesca ?? '').trim(), data });
