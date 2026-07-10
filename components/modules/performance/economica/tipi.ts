@@ -16,7 +16,6 @@ export interface DatiProduzione {
   salStorico: SalStorico[];
   preSal: { n: number; totale: Totale };
   fuoriSal: Totale;
-  nonRemunerato: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];

@@ -55,7 +55,6 @@ export interface ProduzioneEconomica {
   salStorico: SalStorico[];
   preSal: { n: number; totale: Totale };
   fuoriSal: Totale;
-  nonRemunerato: Totale;
   personale: ProduzionePersonale;
   esiti: EsitoOperatore[];
   audit: Discrepanza[];
@@ -333,8 +332,8 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   for (const s of saracinesca) if (s.odlFiglio) saracinescaByFiglio.set(s.odlFiglio, s.data);
 
   // Riga "esitata a sistema" per un ODL, valorizzata come limitazione o come saracinesca figlio
-  // (stessa logica del blocco SAL preesistente, estratta per essere riusata anche dal ramo
-  // "non remunerato" sotto — comportamento identico, solo condivisione del codice).
+  // (stessa logica del blocco SAL preesistente, estratta per essere riusata da entrambi i rami
+  // E%/non-E — comportamento identico, solo condivisione del codice).
   const rigaEsitataDa = (odl: string): RigaProduzione => {
     if (saracinescaByFiglio.has(odl)) {
       const data = saracinescaByFiglio.get(odl) || to;
@@ -372,7 +371,8 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     if (scostamentoPagato(p.causa_scostamento)) {
       salRighe.push(rigaEsitataDa(odl));
     } else {
-      // consuntivato dal portale ma causale a nostro carico: esitato, mai remunerato da ACEA.
+      // consuntivato dal portale con causale a nostro carico: fuori da "Esitato ACEA" (E%),
+      // ma nel pre-SAL completo (decisione utente 10/07: un solo totale, niente distinzione).
       nonRemuneratoRighe.push(rigaEsitataDa(odl));
     }
   }
@@ -380,8 +380,6 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const sal: ProduzioneSal = { totale: salAgg.totale, perVoce: salAgg.perVoce, perGiorno: salAgg.perGiorno };
 
   const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
-
-  const nonRemunerato: Totale = aggregaProduzione(nonRemuneratoRighe).totale;
 
   const fuoriSalRighe = righeDedup.filter((r) => {
     const k = chiaveSalEffettiva(r, SARA_KEY, saracinescaFiglioByParent);
@@ -409,7 +407,9 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       return riepilogoUnSal(arricchite, odlConosciuti);
     });
 
-  const preSalRighe = salRighe.filter((r) => !odlGiaPagati.has(r.odl));
+  // Pre-SAL COMPLETO: tutti gli ODL COMPLETATO sul portale non ancora entrati in un SAL pagato,
+  // qualunque sia la causale (E% e non-E insieme — l'utente vuole un solo totale).
+  const preSalRighe = [...salRighe, ...nonRemuneratoRighe].filter((r) => !odlGiaPagati.has(r.odl));
   const preSal = {
     n: (salStorico.length > 0 ? Math.max(...salStorico.map((s) => s.n)) : 0) + 1,
     totale: aggregaProduzione(preSalRighe).totale,
@@ -482,7 +482,6 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     salStorico,
     preSal,
     fuoriSal,
-    nonRemunerato,
     personale,
     esiti,
     audit: auditTutte.slice(0, AUDIT_CAP),

@@ -165,7 +165,7 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
     r.getCell(3).numFmt = EUR;
   }
 
-  // ── DATI: SAL ufficiali (storico + pre-SAL/fuori-SAL/non remunerato) ──
+  // ── DATI: SAL ufficiali (storico + pre-SAL completo/fuori-SAL) ──
   const ds = wb.addWorksheet('Dati - SAL');
   ds.columns = [{ width: 14 }, { width: 10 }, { width: 10 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 14 }];
   intestazione(ds.addRow(['SAL', 'Mese', 'ODL', 'Valore APS €', 'Valore listino €', 'Delta listino €', 'ODL sconosciuti']));
@@ -179,8 +179,6 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   rPre.getCell(4).numFmt = EUR;
   const rFuori = ds.addRow(['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', '']);
   rFuori.getCell(4).numFmt = EUR;
-  const rNonRem = ds.addRow(['Non remunerato', '', dati.nonRemunerato.conteggio, dati.nonRemunerato.valore, '', '', '']);
-  rNonRem.getCell(4).numFmt = EUR;
 
   // ── DATI: audit ─────────────────────────────────────────────
   const au = wb.addWorksheet('Dati - audit');
