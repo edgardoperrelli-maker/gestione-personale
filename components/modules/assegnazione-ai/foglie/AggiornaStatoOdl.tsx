@@ -23,6 +23,9 @@ type AggiornaStatoOdlProps = {
 export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
   // target: lm → zagarolo, dunning → dunning
   const target = nav.attivita === 'lm' ? 'zagarolo' : 'dunning';
+  // Solo il giro DUNNING riporta anche le sostituzioni saracinesca dai rapportini
+  // (per Zagarolo la saracinesca arriva dal giro cartella, non da questo bottone).
+  const isDunning = target === 'dunning';
   const router = useRouter();
 
   const [arming, setArming] = useState(false);
@@ -77,7 +80,7 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-            Aggiorna stato ODL da ACEA
+            {isDunning ? 'Aggiorna stato/rapportino' : 'Aggiorna stato ODL da ACEA'}
           </h2>
           {/* Spia online */}
           <span className="flex items-center gap-1.5 text-xs font-medium" style={{ color: spiaColore }}>
@@ -91,8 +94,18 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
         </div>
 
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA (target:{' '}
-          <strong>{target}</strong>). L&rsquo;operazione parte al prossimo contatto dell&rsquo;agente.
+          {isDunning ? (
+            <>
+              Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA e di
+              riportare le sostituzioni saracinesca registrate nei rapportini. L&rsquo;operazione parte al
+              prossimo contatto dell&rsquo;agente.
+            </>
+          ) : (
+            <>
+              Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA (target:{' '}
+              <strong>{target}</strong>). L&rsquo;operazione parte al prossimo contatto dell&rsquo;agente.
+            </>
+          )}
         </p>
 
         <Button
@@ -100,14 +113,18 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
           onClick={() => void aggiornaStatoAcea()}
           disabled={arming || inAttesa}
         >
-          {arming ? 'Invio…' : inAttesa ? 'In attesa…' : 'Aggiorna stato ODL da ACEA'}
+          {arming ? 'Invio…' : inAttesa ? 'In attesa…' : isDunning ? 'Esegui ora' : 'Aggiorna stato ODL da ACEA'}
         </Button>
 
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>
         )}
 
-        <BarraAttesaAgente dispatchedAt={dispatchedAt} fatto={fatto} etichetta="Aggiorna stato ODL" />
+        <BarraAttesaAgente
+          dispatchedAt={dispatchedAt}
+          fatto={fatto}
+          etichetta={isDunning ? 'Aggiorna stato/rapportino' : 'Aggiorna stato ODL'}
+        />
       </CardContent>
       </Card>
 
