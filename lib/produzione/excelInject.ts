@@ -229,3 +229,19 @@ export function fogliPersonale(dati: ProduzioneEconomica): FoglioSemplice[] {
     },
   ];
 }
+
+/** Foglio storico SAL ufficiali (file CONTABILITA') + pre-SAL/fuori-SAL/non-remunerato. PURA. */
+export function fogliSal(dati: ProduzioneEconomica): FoglioSemplice[] {
+  return [
+    {
+      nome: 'Dati - SAL',
+      righe: [
+        ['SAL', 'Mese', 'ODL', 'Valore APS EUR', 'Valore listino EUR', 'Delta listino EUR', 'ODL sconosciuti'],
+        ...dati.salStorico.map((s): Array<string | number> => [s.n, s.mese, s.ordini, s.valoreAps, s.valoreListino, s.deltaListino, s.odlSconosciuti]),
+        [`Pre-SAL ${dati.preSal.n}`, '', dati.preSal.totale.conteggio, dati.preSal.totale.valore, '', '', ''],
+        ['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', ''],
+        ['Non remunerato', '', dati.nonRemunerato.conteggio, dati.nonRemunerato.valore, '', '', ''],
+      ],
+    },
+  ];
+}

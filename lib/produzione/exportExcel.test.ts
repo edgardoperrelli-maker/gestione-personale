@@ -26,6 +26,10 @@ const dati = {
     perGiorno: [{ chiave: '2026-06-01', label: '2026-06-01', conteggio: 2, valore: 200 }],
   },
   scarto: { conteggio: 1, valore: 100 },
+  salStorico: [{ n: 1, mese: '2026-06', ordini: 2, valoreAps: 200, valoreListino: 190, deltaListino: 10, odlSconosciuti: 0 }],
+  preSal: { n: 2, totale: { conteggio: 1, valore: 90 } },
+  fuoriSal: { conteggio: 1, valore: 80 },
+  nonRemunerato: { conteggio: 0, valore: 0 },
   personale: {
     totaleGiornate: 1.5,
     operatoriAttivi: 1,
