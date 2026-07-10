@@ -179,6 +179,8 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   rPre.getCell(4).numFmt = EUR;
   const rFuori = ds.addRow(['Fuori SAL', '', dati.fuoriSal.conteggio, dati.fuoriSal.valore, '', '', '']);
   rFuori.getCell(4).numFmt = EUR;
+  const rNonRem = ds.addRow(['Non remunerato', '', dati.nonRemunerato.conteggio, dati.nonRemunerato.valore, '', '', '']);
+  rNonRem.getCell(4).numFmt = EUR;
 
   // ── DATI: audit ─────────────────────────────────────────────
   const au = wb.addWorksheet('Dati - audit');
