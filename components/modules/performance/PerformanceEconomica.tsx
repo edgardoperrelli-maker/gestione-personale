@@ -188,13 +188,13 @@ export default function PerformanceEconomica() {
 
           {/* Produzione vs SAL per voce (tabella operativa) */}
           <div className="mb-4 rounded-xl border border-[var(--brand-border)] p-3">
-            <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs SAL per voce</h3>
+            <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs Esitato ACEA per voce</h3>
             <table className="w-full text-xs">
               <thead>
                 <tr className="text-left text-[var(--brand-text-muted)]">
                   <th className="py-1 pr-2">Voce</th>
                   <th className="py-1 pr-2 text-right">Produzione</th>
-                  <th className="py-1 pr-2 text-right">SAL</th>
+                  <th className="py-1 pr-2 text-right">Esitato ACEA</th>
                 </tr>
               </thead>
               <tbody>

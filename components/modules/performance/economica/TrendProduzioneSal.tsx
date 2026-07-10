@@ -24,7 +24,7 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
   if (serie.length === 0) {
     return (
       <div className="rounded-xl border border-[var(--brand-border)] p-3">
-        <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs SAL nel tempo</h3>
+        <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs Esitato ACEA nel tempo</h3>
         <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">Nessun dato nel periodo.</p>
       </div>
     );
@@ -34,7 +34,7 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
 
   return (
     <div className="rounded-xl border border-[var(--brand-border)] p-3">
-      <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs SAL nel tempo (cumulato)</h3>
+      <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs Esitato ACEA nel tempo (cumulato)</h3>
       <div style={{ width: '100%', height: 280 }}>
         <ResponsiveContainer>
           <ComposedChart data={serie} margin={{ top: 8, right: 8, bottom: 4, left: 8 }}>
@@ -49,7 +49,7 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
               labelStyle={chartLabelStyle}
             />
             <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Area type="monotone" dataKey="salCum" stackId="cum" name="SAL (pagato)" stroke={cc.brandPrimary} fill={cc.brandPrimary} fillOpacity={0.55} />
+            <Area type="monotone" dataKey="salCum" stackId="cum" name="Esitato ACEA" stroke={cc.brandPrimary} fill={cc.brandPrimary} fillOpacity={0.55} />
             <Area type="monotone" dataKey="scartoCum" stackId="cum" name="Da richiedere ad ACEA" stroke={cc.warning} fill={cc.warning} fillOpacity={0.35} />
             <Line type="monotone" dataKey="prodCum" name="Produzione" stroke={cc.success} strokeWidth={2} dot={false} />
           </ComposedChart>
