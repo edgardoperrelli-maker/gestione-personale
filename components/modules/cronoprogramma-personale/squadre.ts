@@ -155,6 +155,32 @@ export function pianoSciogli(membri: Assignment[]): PatchSquadra[] {
   return (membri ?? []).map((m) => ({ id: m.id, squadra_id: null, team_order: null, is_capo: false }));
 }
 
+/** Campi squadra di una riga copiata. */
+export type CampiSquadraCopia = { squadra_id: string | null; team_order: number | null; is_capo: boolean };
+
+/**
+ * Rimappa gli `squadra_id` di una lista di assegnazioni COPIATA su id NUOVI (uno per squadra sorgente),
+ * preservando `team_order` e `is_capo`. Le card non in squadra restano singole. Serve alla copia di un
+ * giorno/squadra: la copia deve RICREARE le squadre con id nuovi, perché gli id sono unici per cella
+ * (uno stesso `squadra_id` su due giorni romperebbe `membriDiSquadra`, sciogli, capo, ecc.).
+ * Ritorna un array allineato posizionalmente all'input.
+ */
+export function remappaSquadreCopia(
+  sorgente: Pick<Assignment, 'squadra_id' | 'team_order' | 'is_capo'>[],
+  genId: () => string,
+): CampiSquadraCopia[] {
+  const remap = new Map<string, string>();
+  return (sorgente ?? []).map((a) => {
+    if (!a.squadra_id) return { squadra_id: null, team_order: null, is_capo: false };
+    let nuovo = remap.get(a.squadra_id);
+    if (!nuovo) {
+      nuovo = genId();
+      remap.set(a.squadra_id, nuovo);
+    }
+    return { squadra_id: nuovo, team_order: a.team_order ?? null, is_capo: a.is_capo ?? false };
+  });
+}
+
 /** Patch per cambiare il capo: is_capo=true sul nuovo capo, false sugli altri (solo le righe che cambiano). */
 export function pianoSetCapo(membri: Assignment[], nuovoCapoId: string): PatchSquadra[] {
   return (membri ?? [])

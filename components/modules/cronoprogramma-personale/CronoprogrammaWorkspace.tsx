@@ -16,7 +16,7 @@ import CronoStats from './CronoStats';
 import CronoCalendarView, { type SquadraHandlers } from './CronoCalendarView';
 import AssenzaDialog from './AssenzaDialog';
 import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from './AnnuncioSquadre';
-import { pianoAggancio, pianoRimuoviMembro, pianoSciogli, pianoSetCapo, type PatchSquadra } from './squadre';
+import { pianoAggancio, pianoRimuoviMembro, pianoSciogli, pianoSetCapo, remappaSquadreCopia, type PatchSquadra } from './squadre';
 import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
 import type { CostCenterRange } from '@/lib/costCenter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
@@ -778,7 +778,13 @@ export default function CronoprogrammaWorkspace() {
     }
 
     if (copy) {
-      const payload = sourceAssignments.map((a) => ({
+      // Preserva le squadre: la copia deve RICREARLE con squadra_id NUOVI (uno per squadra sorgente),
+      // mantenendo team_order e capo. Senza questo, i membri finivano copiati come card singole.
+      let seq = 0;
+      const genSquadraId = () =>
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sq-${targetDayId}-${seq++}`;
+      const campiSquadra = remappaSquadreCopia(sourceAssignments, genSquadraId);
+      const payload = sourceAssignments.map((a, i) => ({
         day_id: targetDayId,
         staff_id: a.staff?.id ?? null,
         activity_id: a.activity?.id ?? null,
@@ -786,6 +792,9 @@ export default function CronoprogrammaWorkspace() {
         reperibile: a.reperibile,
         notes: a.notes ?? null,
         cost_center: a.cost_center ?? null,
+        squadra_id: campiSquadra[i].squadra_id,
+        team_order: campiSquadra[i].team_order,
+        is_capo: campiSquadra[i].is_capo,
       }));
 
       const ins = await sb.from('assignments').insert(payload);

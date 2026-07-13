@@ -8,6 +8,7 @@ import {
   pianoRimuoviMembro,
   pianoSciogli,
   pianoSetCapo,
+  remappaSquadreCopia,
 } from './squadre';
 
 function a(p: Partial<Assignment> & { id: string }): Assignment {
@@ -158,5 +159,40 @@ describe('pianoSetCapo', () => {
     expect(p).toContainEqual({ id: 'm0', squadra_id: 'S', team_order: 0, is_capo: false });
     expect(p).toContainEqual({ id: 'm1', squadra_id: 'S', team_order: 1, is_capo: true });
     expect(p.find((x) => x.id === 'm2')).toBeUndefined(); // invariato
+  });
+});
+
+describe('remappaSquadreCopia', () => {
+  it('ricrea le squadre con id NUOVI (uno per squadra sorgente), preservando order e capo', () => {
+    let n = 0;
+    const genId = () => `NEW-${++n}`;
+    const src = [
+      a({ id: 'm0', squadra_id: 'A', team_order: 0, is_capo: true }),
+      a({ id: 'm1', squadra_id: 'A', team_order: 1, is_capo: false }),
+      a({ id: 's0' }), // singola (nessun squadra_id)
+      a({ id: 'm2', squadra_id: 'B', team_order: 0, is_capo: true }),
+    ];
+    const out = remappaSquadreCopia(src, genId);
+    // Stesso squadra_id sorgente → stesso nuovo id; squadre diverse → id diversi; MAI l'id originale.
+    expect(out[0].squadra_id).toBe('NEW-1');
+    expect(out[1].squadra_id).toBe('NEW-1');
+    expect(out[3].squadra_id).toBe('NEW-2');
+    expect(out[0].squadra_id).not.toBe('A');
+    // Order e capo preservati.
+    expect(out[0]).toEqual({ squadra_id: 'NEW-1', team_order: 0, is_capo: true });
+    expect(out[1]).toEqual({ squadra_id: 'NEW-1', team_order: 1, is_capo: false });
+    // La card singola resta singola.
+    expect(out[2]).toEqual({ squadra_id: null, team_order: null, is_capo: false });
+  });
+
+  it('lista senza squadre → tutte singole, genId mai chiamato', () => {
+    let chiamate = 0;
+    const genId = () => `X-${++chiamate}`;
+    const out = remappaSquadreCopia([a({ id: 's0' }), a({ id: 's1' })], genId);
+    expect(out).toEqual([
+      { squadra_id: null, team_order: null, is_capo: false },
+      { squadra_id: null, team_order: null, is_capo: false },
+    ]);
+    expect(chiamate).toBe(0);
   });
 });
