@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
+import { righeMisuratoriDaRimuovere } from '@/lib/interventi/misuratoriDaRimuovere';
 import { ymdLocal } from '@/utils/date-it';
 
 export const runtime = 'nodejs';
@@ -39,31 +40,28 @@ export async function POST() {
   // 2. Record già presenti in tabella.
   const { data: existing, error: errExist } = await supabaseAdmin
     .from('misuratori_rimossi')
-    .select('id, intervento_id, stato, data_esecuzione');
+    .select('id, intervento_id, data_esecuzione');
   if (errExist) return NextResponse.json({ error: errExist.message }, { status: 500 });
 
   const existingIds = new Set((existing ?? []).map(r => r.intervento_id).filter(Boolean));
 
-  // 3. RIMOZIONE: record ancora in 'da_consegnare_deposito' il cui intervento non
-  //    qualifica più (es. rapportino corretto da positivo a negativo). Gli stati
-  //    avanzati restano intatti: il misuratore è già nel flusso logistico fisico.
-  //    Guardrail: se il set qualificante è vuoto (query degenerata / DB di test)
-  //    NON si cancella nulla, per evitare uno svuotamento di massa accidentale.
+  // 3. RIMOZIONE: ogni riga del registro il cui intervento non qualifica più come
+  //    rimozione misuratore ACEA positiva va eliminata, A PRESCINDERE dallo stato
+  //    logistico. Così il Ricalcola ripulisce anche le righe GIÀ ENTRATE e poi
+  //    avanzate (scaricato/verificato/consegnato): interventi corretti da positivo
+  //    a negativo e rimozioni riclassificate come "impianto abusivo", che non
+  //    devono mai restare nel registro. Il guardrail "set qualificante vuoto →
+  //    non rimuovere nulla" è dentro righeMisuratoriDaRimuovere.
   let rimossi = 0;
-  if (qualifyingIds.size > 0) {
-    const daRimuovere = (existing ?? [])
-      .filter(r => r.stato === 'da_consegnare_deposito' && r.intervento_id && !qualifyingIds.has(r.intervento_id))
-      .map(r => r.id);
-    if (daRimuovere.length > 0) {
-      const { data: deleted, error: errDel } = await supabaseAdmin
-        .from('misuratori_rimossi')
-        .delete()
-        .in('id', daRimuovere)
-        .eq('stato', 'da_consegnare_deposito') // difensivo: non toccare record avanzati nel frattempo
-        .select('id');
-      if (errDel) return NextResponse.json({ error: errDel.message }, { status: 500 });
-      rimossi = deleted?.length ?? 0; // conteggio reale post-filtro difensivo
-    }
+  const daRimuovere = righeMisuratoriDaRimuovere(existing ?? [], qualifyingIds);
+  if (daRimuovere.length > 0) {
+    const { data: deleted, error: errDel } = await supabaseAdmin
+      .from('misuratori_rimossi')
+      .delete()
+      .in('id', daRimuovere)
+      .select('id');
+    if (errDel) return NextResponse.json({ error: errDel.message }, { status: 500 });
+    rimossi = deleted?.length ?? 0;
   }
 
   // 3b. CORREZIONE DATA: record (in QUALSIASI stato) il cui intervento qualifica ma
