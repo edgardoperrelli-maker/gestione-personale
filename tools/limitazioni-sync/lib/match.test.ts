@@ -100,3 +100,31 @@ describe('buildIndice: vincitore per chiave duplicata', () => {
     expect(agganciaRiga({ odl: '912230528', matricola: '' }, idx, 'ZAGAROLO').lavoro).toBe(pos);
   });
 });
+
+describe('agganciaRiga: il positivo vince, il negativo perdente NON riaffiora per ODL', () => {
+  // Caso reale: contatore con un NEGATIVO che porta l'ODL ACEA + un POSITIVO manuale SENZA ODL.
+  // La riga del master ha l'ODL del negativo: senza il filtro dei perdenti aggancerebbe il "No"
+  // e il positivo finirebbe in conflitto (doppio lavoro).
+  const neg = { id: 'neg', odl: '912231635', matricola: '20121386035', comune: 'ZAGAROLO', esitoOk: false, data_esecuzione: '2026-06-23', manuale: false };
+  const pos = { id: 'pos', odl: null, matricola: '20121386035', comune: 'ZAGAROLO', esitoOk: true, data_esecuzione: '2026-07-02', manuale: true };
+  const idx = buildIndice([neg, pos]);
+
+  it('il negativo con ODL è marcato perdente (il positivo ha vinto la chiave matricola)', () => {
+    expect(idx.perdenti.has('neg')).toBe(true);
+    expect(idx.byComuneMatricola.get('ZAGAROLO|20121386035')).toBe(pos);
+  });
+
+  it('la riga con l’ODL del negativo aggancia il POSITIVO (per matricola), non il "No"', () => {
+    const hit = agganciaRiga({ odl: '912231635', matricola: '20121386035' }, idx, 'ZAGAROLO');
+    expect(hit.lavoro).toBe(pos);
+    expect(hit.via).toBe('matricola');
+  });
+
+  it('un negativo NON perdente (nessun positivo sul contatore) resta agganciabile per ODL', () => {
+    const solo = { id: 'solo', odl: '912231834', matricola: '202015213476', comune: 'ZAGAROLO', esitoOk: false, data_esecuzione: '2026-06-04', manuale: true };
+    const idx2 = buildIndice([solo]);
+    const hit = agganciaRiga({ odl: '912231834', matricola: '202015213476' }, idx2, 'ZAGAROLO');
+    expect(hit.lavoro).toBe(solo);
+    expect(hit.via).toBe('odl');
+  });
+});
