@@ -12,6 +12,4 @@ export type SortMode =
   | 'SENZA_ATTIVITA'
   | 'PER_TERRITORIO';
 
-export type PlannerView = 'grid' | 'calendar' | 'table' | 'split';
-
 export type FilterToken = string;

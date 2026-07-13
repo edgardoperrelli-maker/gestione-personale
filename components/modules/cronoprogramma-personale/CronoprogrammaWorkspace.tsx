@@ -4,7 +4,6 @@ import { motion } from 'framer-motion';
 import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
-import { isTerritoryRelevantForRange } from '@/lib/territories';
 import Button from '@/components/Button';
 import InsertReperibileDialog from '@/components/InsertReperibileDialog';
 import EditAssignmentDialog from '@/components/EditAssignmentDialog';
@@ -14,15 +13,14 @@ import type { Assignment, Activity, Staff, Territory } from '@/types';
 import CronoToolbar from './CronoToolbar';
 import CronoFiltersPanel from './CronoFiltersPanel';
 import CronoStats from './CronoStats';
-import CronoGridView from './CronoGridView';
-import CronoSplitView from './CronoSplitView';
-import CronoCalendarView from './CronoCalendarView';
-import CronoTableView, { type TableRow } from './CronoTableView';
+import CronoCalendarView, { type SquadraHandlers } from './CronoCalendarView';
 import AssenzaDialog from './AssenzaDialog';
+import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from './AnnuncioSquadre';
+import { pianoAggancio, pianoRimuoviMembro, pianoSciogli, pianoSetCapo, remappaSquadreCopia, type PatchSquadra } from './squadre';
 import { isAssenzaIntera, isNomeAttivitaAssenza, type Disponibilita } from '@/lib/disponibilita';
 import type { CostCenterRange } from '@/lib/costCenter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
-import type { DayRow, FilterToken, PlannerView, SortMode, ViewMode } from './types';
+import type { DayRow, FilterToken, SortMode, ViewMode } from './types';
 import { countAppointmentsByDay } from '@/lib/appuntamenti';
 import {
   addDays,
@@ -64,7 +62,7 @@ export default function CronoprogrammaWorkspace() {
   const [today] = useState<Date>(() => toLocalDate(new Date(), tz));
   const [anchor, setAnchor] = useState<Date>(() => startOfWeek(today));
   const [mode, setMode] = useState<ViewMode>('week');
-  const [plannerView, setPlannerView] = useState<PlannerView>('calendar');
+  const [annuncioOpen, setAnnuncioOpen] = useState(false);
 
   const [days, setDays] = useState<DayRow[]>([]);
   const [assignments, setAssignments] = useState<Record<string, Assignment[]>>({});
@@ -159,6 +157,7 @@ export default function CronoprogrammaWorkspace() {
       .from('assignments')
       .select(`
         id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+        squadra_id, team_order, is_capo,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
         activity:activity_id ( id, name )
@@ -236,12 +235,6 @@ export default function CronoprogrammaWorkspace() {
     return map;
   }, [staff]);
 
-  const territoryById = useMemo(() => {
-    const map = new Map<string, Territory>();
-    territories.forEach((item) => map.set(item.id, item));
-    return map;
-  }, [territories]);
-
   // Attività di lavoro: escludo i tipi-assenza (Ferie/104/Malattia/… ora gestiti dal pulsante "Assenza").
   const workActivities = useMemo(
     () => activities.filter((a) => !isNomeAttivitaAssenza(a.name)),
@@ -270,6 +263,33 @@ export default function CronoprogrammaWorkspace() {
     };
   }, [sb]);
 
+  // Avviso "novità" (once-per-utente via DB): al primo accesso mostra le squadre nel cronoprogramma.
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/annunci?key=${ANNUNCIO_SQUADRE_KEY}`, { cache: 'no-store' });
+        if (!res.ok || !alive) return;
+        const j = await res.json();
+        if (alive && !j.seen) setAnnuncioOpen(true);
+      } catch {
+        // best-effort: se non riesco a verificare, non mostro l'avviso
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
+
+  const handleCloseAnnuncio = () => {
+    setAnnuncioOpen(false);
+    fetch('/api/annunci', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: ANNUNCIO_SQUADRE_KEY }),
+    }).catch(() => {});
+  };
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -293,6 +313,7 @@ export default function CronoprogrammaWorkspace() {
           .from('assignments')
           .select(`
             id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+            squadra_id, team_order, is_capo,
             staff:staff_id ( id, display_name ),
             territory:territory_id ( id, name ),
             activity:activity_id ( id, name )
@@ -673,9 +694,11 @@ export default function CronoprogrammaWorkspace() {
       return;
     }
 
+    // Spostare una card la SGANCIA dalla sua squadra (le squadre vivono in una singola cella).
+    // Il membro rimasto in una squadra ridotta a 1 viene reso come card singola (regola <2).
     const upd = await sb
       .from('assignments')
-      .update({ day_id: targetDayId, territory_id: toTerritoryId })
+      .update({ day_id: targetDayId, territory_id: toTerritoryId, squadra_id: null, team_order: null, is_capo: false })
       .eq('id', found.assignment.id);
 
     if (upd.error) {
@@ -687,6 +710,9 @@ export default function CronoprogrammaWorkspace() {
       ...found.assignment,
       day_id: targetDayId,
       territory: toTerritoryId ? { id: toTerritoryId, name: terrName ?? '' } : null,
+      squadra_id: null,
+      team_order: null,
+      is_capo: false,
     };
 
     setAssignments((prev) => {
@@ -752,7 +778,13 @@ export default function CronoprogrammaWorkspace() {
     }
 
     if (copy) {
-      const payload = sourceAssignments.map((a) => ({
+      // Preserva le squadre: la copia deve RICREARLE con squadra_id NUOVI (uno per squadra sorgente),
+      // mantenendo team_order e capo. Senza questo, i membri finivano copiati come card singole.
+      let seq = 0;
+      const genSquadraId = () =>
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sq-${targetDayId}-${seq++}`;
+      const campiSquadra = remappaSquadreCopia(sourceAssignments, genSquadraId);
+      const payload = sourceAssignments.map((a, i) => ({
         day_id: targetDayId,
         staff_id: a.staff?.id ?? null,
         activity_id: a.activity?.id ?? null,
@@ -760,6 +792,9 @@ export default function CronoprogrammaWorkspace() {
         reperibile: a.reperibile,
         notes: a.notes ?? null,
         cost_center: a.cost_center ?? null,
+        squadra_id: campiSquadra[i].squadra_id,
+        team_order: campiSquadra[i].team_order,
+        is_capo: campiSquadra[i].is_capo,
       }));
 
       const ins = await sb.from('assignments').insert(payload);
@@ -792,6 +827,204 @@ export default function CronoprogrammaWorkspace() {
     const e = range.end.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
     return `${s} - ${e}`;
   }, [anchor, mode, range]);
+
+  // ---- Squadre (raggruppamento leggero: N membri = N assignments con lo stesso squadra_id) ----
+  const membriDiSquadra = (squadraId: string): Assignment[] => {
+    for (const list of Object.values(assignments)) {
+      const m = list.filter((a) => a.squadra_id === squadraId);
+      if (m.length) return m;
+    }
+    return [];
+  };
+
+  const applySquadPatches = async (patches: PatchSquadra[]) => {
+    if (!patches.length) return;
+    const results = await Promise.all(
+      patches.map((p) =>
+        sb
+          .from('assignments')
+          .update({ squadra_id: p.squadra_id, team_order: p.team_order, is_capo: p.is_capo })
+          .eq('id', p.id),
+      ),
+    );
+    if (results.some((r) => r.error)) {
+      setActionFeedback({ type: 'error', text: 'Errore aggiornando la squadra. Ricarico i dati.' });
+      softRefresh();
+      return;
+    }
+    const byId = new Map(patches.map((p) => [p.id, p]));
+    setAssignments((prev) => {
+      const next: Record<string, Assignment[]> = {};
+      for (const [dayId, list] of Object.entries(prev)) {
+        next[dayId] = list.map((a) => {
+          const p = byId.get(a.id);
+          return p ? { ...a, squadra_id: p.squadra_id, team_order: p.team_order, is_capo: p.is_capo } : a;
+        });
+      }
+      return next;
+    });
+  };
+
+  const handleAggancia = async (
+    target: Assignment,
+    dragged: { id: string; fromDay: string; fromTerritoryId: string | null },
+  ) => {
+    setActionFeedback(null);
+    if (dragged.id === target.id) return;
+    const draggedFound = findAssignmentById(dragged.id);
+    if (!draggedFound) return;
+    const draggedDayId = dayMap[dragged.fromDay]?.id ?? draggedFound.assignment.day_id;
+    const sameCell =
+      draggedDayId === target.day_id && (dragged.fromTerritoryId ?? null) === (target.territory?.id ?? null);
+    if (!sameCell) {
+      setActionFeedback({
+        type: 'error',
+        text: 'La squadra si crea nella stessa cella (stesso giorno e territorio): sposta prima la card qui.',
+      });
+      return;
+    }
+    const cell = assignments[target.day_id] ?? [];
+    const membriTarget = target.squadra_id ? cell.filter((a) => a.squadra_id === target.squadra_id) : [];
+    const squadraIdNuovo =
+      typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sq-${target.id}-${dragged.id}`;
+    const patches = pianoAggancio({ squadraIdNuovo, target, dragged: draggedFound.assignment, membriTarget });
+    if (!patches.length) return;
+    await applySquadPatches(patches);
+    const nome = (a: Assignment) => a.staff?.display_name ?? 'Operatore';
+    setActionFeedback({
+      type: 'success',
+      text:
+        membriTarget.length === 0
+          ? `Squadra creata: ${nome(target)} + ${nome(draggedFound.assignment)}`
+          : `${nome(draggedFound.assignment)} aggiunto alla squadra`,
+    });
+  };
+
+  const handleRimuoviMembro = async (squadraId: string, membroId: string) => {
+    const membri = membriDiSquadra(squadraId);
+    if (membri.length) await applySquadPatches(pianoRimuoviMembro(membri, membroId));
+  };
+
+  const handleSciogliSquadra = async (squadraId: string) => {
+    const membri = membriDiSquadra(squadraId);
+    if (!membri.length) return;
+    await applySquadPatches(pianoSciogli(membri));
+    setActionFeedback({ type: 'success', text: 'Squadra sciolta.' });
+  };
+
+  const handleSetCapo = async (squadraId: string, membroId: string) => {
+    const membri = membriDiSquadra(squadraId);
+    if (membri.length) await applySquadPatches(pianoSetCapo(membri, membroId));
+  };
+
+  // Sposta/copia un'INTERA squadra su un altro giorno (drag della card-squadra). In copia crea una
+  // squadra nuova (squadra_id fresco) preservando ordine e capo; in spostamento aggiorna solo il giorno,
+  // mantenendo il legame. Se sul giorno destinazione gli stessi operatori sono già presenti, le loro
+  // card vengono sostituite (cancellate) così la squadra risulta copiata "pulita".
+  const handleDropSquadra = async ({
+    squadraId,
+    fromDay,
+    toDay,
+    copyHint,
+  }: {
+    squadraId: string;
+    fromDay: string;
+    toDay: Date;
+    copyHint: boolean;
+  }) => {
+    setActionFeedback(null);
+    const membri = membriDiSquadra(squadraId);
+    if (!membri.length) return;
+    const toIso = fmtDay(toDay);
+    if (fromDay === toIso) return;
+
+    const dropMode = await chooseAssignmentDropMode(copyHint ? 'copy' : 'move');
+    if (!dropMode) return;
+    const shouldCopy = dropMode === 'copy';
+
+    const targetDayId = await ensureDayId(toIso);
+    if (!targetDayId) {
+      setActionFeedback({ type: 'error', text: `Impossibile preparare il giorno ${toIso}.` });
+      return;
+    }
+
+    const targetAssignments = await fetchAssignmentsForDay(targetDayId);
+    if (!targetAssignments) {
+      setActionFeedback({ type: 'error', text: `Impossibile verificare il giorno ${toIso}.` });
+      return;
+    }
+
+    // Operatori della squadra già presenti sul giorno destinazione (escludendo i membri stessi, nel
+    // caso di spostamento sarebbero comunque su un altro giorno).
+    const memberIds = new Set(membri.map((m) => m.id));
+    const staffIds = new Set(membri.map((m) => m.staff?.id).filter(Boolean) as string[]);
+    const conflicts = targetAssignments.filter(
+      (a) => !memberIds.has(a.id) && a.staff?.id != null && staffIds.has(a.staff.id),
+    );
+    if (conflicts.length) {
+      const ok =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(
+              `${conflicts.length} operator${conflicts.length === 1 ? 'e è' : 'i sono'} già presente nel giorno ${toIso}. Sovrascrivere le loro card con la squadra?`,
+            );
+      if (!ok) {
+        setActionFeedback({ type: 'error', text: `Operazione annullata: nessun dato sovrascritto nel giorno ${toIso}.` });
+        return;
+      }
+      const del = await sb.from('assignments').delete().in('id', conflicts.map((a) => a.id));
+      if (del.error) {
+        setActionFeedback({ type: 'error', text: `Impossibile sovrascrivere i dati nel giorno ${toIso}.` });
+        softRefresh();
+        return;
+      }
+    }
+
+    if (shouldCopy) {
+      let seq = 0;
+      const genSquadraId = () =>
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sq-${targetDayId}-${seq++}`;
+      const campiSquadra = remappaSquadreCopia(membri, genSquadraId);
+      const payload = membri.map((m, i) => ({
+        day_id: targetDayId,
+        staff_id: m.staff?.id ?? null,
+        activity_id: m.activity?.id ?? null,
+        territory_id: m.territory?.id ?? null,
+        reperibile: m.reperibile,
+        notes: m.notes ?? null,
+        cost_center: m.cost_center ?? null,
+        squadra_id: campiSquadra[i].squadra_id,
+        team_order: campiSquadra[i].team_order,
+        is_capo: campiSquadra[i].is_capo,
+      }));
+      const ins = await sb.from('assignments').insert(payload);
+      if (ins.error) {
+        setActionFeedback({ type: 'error', text: `Copia della squadra non riuscita verso ${toIso}.` });
+        softRefresh();
+        return;
+      }
+      setActionFeedback({ type: 'success', text: `Squadra copiata (${membri.length}) al ${toIso}.` });
+    } else {
+      const ids = membri.map((m) => m.id);
+      const upd = await sb.from('assignments').update({ day_id: targetDayId }).in('id', ids);
+      if (upd.error) {
+        setActionFeedback({ type: 'error', text: `Spostamento della squadra non riuscito verso ${toIso}.` });
+        softRefresh();
+        return;
+      }
+      setActionFeedback({ type: 'success', text: `Squadra spostata (${membri.length}) al ${toIso}.` });
+    }
+
+    softRefresh();
+  };
+
+  const squadraHandlers: SquadraHandlers = {
+    onAggancia: handleAggancia,
+    onRimuoviMembro: handleRimuoviMembro,
+    onSciogli: handleSciogliSquadra,
+    onSetCapo: handleSetCapo,
+    onDropSquadra: handleDropSquadra,
+  };
 
   const goPrev = () => {
     if (mode === 'month') setAnchor(new Date(anchor.getFullYear(), anchor.getMonth() - 1, 1));
@@ -838,14 +1071,6 @@ export default function CronoprogrammaWorkspace() {
     return staff.filter((member) => isStaffRelevantForRange(member, rangeFromIso, rangeToIso, todayIso));
   }, [range.end, range.start, staff, todayIso]);
 
-  const rangeTerritories = useMemo(() => {
-    const rangeFromIso = fmtDay(range.start);
-    const rangeToIso = fmtDay(range.end);
-    return territories.filter((territory) =>
-      isTerritoryRelevantForRange(territory, rangeFromIso, rangeToIso, todayIso)
-    );
-  }, [range.end, range.start, territories, todayIso]);
-
   const allAssignments = useMemo(() => Object.values(visibleAssignments).flat(), [visibleAssignments]);
   const filteredAssignments = useMemo(() => filterAssignments(allAssignments, filters), [allAssignments, filters]);
 
@@ -864,58 +1089,6 @@ export default function CronoprogrammaWorkspace() {
     };
   }, [statsSource]);
 
-  const visibleTerritories = useMemo(() => {
-    const pool = new Map<string, Territory>();
-    rangeTerritories.forEach((territory) => {
-      pool.set(territory.id, territory);
-    });
-
-    allAssignments.forEach((assignment) => {
-      const territoryId = assignment.territory?.id;
-      if (!territoryId) return;
-      const territory =
-        territoryById.get(territoryId) ??
-        { id: territoryId, name: assignment.territory?.name ?? territoryId };
-      pool.set(territory.id, territory);
-    });
-
-    const baseTerritories = [...pool.values()].sort((a, b) =>
-      a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })
-    );
-    const terrFilterIds = filters.filter((t) => t.startsWith('TERR:')).map((t) => t.slice(5));
-    if (terrFilterIds.length === 0) return baseTerritories;
-    return baseTerritories.filter((territory) => terrFilterIds.includes(territory.id));
-  }, [allAssignments, filters, rangeTerritories, territoryById]);
-
-  const includeNoTerritory = filteredAssignments.some((a) => !a.territory?.id);
-
-  const assignmentsByCell = useMemo(() => {
-    const map: Record<string, Assignment[]> = {};
-    Object.entries(visibleAssignments).forEach(([dayId, list]) => {
-      const iso = dayIdMap[dayId];
-      if (!iso) return;
-      const filtered = filterAssignments(list, filters);
-      filtered.forEach((a) => {
-        const terrId = a.territory?.id ?? 'none';
-        const key = `${iso}|${terrId}`;
-        (map[key] ??= []).push(a);
-      });
-    });
-    return map;
-  }, [dayIdMap, filters, visibleAssignments]);
-
-  const tableRows: TableRow[] = useMemo(() => {
-    const rows: TableRow[] = [];
-    Object.entries(visibleAssignments).forEach(([dayId, list]) => {
-      const day = dayIdMap[dayId];
-      if (!day) return;
-      const filtered = filterAssignments(list, filters);
-      filtered.forEach((a) => rows.push({ day, assignment: a }));
-    });
-    rows.sort((a, b) => a.day.localeCompare(b.day) || (a.assignment.staff?.display_name ?? '').localeCompare(b.assignment.staff?.display_name ?? ''));
-    return rows;
-  }, [dayIdMap, filters, visibleAssignments]);
-
   return (
     <motion.div
       className="space-y-4"
@@ -929,12 +1102,10 @@ export default function CronoprogrammaWorkspace() {
       >
         <CronoToolbar
           title={title}
-          plannerView={plannerView}
           reperibili={stats.reperibili}
           onPrev={goPrev}
           onNext={goNext}
           onToday={goToday}
-          onPlannerViewChange={setPlannerView}
           onInsertRep={() => setOpenInsertRep(true)}
           onNewAssenza={() => openNewAssenza()}
           onExport={() => setOpenExport(true)}
@@ -954,28 +1125,7 @@ export default function CronoprogrammaWorkspace() {
         )}
       </motion.div>
 
-      {plannerView === 'grid' && (
-        <motion.div variants={staggerItem}>
-          <CronoGridView
-            days={daysArray}
-            today={today}
-            assignmentsByCell={assignmentsByCell}
-            territories={visibleTerritories}
-            includeNoTerritory={includeNoTerritory}
-            sortMode={sortMode}
-            onAdd={openNewForDate}
-            onEdit={openEditDialog}
-            onDelete={removeAssignment}
-            onDropAssignment={handleDropAssignment}
-            onDropDay={handleDropDay}
-            taskCountMap={taskCountMap}
-            assenzeByDay={assenze}
-          />
-        </motion.div>
-      )}
-
-      {plannerView === 'calendar' && (
-        <motion.div variants={staggerItem}>
+      <motion.div variants={staggerItem}>
           <CronoCalendarView
             weeks={mode === 'week' ? [weeks[0] ?? []] : weeks}
             anchor={anchor}
@@ -996,35 +1146,9 @@ export default function CronoprogrammaWorkspace() {
             assenzeByDay={assenze}
             onEditAssenza={openEditAssenza}
             appointmentCountByIso={appointmentCountByIso}
+            squadra={squadraHandlers}
           />
         </motion.div>
-      )}
-
-      {plannerView === 'table' && (
-        <motion.div variants={staggerItem}>
-          <CronoTableView rows={tableRows} onEdit={openEditDialog} onDelete={removeAssignment} />
-        </motion.div>
-      )}
-
-      {plannerView === 'split' && (
-        <motion.div variants={staggerItem}>
-          <CronoSplitView
-            days={daysArray}
-            today={today}
-            territories={visibleTerritories}
-            includeNoTerritory={includeNoTerritory}
-            assignmentsByCell={assignmentsByCell}
-            sortMode={sortMode}
-            onAdd={openNewForDate}
-            onEdit={openEditDialog}
-            onDelete={removeAssignment}
-            onDropAssignment={handleDropAssignment}
-            onDropDay={handleDropDay}
-            taskCountMap={taskCountMap}
-            assenzeByDay={assenze}
-          />
-        </motion.div>
-      )}
 
       {dialogOpenForDay
         ? (() => {
@@ -1165,6 +1289,8 @@ export default function CronoprogrammaWorkspace() {
         onSaved={(d) => { upsertAssenzaInState(d); setAssenzaDialogOpen(false); setAssenzaEditing(null); }}
         onDeleted={(id) => { removeAssenzaFromState(id); setAssenzaDialogOpen(false); setAssenzaEditing(null); }}
       />
+
+      <AnnuncioSquadre open={annuncioOpen} onClose={handleCloseAnnuncio} />
 
       {dropChoiceDialog && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">

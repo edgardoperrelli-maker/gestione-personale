@@ -184,10 +184,13 @@ export async function eseguiGiro({
         const valore = regola.campo === 'esito'
           ? valoreEsito(l, esitoPositivo, esitoNegativo)
           : valoreCampo(l, regola.campo);
-        // upgrade: forza SOLO esito e note (note→pulita). Le altre colonne cadono nella policy normale sotto.
+        // forza SOLO esito e note (note→pulita). Le altre colonne cadono nella policy normale sotto.
+        // Idempotente: se la cella è GIÀ uguale al valore forzato non riscrive (niente write/backup a
+        // vuoto sui giri ripetuti; essenziale nel refresh negativo→negativo, dove l'esito resta "No").
         if (forza && (regola.campo === 'esito' || regola.campo === 'note')) {
           const v = valore == null ? '' : String(valore).trim();
           const nv = v === '' ? null : v;
+          if (String(cell.value ?? '').trim() === v) return { scritto: false, eraPieno };
           cell.value = nv;
           registra(row, regola.idx, nv);
           return { scritto: v !== '', eraPieno }; // cella svuotata → non conta nel marcatore
@@ -239,14 +242,19 @@ export async function eseguiGiro({
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
 
-        // Upgrade negativo→positivo: il POSITIVO VINCE SEMPRE. Se il lavoro agganciato è positivo e in
-        // cella esito c'è il testo del negativo ("No"), l'esito viene sovrascritto ANCHE sulle righe
-        // scritte a mano (automazione vuota). Restano protette (policy normale) le ALTRE colonne compilate
-        // a mano (sigillo, saracinesca, esecutore): forza tocca solo esito/note/data.
+        // forza = sovrascrittura di esito/note/data. Scatta quando in cella c'è il NEGATIVO ("No") e il
+        // lavoro agganciato ha un esito (positivo o negativo):
+        //   • POSITIVO → vince sempre sul negativo (upgrade No→eseguito), anche su righe a mano;
+        //   • NEGATIVO → è il VINCITORE di chiave, cioè il più recente (vedi vinceLavoro); sovrascrive un
+        //     negativo più vecchio già a file (nota/data): più negativi sullo stesso intervento senza un
+        //     positivo → conta solo il più recente.
+        // Un positivo a file NON viene mai sovrascritto da un negativo (cellaEsitoNegativa è falso). Restano
+        // protette (policy normale) le ALTRE colonne a mano (sigillo, saracinesca, esecutore): forza tocca
+        // solo esito/note/data.
         const autoEsistente = automazioneCol >= 0 ? String(row.getCell(automazioneCol + 1).value ?? '').trim() : '';
         const rigaDellAgente = autoEsistente !== '';
         const esitoCella = regolaEsito ? row.getCell(regolaEsito.idx + 1).value : null;
-        const forza = hit.lavoro.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+        const forza = hit.lavoro.esitoOk != null && cellaEsitoNegativa(esitoCella, esitoNegativo);
 
         // traccia ciò che l'upgrade sovrascrive (per storico/eventuale ripristino), letto PRIMA della scrittura
         const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
@@ -287,7 +295,9 @@ export async function eseguiGiro({
             const valoreAuto = `${parziale ? 'PARZIALE' : 'SI'} + ${completate.join(' + ')}`;
             scriviAutomazione(row, valoreAuto, hit.lavoro, forza);
           }
-          const tipo = forza ? 'upgrade' : (completate.length === 0 && soloRefresh ? 'refresh-data' : (parziale ? 'parziale' : 'aggiornata'));
+          const tipo = forza
+            ? (hit.lavoro.esitoOk === true ? 'upgrade' : 'refresh-negativo')
+            : (completate.length === 0 && soloRefresh ? 'refresh-data' : (parziale ? 'parziale' : 'aggiornata'));
           const rep = rigaReport(hit.lavoro, row.number, tipo);
           if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
           fileReport.righe.push(rep);
@@ -304,11 +314,11 @@ export async function eseguiGiro({
         // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la solita policy.
         const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
         if (rigaEsistente) {
-          // REGOLA: il positivo SOVRASCRIVE SEMPRE negativo/"nessun passaggio" (mai il contrario).
-          // Anche su questo aggancio per matricola: se in cella c'è "No"/nota e il lavoro è POSITIVO si
-          // forza l'upgrade come sul ramo pianificato, ANCHE sulle righe scritte a mano (automazione vuota).
+          // REGOLA: il positivo SOVRASCRIVE SEMPRE il negativo (mai il contrario); in assenza di positivo,
+          // il negativo più recente (vincitore di chiave) sovrascrive un negativo più vecchio già a file.
+          // Come sul ramo pianificato, su cella "No"/nota: forza esito/note/data, anche su righe a mano.
           const esitoCella = regolaEsito ? rigaEsistente.getCell(regolaEsito.idx + 1).value : null;
-          const forza = l.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const forza = l.esitoOk != null && cellaEsitoNegativa(esitoCella, esitoNegativo);
           const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
           const notaPrecedente = forza && regolaNote ? String(rigaEsistente.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
 
@@ -324,7 +334,7 @@ export async function eseguiGiro({
             }
             fileReport.aggiornate++;
           }
-          const rep = rigaReport(l, rigaEsistente.number, forza ? 'upgrade' : 'extra-esistente');
+          const rep = rigaReport(l, rigaEsistente.number, forza ? (l.esitoOk === true ? 'upgrade' : 'refresh-negativo') : 'extra-esistente');
           if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
           fileReport.righe.push(rep);
           continue;

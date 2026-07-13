@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import CampanelloRichieste from './CampanelloRichieste';
+import NovitaCenter from './NovitaCenter';
 
 type TopBarProps = {
   userName: string;
@@ -33,7 +34,7 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
 
   return (
     <header
-      className="sticky top-0 z-30 border-b bg-[var(--brand-surface)]/95 backdrop-blur"
+      className="sticky top-0 z-40 border-b bg-[var(--brand-surface)]/95 backdrop-blur"
       style={{ borderColor: 'var(--brand-border)' }}
     >
       <div className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 sm:px-4 md:px-6">
@@ -68,6 +69,7 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
           >
             {userName}
           </span>
+          <NovitaCenter />
           {isAdmin && <CampanelloRichieste />}
           <button
             type="button"

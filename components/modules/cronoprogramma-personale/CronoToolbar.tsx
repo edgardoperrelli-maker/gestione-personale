@@ -1,27 +1,21 @@
 'use client';
 import Button from '@/components/Button';
-import Tabs from '@/components/Tabs';
-import type { PlannerView } from './types';
 
 export default function CronoToolbar({
   title,
-  plannerView,
   reperibili,
   onPrev,
   onNext,
   onToday,
-  onPlannerViewChange,
   onInsertRep,
   onNewAssenza,
   onExport,
 }: {
   title: string;
-  plannerView: PlannerView;
   reperibili: number;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
-  onPlannerViewChange: (v: PlannerView) => void;
   onInsertRep: () => void;
   onNewAssenza: () => void;
   onExport: () => void;
@@ -42,17 +36,6 @@ export default function CronoToolbar({
         <Button onClick={onToday} variant="soft" size="sm">
           Oggi
         </Button>
-
-        <Tabs
-          value={plannerView}
-          onValueChange={(v) => onPlannerViewChange(v as PlannerView)}
-          items={[
-            { value: 'grid', label: 'Vista griglia' },
-            { value: 'split', label: 'Split' },
-            { value: 'calendar', label: 'Calendario' },
-            { value: 'table', label: 'Tabella' },
-          ]}
-        />
 
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* Reperibili nel range — spostato qui dalle stat card */}

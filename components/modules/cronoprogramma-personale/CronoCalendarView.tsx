@@ -8,6 +8,8 @@ import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { TIPO_META, labelDisponibilita, isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
 import { loadCollapsed, saveCollapsed } from '@/lib/cronoCollapse';
+import { raggruppaSquadre } from './squadre';
+import SquadraCard from './SquadraCard';
 import {
   eqDate,
   filterAssignments,
@@ -16,10 +18,21 @@ import {
   isCopyDropGesture,
   readAssignmentDragData,
   readDayDragData,
+  readSquadDragData,
   sortAssignments,
   writeAssignmentDragData,
   writeDayDragData,
 } from './utils';
+
+/** Legame di squadra: gesto e azioni passati dalle viste. */
+export type SquadraHandlers = {
+  onAggancia: (target: Assignment, dragged: { id: string; fromDay: string; fromTerritoryId: string | null }) => void;
+  onRimuoviMembro: (squadraId: string, membroId: string) => void;
+  onSciogli: (squadraId: string) => void;
+  onSetCapo: (squadraId: string, membroId: string) => void;
+  /** Sposta/copia un'intera squadra su un altro giorno (drag della card-squadra). */
+  onDropSquadra: (args: { squadraId: string; fromDay: string; toDay: Date; copyHint: boolean }) => void;
+};
 
 const dayBgClass = (d: Date) => {
   if (isItalyHoliday(d)) return 'bg-[var(--hol-bg)]';
@@ -47,6 +60,7 @@ export default function CronoCalendarView({
   assenzeByDay,
   onEditAssenza,
   appointmentCountByIso,
+  squadra,
 }: {
   weeks: Date[][];
   anchor: Date;
@@ -70,12 +84,11 @@ export default function CronoCalendarView({
     copy: boolean;
   }) => void;
   staffCount: number;
-  taskCountMap?: Record<string,number>;
+  taskCountMap?: Record<string, number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
   appointmentCountByIso?: Record<string, number>;
-  collapsedTerritori?: Set<string>;
-  onToggleTerritorio?: (key: string) => void;
+  squadra: SquadraHandlers;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
 
@@ -125,10 +138,102 @@ export default function CronoCalendarView({
               appointmentCountByIso={appointmentCountByIso}
               collapsedTerritori={collapsedTerritori}
               onToggleTerritorio={toggleTerritorio}
+              squadra={squadra}
             />
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** True se il drag in corso è una card assegnazione (non un intero giorno né una squadra). */
+function isAssignmentDrag(e: DragEvent<HTMLDivElement>) {
+  const t = e.dataTransfer.types;
+  return (
+    !t.includes('application/x-crono-day') &&
+    !t.includes('application/x-crono-squad') &&
+    (t.includes('application/json') || t.includes('text/plain'))
+  );
+}
+
+/** Card operatore singola, draggabile e drop-target: trascinandoci sopra un'altra card si crea la
+ *  squadra. Durante il drag mostra un chiaro overlay "⛓ Aggancia" (non solo un occhiello in hover). */
+function SingoloCard({
+  a,
+  iso,
+  taskCount,
+  onDelete,
+  onEdit,
+  onAggancia,
+}: {
+  a: Assignment;
+  iso: string;
+  taskCount?: number;
+  onDelete: () => void;
+  onEdit: (a: Assignment) => void;
+  onAggancia: SquadraHandlers['onAggancia'];
+}) {
+  const [over, setOver] = useState(false);
+  return (
+    <div
+      draggable
+      className="group/s relative cursor-grab active:cursor-grabbing"
+      onDragStart={(e) =>
+        writeAssignmentDragData(e.dataTransfer, {
+          id: a.id,
+          fromDay: iso,
+          fromTerritoryId: a.territory?.id ?? null,
+        })
+      }
+      onDragOver={(e) => {
+        if (!isAssignmentDrag(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'link';
+        if (!over) setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!isAssignmentDrag(e)) return;
+        setOver(false);
+        const data = readAssignmentDragData(e.dataTransfer);
+        if (!data || data.id === a.id) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // Stessa cella (giorno + territorio) → aggancia in squadra. Cella diversa → lascia bollare
+        // alla cella per lo SPOSTAMENTO (così non blocco i move droppando sopra una card).
+        const sameCell = data.fromDay === iso && (data.fromTerritoryId ?? null) === (a.territory?.id ?? null);
+        if (sameCell) {
+          e.preventDefault();
+          e.stopPropagation();
+          onAggancia(a, data);
+        }
+      }}
+    >
+      <OperatorCard a={a} onDelete={onDelete} onEdit={onEdit} taskCount={taskCount} />
+      {/* Occhiello discoverabile a mouse fermo */}
+      <div
+        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-sm group-hover/s:flex"
+        style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
+      >
+        ⛓
+      </div>
+      {/* Feedback ben visibile mentre trascini un'altra card sopra questa */}
+      {over && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+          style={{ backgroundColor: 'var(--brand-primary-soft)', outline: '2px solid var(--brand-primary)', outlineOffset: '1px' }}
+        >
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+            ⛓ Aggancia
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -156,12 +261,13 @@ function DayCell(props: {
     copy: boolean;
   }) => void;
   staffCount: number;
-  taskCountMap?: Record<string,number>;
+  taskCountMap?: Record<string, number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
   appointmentCountByIso?: Record<string, number>;
   collapsedTerritori?: Set<string>;
   onToggleTerritorio?: (key: string) => void;
+  squadra: SquadraHandlers;
 }) {
   const {
     d,
@@ -180,25 +286,70 @@ function DayCell(props: {
     taskCountMap,
     assenzeByDay,
     onEditAssenza,
+    squadra,
   } = props;
 
   const iso = fmtDay(d);
   const dayRow = dayMap[iso];
   const list = dayRow ? assignments[dayRow.id] ?? [] : [];
 
-  // Chi ha un'assenza giornaliera intera (permesso/malattia/congedo/ferie/104/lutto)
-  // NON deve comparire nelle card del giorno (resta solo nella sezione assenze sopra).
-  const assentiInteri = new Set(
+  // Chi ha un'assenza giornaliera intera. Le card SINGOLE dell'assente non compaiono (resta nella
+  // sezione assenze sopra); i MEMBRI DI SQUADRA restano invece visibili (barrati) così il buco è chiaro.
+  const absentIds = new Set(
     (assenzeByDay?.[iso] ?? []).filter((a) => isAssenzaIntera(a)).map((a) => a.staff_id),
   );
 
-  const visible = filterAssignments(list, filters).filter(
-    (a) => !assentiInteri.has(a.staff?.id ?? ''),
-  );
-  const sorted = sortAssignments(visible, sortMode);
+  const filtered = filterAssignments(list, filters);
+  const sorted = sortAssignments(filtered, sortMode);
+
+  // Rende una lista di assegnazioni: raggruppa in squadre (card fusa) e card singole (assenti saltati).
+  const renderItems = (items: Assignment[]) =>
+    raggruppaSquadre(items).map((it) => {
+      if (it.kind === 'squad') {
+        return (
+          <SquadraCard
+            key={`sq-${it.squadraId}`}
+            group={it}
+            iso={iso}
+            absentIds={absentIds}
+            taskCountMap={taskCountMap}
+            onSciogli={squadra.onSciogli}
+            onRimuoviMembro={squadra.onRimuoviMembro}
+            onSetCapo={squadra.onSetCapo}
+            onEditMembro={onEdit}
+            onDropSingolo={(target, dragged) => squadra.onAggancia(target, dragged)}
+            onDragStartMembro={(e, a) =>
+              writeAssignmentDragData(e.dataTransfer, {
+                id: a.id,
+                fromDay: iso,
+                fromTerritoryId: a.territory?.id ?? null,
+              })
+            }
+          />
+        );
+      }
+      const a = it.a;
+      if (absentIds.has(a.staff?.id ?? '')) return null;
+      return (
+        <SingoloCard
+          key={a.id}
+          a={a}
+          iso={iso}
+          taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]}
+          onDelete={() => onDelete(a)}
+          onEdit={onEdit}
+          onAggancia={squadra.onAggancia}
+        />
+      );
+    });
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    const squadData = readSquadDragData(e.dataTransfer);
+    if (squadData) {
+      squadra.onDropSquadra({ squadraId: squadData.squadraId, fromDay: squadData.fromDay, toDay: d, copyHint: isCopyDropGesture(e) });
+      return;
+    }
     const dayData = readDayDragData(e.dataTransfer);
     if (dayData) {
       onDropDay({ fromDay: dayData.fromDay, toDay: d, copy: isCopyDropGesture(e) });
@@ -215,6 +366,8 @@ function DayCell(props: {
       copy: isCopyDropGesture(e),
     });
   };
+
+  const hasTerritoryGrouping = sortMode === 'TERRITORIO' || sortMode === 'PER_TERRITORIO';
 
   return (
     <div
@@ -255,9 +408,7 @@ function DayCell(props: {
           {(() => {
             const dayId = dayMap[iso]?.id;
             const dayAssignments = dayId ? (assignments[dayId] ?? []) : [];
-            const assignedIds = new Set(
-              dayAssignments.map((a) => a.staff?.id).filter(Boolean)
-            );
+            const assignedIds = new Set(dayAssignments.map((a) => a.staff?.id).filter(Boolean));
             const unassigned = staffCount - assignedIds.size;
             if (unassigned <= 0) return null;
             return (
@@ -324,7 +475,7 @@ function DayCell(props: {
           );
         })()}
         {sorted.length ? (
-          sortMode === 'TERRITORIO' || sortMode === 'PER_TERRITORIO' ? (
+          hasTerritoryGrouping ? (
             (() => {
               const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
               const idx = new Map<string, number>();
@@ -355,47 +506,13 @@ function DayCell(props: {
                         {g.terrName || 'Senza territorio'}{collapsed ? ` (${g.items.length})` : ''}
                       </span>
                     </button>
-                    {!collapsed && (
-                      <div className="space-y-1">
-                        {g.items.map((a) => (
-                          <div
-                            key={a.id}
-                            draggable
-                            className="cursor-grab active:cursor-grabbing"
-                            onDragStart={(e) =>
-                              writeAssignmentDragData(e.dataTransfer, {
-                                id: a.id,
-                                fromDay: iso,
-                                fromTerritoryId: a.territory?.id ?? null,
-                              })
-                            }
-                          >
-                            <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
-                          </div>
-                        ))}
-                      </div>
-                    )}
+                    {!collapsed && <div className="space-y-1">{renderItems(g.items)}</div>}
                   </div>
                 );
               });
             })()
           ) : (
-            sorted.map((a) => (
-              <div
-                key={a.id}
-                draggable
-                className="cursor-grab active:cursor-grabbing"
-                onDragStart={(e) =>
-                  writeAssignmentDragData(e.dataTransfer, {
-                    id: a.id,
-                    fromDay: iso,
-                    fromTerritoryId: a.territory?.id ?? null,
-                  })
-                }
-              >
-                <OperatorCard a={a} onDelete={() => onDelete(a)} onEdit={onEdit} taskCount={taskCountMap?.[`${a.staff?.id}|${iso}`]} />
-              </div>
-            ))
+            <div className="space-y-1">{renderItems(sorted)}</div>
           )
         ) : (
           <div className="text-xs opacity-50">-</div>

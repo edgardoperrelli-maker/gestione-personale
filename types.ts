@@ -64,6 +64,10 @@ export type Assignment = {
   /** Zona di reperibilità (codice foglia P.I.): può differire dal territorio di lavoro. */
   zona_reperibilita?: string | null;
   notes?: string | null;
+  /** Squadra (raggruppamento leggero nel cronoprogramma): N membri = N righe con lo stesso squadra_id. */
+  squadra_id?: string | null;
+  team_order?: number | null;
+  is_capo?: boolean;
 };
 
 
