@@ -159,6 +159,7 @@ export default function CronoprogrammaWorkspace() {
       .from('assignments')
       .select(`
         id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+        squadra_id, team_order, is_capo,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
         activity:activity_id ( id, name )
@@ -293,6 +294,7 @@ export default function CronoprogrammaWorkspace() {
           .from('assignments')
           .select(`
             id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+            squadra_id, team_order, is_capo,
             staff:staff_id ( id, display_name ),
             territory:territory_id ( id, name ),
             activity:activity_id ( id, name )
