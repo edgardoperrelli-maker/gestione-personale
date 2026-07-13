@@ -797,7 +797,9 @@ export default function CronoprogrammaWorkspace() {
         is_capo: campiSquadra[i].is_capo,
       }));
 
-      const ins = await sb.from('assignments').insert(payload);
+      // UPSERT su (day_id, staff_id): robusto al vincolo unico uq_assignments_day_staff anche se
+      // sul giorno destinazione restano card degli stessi operatori (le riscrive invece di fallire).
+      const ins = await sb.from('assignments').upsert(payload, { onConflict: 'day_id,staff_id' });
       if (ins.error) {
         setActionFeedback({ type: 'error', text: `Copia non riuscita verso ${toIso}.` });
         softRefresh();
@@ -920,7 +922,7 @@ export default function CronoprogrammaWorkspace() {
   // Sposta/copia un'INTERA squadra su un altro giorno (drag della card-squadra). In copia crea una
   // squadra nuova (squadra_id fresco) preservando ordine e capo; in spostamento aggiorna solo il giorno,
   // mantenendo il legame. Se sul giorno destinazione gli stessi operatori sono già presenti, le loro
-  // card vengono sostituite (cancellate) così la squadra risulta copiata "pulita".
+  // card vengono RISCRITTE come membri della squadra (upsert su day+staff), evitando il vincolo unico.
   const handleDropSquadra = async ({
     squadraId,
     fromDay,
@@ -954,8 +956,7 @@ export default function CronoprogrammaWorkspace() {
       return;
     }
 
-    // Operatori della squadra già presenti sul giorno destinazione (escludendo i membri stessi, nel
-    // caso di spostamento sarebbero comunque su un altro giorno).
+    // Operatori della squadra già presenti sul giorno destinazione (per l'avviso di sovrascrittura).
     const memberIds = new Set(membri.map((m) => m.id));
     const staffIds = new Set(membri.map((m) => m.staff?.id).filter(Boolean) as string[]);
     const conflicts = targetAssignments.filter(
@@ -970,12 +971,6 @@ export default function CronoprogrammaWorkspace() {
             );
       if (!ok) {
         setActionFeedback({ type: 'error', text: `Operazione annullata: nessun dato sovrascritto nel giorno ${toIso}.` });
-        return;
-      }
-      const del = await sb.from('assignments').delete().in('id', conflicts.map((a) => a.id));
-      if (del.error) {
-        setActionFeedback({ type: 'error', text: `Impossibile sovrascrivere i dati nel giorno ${toIso}.` });
-        softRefresh();
         return;
       }
     }
@@ -997,7 +992,10 @@ export default function CronoprogrammaWorkspace() {
         team_order: campiSquadra[i].team_order,
         is_capo: campiSquadra[i].is_capo,
       }));
-      const ins = await sb.from('assignments').insert(payload);
+      // UPSERT su (day_id, staff_id): se l'operatore è già sul giorno la sua card viene RISCRITTA come
+      // membro della squadra, altrimenti inserita. Con la insert normale il vincolo unico
+      // uq_assignments_day_staff faceva fallire tutto il batch → la squadra non veniva salvata.
+      const ins = await sb.from('assignments').upsert(payload, { onConflict: 'day_id,staff_id' });
       if (ins.error) {
         setActionFeedback({ type: 'error', text: `Copia della squadra non riuscita verso ${toIso}.` });
         softRefresh();
@@ -1005,6 +1003,16 @@ export default function CronoprogrammaWorkspace() {
       }
       setActionFeedback({ type: 'success', text: `Squadra copiata (${membri.length}) al ${toIso}.` });
     } else {
+      // Spostamento: rimuovi prima le card degli stessi operatori sul giorno destinazione (altrimenti il
+      // vincolo unico day+staff blocca l'update), poi sposta le righe della squadra mantenendo il legame.
+      if (conflicts.length) {
+        const del = await sb.from('assignments').delete().in('id', conflicts.map((a) => a.id));
+        if (del.error) {
+          setActionFeedback({ type: 'error', text: `Impossibile sovrascrivere i dati nel giorno ${toIso}.` });
+          softRefresh();
+          return;
+        }
+      }
       const ids = membri.map((m) => m.id);
       const upd = await sb.from('assignments').update({ day_id: targetDayId }).in('id', ids);
       if (upd.error) {
