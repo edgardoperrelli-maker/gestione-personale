@@ -328,3 +328,37 @@ Non richiede nuovo AppModuleKey — è una sotto-sezione di `mappa`.
 Aggiungere link interno nella UI di `/hub/mappa`.
 
 **Dipendenze già disponibili:** Leaflet, xlsx, exceljs — nessuna installazione necessaria.
+
+---
+
+## 13. MODULO MISURATORI RIMOSSI — REGOLE DI BUSINESS
+
+Registro dei misuratori scaricati a magazzino dopo una rimozione ACEA positiva
+(tabella `misuratori_rimossi`, UI in `/misuratori`). Popolato da due writer, entrambi
+gate-ati dallo stesso classificatore:
+
+- **all'invio rapportino** → `app/api/r/[token]/invia/route.ts`
+- **"Ricalcola" (fallback/manuale)** → `app/api/misuratori/sync/route.ts`
+
+### Cosa entra nel registro
+Solo interventi ACEA con `esito = 'eseguito_positivo'`, `matricola` presente e
+`intervento_tipo` classificato come rimozione da `isRimozioneTipo`
+(`lib/interventi/rimozioneMisuratore.ts`).
+
+### Esclusione rimozioni ABUSIVE (regola chiave)
+Le "Rimozione impianto/allaccio/contatore abusivo" **non entrano MAI** nel registro:
+il misuratore rimosso da un impianto abusivo non entra nei nostri magazzini.
+`isRimozioneTipo` restituisce `false` per qualsiasi `intervento_tipo` contenente
+`abusiv`, **anche se nel campo note è presente una matricola** (in quel caso la
+matricola è un errore). Coerente con la spec del registro e con `voceDaAttivita.ts`
+("ABUSIVO prima di tutto").
+
+### "Ricalcola" ripulisce anche le righe già entrate
+Il sync elimina dal registro **qualsiasi riga il cui intervento non qualifica più**
+(riclassificato abusivo, corretto da positivo a negativo, o eliminato), **a prescindere
+dallo stato logistico** — anche `scaricato/verificato/consegnato`, non solo
+`da_consegnare_deposito`. Decisione pura e testata in
+`lib/interventi/misuratoriDaRimuovere.ts` (`righeMisuratoriDaRimuovere`), con guardrail:
+se l'insieme qualificante è vuoto non cancella nulla (anti-svuotamento di massa).
+Nota: la cascata `ON DELETE CASCADE` copre solo l'**eliminazione** dell'intervento,
+non la correzione dell'esito → per quest'ultima serve il Ricalcola.
