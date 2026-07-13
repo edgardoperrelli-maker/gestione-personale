@@ -128,6 +128,30 @@ export type DayDragPayload = {
   fromDay: string;
 };
 
+/** Drag di un'intera squadra (blocco): identifica la squadra da spostare/copiare su un altro giorno. */
+export type SquadDragPayload = {
+  squadraId: string;
+  fromDay: string;
+};
+
+export function writeSquadDragData(dataTransfer: DataTransfer, payload: SquadDragPayload) {
+  // 'all' per ammettere sia move sia copy (il gesto squadra riusa la scelta Sposta/Copia).
+  dataTransfer.effectAllowed = 'all';
+  dataTransfer.setData('application/x-crono-squad', JSON.stringify(payload));
+}
+
+export function readSquadDragData(dataTransfer: DataTransfer): SquadDragPayload | null {
+  const raw = dataTransfer.getData('application/x-crono-squad');
+  if (!raw) return null;
+  try {
+    const parsed = JSON.parse(raw) as Partial<SquadDragPayload>;
+    if (typeof parsed.squadraId !== 'string' || typeof parsed.fromDay !== 'string') return null;
+    return { squadraId: parsed.squadraId, fromDay: parsed.fromDay };
+  } catch {
+    return null;
+  }
+}
+
 export function writeDayDragData(dataTransfer: DataTransfer, payload: DayDragPayload) {
   dataTransfer.effectAllowed = 'copyMove';
   dataTransfer.setData('application/x-crono-day', JSON.stringify(payload));

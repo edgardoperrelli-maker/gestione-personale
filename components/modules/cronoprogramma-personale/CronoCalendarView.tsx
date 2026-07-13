@@ -18,6 +18,7 @@ import {
   isCopyDropGesture,
   readAssignmentDragData,
   readDayDragData,
+  readSquadDragData,
   sortAssignments,
   writeAssignmentDragData,
   writeDayDragData,
@@ -29,6 +30,8 @@ export type SquadraHandlers = {
   onRimuoviMembro: (squadraId: string, membroId: string) => void;
   onSciogli: (squadraId: string) => void;
   onSetCapo: (squadraId: string, membroId: string) => void;
+  /** Sposta/copia un'intera squadra su un altro giorno (drag della card-squadra). */
+  onDropSquadra: (args: { squadraId: string; fromDay: string; toDay: Date; copyHint: boolean }) => void;
 };
 
 const dayBgClass = (d: Date) => {
@@ -144,10 +147,14 @@ export default function CronoCalendarView({
   );
 }
 
-/** True se il drag in corso è una card assegnazione (non un intero giorno). */
+/** True se il drag in corso è una card assegnazione (non un intero giorno né una squadra). */
 function isAssignmentDrag(e: DragEvent<HTMLDivElement>) {
   const t = e.dataTransfer.types;
-  return !t.includes('application/x-crono-day') && (t.includes('application/json') || t.includes('text/plain'));
+  return (
+    !t.includes('application/x-crono-day') &&
+    !t.includes('application/x-crono-squad') &&
+    (t.includes('application/json') || t.includes('text/plain'))
+  );
 }
 
 /** Card operatore singola, draggabile e drop-target: trascinandoci sopra un'altra card si crea la
@@ -338,6 +345,11 @@ function DayCell(props: {
 
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    const squadData = readSquadDragData(e.dataTransfer);
+    if (squadData) {
+      squadra.onDropSquadra({ squadraId: squadData.squadraId, fromDay: squadData.fromDay, toDay: d, copyHint: isCopyDropGesture(e) });
+      return;
+    }
     const dayData = readDayDragData(e.dataTransfer);
     if (dayData) {
       onDropDay({ fromDay: dayData.fromDay, toDay: d, copy: isCopyDropGesture(e) });

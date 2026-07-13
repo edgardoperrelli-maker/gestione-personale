@@ -917,11 +917,113 @@ export default function CronoprogrammaWorkspace() {
     if (membri.length) await applySquadPatches(pianoSetCapo(membri, membroId));
   };
 
+  // Sposta/copia un'INTERA squadra su un altro giorno (drag della card-squadra). In copia crea una
+  // squadra nuova (squadra_id fresco) preservando ordine e capo; in spostamento aggiorna solo il giorno,
+  // mantenendo il legame. Se sul giorno destinazione gli stessi operatori sono già presenti, le loro
+  // card vengono sostituite (cancellate) così la squadra risulta copiata "pulita".
+  const handleDropSquadra = async ({
+    squadraId,
+    fromDay,
+    toDay,
+    copyHint,
+  }: {
+    squadraId: string;
+    fromDay: string;
+    toDay: Date;
+    copyHint: boolean;
+  }) => {
+    setActionFeedback(null);
+    const membri = membriDiSquadra(squadraId);
+    if (!membri.length) return;
+    const toIso = fmtDay(toDay);
+    if (fromDay === toIso) return;
+
+    const dropMode = await chooseAssignmentDropMode(copyHint ? 'copy' : 'move');
+    if (!dropMode) return;
+    const shouldCopy = dropMode === 'copy';
+
+    const targetDayId = await ensureDayId(toIso);
+    if (!targetDayId) {
+      setActionFeedback({ type: 'error', text: `Impossibile preparare il giorno ${toIso}.` });
+      return;
+    }
+
+    const targetAssignments = await fetchAssignmentsForDay(targetDayId);
+    if (!targetAssignments) {
+      setActionFeedback({ type: 'error', text: `Impossibile verificare il giorno ${toIso}.` });
+      return;
+    }
+
+    // Operatori della squadra già presenti sul giorno destinazione (escludendo i membri stessi, nel
+    // caso di spostamento sarebbero comunque su un altro giorno).
+    const memberIds = new Set(membri.map((m) => m.id));
+    const staffIds = new Set(membri.map((m) => m.staff?.id).filter(Boolean) as string[]);
+    const conflicts = targetAssignments.filter(
+      (a) => !memberIds.has(a.id) && a.staff?.id != null && staffIds.has(a.staff.id),
+    );
+    if (conflicts.length) {
+      const ok =
+        typeof window === 'undefined'
+          ? true
+          : window.confirm(
+              `${conflicts.length} operator${conflicts.length === 1 ? 'e è' : 'i sono'} già presente nel giorno ${toIso}. Sovrascrivere le loro card con la squadra?`,
+            );
+      if (!ok) {
+        setActionFeedback({ type: 'error', text: `Operazione annullata: nessun dato sovrascritto nel giorno ${toIso}.` });
+        return;
+      }
+      const del = await sb.from('assignments').delete().in('id', conflicts.map((a) => a.id));
+      if (del.error) {
+        setActionFeedback({ type: 'error', text: `Impossibile sovrascrivere i dati nel giorno ${toIso}.` });
+        softRefresh();
+        return;
+      }
+    }
+
+    if (shouldCopy) {
+      let seq = 0;
+      const genSquadraId = () =>
+        typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `sq-${targetDayId}-${seq++}`;
+      const campiSquadra = remappaSquadreCopia(membri, genSquadraId);
+      const payload = membri.map((m, i) => ({
+        day_id: targetDayId,
+        staff_id: m.staff?.id ?? null,
+        activity_id: m.activity?.id ?? null,
+        territory_id: m.territory?.id ?? null,
+        reperibile: m.reperibile,
+        notes: m.notes ?? null,
+        cost_center: m.cost_center ?? null,
+        squadra_id: campiSquadra[i].squadra_id,
+        team_order: campiSquadra[i].team_order,
+        is_capo: campiSquadra[i].is_capo,
+      }));
+      const ins = await sb.from('assignments').insert(payload);
+      if (ins.error) {
+        setActionFeedback({ type: 'error', text: `Copia della squadra non riuscita verso ${toIso}.` });
+        softRefresh();
+        return;
+      }
+      setActionFeedback({ type: 'success', text: `Squadra copiata (${membri.length}) al ${toIso}.` });
+    } else {
+      const ids = membri.map((m) => m.id);
+      const upd = await sb.from('assignments').update({ day_id: targetDayId }).in('id', ids);
+      if (upd.error) {
+        setActionFeedback({ type: 'error', text: `Spostamento della squadra non riuscito verso ${toIso}.` });
+        softRefresh();
+        return;
+      }
+      setActionFeedback({ type: 'success', text: `Squadra spostata (${membri.length}) al ${toIso}.` });
+    }
+
+    softRefresh();
+  };
+
   const squadraHandlers: SquadraHandlers = {
     onAggancia: handleAggancia,
     onRimuoviMembro: handleRimuoviMembro,
     onSciogli: handleSciogliSquadra,
     onSetCapo: handleSetCapo,
+    onDropSquadra: handleDropSquadra,
   };
 
   const goPrev = () => {

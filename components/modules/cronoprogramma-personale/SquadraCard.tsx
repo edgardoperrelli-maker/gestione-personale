@@ -4,7 +4,7 @@ import { type DragEvent, useState } from 'react';
 import type { Assignment } from '@/types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { membriPresenti, type SquadraGroup } from './squadre';
-import { readAssignmentDragData } from './utils';
+import { readAssignmentDragData, writeSquadDragData } from './utils';
 
 /**
  * Card-squadra del cronoprogramma: N membri (stesso squadra_id) resi come un'unica card con una
@@ -45,13 +45,22 @@ export default function SquadraCard({
   const act = first?.activity?.name ?? '';
   const cc = first?.cost_center ?? '';
 
+  // Il drop-target "aggiungi membro" vale solo per un drag di CARD singola; i drag di squadra o di
+  // giorno intero devono passare oltre (bollare fino alla cella) per lo spostamento/copia.
+  const isCardDrag = (types: readonly string[]) =>
+    types.includes('application/json') || types.includes('text/plain');
+
   return (
     <div
-      className="group relative rounded-lg border px-2 pb-2 pt-1.5 text-[11px] leading-snug shadow-sm transition"
+      className="group relative cursor-grab rounded-lg border px-2 pb-2 pt-1.5 text-[11px] leading-snug shadow-sm transition active:cursor-grabbing"
       style={{ backgroundColor: s.bg, borderColor: s.border, color: s.text, outline: over ? '2px solid var(--brand-primary)' : '1px solid var(--brand-primary-border)', outlineOffset: over ? '1px' : '0' }}
-      title="Squadra — trascina una card qui per aggiungere un membro"
+      title="Squadra — trascina la card su un altro giorno per spostarla/copiarla · trascina una card qui per aggiungere un membro"
+      draggable
+      onDragStart={(e) => {
+        writeSquadDragData(e.dataTransfer, { squadraId: group.squadraId, fromDay: iso });
+      }}
       onDragOver={(e) => {
-        if (e.dataTransfer.types.includes('application/x-crono-day')) return;
+        if (!isCardDrag(e.dataTransfer.types)) return;
         e.preventDefault();
         e.stopPropagation();
         e.dataTransfer.dropEffect = 'link';
@@ -61,6 +70,7 @@ export default function SquadraCard({
         if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
       }}
       onDrop={(e) => {
+        if (!isCardDrag(e.dataTransfer.types)) return;
         setOver(false);
         const data = readAssignmentDragData(e.dataTransfer);
         if (!first || !data || data.id === first.id) return;
@@ -132,7 +142,11 @@ export default function SquadraCard({
             <div
               key={m.id}
               draggable
-              onDragStart={(e) => onDragStartMembro(e, m)}
+              onDragStart={(e) => {
+                // Sgancia il SINGOLO membro: ferma la propagazione così non parte il drag dell'intera squadra.
+                e.stopPropagation();
+                onDragStartMembro(e, m);
+              }}
               className="group/m relative flex cursor-grab items-center gap-1.5 py-0.5 active:cursor-grabbing"
             >
               <span className="absolute -left-[11px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full" style={{ backgroundColor: 'var(--brand-primary)', boxShadow: `0 0 0 2px ${s.bg}` }} />

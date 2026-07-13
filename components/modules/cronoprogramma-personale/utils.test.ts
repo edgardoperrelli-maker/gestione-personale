@@ -3,6 +3,8 @@ import {
   writeAssignmentDragData,
   readAssignmentDragData,
   writeDayDragData,
+  writeSquadDragData,
+  readSquadDragData,
 } from './utils';
 
 /** DataTransfer minimale: registra effectAllowed e il KV di setData/getData. */
@@ -56,5 +58,28 @@ describe('writeDayDragData', () => {
     const dt = fakeDataTransfer();
     writeDayDragData(dt as unknown as DataTransfer, { fromDay: '2026-07-13' });
     expect(dt.effectAllowed).toBe('copyMove');
+  });
+});
+
+describe('squad drag data (drag della card-squadra come blocco)', () => {
+  it("round-trip squadraId+fromDay, effectAllowed='all' (ammette move e copy)", () => {
+    const dt = fakeDataTransfer();
+    writeSquadDragData(dt as unknown as DataTransfer, { squadraId: 'SQ-1', fromDay: '2026-07-13' });
+    expect(dt.effectAllowed).toBe('all');
+    // MIME dedicato: non deve essere scambiato per un drag di card singola.
+    expect(dt.types).toContain('application/x-crono-squad');
+    expect(dt.types).not.toContain('application/json');
+    expect(readSquadDragData(dt as unknown as DataTransfer)).toEqual({ squadraId: 'SQ-1', fromDay: '2026-07-13' });
+  });
+
+  it('payload assente o malformato → null', () => {
+    const vuoto = fakeDataTransfer();
+    expect(readSquadDragData(vuoto as unknown as DataTransfer)).toBeNull();
+    const rotto = fakeDataTransfer();
+    rotto.setData('application/x-crono-squad', '{bad json');
+    expect(readSquadDragData(rotto as unknown as DataTransfer)).toBeNull();
+    const parziale = fakeDataTransfer();
+    parziale.setData('application/x-crono-squad', JSON.stringify({ squadraId: 'x' }));
+    expect(readSquadDragData(parziale as unknown as DataTransfer)).toBeNull();
   });
 });
