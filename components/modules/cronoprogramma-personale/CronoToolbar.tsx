@@ -1,30 +1,26 @@
 'use client';
 import Button from '@/components/Button';
-import Tabs from '@/components/Tabs';
-import type { PlannerView } from './types';
 
 export default function CronoToolbar({
   title,
-  plannerView,
   reperibili,
   onPrev,
   onNext,
   onToday,
-  onPlannerViewChange,
   onInsertRep,
   onNewAssenza,
   onExport,
+  onOpenAnnuncio,
 }: {
   title: string;
-  plannerView: PlannerView;
   reperibili: number;
   onPrev: () => void;
   onNext: () => void;
   onToday: () => void;
-  onPlannerViewChange: (v: PlannerView) => void;
   onInsertRep: () => void;
   onNewAssenza: () => void;
   onExport: () => void;
+  onOpenAnnuncio: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 shadow-sm">
@@ -43,17 +39,6 @@ export default function CronoToolbar({
           Oggi
         </Button>
 
-        <Tabs
-          value={plannerView}
-          onValueChange={(v) => onPlannerViewChange(v as PlannerView)}
-          items={[
-            { value: 'grid', label: 'Vista griglia' },
-            { value: 'split', label: 'Split' },
-            { value: 'calendar', label: 'Calendario' },
-            { value: 'table', label: 'Tabella' },
-          ]}
-        />
-
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {/* Reperibili nel range — spostato qui dalle stat card */}
           {reperibili > 0 && (
@@ -62,6 +47,9 @@ export default function CronoToolbar({
               <span className="font-semibold text-[var(--brand-primary)]">{reperibili}</span>
             </span>
           )}
+          <Button onClick={onOpenAnnuncio} size="sm" variant="soft" title="Rivedi le novità del cronoprogramma">
+            👥 Novità
+          </Button>
           <Button onClick={onNewAssenza} size="sm" variant="soft">
             Assenza
           </Button>
