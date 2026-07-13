@@ -6,6 +6,7 @@
 .env*.local
 .worktrees
 .claude/worktrees/
+.claude/goal/
 .superpowers/
 
 # Cache incrementale di TypeScript (rigenerata da tsc / next build)

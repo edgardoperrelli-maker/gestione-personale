@@ -4,8 +4,19 @@ import { isRimozioneTipo } from './rimozioneMisuratore';
 describe('isRimozioneTipo', () => {
   it('riconosce la forma estesa "Rimozione …"', () => {
     expect(isRimozioneTipo('Rimozione misuratore')).toBe(true);
-    expect(isRimozioneTipo('RIMOZIONE ALLACCIO ABUSIVO')).toBe(true);
     expect(isRimozioneTipo('rimozioni varie')).toBe(true);
+  });
+
+  it('ESCLUDE le rimozioni di impianti abusivi (il misuratore non entra a magazzino)', () => {
+    // Questa attività non deve MAI confluire nel modulo Misuratori Rimossi,
+    // nemmeno se nel campo note è stata annotata per errore una matricola.
+    expect(isRimozioneTipo('Rimozione impianto abusivo')).toBe(false);
+    expect(isRimozioneTipo('RIMOZIONE IMPIANTO ABUSIVO')).toBe(false);
+    expect(isRimozioneTipo('RIMOZIONE ALLACCIO ABUSIVO')).toBe(false);
+    expect(isRimozioneTipo('RIMOZIONE CONTATORE ABUSIVO')).toBe(false);
+    expect(isRimozioneTipo('Rimozione abusivismo idrico')).toBe(false);
+    // vince anche sull'abbreviazione ACEA "Rim …"
+    expect(isRimozioneTipo('Rim impianto abusivo')).toBe(false);
   });
 
   it('riconosce l\'abbreviazione ACEA "Rim …" (il caso del modulo)', () => {
