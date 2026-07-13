@@ -150,7 +150,10 @@ export function writeAssignmentDragData(
   payload: AssignmentDragPayload
 ) {
   const raw = JSON.stringify(payload);
-  dataTransfer.effectAllowed = 'copyMove';
+  // 'all' (non 'copyMove') così è ammesso anche dropEffect='link': è il gesto "aggancia" (⛓) delle
+  // squadre. Con effectAllowed='copyMove' il browser rifiuta il drop 'link' e l'evento drop non parte
+  // mai (la card non si associa), pur mostrando l'overlay in dragover. Move/copy restano validi.
+  dataTransfer.effectAllowed = 'all';
   dataTransfer.setData('application/json', raw);
   dataTransfer.setData('text/plain', raw);
 }
