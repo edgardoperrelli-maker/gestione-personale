@@ -144,7 +144,14 @@ export default function CronoCalendarView({
   );
 }
 
-/** Card operatore singola, draggabile, con l'occhiello ⛓ (drop-target) per creare/estendere una squadra. */
+/** True se il drag in corso è una card assegnazione (non un intero giorno). */
+function isAssignmentDrag(e: DragEvent<HTMLDivElement>) {
+  const t = e.dataTransfer.types;
+  return !t.includes('application/x-crono-day') && (t.includes('application/json') || t.includes('text/plain'));
+}
+
+/** Card operatore singola, draggabile e drop-target: trascinandoci sopra un'altra card si crea la
+ *  squadra. Durante il drag mostra un chiaro overlay "⛓ Aggancia" (non solo un occhiello in hover). */
 function SingoloCard({
   a,
   iso,
@@ -160,6 +167,7 @@ function SingoloCard({
   onEdit: (a: Assignment) => void;
   onAggancia: SquadraHandlers['onAggancia'];
 }) {
+  const [over, setOver] = useState(false);
   return (
     <div
       draggable
@@ -171,26 +179,54 @@ function SingoloCard({
           fromTerritoryId: a.territory?.id ?? null,
         })
       }
+      onDragOver={(e) => {
+        if (!isAssignmentDrag(e)) return;
+        e.preventDefault();
+        e.stopPropagation();
+        e.dataTransfer.dropEffect = 'link';
+        if (!over) setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
+      }}
+      onDrop={(e) => {
+        if (!isAssignmentDrag(e)) return;
+        setOver(false);
+        const data = readAssignmentDragData(e.dataTransfer);
+        if (!data || data.id === a.id) {
+          e.preventDefault();
+          e.stopPropagation();
+          return;
+        }
+        // Stessa cella (giorno + territorio) → aggancia in squadra. Cella diversa → lascia bollare
+        // alla cella per lo SPOSTAMENTO (così non blocco i move droppando sopra una card).
+        const sameCell = data.fromDay === iso && (data.fromTerritoryId ?? null) === (a.territory?.id ?? null);
+        if (sameCell) {
+          e.preventDefault();
+          e.stopPropagation();
+          onAggancia(a, data);
+        }
+      }}
     >
       <OperatorCard a={a} onDelete={onDelete} onEdit={onEdit} taskCount={taskCount} />
+      {/* Occhiello discoverabile a mouse fermo */}
       <div
-        className="absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-sm group-hover/s:flex"
+        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-sm group-hover/s:flex"
         style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
-        title="Aggancia: trascina qui un'altra card per formare una squadra"
-        onDragOver={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          e.dataTransfer.dropEffect = 'link';
-        }}
-        onDrop={(e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const data = readAssignmentDragData(e.dataTransfer);
-          if (data && data.id !== a.id) onAggancia(a, data);
-        }}
       >
         ⛓
       </div>
+      {/* Feedback ben visibile mentre trascini un'altra card sopra questa */}
+      {over && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+          style={{ backgroundColor: 'var(--brand-primary-soft)', outline: '2px solid var(--brand-primary)', outlineOffset: '1px' }}
+        >
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+            ⛓ Aggancia
+          </span>
+        </div>
+      )}
     </div>
   );
 }
@@ -274,10 +310,7 @@ function DayCell(props: {
             onRimuoviMembro={squadra.onRimuoviMembro}
             onSetCapo={squadra.onSetCapo}
             onEditMembro={onEdit}
-            onDropSingolo={(target, e) => {
-              const data = readAssignmentDragData(e.dataTransfer);
-              if (data && data.id !== target.id) squadra.onAggancia(target, data);
-            }}
+            onDropSingolo={(target, dragged) => squadra.onAggancia(target, dragged)}
             onDragStartMembro={(e, a) =>
               writeAssignmentDragData(e.dataTransfer, {
                 id: a.id,

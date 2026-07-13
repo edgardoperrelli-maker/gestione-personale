@@ -998,7 +998,6 @@ export default function CronoprogrammaWorkspace() {
           onInsertRep={() => setOpenInsertRep(true)}
           onNewAssenza={() => openNewAssenza()}
           onExport={() => setOpenExport(true)}
-          onOpenAnnuncio={() => setAnnuncioOpen(true)}
         />
 
         {actionFeedback && (

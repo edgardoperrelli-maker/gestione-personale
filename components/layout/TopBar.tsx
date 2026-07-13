@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import CampanelloRichieste from './CampanelloRichieste';
+import NovitaCenter from './NovitaCenter';
 
 type TopBarProps = {
   userName: string;
@@ -68,6 +69,7 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
           >
             {userName}
           </span>
+          <NovitaCenter />
           {isAdmin && <CampanelloRichieste />}
           <button
             type="button"

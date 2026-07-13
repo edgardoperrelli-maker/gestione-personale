@@ -10,7 +10,6 @@ export default function CronoToolbar({
   onInsertRep,
   onNewAssenza,
   onExport,
-  onOpenAnnuncio,
 }: {
   title: string;
   reperibili: number;
@@ -20,7 +19,6 @@ export default function CronoToolbar({
   onInsertRep: () => void;
   onNewAssenza: () => void;
   onExport: () => void;
-  onOpenAnnuncio: () => void;
 }) {
   return (
     <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 shadow-sm">
@@ -47,9 +45,6 @@ export default function CronoToolbar({
               <span className="font-semibold text-[var(--brand-primary)]">{reperibili}</span>
             </span>
           )}
-          <Button onClick={onOpenAnnuncio} size="sm" variant="soft" title="Rivedi le novità del cronoprogramma">
-            👥 Novità
-          </Button>
           <Button onClick={onNewAssenza} size="sm" variant="soft">
             Assenza
           </Button>

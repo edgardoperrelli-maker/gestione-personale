@@ -1,9 +1,10 @@
 'use client';
 
-import { type DragEvent } from 'react';
+import { type DragEvent, useState } from 'react';
 import type { Assignment } from '@/types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { membriPresenti, type SquadraGroup } from './squadre';
+import { readAssignmentDragData } from './utils';
 
 /**
  * Card-squadra del cronoprogramma: N membri (stesso squadra_id) resi come un'unica card con una
@@ -31,9 +32,10 @@ export default function SquadraCard({
   onRimuoviMembro: (squadraId: string, membroId: string) => void;
   onSetCapo: (squadraId: string, membroId: string) => void;
   onEditMembro: (a: Assignment) => void;
-  onDropSingolo: (target: Assignment, e: DragEvent<HTMLDivElement>) => void;
+  onDropSingolo: (target: Assignment, dragged: { id: string; fromDay: string; fromTerritoryId: string | null }) => void;
   onDragStartMembro: (e: DragEvent<HTMLDivElement>, a: Assignment) => void;
 }) {
+  const [over, setOver] = useState(false);
   const first = group.membri[0];
   const s = getTerritoryStyle(first?.territory?.name);
   const { presenti, totale } = membriPresenti(group.membri, absentIds);
@@ -46,19 +48,43 @@ export default function SquadraCard({
   return (
     <div
       className="group relative rounded-lg border px-2 pb-2 pt-1.5 text-[11px] leading-snug shadow-sm transition"
-      style={{ backgroundColor: s.bg, borderColor: s.border, color: s.text, outline: '1px solid var(--brand-primary-border)' }}
+      style={{ backgroundColor: s.bg, borderColor: s.border, color: s.text, outline: over ? '2px solid var(--brand-primary)' : '1px solid var(--brand-primary-border)', outlineOffset: over ? '1px' : '0' }}
       title="Squadra — trascina una card qui per aggiungere un membro"
       onDragOver={(e) => {
+        if (e.dataTransfer.types.includes('application/x-crono-day')) return;
         e.preventDefault();
+        e.stopPropagation();
         e.dataTransfer.dropEffect = 'link';
+        if (!over) setOver(true);
+      }}
+      onDragLeave={(e) => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node)) setOver(false);
       }}
       onDrop={(e) => {
-        // Aggiungi il membro trascinato alla squadra (target = un membro qualsiasi → stesso squadra_id).
-        e.stopPropagation();
-        if (first) onDropSingolo(first, e);
+        setOver(false);
+        const data = readAssignmentDragData(e.dataTransfer);
+        if (!first || !data || data.id === first.id) return;
+        // Aggiungi il membro solo se viene dalla STESSA cella (stesso giorno+territorio della squadra);
+        // altrimenti lascia bollare alla cella per lo spostamento.
+        const sameCell = data.fromDay === iso && (data.fromTerritoryId ?? null) === (first.territory?.id ?? null);
+        if (sameCell) {
+          e.preventDefault();
+          e.stopPropagation();
+          onDropSingolo(first, data);
+        }
       }}
     >
       <span className="absolute left-0 top-0 h-full w-1 rounded-l-lg" style={{ backgroundColor: s.band }} />
+      {over && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+          style={{ backgroundColor: 'var(--brand-primary-soft)' }}
+        >
+          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+            ⛓ Aggiungi alla squadra
+          </span>
+        </div>
+      )}
 
       <div className="flex items-center justify-between gap-2 pl-1.5">
         <span
