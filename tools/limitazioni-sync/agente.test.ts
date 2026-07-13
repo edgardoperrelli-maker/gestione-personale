@@ -436,7 +436,7 @@ describe('eseguiGiro (guidato dalla mappatura)', () => {
 });
 
 describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
-  it('upgrade sulla riga dell’agente (No→eseguito, nota pulita, marcatore rifatto); riga manuale → conflitto', async () => {
+  it('il positivo sovrascrive il "No" sia sulla riga dell’agente sia su quella scritta a mano (nessun conflitto)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');
     await creaFileAutomazione(file);
@@ -491,12 +491,12 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     const upg = report.file[0].righe.find((r: { riga: number }) => r.riga === 2);
     expect(upg.tipo).toBe('upgrade');
 
-    // riga 3 (manuale): esito NON sovrascritto + conflitto segnalato (da risolvere a mano)
-    expect(ws.getRow(3).getCell(67).value).toBe('No');
-    const conf = report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 3 && c.campo === 'esito');
-    expect(conf).toBeTruthy();
-    expect(conf.esistente).toBe('No');
-    expect(conf.nuovo).toBe('eseguito');
+    // riga 3 (manuale): il positivo SOVRASCRIVE comunque il "No" → eseguito, nessun conflitto
+    expect(ws.getRow(3).getCell(67).value).toBe('eseguito');
+    expect(report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 3 && c.campo === 'esito')).toBeFalsy();
+    const upg3 = report.file[0].righe.find((r: { riga: number; tipo: string }) => r.riga === 3 && r.tipo === 'upgrade');
+    expect(upg3).toBeTruthy();
+    expect(upg3.esitoPrecedente).toBe('No');
   });
 
   it('refresh data: sulla riga dell’agente sovrascrive la data PIANIFICATA con quella di ESECUZIONE (idempotente, marcatore intatto); riga a mano protetta', async () => {

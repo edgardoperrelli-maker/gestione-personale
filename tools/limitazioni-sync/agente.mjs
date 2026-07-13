@@ -152,10 +152,10 @@ export async function eseguiGiro({
 
       // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
       // ritorna { scritto, eraPieno }: scritto=ha riempito la cella; eraPieno=la cella aveva già un valore (compilato a mano).
-      // forza=true (upgrade negativo→positivo su riga dell'agente): forza SOLO esito (→positivo),
-      // note (→pulita) e data (→data del positivo). Le ALTRE colonne (sigillo, saracinesca,
-      // esecutore, …) restano alla policy normale, così un dato compilato a mano sulla riga
-      // dell'agente NON viene mai svuotato né sovrascritto in silenzio dall'upgrade.
+      // forza=true (upgrade negativo→positivo: il positivo vince SEMPRE): forza SOLO esito (→positivo),
+      // note (→pulita) e data (→data del positivo). Le ALTRE colonne (sigillo, saracinesca, esecutore, …)
+      // restano alla policy normale, così un dato compilato a mano NON viene mai svuotato né sovrascritto
+      // in silenzio dall'upgrade.
       const scriviCella = (row, regola, l, forza = false, refreshData = false) => {
         const cell = row.getCell(regola.idx + 1);
         const eraPieno = String(cell.value ?? '').trim() !== '';
@@ -239,13 +239,14 @@ export async function eseguiGiro({
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
 
-        // Upgrade negativo→positivo: il lavoro vincente è positivo e in cella esito c'è il "No",
-        // MA solo se la riga è dell'agente (colonna automazione valorizzata). Le righe scritte a
-        // mano NON si toccano: il mismatch resta un conflitto, da risolvere a mano.
+        // Upgrade negativo→positivo: il POSITIVO VINCE SEMPRE. Se il lavoro agganciato è positivo e in
+        // cella esito c'è il testo del negativo ("No"), l'esito viene sovrascritto ANCHE sulle righe
+        // scritte a mano (automazione vuota). Restano protette (policy normale) le ALTRE colonne compilate
+        // a mano (sigillo, saracinesca, esecutore): forza tocca solo esito/note/data.
         const autoEsistente = automazioneCol >= 0 ? String(row.getCell(automazioneCol + 1).value ?? '').trim() : '';
         const rigaDellAgente = autoEsistente !== '';
         const esitoCella = regolaEsito ? row.getCell(regolaEsito.idx + 1).value : null;
-        const forza = rigaDellAgente && hit.lavoro.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+        const forza = hit.lavoro.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
 
         // traccia ciò che l'upgrade sovrascrive (per storico/eventuale ripristino), letto PRIMA della scrittura
         const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
@@ -304,13 +305,10 @@ export async function eseguiGiro({
         const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
         if (rigaEsistente) {
           // REGOLA: il positivo SOVRASCRIVE SEMPRE negativo/"nessun passaggio" (mai il contrario).
-          // Anche su questo aggancio per matricola: se la riga è dell'agente e ha "No"/nota in cella e
-          // il lavoro è POSITIVO, si forza l'upgrade come sul ramo pianificato. Altrimenti policy normale
-          // (riempi-vuote / conflitti), così un "No" scritto a mano resta un conflitto da risolvere.
-          const autoEsistente = automazioneCol >= 0 ? String(rigaEsistente.getCell(automazioneCol + 1).value ?? '').trim() : '';
-          const rigaDellAgente = autoEsistente !== '';
+          // Anche su questo aggancio per matricola: se in cella c'è "No"/nota e il lavoro è POSITIVO si
+          // forza l'upgrade come sul ramo pianificato, ANCHE sulle righe scritte a mano (automazione vuota).
           const esitoCella = regolaEsito ? rigaEsistente.getCell(regolaEsito.idx + 1).value : null;
-          const forza = rigaDellAgente && l.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const forza = l.esitoOk === true && cellaEsitoNegativa(esitoCella, esitoNegativo);
           const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
           const notaPrecedente = forza && regolaNote ? String(rigaEsistente.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
 
