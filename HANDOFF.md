@@ -9,8 +9,13 @@ utenti, e alcuni fix UI (hub Novità globale, colori tema reattivi).
 ## Current status
 Feature implementata, buildata e **deployata sul preview Vercel** (PR #85, verde).
 Migration DB **già applicata** al progetto Supabase `aceztqfebringeaebvce` (Calendario personale).
-**BUG BLOCCANTE APERTO**: l'**aggancio non scrive** — `assignments.squadra_id` non viene MAI
-persistito (verificato via query DB: 0 righe con squadra_id). Nessuna squadra si crea.
+**BUG BLOCCANTE — RISOLTO** (commit `3485338`): l'aggancio non scriveva `squadra_id` perché il
+sorgente del drag impostava `effectAllowed='copyMove'` mentre i drop-target squadra usano
+`dropEffect='link'`; per la spec HTML5 DnD il drop 'link' veniva rifiutato e l'evento `drop` non
+partiva. Fix: `effectAllowed='all'` in `writeAssignmentDragData` (`utils.ts`, +`utils.test.ts`).
+**Bug modale — RISOLTO** (commit `3251b35`): il tutorial "Novità" si apriva sotto il cronoprogramma
+perché renderizzato dentro l'header con `backdrop-blur` (stacking context); ora va in un portal su
+`document.body` (`AnnuncioSquadre.tsx`). **Entrambi da verificare end-to-end sul preview.**
 
 ## Repo state
 - Branch: `claude/agent-master-file-conflicts-wahrjm` (= head della **PR #85**, aperta).
@@ -45,7 +50,10 @@ persistito (verificato via query DB: 0 righe con squadra_id). Nessuna squadra si
   finisce sotto il banner date/azioni.
 
 ## In progress / not yet done  (ROADMAP, azioni concrete in ordine)
-1. **[BLOCCANTE] Aggancio non scrive `squadra_id`** — vedi sezione dedicata sotto. Prima cosa da fixare.
+1. ~~**[BLOCCANTE] Aggancio non scrive `squadra_id`**~~ → **RISOLTO** (commit `3485338`). Era
+   l'incompatibilità `effectAllowed='copyMove'` (sorgente drag) vs `dropEffect='link'` (drop-target
+   squadra): il browser rifiutava il drop e l'evento `drop` non partiva. Fix in `utils.ts`
+   (`effectAllowed='all'`). Resta solo da **verificare end-to-end sul preview** (punto 4).
 2. Mini-card d'esempio dentro `AnnuncioSquadre.tsx` usano tinte territorio HARDCODED (dark) → su tema
    chiaro restano vivaci. Opz.: passarle a `var(--terr-…)` per coerenza.
 3. Eventuale bump chiave annuncio `crono-squadre-v1`→`v2` se si vuole ri-mostrare l'avviso a tutti
@@ -53,7 +61,13 @@ persistito (verificato via query DB: 0 righe con squadra_id). Nessuna squadra si
 4. Verifica end-to-end sul preview di: crea squadra, aggiungi 3°/4°, capo ⭐, togli membro, sciogli,
    assente barrato, spostamento che sgancia.
 
-## BUG APERTO — l'aggancio non persiste (dettaglio + diagnosi)
+## BUG ~~APERTO~~ RISOLTO — l'aggancio non persiste (dettaglio + diagnosi)
+> **ESITO (commit `3485338`)**: era il **sospetto (A)** — il `drop` non partiva. Non per `sameCell`,
+> ma perché `dropEffect='link'` (impostato in `dragover` da SingoloCard/SquadraCard) è incompatibile
+> con `effectAllowed='copyMove'` del sorgente drag: per la spec HTML5 DnD il browser rifiuta quel drop
+> e l'evento `drop` non viene emesso (l'overlay ⛓ però appare, perché `dragover` gira). Fix:
+> `effectAllowed='all'` in `writeAssignmentDragData` (`utils.ts`). Sotto, la diagnosi originale.
+
 **Sintomo**: trascinando una card su un'altra della STESSA cella non si crea la squadra.
 **Fatto certo**: `select … from assignments where squadra_id is not null` → **[] (zero righe)**.
 Quindi la scrittura non avviene mai.
@@ -119,13 +133,17 @@ Guardare anche il Network per la PATCH a `/rest/v1/assignments`.
   `select id, staff_id, squadra_id, team_order, is_capo from assignments where squadra_id is not null;`
 
 ## Open questions
-- Perché l'aggancio non scrive `squadra_id`? (A: drop/sameCell lato SingoloCard, o B: applySquadPatches). Da isolare con log sul preview.
+- ~~Perché l'aggancio non scrive `squadra_id`?~~ → RISOLTO: era il sospetto (A), drop rifiutato per
+  `effectAllowed`/`dropEffect` incompatibili. Vedi sezione "BUG RISOLTO" + commit `3485338`.
 - L'admin di test ha già "visto" l'avviso v1 → per rivederlo usare il tasto Novità o bumpare a v2.
 
 ## Next step
-Fixare il **bug aggancio**: sul preview con DevTools, mettere `console.log` in `SingoloCard.onDrop`
-(fires? `sameCell`? `data`) e in `handleAggancia`/`applySquadPatches` (chiamato? update in errore?),
-isolare A vs B, correggere, e verificare che `assignments.squadra_id` si popoli nel DB.
+**Verifica end-to-end sul preview** (i due bug qui sotto sono già fixati in codice, commit `3251b35`
+e `3485338`, ma non ancora provati sul preview aggiornato):
+1. Aggancio: trascina una card operatore su un'altra della STESSA cella (stesso giorno + territorio)
+   → si crea la squadra; controlla nel DB `select … from assignments where squadra_id is not null`
+   che ora ci siano righe. Poi: aggiungi 3°/4°, capo ⭐, togli membro, sciogli, spostamento che sgancia.
+2. Modale Novità: tasto "Novità" → apri il tutorial → deve comparire SOPRA il cronoprogramma, non sotto.
 
 ## Note operative
 - PR #85 è sotto watch di questa chat (`subscribe_pr_activity`) con check-in schedulati: alla ripresa in
