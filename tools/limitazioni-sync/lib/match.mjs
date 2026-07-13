@@ -47,10 +47,18 @@ export function buildIndice(lavori) {
   return { byOdl, byComuneMatricola, perdenti };
 }
 
-/** Aggancia una riga del file: prima per ODL, poi per matricola nel comune del file. */
+/** Aggancia una riga del file: prima per ODL, poi per matricola nel comune del file.
+ *  NON aggancia per ODL un lavoro NEGATIVO che ha PERSO la deduplica di chiave (un positivo sullo
+ *  stesso contatore lo ha battuto, vedi vinceLavoro/perdenti): la riga del master porta spesso l'ODL
+ *  ACEA del negativo, mentre il positivo è manuale e SENZA ODL (agganciabile solo per matricola). Senza
+ *  questo filtro il "No" verrebbe scritto sulla riga e il positivo finirebbe in conflitto → doppio
+ *  lavoro. Regola: se positivo vince, il negativo non deve mai comparire. Il positivo (mai perdente)
+ *  resta agganciabile normalmente per ODL. */
 export function agganciaRiga(rigaFile, indice, comuneFile) {
   const perOdl = rigaFile.odl ? indice.byOdl.get(norm(rigaFile.odl)) : undefined;
-  if (perOdl) return { lavoro: perOdl, via: 'odl' };
+  if (perOdl && (perOdl.esitoOk === true || !indice.perdenti.has(perOdl.id))) {
+    return { lavoro: perOdl, via: 'odl' };
+  }
   const perMat = rigaFile.matricola
     ? indice.byComuneMatricola.get(norm(comuneFile) + '|' + norm(rigaFile.matricola))
     : undefined;

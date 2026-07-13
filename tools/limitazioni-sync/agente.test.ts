@@ -614,6 +614,59 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(report.file[0].righe.find((r: { riga: number; tipo: string }) => r.riga === 2 && r.tipo === 'refresh-data')).toBeFalsy();
   });
 
+  it('positivo senza ODL batte il negativo con ODL sullo stesso contatore: scrive "eseguito", niente conflitto né doppione (caso reale matricola 20121386035)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-posvince-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    // master con UNA riga = l'ordine ACEA del NEGATIVO (ODL 912231635 + matricola 20121386035), esito vuoto.
+    {
+      const wb0 = new ExcelJS.Workbook();
+      const ws0 = wb0.addWorksheet('Foglio1');
+      const h = ws0.getRow(1);
+      h.getCell(6).value = 'ORDINE';         // F  odl
+      h.getCell(9).value = 'MATRICOLA';      // I  matricola
+      h.getCell(64).value = 'Località';      // BL comune
+      h.getCell(65).value = 'Esecutore';     // BM
+      h.getCell(66).value = 'data prevista'; // BN
+      h.getCell(67).value = 'esito';         // BO
+      const r2 = ws0.getRow(2);
+      r2.getCell(6).value = '912231635'; r2.getCell(9).value = '20121386035'; r2.getCell(64).value = 'ZAGAROLO';
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        // NEGATIVO con l'ODL del master ("Nessun passaggio"); POSITIVO manuale più recente SENZA ODL.
+        { id: 'neg', odl: '912231635', matricola: '20121386035', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-23', esito: 'No', esitoOk: false, manuale: false },
+        { id: 'pos', odl: '', matricola: '20121386035', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-07-02', esito: 'eseguito', esitoOk: true, manuale: true },
+      ],
+      dryRun: false,
+      stamp: '20260713-1000',
+      // mappatura SENZA colonna automazione (come il master zagarolo): prima del fix il positivo
+      // finiva in conflitto sull'esito "No" già scritto dal negativo.
+      mappatura: [
+        { campo: 'esecutore', colonna: 'Esecutore', abilitato: true },
+        { campo: 'data', colonna: 'data prevista', abilitato: true },
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // la riga porta il POSITIVO, non il "No"
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    expect(giornoDa(ws.getRow(2).getCell(66).value)).toBe('2026-07-02');
+    // nessun doppione appeso, nessun conflitto, nessun extra
+    expect(ws.rowCount).toBe(2);
+    expect(report.file[0].conflitti).toHaveLength(0);
+    expect(report.file[0].extraAggiunte).toBe(0);
+  });
+
   it('NON cancella sigillo/saracinesca compilati a mano sulla riga dell’agente (refresh ristretto a esito/note/data)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg2-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');
