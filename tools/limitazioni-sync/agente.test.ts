@@ -667,6 +667,106 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(report.file[0].extraAggiunte).toBe(0);
   });
 
+  it('più negativi, nessun positivo: sovrascrive col più recente (nota aggiornata, niente conflitto, idempotente)', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-negrecent-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    // riga 2 = scritta dall'agente con un negativo PIÙ VECCHIO (nota "nessun passaggio")
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      const ws0 = wb0.worksheets[0];
+      ws0.getRow(2).getCell(67).value = 'No';               // BO esito
+      ws0.getRow(2).getCell(69).value = 'nessun passaggio'; // BQ note
+      ws0.getRow(2).getCell(68).value = 'SI + esito';       // BP automazione
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const opts = {
+      cartella: dir,
+      // due negativi sullo stesso contatore, NESSUN positivo: vince il più recente (20/06)
+      lavori: [
+        { id: 'negOld', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-17', esito: 'No', esitoOk: false,
+          note: 'nessun passaggio', manuale: false },
+        { id: 'negNew', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-20', esito: 'No', esitoOk: false,
+          note: 'inaccessibile', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260713-1200',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    };
+    const report = await eseguiGiro(opts);
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // esito resta "No", NOTA aggiornata al negativo più recente; nessun doppione, nessun conflitto
+    expect(ws.getRow(2).getCell(67).value).toBe('No');
+    expect(ws.getRow(2).getCell(69).value).toBe('inaccessibile');
+    expect(ws.rowCount).toBe(3);
+    expect(report.file[0].conflitti).toHaveLength(0);
+    const ref = report.file[0].righe.find(
+      (r: { riga: number; tipo: string }) => r.riga === 2 && r.tipo === 'refresh-negativo',
+    );
+    expect(ref).toBeTruthy();
+    expect(ref.notaPrecedente).toBe('nessun passaggio');
+
+    // IDEMPOTENZA: secondo giro → la nota è già quella recente, niente da riscrivere
+    const report2 = await eseguiGiro({ ...opts, stamp: '20260713-1300' });
+    expect(report2.file[0].aggiornate).toBe(0);
+  });
+
+  it('un negativo NON sovrascrive un positivo già a file (il positivo vince): resta in conflitto', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-negvspos-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    // riga 2 = positivo già a file (scritto dall'agente)
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      const ws0 = wb0.worksheets[0];
+      ws0.getRow(2).getCell(67).value = 'eseguito';   // BO esito POSITIVO
+      ws0.getRow(2).getCell(68).value = 'SI + esito'; // BP automazione
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'neg', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-20', esito: 'No', esitoOk: false,
+          note: 'inaccessibile', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260713-1400',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+    // il positivo NON viene toccato dal negativo; il mismatch resta un conflitto
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    const conf = report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 2 && c.campo === 'esito');
+    expect(conf).toBeTruthy();
+    expect(conf.esistente).toBe('eseguito');
+    expect(conf.nuovo).toBe('No');
+  });
+
   it('NON cancella sigillo/saracinesca compilati a mano sulla riga dell’agente (refresh ristretto a esito/note/data)', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-upg2-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');
