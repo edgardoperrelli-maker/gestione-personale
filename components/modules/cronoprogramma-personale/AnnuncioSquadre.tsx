@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import Button from '@/components/Button';
 
 /** Chiave versionata dell'avviso: per un nuovo annuncio si usa una nuova chiave. */
@@ -18,9 +20,17 @@ type Membro = { nome: string; capo?: boolean; rep?: boolean; assente?: boolean }
  * Squadre con principi, esempi (da 2 a 4 · resine), casi limite e comportamento del gesto.
  */
 export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onClose: () => void }) {
-  if (!open) return null;
+  // Il modale va reso in un portal su <body>: il TopBar che ospita il tasto "Novità" ha
+  // `backdrop-blur`, che crea uno stacking context e diventa il blocco contenitore dei figli
+  // `position: fixed`. Renderizzato lì dentro, il modale (z-[70]) resta intrappolato al livello
+  // dell'header (z-40) e finisce SOTTO il cronoprogramma. Il portal lo sposta fuori, così la sua
+  // z-index copre davvero l'intera pagina. `mounted` evita l'accesso a `document` durante l'SSR.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
-  return (
+  if (!open || !mounted) return null;
+
+  return createPortal(
     <div
       className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-6"
       role="dialog"
@@ -171,7 +181,8 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
           </Button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
 
