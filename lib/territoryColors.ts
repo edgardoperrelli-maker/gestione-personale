@@ -13,7 +13,7 @@ export const TERRITORY_COLORS: Record<string, TerritoryStyle> = {
   PADOVA:         { bg: 'rgba(167,139,250,0.16)', border: 'rgba(167,139,250,0.40)', text: '#C4B5FD', band: '#A78BFA' },
   PERUGIA:        { bg: 'rgba(251,113,133,0.16)', border: 'rgba(251,113,133,0.40)', text: '#FDA4AF', band: '#FB7185' },
   'LAZIO CENTRO': { bg: 'rgba(148,163,184,0.16)', border: 'rgba(148,163,184,0.40)', text: '#CBD5E1', band: '#94A3B8' },
-  NAPOLI:         { bg: 'rgba(34,211,238,0.16)',  border: 'rgba(34,211,238,0.40)',  text: '#67E8F9', band: '#22D3EE' },
+  NAPOLI:         { bg: 'rgba(232,121,249,0.16)', border: 'rgba(232,121,249,0.40)', text: '#F0ABFC', band: '#E879F9' },
 };
 
 export const TERRITORY_FALLBACK: TerritoryStyle = {
@@ -31,7 +31,7 @@ const TERRITORY_COLORS_LIGHT: Record<string, TerritoryStyle> = {
   PADOVA:         { bg: 'rgba(124,58,237,0.08)',  border: 'rgba(124,58,237,0.26)',  text: '#5B21B6', band: '#7C3AED' },
   PERUGIA:        { bg: 'rgba(225,29,72,0.08)',   border: 'rgba(225,29,72,0.24)',   text: '#9F1239', band: '#E11D48' },
   'LAZIO CENTRO': { bg: 'rgba(100,116,139,0.08)', border: 'rgba(100,116,139,0.26)', text: '#475569', band: '#64748B' },
-  NAPOLI:         { bg: 'rgba(8,145,178,0.08)',   border: 'rgba(8,145,178,0.26)',   text: '#155E75', band: '#0891B2' },
+  NAPOLI:         { bg: 'rgba(192,38,211,0.08)',  border: 'rgba(192,38,211,0.26)',  text: '#86198F', band: '#C026D3' },
 };
 
 const TERRITORY_FALLBACK_LIGHT: TerritoryStyle = {
