@@ -54,7 +54,7 @@ export default function SegnalaButton() {
         aria-label="Invia segnalazione"
         title="Invia una segnalazione ad ATLAS"
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 left-6 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[var(--on-primary)] shadow-[var(--shadow-lg)] transition hover:opacity-90"
+        className="fixed bottom-6 right-6 z-40 inline-flex h-12 w-12 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[var(--on-primary)] shadow-[var(--shadow-lg)] transition hover:opacity-90"
       >
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
           <path d="M3 11l16-5v12L3 13v-2z" />
