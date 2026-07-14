@@ -17,6 +17,14 @@ export default function Dialog({ open, onClose, title, children, footer, variant
   const previouslyFocused = React.useRef<HTMLElement | null>(null);
   const titleId = React.useId();
 
+  // onClose è spesso passato inline (es. `() => setOpen(false)`): tenerlo fuori dalle
+  // dipendenze dell'effetto sotto, altrimenti ogni render del parent (es. a ogni tasto
+  // digitato in un input della dialog) ri-eseguirebbe l'effetto, rubando il focus.
+  const onCloseRef = React.useRef(onClose);
+  React.useEffect(() => {
+    onCloseRef.current = onClose;
+  }, [onClose]);
+
   React.useEffect(() => {
     if (!open) return;
     previouslyFocused.current = document.activeElement as HTMLElement | null;
@@ -29,7 +37,7 @@ export default function Dialog({ open, onClose, title, children, footer, variant
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === 'Escape') {
         e.preventDefault();
-        onClose();
+        onCloseRef.current();
         return;
       }
       if (e.key !== 'Tab' || !panel) return;
@@ -53,7 +61,7 @@ export default function Dialog({ open, onClose, title, children, footer, variant
       document.removeEventListener('keydown', onKeyDown);
       previouslyFocused.current?.focus?.();
     };
-  }, [open, onClose]);
+  }, [open]);
 
   if (!open) return null;
 
