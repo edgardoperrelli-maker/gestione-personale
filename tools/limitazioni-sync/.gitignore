@@ -6,3 +6,4 @@ _acea_download/
 _acea_debug/
 acea.lock
 _prova-acea.mjs
+.sync-watch.json
