@@ -165,6 +165,42 @@ describe('eseguiGiroAcea', () => {
     expect(chiamato).toBe(false);
   });
 
+  it('osservabilità: se il master è stato sovrascritto dopo l\'ultima scrittura dell\'agente, il report include clobberPrecedente', async () => {
+    const subdir = fs.mkdtempSync(path.join(os.tmpdir(), 'acea-clobber-'));
+    const masterPath = path.join(subdir, 'master.xlsx');
+    const exportPath = path.join(subdir, 'export.xlsx');
+    const statePath = path.join(subdir, '.sync-watch.json');
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione', 'Esecutore'],
+      [957276080, 'Intervento Richiesto', 'CIARALLO'],
+    ]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [957276080, 'completato'],
+    ]);
+
+    // Giro 1: aggiorna il master e registra la baseline. Nessun clobber possibile (prima volta).
+    const r1 = await eseguiGiroAcea({
+      cfg: cfg(masterPath), stamp: 'g1', driver: async () => exportPath, nowMs: 800000, statePath,
+    });
+    expect(r1.clobberPrecedente).toBeUndefined();
+
+    // Un altro editor (collega su SharePoint) sostituisce il file con una versione diversa (size cambia).
+    await scriviXlsx(masterPath, 'PIANIFICAZIONE', [
+      ['Ordine', 'Stato Operazione', 'Esecutore'],
+      [957276080, 'Ricevuto', 'CIARALLO'],
+      [111222333, 'assegnato', 'ALTRO'],
+      [444555666, 'assegnato', 'ALTRO'],
+    ]);
+
+    // Giro 2: il master risulta modificato dall'esterno dopo la scrittura dell'agente → clobber segnalato.
+    const r2 = await eseguiGiroAcea({
+      cfg: cfg(masterPath), stamp: 'g2', driver: async () => exportPath, nowMs: 801000, statePath,
+    });
+    expect(r2.clobberPrecedente).toBeTruthy();
+    expect(r2.clobberPrecedente.masterPath).toBe(masterPath);
+  });
+
   it('senza baseUrl/exportKey (main() non li passa ancora) → NON chiama fetchSaracinesche, nessun errore', async () => {
     const masterPath = path.join(dir, 'master_nobase.xlsx');
     const exportPath = path.join(dir, 'export_nobase.xlsx');

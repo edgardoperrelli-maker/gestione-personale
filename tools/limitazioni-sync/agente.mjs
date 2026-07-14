@@ -4,6 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { caricaWorkbook, trovaRigaIntestazione, backupFile } from './lib/excelIO.mjs';
 import { applicaModificheXlsx } from './lib/acea/applicaModificheXlsx.mjs';
+import { verificaModificaEsterna, registraScrittura } from './lib/sincronizzazioneWatch.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
 import { decidiScrittura, cellaEsitoNegativa } from './lib/scrittura.mjs';
@@ -362,6 +363,15 @@ export async function eseguiGiro({
       }
 
       if (!dryRun && (fileReport.aggiornate > 0 || fileReport.extraAggiunte > 0)) {
+        // Osservabilità: il file è cambiato tra l'ultima scrittura dell'agente e ora? (clobber SharePoint)
+        // Va letto PRIMA di sovrascrivere. Best-effort: non deve mai bloccare la scrittura.
+        const avvisoClobber = verificaModificaEsterna(file);
+        if (avvisoClobber) {
+          fileReport.clobberPrecedente = avvisoClobber;
+          console.error(`[lim-sync] ⚠ ${path.basename(file)}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
+            ` (ora mtime ${avvisoClobber.attuale.mtimeIso}${avvisoClobber.probabileServer ? ', versione dal server' : ''}).` +
+            ` Probabile file aperto/salvato da altri su SharePoint.`);
+        }
         backupFile(file, stamp);
         // scrittura CHIRURGICA: applica il change-set senza ri-serializzare tutto il file.
         const aggiornamenti = modifiche.filter((m) => m.riga <= maxRigaOriginale);
@@ -373,6 +383,8 @@ export async function eseguiGiro({
         }
         const nuoveRighe = [...perNuova.keys()].sort((a, b) => a - b).map((k) => perNuova.get(k));
         await applicaModificheXlsx(file, { foglio: ws.name, aggiornamenti, nuoveRighe });
+        // registra la versione appena scritta come baseline per il prossimo giro.
+        registraScrittura(file, { nowIso: new Date().toISOString() });
       }
     } catch (e) {
       fileReport.saltato = true;

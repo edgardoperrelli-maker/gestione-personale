@@ -6,6 +6,7 @@ import { norm } from '../match.mjs';
 import { parseExport } from './parseExport.mjs';
 import { aggiornaStatoXlsx } from './aggiornaStatoXlsx.mjs';
 import { acquisisci, rilascia } from './lock.mjs';
+import { verificaModificaEsterna, registraScrittura } from '../sincronizzazioneWatch.mjs';
 import { loginEdEsporta } from './driver.mjs';
 import { fetchSaracinesche as fetchSaracinescheDefault } from '../apiAgente.mjs';
 
@@ -32,7 +33,7 @@ async function caricaSaracinescaMap({ baseUrl, exportKey, fetchSaracinesche }) {
 
 export async function eseguiGiroAcea({
   cfg, stamp, target = 'dunning', driver = loginEdEsporta, nowMs = Date.now(),
-  baseUrl, exportKey, fetchSaracinesche = fetchSaracinescheDefault,
+  baseUrl, exportKey, fetchSaracinesche = fetchSaracinescheDefault, statePath,
 }) {
   const acea = cfg.acea;
   // target 'zagarolo' = override masterPath/foglio/colonne + regola DA CHIEDERE.
@@ -84,6 +85,15 @@ export async function eseguiGiroAcea({
       ? await caricaSaracinescaMap({ baseUrl, exportKey, fetchSaracinesche })
       : null;
 
+    // Osservabilità: il master è cambiato tra l'ultima scrittura dell'agente e ora? (clobber SharePoint).
+    // Va letto PRIMA di sovrascrivere. Best-effort: non deve mai bloccare la scrittura.
+    const avvisoClobber = verificaModificaEsterna(a.masterPath, { statePath });
+    if (avvisoClobber) {
+      console.error(`[lim-sync] ⚠ ${path.basename(a.masterPath)}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
+        ` (ora mtime ${avvisoClobber.attuale.mtimeIso}${avvisoClobber.probabileServer ? ', versione dal server' : ''}).` +
+        ` Probabile file aperto/salvato da altri su SharePoint.`);
+    }
+
     // Scrittura CHIRURGICA: tocca solo le celle di Stato Operazione/Saracinesca/Automazione (preserva
     // AutoFiltro, formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
     const rep = await aggiornaStatoXlsx(a.masterPath, righe, {
@@ -100,6 +110,11 @@ export async function eseguiGiroAcea({
       return reportBase({ lavori: righe.length, erroreGlobale: `Master: colonne "${a.masterColonnaOdl}"/"${a.masterColonnaStato}" non trovate.` });
     }
 
+    // Se l'agente ha davvero scritto, registra la versione appena prodotta come baseline: al giro
+    // successivo `verificaModificaEsterna` saprà dire se è stata sovrascritta da altri (clobber SharePoint).
+    const haScritto = (rep.aggiornate ?? 0) > 0 || (rep.saracinescaScritte ?? 0) > 0 || (rep.daChiedere ?? 0) > 0;
+    if (haScritto) registraScrittura(a.masterPath, { statePath, nowIso: new Date().toISOString() });
+
     return reportBase({
       target,
       lavori: righe.length,
@@ -111,6 +126,7 @@ export async function eseguiGiroAcea({
       invariate: rep.invariate,
       daChiedere: rep.daChiedere ?? 0,
       saracinescaScritte: rep.saracinescaScritte ?? 0,
+      clobberPrecedente: avvisoClobber || undefined,
       preassegnati,
       portaleSnapshot,
     });
