@@ -7,6 +7,7 @@ import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import { RichiesteManualiProvider } from './RichiesteManualiProvider';
 import SegnalaButton from '@/components/segnalazione/SegnalaButton';
+import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 
 type Props = {
   children: ReactNode;
@@ -32,6 +33,7 @@ export default function AppShell({
 
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
+  const [annuncioOpen, setAnnuncioOpen] = useState(false);
 
   // Ripristina la preferenza di collasso (stesso pattern del theme toggle)
   useEffect(() => {
@@ -46,6 +48,24 @@ export default function AppShell({
   useEffect(() => {
     setMobileOpen(false);
   }, [pathname]);
+
+  // Avviso "novità" (once-per-utente via DB): al primo accesso spiega la Segnalazione (megafono).
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/annunci?key=${ANNUNCIO_SEGNALAZIONE_KEY}`, { cache: 'no-store' });
+        if (!res.ok || !alive) return;
+        const j = await res.json();
+        if (alive && !j.seen) setAnnuncioOpen(true);
+      } catch {
+        // best-effort: se non riesco a verificare, non mostro l'avviso
+      }
+    })();
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Chiudi il drawer con Escape
   useEffect(() => {
@@ -67,6 +87,15 @@ export default function AppShell({
       }
       return next;
     });
+  };
+
+  const handleCloseAnnuncio = () => {
+    setAnnuncioOpen(false);
+    fetch('/api/annunci', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: ANNUNCIO_SEGNALAZIONE_KEY }),
+    }).catch(() => {});
   };
 
   const handleLogout = async () => {
@@ -123,6 +152,7 @@ export default function AppShell({
         </main>
       </div>
       <SegnalaButton />
+      <AnnuncioSegnalazione open={annuncioOpen} onClose={handleCloseAnnuncio} />
     </div>
     </RichiesteManualiProvider>
   );

@@ -2,10 +2,16 @@
 
 import { useEffect, useState } from 'react';
 import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from '@/components/modules/cronoprogramma-personale/AnnuncioSquadre';
+import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 
 /** Registro delle "novità" del progetto: un annuncio = una voce (chiave versionata + testo). */
 type Annuncio = { key: string; title: string; subtitle: string };
 const ANNUNCI: Annuncio[] = [
+  {
+    key: ANNUNCIO_SEGNALAZIONE_KEY,
+    title: 'Segnala bug e idee, in un tocco',
+    subtitle: 'Il pulsante megafono in basso a destra manda bug e idee dritte ad ATLAS.',
+  },
   {
     key: ANNUNCIO_SQUADRE_KEY,
     title: 'Squadre nel Cronoprogramma',
@@ -130,6 +136,7 @@ export default function NovitaCenter() {
         )}
       </div>
 
+      <AnnuncioSegnalazione open={openKey === ANNUNCIO_SEGNALAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioSquadre open={openKey === ANNUNCIO_SQUADRE_KEY} onClose={chiudiModal} />
     </>
   );
