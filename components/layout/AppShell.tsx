@@ -6,6 +6,7 @@ import type { AppModuleKey } from '@/lib/moduleAccess';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
 import { RichiesteManualiProvider } from './RichiesteManualiProvider';
+import SegnalaButton from '@/components/segnalazione/SegnalaButton';
 
 type Props = {
   children: ReactNode;
@@ -121,6 +122,7 @@ export default function AppShell({
           {children}
         </main>
       </div>
+      <SegnalaButton />
     </div>
     </RichiesteManualiProvider>
   );
