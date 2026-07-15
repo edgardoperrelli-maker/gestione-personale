@@ -29,6 +29,33 @@ describe('parseImportMisuratori', () => {
     expect(res.records[0].matricola).toBe('202015209996');
   });
 
+  // Le estrazioni ACEA per comune (ZAGAROLO.xlsx, LABICO.xlsx, ...) intestano l'ODL "Ordine",
+  // non "Ods/odl": senza questo alias l'import entra con odl vuoto, che e' proprio il campo che
+  // serve al "+" lim_massive per agganciare la riga del master.
+  it('riconosce la colonna "Ordine" delle estrazioni ACEA per comune', () => {
+    const rows = [
+      ['Ordine', 'Impianto', 'matricola', 'Indirizzo', 'Long', 'Lat', 'cap', 'Località'],
+      ['912350788', '4004130614', '202415625500', 'CIRCONVALLAZIONE GIOVANNI FALCONE 1', '', '', '00030', 'LABICO'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].odl).toBe('912350788');
+    expect(res.records[0].matricola).toBe('202415625500');
+    expect(res.records[0].comune).toBe('LABICO');
+    expect(res.records[0].cap).toBe('00030');
+    expect(res.records[0].indirizzo).toBe('CIRCONVALLAZIONE GIOVANNI FALCONE 1');
+  });
+
+  // Guard: l'alias "Ordine" deve essere ancorato. Un pattern lasco (es. /ordin/) matcherebbe
+  // "Coordinate"/"Coordinata" delle estrazioni con geolocalizzazione, riempiendo l'odl di spazzatura.
+  it('non scambia "Coordinate" per la colonna Ordine', () => {
+    const rows = [
+      ['Matricola', 'Coordinate', 'Coordinata X'],
+      ['MAT1', '41.81,12.84', '12.84'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].odl).toBe('');
+  });
+
   it('scarta le righe senza matricola e le conta', () => {
     const rows = [
       header,
