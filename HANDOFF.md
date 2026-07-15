@@ -50,12 +50,16 @@ l'agente funzioni, poi rendere i giri scegli-il-comune "così da farlo girare se
   prova: `_log/20260714-2001-acea-zagarolo.json` riporta 2869 non agganciate, **di cui esattamente
   525 nel range Labico** (= le 525 righe del file). `stato odl` non si sarebbe mai popolata.
 
-### Cosa è stato fatto (MERGED su main + deploy)
-- **PR #97 — parser import censiti**. Le estrazioni ACEA per comune intestano le colonne
-  diversamente da quella usata per Zagarolo: `Ordine` (non `Ods/odl`) e `Impianto` (non `PDR`).
-  L'import di Labico sarebbe entrato **senza ODL e senza PDR**, i due identificativi che servono.
-  Su `LABICO.xlsx` reale: odl 0→**525/525**, pdr 0→**525/525** (tutti distinti).
-- **PR #98 — selettore comune** su entrambi i giri + migration `forza_giro_comune`
+### Cosa è stato fatto
+- **PR #97 (MERGED) — parser import censiti, alias `Ordine` → odl.** Le estrazioni ACEA per comune
+  intestano le colonne diversamente da quella usata per Zagarolo: `Ordine` (non `Ods/odl`) e
+  `Impianto` (non `PDR`). L'import di Labico sarebbe entrato **senza ODL e senza PDR**.
+- **PR #99 (APERTA ⚠️) — `Impianto` → pdr.** La #97 è stata mergiata mentre il secondo commit era
+  ancora in volo: su main è finito **solo** l'alias `Ordine`. Verificato su `origin/main`
+  (`PATTERN.pdr` è ancora quello vecchio). **Va mergiata PRIMA dell'import**, altrimenti i 525
+  censiti entrano col PDR vuoto e vanno ricaricati.
+  Su `LABICO.xlsx` reale: odl 0→**525/525** (già in prod), pdr 0→**525/525** (solo con la #99).
+- **PR #98 (MERGED) — selettore comune** su entrambi i giri + migration `forza_giro_comune`
   (**applicata via MCP**, autorizzata dall'utente perché il tick era già in 500 dopo il merge).
 
 ### Key decisions
@@ -128,7 +132,15 @@ eseguiGiro({ ..., comune })                        // assente sul giro schedulat
   `git pull`, niente riavvii (eccetto il driver Playwright `assegnaInterventi.mjs`, in cache
   del wrapper → riavvio). `config.json` è riletto da disco a ogni tick.
 - Il classifier può bloccare i push senza motivo: capitato una volta, ripetuto → passato.
-  Non aggirare, ritentare o chiedere.
+  Non aggirare; ritentare o chiedere.
+- ⚠️ **Il repo è PUBBLICO.** Non mettere identificativi ACEA di produzione (matricole, ODL,
+  Impianto/PDR, indirizzi) nei corpi delle PR o nei messaggi di commit: fare la verifica sui dati
+  veri va benissimo, pubblicarli no. Successo il 15/07 (corpo della PR #97, poi ripulito; il
+  classifier ha fermato il secondo tentativo). Le fixture dei test contengono già valori reali per
+  scelta preesistente del progetto: lasciate stare, ma non sono una scusa per aggiungerne altrove.
+- ⚠️ **Verificare che un merge abbia preso TUTTI i commit del ramo**
+  (`git merge-base --is-ancestor <ramo> origin/main`): la #97 è stata mergiata a metà e la cosa è
+  emersa per puro caso, controllando prima di rimuovere il worktree.
 - Suite: `npx vitest run` → 236 file / 1765 test verdi a fine sessione.
 
 ### Aperture / follow-up
@@ -143,6 +155,7 @@ eseguiGiro({ ..., comune })                        // assente sul giro schedulat
    gitignorato: resta untracked e rischia di finire in un `git add -A`.
 
 ## Next step
+0. **Mergiare la PR #99** (`Impianto` → pdr): senza, l'import del punto 2 entra col PDR vuoto.
 1. **Premere "Aggiorna tabella"** in `/hub/agente`: senza, Labico resta `is_master=false` a DB e
    **non compare nel menù comuni** (lo scan è quello delle 06:40). Un click → l'agente ri-scansiona,
    Labico appare e spariscono le 2 righe fantasma (`ZAGAROLO 1.xlsx`, `INTERVENTI_… (version 1)`).
