@@ -12,7 +12,11 @@ export default async function HubLayout({ children }: { children: React.ReactNod
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
 
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() legge il JWT dal cookie senza round-trip di rete: la convalida
+  // server-side (auth.getUser) è già stata fatta dal middleware su questa stessa
+  // richiesta (matcher '/hub/:path*'), che redirige a /login se non valida.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
   if (!user) redirect('/login');
 
   const { data: profile } = await supabase

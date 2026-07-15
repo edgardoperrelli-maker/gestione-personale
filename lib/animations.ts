@@ -1,22 +1,22 @@
 import type { Variants, Transition } from 'framer-motion';
 
 export const pageTransition: Variants = {
-  initial: { opacity: 0, y: 12 },
+  initial: { opacity: 0, y: 6 },
   animate: { opacity: 1, y: 0 },
-  exit: { opacity: 0, y: -8 },
 };
 
-export const pageTransitionSpring: Transition = {
-  type: 'spring',
-  stiffness: 300,
-  damping: 30,
+// Tween breve al posto dello spring 300/30: lo spring impiegava ~300-450ms ad
+// assestarsi per fase e, con AnimatePresence mode="wait", raddoppiava (exit+enter).
+export const pageTransitionTween: Transition = {
+  duration: 0.16,
+  ease: 'easeOut',
 };
 
 export const staggerContainer: Variants = {
   initial: { opacity: 1 },
   animate: {
     opacity: 1,
-    transition: { staggerChildren: 0.06, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.03, delayChildren: 0 },
   },
 };
 

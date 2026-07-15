@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
 /** Campanello admin: badge realtime col numero di richieste manuali in attesa; apre la lista attesa. */
@@ -7,7 +8,7 @@ export default function CampanelloRichieste() {
   const { count, live } = useRichiesteManualiContext();
 
   return (
-    <a
+    <Link
       href="/hub/lista-attesa"
       aria-label={`Richieste manuali in attesa: ${count}`}
       title={live ? `${count} richieste in attesa` : `${count} richieste in attesa (offline)`}
@@ -26,6 +27,6 @@ export default function CampanelloRichieste() {
           {count > 99 ? '99+' : count}
         </span>
       )}
-    </a>
+    </Link>
   );
 }

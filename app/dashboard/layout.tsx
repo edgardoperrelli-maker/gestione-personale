@@ -22,7 +22,11 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
   const supabase = createServerComponentClient({ cookies: cookieMethods });
-  const { data: { user } } = await supabase.auth.getUser();
+  // getSession() legge il JWT dal cookie senza round-trip di rete: la convalida
+  // server-side (auth.getUser) è già stata fatta dal middleware su questa stessa
+  // richiesta (matcher '/dashboard/:path*'), che redirige a /login se non valida.
+  const { data: { session } } = await supabase.auth.getSession();
+  const user = session?.user;
 
   if (!user) redirect('/login');
 
