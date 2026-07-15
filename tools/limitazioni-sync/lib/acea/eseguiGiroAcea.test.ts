@@ -224,4 +224,103 @@ describe('eseguiGiroAcea', () => {
     expect(chiamato).toBe(false);
     expect(report.file[0].aggiornate).toBe(1);
   });
+
+  // --- Limitazioni massive per comune: il comune È il nome del file ---------------------------
+
+  /** Cartella limitazioni massive con LABICO.xlsx + ZAGAROLO.xlsx e l'export FUORI (come in reale,
+   *  che sta nella cartella download). Ritorna anche una cfg col blocco `massive`. */
+  async function scenarioComuni(nome: string) {
+    const cart = fs.mkdtempSync(path.join(os.tmpdir(), `acea-${nome}-`));
+    const fuori = fs.mkdtempSync(path.join(os.tmpdir(), `acea-${nome}-dl-`));
+    const labico = path.join(cart, 'LABICO.xlsx');
+    const zagarolo = path.join(cart, 'ZAGAROLO.xlsx');
+    const exportPath = path.join(fuori, 'export.xlsx');
+    await scriviXlsx(labico, 'Foglio1', [['ORDINE', 'stato odl'], [912350788, 'Intervento Richiesto']]);
+    await scriviXlsx(zagarolo, 'Foglio1', [['ORDINE', 'stato odl'], [912214968, 'Intervento Richiesto']]);
+    await scriviXlsx(exportPath, 'Esportazione SAPUI5', [
+      ['Ordine', 'Stato Operazione'],
+      [912350788, 'completato'],
+      [912214968, 'Sospensione'],
+    ]);
+    const c = cfg(path.join(fuori, 'dunning.xlsx')) as Record<string, unknown> & { acea: Record<string, unknown> };
+    c.cartella = cart;
+    c.acea.massive = { foglio: 'Foglio1', masterColonnaOdl: 'ORDINE', masterColonnaStato: 'stato odl' };
+    return { cart, labico, zagarolo, exportPath, c };
+  }
+
+  async function statoOdl(file: string) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    return wb.getWorksheet('Foglio1')!.getRow(2).getCell(2).value;
+  }
+
+  it('TUTTI: UN SOLO export (una sola sessione ACEA) riversato su ogni master della cartella', async () => {
+    const { labico, zagarolo, exportPath, c } = await scenarioComuni('tutti');
+    let chiamateDriver = 0;
+    const report = await eseguiGiroAcea({
+      cfg: c, target: 'TUTTI', stamp: 's',
+      driver: async () => { chiamateDriver++; return exportPath; },
+      nowMs: 800000,
+    });
+
+    // ACEA è lenta: moltiplicare gli export per comune moltiplicherebbe i fallimenti.
+    expect(chiamateDriver).toBe(1);
+    expect(report.file.map((f: { file: string }) => f.file).sort()).toEqual(['LABICO.xlsx', 'ZAGAROLO.xlsx']);
+    expect(report.file.every((f: { aggiornate: number }) => f.aggiornate === 1)).toBe(true);
+    expect(await statoOdl(labico)).toBe('completato');
+    expect(await statoOdl(zagarolo)).toBe('Sospensione');
+  });
+
+  it('TUTTI: "non agganciate" = ODL assenti da OGNI master, non da uno solo', async () => {
+    // Regressione: per-master, l'ODL di Labico risulterebbe "non agganciato" su ZAGAROLO.xlsx
+    // (e viceversa) e il report griderebbe al lupo su righe in realtà collocate.
+    const { exportPath, c } = await scenarioComuni('inter');
+    const report = await eseguiGiroAcea({
+      cfg: c, target: 'TUTTI', stamp: 's', driver: async () => exportPath, nowMs: 801000,
+    });
+    expect(report.extraNonCollocate).toEqual([]);
+  });
+
+  it('un comune: aggiorna solo il suo master, gli altri non li tocca', async () => {
+    const { labico, zagarolo, exportPath, c } = await scenarioComuni('uno');
+    const primaZag = await statoOdl(zagarolo);
+    const report = await eseguiGiroAcea({
+      cfg: c, target: 'LABICO', stamp: 's', driver: async () => exportPath, nowMs: 802000,
+    });
+
+    expect(report.file).toHaveLength(1);
+    expect(report.file[0].file).toBe('LABICO.xlsx');
+    expect(await statoOdl(labico)).toBe('completato');
+    expect(await statoOdl(zagarolo)).toBe(primaZag); // intatto
+    // l'ODL di Zagarolo non ha riga in LABICO.xlsx: giustamente non agganciato
+    expect(report.extraNonCollocate).toEqual([{ odl: '912214968' }]);
+  });
+
+  it('comune senza file in cartella → errore esplicito, nessuna scrittura (mai degradare a "tutti")', async () => {
+    const { labico, zagarolo, exportPath, c } = await scenarioComuni('assente');
+    const primaLab = await statoOdl(labico);
+    const primaZag = await statoOdl(zagarolo);
+    const report = await eseguiGiroAcea({
+      cfg: c, target: 'PALESTRINA', stamp: 's', driver: async () => exportPath, nowMs: 803000,
+    });
+
+    expect(report.erroreGlobale).toMatch(/PALESTRINA/);
+    expect(await statoOdl(labico)).toBe(primaLab);
+    expect(await statoOdl(zagarolo)).toBe(primaZag);
+  });
+
+  it('TUTTI: un .xlsx che master non è viene saltato, gli altri si aggiornano lo stesso', async () => {
+    const { cart, labico, exportPath, c } = await scenarioComuni('intruso');
+    // capita: qualcuno lascia un'estrazione nella cartella dei master
+    await scriviXlsx(path.join(cart, 'ESTRAZIONE VARIA.xlsx'), 'Foglio1', [['Pippo', 'Pluto'], ['a', 'b']]);
+    const report = await eseguiGiroAcea({
+      cfg: c, target: 'TUTTI', stamp: 's', driver: async () => exportPath, nowMs: 804000,
+    });
+
+    const intruso = report.file.find((f: { file: string }) => f.file === 'ESTRAZIONE VARIA.xlsx');
+    expect(intruso.saltato).toBe(true);
+    expect(intruso.errore).toMatch(/colonne/i);
+    expect(report.erroreGlobale).toBeUndefined();
+    expect(await statoOdl(labico)).toBe('completato'); // il giro è proseguito
+  });
 });

@@ -20,6 +20,7 @@ type ConfigRow = {
   esito_negativo: string | null;
   ultima_rivendicazione_giorno: string | null;
   forza_giro: boolean;
+  forza_giro_comune: string | null;
   forza_scan: boolean;
   pianifica_data: string | null;
   forza_acea_stato: boolean;
@@ -47,7 +48,7 @@ export async function POST(req: Request) {
     const { data: cfg, error: cfgErr } = await supabaseAdmin
       .from('agente_config')
       .select(
-        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_scan, pianifica_data, forza_acea_stato, acea_target, forza_acea_assegna, acea_assegna_data, acea_assegna_dry, forza_acea_sal',
+        'enabled, giorni, ora, dry_run, finestra_giorni, mappatura, esito_positivo, esito_negativo, ultima_rivendicazione_giorno, forza_giro, forza_giro_comune, forza_scan, pianifica_data, forza_acea_stato, acea_target, forza_acea_assegna, acea_assegna_data, acea_assegna_dry, forza_acea_sal',
       )
       .eq('id', 1)
       .single();
@@ -66,11 +67,10 @@ export async function POST(req: Request) {
     // 3) snapshot colonne per file (best-effort, non blocca la decisione)
     const files = Array.isArray(body.files) ? body.files : [];
     if (files.length > 0) {
-      const nomi = files.map((f) => f.nome);
+      const nomi = new Set(files.map((f) => f.nome));
       const { data: prevRows } = await supabaseAdmin
         .from('agente_file_colonne')
-        .select('file, colonne')
-        .in('file', nomi);
+        .select('file, colonne');
       const precedentiByFile = new Map<string, string[]>();
       for (const r of (prevRows ?? []) as Array<{ file: string; colonne: string[] | null }>) {
         precedentiByFile.set(r.file, r.colonne ?? []);
@@ -89,6 +89,12 @@ export async function POST(req: Request) {
         };
       });
       await supabaseAdmin.from('agente_file_colonne').upsert(upserts, { onConflict: 'file' });
+      // La scansione è la fotografia completa della cartella: i file spariti vanno rimossi, altrimenti
+      // le righe fantasma (es. un master rinominato) restano per sempre e finiscono nel menù comuni.
+      const fantasma = [...precedentiByFile.keys()].filter((f) => !nomi.has(f));
+      if (fantasma.length > 0) {
+        await supabaseAdmin.from('agente_file_colonne').delete().in('file', fantasma);
+      }
       // colonne fresche consegnate: azzera la richiesta di ri-scan ("Aggiorna tabella")
       if (config.forza_scan === true) {
         await supabaseAdmin.from('agente_config').update({ forza_scan: false }).eq('id', 1);
@@ -110,10 +116,17 @@ export async function POST(req: Request) {
         ultimaRivendicazione: config.ultima_rivendicazione_giorno,
       });
 
-    // 5) se si esegue: rivendica il giorno e (se forzato) azzera il flag one-shot
+    // Filtro comune del giro: vale SOLO per il lancio manuale ("Esegui ora"), mai per lo
+    // schedulato — che deve girare su tutti i comuni. Letto PRIMA dell'azzeramento one-shot.
+    const syncComune = forzato ? (config.forza_giro_comune ?? null) : null;
+
+    // 5) se si esegue: rivendica il giorno e (se forzato) azzera i flag one-shot
     if (eseguiOra) {
       const patch: Record<string, unknown> = { ultima_rivendicazione_giorno: parti.oggi };
-      if (forzato) patch.forza_giro = false;
+      if (forzato) {
+        patch.forza_giro = false;
+        patch.forza_giro_comune = null;
+      }
       const { error: claimErr } = await supabaseAdmin
         .from('agente_config')
         .update(patch)
@@ -148,6 +161,7 @@ export async function POST(req: Request) {
         esitoPositivo: config.esito_positivo ?? 'eseguito',
         esitoNegativo: config.esito_negativo ?? 'No',
         forzaScan: config.forza_scan === true,
+        syncComune,
         pianificaData: config.pianifica_data ?? null,
         aceaStato,
         aceaTarget: config.acea_target ?? 'dunning',

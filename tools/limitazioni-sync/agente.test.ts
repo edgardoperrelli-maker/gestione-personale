@@ -959,3 +959,87 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(upg.notaPrecedente).toBe('nessun passaggio');
   });
 });
+
+// Il COMUNE è il nome del file master. Il filtro serve al lancio manuale ("Esegui ora" su un solo
+// comune); il giro schedulato non lo passa e deve continuare a fare TUTTI i comuni.
+describe('eseguiGiro — filtro comune', () => {
+  async function creaFileComune(file: string, comune: string, odl: string, matricola: string) {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Foglio1');
+    const h = ws.getRow(1);
+    h.getCell(6).value = 'ORDINE';
+    h.getCell(9).value = 'MATRICOLA';
+    h.getCell(64).value = 'Località';
+    h.getCell(67).value = 'esito';
+    const r2 = ws.getRow(2);
+    r2.getCell(6).value = odl; r2.getCell(9).value = matricola; r2.getCell(64).value = comune;
+    await wb.xlsx.writeFile(file);
+  }
+
+  const LAVORI = [
+    { id: 'z', odl: '912214968', matricola: '202115410195', comune: 'ZAGAROLO', via: 'VIA X 1',
+      esecutore: 'DIONISI', data_esecuzione: '2026-07-15', esito: 'eseguito', esitoOk: true, manuale: false },
+    { id: 'l', odl: '912350788', matricola: '202415625500', comune: 'LABICO', via: 'VIA Y 2',
+      esecutore: 'PASTORELLI', data_esecuzione: '2026-07-16', esito: 'eseguito', esitoOk: true, manuale: false },
+  ];
+
+  async function scenario(nome: string) {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), `limsync-${nome}-`));
+    const zag = path.join(dir, 'ZAGAROLO.xlsx');
+    const lab = path.join(dir, 'LABICO.xlsx');
+    await creaFileComune(zag, 'ZAGAROLO', '912214968', '202115410195');
+    await creaFileComune(lab, 'LABICO', '912350788', '202415625500');
+    return { dir, zag, lab };
+  }
+
+  const giroComune = (dir: string, comune?: string) => eseguiGiro({
+    cartella: dir, lavori: LAVORI, dryRun: false, stamp: '20260715-2100',
+    mappatura: [{ campo: 'esito', colonna: 'esito', abilitato: true }],
+    esitoPositivo: 'eseguito', esitoNegativo: 'No', comune,
+  });
+
+  async function esitoDi(file: string) {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    return wb.worksheets[0].getRow(2).getCell(67).value ?? '';
+  }
+
+  it('nessun comune (giro schedulato delle 21) → tutti i comuni, come da sempre', async () => {
+    const { dir, zag, lab } = await scenario('tutti');
+    const r = await giroComune(dir);
+    expect(r.comune).toBe('TUTTI');
+    expect(await esitoDi(zag)).toBe('eseguito');
+    expect(await esitoDi(lab)).toBe('eseguito');
+  });
+
+  it('un comune → scrive solo il suo master, gli altri restano intatti', async () => {
+    const { dir, zag, lab } = await scenario('uno');
+    const r = await giroComune(dir, 'LABICO');
+    expect(r.file.map((f: { file: string }) => f.file)).toEqual(['LABICO.xlsx']);
+    expect(await esitoDi(lab)).toBe('eseguito');
+    expect(await esitoDi(zag)).toBe('');
+  });
+
+  it('minuscolo/spazi dal menu → aggancia lo stesso il file', async () => {
+    const { dir, lab } = await scenario('case');
+    await giroComune(dir, ' labico ');
+    expect(await esitoDi(lab)).toBe('eseguito');
+  });
+
+  it('col filtro attivo NON segnala gli altri comuni come "senza file master"', async () => {
+    // Rumore da evitare: girando solo Labico, Zagarolo non è un mismatch — non l'abbiamo lavorato.
+    const { dir } = await scenario('rumore');
+    const r = await giroComune(dir, 'LABICO');
+    expect(r.comuniNonAgganciati).toEqual([]);
+    expect(r.extraNonCollocate).toEqual([]);
+  });
+
+  it('comune senza file master → errore esplicito e NESSUNA scrittura (mai degradare a tutti)', async () => {
+    const { dir, zag, lab } = await scenario('assente');
+    const r = await giroComune(dir, 'PALESTRINA');
+    expect(r.erroreGlobale).toMatch(/PALESTRINA/);
+    expect(r.file).toEqual([]);
+    expect(await esitoDi(zag)).toBe('');
+    expect(await esitoDi(lab)).toBe('');
+  });
+});
