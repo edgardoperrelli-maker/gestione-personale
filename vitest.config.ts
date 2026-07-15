@@ -1,5 +1,8 @@
 import { defineConfig } from 'vitest/config';
 import { fileURLToPath } from 'node:url';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 
 export default defineConfig({
   resolve: {
@@ -20,5 +23,11 @@ export default defineConfig({
     // `.claude/worktrees` contiene checkout git di sessioni passate: NON vanno raccolti,
     // altrimenti copie stale dei test inquinano la run (falsi rossi/verdi) e mascherano le regressioni.
     exclude: ['node_modules', '.next', '**/.claude/**'],
+    env: {
+      // Isola i test dei writer lim-sync dallo stato REALE tools/limitazioni-sync/.sync-watch.json
+      // (baseline clobber SharePoint): senza questa env i test lo inquinavano con path fixture e
+      // una race tra worker ne azzerava le chiavi vere. Dir temp unica per run di vitest.
+      LIMSYNC_WATCH_STATE: join(mkdtempSync(join(tmpdir(), 'limsync-watch-test-')), '.sync-watch.json'),
+    },
   },
 });

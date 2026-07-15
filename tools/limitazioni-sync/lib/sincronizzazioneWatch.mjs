@@ -9,11 +9,16 @@
 // segnala se il file è cambiato nel frattempo — così il report lo rende VISIBILE.
 //
 // Stato locale (NON nella cartella sincronizzata): tools/limitazioni-sync/.sync-watch.json.
+// Il default è sovrascrivibile con la env LIMSYNC_WATCH_STATE (letta a ogni chiamata): la usa
+// vitest.config.ts per puntare i test a uno stato temporaneo, così i test dei writer non
+// inquinano (né azzerano per race) le baseline REALI — è già successo: run vitest del 14/07
+// ha riempito lo stato reale di path fixture e perso la baseline di ZAGAROLO.xlsx.
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const DEFAULT_STATE = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', '.sync-watch.json');
+const statePathDefault = () => process.env.LIMSYNC_WATCH_STATE || DEFAULT_STATE;
 
 function leggiStato(statePath) {
   try {
@@ -25,7 +30,14 @@ function leggiStato(statePath) {
 
 function salvaStato(statePath, stato) {
   try {
-    fs.writeFileSync(statePath, JSON.stringify(stato, null, 2), 'utf8');
+    // Scrittura ATOMICA (tmp + rename nella stessa cartella): un lettore concorrente non vede
+    // mai un JSON mezzo scritto (la race leggiStato→{}→salvataggio azzerava le baseline).
+    // Qui è lecita: questo è lo stato LOCALE dell'agente, non un master SharePoint (dove il
+    // temp+rename è vietato perché genera copie di conflitto).
+    fs.mkdirSync(path.dirname(statePath), { recursive: true });
+    const tmp = `${statePath}.${process.pid}.tmp`;
+    fs.writeFileSync(tmp, JSON.stringify(stato, null, 2), 'utf8');
+    fs.renameSync(tmp, statePath);
   } catch {
     /* best-effort: l'osservabilità non deve mai far fallire un giro */
   }
@@ -46,7 +58,7 @@ function stat(masterPath) {
  * Va chiamato PRIMA che il writer sovrascriva il file (legge la versione ancora su disco).
  * @returns null se non c'è baseline o il file è invariato; altrimenti un avviso di clobber.
  */
-export function verificaModificaEsterna(masterPath, { statePath = DEFAULT_STATE } = {}) {
+export function verificaModificaEsterna(masterPath, { statePath = statePathDefault() } = {}) {
   const attuale = stat(masterPath);
   if (!attuale) return null;
   const prec = leggiStato(statePath)[masterPath];
@@ -67,7 +79,7 @@ export function verificaModificaEsterna(masterPath, { statePath = DEFAULT_STATE 
  * Registra mtime+size della versione appena scritta dall'agente, come baseline per il giro dopo.
  * Va chiamato SUBITO DOPO la scrittura del master. Best-effort: non lancia mai.
  */
-export function registraScrittura(masterPath, { statePath = DEFAULT_STATE, nowIso = new Date().toISOString() } = {}) {
+export function registraScrittura(masterPath, { statePath = statePathDefault(), nowIso = new Date().toISOString() } = {}) {
   const attuale = stat(masterPath);
   if (!attuale) return;
   const stato = leggiStato(statePath);
