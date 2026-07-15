@@ -32,6 +32,34 @@ sospeso" per sempre. Soluzione: backup → **aprire il file in Excel su questo P
 co-authoring a livello cella, nessuna perdita da nessun lato) → chiudere → "Disponibile".
 **MAI spostare/cancellare il locale**: OneDrive propaga la DELETE al server.
 
+### DUNNING è SANO — non ripetere la procedura di ZAGAROLO (verificato 15/07, 16 agenti)
+
+L'utente segnala lo stesso WARN su `LIMITAZIONI CON ORDINE.xlsx` e chiede se ha lo stesso problema.
+**No: è fisiologico.** Le tre firme della patologia sono assenti e ribaltate:
+
+| segnale | ZAGAROLO (malato) | DUNNING (verificato) |
+|---|---|---|
+| mtime | tornava **indietro** | **avanza** (+760s dall'ultima scrittura agente) |
+| OneDrive | "In sospeso" per 19h | **"Disponibile su questo dispositivo"** |
+| dati agente | assenti dal server | **28/28 celle vive**, 0 perse |
+
+Le scritture di un giro sono sopravvissute a **3 clobber consecutivi**. Due prove indipendenti che
+il co-authoring stava fondendo bene: l'ufficio ha inserito 4 righe e i valori dell'agente si sono
+**traslati insieme alle righe**; e la **catena di custodia** su 4 giri (il campo "era: X" di ogni
+giro coincide con ciò che l'agente aveva scritto al giro prima) regge attraverso i clobber — in
+divergenza permanente si spezzerebbe. Zero lock `~$`, zero copie di conflitto.
+⚠️ **NON aprire DUNNING in Excel**: non c'è niente da fondere. L'agente si auto-ripara comunque
+(riscrive ogni ODL dove master ≠ portale, `aggiornaStatoXlsx.mjs:222-236`).
+
+**PR #102 — il difetto era il TESTO, non i dati.** Il WARN diceva "è stata SOVRASCRITTA" contro
+28/28 celle vive: un allarme che grida al lupo a ogni salvataggio legittimo si smette di leggere,
+e quello è **l'unico allarme che copre la divergenza vera**. Ipotesi testata e **REFUTATA**: il WARN
+NON è rumore strutturale — fuori orario tace (file invariato per 10,5h di notte, giro delle 06:46
+con clobber=0), è un rilevatore fedele di "l'ufficio ha salvato". Fix: **il discriminante è l'mtime
+che torna INDIETRO**, non "è cambiato" → nuovo campo `mtimeIndietro` in `verificaModificaEsterna` +
+`segnalaClobber` (unico posto in cui si decide il testo: INFO onesto se l'mtime avanza, WARN col
+rimedio solo se retrocede). Verificato sullo stato reale: DUNNING → INFO, ZAGAROLO → nessun avviso.
+
 ## FILONE 4 — Template «Ibrido acea» (limitazioni massive + limitazioni/sospensioni)
 
 Nuova richiesta (ATLAS `5d33e41f`): un **unico** template rapportino "Ibrido acea" per fare nello
@@ -71,17 +99,22 @@ l'agente funzioni, poi rendere i giri scegli-il-comune "così da farlo girare se
   prova: `_log/20260714-2001-acea-zagarolo.json` riporta 2869 non agganciate, **di cui esattamente
   525 nel range Labico** (= le 525 righe del file). `stato odl` non si sarebbe mai popolata.
 
-### Cosa è stato fatto
-- **PR #97 (MERGED) — parser import censiti, alias `Ordine` → odl.** Le estrazioni ACEA per comune
-  intestano le colonne diversamente da quella usata per Zagarolo: `Ordine` (non `Ods/odl`) e
-  `Impianto` (non `PDR`). L'import di Labico sarebbe entrato **senza ODL e senza PDR**.
-- **PR #99 (APERTA ⚠️) — `Impianto` → pdr.** La #97 è stata mergiata mentre il secondo commit era
-  ancora in volo: su main è finito **solo** l'alias `Ordine`. Verificato su `origin/main`
-  (`PATTERN.pdr` è ancora quello vecchio). **Va mergiata PRIMA dell'import**, altrimenti i 525
-  censiti entrano col PDR vuoto e vanno ricaricati.
-  Su `LABICO.xlsx` reale: odl 0→**525/525** (già in prod), pdr 0→**525/525** (solo con la #99).
-- **PR #98 (MERGED) — selettore comune** su entrambi i giri + migration `forza_giro_comune`
+### Cosa è stato fatto — TUTTO MERGED E IN PRODUZIONE (main `08b4943`)
+- **PR #97 + #99 — parser import censiti.** Le estrazioni ACEA per comune intestano le colonne
+  diversamente da quella usata per Zagarolo: `Ordine` (non `Ods/odl`) e `Impianto` (non `PDR`);
+  l'import di Labico sarebbe entrato **senza ODL e senza PDR**. Su `LABICO.xlsx` reale: odl e pdr
+  da 0/525 a **525/525**. ⚠️ La #97 era stata mergiata **a metà** (il commit `Impianto`→pdr era
+  ancora in volo) → ripresentato nella #99. Da qui la regola: verificare sempre che il merge abbia
+  preso TUTTI i commit del ramo.
+- **PR #98 — selettore comune** (API + agente + `/hub/agente`) + migration `forza_giro_comune`
   (**applicata via MCP**, autorizzata dall'utente perché il tick era già in 500 dopo il merge).
+- **PR #101 — selettore comune anche nelle FOGLIE** (`/hub/assegnazione-ai`: ACEA › Limitazioni
+  massive › Aggiorna ODL / Sincronizza rapportini). La #98 l'aveva messo solo in `/hub/agente`, ma
+  l'operatività passa dalle foglie — e lì `AggiornaStatoOdl.tsx:25` mandava `target: 'zagarolo'`
+  **inchiodato**: il bug che la #98 doveva chiudere era sopravvissuto nella schermata che si usa.
+  Lezione: quando l'utente indica un percorso tipo "modulo ACEA/LIMITAZIONI MASSIVE/AGGIORNA ODL",
+  sta parlando delle FOGLIE, non dei bottoni di `/hub/agente`.
+- **PR #102 — il WARN clobber non mente più** (vedi Filone 2, sezione DUNNING).
 
 ### Key decisions
 
@@ -111,9 +144,14 @@ l'agente funzioni, poi rendere i giri scegli-il-comune "così da farlo girare se
 - **`ZAGAROLO 1.xlsx` come comune** → era una riga fantasma: l'upsert di `agente_file_colonne`
   non cancellava mai i file spariti. Ora la scansione è la foto completa della cartella.
 
-### Stato attuale
-**Funziona**: tick verificato in produzione (heartbeat a 24s dal deploy → app nuova + agente nuovo
-+ colonna nuova girano insieme). Repo dell'agente allineato (`git pull` fatto, HEAD `ad9119f`).
+### Stato attuale — LABICO È OPERATIVO
+**Fatto tutto**: PR #97/#98/#99/#101/#102 mergiate, migration applicata, **"Aggiorna tabella" premuto**
+(scan 13:13:48 → `agente_file_colonne` ora ha SOLO `LABICO.xlsx` e `ZAGAROLO.xlsx`, entrambi
+`is_master=true`; le 2 righe fantasma cancellate), **import dei censiti di Labico ESEGUITO**,
+selettore comune visibile nelle foglie. Repo dell'agente allineato (`git pull` fatto, HEAD `08b4943`).
+
+**Funziona**: tick verificato in produzione sui log Vercel (i 500 stanno tutti nella finestra
+12:26:47–12:34:23, cioè fra il merge e la migration; da lì solo 200).
 
 **`config.json` locale NON toccato** (ha ancora il blocco `zagarolo`, nessun `massive`): la
 retro-compatibilità è stata verificata sul config **vero** —
@@ -162,7 +200,10 @@ eseguiGiro({ ..., comune })                        // assente sul giro schedulat
 - ⚠️ **Verificare che un merge abbia preso TUTTI i commit del ramo**
   (`git merge-base --is-ancestor <ramo> origin/main`): la #97 è stata mergiata a metà e la cosa è
   emersa per puro caso, controllando prima di rimuovere il worktree.
-- Suite: `npx vitest run` → 236 file / 1765 test verdi a fine sessione.
+- ⚠️ **Un WARN di clobber NON è una perdita di dati.** Prima di allarmarsi (o di "riconciliare" un
+  file sano) si verifica sui DATI: rileggere le celle che l'agente dice di aver scritto. Dal PR #102
+  il log lo dice da solo: INFO = benigno, WARN "DIVERGENZA" = mtime indietro = azionabile.
+- Suite: `npx vitest run` → 236 file / 1765 test verdi (lim-sync: 27 file / 218).
 
 ### Aperture / follow-up
 1. **Strutturale contesa ZAGAROLO**: spostare i giri fuori orario ufficio o upload via
@@ -176,17 +217,19 @@ eseguiGiro({ ..., comune })                        // assente sul giro schedulat
    gitignorato: resta untracked e rischia di finire in un `git add -A`.
 
 ## Next step
-0. **Mergiare la PR #99** (`Impianto` → pdr): senza, l'import del punto 2 entra col PDR vuoto.
-1. **Premere "Aggiorna tabella"** in `/hub/agente`: senza, Labico resta `is_master=false` a DB e
-   **non compare nel menù comuni** (lo scan è quello delle 06:40). Un click → l'agente ri-scansiona,
-   Labico appare e spariscono le 2 righe fantasma (`ZAGAROLO 1.xlsx`, `INTERVENTI_… (version 1)`).
-2. **Importare `LABICO.xlsx`** da Estrazione misuratori → dataset **Limitazioni** → committente
-   **Acea**: 525 censiti con ODL e PDR → il "+" lim_massive autofilla l'anagrafica.
-3. Domani, dopo il primo giro reale su Labico: controllare in `/hub/agente` che `stato odl` di
-   LABICO.xlsx si popoli (target `Tutti i comuni` o `Labico`).
-4. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file (quasi mai è
-   il codice — vedi memoria `acea-zagarolo-sync-coauthoring`).
+
+**Labico non ha più passi bloccanti: parte domani.** Restano verifiche e code.
+
+1. **DOMANI (16/07), dopo il primo giro reale su Labico**: controllare che le colonne di
+   lavorazione di `LABICO.xlsx` si popolino col giro delle 21 (schedulato, tutti i comuni) e che
+   `stato odl` si popoli lanciando **Aggiorna stato ODL** con target `Tutti i comuni` (o `Labico`)
+   dalle foglie. È il primo giro con dati veri: fin qui è stato tutto provato in dry-run/simulazione.
+2. **Applicare al prod la seed `20260715150000_ibrido_acea_template.sql`** (FILONE 4): il template
+   "Ibrido acea" non esiste ancora a DB. In alternativa ricrearlo dall'editor Template rapportini.
+3. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file (quasi mai è il
+   codice — vedi memoria `acea-zagarolo-sync-coauthoring`). Ora il log aiuta: **INFO** = l'ufficio ha
+   salvato, tutto normale; **WARN "DIVERGENZA"** = mtime tornato indietro, lì sì che serve aprire il
+   file in Excel su questo PC.
+4. **Strutturale contesa** (vedi Aperture 1): finché i giri girano in orario d'ufficio, i clobber
+   benigni continueranno. Non è un guasto, ma è la ragione per cui l'osservabilità va tenuta pulita.
 5. Follow-up performance restanti: ROADMAP.md → sezione Performance.
-6. **Applicare al prod la seed `20260715150000_ibrido_acea_template.sql`** (FILONE 4): il template
-   "Ibrido acea" non esiste ancora a DB. In alternativa, ricrearlo identico dall'editor Template
-   rapportini (committente Acea, campi come da seed).
