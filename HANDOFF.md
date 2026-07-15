@@ -1,19 +1,14 @@
-# Handoff — Perf: lentezza nel passaggio tra moduli (2026-07-15)
+# Handoff — 2026-07-15: due filoni (perf Riepilogo rapportini + agente lim-sync)
 
-## Goal
-Task ATLAS `b48c3630-5e45-4233-ba3c-964c2c4cd53c`: capire perché il passaggio da un
-modulo all'altro è lento e, se opportuno, indicizzare Supabase. Fatta la diagnosi
-completa (11 agenti su tutti i moduli + analisi DB con pg_stat_statements e advisor)
-e applicati i fix a maggior impatto, lato DB e lato frontend.
-
-## Aggiornamento 2026-07-15 (post-merge PR #94): Riepilogo rapportini
-La PR #94 (tutti i fix sotto) è **mergiata in `main` e in produzione**. Nuova richiesta:
-velocizzare il modulo **Riepilogo rapportini** (`/hub/mappa?vista=riepilogo`), che dal
-Network dell'utente mostrava `GET /api/mappa/rapportini/riepilogo` a **4,71s** (tutte le
-altre richieste < 660ms). Causa: la route scansionava `rapportino_voci` DUE volte — una
-per contare le voci, una col JSONB `risposte` per le foto in sospeso — paginando a 1000
-righe e conteggiando in JS (~6300 righe ×2 su finestra 30gg, ~14 round-trip).
-Fix (branch ripartito da `main` con ff, PR nuova da aprire):
+## FILONE 1 — Perf: Riepilogo rapportini (IN CORSO, PR da aprire)
+La PR #94 (perf navigazione moduli + Assegnazione AI: dettagli storici in ROADMAP.md →
+Performance e nei body di PR #90/#94) è **mergiata in `main` e in produzione**. Nuova
+richiesta: velocizzare il modulo **Riepilogo rapportini** (`/hub/mappa?vista=riepilogo`),
+che dal Network dell'utente mostrava `GET /api/mappa/rapportini/riepilogo` a **4,71s**
+(tutte le altre richieste < 660ms). Causa: la route scansionava `rapportino_voci` DUE
+volte — una per contare le voci, una col JSONB `risposte` per le foto in sospeso —
+paginando a 1000 righe e conteggiando in JS (~6300 righe ×2 su finestra 30gg, ~14
+round-trip). Fix (branch ripartito da `main` con ff, PR nuova da aprire):
 - **Migration `20260715120000_riepilogo_conteggi_voci_rpc.sql`** (già applicata al
   progetto `aceztqfebringeaebvce`): RPC `riepilogo_conteggi_voci(rap_ids uuid[])` →
   `(rapportino_id, n_voci, foto_in_sospeso)` in una passata (indice `idx_voci_rapportino`);
@@ -27,144 +22,87 @@ Fix (branch ripartito da `main` con ff, PR nuova da aprire):
   (wrapper DB-scanning ora inutili). Tenuta la util pura `utils/rapportini/fotoInSospeso.ts`.
 - Verifica: tsc/eslint/vitest (1712) verdi; advisor security: 0 lint sulla nuova funzione.
 
-## Diagnosi (cause in ordine di impatto)
-1. **Remount dell'intera shell a ogni navigazione**: `app/layout.tsx` avvolgeva TUTTO
-   in `PageTransitionWrapper` con `key={pathname}` → a ogni cambio modulo React
-   smontava/rimontava AppShell, Sidebar, TopBar, NovitaCenter, RichiesteManualiProvider:
-   3 fetch `/api/annunci`, 2 fetch admin, 2 canali realtime distrutti/ricreati, flicker.
-   In più il wrapper era duplicato (root + hub layout) → doppia animazione annidata.
-2. **`AnimatePresence mode="wait"` + spring 300/30**: exit (~300-450ms) DOPO l'arrivo
-   dei dati, POI enter → ~600-900ms di sola animazione per ogni cambio modulo.
-3. **Nessun `loading.tsx` sotto `/hub`**: layout e pagine sono `force-dynamic`, quindi
-   al click niente feedback finché il server non finiva middleware+auth+query.
-4. **Niente router cache**: `staleTimes` non configurato (default 0 per route dinamiche)
-   → ogni ritorno su un modulo già visitato ripagava l'intero round-trip RSC.
-5. **Doppia auth di rete per navigazione**: middleware `getUser()` (rete) + layout
-   `getUser()` (rete di nuovo) + query `profiles` — 278k chiamate a `auth.users` nel DB.
-6. **DB**: `interventi` 20.038 seq scan (123M righe lette), `interventi_manuali` 44.018
-   seq scan (44k arrivano dal polling 60s di RichiesteManualiProvider + PI), DELETE di
-   `interventi` a 32ms l'uno per FK non indicizzate sulle tabelle figlie, 22 policy RLS
-   con `auth.uid()/auth.role()` rivalutato PER RIGA (advisor `auth_rls_initplan`),
-   31 FK senza indice.
+## FILONE 2 — Agente lim-sync: esiti "non riportati", regole positivo, ZAGAROLO riconciliato (CONCLUSO)
 
-## Cosa è cambiato (questa PR)
-### Frontend
-- `app/layout.tsx`: **rimosso** PageTransitionWrapper dal root → la shell resta montata,
-  transizione solo sul contenuto (nei layout hub/dashboard, dove già c'era).
-- `components/layout/PageTransitionWrapper.tsx`: enter-only (niente AnimatePresence
-  `mode="wait"`), tween 0.16s easeOut al posto dello spring.
-- `lib/animations.ts`: `pageTransition` senza exit, nuovo `pageTransitionTween`
-  (rimosso `pageTransitionSpring`), stagger ridotto (0.03, delay 0).
-- `app/hub/loading.tsx` + `app/dashboard/loading.tsx`: **nuovi** skeleton → feedback
-  immediato al click in sidebar.
-- `next.config.mjs`: `experimental.staleTimes { dynamic: 30, static: 180 }` → i moduli
-  rivisitati entro 30s escono dalla router cache senza round-trip.
-- `app/hub/layout.tsx` + `app/dashboard/layout.tsx`: `getUser()` → `getSession()`
-  (legge il JWT dal cookie, zero rete). Sicuro perché il middleware — che NON è stato
-  toccato (vietato da AGENTS.md) — fa già `getUser()` convalidato su ogni richiesta
-  matchata e redirige se non valida.
-- `components/layout/CampanelloRichieste.tsx`: `<a href>` → `<Link>` (prima faceva un
-  full page reload).
+### Goal
+Due segnalazioni di "bug" (esiti positivi non riportati sul master ZAGAROLO) → diagnosi:
+il codice era corretto, il canale era rotto (OneDrive/co-authoring). Nel percorso sono
+state irrobustite le regole di scrittura dell'agente (3 PR mergiate) e riconciliata la
+divergenza del file. **Stato finale: tutto allineato e verificato.**
 
-### Database (migration `supabase/migrations/20260715090000_perf_indici_moduli_rls_initplan.sql`)
-**GIÀ APPLICATA** al progetto Supabase `aceztqfebringeaebvce` via MCP `apply_migration`.
-- 12 indici mirati: `interventi(committente, assegnato_at)` (KPI dashboard: da seq scan
-  a Index Scan 0.07ms, verificato con EXPLAIN ANALYZE), `interventi_manuali(fonte,
-  stato, area_codice)` (PI + polling admin), FK dei percorsi DELETE
-  (`interventi_manuali.intervento_id`, `misuratori_riconsegna.intervento_id`,
-  `interventi.riconciliazione_rif_id`), `rapportini(data, staff_id)`,
-  `acea_assegnazioni_log(data_assegnazione, creato_il desc)`,
-  `pi_contabilita_righe(intervento_id)`, `misuratori_rimossi` (sort + FK),
-  `assignments(staff_id)` e `(territory_id)`.
-- 22 policy RLS riscritte con `(select auth.*())` (fix advisor `auth_rls_initplan`,
-  stessa semantica): annunci_visti, assignments, audit_log, calendar_days,
-  hotel_bookings, profiles, sopralluoghi, sopralluoghi_pdf_generati.
+### Cosa è stato fatto (tutto MERGED su main + deploy Vercel)
+1. **PR #91 — il positivo vince SEMPRE** (`tools/limitazioni-sync`):
+   - `cellaEsitoDaSovrascrivere` (lib/scrittura.mjs): il positivo sovrascrive QUALSIASI
+     esito non-positivo in cella (anche testo libero tipo "NO PASSAGGIO", anche su righe
+     a mano), non più solo il "No" canonico.
+   - Upgrade positivo riscrive TUTTI i dati di lavorazione (`CAMPI_FORZA_POSITIVO`:
+     esito/note/esecutore/sigillo/saracinesca + data). Un campo VUOTO del positivo NON
+     cancella il dato a file (solo la nota del negativo viene pulita). Il refresh
+     negativo resta limitato a esito/note/data. Report traccia `*Precedente`.
+2. **PR #92 — test-pollution `.sync-watch.json`**: env `LIMSYNC_WATCH_STATE` (default
+   pigro in `sincronizzazioneWatch.mjs`) impostata da `vitest.config.ts` a una dir temp
+   per run; `salvaStato` atomico (tmp+rename — lecito sullo stato locale, MAI sui master).
+   Stato reale bonificato (125 voci fixture rimosse).
+3. **PR #95 — cognomi composti**: `cognomeDaDisplayName` particle-aware ("DE SANTIS
+   ALESSANDRO" → "DE SANTIS", non "DE"); `risolviEsecutore` retro-compatibile col
+   legacy "DE". Eliminati 27+ conflitti/giro. Bonifica una-tantum fatta (1 cella).
+4. **Riconciliazione ZAGAROLO.xlsx** (procedura che FUNZIONA, ora in memoria):
+   il file era diviso in due versioni divergenti (server = salvataggi ufficio; locale =
+   scritture agente) e OneDrive restava "in sospeso" per sempre. Soluzione: backup →
+   **aprire il file in Excel su questo PC** (merge co-authoring a livello cella, nessuna
+   perdita da nessun lato) → chiudere Excel → "Disponibile". MAI spostare/cancellare il
+   locale (OneDrive propaga la DELETE al server). Forza-giro di ripasso eseguito 12:54:
+   17 righe extra ri-aggiunte, file risalito pulito, ufficio allineato.
 
-## Verifiche fatte
-- `npx tsc --noEmit` ✓ · `npx eslint` sui file toccati ✓ · `npx vitest run` 234 file /
-  1708 test ✓.
-- EXPLAIN ANALYZE della query KPI dashboard: Index Scan sul nuovo indice, 0.07ms.
-- Indici e policy verificati su `pg_indexes` / `pg_policies` dopo l'apply.
-- `next build` locale NON eseguibile in sandbox (manca `supabaseKey`, come da sessioni
-  precedenti): fa fede la build Vercel sulla PR.
+### Verifiche finali (12:54–13:00)
+- Le due lavorazioni segnalate come "non riportate" sono a file con esito positivo,
+  data e dati di lavorazione corretti (identificativi puntuali nella memoria locale
+  `acea-zagarolo-sync-coauthoring`). NB: in un caso il sigillo è stato svuotato DALLA
+  MODIFICA IN APP del 14/07 (rapportino), non dall'agente: se serve va reinserito nel
+  rapportino e l'agente riempie la cella al giro dopo.
+- Zero celle "DE" residue; zero conflitti DE nel giro 12:54 (fix #95 live) ✓
+- Server = locale (v222, 12:54) — sync fluida in entrambe le direzioni ✓
 
-## Follow-up fatto: collo di bottiglia Assegnazione AI (stessa PR)
-Su richiesta ("il modulo assegnazioni ai rimane molto lento") ho profilato il modulo
-con `pg_stat_statements`. Colpevole isolato: la pagina server (`app/hub/assegnazione-ai/
-page.tsx`, e la gemella `app/hub/agente/page.tsx`) faceva
-`agente_run.select('*').order('creato_il').limit(30)`. La tabella ha solo 263 righe ma
-pesa 7.6 MB perché la colonna JSONB `dettaglio` è ~27KB/riga (max 80KB): `select *`
-serializzava ~830KB di JSONB a ogni caricamento. Misura: **93ms medi × 2471 chiamate =
-230s totali**, di gran lunga la query più pesante del modulo — e il polling
-`router.refresh()` ogni 6s la ri-eseguiva in continuazione.
+### Aperture / follow-up
+1. **Strutturale contesa ZAGAROLO**: spostare i giri fuori orario ufficio (oggi girano
+   anche di giorno) o upload via Graph/SharePoint API (`Sites.Selected`, serve IT).
+2. **18 conflitti esecutore residui** (giro 12:54, elenco nel report in /hub/agente):
+   discrepanze REALI ufficio-vs-DB su chi ha eseguito — da rivedere in ufficio, non è
+   un bug. +1 cosmetico "Eseguito" vs "eseguito" (case-sensitive in `decidiScrittura`).
+3. **Finestra agente ancora a 60 giorni** (`agente_config.finestra_giorni`) — era per il
+   recupero ZAGAROLO, riportare a 15 quando si è sicuri.
+4. **3 display_name in ordine inverso** in `staff` (formato NOME COGNOME anziché
+   COGNOME NOME — elenco nella memoria locale `cognome-composto-de-santis`): per loro
+   il "cognome" sui file è in realtà il nome. Fix = correggere l'anagrafica, non il codice.
 
-`dettaglio` serve solo quando l'utente **espande** una card nello storico
-(`StoricoCard.tsx`: `righeModificate(run.dettaglio)` in `open ? ... : []`). Fix:
-- `app/api/admin/agente/run/[id]/route.ts` (**nuovo**): GET admin-gated che ritorna solo
-  `{ dettaglio }` di un singolo giro.
-- `StoricoCard.tsx`: carica `dettaglio` on-demand alla prima espansione (stato locale
-  `dettagli` per id, testo "Caricamento dettaglio…"); se un giro appena eseguito porta
-  già `dettaglio` inline lo usa senza fetch.
-- `lib/agente/uiTypes.ts`: `AgenteRunRow.dettaglio` reso opzionale.
-- Le due `page.tsx`: `select` esplicito delle sole colonne riassuntive (niente `dettaglio`).
+### Gotchas per chi riprende
+- File `tools/limitazioni-sync/**` BLINDATI dal hook `guard-acea.mjs`: modificarli solo
+  su richiesta esplicita + conferma.
+- L'agente gira da QUESTO repo (main) a tick singolo: dopo ogni merge che tocca
+  lim-sync basta `git pull`, niente riavvii (eccetto il driver Playwright
+  `assegnaInterventi.mjs`, che resta in cache del wrapper → riavvio).
+- Il classifier blocca `gh pr merge` di PR proprie e le scritture "di comando" sul DB
+  prod (es. `forza_giro=true`): servono ok espliciti dell'utente in chat, per-azione.
+- Check sync OneDrive di un file: PowerShell `Shell.Application` →
+  `GetDetailsOf(item, 311)` ("Stato di disponibilità"). Lock lato server: REST
+  `GetFileByServerRelativePath(...)/LockedByUser` con browser autenticato — URL esatti
+  nella memoria locale `acea-zagarolo-sync-coauthoring`.
+- Suite lim-sync: `npx vitest run tools/limitazioni-sync` (25 file / 184+ test, tutti
+  verdi a fine sessione).
 
-Verificato con EXPLAIN (json_agg come PostgREST): da **125.9ms a 0.33ms** (~380×),
-buffer letti da 273 a 3. tsc/eslint/vitest (1708) di nuovo verdi.
-
-### Stesso fix esteso ai sotto-moduli (foglie)
-Su richiesta successiva ("applica lo stesso fix ai sotto-moduli"). Le foglie
-`SincronizzaRapportini` e `AggiornaStatoOdl` renderizzano `StoricoCard`, quindi erano
-già coperte dal fix dello storico giri (i `runs` non portano più `dettaglio`). L'unico
-punto residuo con lo stesso pattern è la route **`app/api/admin/agente/acea-esiti/
-route.ts`**, chiamata al mount della foglia `AssegnaOdl` **e in polling ogni 6s**
-(`useAttesaAgente`, `AssegnaOdl.tsx:314`): faceva `select('… dettaglio …')` ma usa solo
-`dettaglio.data`, `dettaglio.scartati.length`, `dettaglio.erroreGlobale`. Ora seleziona
-solo quei sotto-campi con i JSON-path PostgREST
-(`giorno:dettaglio->>data, erroreGlobale:dettaglio->>erroreGlobale, scartati:dettaglio->scartati`),
-così il DB non detoasta/trasferisce l'array `righe`. Nota: per i giri `acea-assegna` il
-`dettaglio` è più piccolo (~0,2–3KB) che per i giri `sync` (~27KB medi), quindi il
-guadagno assoluto qui è minore, ma è coerente e a prova di crescita (giornate grosse)
-su un endpoint pollato.
-- **Verifica**: tsc/eslint/vitest (1708) verdi. La sintassi JSON-path del `.select()` è
-  standard PostgREST/supabase-js ma nuova in questo repo; NON ho potuto testarla via REST
-  perché il proxy dell'ambiente nega `*.supabase.co` (403). Ho però verificato la
-  semantica dei path via SQL diretto (`dettaglio->>'data'`, `dettaglio->'scartati'`). La
-  build/preview Vercel della PR è la verifica runtime — controllare che `acea-esiti`
-  risponda 200 con `ultimoRun` popolato.
-
-## Cosa NON è stato toccato (e perché)
-- `middleware.ts`: vietato da AGENTS.md §11.1 — resta la chiamata di rete `getUser()`
-  per navigazione (documentata in ROADMAP come follow-up con istruzione esplicita).
-- Le query interne dei moduli (doppia scansione rapportino_voci del riepilogo,
-  full-scan di performance/economica, requireAdmin ripetuto nelle API): refactor più
-  invasivi, elencati in ROADMAP.md sezione "Performance" in ordine di impatto.
-- `multiple_permissive_policies` (56 avvisi advisor): consolidare policy duplicate
-  cambia superficie di sicurezza → follow-up dedicato.
-
-## Rischi / cose da tenere d'occhio
-- `staleTimes.dynamic: 30`: entro 30s un ritorno sul modulo mostra lo snapshot cache
-  (i dati client-side si aggiornano comunque via fetch/realtime). Se qualcuno lamenta
-  dati "vecchi di 30 secondi" al rientro, abbassare o rimuovere.
-- `getSession()` nei layout si affida alla convalida del middleware: se un giorno il
-  matcher del middleware smette di coprire `/hub` o `/dashboard`, ripristinare
-  `getUser()` nei layout.
-- Le due policy UPDATE/DELETE permissive di assignments (`upd_auth` + owner) restano
-  entrambe attive come prima: nessun cambio di comportamento.
-
-## Key files & commands
-- Migration: `supabase/migrations/20260715090000_perf_indici_moduli_rls_initplan.sql`.
-- FE: `app/layout.tsx`, `components/layout/PageTransitionWrapper.tsx`,
-  `lib/animations.ts`, `app/hub/loading.tsx`, `app/dashboard/loading.tsx`,
-  `next.config.mjs`, `app/hub/layout.tsx`, `app/dashboard/layout.tsx`,
-  `components/layout/CampanelloRichieste.tsx`.
-- Comandi: `npx tsc --noEmit` · `npx vitest run` · `npx eslint <file>`.
-- DB (Supabase MCP, project `aceztqfebringeaebvce`): advisor con `get_advisors`
-  (performance), query lente in `extensions.pg_stat_statements`, seq scan in
-  `pg_stat_user_tables`.
+### Key files
+- `tools/limitazioni-sync/agente.mjs` (forza/upgrade), `lib/scrittura.mjs`,
+  `lib/match.mjs`, `lib/sincronizzazioneWatch.mjs` (+ env `LIMSYNC_WATCH_STATE`).
+- `lib/limitazione/exportLimMassive.ts` (`cognomeDaDisplayName`, particelle),
+  `lib/agente/risolviEsecutore.ts`.
+- Backup della riconciliazione: cartella `_backup` accanto al master
+  (`ZAGAROLO__pre-riconciliazione-20260715-1245.xlsx`).
 
 ## Next step
-1. Merge PR → ATLAS chiude il task automaticamente (riga `ATLAS-Item:` nel body).
-2. Provare sul preview Vercel il cambio modulo (feedback immediato + transizione
-   breve) e il rientro su un modulo entro 30s (istantaneo da cache).
-3. Attaccare i follow-up in ROADMAP.md → sezione Performance, partendo dalla doppia
-   scansione di `rapportino_voci` nel riepilogo rapportini.
+1. **Filone 1**: aprire la PR del fix Riepilogo rapportini (branch già pronto, migration
+   già applicata) e verificarla sul preview Vercel.
+2. **Filone 2**: decidere l'orario dei giri (fuori orario ufficio, da /hub/agente) e far
+   rivedere in ufficio i 18 conflitti esecutore del giro 12:54.
+3. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file
+   (quasi mai è il codice — vedi memoria `acea-zagarolo-sync-coauthoring`).
+4. Follow-up performance restanti: ROADMAP.md → sezione Performance.
