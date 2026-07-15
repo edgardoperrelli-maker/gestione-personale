@@ -35,8 +35,8 @@
       "Mario Rossi": "ROSSI MARIO"
     },
     "sovrascriviStato": true,
-    "zagarolo": {
-      "masterPath": "C:\\Users\\Edgardo\\Plenzich s.p.a\\Commesse - Documenti\\ANNO 2026\\CP 20260002_ACEA_GU IDRICHE L2\\8_LAVORI\\LIMITAZIONI MASSIVE\\ZAGAROLO.xlsx",
+    "_commento_massive": "Limitazioni massive: UN blocco per TUTTI i comuni. Il comune E' il nome del file: il master e' <cartella>/<COMUNE>.xlsx, quindi un comune nuovo = un file nuovo nella cartella, senza toccare questo config. Niente masterPath qui. (Retro-compat: un vecchio blocco per-comune col suo masterPath, es. \"zagarolo\", continua a funzionare e ha la precedenza.)",
+    "massive": {
       "foglio": "Foglio1",
       "masterColonnaOdl": "ORDINE",
       "masterColonnaStato": "stato odl",

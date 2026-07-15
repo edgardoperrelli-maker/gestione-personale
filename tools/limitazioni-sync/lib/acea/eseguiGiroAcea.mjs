@@ -9,6 +9,7 @@ import { acquisisci, rilascia } from './lock.mjs';
 import { verificaModificaEsterna, registraScrittura } from '../sincronizzazioneWatch.mjs';
 import { loginEdEsporta } from './driver.mjs';
 import { fetchSaracinesche as fetchSaracinescheDefault } from '../apiAgente.mjs';
+import { risolviMaster, elencoMasterMassive } from './risolviMaster.mjs';
 
 function reportBase(extra) {
   return { tipo: 'acea-stato', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], ...extra };
@@ -36,9 +37,19 @@ export async function eseguiGiroAcea({
   baseUrl, exportKey, fetchSaracinesche = fetchSaracinescheDefault, statePath,
 }) {
   const acea = cfg.acea;
-  // target 'zagarolo' = override masterPath/foglio/colonne + regola DA CHIEDERE.
-  // login/ricerca/export/download restano CONDIVISI (stesso download per entrambi i target).
-  const a = (target === 'zagarolo' && acea.zagarolo) ? { ...acea, ...acea.zagarolo } : acea;
+  // Un target = UNO O PIU' master su cui riversare lo STESSO export: 'dunning' (master DUNNING),
+  // '<COMUNE>' (il file del comune nelle limitazioni massive), 'TUTTI' (tutti i comuni).
+  // login/ricerca/export/download restano CONDIVISI: un solo giro Playwright per qualunque target
+  // (ACEA e' lenta e inaffidabile: moltiplicare gli export per comune moltiplicherebbe i fallimenti).
+  const masters = risolviMaster({ acea, target, elencoFile: elencoMasterMassive(cfg.cartella) });
+  if (masters.length === 0) {
+    return reportBase({
+      target,
+      erroreGlobale: `Nessun master per il target "${target}": manca "${target}.xlsx" nella cartella delle limitazioni massive?`,
+    });
+  }
+  // Il primo master porta login/ricerca/export/download (condivisi, dalla radice del config).
+  const a = masters[0].a;
   const lockPath = path.join(path.dirname(a.masterPath), 'acea.lock');
   if (!acquisisci(lockPath, { nowMs })) {
     return reportBase({ saltato: true, erroreGlobale: 'Giro ACEA già in corso (lock).' });
@@ -81,51 +92,92 @@ export async function eseguiGiroAcea({
     // Saracinesca (dal nostro DB, non dal Cruscotto): SOLO per il DUNNING e solo se la colonna è
     // configurata e l'app ha fornito baseUrl/exportKey. Best-effort: un fetch fallito non deve mai
     // bloccare la scrittura dello Stato Operazione.
-    const saracinescaMap = (target === 'dunning' && a.masterColonnaSaracinesca && baseUrl && exportKey)
+    const eDunning = String(target ?? 'dunning').trim().toLowerCase() === 'dunning';
+    const saracinescaMap = (eDunning && a.masterColonnaSaracinesca && baseUrl && exportKey)
       ? await caricaSaracinescaMap({ baseUrl, exportKey, fetchSaracinesche })
       : null;
 
-    // Osservabilità: il master è cambiato tra l'ultima scrittura dell'agente e ora? (clobber SharePoint).
-    // Va letto PRIMA di sovrascrivere. Best-effort: non deve mai bloccare la scrittura.
-    const avvisoClobber = verificaModificaEsterna(a.masterPath, { statePath });
-    if (avvisoClobber) {
-      console.error(`[lim-sync] ⚠ ${path.basename(a.masterPath)}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
-        ` (ora mtime ${avvisoClobber.attuale.mtimeIso}${avvisoClobber.probabileServer ? ', versione dal server' : ''}).` +
-        ` Probabile file aperto/salvato da altri su SharePoint.`);
+    // Lo STESSO export viene riversato su ogni master del target (uno solo, salvo 'TUTTI').
+    const fileReport = [];
+    let invariate = 0;
+    let daChiedereTot = 0;
+    let saracinescaScritte = 0;
+    let avvisoClobber = null;
+    // "Non agganciate" = ODL che non trovano riga in NESSUNO dei master lavorati (intersezione).
+    // Per-master sarebbe fuorviante: con 'TUTTI' gli ODL di Labico sono "non agganciati" su
+    // ZAGAROLO.xlsx solo perche' stanno nell'altro file.
+    let nonAgganciate = null;
+
+    for (const { a: m } of masters) {
+      const nome = path.basename(m.masterPath);
+      // Osservabilità: il master è cambiato tra l'ultima scrittura dell'agente e ora? (clobber SharePoint).
+      // Va letto PRIMA di sovrascrivere. Best-effort: non deve mai bloccare la scrittura.
+      const clobber = verificaModificaEsterna(m.masterPath, { statePath });
+      if (clobber) {
+        console.error(`[lim-sync] ⚠ ${nome}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
+          ` (ora mtime ${clobber.attuale.mtimeIso}${clobber.probabileServer ? ', versione dal server' : ''}).` +
+          ` Probabile file aperto/salvato da altri su SharePoint.`);
+        if (!avvisoClobber) avvisoClobber = clobber;
+      }
+
+      // Scrittura CHIRURGICA: tocca solo le celle di Stato Operazione/Saracinesca/Automazione (preserva
+      // AutoFiltro, formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
+      const rep = await aggiornaStatoXlsx(m.masterPath, righe, {
+        foglio: m.foglio,
+        masterColonnaOdl: m.masterColonnaOdl,
+        masterColonnaStato: m.masterColonnaStato,
+        masterColonnaAutomazione: m.masterColonnaAutomazione,
+        masterColonnaSaracinesca: m.masterColonnaSaracinesca,
+        saracinescaMap,
+        daChiedere: m.daChiedereSeVuoto === true,
+        backup: () => backupFile(m.masterPath, stamp),
+      });
+
+      // Un master con le colonne sbagliate non deve far fallire gli altri (con 'TUTTI' puo' capitare
+      // un .xlsx che master non è): lo si salta segnalandolo, il giro prosegue.
+      if (rep.erroreColonne) {
+        fileReport.push({
+          file: nome, master: false, aggiornate: 0, extraAggiunte: 0, conflitti: [], colonneAssenti: [],
+          righe: [], saltato: true,
+          errore: `Master: colonne "${m.masterColonnaOdl}"/"${m.masterColonnaStato}" non trovate.`,
+        });
+        continue;
+      }
+
+      const set = new Set(rep.nonAgganciate ?? []);
+      nonAgganciate = nonAgganciate === null ? set : new Set([...nonAgganciate].filter((o) => set.has(o)));
+
+      invariate += rep.invariate ?? 0;
+      daChiedereTot += rep.daChiedere ?? 0;
+      saracinescaScritte += rep.saracinescaScritte ?? 0;
+      fileReport.push({
+        file: nome, master: true, aggiornate: rep.aggiornate,
+        extraAggiunte: 0, conflitti: rep.conflitti ?? [], colonneAssenti: [], righe: rep.righe,
+        saltato: false, errore: null,
+      });
+
+      // Se l'agente ha davvero scritto, registra la versione appena prodotta come baseline: al giro
+      // successivo `verificaModificaEsterna` saprà dire se è stata sovrascritta da altri (clobber SharePoint).
+      const haScritto = (rep.aggiornate ?? 0) > 0 || (rep.saracinescaScritte ?? 0) > 0 || (rep.daChiedere ?? 0) > 0;
+      if (haScritto) registraScrittura(m.masterPath, { statePath, nowIso: new Date().toISOString() });
     }
 
-    // Scrittura CHIRURGICA: tocca solo le celle di Stato Operazione/Saracinesca/Automazione (preserva
-    // AutoFiltro, formattazione, ordine righe, altri fogli). Backup solo se ci sono modifiche da scrivere.
-    const rep = await aggiornaStatoXlsx(a.masterPath, righe, {
-      foglio: a.foglio,
-      masterColonnaOdl: a.masterColonnaOdl,
-      masterColonnaStato: a.masterColonnaStato,
-      masterColonnaAutomazione: a.masterColonnaAutomazione,
-      masterColonnaSaracinesca: a.masterColonnaSaracinesca,
-      saracinescaMap,
-      daChiedere: a.daChiedereSeVuoto === true,
-      backup: () => backupFile(a.masterPath, stamp),
-    });
-    if (rep.erroreColonne) {
-      return reportBase({ lavori: righe.length, erroreGlobale: `Master: colonne "${a.masterColonnaOdl}"/"${a.masterColonnaStato}" non trovate.` });
+    // Nessun master lavorato (tutti con colonne sbagliate): resta un errore di giro, come prima.
+    if (nonAgganciate === null) {
+      return reportBase({
+        target, lavori: righe.length, file: fileReport,
+        erroreGlobale: fileReport[0]?.errore ?? 'Nessun master aggiornabile.',
+      });
     }
-
-    // Se l'agente ha davvero scritto, registra la versione appena prodotta come baseline: al giro
-    // successivo `verificaModificaEsterna` saprà dire se è stata sovrascritta da altri (clobber SharePoint).
-    const haScritto = (rep.aggiornate ?? 0) > 0 || (rep.saracinescaScritte ?? 0) > 0 || (rep.daChiedere ?? 0) > 0;
-    if (haScritto) registraScrittura(a.masterPath, { statePath, nowIso: new Date().toISOString() });
 
     return reportBase({
       target,
       lavori: righe.length,
-      file: [{
-        file: path.basename(a.masterPath), master: true, aggiornate: rep.aggiornate,
-        extraAggiunte: 0, conflitti: rep.conflitti ?? [], colonneAssenti: [], righe: rep.righe, saltato: false, errore: null,
-      }],
-      extraNonCollocate: rep.nonAgganciate.map((odl) => ({ odl })),
-      invariate: rep.invariate,
-      daChiedere: rep.daChiedere ?? 0,
-      saracinescaScritte: rep.saracinescaScritte ?? 0,
+      file: fileReport,
+      extraNonCollocate: [...nonAgganciate].map((odl) => ({ odl })),
+      invariate,
+      daChiedere: daChiedereTot,
+      saracinescaScritte,
       clobberPrecedente: avvisoClobber || undefined,
       preassegnati,
       portaleSnapshot,

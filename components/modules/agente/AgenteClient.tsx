@@ -1,9 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { RegolaMappa } from '@/lib/agente/decisione';
 import { GIORNI_LABEL, formattaContatto, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
+import { opzioniAceaTarget, opzioniComuneGiro, TARGET_DUNNING, TARGET_TUTTI } from '@/lib/agente/comuni';
 import { StoricoCard } from './StoricoCard';
 import { ColonneCard } from './ColonneCard';
 
@@ -54,9 +55,15 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   const [armMsg, setArmMsg] = useState<string | null>(null);
   const [aceaArming, setAceaArming] = useState(false);
   const [aceaMsg, setAceaMsg] = useState<string | null>(null);
-  const [aceaTarget, setAceaTarget] = useState<'dunning' | 'zagarolo'>('dunning');
+  const [aceaTarget, setAceaTarget] = useState<string>(TARGET_DUNNING);
+  const [giroComune, setGiroComune] = useState<string>(TARGET_TUTTI);
   const [salArming, setSalArming] = useState(false);
   const [salMsg, setSalMsg] = useState<string | null>(null);
+
+  // I comuni sono i file master già scansionati dall'agente (LABICO.xlsx → LABICO):
+  // un comune nuovo compare da solo, senza toccare il codice.
+  const targetOpzioni = useMemo(() => opzioniAceaTarget(files), [files]);
+  const comuneOpzioni = useMemo(() => opzioniComuneGiro(files), [files]);
 
   async function aggiornaStatoAcea() {
     setAceaArming(true); setAceaMsg(null);
@@ -91,7 +98,11 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   async function eseguiOra() {
     setArming(true); setArmMsg(null);
     try {
-      const res = await fetch('/api/admin/agente/esegui-ora', { method: 'POST' });
+      const res = await fetch('/api/admin/agente/esegui-ora', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comune: giroComune }),
+      });
       const j = await res.json().catch(() => ({}));
       setArmMsg(res.ok ? 'Giro armato: parte al prossimo contatto dell\'agente (entro l\'ora).' : `Errore: ${j.error ?? res.status}`);
     } catch (e) {
@@ -310,17 +321,32 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
           >
             {arming ? 'Armo…' : 'Esegui ora'}
           </button>
+          <select
+            value={giroComune}
+            onChange={(e) => setGiroComune(e.target.value)}
+            disabled={arming}
+            className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
+            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+            title="Limita QUESTO giro manuale a un solo comune. Il giro notturno pianificato gira sempre su tutti i comuni."
+            aria-label="Comune del giro manuale"
+          >
+            {comuneOpzioni.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
+          </select>
           {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
           <select
             value={aceaTarget}
-            onChange={(e) => setAceaTarget(e.target.value as 'dunning' | 'zagarolo')}
+            onChange={(e) => setAceaTarget(e.target.value)}
             disabled={aceaArming}
             className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
             style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
             title="Quale master aggiornare con lo stato ODL da ACEA"
+            aria-label="Master da aggiornare con lo stato ODL"
           >
-            <option value="dunning">DUNNING — Limitazioni con ordine</option>
-            <option value="zagarolo">Zagarolo — Limitazioni massive</option>
+            {targetOpzioni.map((o) => (
+              <option key={o.value} value={o.value}>{o.label}</option>
+            ))}
           </select>
           <button
             type="button"

@@ -7,6 +7,9 @@ import { applicaModificheXlsx } from './lib/acea/applicaModificheXlsx.mjs';
 import { verificaModificaEsterna, registraScrittura } from './lib/sincronizzazioneWatch.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
+import { TUTTI, normalizzaComune, filtraFilePerComune } from './lib/comuni.mjs';
+// niente Playwright qui: risolviMaster tocca solo fs/path (eseguiGiroAcea resta a import dinamico).
+import { risolviMaster, elencoMasterMassive } from './lib/acea/risolviMaster.mjs';
 import { decidiScrittura, cellaEsitoNegativa, cellaEsitoDaSovrascrivere } from './lib/scrittura.mjs';
 import { decidiScritturaData, giornoDa, aDataExcel } from './lib/dataCella.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
@@ -75,9 +78,11 @@ function foglioMaster(wb) {
 }
 
 export async function eseguiGiro({
-  cartella, lavori, dryRun, stamp, mappatura, esitoPositivo, esitoNegativo,
+  cartella, lavori, dryRun, stamp, mappatura, esitoPositivo, esitoNegativo, comune,
 }) {
-  const report = { generatoIl: stamp, dryRun: !!dryRun, file: [], extraNonCollocate: [] };
+  const comuneFiltro = normalizzaComune(comune);
+  const filtroAttivo = comuneFiltro !== TUTTI;
+  const report = { generatoIl: stamp, dryRun: !!dryRun, file: [], extraNonCollocate: [], comune: comuneFiltro };
   const regole = (mappatura ?? []).filter((m) => m && m.abilitato);
   const indice = buildIndice(lavori);
   // i perdenti per chiave (es. il "No" superato dal positivo) non devono riaffiorare come extra
@@ -89,10 +94,19 @@ export async function eseguiGiro({
     return report;
   }
 
-  const files = fs
-    .readdirSync(cartella)
-    .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~$'))
-    .map((f) => path.join(cartella, f));
+  // Filtro comune: vale SOLO per il lancio manuale ("Esegui ora" con un comune scelto). Il giro
+  // schedulato non lo passa → TUTTI i comuni, come da sempre.
+  const files = filtraFilePerComune(
+    fs
+      .readdirSync(cartella)
+      .filter((f) => f.toLowerCase().endsWith('.xlsx') && !f.startsWith('~$'))
+      .map((f) => path.join(cartella, f)),
+    comuneFiltro,
+  );
+  if (filtroAttivo && files.length === 0) {
+    report.erroreGlobale = `Nessun file master per il comune "${comuneFiltro}" in ${cartella}`;
+    return report;
+  }
 
   for (const file of files) {
     const fileReport = {
@@ -435,14 +449,22 @@ export async function eseguiGiro({
     report.file.push(fileReport);
   }
 
+  // Con un filtro comune attivo questi due campi vanno valutati SOLO sui lavori dei comuni lavorati:
+  // altrimenti il report griderebbe che tutti gli ALTRI comuni non hanno un file master, quando
+  // semplicemente non li abbiamo lavorati. (I lavori restano tutti: l'aggancio per ODL deve poter
+  // pescare anche righe col comune scritto male, es. "ZAGAROLA".)
+  const lavoriValutabili = filtroAttivo
+    ? (lavori ?? []).filter((l) => comuniConFile.has(norm(l.comune)))
+    : (lavori ?? []);
+
   // extra di comuni senza file
-  report.extraNonCollocate = trovaExtra(lavori, idConsumati)
+  report.extraNonCollocate = trovaExtra(lavoriValutabili, idConsumati)
     .filter((l) => !comuniConFile.has(norm(l.comune)))
     .map((l) => ({ id: l.id, comune: l.comune, matricola: l.matricola, esecutore: l.esecutore }));
 
   // comuni dei lavori che non corrispondono a nessun file master (visibilità mismatch)
   report.comuniNonAgganciati = [...new Set(
-    (lavori ?? []).map((l) => l.comune).filter(Boolean),
+    lavoriValutabili.map((l) => l.comune).filter(Boolean),
   )].filter((c) => !comuniConFile.has(norm(c)));
 
   return report;
@@ -628,10 +650,15 @@ async function main() {
       const report = await eseguiGiroAcea({ cfg, stamp, target: aceaTarget, baseUrl, exportKey: cfg.exportKey });
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
-      console.log(`[lim-sync] giro ACEA (${aceaTarget}): aggiornate=${report.file?.[0]?.aggiornate ?? 0} saracinesca=${report.saracinescaScritte ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
-      // Snapshot MASTER del target letto (audit a tre vie): DUNNING o ZAGAROLO (limitazioni massive).
-      const aceaCfg = aceaTarget === 'zagarolo' && cfg.acea?.zagarolo ? { ...cfg.acea, ...cfg.acea.zagarolo } : cfg.acea;
-      await inviaMasterSnapshot({ baseUrl, exportKey: cfg.exportKey, acea: aceaCfg });
+      // Il target può valere PIÙ master (es. 'TUTTI'): i conteggi si sommano su tutti i file scritti.
+      const masterScritti = report.file ?? [];
+      const aggiornateTot = masterScritti.reduce((s, f) => s + (f.aggiornate ?? 0), 0);
+      console.log(`[lim-sync] giro ACEA (${aceaTarget}): master=${masterScritti.length} aggiornate=${aggiornateTot} saracinesca=${report.saracinescaScritte ?? 0} da-chiedere=${report.daChiedere ?? 0} non-agganciate=${report.extraNonCollocate?.length ?? 0}${report.erroreGlobale ? ' ERR: ' + report.erroreGlobale : ''}`);
+      // Snapshot MASTER di OGNI master del target (audit a tre vie): DUNNING o i comuni delle massive.
+      // L'app fa upsert per ODL, quindi più snapshot in sequenza non si sovrascrivono a vicenda.
+      for (const { a } of risolviMaster({ acea: cfg.acea, target: aceaTarget, elencoFile: elencoMasterMassive(cfg.cartella) })) {
+        await inviaMasterSnapshot({ baseUrl, exportKey: cfg.exportKey, acea: a });
+      }
     } catch (e) {
       console.error(`[lim-sync] giro ACEA fallito: ${e instanceof Error ? e.message : e}`);
     }
@@ -691,6 +718,8 @@ async function main() {
   const report = await eseguiGiro({
     cartella: cfg.cartella, lavori, dryRun: !!dryRun, stamp,
     mappatura, esitoPositivo, esitoNegativo,
+    // scelto nella UI accanto a "Esegui ora"; assente sul giro schedulato → tutti i comuni.
+    comune: ris.syncComune,
   });
 
   try {
