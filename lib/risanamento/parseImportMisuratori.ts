@@ -32,6 +32,18 @@ const PATTERN: Record<Campo, RegExp> = {
   odl: /ods|odl|ordinativo|^ordine$/,
 };
 
+/**
+ * Alias di RIPIEGO: valgono solo se il campo non ha trovato la sua colonna "vera".
+ * Le estrazioni ACEA per comune non hanno una colonna PDR, ma "Impianto" porta lo stesso
+ * identificativo (verificato su ZAGAROLO, che ha entrambi: combaciano cifra per cifra).
+ * Tenerli fuori da PATTERN non è pedanteria: la mappatura assegna a un campo la PRIMA colonna che
+ * matcha, quindi in un file con "Impianto" prima di "PDR" un alias normale ruberebbe il posto al
+ * PDR vero.
+ */
+const RIPIEGO: Partial<Record<Campo, RegExp>> = {
+  pdr: /^impianto$/,
+};
+
 /** Normalizza un'intestazione: minuscolo, senza accenti/diacritici, senza non-alfanumerici. */
 function normHeader(v: unknown): string {
   return String(v ?? '')
@@ -61,6 +73,13 @@ export function parseImportMisuratori(rows: unknown[][]): ParseResult {
     const n = normHeader(h);
     (Object.keys(PATTERN) as Campo[]).forEach((campo) => {
       if (idx[campo] === undefined && PATTERN[campo].test(n)) idx[campo] = i;
+    });
+  });
+  // Seconda passata: i ripieghi riempiono solo i campi rimasti scoperti dalla prima.
+  header.forEach((h, i) => {
+    const n = normHeader(h);
+    (Object.keys(RIPIEGO) as Campo[]).forEach((campo) => {
+      if (idx[campo] === undefined && RIPIEGO[campo]!.test(n)) idx[campo] = i;
     });
   });
 
