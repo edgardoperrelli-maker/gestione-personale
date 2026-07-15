@@ -499,6 +499,59 @@ describe('eseguiGiro: vince il positivo (upgrade negativo→positivo)', () => {
     expect(upg3.esitoPrecedente).toBe('No');
   });
 
+  it('il positivo sovrascrive ANCHE un esito manuale diverso dal negativo esatto (es. "NO PASSAGGIO"); il negativo non tocca i testi liberi', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-posqualsiasi-'));
+    const file = path.join(dir, 'ZAGAROLO.xlsx');
+    await creaFileAutomazione(file);
+    {
+      const wb0 = new ExcelJS.Workbook();
+      await wb0.xlsx.readFile(file);
+      const ws0 = wb0.worksheets[0];
+      ws0.getRow(2).getCell(67).value = 'NO PASSAGGIO';   // esito a mano, testo libero (≠ "No")
+      ws0.getRow(2).getCell(69).value = 'citofono rotto'; // nota a mano
+      ws0.getRow(3).getCell(67).value = 'chiuso';         // testo libero: il NEGATIVO non deve toccarlo
+      await wb0.xlsx.writeFile(file);
+    }
+
+    const report = await eseguiGiro({
+      cartella: dir,
+      lavori: [
+        { id: 'pos', odl: '912231020', matricola: '20000020750', comune: 'ZAGAROLO', via: 'VIA X 1',
+          esecutore: 'CIARALLO', data_esecuzione: '2026-06-18', esito: 'eseguito', esitoOk: true,
+          sigillo: '', saracinesca: '', note: '', manuale: false },
+        { id: 'neg', odl: '999999999', matricola: '11111111111', comune: 'ZAGAROLO', via: 'VIA Z 9',
+          esecutore: 'ROSSI', data_esecuzione: '2026-06-18', esito: 'No', esitoOk: false,
+          sigillo: '', saracinesca: '', note: 'assente', manuale: false },
+      ],
+      dryRun: false,
+      stamp: '20260618-1600',
+      mappatura: [
+        { campo: 'esito', colonna: 'esito', abilitato: true },
+        { campo: 'note', colonna: 'NOTE', abilitato: true },
+        { campo: 'automazione', colonna: 'AUTOMAZIONE', abilitato: true },
+      ],
+      esitoPositivo: 'eseguito',
+      esitoNegativo: 'No',
+    });
+
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.readFile(file);
+    const ws = wb.worksheets[0];
+
+    // riga 2: il positivo sovrascrive il testo libero, nota pulita, tracciato come upgrade
+    expect(ws.getRow(2).getCell(67).value).toBe('eseguito');
+    expect(String(ws.getRow(2).getCell(69).value ?? '').trim()).toBe('');
+    expect(report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 2 && c.campo === 'esito')).toBeFalsy();
+    const upg = report.file[0].righe.find((r: { riga: number }) => r.riga === 2);
+    expect(upg.tipo).toBe('upgrade');
+    expect(upg.esitoPrecedente).toBe('NO PASSAGGIO');
+    expect(upg.notaPrecedente).toBe('citofono rotto');
+
+    // riga 3: il NEGATIVO non sovrascrive un testo libero → conflitto, cella intatta
+    expect(ws.getRow(3).getCell(67).value).toBe('chiuso');
+    expect(report.file[0].conflitti.find((c: { riga: number; campo: string }) => c.riga === 3 && c.campo === 'esito')).toBeTruthy();
+  });
+
   it('refresh data: sulla riga dell’agente sovrascrive la data PIANIFICATA con quella di ESECUZIONE (idempotente, marcatore intatto); riga a mano protetta', async () => {
     const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'limsync-rdata-'));
     const file = path.join(dir, 'ZAGAROLO.xlsx');

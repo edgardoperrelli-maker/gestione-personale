@@ -1,6 +1,6 @@
 // tools/limitazioni-sync/lib/scrittura.test.ts
 import { describe, it, expect } from 'vitest';
-import { decidiScrittura, cellaEsitoNegativa } from './scrittura.mjs';
+import { decidiScrittura, cellaEsitoNegativa, cellaEsitoDaSovrascrivere } from './scrittura.mjs';
 
 describe('decidiScrittura', () => {
   it('valore nuovo vuoto → salta', () => {
@@ -18,6 +18,24 @@ describe('decidiScrittura', () => {
     expect(decidiScrittura('No', 'eseguito')).toEqual({
       azione: 'conflitto', valore: 'eseguito', esistente: 'No',
     });
+  });
+});
+
+describe('cellaEsitoDaSovrascrivere', () => {
+  it('vero su qualsiasi testo non-positivo (il positivo sovrascrive sempre)', () => {
+    expect(cellaEsitoDaSovrascrivere('No', 'eseguito')).toBe(true);
+    expect(cellaEsitoDaSovrascrivere('NO PASSAGGIO', 'eseguito')).toBe(true);
+    expect(cellaEsitoDaSovrascrivere('annullato', 'eseguito')).toBe(true);
+  });
+  it('falso quando la cella è vuota (resta la policy riempi-vuote) o è già il positivo', () => {
+    expect(cellaEsitoDaSovrascrivere('', 'eseguito')).toBe(false);
+    expect(cellaEsitoDaSovrascrivere(null, 'eseguito')).toBe(false);
+    expect(cellaEsitoDaSovrascrivere('eseguito', 'eseguito')).toBe(false);
+    expect(cellaEsitoDaSovrascrivere(' ESEGUITO ', 'eseguito')).toBe(false);
+  });
+  it('falso se il testo positivo non è definito', () => {
+    expect(cellaEsitoDaSovrascrivere('No', '')).toBe(false);
+    expect(cellaEsitoDaSovrascrivere('No', null)).toBe(false);
   });
 });
 
