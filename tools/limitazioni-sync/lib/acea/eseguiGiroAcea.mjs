@@ -6,7 +6,7 @@ import { norm } from '../match.mjs';
 import { parseExport } from './parseExport.mjs';
 import { aggiornaStatoXlsx } from './aggiornaStatoXlsx.mjs';
 import { acquisisci, rilascia } from './lock.mjs';
-import { verificaModificaEsterna, registraScrittura } from '../sincronizzazioneWatch.mjs';
+import { verificaModificaEsterna, registraScrittura, segnalaClobber } from '../sincronizzazioneWatch.mjs';
 import { loginEdEsporta } from './driver.mjs';
 import { fetchSaracinesche as fetchSaracinescheDefault } from '../apiAgente.mjs';
 import { risolviMaster, elencoMasterMassive } from './risolviMaster.mjs';
@@ -114,9 +114,7 @@ export async function eseguiGiroAcea({
       // Va letto PRIMA di sovrascrivere. Best-effort: non deve mai bloccare la scrittura.
       const clobber = verificaModificaEsterna(m.masterPath, { statePath });
       if (clobber) {
-        console.error(`[lim-sync] ⚠ ${nome}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
-          ` (ora mtime ${clobber.attuale.mtimeIso}${clobber.probabileServer ? ', versione dal server' : ''}).` +
-          ` Probabile file aperto/salvato da altri su SharePoint.`);
+        segnalaClobber(nome, clobber);
         if (!avvisoClobber) avvisoClobber = clobber;
       }
 

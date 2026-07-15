@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { caricaWorkbook, trovaRigaIntestazione, backupFile } from './lib/excelIO.mjs';
 import { applicaModificheXlsx } from './lib/acea/applicaModificheXlsx.mjs';
-import { verificaModificaEsterna, registraScrittura } from './lib/sincronizzazioneWatch.mjs';
+import { verificaModificaEsterna, registraScrittura, segnalaClobber } from './lib/sincronizzazioneWatch.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
 import { TUTTI, normalizzaComune, filtraFilePerComune } from './lib/comuni.mjs';
@@ -424,9 +424,7 @@ export async function eseguiGiro({
         const avvisoClobber = verificaModificaEsterna(file);
         if (avvisoClobber) {
           fileReport.clobberPrecedente = avvisoClobber;
-          console.error(`[lim-sync] ⚠ ${path.basename(file)}: la scrittura precedente dell'agente è stata SOVRASCRITTA` +
-            ` (ora mtime ${avvisoClobber.attuale.mtimeIso}${avvisoClobber.probabileServer ? ', versione dal server' : ''}).` +
-            ` Probabile file aperto/salvato da altri su SharePoint.`);
+          segnalaClobber(path.basename(file), avvisoClobber);
         }
         backupFile(file, stamp);
         // scrittura CHIRURGICA: applica il change-set senza ri-serializzare tutto il file.

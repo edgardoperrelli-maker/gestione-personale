@@ -57,6 +57,9 @@ function stat(masterPath) {
  * Confronta lo stato attuale del master con l'ultima scrittura registrata dall'agente.
  * Va chiamato PRIMA che il writer sovrascriva il file (legge la versione ancora su disco).
  * @returns null se non c'è baseline o il file è invariato; altrimenti un avviso di clobber.
+ *
+ * ATTENZIONE a come si legge l'avviso: "il file è cambiato" NON significa "il lavoro dell'agente
+ * è andato perso". Sono due scenari diversi e solo `mtimeIndietro` li separa (vedi sotto).
  */
 export function verificaModificaEsterna(masterPath, { statePath = statePathDefault() } = {}) {
   const attuale = stat(masterPath);
@@ -72,7 +75,44 @@ export function verificaModificaEsterna(masterPath, { statePath = statePathDefau
     // SharePoint normalizza gli mtime al secondo intero: un mtime .000 è quasi certamente
     // una versione ridiscesa dal server (clobber), non un edit locale.
     probabileServer: attuale.mtimeMs % 1000 === 0,
+    // IL discriminante fra i due scenari, che il solo "è cambiato" confonde:
+    //  - false → il file è stato risalvato DOPO la scrittura dell'agente: è l'ufficio che lavora sul
+    //    master condiviso. Excel entra in co-authoring e FONDE cella per cella, le celle dell'agente
+    //    sopravvivono. Verificato su DUNNING il 15/07: 28/28 celle vive dopo 3 salvataggi dell'ufficio,
+    //    coi valori dell'agente traslati insieme alle righe inserite a mano. Fisiologico.
+    //  - true → è ridisceso dal server un file PIÙ VECCHIO della scrittura dell'agente: le due versioni
+    //    sono divergenti e il lavoro dell'agente rischia di non salire MAI (caso ZAGAROLO 14-15/07,
+    //    sync "in sospeso" per 19h). Questo sì che va guardato: si riconcilia aprendo il file in Excel
+    //    su questo PC (il co-authoring fonde) — mai spostando/cancellando il locale.
+    mtimeIndietro: attuale.mtimeMs < prec.mtimeMs,
   };
+}
+
+/**
+ * Racconta un avviso di clobber col livello giusto. Unico posto in cui si decide il testo, così i
+ * due writer (giro cartella e giro ACEA) non possono divergere.
+ *
+ * Perché non è tutto un WARN: sul master condiviso l'ufficio salva di continuo in orario di lavoro,
+ * e ogni salvataggio faceva gridare "SOVRASCRITTA" anche quando le celle dell'agente erano tutte
+ * vive (misurato su DUNNING il 15/07: 28/28). Un allarme che grida al lupo a ogni salvataggio
+ * legittimo si smette di leggerlo — e quello è l'unico allarme che copre la divergenza vera.
+ */
+export function segnalaClobber(nomeFile, avviso, log = console) {
+  if (!avviso) return;
+  const quando = avviso.attuale.mtimeIso;
+  const dalServer = avviso.probabileServer ? ', versione dal server' : '';
+  if (avviso.mtimeIndietro) {
+    log.error(
+      `[lim-sync] ⚠ ${nomeFile}: DIVERGENZA — è ricomparsa una versione PRECEDENTE alla scrittura` +
+      ` dell'agente (ora mtime ${quando}${dalServer}). Il lavoro dell'agente rischia di non salire mai:` +
+      ` apri il file in Excel su questo PC per farlo riconciliare (MAI spostarlo o cancellarlo).`,
+    );
+    return;
+  }
+  log.log(
+    `[lim-sync] ${nomeFile}: risalvato da altri dopo la scrittura dell'agente (ora mtime ${quando}${dalServer}).` +
+    ` Normale sul master condiviso: il co-authoring fonde le celle e il giro successivo riscrive comunque.`,
+  );
 }
 
 /**
