@@ -35,6 +35,15 @@ describe('cognomeDaDisplayName', () => {
     expect(cognomeDaDisplayName('  rossi  ')).toBe('ROSSI');
     expect(cognomeDaDisplayName(null)).toBe('');
   });
+  it('cognomi composti: la particella assorbe il token successivo (DE SANTIS, non "DE")', () => {
+    expect(cognomeDaDisplayName('DE SANTIS ALESSANDRO')).toBe('DE SANTIS');
+    expect(cognomeDaDisplayName('DALLA VALLE LUCA')).toBe('DALLA VALLE');
+    expect(cognomeDaDisplayName('DI GIROLAMO MARCO')).toBe('DI GIROLAMO');
+    expect(cognomeDaDisplayName('DE LA CRUZ JUAN')).toBe('DE LA CRUZ');
+  });
+  it('display con solo cognome composto (senza nome) resta intero', () => {
+    expect(cognomeDaDisplayName('DE SANTIS')).toBe('DE SANTIS');
+  });
 });
 
 const base: RigaDb = {

@@ -6,6 +6,7 @@ const staff = [
   { id: 's2', display_name: 'PASTORELLI LUIGI' },
   { id: 's3', display_name: 'ROSSI MARIO' },
   { id: 's4', display_name: 'ROSSI ANNA' },
+  { id: 's5', display_name: 'DE SANTIS ALESSANDRO' },
 ];
 
 describe('risolviEsecutore', () => {
@@ -19,5 +20,13 @@ describe('risolviEsecutore', () => {
   });
   it('più match stesso cognome → ambiguo', () => {
     expect(risolviEsecutore('ROSSI', staff)).toEqual({ errore: 'ambiguo' });
+  });
+  it('cognome composto: "DE SANTIS" risolve, e il legacy "DE" (vecchi file) pure', () => {
+    expect(risolviEsecutore('DE SANTIS', staff)).toEqual({ staffId: 's5', staffName: 'DE SANTIS ALESSANDRO' });
+    expect(risolviEsecutore('de santis', staff)).toEqual({ staffId: 's5', staffName: 'DE SANTIS ALESSANDRO' });
+    expect(risolviEsecutore('DE', staff)).toEqual({ staffId: 's5', staffName: 'DE SANTIS ALESSANDRO' });
+  });
+  it('un ALTRO cognome composto con la stessa particella NON risolve su DE SANTIS', () => {
+    expect(risolviEsecutore('DE ANGELIS', staff)).toEqual({ errore: 'non_trovato' });
   });
 });

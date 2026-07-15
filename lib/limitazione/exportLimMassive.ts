@@ -1,8 +1,20 @@
-/** display_name "COGNOME NOME" (maiuscolo) → solo il cognome (primo token), maiuscolo. */
+/** Particelle dei cognomi composti (italiane + comuni straniere): assorbono il token successivo,
+ *  così "DE SANTIS ALESSANDRO" → "DE SANTIS" e non il troncone "DE" (che sul file generava un
+ *  conflitto per ogni riga contro il "DE SANTIS" scritto dall'ufficio). */
+const PARTICELLE_COGNOME = new Set([
+  'DE', 'DI', 'DEL', 'DELLO', 'DELLA', 'DELLE', 'DEI', 'DEGLI',
+  'DA', 'DAL', 'DALLO', 'DALLA', 'DALLE',
+  'LA', 'LO', 'LE', 'LI', 'SAN', 'SANTA', 'VAN', 'VON', 'MAC', 'MC',
+]);
+
+/** display_name "COGNOME NOME" (maiuscolo) → il cognome, particelle incluse ("DE SANTIS"), maiuscolo. */
 export function cognomeDaDisplayName(displayName: string | null | undefined): string {
   const s = String(displayName ?? '').trim();
   if (!s) return '';
-  return s.split(/\s+/)[0].toUpperCase();
+  const tokens = s.split(/\s+/).map((t) => t.toUpperCase());
+  let fine = 1; // quanti token compongono il cognome: finché l'ultimo incluso è una particella, assorbi il successivo
+  while (fine < tokens.length && PARTICELLE_COGNOME.has(tokens[fine - 1])) fine++;
+  return tokens.slice(0, fine).join(' ');
 }
 
 /** 'eseguito' se positivo, 'No' se lavorato-ma-non-positivo, null se non lavorato. */
