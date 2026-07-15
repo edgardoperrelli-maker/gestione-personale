@@ -6,6 +6,27 @@ modulo all'altro è lento e, se opportuno, indicizzare Supabase. Fatta la diagno
 completa (11 agenti su tutti i moduli + analisi DB con pg_stat_statements e advisor)
 e applicati i fix a maggior impatto, lato DB e lato frontend.
 
+## Aggiornamento 2026-07-15 (post-merge PR #94): Riepilogo rapportini
+La PR #94 (tutti i fix sotto) è **mergiata in `main` e in produzione**. Nuova richiesta:
+velocizzare il modulo **Riepilogo rapportini** (`/hub/mappa?vista=riepilogo`), che dal
+Network dell'utente mostrava `GET /api/mappa/rapportini/riepilogo` a **4,71s** (tutte le
+altre richieste < 660ms). Causa: la route scansionava `rapportino_voci` DUE volte — una
+per contare le voci, una col JSONB `risposte` per le foto in sospeso — paginando a 1000
+righe e conteggiando in JS (~6300 righe ×2 su finestra 30gg, ~14 round-trip).
+Fix (branch ripartito da `main` con ff, PR nuova da aprire):
+- **Migration `20260715120000_riepilogo_conteggi_voci_rpc.sql`** (già applicata al
+  progetto `aceztqfebringeaebvce`): RPC `riepilogo_conteggi_voci(rap_ids uuid[])` →
+  `(rapportino_id, n_voci, foto_in_sospeso)` in una passata (indice `idx_voci_rapportino`);
+  `set search_path = ''`, grant a authenticated+service_role. La logica foto-in-sospeso
+  replica `utils/rapportini/fotoInSospeso.ts` (segnaposto `blob-locale:` in valori scalari
+  o elementi d'array di 1° livello), **validata su dati reali: 0 righe discordanti** vs JS.
+  EXPLAIN ANALYZE della RPC: **55.8ms** (vs ~4,7s).
+- **`app/api/mappa/rapportini/riepilogo/route.ts`**: una sola `.rpc(...)` invece dei due
+  scan paginati; inoltre piani + ai-log + RPC ora in **`Promise.all`** (prima in cascata).
+- **Rimossi** `lib/rapportini/contaVoci.ts`, `contaVoci.test.ts`, `contaFotoInSospeso.ts`
+  (wrapper DB-scanning ora inutili). Tenuta la util pura `utils/rapportini/fotoInSospeso.ts`.
+- Verifica: tsc/eslint/vitest (1712) verdi; advisor security: 0 lint sulla nuova funzione.
+
 ## Diagnosi (cause in ordine di impatto)
 1. **Remount dell'intera shell a ogni navigazione**: `app/layout.tsx` avvolgeva TUTTO
    in `PageTransitionWrapper` con `key={pathname}` → a ogni cambio modulo React
