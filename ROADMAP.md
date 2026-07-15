@@ -15,6 +15,19 @@
   (`interventi` 20k seq scan, `interventi_manuali` 44k), 22 policy RLS con
   `auth.*()` rivalutato per riga. Fix: vedi HANDOFF.md e migration
   `20260715090000_perf_indici_moduli_rls_initplan.sql` (già applicata al DB).
+- ✅ **Assegnazione AI — collo di bottiglia storico giri** *(2026-07-15)* — la pagina
+  (e la gemella `/hub/agente`) faceva `agente_run.select('*').limit(30)`: la colonna
+  JSONB `dettaglio` pesa ~27KB/riga (max 80KB), quindi ogni caricamento serializzava
+  ~830KB di JSONB. Costo misurato: **93ms medi × 2471 chiamate = 230s totali**, la
+  query più pesante del modulo, ri-eseguita dal polling `router.refresh()` ogni 6s.
+  Fix: la lista carica solo le colonne riassuntive; `dettaglio` si carica on-demand
+  all'espansione della card (nuovo GET `/api/admin/agente/run/[id]`). Verificato con
+  EXPLAIN: da **125.9ms a 0.33ms** (~380×), buffer da 273 a 3.
+  Stesso principio esteso ai **sotto-moduli**: la route `acea-esiti` (in polling ogni
+  6s durante l'attesa dell'agente) non scarica più l'intero `dettaglio` ma solo i tre
+  sotto-campi che usa (`data`, `scartati`, `erroreGlobale`) via JSON-path PostgREST,
+  evitando di trasferire l'array `righe`. Le foglie SincronizzaRapportini e
+  AggiornaStatoOdl usano `StoricoCard`, quindi già coperte dal fix dello storico giri.
 - ✅ Cronoprogramma: squadre + avviso novità + fix drag&drop (PR #85, #88, #89).
 - ✅ Widget "invia segnalazione" → hub ATLAS (PR #86) + fix focus/posizione (PR #87).
 
@@ -44,7 +57,9 @@
       attraversare i due segmenti rimonta comunque la shell → valutare route group
       condiviso.
 - [ ] **Assegnazione AI**: polling `router.refresh()` ogni 6s senza condizione di
-      stop lato client (`AssegnaOdl.tsx` — `fatto` hardcoded a false).
+      stop lato client (`AssegnaOdl.tsx` — `fatto` hardcoded a false). Nota: dopo il
+      fix dello storico giri ogni refresh è ora ~0.3ms sul DB invece di ~125ms, quindi
+      il polling non è più costoso; resta da dargli comunque una condizione di stop.
 - [ ] **Hotel calendar**: query `staff` nel bootstrap mai usata dal client;
       realtime che rifà il full refetch a ogni evento.
 - [ ] **Ricerca storico interventi**: 6 × `ilike '%q%'` (36ms medi) → indici GIN

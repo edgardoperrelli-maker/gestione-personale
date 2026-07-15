@@ -10,8 +10,6 @@ import { requireAdmin } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
 
-type Dettaglio = { data?: string; dryRun?: boolean; scartati?: unknown[]; erroreGlobale?: string };
-
 export async function GET(req: Request) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
@@ -20,23 +18,29 @@ export async function GET(req: Request) {
   const data = String(searchParams.get('data') ?? '').trim();
 
   // ultimo giro ACEA (qualunque data) → contesto: ha girato? per quale giorno? quanti ODL?
+  // Solo i sotto-campi che servono, NON l'intero `dettaglio` (jsonb che include
+  // l'array `righe`, pesante e qui inutile): questa route è in polling ogni 6s
+  // durante l'attesa dell'agente. PostgREST estrae i path lato DB.
   const { data: runRows } = await supabaseAdmin
     .from('agente_run')
-    .select('dry_run, lavori, aggiornate, dettaglio, creato_il, errore')
+    .select('dry_run, lavori, aggiornate, creato_il, errore, giorno:dettaglio->>data, erroreGlobale:dettaglio->>erroreGlobale, scartati:dettaglio->scartati')
     .eq('tipo', 'acea-assegna')
     .order('creato_il', { ascending: false })
     .limit(1);
   const run = (runRows?.[0] ?? null) as
-    | { dry_run: boolean; lavori: number; aggiornate: number; dettaglio: Dettaglio | null; creato_il: string; errore: string | null }
+    | {
+        dry_run: boolean; lavori: number; aggiornate: number; creato_il: string; errore: string | null;
+        giorno: string | null; erroreGlobale: string | null; scartati: unknown[] | null;
+      }
     | null;
   const ultimoRun = run
     ? {
-        giorno: run.dettaglio?.data ?? null,
+        giorno: run.giorno ?? null,
         dryRun: run.dry_run,
         lavori: run.lavori,
         aggiornate: run.aggiornate,
-        scartati: Array.isArray(run.dettaglio?.scartati) ? run.dettaglio!.scartati!.length : 0,
-        errore: run.errore ?? run.dettaglio?.erroreGlobale ?? null,
+        scartati: Array.isArray(run.scartati) ? run.scartati.length : 0,
+        errore: run.errore ?? run.erroreGlobale ?? null,
         creato_il: run.creato_il,
       }
     : null;

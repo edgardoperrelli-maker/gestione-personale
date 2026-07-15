@@ -67,6 +67,50 @@ e applicati i fix a maggior impatto, lato DB e lato frontend.
 - `next build` locale NON eseguibile in sandbox (manca `supabaseKey`, come da sessioni
   precedenti): fa fede la build Vercel sulla PR.
 
+## Follow-up fatto: collo di bottiglia Assegnazione AI (stessa PR)
+Su richiesta ("il modulo assegnazioni ai rimane molto lento") ho profilato il modulo
+con `pg_stat_statements`. Colpevole isolato: la pagina server (`app/hub/assegnazione-ai/
+page.tsx`, e la gemella `app/hub/agente/page.tsx`) faceva
+`agente_run.select('*').order('creato_il').limit(30)`. La tabella ha solo 263 righe ma
+pesa 7.6 MB perché la colonna JSONB `dettaglio` è ~27KB/riga (max 80KB): `select *`
+serializzava ~830KB di JSONB a ogni caricamento. Misura: **93ms medi × 2471 chiamate =
+230s totali**, di gran lunga la query più pesante del modulo — e il polling
+`router.refresh()` ogni 6s la ri-eseguiva in continuazione.
+
+`dettaglio` serve solo quando l'utente **espande** una card nello storico
+(`StoricoCard.tsx`: `righeModificate(run.dettaglio)` in `open ? ... : []`). Fix:
+- `app/api/admin/agente/run/[id]/route.ts` (**nuovo**): GET admin-gated che ritorna solo
+  `{ dettaglio }` di un singolo giro.
+- `StoricoCard.tsx`: carica `dettaglio` on-demand alla prima espansione (stato locale
+  `dettagli` per id, testo "Caricamento dettaglio…"); se un giro appena eseguito porta
+  già `dettaglio` inline lo usa senza fetch.
+- `lib/agente/uiTypes.ts`: `AgenteRunRow.dettaglio` reso opzionale.
+- Le due `page.tsx`: `select` esplicito delle sole colonne riassuntive (niente `dettaglio`).
+
+Verificato con EXPLAIN (json_agg come PostgREST): da **125.9ms a 0.33ms** (~380×),
+buffer letti da 273 a 3. tsc/eslint/vitest (1708) di nuovo verdi.
+
+### Stesso fix esteso ai sotto-moduli (foglie)
+Su richiesta successiva ("applica lo stesso fix ai sotto-moduli"). Le foglie
+`SincronizzaRapportini` e `AggiornaStatoOdl` renderizzano `StoricoCard`, quindi erano
+già coperte dal fix dello storico giri (i `runs` non portano più `dettaglio`). L'unico
+punto residuo con lo stesso pattern è la route **`app/api/admin/agente/acea-esiti/
+route.ts`**, chiamata al mount della foglia `AssegnaOdl` **e in polling ogni 6s**
+(`useAttesaAgente`, `AssegnaOdl.tsx:314`): faceva `select('… dettaglio …')` ma usa solo
+`dettaglio.data`, `dettaglio.scartati.length`, `dettaglio.erroreGlobale`. Ora seleziona
+solo quei sotto-campi con i JSON-path PostgREST
+(`giorno:dettaglio->>data, erroreGlobale:dettaglio->>erroreGlobale, scartati:dettaglio->scartati`),
+così il DB non detoasta/trasferisce l'array `righe`. Nota: per i giri `acea-assegna` il
+`dettaglio` è più piccolo (~0,2–3KB) che per i giri `sync` (~27KB medi), quindi il
+guadagno assoluto qui è minore, ma è coerente e a prova di crescita (giornate grosse)
+su un endpoint pollato.
+- **Verifica**: tsc/eslint/vitest (1708) verdi. La sintassi JSON-path del `.select()` è
+  standard PostgREST/supabase-js ma nuova in questo repo; NON ho potuto testarla via REST
+  perché il proxy dell'ambiente nega `*.supabase.co` (403). Ho però verificato la
+  semantica dei path via SQL diretto (`dettaglio->>'data'`, `dettaglio->'scartati'`). La
+  build/preview Vercel della PR è la verifica runtime — controllare che `acea-esiti`
+  risponda 200 con `ultimoRun` popolato.
+
 ## Cosa NON è stato toccato (e perché)
 - `middleware.ts`: vietato da AGENTS.md §11.1 — resta la chiamata di rete `getUser()`
   per navigazione (documentata in ROADMAP come follow-up con istruzione esplicita).

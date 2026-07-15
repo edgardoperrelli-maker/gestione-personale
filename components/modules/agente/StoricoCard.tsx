@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useCallback, useState } from 'react';
 import { badgeModalita, formattaIstante, type AgenteRunRow } from '@/lib/agente/uiTypes';
 import { righeModificate } from '@/lib/agente/storicoExport';
 
@@ -16,6 +16,28 @@ function Conteggio({ label, value }: { label: string; value: number }) {
 
 export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
   const [aperto, setAperto] = useState<string | null>(null);
+  // `dettaglio` non arriva più nella lista (troppo pesante): lo carichiamo qui
+  // alla prima espansione di ogni giro. `undefined` = non ancora richiesto,
+  // 'loading' = fetch in corso.
+  const [dettagli, setDettagli] = useState<Record<string, unknown | 'loading'>>({});
+
+  const apri = useCallback(async (run: AgenteRunRow) => {
+    if (aperto === run.id) {
+      setAperto(null);
+      return;
+    }
+    setAperto(run.id);
+    // Già presente (giro appena eseguito con dettaglio inline) o già caricato: niente fetch.
+    if (run.dettaglio !== undefined || run.id in dettagli) return;
+    setDettagli((d) => ({ ...d, [run.id]: 'loading' }));
+    try {
+      const res = await fetch(`/api/admin/agente/run/${run.id}`, { cache: 'no-store' });
+      const j = res.ok ? await res.json() : { dettaglio: null };
+      setDettagli((d) => ({ ...d, [run.id]: j.dettaglio ?? null }));
+    } catch {
+      setDettagli((d) => ({ ...d, [run.id]: null }));
+    }
+  }, [aperto, dettagli]);
 
   return (
     <section className="rounded-2xl border p-5 space-y-3" style={cardStyle}>
@@ -27,12 +49,14 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
         {runs.map((run) => {
           const badge = badgeModalita(run.dry_run);
           const open = aperto === run.id;
-          const righe = open ? righeModificate(run.dettaglio) : [];
+          const fonte = run.dettaglio !== undefined ? run.dettaglio : dettagli[run.id];
+          const inCaricamento = open && fonte === 'loading';
+          const righe = open && fonte !== 'loading' ? righeModificate(fonte) : [];
           return (
             <li key={run.id} className="py-3">
               <button
                 type="button"
-                onClick={() => setAperto(open ? null : run.id)}
+                onClick={() => void apri(run)}
                 className="flex w-full flex-wrap items-center justify-between gap-2 text-left"
                 aria-expanded={open}
               >
@@ -88,7 +112,9 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                       ⬇ Esporta Excel
                     </a>
                   </div>
-                  {righe.length === 0 ? (
+                  {inCaricamento ? (
+                    <p style={{ color: 'var(--brand-text-muted)' }}>Caricamento dettaglio…</p>
+                  ) : righe.length === 0 ? (
                     <p style={{ color: 'var(--brand-text-muted)' }}>Nessuna riga modificata in questo giro.</p>
                   ) : (
                     <div className="overflow-auto" style={{ maxHeight: '20rem' }}>
