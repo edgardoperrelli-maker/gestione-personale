@@ -23,6 +23,11 @@
   Fix: la lista carica solo le colonne riassuntive; `dettaglio` si carica on-demand
   all'espansione della card (nuovo GET `/api/admin/agente/run/[id]`). Verificato con
   EXPLAIN: da **125.9ms a 0.33ms** (~380×), buffer da 273 a 3.
+  Stesso principio esteso ai **sotto-moduli**: la route `acea-esiti` (in polling ogni
+  6s durante l'attesa dell'agente) non scarica più l'intero `dettaglio` ma solo i tre
+  sotto-campi che usa (`data`, `scartati`, `erroreGlobale`) via JSON-path PostgREST,
+  evitando di trasferire l'array `righe`. Le foglie SincronizzaRapportini e
+  AggiornaStatoOdl usano `StoricoCard`, quindi già coperte dal fix dello storico giri.
 - ✅ Cronoprogramma: squadre + avviso novità + fix drag&drop (PR #85, #88, #89).
 - ✅ Widget "invia segnalazione" → hub ATLAS (PR #86) + fix focus/posizione (PR #87).
 

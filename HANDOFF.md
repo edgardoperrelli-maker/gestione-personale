@@ -90,6 +90,27 @@ serializzava ~830KB di JSONB a ogni caricamento. Misura: **93ms medi × 2471 chi
 Verificato con EXPLAIN (json_agg come PostgREST): da **125.9ms a 0.33ms** (~380×),
 buffer letti da 273 a 3. tsc/eslint/vitest (1708) di nuovo verdi.
 
+### Stesso fix esteso ai sotto-moduli (foglie)
+Su richiesta successiva ("applica lo stesso fix ai sotto-moduli"). Le foglie
+`SincronizzaRapportini` e `AggiornaStatoOdl` renderizzano `StoricoCard`, quindi erano
+già coperte dal fix dello storico giri (i `runs` non portano più `dettaglio`). L'unico
+punto residuo con lo stesso pattern è la route **`app/api/admin/agente/acea-esiti/
+route.ts`**, chiamata al mount della foglia `AssegnaOdl` **e in polling ogni 6s**
+(`useAttesaAgente`, `AssegnaOdl.tsx:314`): faceva `select('… dettaglio …')` ma usa solo
+`dettaglio.data`, `dettaglio.scartati.length`, `dettaglio.erroreGlobale`. Ora seleziona
+solo quei sotto-campi con i JSON-path PostgREST
+(`giorno:dettaglio->>data, erroreGlobale:dettaglio->>erroreGlobale, scartati:dettaglio->scartati`),
+così il DB non detoasta/trasferisce l'array `righe`. Nota: per i giri `acea-assegna` il
+`dettaglio` è più piccolo (~0,2–3KB) che per i giri `sync` (~27KB medi), quindi il
+guadagno assoluto qui è minore, ma è coerente e a prova di crescita (giornate grosse)
+su un endpoint pollato.
+- **Verifica**: tsc/eslint/vitest (1708) verdi. La sintassi JSON-path del `.select()` è
+  standard PostgREST/supabase-js ma nuova in questo repo; NON ho potuto testarla via REST
+  perché il proxy dell'ambiente nega `*.supabase.co` (403). Ho però verificato la
+  semantica dei path via SQL diretto (`dettaglio->>'data'`, `dettaglio->'scartati'`). La
+  build/preview Vercel della PR è la verifica runtime — controllare che `acea-esiti`
+  risponda 200 con `ultimoRun` popolato.
+
 ## Cosa NON è stato toccato (e perché)
 - `middleware.ts`: vietato da AGENTS.md §11.1 — resta la chiamata di rete `getUser()`
   per navigazione (documentata in ROADMAP come follow-up con istruzione esplicita).
