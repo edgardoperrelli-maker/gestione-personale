@@ -67,6 +67,29 @@ e applicati i fix a maggior impatto, lato DB e lato frontend.
 - `next build` locale NON eseguibile in sandbox (manca `supabaseKey`, come da sessioni
   precedenti): fa fede la build Vercel sulla PR.
 
+## Follow-up fatto: collo di bottiglia Assegnazione AI (stessa PR)
+Su richiesta ("il modulo assegnazioni ai rimane molto lento") ho profilato il modulo
+con `pg_stat_statements`. Colpevole isolato: la pagina server (`app/hub/assegnazione-ai/
+page.tsx`, e la gemella `app/hub/agente/page.tsx`) faceva
+`agente_run.select('*').order('creato_il').limit(30)`. La tabella ha solo 263 righe ma
+pesa 7.6 MB perché la colonna JSONB `dettaglio` è ~27KB/riga (max 80KB): `select *`
+serializzava ~830KB di JSONB a ogni caricamento. Misura: **93ms medi × 2471 chiamate =
+230s totali**, di gran lunga la query più pesante del modulo — e il polling
+`router.refresh()` ogni 6s la ri-eseguiva in continuazione.
+
+`dettaglio` serve solo quando l'utente **espande** una card nello storico
+(`StoricoCard.tsx`: `righeModificate(run.dettaglio)` in `open ? ... : []`). Fix:
+- `app/api/admin/agente/run/[id]/route.ts` (**nuovo**): GET admin-gated che ritorna solo
+  `{ dettaglio }` di un singolo giro.
+- `StoricoCard.tsx`: carica `dettaglio` on-demand alla prima espansione (stato locale
+  `dettagli` per id, testo "Caricamento dettaglio…"); se un giro appena eseguito porta
+  già `dettaglio` inline lo usa senza fetch.
+- `lib/agente/uiTypes.ts`: `AgenteRunRow.dettaglio` reso opzionale.
+- Le due `page.tsx`: `select` esplicito delle sole colonne riassuntive (niente `dettaglio`).
+
+Verificato con EXPLAIN (json_agg come PostgREST): da **125.9ms a 0.33ms** (~380×),
+buffer letti da 273 a 3. tsc/eslint/vitest (1708) di nuovo verdi.
+
 ## Cosa NON è stato toccato (e perché)
 - `middleware.ts`: vietato da AGENTS.md §11.1 — resta la chiamata di rete `getUser()`
   per navigazione (documentata in ROADMAP come follow-up con istruzione esplicita).

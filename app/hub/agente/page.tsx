@@ -60,7 +60,13 @@ export default async function AgentePage() {
 
   const [{ data: configRow }, { data: runRows }, { data: fileRows }] = await Promise.all([
     supabaseAdmin.from('agente_config').select('*').eq('id', 1).maybeSingle(),
-    supabaseAdmin.from('agente_run').select('*').order('creato_il', { ascending: false }).limit(30),
+    // Niente `dettaglio` (JSONB ~27KB/riga): la lista storico ne mostra solo i
+    // conteggi; il dettaglio si carica on-demand all'espansione (StoricoCard).
+    supabaseAdmin
+      .from('agente_run')
+      .select('id, creato_il, dry_run, lavori, aggiornate, extra, conflitti, non_collocate, errore, tipo')
+      .order('creato_il', { ascending: false })
+      .limit(30),
     supabaseAdmin.from('agente_file_colonne').select('*').order('file', { ascending: true }),
   ]);
 

@@ -28,7 +28,8 @@ export type AgenteRunRow = {
   conflitti: number;
   non_collocate: number;
   errore: string | null;
-  dettaglio: unknown;
+  /** JSONB pesante (~27KB medi): caricato on-demand all'espansione, non nella lista. */
+  dettaglio?: unknown;
   tipo?: string;
 };
 

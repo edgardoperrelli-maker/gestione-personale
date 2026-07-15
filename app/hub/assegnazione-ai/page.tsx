@@ -24,7 +24,13 @@ export default async function AssegnazioneAiPage() {
     supabaseAdmin.from('agente_config').select('pianifica_data, ultimo_contatto_il').eq('id', 1).maybeSingle(),
     supabaseAdmin.from('agente_pianificabili').select('*').order('comune', { ascending: true }).order('riga', { ascending: true }),
     supabaseAdmin.from('agente_file_config').select('*'),
-    supabaseAdmin.from('agente_run').select('*').order('creato_il', { ascending: false }).limit(30),
+    // Niente `dettaglio` (JSONB ~27KB/riga): la lista storico ne mostra solo i
+    // conteggi; il dettaglio si carica on-demand all'espansione (StoricoCard).
+    supabaseAdmin
+      .from('agente_run')
+      .select('id, creato_il, dry_run, lavori, aggiornate, extra, conflitti, non_collocate, errore, tipo')
+      .order('creato_il', { ascending: false })
+      .limit(30),
   ]);
 
   const ultimoContatto = (cfg as { ultimo_contatto_il?: string | null } | null)?.ultimo_contatto_il ?? null;
