@@ -1,108 +1,155 @@
-# Handoff — 2026-07-15: due filoni (perf Riepilogo rapportini + agente lim-sync)
+# Handoff — 2026-07-15: agente lim-sync (ZAGAROLO riconciliato + Labico multi-comune)
 
-## FILONE 1 — Perf: Riepilogo rapportini (IN CORSO, PR da aprire)
-La PR #94 (perf navigazione moduli + Assegnazione AI: dettagli storici in ROADMAP.md →
-Performance e nei body di PR #90/#94) è **mergiata in `main` e in produzione**. Nuova
-richiesta: velocizzare il modulo **Riepilogo rapportini** (`/hub/mappa?vista=riepilogo`),
-che dal Network dell'utente mostrava `GET /api/mappa/rapportini/riepilogo` a **4,71s**
-(tutte le altre richieste < 660ms). Causa: la route scansionava `rapportino_voci` DUE
-volte — una per contare le voci, una col JSONB `risposte` per le foto in sospeso —
-paginando a 1000 righe e conteggiando in JS (~6300 righe ×2 su finestra 30gg, ~14
-round-trip). Fix (branch ripartito da `main` con ff, PR nuova da aprire):
-- **Migration `20260715120000_riepilogo_conteggi_voci_rpc.sql`** (già applicata al
-  progetto `aceztqfebringeaebvce`): RPC `riepilogo_conteggi_voci(rap_ids uuid[])` →
-  `(rapportino_id, n_voci, foto_in_sospeso)` in una passata (indice `idx_voci_rapportino`);
-  `set search_path = ''`, grant a authenticated+service_role. La logica foto-in-sospeso
-  replica `utils/rapportini/fotoInSospeso.ts` (segnaposto `blob-locale:` in valori scalari
-  o elementi d'array di 1° livello), **validata su dati reali: 0 righe discordanti** vs JS.
-  EXPLAIN ANALYZE della RPC: **55.8ms** (vs ~4,7s).
-- **`app/api/mappa/rapportini/riepilogo/route.ts`**: una sola `.rpc(...)` invece dei due
-  scan paginati; inoltre piani + ai-log + RPC ora in **`Promise.all`** (prima in cascata).
-- **Rimossi** `lib/rapportini/contaVoci.ts`, `contaVoci.test.ts`, `contaFotoInSospeso.ts`
-  (wrapper DB-scanning ora inutili). Tenuta la util pura `utils/rapportini/fotoInSospeso.ts`.
-- Verifica: tsc/eslint/vitest (1712) verdi; advisor security: 0 lint sulla nuova funzione.
+**Branch**: `main` (= produzione Vercel) · **Stato**: tutto mergiato e in produzione; restano 2 passi manuali (vedi Next step)
 
-## FILONE 2 — Agente lim-sync: esiti "non riportati", regole positivo, ZAGAROLO riconciliato (CONCLUSO)
+## FILONE 1 — Perf Riepilogo rapportini (CONCLUSO)
+PR **#96 mergiata** (`d1168d5`): `GET /api/mappa/rapportini/riepilogo` da **4,71s → ~55ms**.
+La route scansionava `rapportino_voci` due volte (una per contare le voci, una col JSONB
+`risposte` per le foto in sospeso), paginando a 1000 righe e conteggiando in JS. Ora una sola
+RPC `riepilogo_conteggi_voci(rap_ids uuid[])` (migration `20260715120000`, applicata) +
+piani/ai-log/RPC in `Promise.all`. Rimossi `lib/rapportini/contaVoci.ts`, `contaVoci.test.ts`,
+`contaFotoInSospeso.ts`; tenuta la util pura `utils/rapportini/fotoInSospeso.ts`.
+La logica foto-in-sospeso della RPC è stata validata su dati reali: **0 righe discordanti** vs JS.
+
+## FILONE 2 — Esiti "non riportati" su ZAGAROLO (CONCLUSO)
+Due segnalazioni di esiti positivi non riportati → **il codice era corretto, il canale era rotto**
+(contesa OneDrive/co-authoring sul file condiviso). Nel percorso, 3 PR mergiate:
+
+1. **PR #91 — il positivo vince SEMPRE**: `cellaEsitoDaSovrascrivere` (`lib/scrittura.mjs`) —
+   il positivo sovrascrive QUALSIASI esito non-positivo (anche testo libero tipo "NO PASSAGGIO",
+   anche su righe a mano). L'upgrade riscrive tutti i dati di lavorazione
+   (`CAMPI_FORZA_POSITIVO`: esito/note/esecutore/sigillo/saracinesca + data); un campo VUOTO del
+   positivo NON cancella il dato a file. Il refresh negativo resta limitato a esito/note/data.
+2. **PR #92 — test-pollution `.sync-watch.json`**: env `LIMSYNC_WATCH_STATE` (default pigro in
+   `sincronizzazioneWatch.mjs`), impostata da `vitest.config.ts` a una dir temp per run.
+   `salvaStato` atomico (tmp+rename — lecito sullo stato locale, **MAI** sui master).
+3. **PR #95 — cognomi composti**: `cognomeDaDisplayName` particle-aware ("DE SANTIS ALESSANDRO"
+   → "DE SANTIS", non "DE"). Eliminati 27+ conflitti/giro.
+
+**Riconciliazione ZAGAROLO.xlsx — procedura che FUNZIONA**: il file era diviso in due versioni
+divergenti (server = salvataggi ufficio, locale = scritture agente) e OneDrive restava "in
+sospeso" per sempre. Soluzione: backup → **aprire il file in Excel su questo PC** (merge
+co-authoring a livello cella, nessuna perdita da nessun lato) → chiudere → "Disponibile".
+**MAI spostare/cancellare il locale**: OneDrive propaga la DELETE al server.
+
+## FILONE 3 — Labico: limitazioni massive multi-comune (MERGED, 2 passi manuali aperti)
 
 ### Goal
-Due segnalazioni di "bug" (esiti positivi non riportati sul master ZAGAROLO) → diagnosi:
-il codice era corretto, il canale era rotto (OneDrive/co-authoring). Nel percorso sono
-state irrobustite le regole di scrittura dell'agente (3 PR mergiate) e riconciliata la
-divergenza del file. **Stato finale: tutto allineato e verificato.**
+Dal **16/07/2026** le limitazioni massive non sono più solo Zagarolo: parte **Labico**
+(`LABICO.xlsx`, 525 righe, stessa cartella LIMITAZIONI MASSIVE). Richiesta: testare che
+l'agente funzioni, poi rendere i giri scegli-il-comune "così da farlo girare sempre per tutti".
 
-### Cosa è stato fatto (tutto MERGED su main + deploy Vercel)
-1. **PR #91 — il positivo vince SEMPRE** (`tools/limitazioni-sync`):
-   - `cellaEsitoDaSovrascrivere` (lib/scrittura.mjs): il positivo sovrascrive QUALSIASI
-     esito non-positivo in cella (anche testo libero tipo "NO PASSAGGIO", anche su righe
-     a mano), non più solo il "No" canonico.
-   - Upgrade positivo riscrive TUTTI i dati di lavorazione (`CAMPI_FORZA_POSITIVO`:
-     esito/note/esecutore/sigillo/saracinesca + data). Un campo VUOTO del positivo NON
-     cancella il dato a file (solo la nota del negativo viene pulita). Il refresh
-     negativo resta limitato a esito/note/data. Report traccia `*Precedente`.
-2. **PR #92 — test-pollution `.sync-watch.json`**: env `LIMSYNC_WATCH_STATE` (default
-   pigro in `sincronizzazioneWatch.mjs`) impostata da `vitest.config.ts` a una dir temp
-   per run; `salvaStato` atomico (tmp+rename — lecito sullo stato locale, MAI sui master).
-   Stato reale bonificato (125 voci fixture rimosse).
-3. **PR #95 — cognomi composti**: `cognomeDaDisplayName` particle-aware ("DE SANTIS
-   ALESSANDRO" → "DE SANTIS", non "DE"); `risolviEsecutore` retro-compatibile col
-   legacy "DE". Eliminati 27+ conflitti/giro. Bonifica una-tantum fatta (1 cella).
-4. **Riconciliazione ZAGAROLO.xlsx** (procedura che FUNZIONA, ora in memoria):
-   il file era diviso in due versioni divergenti (server = salvataggi ufficio; locale =
-   scritture agente) e OneDrive restava "in sospeso" per sempre. Soluzione: backup →
-   **aprire il file in Excel su questo PC** (merge co-authoring a livello cella, nessuna
-   perdita da nessun lato) → chiudere Excel → "Disponibile". MAI spostare/cancellare il
-   locale (OneDrive propaga la DELETE al server). Forza-giro di ripasso eseguito 12:54:
-   17 righe extra ri-aggiunte, file risalito pulito, ufficio allineato.
+### Esito del test (prima di toccare codice)
+- **Il giro di sincronizzazione notturno funzionava già**: `eseguiGiro` scansiona la cartella
+  (`agente.mjs`, readdirSync) → Labico entra da solo. Provato in **dry-run sul file reale**:
+  master riconosciuto, 0 colonne assenti, 0 conflitti, 0 errori; simulando i lavori di domani
+  l'aggancio funziona. La mappatura va per **nome** di colonna (globale, non per file) → le 7
+  colonne mappate esistono identiche in Labico.
+- **Il giro ACEA no**: non scansiona, apriva **un solo** masterPath dal config. Gli ODL di Labico
+  sono **già nell'export ACEA** (stesso contratto) e venivano scaricati e buttati ogni sera —
+  prova: `_log/20260714-2001-acea-zagarolo.json` riporta 2869 non agganciate, **di cui esattamente
+  525 nel range Labico** (= le 525 righe del file). `stato odl` non si sarebbe mai popolata.
 
-### Verifiche finali (12:54–13:00)
-- Le due lavorazioni segnalate come "non riportate" sono a file con esito positivo,
-  data e dati di lavorazione corretti (identificativi puntuali nella memoria locale
-  `acea-zagarolo-sync-coauthoring`). NB: in un caso il sigillo è stato svuotato DALLA
-  MODIFICA IN APP del 14/07 (rapportino), non dall'agente: se serve va reinserito nel
-  rapportino e l'agente riempie la cella al giro dopo.
-- Zero celle "DE" residue; zero conflitti DE nel giro 12:54 (fix #95 live) ✓
-- Server = locale (v222, 12:54) — sync fluida in entrambe le direzioni ✓
+### Cosa è stato fatto (MERGED su main + deploy)
+- **PR #97 — parser import censiti**. Le estrazioni ACEA per comune intestano le colonne
+  diversamente da quella usata per Zagarolo: `Ordine` (non `Ods/odl`) e `Impianto` (non `PDR`).
+  L'import di Labico sarebbe entrato **senza ODL e senza PDR**, i due identificativi che servono.
+  Su `LABICO.xlsx` reale: odl 0→**525/525**, pdr 0→**525/525** (tutti distinti).
+- **PR #98 — selettore comune** su entrambi i giri + migration `forza_giro_comune`
+  (**applicata via MCP**, autorizzata dall'utente perché il tick era già in 500 dopo il merge).
+
+### Key decisions
+
+| Decisione | Perché |
+|---|---|
+| **Il comune È il nome del file** (`<cartella>/<COMUNE>.xlsx`) | Un comune nuovo = un file nella cartella. Niente blocco di config per comune, niente deploy, mai più. Le colonne sono identiche per tutti i comuni: l'unica differenza era il `masterPath`, che ora si deriva. |
+| Un solo export ACEA per N master | login/ricerca/export sono condivisi. ACEA è lenta e inaffidabile: una sessione Playwright per comune moltiplicherebbe i fallimenti (vedi giro 23/06, 72/85 falliti). |
+| Filtro comune **solo** sul lancio manuale | Il giro schedulato delle 21 deve fare SEMPRE tutti i comuni. `forza_giro_comune` è one-shot: il tick lo legge PRIMA di azzerarlo e lo restituisce solo se `forzato` (non basta l'igiene del dato: l'invariante regge per costruzione). |
+| **Mai degradare a "tutti"** | Comune/target sconosciuto = errore (400 lato app, `erroreGlobale` lato agente). Scrivere sul master sbagliato è peggio che non scrivere. Prima un target ignoto diventava silenziosamente `dunning`. |
+| `Impianto`→pdr come **ripiego**, non alias | La mappatura assegna a un campo la PRIMA colonna che matcha: in un file con `Impianto` prima di `PDR` un alias normale ruberebbe il posto al PDR vero. Seconda passata dedicata. |
+| `^ordine$` **ancorato** | Un `/ordin/` lasco matcherebbe `Coordinate` delle estrazioni geolocalizzate. |
+| "Non agganciate" = **intersezione** fra i master lavorati | Per-master, con 'Tutti' gli ODL di Labico risulterebbero mancanti solo perché stanno nell'altro file. |
+| **Finestra resta a 60** | Decisione esplicita dell'utente (era ⚠️ "riportare a 15" dal recupero ZAGAROLO). Non riproporlo. |
+
+### Failed approaches / ipotesi smontate (NON ripeterle)
+- **"Le matricole di Labico non censite sono BLOCCANTI per domani"** → **FALSO**, verificato:
+  `cerca-limitazione/route.ts:80` risponde `{trovato:false, suggerimenti}` e **non impedisce
+  l'invio**; per `lim_massive` basta un identificativo (`anagraficaValida` → `return hasId`);
+  e l'agente aggancia per ODL **oppure** `comune|matricola` (`lib/match.mjs:57`). Il censimento
+  serve all'**autofill**, non al funzionamento. (Due agenti in disaccordo: il fatto 0/525 è vero,
+  la catena causale verso il blocco no.)
+- **"LABICO risulta `is_master=false` → il riconoscimento va allargato"** → **FALSO**: è solo uno
+  snapshot vecchio. Lo scan **vero** oggi lo riconosce master con 17 colonne. Lo scan è
+  **throttlato a 1/giorno** (`scanColonne.stamp`): girato alle 06:40, file riempito alle 12:42.
+- **Blocco config `labico` copia-incolla** (la via "minima" suggerita in analisi) → scartata: al
+  terzo comune si ripete. Sostituita da comune=nome-file.
+- **`ZAGAROLO 1.xlsx` come comune** → era una riga fantasma: l'upsert di `agente_file_colonne`
+  non cancellava mai i file spariti. Ora la scansione è la foto completa della cartella.
+
+### Stato attuale
+**Funziona**: tick verificato in produzione (heartbeat a 24s dal deploy → app nuova + agente nuovo
++ colonna nuova girano insieme). Repo dell'agente allineato (`git pull` fatto, HEAD `ad9119f`).
+
+**`config.json` locale NON toccato** (ha ancora il blocco `zagarolo`, nessun `massive`): la
+retro-compatibilità è stata verificata sul config **vero** —
+
+| target | master risolto | foglio | col. stato |
+|---|---|---|---|
+| `dunning` | LIMITAZIONI CON ORDINE.xlsx | PIANIFICAZIONE | Stato Operazione |
+| `ZAGAROLO` | ZAGAROLO.xlsx *(blocco legacy, ha la precedenza)* | Foglio1 | stato odl |
+| `LABICO` | LABICO.xlsx *(derivato dal nome)* | Foglio1 | stato odl |
+| `TUTTI` | **entrambi** | Foglio1 | stato odl |
+| `PALESTRINA` | **0 master** → errore, nessuna scrittura | | |
+
+### Code context
+```js
+// tools/limitazioni-sync/lib/acea/risolviMaster.mjs
+// 'dunning'|'' → [{comune:'DUNNING', a: acea}]; '<COMUNE>' → <cartella>/<COMUNE>.xlsx;
+// 'TUTTI' → tutti i master. Un blocco legacy per-comune col suo masterPath VINCE.
+// Lista vuota = nessun master: il chiamante segnala, MAI degradare a "tutti".
+risolviMaster({ acea, target, elencoFile }) -> [{ comune, a }]
+elencoMasterMassive(cartella) -> string[]   // .xlsx della cartella, esclusi i ~$
+// tools/limitazioni-sync/lib/comuni.mjs
+comuneDaFile('C:\\...\\LABICO.xlsx') -> 'LABICO'   // basename senza estensione, UPPER
+filtraFilePerComune(files, comune)                 // TUTTI/'' → nessun filtro
+eseguiGiro({ ..., comune })                        // assente sul giro schedulato → tutti
+```
+`agente_config.forza_giro_comune text` (nullable) — one-shot; tick risponde `syncComune`.
+
+### Warnings
+- ⚠️ **App e agente vanno allineati insieme**: la UI ora manda il comune UPPERCASE
+  (`'zagarolo'` → `'ZAGAROLO'`). Dopo un merge che tocca lim-sync: `git pull` in QUESTO repo.
+- ⚠️ **`ultima_rivendicazione_giorno = 2026-07-15`**: il giorno è già rivendicato (giro delle
+  10:54) → **stasera nessun giro schedulato**. Normale: a Labico si inizia domani, non ci
+  sarebbe niente da scrivere. Domani 21:00 parte regolare su tutti i comuni.
+- File `tools/limitazioni-sync/**` BLINDATI dall'hook `guard-acea.mjs`: modificarli solo su
+  richiesta esplicita + conferma.
+- L'agente gira da QUESTO repo a **tick singolo** via wrapper esterno: dopo un merge basta
+  `git pull`, niente riavvii (eccetto il driver Playwright `assegnaInterventi.mjs`, in cache
+  del wrapper → riavvio). `config.json` è riletto da disco a ogni tick.
+- Il classifier può bloccare i push senza motivo: capitato una volta, ripetuto → passato.
+  Non aggirare, ritentare o chiedere.
+- Suite: `npx vitest run` → 236 file / 1765 test verdi a fine sessione.
 
 ### Aperture / follow-up
-1. **Strutturale contesa ZAGAROLO**: spostare i giri fuori orario ufficio (oggi girano
-   anche di giorno) o upload via Graph/SharePoint API (`Sites.Selected`, serve IT).
-2. **18 conflitti esecutore residui** (giro 12:54, elenco nel report in /hub/agente):
-   discrepanze REALI ufficio-vs-DB su chi ha eseguito — da rivedere in ufficio, non è
-   un bug. +1 cosmetico "Eseguito" vs "eseguito" (case-sensitive in `decidiScrittura`).
-3. **Finestra agente ancora a 60 giorni** (`agente_config.finestra_giorni`) — era per il
-   recupero ZAGAROLO, riportare a 15 quando si è sicuri.
-4. **3 display_name in ordine inverso** in `staff` (formato NOME COGNOME anziché
-   COGNOME NOME — elenco nella memoria locale `cognome-composto-de-santis`): per loro
+1. **Strutturale contesa ZAGAROLO**: spostare i giri fuori orario ufficio o upload via
+   Graph/SharePoint API (`Sites.Selected`, serve IT).
+2. **18 conflitti esecutore residui** (giro 12:54): discrepanze REALI ufficio-vs-DB su chi ha
+   eseguito — da rivedere in ufficio, non è un bug. +1 cosmetico "Eseguito" vs "eseguito"
+   (`decidiScrittura` confronta case-sensitive, `cellaEsitoDaSovrascrivere` no).
+3. **3 display_name in ordine inverso** in `staff` (NOME COGNOME anziché COGNOME NOME): per loro
    il "cognome" sui file è in realtà il nome. Fix = correggere l'anagrafica, non il codice.
-
-### Gotchas per chi riprende
-- File `tools/limitazioni-sync/**` BLINDATI dal hook `guard-acea.mjs`: modificarli solo
-  su richiesta esplicita + conferma.
-- L'agente gira da QUESTO repo (main) a tick singolo: dopo ogni merge che tocca
-  lim-sync basta `git pull`, niente riavvii (eccetto il driver Playwright
-  `assegnaInterventi.mjs`, che resta in cache del wrapper → riavvio).
-- Il classifier blocca `gh pr merge` di PR proprie e le scritture "di comando" sul DB
-  prod (es. `forza_giro=true`): servono ok espliciti dell'utente in chat, per-azione.
-- Check sync OneDrive di un file: PowerShell `Shell.Application` →
-  `GetDetailsOf(item, 311)` ("Stato di disponibilità"). Lock lato server: REST
-  `GetFileByServerRelativePath(...)/LockedByUser` con browser autenticato — URL esatti
-  nella memoria locale `acea-zagarolo-sync-coauthoring`.
-- Suite lim-sync: `npx vitest run tools/limitazioni-sync` (25 file / 184+ test, tutti
-  verdi a fine sessione).
-
-### Key files
-- `tools/limitazioni-sync/agente.mjs` (forza/upgrade), `lib/scrittura.mjs`,
-  `lib/match.mjs`, `lib/sincronizzazioneWatch.mjs` (+ env `LIMSYNC_WATCH_STATE`).
-- `lib/limitazione/exportLimMassive.ts` (`cognomeDaDisplayName`, particelle),
-  `lib/agente/risolviEsecutore.ts`.
-- Backup della riconciliazione: cartella `_backup` accanto al master
-  (`ZAGAROLO__pre-riconciliazione-20260715-1245.xlsx`).
+4. `tools/limitazioni-sync/scanColonne.stamp` è un artefatto locale di runtime ma NON è
+   gitignorato: resta untracked e rischia di finire in un `git add -A`.
 
 ## Next step
-1. **Filone 1**: aprire la PR del fix Riepilogo rapportini (branch già pronto, migration
-   già applicata) e verificarla sul preview Vercel.
-2. **Filone 2**: decidere l'orario dei giri (fuori orario ufficio, da /hub/agente) e far
-   rivedere in ufficio i 18 conflitti esecutore del giro 12:54.
-3. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file
-   (quasi mai è il codice — vedi memoria `acea-zagarolo-sync-coauthoring`).
-4. Follow-up performance restanti: ROADMAP.md → sezione Performance.
+1. **Premere "Aggiorna tabella"** in `/hub/agente`: senza, Labico resta `is_master=false` a DB e
+   **non compare nel menù comuni** (lo scan è quello delle 06:40). Un click → l'agente ri-scansiona,
+   Labico appare e spariscono le 2 righe fantasma (`ZAGAROLO 1.xlsx`, `INTERVENTI_… (version 1)`).
+2. **Importare `LABICO.xlsx`** da Estrazione misuratori → dataset **Limitazioni** → committente
+   **Acea**: 525 censiti con ODL e PDR → il "+" lim_massive autofilla l'anagrafica.
+3. Domani, dopo il primo giro reale su Labico: controllare in `/hub/agente` che `stato odl` di
+   LABICO.xlsx si popoli (target `Tutti i comuni` o `Labico`).
+4. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file (quasi mai è
+   il codice — vedi memoria `acea-zagarolo-sync-coauthoring`).
+5. Follow-up performance restanti: ROADMAP.md → sezione Performance.
