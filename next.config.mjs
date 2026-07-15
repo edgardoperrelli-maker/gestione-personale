@@ -6,6 +6,16 @@ const nextConfig = {
   turbopack: {
     root: process.cwd(),
   },
+  // Router cache client: senza staleTimes ogni ritorno su un modulo già visitato
+  // rifaceva l'intero round-trip RSC (middleware con chiamata auth inclusa).
+  // 30s è accettabile per un gestionale: i dati "live" dei moduli si aggiornano
+  // comunque via fetch/realtime lato client.
+  experimental: {
+    staleTimes: {
+      dynamic: 30,
+      static: 180,
+    },
+  },
   async headers() {
     return [
       {

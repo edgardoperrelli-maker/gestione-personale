@@ -1,6 +1,5 @@
 import type { Metadata } from 'next';
 import { Geist } from 'next/font/google';
-import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
 import './globals.css';
 
 const geist = Geist({ variable: '--font-geist', subsets: ['latin'] });
@@ -19,7 +18,11 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             __html: `(function(){try{if(localStorage.getItem('theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}})();`,
           }}
         />
-        <PageTransitionWrapper>{children}</PageTransitionWrapper>
+        {/* Niente PageTransitionWrapper qui: con key={pathname} sull'intero albero
+            ogni navigazione smontava e rimontava AppShell (sidebar, topbar, provider
+            realtime, fetch annunci). La transizione vive nei layout hub/dashboard,
+            dove avvolge solo il contenuto della pagina. */}
+        {children}
       </body>
     </html>
   );

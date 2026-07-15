@@ -1,151 +1,105 @@
-# Handoff — Cronoprogramma: Squadre + avviso Novità (2026-07-13)
+# Handoff — Perf: lentezza nel passaggio tra moduli (2026-07-15)
 
 ## Goal
-Aggiungere al modulo Cronoprogramma la funzione **Squadre**: legare più operatori
-(da 2 a N, es. resine Napoli = 4) che lavorano insieme in una cella (giorno+territorio),
-con gesto "aggancia" via drag&drop. Più: **avviso/tutorial "Novità"** per informare gli
-utenti, e alcuni fix UI (hub Novità globale, colori tema reattivi).
+Task ATLAS `b48c3630-5e45-4233-ba3c-964c2c4cd53c`: capire perché il passaggio da un
+modulo all'altro è lento e, se opportuno, indicizzare Supabase. Fatta la diagnosi
+completa (11 agenti su tutti i moduli + analisi DB con pg_stat_statements e advisor)
+e applicati i fix a maggior impatto, lato DB e lato frontend.
 
-## Current status
-Feature implementata, buildata e **deployata sul preview Vercel** (PR #85, verde).
-Migration DB **già applicata** al progetto Supabase `aceztqfebringeaebvce` (Calendario personale).
-**BUG BLOCCANTE — RISOLTO** (commit `3485338`): l'aggancio non scriveva `squadra_id` perché il
-sorgente del drag impostava `effectAllowed='copyMove'` mentre i drop-target squadra usano
-`dropEffect='link'`; per la spec HTML5 DnD il drop 'link' veniva rifiutato e l'evento `drop` non
-partiva. Fix: `effectAllowed='all'` in `writeAssignmentDragData` (`utils.ts`, +`utils.test.ts`).
-**Bug modale — RISOLTO** (commit `3251b35`): il tutorial "Novità" si apriva sotto il cronoprogramma
-perché renderizzato dentro l'header con `backdrop-blur` (stacking context); ora va in un portal su
-`document.body` (`AnnuncioSquadre.tsx`). **Entrambi da verificare end-to-end sul preview.**
+## Diagnosi (cause in ordine di impatto)
+1. **Remount dell'intera shell a ogni navigazione**: `app/layout.tsx` avvolgeva TUTTO
+   in `PageTransitionWrapper` con `key={pathname}` → a ogni cambio modulo React
+   smontava/rimontava AppShell, Sidebar, TopBar, NovitaCenter, RichiesteManualiProvider:
+   3 fetch `/api/annunci`, 2 fetch admin, 2 canali realtime distrutti/ricreati, flicker.
+   In più il wrapper era duplicato (root + hub layout) → doppia animazione annidata.
+2. **`AnimatePresence mode="wait"` + spring 300/30**: exit (~300-450ms) DOPO l'arrivo
+   dei dati, POI enter → ~600-900ms di sola animazione per ogni cambio modulo.
+3. **Nessun `loading.tsx` sotto `/hub`**: layout e pagine sono `force-dynamic`, quindi
+   al click niente feedback finché il server non finiva middleware+auth+query.
+4. **Niente router cache**: `staleTimes` non configurato (default 0 per route dinamiche)
+   → ogni ritorno su un modulo già visitato ripagava l'intero round-trip RSC.
+5. **Doppia auth di rete per navigazione**: middleware `getUser()` (rete) + layout
+   `getUser()` (rete di nuovo) + query `profiles` — 278k chiamate a `auth.users` nel DB.
+6. **DB**: `interventi` 20.038 seq scan (123M righe lette), `interventi_manuali` 44.018
+   seq scan (44k arrivano dal polling 60s di RichiesteManualiProvider + PI), DELETE di
+   `interventi` a 32ms l'uno per FK non indicizzate sulle tabelle figlie, 22 policy RLS
+   con `auth.uid()/auth.role()` rivalutato PER RIGA (advisor `auth_rls_initplan`),
+   31 FK senza indice.
 
-## Repo state
-- Branch: `claude/agent-master-file-conflicts-wahrjm` (= head della **PR #85**, aperta).
-- PR #85 è COMBINATA (scelta utente): contiene sia le squadre sia un vecchio fix
-  `limitazioni-sync` (negativi, commit 202e9f6). Titolo/descrizione già aggiornati.
-- Working tree pulito, tutto pushato. Ultimo commit `ff490e2`.
-- Preview: https://gestione-personale-git-c-d90c76-edgardoperrelli-makers-projects.vercel.app
+## Cosa è cambiato (questa PR)
+### Frontend
+- `app/layout.tsx`: **rimosso** PageTransitionWrapper dal root → la shell resta montata,
+  transizione solo sul contenuto (nei layout hub/dashboard, dove già c'era).
+- `components/layout/PageTransitionWrapper.tsx`: enter-only (niente AnimatePresence
+  `mode="wait"`), tween 0.16s easeOut al posto dello spring.
+- `lib/animations.ts`: `pageTransition` senza exit, nuovo `pageTransitionTween`
+  (rimosso `pageTransitionSpring`), stagger ridotto (0.03, delay 0).
+- `app/hub/loading.tsx` + `app/dashboard/loading.tsx`: **nuovi** skeleton → feedback
+  immediato al click in sidebar.
+- `next.config.mjs`: `experimental.staleTimes { dynamic: 30, static: 180 }` → i moduli
+  rivisitati entro 30s escono dalla router cache senza round-trip.
+- `app/hub/layout.tsx` + `app/dashboard/layout.tsx`: `getUser()` → `getSession()`
+  (legge il JWT dal cookie, zero rete). Sicuro perché il middleware — che NON è stato
+  toccato (vietato da AGENTS.md) — fa già `getUser()` convalidato su ogni richiesta
+  matchata e redirige se non valida.
+- `components/layout/CampanelloRichieste.tsx`: `<a href>` → `<Link>` (prima faceva un
+  full page reload).
 
-## Done
-- **Migration** `supabase/migrations/20260713100000_cronoprogramma_squadre.sql` (applicata al DB):
-  `assignments` += `squadra_id uuid`, `team_order int`, `is_capo bool`; tabella `annunci_visti`
-  (once-per-utente) con RLS.
-- **Logica pura** `components/modules/cronoprogramma-personale/squadre.ts` (+ `.test.ts`, 13 test OK):
-  `raggruppaSquadre`, `crewSizeAttivita` (RESINE=4), `pianoAggancio/pianoRimuoviMembro/pianoSciogli/
-  pianoSetCapo`, `membriPresenti`. Tipo `Assignment` esteso in `types.ts`; i due SELECT in
-  `CronoprogrammaWorkspace.tsx` includono i campi squadra.
-- **UI Calendario** `CronoCalendarView.tsx`: raggruppa in squadre; `SquadraCard.tsx` (catena, capo ⭐,
-  progresso x/N, membri assenti barrati "x/N presenti"); `SingoloCard` con overlay "⛓ Aggancia" durante il drag.
-- **Handler squadre** in `CronoprogrammaWorkspace.tsx` (`handleAggancia`, `handleRimuoviMembro`,
-  `handleSciogliSquadra`, `handleSetCapo`, `applySquadPatches`, `membriDiSquadra`); spostare una card la sgancia.
-- **Avviso/tutorial** `AnnuncioSquadre.tsx` (tutorial completo: principi, squadra ×4 resine + aggancio,
-  scala 2/3/4 + incompleta, comportamento gesto). Endpoint `app/api/annunci/route.ts` (GET seen / POST record).
-  Auto-show al primo accesso al cronoprogramma (una volta per utente).
-- **Hub Novità globale** `components/layout/NovitaCenter.tsx` accanto alla campanella nel `TopBar.tsx`
-  (badge "nuovo", pannello estendibile). Rimosso il bottone dalla toolbar del cronoprogramma.
-- **Rimosse le viste** Griglia/Split/Tabella + selettore (resta solo Calendario). File eliminati:
-  `CronoGridView.tsx`, `CronoSplitView.tsx`, `CronoTableView.tsx`. Memo morti rimossi dal workspace.
-- **Colori territorio reattivi al tema**: ora CSS variabili in `app/globals.css`
-  (`--terr-<slug>-{band,text,bg,bd}`, dark=tinte chiare in `:root`, light=scure in `html.light`).
-  `lib/territoryColors.ts` → `getTerritoryStyle` ritorna `var(--terr-…)`. Cambiano da soli allo switch.
-- **Fix z-index**: `TopBar` a `z-40` (sopra la toolbar sticky `z-30`) così il pannello Novità non
-  finisce sotto il banner date/azioni.
+### Database (migration `supabase/migrations/20260715090000_perf_indici_moduli_rls_initplan.sql`)
+**GIÀ APPLICATA** al progetto Supabase `aceztqfebringeaebvce` via MCP `apply_migration`.
+- 12 indici mirati: `interventi(committente, assegnato_at)` (KPI dashboard: da seq scan
+  a Index Scan 0.07ms, verificato con EXPLAIN ANALYZE), `interventi_manuali(fonte,
+  stato, area_codice)` (PI + polling admin), FK dei percorsi DELETE
+  (`interventi_manuali.intervento_id`, `misuratori_riconsegna.intervento_id`,
+  `interventi.riconciliazione_rif_id`), `rapportini(data, staff_id)`,
+  `acea_assegnazioni_log(data_assegnazione, creato_il desc)`,
+  `pi_contabilita_righe(intervento_id)`, `misuratori_rimossi` (sort + FK),
+  `assignments(staff_id)` e `(territory_id)`.
+- 22 policy RLS riscritte con `(select auth.*())` (fix advisor `auth_rls_initplan`,
+  stessa semantica): annunci_visti, assignments, audit_log, calendar_days,
+  hotel_bookings, profiles, sopralluoghi, sopralluoghi_pdf_generati.
 
-## In progress / not yet done  (ROADMAP, azioni concrete in ordine)
-1. ~~**[BLOCCANTE] Aggancio non scrive `squadra_id`**~~ → **RISOLTO** (commit `3485338`). Era
-   l'incompatibilità `effectAllowed='copyMove'` (sorgente drag) vs `dropEffect='link'` (drop-target
-   squadra): il browser rifiutava il drop e l'evento `drop` non partiva. Fix in `utils.ts`
-   (`effectAllowed='all'`). Resta solo da **verificare end-to-end sul preview** (punto 4).
-2. Mini-card d'esempio dentro `AnnuncioSquadre.tsx` usano tinte territorio HARDCODED (dark) → su tema
-   chiaro restano vivaci. Opz.: passarle a `var(--terr-…)` per coerenza.
-3. Eventuale bump chiave annuncio `crono-squadre-v1`→`v2` se si vuole ri-mostrare l'avviso a tutti
-   (l'admin di test ha già "visto" v1, quindi non riappare da solo; c'è il tasto Novità).
-4. Verifica end-to-end sul preview di: crea squadra, aggiungi 3°/4°, capo ⭐, togli membro, sciogli,
-   assente barrato, spostamento che sgancia.
+## Verifiche fatte
+- `npx tsc --noEmit` ✓ · `npx eslint` sui file toccati ✓ · `npx vitest run` 234 file /
+  1708 test ✓.
+- EXPLAIN ANALYZE della query KPI dashboard: Index Scan sul nuovo indice, 0.07ms.
+- Indici e policy verificati su `pg_indexes` / `pg_policies` dopo l'apply.
+- `next build` locale NON eseguibile in sandbox (manca `supabaseKey`, come da sessioni
+  precedenti): fa fede la build Vercel sulla PR.
 
-## BUG ~~APERTO~~ RISOLTO — l'aggancio non persiste (dettaglio + diagnosi)
-> **ESITO (commit `3485338`)**: era il **sospetto (A)** — il `drop` non partiva. Non per `sameCell`,
-> ma perché `dropEffect='link'` (impostato in `dragover` da SingoloCard/SquadraCard) è incompatibile
-> con `effectAllowed='copyMove'` del sorgente drag: per la spec HTML5 DnD il browser rifiuta quel drop
-> e l'evento `drop` non viene emesso (l'overlay ⛓ però appare, perché `dragover` gira). Fix:
-> `effectAllowed='all'` in `writeAssignmentDragData` (`utils.ts`). Sotto, la diagnosi originale.
+## Cosa NON è stato toccato (e perché)
+- `middleware.ts`: vietato da AGENTS.md §11.1 — resta la chiamata di rete `getUser()`
+  per navigazione (documentata in ROADMAP come follow-up con istruzione esplicita).
+- Le query interne dei moduli (doppia scansione rapportino_voci del riepilogo,
+  full-scan di performance/economica, requireAdmin ripetuto nelle API): refactor più
+  invasivi, elencati in ROADMAP.md sezione "Performance" in ordine di impatto.
+- `multiple_permissive_policies` (56 avvisi advisor): consolidare policy duplicate
+  cambia superficie di sicurezza → follow-up dedicato.
 
-**Sintomo**: trascinando una card su un'altra della STESSA cella non si crea la squadra.
-**Fatto certo**: `select … from assignments where squadra_id is not null` → **[] (zero righe)**.
-Quindi la scrittura non avviene mai.
-**Escluso**:
-- NON è RLS: policy `upd_auth` UPDATE `USING (auth.role()='authenticated')` è permissiva → update consentito.
-- NON è la colonna: gli spostamenti (`handleDropAssignment`) scrivono `squadra_id: null` e funzionano → colonna scrivibile.
-- Wiring OK: `squadraHandlers.onAggancia = handleAggancia`, passato come `squadra={squadraHandlers}` a `CronoCalendarView`.
-  `findAssignmentById` corretto (cerca in `assignments`).
-**Sospetti (da verificare, in ordine)**:
-- (A) Il `drop` non raggiunge `SingoloCard.onDrop`, oppure `sameCell` risulta false a runtime
-  (`data.fromDay === iso && (data.fromTerritoryId ?? null) === (a.territory?.id ?? null)`), quindi
-  `onAggancia` non viene chiamato. La card wrapper è SIA `draggable` SIA drop-target: possibile conflitto.
-- (B) `applySquadPatches` (in `CronoprogrammaWorkspace.tsx`, ~riga 831) non esegue l'update o va in errore
-  silenzioso. Fa `sb.from('assignments').update({squadra_id,team_order,is_capo}).eq('id', p.id)` e su errore
-  chiama `softRefresh()` + feedback. Se l'utente NON ha visto feedback rosso, o non è stato chiamato o non ha erroreggiato ma non ha scritto.
-**Prossimo passo concreto**: sul preview, aprire DevTools e aggiungere `console.log` temporanei in
-`SingoloCard.onDrop` (fires? valore di `sameCell`, `data`) e in `handleAggancia` (chiamato? `sameCell`?
-risultato di `applySquadPatches`, eventuale `results.some(r=>r.error)`). In 5 minuti si isola A vs B.
-Guardare anche il Network per la PATCH a `/rest/v1/assignments`.
-
-## What worked
-- **Migration additiva idempotente** applicata via Supabase MCP `apply_migration` sul progetto
-  `aceztqfebringeaebvce` — nessun impatto sull'esistente.
-- **Colori come CSS variabili per-tema**: risolve il fatto che `getTerritoryStyle` leggeva il tema al
-  render e non era reattivo (i colori "si rompevano" dopo il toggle). Verificato con swatch nei due temi.
-- **z-40 sul TopBar**: fix pulito per il dropdown sotto la toolbar sticky.
-- Build Vercel verde ad ogni push (le env reali ci sono; la build LOCALE fallisce solo per
-  `supabaseKey` mancante — è normale in sandbox, la fase type-check passa).
-
-## What did NOT work (and why)
-- **Occhiello solo in hover**: la prima versione mostrava l'occhiello ⛓ solo a mouse fermo
-  (`group-hover`), quindi **durante il drag non si vedeva** → sostituito con overlay drop-target su tutta
-  la card (stato `over` su `onDragOver`). La VISIBILITÀ è ok, ma **l'aggancio non scrive** (bug aperto).
-- **Build locale `next build`**: fallisce con `Error: supabaseKey is required` su route ACEA
-  pre-esistenti — è env mancante in sandbox, NON un errore di codice. Non inseguirlo; usa `tsc --noEmit`
-  + eslint + il preview Vercel come verifica.
-
-## Key decisions (dal grilling con l'utente)
-- Rilascio: tutto in **una PR** (feature + avviso). → PR #85, combinata anche col fix negativi.
-- Modello dati **leggero** (squadra_id su assignments) invece di tabella `squadre` dedicata.
-- **Capo esplicito** assegnabile (`is_capo`, ⭐), uno per squadra.
-- Dimensione consigliata **mappa in codice** (`CREW_SIZE = { RESINE: 4 }`), non configurabile da UI.
-- Gesto: **occhiello ⛓ immediato** (no dialog). Assenza in squadra: membro **barrato** "x/N presenti".
-- **Solo vista Calendario** (rimosse Griglia/Split/Tabella, su richiesta utente).
-- Persistenza avviso: **DB per-utente** (`annunci_visti`), once + tasto Novità per rivederlo.
-- **Novità = hub globale** accanto alla campanella (non nella toolbar del cronoprogramma).
+## Rischi / cose da tenere d'occhio
+- `staleTimes.dynamic: 30`: entro 30s un ritorno sul modulo mostra lo snapshot cache
+  (i dati client-side si aggiornano comunque via fetch/realtime). Se qualcuno lamenta
+  dati "vecchi di 30 secondi" al rientro, abbassare o rimuovere.
+- `getSession()` nei layout si affida alla convalida del middleware: se un giorno il
+  matcher del middleware smette di coprire `/hub` o `/dashboard`, ripristinare
+  `getUser()` nei layout.
+- Le due policy UPDATE/DELETE permissive di assignments (`upd_auth` + owner) restano
+  entrambe attive come prima: nessun cambio di comportamento.
 
 ## Key files & commands
-- `components/modules/cronoprogramma-personale/squadre.ts` — logica pura squadre (+ `.test.ts`).
-- `components/modules/cronoprogramma-personale/CronoCalendarView.tsx` — `SingoloCard` (drop/aggancia),
-  `renderItems`, `isAssignmentDrag`. **Punto centrale del bug aggancio.**
-- `components/modules/cronoprogramma-personale/SquadraCard.tsx` — card-squadra + drop "aggiungi membro".
-- `components/modules/cronoprogramma-personale/CronoprogrammaWorkspace.tsx` — handler squadre
-  (`handleAggancia` ~riga 859, `applySquadPatches` ~riga 831), auto-show avviso, SELECT con campi squadra.
-- `components/modules/cronoprogramma-personale/AnnuncioSquadre.tsx` — modale tutorial (`ANNUNCIO_SQUADRE_KEY`).
-- `components/layout/NovitaCenter.tsx` + `components/layout/TopBar.tsx` — hub Novità globale.
-- `app/api/annunci/route.ts` — GET seen / POST record.
-- `app/globals.css` (blocco "Colori territorio") + `lib/territoryColors.ts` — colori tema reattivi.
-- `supabase/migrations/20260713100000_cronoprogramma_squadre.sql` — schema.
-- Comandi: `npx tsc --noEmit` · `npx vitest run components/modules/cronoprogramma-personale/squadre.test.ts`
-  · `npx eslint <file>` (build: `eslint.ignoreDuringBuilds=true`, `next build` locale fallisce solo per env).
-- DB (Supabase MCP, project `aceztqfebringeaebvce`): verifica squadre con
-  `select id, staff_id, squadra_id, team_order, is_capo from assignments where squadra_id is not null;`
-
-## Open questions
-- ~~Perché l'aggancio non scrive `squadra_id`?~~ → RISOLTO: era il sospetto (A), drop rifiutato per
-  `effectAllowed`/`dropEffect` incompatibili. Vedi sezione "BUG RISOLTO" + commit `3485338`.
-- L'admin di test ha già "visto" l'avviso v1 → per rivederlo usare il tasto Novità o bumpare a v2.
+- Migration: `supabase/migrations/20260715090000_perf_indici_moduli_rls_initplan.sql`.
+- FE: `app/layout.tsx`, `components/layout/PageTransitionWrapper.tsx`,
+  `lib/animations.ts`, `app/hub/loading.tsx`, `app/dashboard/loading.tsx`,
+  `next.config.mjs`, `app/hub/layout.tsx`, `app/dashboard/layout.tsx`,
+  `components/layout/CampanelloRichieste.tsx`.
+- Comandi: `npx tsc --noEmit` · `npx vitest run` · `npx eslint <file>`.
+- DB (Supabase MCP, project `aceztqfebringeaebvce`): advisor con `get_advisors`
+  (performance), query lente in `extensions.pg_stat_statements`, seq scan in
+  `pg_stat_user_tables`.
 
 ## Next step
-**Verifica end-to-end sul preview** (i due bug qui sotto sono già fixati in codice, commit `3251b35`
-e `3485338`, ma non ancora provati sul preview aggiornato):
-1. Aggancio: trascina una card operatore su un'altra della STESSA cella (stesso giorno + territorio)
-   → si crea la squadra; controlla nel DB `select … from assignments where squadra_id is not null`
-   che ora ci siano righe. Poi: aggiungi 3°/4°, capo ⭐, togli membro, sciogli, spostamento che sgancia.
-2. Modale Novità: tasto "Novità" → apri il tutorial → deve comparire SOPRA il cronoprogramma, non sotto.
-
-## Note operative
-- PR #85 è sotto watch di questa chat (`subscribe_pr_activity`) con check-in schedulati: alla ripresa in
-  altra chat conviene ri-`subscribe_pr_activity` da lì. C'è un trigger di check-in pendente
-  (`send_later`) su questa sessione.
+1. Merge PR → ATLAS chiude il task automaticamente (riga `ATLAS-Item:` nel body).
+2. Provare sul preview Vercel il cambio modulo (feedback immediato + transizione
+   breve) e il rientro su un modulo entro 30s (istantaneo da cache).
+3. Attaccare i follow-up in ROADMAP.md → sezione Performance, partendo dalla doppia
+   scansione di `rapportino_voci` nel riepilogo rapportini.
