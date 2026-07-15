@@ -27,7 +27,9 @@ const PATTERN: Record<Campo, RegExp> = {
   civico: /civico|nciv|numciv/,
   comune: /comune|citta|localita/,
   cap: /^cap$|^c\.?a\.?p/,
-  odl: /ods|odl|ordinativo/,
+  // `^ordine$` ancorato: le estrazioni ACEA per comune intestano l'ODL "Ordine". Senza ancore
+  // un pattern come /ordin/ prenderebbe anche "Coordinate" delle estrazioni geolocalizzate.
+  odl: /ods|odl|ordinativo|^ordine$/,
 };
 
 /** Normalizza un'intestazione: minuscolo, senza accenti/diacritici, senza non-alfanumerici. */
