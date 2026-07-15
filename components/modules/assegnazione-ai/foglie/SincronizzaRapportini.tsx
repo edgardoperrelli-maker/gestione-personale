@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
+import { opzioniComuneGiro, TARGET_TUTTI, type FileMaster } from '@/lib/agente/comuni';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
 import { useAttesaAgente } from '../useAttesaAgente';
 import { BarraAttesaAgente } from '../BarraAttesaAgente';
@@ -14,17 +15,22 @@ import { BarraAttesaAgente } from '../BarraAttesaAgente';
 
 type SincronizzaRapportiniProps = {
   runs: AgenteRunRow[];
+  filesMaster: FileMaster[];
   online: { minutiDaContatto: number | null };
 };
 
 // ─── Componente — solo LM ─────────────────────────────────────────────────────
 
-export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniProps) {
+export function SincronizzaRapportini({ runs, filesMaster, online }: SincronizzaRapportiniProps) {
   const router = useRouter();
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [dispatchedAt, setDispatchedAt] = useState<number | null>(null);
   const [baselineTs, setBaselineTs] = useState<string | null>(null);
+  // Il comune È il nome del file master (LABICO.xlsx → LABICO). Il filtro vale SOLO per questo
+  // lancio manuale: il giro schedulato delle 21 gira sempre su tutti i comuni.
+  const opzioni = useMemo(() => opzioniComuneGiro(filesMaster), [filesMaster]);
+  const [comune, setComune] = useState<string>(TARGET_TUTTI);
 
   const runsSync = runs.filter((r) => r.tipo === 'sync' || !r.tipo);
   const fatto = dispatchedAt != null && runsSync.some((r) => !baselineTs || r.creato_il > baselineTs);
@@ -36,7 +42,11 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
     setArming(true); setMsg(null);
     const baseline = runsSync[0]?.creato_il ?? null;
     try {
-      const res = await fetch('/api/admin/agente/esegui-ora', { method: 'POST' });
+      const res = await fetch('/api/admin/agente/esegui-ora', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ comune }),
+      });
       const j = await res.json().catch(() => ({}));
       if (res.ok) {
         setBaselineTs(baseline);
@@ -86,6 +96,22 @@ export function SincronizzaRapportini({ runs, online }: SincronizzaRapportiniPro
         </p>
 
         <div className="flex flex-wrap items-center gap-3">
+          <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+            Comune
+            <select
+              value={comune}
+              onChange={(e) => setComune(e.target.value)}
+              disabled={arming || inAttesa}
+              className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-60"
+              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+              title="Quale file master aggiornare. Vale solo per questo lancio manuale: il giro serale fa sempre tutti i comuni."
+            >
+              {opzioni.map((o) => (
+                <option key={o.value} value={o.value}>{o.label}</option>
+              ))}
+            </select>
+          </label>
+
           <Button
             variant="primary"
             onClick={() => void eseguiOra()}

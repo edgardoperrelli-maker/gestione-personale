@@ -8,12 +8,14 @@ import { AzioneGrid } from './AzioneGrid';
 import { Foglia } from './foglie/Foglia';
 import type { RigaPianificabile, FileConfig } from './tipi';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
+import type { FileMaster } from '@/lib/agente/comuni';
 
 export default function AssegnazioniAiClient(props: {
   righe: RigaPianificabile[];
   fileConfig: FileConfig[];
   pianificaData: string | null;
   runs: AgenteRunRow[];
+  filesMaster: FileMaster[];
   online: { minutiDaContatto: number | null; ultimoContatto: string | null };
 }) {
   const { nav, vai, risali } = useAceaNav();

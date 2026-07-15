@@ -1,11 +1,12 @@
 'use client';
 
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import type { NavState } from '@/lib/agente/aceaNav';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
+import { opzioniComuneGiro, etichettaComune, TARGET_DUNNING, TARGET_TUTTI, type FileMaster } from '@/lib/agente/comuni';
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
 import { useAttesaAgente } from '../useAttesaAgente';
 import { BarraAttesaAgente } from '../BarraAttesaAgente';
@@ -15,18 +16,24 @@ import { BarraAttesaAgente } from '../BarraAttesaAgente';
 type AggiornaStatoOdlProps = {
   nav: NavState;
   runs: AgenteRunRow[];
+  filesMaster: FileMaster[];
   online: { minutiDaContatto: number | null };
 };
 
 // ─── Componente ──────────────────────────────────────────────────────────────
 
-export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
-  // target: lm → zagarolo, dunning → dunning
-  const target = nav.attivita === 'lm' ? 'zagarolo' : 'dunning';
+export function AggiornaStatoOdl({ nav, runs, filesMaster, online }: AggiornaStatoOdlProps) {
+  // Limitazioni massive → si sceglie il comune (il comune È il nome del file master:
+  // LABICO.xlsx → LABICO); qualunque altra attività → il master DUNNING, come da sempre.
+  const isLm = nav.attivita === 'lm';
   // Solo il giro DUNNING riporta anche le sostituzioni saracinesca dai rapportini
-  // (per Zagarolo la saracinesca arriva dal giro cartella, non da questo bottone).
-  const isDunning = target === 'dunning';
+  // (sulle massive la saracinesca arriva dal giro cartella, non da questo bottone).
+  const isDunning = !isLm;
   const router = useRouter();
+
+  const opzioni = useMemo(() => opzioniComuneGiro(filesMaster), [filesMaster]);
+  const [comune, setComune] = useState<string>(TARGET_TUTTI);
+  const target = isLm ? comune : TARGET_DUNNING;
 
   const [arming, setArming] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
@@ -102,19 +109,42 @@ export function AggiornaStatoOdl({ nav, runs, online }: AggiornaStatoOdlProps) {
             </>
           ) : (
             <>
-              Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA (target:{' '}
-              <strong>{target}</strong>). L&rsquo;operazione parte al prossimo contatto dell&rsquo;agente.
+              Richiede all&rsquo;agente locale di aggiornare lo stato degli ODL sul portale ACEA, riversandolo
+              sul file master del comune scelto{' '}
+              <strong>{comune === TARGET_TUTTI ? '(tutti i comuni)' : `(${etichettaComune(comune)})`}</strong>.
+              L&rsquo;operazione parte al prossimo contatto dell&rsquo;agente. Con &ldquo;Tutti i comuni&rdquo;
+              l&rsquo;export da ACEA resta uno solo e viene riversato su ogni file.
             </>
           )}
         </p>
 
-        <Button
-          variant="primary"
-          onClick={() => void aggiornaStatoAcea()}
-          disabled={arming || inAttesa}
-        >
-          {arming ? 'Invio…' : inAttesa ? 'In attesa…' : isDunning ? 'Esegui ora' : 'Aggiorna stato ODL da ACEA'}
-        </Button>
+        <div className="flex flex-wrap items-center gap-3">
+          {isLm && (
+            <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              Comune
+              <select
+                value={comune}
+                onChange={(e) => setComune(e.target.value)}
+                disabled={arming || inAttesa}
+                className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-60"
+                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+                title="Quale file master aggiornare con lo stato ODL preso da ACEA."
+              >
+                {opzioni.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </select>
+            </label>
+          )}
+
+          <Button
+            variant="primary"
+            onClick={() => void aggiornaStatoAcea()}
+            disabled={arming || inAttesa}
+          >
+            {arming ? 'Invio…' : inAttesa ? 'In attesa…' : isDunning ? 'Esegui ora' : 'Aggiorna stato ODL da ACEA'}
+          </Button>
+        </div>
 
         {msg && (
           <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{msg}</p>

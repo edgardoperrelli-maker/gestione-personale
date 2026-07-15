@@ -6,6 +6,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import AssegnazioniAiClient from '@/components/modules/assegnazione-ai/AssegnazioniAiClient';
 import type { RigaPianificabile, FileConfig } from '@/components/modules/assegnazione-ai/tipi';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
+import type { FileMaster } from '@/lib/agente/comuni';
 
 export const dynamic = 'force-dynamic';
 
@@ -20,7 +21,7 @@ export default async function AssegnazioneAiPage() {
   const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
   if (role !== 'admin' || !allowedModules.includes('assegnazione-ai')) redirect('/hub');
 
-  const [{ data: cfg }, { data: righe }, { data: fileCfg }, { data: runRows }] = await Promise.all([
+  const [{ data: cfg }, { data: righe }, { data: fileCfg }, { data: runRows }, { data: fileColonne }] = await Promise.all([
     supabaseAdmin.from('agente_config').select('pianifica_data, ultimo_contatto_il').eq('id', 1).maybeSingle(),
     supabaseAdmin.from('agente_pianificabili').select('*').order('comune', { ascending: true }).order('riga', { ascending: true }),
     supabaseAdmin.from('agente_file_config').select('*'),
@@ -31,6 +32,9 @@ export default async function AssegnazioneAiPage() {
       .select('id, creato_il, dry_run, lavori, aggiornate, extra, conflitti, non_collocate, errore, tipo')
       .order('creato_il', { ascending: false })
       .limit(30),
+    // Comuni delle limitazioni massive per i select delle foglie: il comune È il nome del file
+    // master scansionato dall'agente (LABICO.xlsx → LABICO).
+    supabaseAdmin.from('agente_file_colonne').select('file, is_master'),
   ]);
 
   const ultimoContatto = (cfg as { ultimo_contatto_il?: string | null } | null)?.ultimo_contatto_il ?? null;
@@ -44,6 +48,7 @@ export default async function AssegnazioneAiPage() {
       fileConfig={(fileCfg ?? []) as FileConfig[]}
       pianificaData={(cfg as { pianifica_data?: string | null } | null)?.pianifica_data ?? null}
       runs={(runRows ?? []) as AgenteRunRow[]}
+      filesMaster={(fileColonne ?? []) as FileMaster[]}
       online={{ minutiDaContatto, ultimoContatto }}
     />
   );
