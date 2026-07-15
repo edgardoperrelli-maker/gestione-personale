@@ -28,17 +28,24 @@
   sotto-campi che usa (`data`, `scartati`, `erroreGlobale`) via JSON-path PostgREST,
   evitando di trasferire l'array `righe`. Le foglie SincronizzaRapportini e
   AggiornaStatoOdl usano `StoricoCard`, quindi già coperte dal fix dello storico giri.
+- ✅ **Riepilogo rapportini — doppia scansione di `rapportino_voci`** *(2026-07-15)* —
+  `/api/mappa/rapportini/riepilogo` scansionava `rapportino_voci` DUE volte (una per
+  contare le voci, una col JSONB `risposte` per le foto in sospeso), paginando a 1000
+  righe e conteggiando in JS: ~6300 righe trasferite ×2 su finestra 30gg → **~4,7s**
+  osservati (DevTools). Fix: RPC `riepilogo_conteggi_voci(rap_ids)` che calcola
+  entrambi i conteggi in **una passata lato DB** (misurata **55.8ms** con EXPLAIN);
+  più le tre letture (piani, ai-log, RPC) ora in parallelo invece che in cascata.
+  Logica foto-in-sospeso replicata in SQL e validata (0 righe discordanti vs JS).
+  Migration `20260715120000_riepilogo_conteggi_voci_rpc.sql` (già applicata).
 - ✅ Cronoprogramma: squadre + avviso novità + fix drag&drop (PR #85, #88, #89).
 - ✅ Widget "invia segnalazione" → hub ATLAS (PR #86) + fix focus/posizione (PR #87).
 
 ## Da fare
 
 ### Performance (follow-up della diagnosi 2026-07-15, in ordine di impatto)
-- [ ] **Riepilogo rapportini**: `/api/mappa/rapportini/riepilogo` fa una doppia
-      scansione paginata completa di `rapportino_voci` (~8k righe × 2, la seconda
-      col JSONB `risposte`) solo per contare → contatori via RPC/aggregato SQL e
-      paginazione vera lato DB. Stessa cosa per `/api/interventi/storico`
-      (8 round-trip da 1000 con filtri vuoti).
+- [ ] **Storico interventi**: `/api/interventi/storico` con filtri vuoti fa 8 round-trip
+      da 1000 su `rapportino_voci` con join → stessa medicina del riepilogo (RPC/aggregato,
+      paginazione vera lato DB) o finestra data di default.
 - [ ] **Performance operatori/economica**: full-scan di `interventi` +
       `rapportino_voci` serializzati nel payload RSC → finestra temporale di
       default e aggregazione lato DB.

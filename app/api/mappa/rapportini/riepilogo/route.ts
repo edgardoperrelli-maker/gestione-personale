@@ -1,8 +1,6 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
-import { contaVociByRapportino } from '@/lib/rapportini/contaVoci';
-import { contaFotoInSospesoByRapportino } from '@/lib/rapportini/contaFotoInSospeso';
 import { territorioEffettivo } from '@/utils/rapportini/territorioEffettivo';
 import { requireUser } from '@/lib/apiAuth';
 
@@ -29,23 +27,38 @@ export async function GET(req: Request) {
   }>;
 
   const pianoIds = [...new Set(list.map((r) => r.piano_id))];
+  const rapIds = list.map((r) => r.id);
   const pianoInfoById: Record<string, { territorio: string | null; creato_at: string | null }> = {};
   const aiPianoIds = new Set<string>();
-  if (pianoIds.length) {
-    const { data: piani } = await supabaseAdmin.from('mappa_piani').select('id, territorio, created_at').in('id', pianoIds);
-    (piani ?? []).forEach((p: { id: string; territorio: string | null; created_at: string | null }) => {
-      pianoInfoById[p.id] = { territorio: p.territorio ?? null, creato_at: p.created_at ?? null };
-    });
-    // Piani creati dall'agente (Assegnazione AI): presenti nello storico assegnazione_ai_log.
-    const { data: aiLog } = await supabaseAdmin.from('assegnazione_ai_log').select('piano_id').in('piano_id', pianoIds);
-    (aiLog ?? []).forEach((l: { piano_id: string | null }) => { if (l.piano_id) aiPianoIds.add(l.piano_id); });
-  }
+  const vociCount: Record<string, number> = {};
+  const fotoSospese: Record<string, number> = {};
 
-  const rapIds = list.map((r) => r.id);
-  // Conteggio paginato: PostgREST tronca a 1000 righe, quindi una singola query
-  // .in(...) restituiva conteggi 0/parziali sui rapportini oltre la 1000ª voce.
-  const vociCount = await contaVociByRapportino(supabaseAdmin, rapIds);
-  const fotoSospese = await contaFotoInSospesoByRapportino(supabaseAdmin, rapIds);
+  // Le tre letture dipendono solo dalla lista rapportini e sono indipendenti tra
+  // loro → in parallelo (prima erano in cascata). Conteggio voci + foto in sospeso
+  // in UNA passata lato DB via RPC: prima si scansionava rapportino_voci due volte,
+  // paginando a 1000 righe e conteggiando in JS (col JSONB `risposte`) → ~4,7s su
+  // finestre di 30gg. La RPC ritorna solo i rapportini con almeno una voce; altri → 0.
+  const [piani, aiLog, conteggi] = await Promise.all([
+    pianoIds.length
+      ? supabaseAdmin.from('mappa_piani').select('id, territorio, created_at').in('id', pianoIds).then((r) => r.data)
+      : Promise.resolve(null),
+    // Piani creati dall'agente (Assegnazione AI): presenti nello storico assegnazione_ai_log.
+    pianoIds.length
+      ? supabaseAdmin.from('assegnazione_ai_log').select('piano_id').in('piano_id', pianoIds).then((r) => r.data)
+      : Promise.resolve(null),
+    rapIds.length
+      ? supabaseAdmin.rpc('riepilogo_conteggi_voci', { rap_ids: rapIds }).then((r) => r.data)
+      : Promise.resolve(null),
+  ]);
+
+  (piani as Array<{ id: string; territorio: string | null; created_at: string | null }> | null ?? []).forEach((p) => {
+    pianoInfoById[p.id] = { territorio: p.territorio ?? null, creato_at: p.created_at ?? null };
+  });
+  (aiLog as Array<{ piano_id: string | null }> | null ?? []).forEach((l) => { if (l.piano_id) aiPianoIds.add(l.piano_id); });
+  (conteggi as Array<{ rapportino_id: string; n_voci: number; foto_in_sospeso: number }> | null ?? []).forEach((c) => {
+    vociCount[c.rapportino_id] = Number(c.n_voci) || 0;
+    fotoSospese[c.rapportino_id] = Number(c.foto_in_sospeso) || 0;
+  });
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const nowIso = now.toISOString();
