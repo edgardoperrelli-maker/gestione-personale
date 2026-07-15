@@ -7,7 +7,7 @@ import { applicaModificheXlsx } from './lib/acea/applicaModificheXlsx.mjs';
 import { verificaModificaEsterna, registraScrittura } from './lib/sincronizzazioneWatch.mjs';
 import { rilevaColonne, colonnaMarker, risolviColonna } from './lib/colonne.mjs';
 import { buildIndice, agganciaRiga, norm, trovaExtra } from './lib/match.mjs';
-import { decidiScrittura, cellaEsitoNegativa } from './lib/scrittura.mjs';
+import { decidiScrittura, cellaEsitoNegativa, cellaEsitoDaSovrascrivere } from './lib/scrittura.mjs';
 import { decidiScritturaData, giornoDa, aDataExcel } from './lib/dataCella.mjs';
 import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
@@ -19,6 +19,14 @@ import { mappaMasterSnapshot } from './lib/acea/masterSnapshot.mjs';
 
 export const MARKER = 'AGGIUNTA APP';
 export const MARKER_AUTOMAZIONE = 'SI';
+
+// Colonne riscritte in blocco quando `forza` scatta (la data ha il suo ramo dedicato in scriviCella).
+// Upgrade POSITIVO → l'intervento a file viene sostituito per intero: anche esecutore/sigillo/
+// saracinesca seguono il lavoro vincente (es. negativo di CIARALLO 01/07 → positivo di PASTORELLI
+// 14/07: tutti i dati devono diventare quelli del positivo). Refresh NEGATIVO → solo esito/note:
+// le colonne compilate a mano restano protette.
+const CAMPI_FORZA_POSITIVO = new Set(['esito', 'note', 'esecutore', 'sigillo', 'saracinesca']);
+const CAMPI_FORZA_NEGATIVO = new Set(['esito', 'note']);
 
 /** Comune prevalente fra le righe dati (per agganciare le matricole al comune giusto). */
 function comunePrevalente(ws, rIntest, colComune) {
@@ -153,10 +161,10 @@ export async function eseguiGiro({
 
       // scrive una cella mappata di una riga (pianificata o extra). Ritorna true se ha toccato.
       // ritorna { scritto, eraPieno }: scritto=ha riempito la cella; eraPieno=la cella aveva già un valore (compilato a mano).
-      // forza=true (upgrade negativo→positivo: il positivo vince SEMPRE): forza SOLO esito (→positivo),
-      // note (→pulita) e data (→data del positivo). Le ALTRE colonne (sigillo, saracinesca, esecutore, …)
-      // restano alla policy normale, così un dato compilato a mano NON viene mai svuotato né sovrascritto
-      // in silenzio dall'upgrade.
+      // forza=true → riscrive le colonne del set CAMPI_FORZA_* (vedi in testa al modulo):
+      //   upgrade POSITIVO → TUTTI i dati di lavorazione (esito, note→pulita, esecutore, sigillo,
+      //   saracinesca) + data (ramo dedicato sotto): la riga deve diventare quella del positivo;
+      //   refresh NEGATIVO → solo esito/note/data, le altre colonne a mano restano protette.
       const scriviCella = (row, regola, l, forza = false, refreshData = false) => {
         const cell = row.getCell(regola.idx + 1);
         const eraPieno = String(cell.value ?? '').trim() !== '';
@@ -185,11 +193,16 @@ export async function eseguiGiro({
         const valore = regola.campo === 'esito'
           ? valoreEsito(l, esitoPositivo, esitoNegativo)
           : valoreCampo(l, regola.campo);
-        // forza SOLO esito e note (note→pulita). Le altre colonne cadono nella policy normale sotto.
+        // set dei campi forzati in base all'esito del lavoro (positivo=tutto, negativo=esito/note).
         // Idempotente: se la cella è GIÀ uguale al valore forzato non riscrive (niente write/backup a
         // vuoto sui giri ripetuti; essenziale nel refresh negativo→negativo, dove l'esito resta "No").
-        if (forza && (regola.campo === 'esito' || regola.campo === 'note')) {
+        const campiForza = l.esitoOk === true ? CAMPI_FORZA_POSITIVO : CAMPI_FORZA_NEGATIVO;
+        if (forza && campiForza.has(regola.campo)) {
           const v = valore == null ? '' : String(valore).trim();
+          // Solo la NOTA viene svuotata quando il vincente non ha valore (la nota del negativo
+          // non deve restare sul positivo). Per gli altri campi un valore VUOTO non cancella il
+          // dato a file (es. positivo senza sigillo: il sigillo compilato a mano resta).
+          if (v === '' && regola.campo !== 'note') return { scritto: false, eraPieno };
           const nv = v === '' ? null : v;
           if (String(cell.value ?? '').trim() === v) return { scritto: false, eraPieno };
           cell.value = nv;
@@ -225,9 +238,13 @@ export async function eseguiGiro({
         saracinesca: l.saracinesca ?? '', note: l.note ?? '',
       });
 
-      // colonne esito/note (per rilevare l'upgrade e tracciare ciò che viene sovrascritto)
+      // colonne esito/note/esecutore/sigillo/saracinesca (per rilevare l'upgrade e tracciare ciò che viene sovrascritto)
       const regolaEsito = regoleScrittura.find((r) => r.campo === 'esito');
       const regolaNote = regoleScrittura.find((r) => r.campo === 'note');
+      const regolaEsecutore = regoleScrittura.find((r) => r.campo === 'esecutore');
+      const regolaSigillo = regoleScrittura.find((r) => r.campo === 'sigillo');
+      const regolaSaracinesca = regoleScrittura.find((r) => r.campo === 'saracinesca');
+      const testoCella = (riga, regola) => (regola ? String(riga.getCell(regola.idx + 1).value ?? '').trim() : '');
 
       // 1) righe pianificate
       for (let r = rIntest + 1; r <= ws.rowCount; r++) {
@@ -243,23 +260,30 @@ export async function eseguiGiro({
         if (!hit) continue;
         idConsumati.add(hit.lavoro.id);
 
-        // forza = sovrascrittura di esito/note/data. Scatta quando in cella c'è il NEGATIVO ("No") e il
-        // lavoro agganciato ha un esito (positivo o negativo):
-        //   • POSITIVO → vince sempre sul negativo (upgrade No→eseguito), anche su righe a mano;
-        //   • NEGATIVO → è il VINCITORE di chiave, cioè il più recente (vedi vinceLavoro); sovrascrive un
-        //     negativo più vecchio già a file (nota/data): più negativi sullo stesso intervento senza un
-        //     positivo → conta solo il più recente.
-        // Un positivo a file NON viene mai sovrascritto da un negativo (cellaEsitoNegativa è falso). Restano
-        // protette (policy normale) le ALTRE colonne a mano (sigillo, saracinesca, esecutore): forza tocca
-        // solo esito/note/data.
+        // forza = sovrascrittura dei campi CAMPI_FORZA_* + data. Scatta in base all'esito del lavoro:
+        //   • POSITIVO → vince SEMPRE: sovrascrive QUALSIASI esito già a file diverso dal positivo
+        //     (il "No" canonico ma anche un testo libero scritto a mano, es. "NO PASSAGGIO"), anche
+        //     su righe a mano, e riscrive TUTTI i dati di lavorazione (esito/note/data + esecutore/
+        //     sigillo/saracinesca): la riga deve diventare quella del positivo. Cella esito vuota →
+        //     policy normale riempi-vuote.
+        //   • NEGATIVO → è il VINCITORE di chiave, cioè il più recente (vedi vinceLavoro); sovrascrive SOLO
+        //     un negativo canonico ("No") più vecchio già a file, e solo esito/note/data: più negativi
+        //     sullo stesso intervento senza un positivo → conta solo il più recente. Testi liberi/positivi
+        //     a file e le altre colonne a mano NON vengono mai toccati da un negativo.
         const autoEsistente = automazioneCol >= 0 ? String(row.getCell(automazioneCol + 1).value ?? '').trim() : '';
         const rigaDellAgente = autoEsistente !== '';
         const esitoCella = regolaEsito ? row.getCell(regolaEsito.idx + 1).value : null;
-        const forza = hit.lavoro.esitoOk != null && cellaEsitoNegativa(esitoCella, esitoNegativo);
+        const forza = hit.lavoro.esitoOk === true
+          ? cellaEsitoDaSovrascrivere(esitoCella, esitoPositivo)
+          : hit.lavoro.esitoOk === false && cellaEsitoNegativa(esitoCella, esitoNegativo);
 
         // traccia ciò che l'upgrade sovrascrive (per storico/eventuale ripristino), letto PRIMA della scrittura
+        const upgradePositivo = forza && hit.lavoro.esitoOk === true;
         const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
-        const notaPrecedente = forza && regolaNote ? String(row.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
+        const notaPrecedente = forza ? testoCella(row, regolaNote) : '';
+        const esecutorePrecedente = upgradePositivo ? testoCella(row, regolaEsecutore) : '';
+        const sigilloPrecedente = upgradePositivo ? testoCella(row, regolaSigillo) : '';
+        const saracinescaPrecedente = upgradePositivo ? testoCella(row, regolaSaracinesca) : '';
 
         // Sulle righe DELL'AGENTE la data segue l'esecuzione (sovrascrive la pianificata), MA
         // solo se data ed esito vengono dalla STESSA esecuzione. Se la riga conserva un esito a
@@ -301,6 +325,11 @@ export async function eseguiGiro({
             : (completate.length === 0 && soloRefresh ? 'refresh-data' : (parziale ? 'parziale' : 'aggiornata'));
           const rep = rigaReport(hit.lavoro, row.number, tipo);
           if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
+          if (upgradePositivo) {
+            rep.esecutorePrecedente = esecutorePrecedente;
+            rep.sigilloPrecedente = sigilloPrecedente;
+            rep.saracinescaPrecedente = saracinescaPrecedente;
+          }
           fileReport.righe.push(rep);
         }
       }
@@ -315,13 +344,21 @@ export async function eseguiGiro({
         // ha già quella matricola + un ODL). Si scrive sulla riga esistente con la solita policy.
         const rigaEsistente = l.matricola ? righePerMatricola.get(norm(l.matricola)) : null;
         if (rigaEsistente) {
-          // REGOLA: il positivo SOVRASCRIVE SEMPRE il negativo (mai il contrario); in assenza di positivo,
-          // il negativo più recente (vincitore di chiave) sovrascrive un negativo più vecchio già a file.
-          // Come sul ramo pianificato, su cella "No"/nota: forza esito/note/data, anche su righe a mano.
+          // REGOLA: il positivo SOVRASCRIVE SEMPRE qualsiasi esito non-positivo già a file (mai il
+          // contrario) e riscrive TUTTI i dati di lavorazione (CAMPI_FORZA_POSITIVO + data); in
+          // assenza di positivo, il negativo più recente (vincitore di chiave) sovrascrive SOLO
+          // un negativo canonico più vecchio già a file, limitato a esito/note/data.
+          // Come sul ramo pianificato: vale anche su righe a mano.
           const esitoCella = regolaEsito ? rigaEsistente.getCell(regolaEsito.idx + 1).value : null;
-          const forza = l.esitoOk != null && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const forza = l.esitoOk === true
+            ? cellaEsitoDaSovrascrivere(esitoCella, esitoPositivo)
+            : l.esitoOk === false && cellaEsitoNegativa(esitoCella, esitoNegativo);
+          const upgradePositivo = forza && l.esitoOk === true;
           const esitoPrecedente = forza ? String(esitoCella ?? '').trim() : '';
-          const notaPrecedente = forza && regolaNote ? String(rigaEsistente.getCell(regolaNote.idx + 1).value ?? '').trim() : '';
+          const notaPrecedente = forza ? testoCella(rigaEsistente, regolaNote) : '';
+          const esecutorePrecedente = upgradePositivo ? testoCella(rigaEsistente, regolaEsecutore) : '';
+          const sigilloPrecedente = upgradePositivo ? testoCella(rigaEsistente, regolaSigillo) : '';
+          const saracinescaPrecedente = upgradePositivo ? testoCella(rigaEsistente, regolaSaracinesca) : '';
 
           let toccata = false;
           const completate = [];
@@ -337,6 +374,11 @@ export async function eseguiGiro({
           }
           const rep = rigaReport(l, rigaEsistente.number, forza ? (l.esitoOk === true ? 'upgrade' : 'refresh-negativo') : 'extra-esistente');
           if (forza) { rep.esitoPrecedente = esitoPrecedente; rep.notaPrecedente = notaPrecedente; }
+          if (upgradePositivo) {
+            rep.esecutorePrecedente = esecutorePrecedente;
+            rep.sigilloPrecedente = sigilloPrecedente;
+            rep.saracinescaPrecedente = saracinescaPrecedente;
+          }
           fileReport.righe.push(rep);
           continue;
         }
