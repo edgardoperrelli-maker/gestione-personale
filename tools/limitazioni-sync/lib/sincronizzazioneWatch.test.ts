@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 // @ts-expect-error — modulo .mjs senza tipi
-import { verificaModificaEsterna, registraScrittura } from './sincronizzazioneWatch.mjs';
+import { verificaModificaEsterna, registraScrittura, segnalaClobber } from './sincronizzazioneWatch.mjs';
 
 let dir: string;
 let master: string;
@@ -111,5 +111,77 @@ describe('verificaModificaEsterna', () => {
     scriviMaster(2000, 1_000_500_250); // frazionario (.250)
     const avviso = verificaModificaEsterna(master, { statePath });
     expect(avviso!.probabileServer).toBe(false);
+  });
+
+  // `mtimeIndietro` è il discriminante fra i due scenari, che il solo "è cambiato" confonde:
+  //  - l'ufficio salva DOPO l'agente → mtime avanti → co-authoring, le celle dell'agente si fondono;
+  //  - scende dal server una versione PIÙ VECCHIA della scrittura dell'agente → divergenza
+  //    (il caso ZAGAROLO 14-15/07: sync in sospeso, il lavoro dell'agente non sale mai).
+  it('mtimeIndietro=false quando il file è stato risalvato DOPO l agente (caso normale)', () => {
+    scriviMaster(1000, 1_000_000_500); // agente
+    registraScrittura(master, { statePath });
+    scriviMaster(2000, 1_000_500_000); // ufficio salva dopo → mtime avanti
+    const avviso = verificaModificaEsterna(master, { statePath });
+    expect(avviso!.mtimeIndietro).toBe(false);
+  });
+
+  it('mtimeIndietro=true quando il file TORNA INDIETRO rispetto alla scrittura dell agente (divergenza)', () => {
+    scriviMaster(1000, 1_000_500_500); // agente scrive alle .500.500
+    registraScrittura(master, { statePath });
+    scriviMaster(2000, 1_000_000_000); // ridiscende una versione PRECEDENTE dal server
+    const avviso = verificaModificaEsterna(master, { statePath });
+    expect(avviso!.mtimeIndietro).toBe(true);
+    expect(avviso!.probabileServer).toBe(true);
+  });
+
+  it('stesso mtime ma size diversa → non è un ritorno indietro', () => {
+    scriviMaster(1000, 1_000_000_500);
+    registraScrittura(master, { statePath });
+    scriviMaster(2000, 1_000_000_500); // stesso istante, contenuto diverso
+    const avviso = verificaModificaEsterna(master, { statePath });
+    expect(avviso).not.toBeNull();
+    expect(avviso!.mtimeIndietro).toBe(false);
+  });
+});
+
+describe('segnalaClobber', () => {
+  function spia() {
+    const errori: string[] = [];
+    const info: string[] = [];
+    return { log: (m: string) => info.push(m), error: (m: string) => errori.push(m), errori, info };
+  }
+  const avviso = (mtimeIndietro: boolean) => ({
+    attuale: { mtimeIso: '2026-07-15T12:58:18.000Z' },
+    probabileServer: true,
+    mtimeIndietro,
+  });
+
+  it('ufficio che salva dopo l agente → INFO, e NON dice che è stata sovrascritta', () => {
+    // Il testo vecchio asseriva una perdita dati che i fatti smentivano (DUNNING 15/07: 28/28 celle
+    // vive dopo 3 salvataggi dell'ufficio). Un allarme che grida al lupo a ogni salvataggio
+    // legittimo si smette di leggere — e copre l'unico caso che conta davvero.
+    const s = spia();
+    segnalaClobber('LIMITAZIONI CON ORDINE.xlsx', avviso(false), s);
+    expect(s.errori).toEqual([]);
+    expect(s.info).toHaveLength(1);
+    expect(s.info[0]).toContain('LIMITAZIONI CON ORDINE.xlsx');
+    expect(s.info[0]).not.toMatch(/SOVRASCRITTA/i);
+    expect(s.info[0]).toMatch(/co-authoring|riscrive/i);
+  });
+
+  it('file tornato indietro → WARN azionabile, con il rimedio', () => {
+    const s = spia();
+    segnalaClobber('ZAGAROLO.xlsx', avviso(true), s);
+    expect(s.info).toEqual([]);
+    expect(s.errori).toHaveLength(1);
+    expect(s.errori[0]).toMatch(/DIVERGENZA/);
+    expect(s.errori[0]).toMatch(/Excel/); // il rimedio: aprirlo per farlo riconciliare
+  });
+
+  it('nessun avviso → non dice niente', () => {
+    const s = spia();
+    segnalaClobber('X.xlsx', null, s);
+    expect(s.errori).toEqual([]);
+    expect(s.info).toEqual([]);
   });
 });
