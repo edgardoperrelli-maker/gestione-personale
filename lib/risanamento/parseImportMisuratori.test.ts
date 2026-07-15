@@ -45,6 +45,29 @@ describe('parseImportMisuratori', () => {
     expect(res.records[0].indirizzo).toBe('CIRCONVALLAZIONE GIOVANNI FALCONE 1');
   });
 
+  // Le estrazioni ACEA per comune non hanno una colonna "PDR": l'identificativo sta in "Impianto".
+  // Verificato sui dati reali sul comune che ha entrambi (Impianto nel file master, PDR nei censiti
+  // gia' importati): combaciano cifra per cifra su tutto il campione controllato.
+  it('usa "Impianto" come PDR quando manca una colonna PDR', () => {
+    const rows = [
+      ['Ordine', 'Impianto', 'matricola', 'Indirizzo', 'cap', 'Località'],
+      ['912350788', '4004130614', '202415625500', 'VIA X 1', '00030', 'LABICO'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].pdr).toBe('4004130614');
+  });
+
+  // Guard: "Impianto" è solo un ripiego. Se il file ha una colonna PDR vera quella vince, anche se
+  // "Impianto" viene PRIMA (la mappatura assegna al campo la prima colonna che matcha).
+  it('una colonna PDR vera batte "Impianto", anche se Impianto viene prima', () => {
+    const rows = [
+      ['Impianto', 'Matricola', 'PDR'],
+      ['4004130614', 'MAT1', 'PDR-VERO'],
+    ];
+    const res = parseImportMisuratori(rows);
+    expect(res.records[0].pdr).toBe('PDR-VERO');
+  });
+
   // Guard: l'alias "Ordine" deve essere ancorato. Un pattern lasco (es. /ordin/) matcherebbe
   // "Coordinate"/"Coordinata" delle estrazioni con geolocalizzazione, riempiendo l'odl di spazzatura.
   it('non scambia "Coordinate" per la colonna Ordine', () => {
