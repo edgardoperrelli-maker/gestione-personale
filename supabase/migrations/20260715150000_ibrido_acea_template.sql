@@ -13,11 +13,15 @@
 -- committente='acea' + is_default=false → non è default e non altera la risoluzione dei template
 -- pianificati (il template si sceglie a mano in pianificazione). Additivo/idempotente: non crea
 -- nulla se un template con questo nome esiste già, e non tocca i template esistenti.
+-- NB: i flag `task_via`/`task_via_ibrido` restano al default (false) e NON sono elencati apposta:
+-- `task_via` non è creata da nessuna migration del repo (esiste solo sul prod, e il codice la legge
+-- in modo difensivo — app/r/[token]/page.tsx), quindi elencarla romperebbe la INSERT su un DB
+-- ricostruito dalle sole migration. Ometterle è al contempo robusto e semanticamente corretto.
 insert into rapportino_template
-  (nome, committente, is_default, active, solo_manuale, task_via, task_via_ibrido, tipo,
+  (nome, committente, is_default, active, solo_manuale, tipo,
    campi, info_campi, titolo_campi)
 select
-  'Ibrido acea', 'acea', false, true, false, false, false, 'standard',
+  'Ibrido acea', 'acea', false, true, false, 'standard',
   '[
     {"chiave":"eseguito","etichetta":"ESEGUITO","tipo":"select","opzioni":["SI","NESSUN PASSAGGIO","NO"],"obbligatoria":true,"ordine":1},
     {"chiave":"sostituzione_valvola","etichetta":"SOSTITUZIONE VALVOLA","tipo":"select","opzioni":["SI","NO"],"obbligatoria":true,"ordine":2},
