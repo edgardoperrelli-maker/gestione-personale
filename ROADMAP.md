@@ -5,6 +5,15 @@
 
 ## Fatto
 
+- ✅ **Template ibrido «Ibrido acea»** *(2026-07-15)* — un UNICO template rapportino che copre nello
+  stesso giro Acea sia le **limitazioni massive** sia le **limitazioni/sospensioni**: superset dei
+  due template esistenti (`RAPPORTINO LIMITAZIONI MASSIVE` + `LIMITAZIONI/SOSPENSIONI`). Mantiene le
+  funzioni già settate di entrambi — esito con "NESSUN PASSAGGIO" e foto valvola condizionale
+  (`sostituzione_valvola`=SI ⇒ `sost_valvola` obbligatoria) — che il codice riconosce **per nome**
+  dei campi (`utils/rapportini/voceColore.ts`, `utils/rapportini/fotoCondizionali.ts`): nessuna
+  modifica al codice, solo il nuovo template. Committente `acea`, non default. Seed idempotente
+  `20260715150000_ibrido_acea_template.sql` — **da applicare al prod** (o ricreabile dall'editor
+  Template rapportini). Vedi HANDOFF.md → FILONE 4.
 - ✅ **Lentezza nel passaggio tra moduli** *(2026-07-15)* — diagnosi completa + fix.
   Cause trovate: (1) `PageTransitionWrapper` nel root layout con `key={pathname}`
   smontava/rimontava l'intero AppShell a ogni navigazione; (2) `AnimatePresence

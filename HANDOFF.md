@@ -32,6 +32,27 @@ sospeso" per sempre. Soluzione: backup → **aprire il file in Excel su questo P
 co-authoring a livello cella, nessuna perdita da nessun lato) → chiudere → "Disponibile".
 **MAI spostare/cancellare il locale**: OneDrive propaga la DELETE al server.
 
+## FILONE 4 — Template «Ibrido acea» (limitazioni massive + limitazioni/sospensioni)
+
+Nuova richiesta (ATLAS `5d33e41f`): un **unico** template rapportino "Ibrido acea" per fare nello
+stesso giro Acea sia le **limitazioni massive** sia le **limitazioni/sospensioni**. Realizzato come
+**seed migration** — nessun codice nuovo: `supabase/migrations/20260715150000_ibrido_acea_template.sql`.
+
+- È il **superset** di `RAPPORTINO LIMITAZIONI MASSIVE` + `LIMITAZIONI/SOSPENSIONI`; committente
+  `acea`, `is_default=false` (non altera la risoluzione dei template pianificati, che si scelgono a mano).
+- Le "funzioni già settate" si attivano da sole perché il codice riconosce i campi **per nome**:
+  esito `eseguito` con "NESSUN PASSAGGIO" → rossa diretta (`utils/rapportini/voceColore.ts`) e valvola
+  condizionale `sostituzione_valvola`=SI ⇒ foto `sost_valvola` obbligatoria (`utils/rapportini/fotoCondizionali.ts`).
+  Per questo chiavi/etichette sono state **replicate identiche** ai due template origine.
+- Foto: 4 obbligatorie fisse (ANTE PANORAMICA, INSERIMENTO LIMITAZIONE, LETTURA MISURATORE, SIGILLATURA)
+  + SOST. VALVOLA obbligatoria **solo se** valvola=SI (condizionale, come nel massive). Totale 10 campi,
+  5 foto, 7 obbligatori. JSON validato read-only sul DB; seed `insert ... where not exists` (idempotente).
+- Scelte di merge (dove i due origine divergevano): `sostituzione_valvola` SI/NO **obbligatoria** e
+  `sigillo` **obbligatorio** (versione massive, più completa; nelle sospensioni erano più leggeri).
+  Un vero ibrido "campi diversi per attività" NON è possibile oggi (il template ha un solo set di campi
+  per tutte le voci): servirebbe sviluppo dedicato.
+- ⚠️ **Seed da applicare al prod** (non ancora eseguita): il template non esiste ancora a DB.
+
 ## FILONE 3 — Labico: limitazioni massive multi-comune (MERGED, 2 passi manuali aperti)
 
 ### Goal
@@ -166,3 +187,6 @@ eseguiGiro({ ..., comune })                        // assente sul giro schedulat
 4. Se ricompare un "esito non riportato": PRIMA controllare lo stato sync del file (quasi mai è
    il codice — vedi memoria `acea-zagarolo-sync-coauthoring`).
 5. Follow-up performance restanti: ROADMAP.md → sezione Performance.
+6. **Applicare al prod la seed `20260715150000_ibrido_acea_template.sql`** (FILONE 4): il template
+   "Ibrido acea" non esiste ancora a DB. In alternativa, ricrearlo identico dall'editor Template
+   rapportini (committente Acea, campi come da seed).
