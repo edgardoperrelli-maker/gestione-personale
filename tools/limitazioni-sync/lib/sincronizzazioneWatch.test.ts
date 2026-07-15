@@ -44,6 +44,33 @@ describe('registraScrittura', () => {
     expect(() => registraScrittura(master, { statePath })).not.toThrow();
     expect(fs.existsSync(statePath)).toBe(false);
   });
+
+  it('senza statePath usa la env LIMSYNC_WATCH_STATE (isola i test dallo stato reale) e crea la cartella', () => {
+    const prima = process.env.LIMSYNC_WATCH_STATE;
+    // sottocartella NON esistente: salvaStato deve crearla (la env di vitest punta a una dir temp)
+    const envState = path.join(dir, 'sub', 'env-watch.json');
+    process.env.LIMSYNC_WATCH_STATE = envState;
+    try {
+      scriviMaster(500);
+      registraScrittura(master, { nowIso: '2026-07-15T10:00:00.000Z' }); // niente statePath esplicito
+      const stato = JSON.parse(fs.readFileSync(envState, 'utf8'));
+      expect(stato[master]).toBeTruthy();
+      expect(stato[master].size).toBe(500);
+      // e verificaModificaEsterna legge dallo stesso default
+      expect(verificaModificaEsterna(master)).toBeNull();
+    } finally {
+      if (prima === undefined) delete process.env.LIMSYNC_WATCH_STATE;
+      else process.env.LIMSYNC_WATCH_STATE = prima;
+    }
+  });
+
+  it('scrittura atomica dello stato: nessun file temporaneo residuo accanto allo stato', () => {
+    scriviMaster(1000);
+    registraScrittura(master, { statePath });
+    expect(fs.existsSync(statePath)).toBe(true);
+    const residui = fs.readdirSync(dir).filter((f) => f.includes('.sync-watch') && f !== '.sync-watch.json');
+    expect(residui).toEqual([]);
+  });
 });
 
 describe('verificaModificaEsterna', () => {
