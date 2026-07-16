@@ -1,6 +1,6 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
 import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale } from './syncPlan';
-import { marcaErrore } from './outboxModel';
+import { esitoErroreRete } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
 import type { OutboxItem } from './types';
@@ -160,8 +160,12 @@ export async function sincronizzaToken(token: string): Promise<boolean> {
       } else if (esito.esito === 'bloccato') {
         await dbOutbox.put({ ...item, stato: 'bloccato', ultimoErrore: esito.motivo });
       } else {
-        await dbOutbox.put(marcaErrore(item, 'rete'));
-        break; // errore di rete: interrompi, ritenta al trigger successivo
+        const aggiornato = esitoErroreRete(item);
+        await dbOutbox.put(aggiornato);
+        // Tetto tentativi raggiunto: l'item diventa 'bloccato' ("da risolvere") → non blocca
+        // più la coda né martella il server; proseguiamo con gli altri elementi.
+        if (aggiornato.stato === 'bloccato') continue;
+        break; // errore di rete transitorio: interrompi, ritenta al trigger successivo
       }
     }
     const restanti = (await dbOutbox.perToken(token)).filter((i) => i.stato !== 'bloccato');
