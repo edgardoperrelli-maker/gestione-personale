@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { chiaveCoalescing, applicaUpsert, marcaErrore, prossimoTentativoMs } from './outboxModel';
+import { chiaveCoalescing, applicaUpsert, marcaErrore, prossimoTentativoMs, esitoErroreRete, MAX_TENTATIVI_RETE } from './outboxModel';
 import type { OutboxItem } from './types';
 
 function voce(id: string, token: string, voceId: string, risposte: Record<string, unknown>, createdAt = 1): OutboxItem {
@@ -48,5 +48,30 @@ describe('marcaErrore / prossimoTentativoMs', () => {
     expect(prossimoTentativoMs(2)).toBe(2000);
     expect(prossimoTentativoMs(3)).toBe(4000);
     expect(prossimoTentativoMs(10)).toBe(60000);
+  });
+});
+
+describe('esitoErroreRete', () => {
+  it('sotto il tetto resta in errore e incrementa i tentativi', () => {
+    const out = esitoErroreRete(voce('1', 'tok', 'v1', { a: 1 }));
+    expect(out.stato).toBe('errore');
+    expect(out.tentativi).toBe(1);
+  });
+  it('raggiunto il tetto diventa bloccato ("da risolvere")', () => {
+    const item = { ...voce('1', 'tok', 'v1', { a: 1 }), tentativi: MAX_TENTATIVI_RETE - 1 } as OutboxItem;
+    const out = esitoErroreRete(item);
+    expect(out.tentativi).toBe(MAX_TENTATIVI_RETE);
+    expect(out.stato).toBe('bloccato');
+    expect(out.ultimoErrore).toMatch(/connessione|ufficio/i);
+  });
+  it('un item già oltre il tetto resta bloccato', () => {
+    const item = { ...voce('1', 'tok', 'v1', { a: 1 }), tentativi: MAX_TENTATIVI_RETE + 5 } as OutboxItem;
+    expect(esitoErroreRete(item).stato).toBe('bloccato');
+  });
+  it('rispetta un tetto personalizzato', () => {
+    const item = { ...voce('1', 'tok', 'v1', { a: 1 }), tentativi: 2 } as OutboxItem;
+    expect(esitoErroreRete(item, 3).stato).toBe('bloccato');
+    const sotto = { ...voce('1', 'tok', 'v1', { a: 1 }), tentativi: 1 } as OutboxItem;
+    expect(esitoErroreRete(sotto, 3).stato).toBe('errore');
   });
 });
