@@ -42,7 +42,7 @@ type CodaRiga = {
   n_segnalazione: unknown; ora_inizio: unknown; ora_fine: unknown; assistente_te: unknown; note: unknown;
   anomalia_reperibilita: boolean;
 };
-type TabRiga = CodaRiga & { intervento_id: string | null; valore: number };
+type TabRiga = CodaRiga & { intervento_id: string | null; valore: number; patch?: boolean; patch_matricola?: unknown };
 
 function fmtData(d: string | null): string {
   if (!d) return '';
@@ -58,7 +58,9 @@ async function condividiPdfTab(r: TabRiga) {
     oraInizio: s(r.ora_inizio), oraFine: s(r.ora_fine),
     indirizzo: s(r.indirizzo), comune: s(r.comune),
     assistenteItg: s(r.assistente_te), assistenteDitta: r.esecutore ?? '',
-    descrizione: s(r.note),
+    descrizione: [s(r.note), r.patch ? `PATCH MATRICOLA: ${s(r.patch_matricola)}` : '']
+      .filter(Boolean)
+      .join('\n'),
   });
   await condividiOScarica({
     blob, filename: nomeFileRapportinoPI(s(r.n_segnalazione), r.data ?? ''),
