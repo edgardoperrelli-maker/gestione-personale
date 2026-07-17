@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { dimensioniTarget, JPEG_QUALITA, MAX_FOTO_BYTES, QUALITA_FALLBACK } from '@/lib/interventi/manuali/compressioneFoto';
+import { dimensioniTarget, TENTATIVI_COMPRESSIONE, MAX_FOTO_BYTES } from '@/lib/interventi/manuali/compressioneFoto';
 
 /** Ricodifica il canvas in JPEG alla qualità data (Promise-wrapper di `toBlob`). */
 function canvasToJpeg(canvas: HTMLCanvasElement, qualita: number): Promise<Blob | null> {
@@ -9,13 +9,15 @@ function canvasToJpeg(canvas: HTMLCanvasElement, qualita: number): Promise<Blob 
 }
 
 /**
- * Comprime un file immagine su canvas: lato lungo ~1600px, JPEG q≈0.8.
+ * Comprime un file immagine su canvas puntando a un payload piccolo (≤ `MAX_FOTO_BYTES`).
  *
- * Su rete debole un body multipart troppo grande arriva TRONCATO al server e `req.formData()`
- * fallisce → l'invio del "+" resta bloccato in sincronizzazione. Per evitarlo, se la foto supera
- * `MAX_FOTO_BYTES` alla qualità piena riduciamo progressivamente la QUALITÀ (mai la risoluzione:
- * 1600px restano, così la matricola resta leggibile) finché rientra sotto il tetto. Le foto già
- * leggere non entrano mai nel ramo di ripiego: per loro il risultato è identico a prima.
+ * Su rete debole un body multipart troppo grande arriva TRONCATO al server, `req.formData()`
+ * fallisce e l'invio del "+" resta bloccato in sincronizzazione (caso reale: un operatore, decine
+ * di POST falliti di fila). Per evitarlo proviamo la scaletta `TENTATIVI_COMPRESSIONE`: prima 1600px
+ * @ 0.8 (identico a prima per le foto già leggere → si ferma subito), poi qualità più bassa e, se
+ * serve, risoluzione più bassa (1280 → 1024). Così il payload è SEMPRE piccolo — non si spedisce mai
+ * il file originale full-size — anche sui telefoni dove `toBlob` a piena risoluzione fallisce. Ci si
+ * ferma al primo tentativo sotto il tetto; altrimenti si tiene il più leggero ottenuto.
  */
 export async function comprimiImmagine(file: File): Promise<File> {
   const dataUrl: string = await new Promise((res, rej) => {
@@ -32,24 +34,24 @@ export async function comprimiImmagine(file: File): Promise<File> {
     i.src = dataUrl;
   });
 
-  const { width, height } = dimensioniTarget(img.naturalWidth, img.naturalHeight);
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
   const ctx = canvas.getContext('2d');
   if (!ctx) return file; // fallback: nessuna compressione possibile
-  ctx.drawImage(img, 0, 0, width, height);
 
-  let blob = await canvasToJpeg(canvas, JPEG_QUALITA);
-  for (const q of QUALITA_FALLBACK) {
-    if (blob && blob.size <= MAX_FOTO_BYTES) break; // già abbastanza leggera
-    const ridotto = await canvasToJpeg(canvas, q);
-    if (ridotto && (!blob || ridotto.size < blob.size)) blob = ridotto;
+  let migliore: Blob | null = null;
+  for (const tentativo of TENTATIVI_COMPRESSIONE) {
+    const { width, height } = dimensioniTarget(img.naturalWidth, img.naturalHeight, tentativo.lato);
+    canvas.width = width;
+    canvas.height = height;
+    ctx.drawImage(img, 0, 0, width, height);
+    const blob = await canvasToJpeg(canvas, tentativo.qualita);
+    if (blob && (!migliore || blob.size < migliore.size)) migliore = blob;
+    if (migliore && migliore.size <= MAX_FOTO_BYTES) break; // abbastanza leggera: fermati
   }
-  if (!blob) return file;
+  if (!migliore) return file;
 
   const baseName = file.name.replace(/\.[^.]+$/, '') || 'foto';
-  return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg' });
+  return new File([migliore], `${baseName}.jpg`, { type: 'image/jpeg' });
 }
 
 export function CampoFoto({

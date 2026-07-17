@@ -107,6 +107,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     form = await req.formData();
     rawDati = JSON.parse(String(form.get('dati') ?? '{}'));
   } catch {
+    // Diagnostica: content-length dichiarato dal client (quanto INTENDEVA inviare, anche se il body
+    // è arrivato troncato) → distingue "foto troppo pesanti" (payload grande) da "solo segnale".
+    console.error('[intervento-manuale] body illeggibile/troncato', { contentLength: req.headers.get('content-length') });
     return NextResponse.json(
       { error: 'body_illeggibile', dettaglio: 'Caricamento incompleto (connessione debole): riprova quando hai più campo.' },
       { status: 503 },
