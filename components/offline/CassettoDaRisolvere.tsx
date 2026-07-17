@@ -1,7 +1,18 @@
 'use client';
 
-import { dbOutbox } from '@/lib/offline/db';
+import { dbOutbox, dbBlob } from '@/lib/offline/db';
+import { svuotaCacheApp } from '@/lib/offline/ripristino';
 import type { OutboxItem } from '@/lib/offline/types';
+
+/** Rimuove un elemento della coda e i suoi blob foto (per non lasciare orfani in IndexedDB). */
+async function rimuoviItemEBlob(it: OutboxItem): Promise<void> {
+  if (it.type === 'manuale') {
+    for (const ref of it.payload.fotoBlobRefs) await dbBlob.rimuovi(ref.blobId);
+  } else if (it.type === 'foto') {
+    await dbBlob.rimuovi(it.payload.blobId);
+  }
+  await dbOutbox.rimuovi(it.id);
+}
 
 const ETICHETTA: Record<OutboxItem['type'], string> = {
   voce: 'Compilazione intervento',
@@ -38,7 +49,7 @@ export function CassettoDaRisolvere({
             </div>
             <button
               type="button"
-              onClick={async () => { await dbOutbox.rimuovi(it.id); onRimosso(); }}
+              onClick={async () => { await rimuoviItemEBlob(it); onRimosso(); }}
               className="shrink-0 rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-xs font-semibold text-[var(--brand-text-main)] transition hover:border-[var(--danger)]"
             >
               Rimuovi
@@ -47,6 +58,25 @@ export function CassettoDaRisolvere({
         ))}
       </ul>
       <div className="mt-2 text-xs text-[var(--danger)]">Per i casi recuperabili (es. link scaduto) contatta l&apos;ufficio.</div>
+
+      {/*
+        Ripristino "come navigazione anonima": quando lo stato locale si impantana (vecchio bundle in
+        cache, service worker incoerente) l'invio fallisce all'infinito anche se il codice server è
+        corretto. Questo azzera cache + service worker + gli elementi qui bloccati e ricarica, così
+        l'app riparte pulita. NON tocca gli interventi validi ancora in coda (solo questi "da risolvere").
+      */}
+      <button
+        type="button"
+        onClick={async () => {
+          if (!window.confirm('Svuota la cache dell’app e ricarica la pagina. Gli elementi “da risolvere” qui sopra verranno eliminati (andranno rifatti). Gli interventi in corso di invio restano al sicuro. Continuare?')) return;
+          for (const it of items) await rimuoviItemEBlob(it);
+          await svuotaCacheApp();
+          window.location.reload();
+        }}
+        className="mt-3 w-full rounded-lg border border-[var(--danger)] px-3 py-2 text-xs font-bold text-[var(--danger)] transition hover:bg-[var(--danger)] hover:text-[var(--on-primary)]"
+      >
+        Svuota cache e ricarica
+      </button>
     </div>
   );
 }
