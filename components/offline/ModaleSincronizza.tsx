@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { dbOutbox } from '@/lib/offline/db';
 import { sincronizzaToken } from '@/lib/offline/sync';
+import { ripristinaApp } from '@/lib/offline/ripristino';
 import type { OutboxItem } from '@/lib/offline/types';
 
 const ETICHETTA: Record<OutboxItem['type'], string> = {
@@ -140,6 +141,24 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
             Aggiorna pagina
           </button>
         </div>
+
+        {/*
+          Ultima spiaggia, sempre disponibile: se l'app resta "impantanata" (invii che non partono
+          mai, badge fermo) nonostante l'aggiornamento, questo azzera cache + service worker + gli
+          elementi bloccati e ricarica — come aprire in navigazione anonima, ma con un tocco. NON
+          tocca gli interventi validi ancora in coda. Funziona su Android e iOS (API standard).
+        */}
+        <button
+          type="button"
+          onClick={async () => {
+            if (!window.confirm('Svuota la cache dell’app e ricarica. Utile se gli invii restano bloccati. Gli elementi “da risolvere” verranno eliminati; gli interventi in corso di invio restano al sicuro. Continuare?')) return;
+            await ripristinaApp(bloccati);
+            if (typeof window !== 'undefined') window.location.reload();
+          }}
+          className="mt-2 w-full rounded-xl border border-[var(--brand-border-strong)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
+        >
+          Svuota cache e ricarica
+        </button>
       </div>
     </div>
   );
