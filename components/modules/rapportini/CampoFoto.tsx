@@ -1,9 +1,22 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { dimensioniTarget, JPEG_QUALITA } from '@/lib/interventi/manuali/compressioneFoto';
+import { dimensioniTarget, JPEG_QUALITA, MAX_FOTO_BYTES, QUALITA_FALLBACK } from '@/lib/interventi/manuali/compressioneFoto';
 
-/** Comprime un file immagine su canvas: lato lungo ~1600px, JPEG q≈0.8. */
+/** Ricodifica il canvas in JPEG alla qualità data (Promise-wrapper di `toBlob`). */
+function canvasToJpeg(canvas: HTMLCanvasElement, qualita: number): Promise<Blob | null> {
+  return new Promise((res) => canvas.toBlob((b) => res(b), 'image/jpeg', qualita));
+}
+
+/**
+ * Comprime un file immagine su canvas: lato lungo ~1600px, JPEG q≈0.8.
+ *
+ * Su rete debole un body multipart troppo grande arriva TRONCATO al server e `req.formData()`
+ * fallisce → l'invio del "+" resta bloccato in sincronizzazione. Per evitarlo, se la foto supera
+ * `MAX_FOTO_BYTES` alla qualità piena riduciamo progressivamente la QUALITÀ (mai la risoluzione:
+ * 1600px restano, così la matricola resta leggibile) finché rientra sotto il tetto. Le foto già
+ * leggere non entrano mai nel ramo di ripiego: per loro il risultato è identico a prima.
+ */
 export async function comprimiImmagine(file: File): Promise<File> {
   const dataUrl: string = await new Promise((res, rej) => {
     const fr = new FileReader();
@@ -27,9 +40,12 @@ export async function comprimiImmagine(file: File): Promise<File> {
   if (!ctx) return file; // fallback: nessuna compressione possibile
   ctx.drawImage(img, 0, 0, width, height);
 
-  const blob: Blob | null = await new Promise((res) =>
-    canvas.toBlob((b) => res(b), 'image/jpeg', JPEG_QUALITA),
-  );
+  let blob = await canvasToJpeg(canvas, JPEG_QUALITA);
+  for (const q of QUALITA_FALLBACK) {
+    if (blob && blob.size <= MAX_FOTO_BYTES) break; // già abbastanza leggera
+    const ridotto = await canvasToJpeg(canvas, q);
+    if (ridotto && (!blob || ridotto.size < blob.size)) blob = ridotto;
+  }
   if (!blob) return file;
 
   const baseName = file.name.replace(/\.[^.]+$/, '') || 'foto';

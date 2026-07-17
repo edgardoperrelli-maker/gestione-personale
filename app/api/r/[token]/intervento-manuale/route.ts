@@ -87,8 +87,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
 
   // Parsing multipart: la modale invia FormData con `dati` (JSON) e `foto:<slot>` per ogni foto.
-  const form = await req.formData();
-  const rawDati = JSON.parse(String(form.get('dati') ?? '{}')) as {
+  // Su rete debole (campo) il body multipart può arrivare TRONCATO: `req.formData()` lancia allora
+  // "Failed to parse body as FormData" e — se non gestito — la route va in 500 non gestito. La coda
+  // offline classifica il 500 come transitorio e ritenta all'infinito, così l'intervento resta
+  // bloccato in sincronizzazione e non arriva mai (caso reale: un operatore, decine di POST 500 di
+  // fila, zero andati a buon fine, mentre i colleghi sullo stesso endpoint passano). Gestiamo il
+  // parsing: un body illeggibile/troncato → 503 (transitorio, coda ritenta a segnale migliore, poi
+  // degrada a "da risolvere" col tetto tentativi) invece di far crashare la route.
+  let form: FormData;
+  let rawDati: {
     richiestaId?: string;
     committente?: CommittenteManuale;
     anagrafica?: Record<string, unknown>;
@@ -96,6 +103,15 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     note?: string;
     parentVoceId?: string;
   };
+  try {
+    form = await req.formData();
+    rawDati = JSON.parse(String(form.get('dati') ?? '{}'));
+  } catch {
+    return NextResponse.json(
+      { error: 'body_illeggibile', dettaglio: 'Caricamento incompleto (connessione debole): riprova quando hai più campo.' },
+      { status: 503 },
+    );
+  }
 
   const committente = rawDati.committente as CommittenteManuale | undefined;
   if (!committente || !COMMITTENTI.includes(committente))
