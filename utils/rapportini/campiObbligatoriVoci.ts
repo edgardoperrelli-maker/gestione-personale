@@ -1,5 +1,6 @@
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { campiObbligatoriMancanti } from '@/lib/interventi/manuali/campiObbligatoriMancanti';
+import { attivitaMassiva, campoObbligatorioSoloMassive } from '@/utils/rapportini/attivitaMassiva';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { titoloVoce, type VoceInfo, type InfoChiave } from '@/utils/rapportini/infoCampi';
 
@@ -14,11 +15,16 @@ export interface CampoMancanteVoce {
  * Dettaglio dei campi NON-foto obbligatori vuoti, per voce (task). Parallelo a
  * `fotoObbligatorieMancantiDettaglio`: salta le voci manuali (create dal "+"). Riusa
  * `campiObbligatoriMancanti`, che filtra già `tipo !== 'foto'`: le foto non entrano mai qui.
+ *
+ * `fotoSoloMassive` (template "Ibrido acea"): sulle voci NON massive i campi obbligatori
+ * "solo massive" (oggi SIGILLO) non sono richiesti — come nel template LIMITAZIONI/SOSPENSIONI.
+ * Gli altri obbligatori (es. ESEGUITO) restano richiesti su tutte le voci.
  */
 export function campiObbligatoriMancantiVoci(
   voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean }>,
   campi: TemplateCampo[],
   titoloCampi: InfoChiave[] = [],
+  fotoSoloMassive = false,
 ): CampoMancanteVoce[] {
   const out: CampoMancanteVoce[] = [];
   voci.forEach((v, index) => {
@@ -26,7 +32,10 @@ export function campiObbligatoriMancantiVoci(
     // Esito negativo → i campi della lavorazione (sigillo, lettura, …) NON sono obbligatori,
     // come già per le foto. La nota obbligatoria sui negativi resta gestita da voceEsitoColore.
     if (haEsitoNegativo(v.risposte ?? {}, campi)) return;
-    const mancanti = campiObbligatoriMancanti(campi, v.risposte ?? {});
+    const campiVoce = fotoSoloMassive && !attivitaMassiva(v.attivita)
+      ? campi.map((c) => (campoObbligatorioSoloMassive(c) && c.obbligatoria ? { ...c, obbligatoria: false } : c))
+      : campi;
+    const mancanti = campiObbligatoriMancanti(campiVoce, v.risposte ?? {});
     if (mancanti.length > 0) out.push({ index, titolo: titoloVoce(v, titoloCampi, index), campi: mancanti });
   });
   return out;

@@ -32,7 +32,7 @@ import { ModaleSincronizza } from '@/components/offline/ModaleSincronizza';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
-import { attivitaMassiva } from '@/utils/rapportini/attivitaMassiva';
+import { attivitaMassiva, campoObbligatorioSoloMassive } from '@/utils/rapportini/attivitaMassiva';
 import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
 import { ModaleCampiMancanti } from './ModaleCampiMancanti';
@@ -103,14 +103,16 @@ function fasciaBreve(raw: string): string {
 }
 
 /**
- * Campi effettivi per la voce. Nel template "Ibrido acea" (`fotoSoloMassive`) le foto sono
- * obbligatorie solo per le voci di limitazione massiva: sulle altre (sospensioni/limitazioni)
- * l'obbligo cade, così il badge "obbligatoria" non compare in fase di compilazione — coerente
- * col blocco pre-invio, che per quelle voci non richiede foto.
+ * Campi effettivi per la voce. Nel template "Ibrido acea" (`fotoSoloMassive`) le foto e il
+ * campo SIGILLO sono obbligatori solo per le voci di limitazione massiva: sulle altre
+ * (sospensioni/limitazioni) l'obbligo cade, così il badge "obbligatoria"/asterisco non compare
+ * in fase di compilazione — coerente col blocco pre-invio, che per quelle voci non li richiede.
  */
 function campiPerVoce(campi: TemplateCampo[], voce: { attivita?: string } | undefined, fotoSoloMassive: boolean): TemplateCampo[] {
   if (!fotoSoloMassive || !voce || attivitaMassiva(voce.attivita)) return campi;
-  return campi.map((c) => (c.tipo === 'foto' && c.obbligatoria ? { ...c, obbligatoria: false } : c));
+  return campi.map((c) =>
+    (c.tipo === 'foto' || campoObbligatorioSoloMassive(c)) && c.obbligatoria ? { ...c, obbligatoria: false } : c,
+  );
 }
 
 /* ── Componente principale ─────────────────────────────────────────────────── */
@@ -405,7 +407,7 @@ export default function RapportinoForm({
     // Si passa l'array COMPLETO e si scartano i risultati per `index` (così l'`index` resta
     // allineato a `voci` per la navigazione "Controlla" dei modali, anche in modalità ibrida).
     // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
-    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi).filter((m) => !isVoceTaskVia(voci[m.index]));
+    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]));
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.

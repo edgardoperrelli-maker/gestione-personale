@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { attivitaMassiva, fotoObbligatorieSoloMassive } from './attivitaMassiva';
+import { attivitaMassiva, fotoObbligatorieSoloMassive, campoObbligatorioSoloMassive } from './attivitaMassiva';
 
 describe('attivitaMassiva', () => {
   it('riconosce le attività massive (varianti maiuscolo/singolare)', () => {
@@ -27,5 +27,17 @@ describe('fotoObbligatorieSoloMassive', () => {
     expect(fotoObbligatorieSoloMassive('LIMITAZIONI/SOSPENSIONI')).toBe(false);
     expect(fotoObbligatorieSoloMassive(null)).toBe(false);
     expect(fotoObbligatorieSoloMassive(undefined)).toBe(false);
+  });
+});
+
+describe('campoObbligatorioSoloMassive', () => {
+  it('riconosce il campo SIGILLO (testo), non la foto SIGILLATURA', () => {
+    expect(campoObbligatorioSoloMassive({ chiave: 'sigillo', etichetta: 'SIGILLO', tipo: 'testo' })).toBe(true);
+    expect(campoObbligatorioSoloMassive({ chiave: 'sigillatura', etichetta: 'SIGILLATURA', tipo: 'foto' })).toBe(false);
+  });
+  it('è false per gli altri campi e per le foto', () => {
+    expect(campoObbligatorioSoloMassive({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select' })).toBe(false);
+    expect(campoObbligatorioSoloMassive({ chiave: 'lettura', etichetta: 'LETTURA', tipo: 'testo' })).toBe(false);
+    expect(campoObbligatorioSoloMassive({ chiave: 'ante', etichetta: 'ANTE', tipo: 'foto' })).toBe(false);
   });
 });
