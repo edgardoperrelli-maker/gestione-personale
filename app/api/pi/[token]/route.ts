@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { piTokenStato } from '@/lib/pi/tokenValidita';
 import { caricaReperibili } from '@/lib/pi/caricaReperibili';
 import { reperibiliPerData } from '@/lib/pi/reperibili';
+import { isStaffRelevantForRange } from '@/lib/staff';
 import { resolveInfoCampi } from '@/utils/rapportini/infoCampi';
 
 export const runtime = 'nodejs';
@@ -48,6 +49,17 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const reperibili = reperibiliPerData(await caricaReperibili(tok.valido_dal, tok.valido_al, tok.area_codice));
 
+  // Elenco completo degli operatori attivi (per la voce "Altro operatore": una chiamata
+  // in orario lavorativo può capitare a chiunque, non solo ai reperibili). Filtrato agli
+  // operatori la cui validità copre la finestra del link; viaggia nel payload → cache offline.
+  const { data: staffRows } = await supabaseAdmin
+    .from('staff')
+    .select('id, display_name, valid_from, valid_to');
+  const operatori = ((staffRows ?? []) as Array<{ id: string; display_name: string | null; valid_from: string | null; valid_to: string | null }>)
+    .filter((s) => isStaffRelevantForRange(s, tok.valido_dal, tok.valido_al))
+    .map((s) => ({ staffId: s.id, nome: (s.display_name ?? '').trim() || s.id }))
+    .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+
   const { data: righe } = await supabaseAdmin
     .from('interventi_manuali')
     .select('id, staff_name, data, stato, dati_correnti, anomalia_reperibilita, created_at')
@@ -61,6 +73,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
     campi,
     infoCampi,
     reperibili,
+    operatori,
     righe: righe ?? [],
   });
 }

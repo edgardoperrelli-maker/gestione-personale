@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { piTokenValido } from '@/lib/pi/tokenValidita';
 import { caricaReperibili } from '@/lib/pi/caricaReperibili';
 import { reperibiliPerData, calcolaAnomaliaReperibilita } from '@/lib/pi/reperibili';
+import { matricolaPatchMancante, PATCH_MATRICOLA_KEY } from '@/lib/pi/patch';
 import { richiestaIdValido } from '@/lib/offline/idRichiesta';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -54,6 +55,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     return NextResponse.json({ error: 'campi_mancanti', dettaglio: 'Indicare esecutore e data della chiamata.' }, { status: 422 });
   }
 
+  // PATCH spuntata → matricola obbligatoria (anche su invii offline/diretti).
+  if (matricolaPatchMancante(body.risposte)) {
+    return NextResponse.json({ error: 'campi_mancanti', dettaglio: 'Indicare la matricola della patch.' }, { status: 422 });
+  }
+
   // Campi del template (per pulizia testo) + nome esecutore di fallback.
   let campi: TemplateCampo[] = [];
   if (tok.template_id) {
@@ -69,6 +75,10 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
   const anagrafica = maiuscolaStringhe(body.anagrafica ?? {});
   const risposte = maiuscolaRisposteTesto(body.risposte ?? {}, campi);
+  // La matricola patch è un codice (non un campo template `testo`): MAIUSCOLO esplicito per "DB pulito".
+  if (typeof risposte[PATCH_MATRICOLA_KEY] === 'string') {
+    risposte[PATCH_MATRICOLA_KEY] = (risposte[PATCH_MATRICOLA_KEY] as string).toUpperCase();
+  }
   const dati = { committente: 'altro' as const, anagrafica, risposte };
 
   const id = richiestaIdValido(body.richiestaId) ? (body.richiestaId as string) : randomUUID();

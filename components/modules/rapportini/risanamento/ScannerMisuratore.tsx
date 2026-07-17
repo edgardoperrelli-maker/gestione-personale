@@ -15,7 +15,15 @@ const VIDEO_CONSTRAINTS: MediaTrackConstraints = {
 
 /** Overlay scanner: apre la fotocamera posteriore e decodifica barcode/QR (nativo o WASM), primo codice → onCodice.
  *  Si monta UNA volta (deps []); onCodice via ref → immune ai re-render del parent. */
-export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: string) => void; onChiudi: () => void }) {
+export function ScannerMisuratore({
+  onCodice,
+  onChiudi,
+  etichetta = 'Inquadra il codice del misuratore',
+}: {
+  onCodice: (codice: string) => void;
+  onChiudi: () => void;
+  etichetta?: string;
+}) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [errore, setErrore] = useState<string | null>(null);
   const onCodiceRef = useRef(onCodice);
@@ -68,7 +76,7 @@ export function ScannerMisuratore({ onCodice, onChiudi }: { onCodice: (codice: s
   return (
     <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
       <div className="flex items-center justify-between p-4">
-        <span className="text-sm font-semibold text-white">Inquadra il codice del misuratore</span>
+        <span className="text-sm font-semibold text-white">{etichetta}</span>
         <button type="button" onClick={onChiudi} className="rounded-lg bg-white/20 px-3 py-1.5 text-sm font-semibold text-white">Annulla</button>
       </div>
       {errore ? (
