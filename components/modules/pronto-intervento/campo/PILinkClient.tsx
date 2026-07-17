@@ -33,7 +33,9 @@ async function condividiRapportinoPdf(r: Riga) {
     comune: str(ana.comune),
     assistenteItg: str(rsp.assistente_te),
     assistenteDitta: r.staff_name ?? '',
-    descrizione: str(rsp.note),
+    descrizione: [str(rsp.note), rsp.patch ? `PATCH MATRICOLA: ${str(rsp.patch_matricola)}` : '']
+      .filter(Boolean)
+      .join('\n'),
   });
   await condividiOScarica({
     blob,
@@ -49,6 +51,7 @@ type Payload = {
   campi: TemplateCampo[];
   infoCampi: TemplateInfoCampo[];
   reperibili: Record<string, ReperibileRef[]>;
+  operatori: ReperibileRef[];
   righe: Riga[];
 };
 
@@ -168,6 +171,7 @@ export default function PILinkClient({ token }: { token: string }) {
           campi={payload.campi}
           infoCampi={payload.infoCampi}
           reperibili={payload.reperibili}
+          operatori={payload.operatori}
           onClose={() => setModale(false)}
           onSaved={() => { setModale(false); void carica(); }}
         />
