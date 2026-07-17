@@ -41,6 +41,14 @@ describe('contaFotoObbligatorieMancanti', () => {
     expect(contaFotoObbligatorieMancanti([{ risposte: { assente: true } }], campiNeg)).toBe(0);
   });
 
+  it('fotoSoloMassive: voce NON massiva → foto non obbligatorie (0); voce massiva → contano', () => {
+    // Ibrido acea: le sospensioni non richiedono foto, le limitazioni massive sì.
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI' }, attivita: 'LIMITAZIONI/SOSPENSIONI' }], campi, true)).toBe(0);
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI' }, attivita: 'LIMITAZIONI MASSIVE' }], campi, true)).toBe(2);
+    // Flag spento (default): l'attività è irrilevante, restano obbligatorie.
+    expect(contaFotoObbligatorieMancanti([{ risposte: { eseguito: 'SI' }, attivita: 'LIMITAZIONI/SOSPENSIONI' }], campi)).toBe(2);
+  });
+
   it('foto valvola condizionale: SI senza foto conta, NO non conta', () => {
     const campiValvola = [
       { chiave: 'eseguito', etichetta: 'Eseguito', tipo: 'select', ordine: 1 },
@@ -74,5 +82,15 @@ describe('fotoObbligatorieMancantiDettaglio', () => {
       { nominativo: 'Man', risposte: {}, manuale: true },   // manuale
     ];
     expect(fotoObbligatorieMancantiDettaglio(voci, campi, ['nominativo'])).toEqual([]);
+  });
+
+  it('fotoSoloMassive: elenca solo le voci massive; le sospensioni non compaiono', () => {
+    const voci = [
+      { nominativo: 'Massiva', risposte: {}, attivita: 'LIMITAZIONI MASSIVE' },
+      { nominativo: 'Sospensione', risposte: {}, attivita: 'LIMITAZIONI/SOSPENSIONI' },
+    ];
+    expect(fotoObbligatorieMancantiDettaglio(voci, campi, ['nominativo'], true)).toEqual([
+      { index: 0, titolo: 'Massiva', tipi: ['A', 'B'] },
+    ]);
   });
 });

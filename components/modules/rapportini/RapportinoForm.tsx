@@ -32,6 +32,7 @@ import { ModaleSincronizza } from '@/components/offline/ModaleSincronizza';
 import { CassettoDaRisolvere } from '@/components/offline/CassettoDaRisolvere';
 import { dbOutbox, dbLavoro } from '@/lib/offline/db';
 import { fotoObbligatorieMancantiDettaglio, type FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
+import { attivitaMassiva } from '@/utils/rapportini/attivitaMassiva';
 import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
 import { ModaleCampiMancanti } from './ModaleCampiMancanti';
@@ -81,6 +82,8 @@ type Props = {
   taskVia?: boolean;
   /** true = template "ibrido": SOLO le voci BONIFICHE EXTRA aprono il contenitore + "+"; le altre restano classiche. */
   taskViaIbrido?: boolean;
+  /** true = template "Ibrido acea": le foto sono obbligatorie SOLO per le voci di limitazione massiva. */
+  fotoSoloMassive?: boolean;
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
 };
@@ -99,6 +102,17 @@ function fasciaBreve(raw: string): string {
   return t || raw.trim();
 }
 
+/**
+ * Campi effettivi per la voce. Nel template "Ibrido acea" (`fotoSoloMassive`) le foto sono
+ * obbligatorie solo per le voci di limitazione massiva: sulle altre (sospensioni/limitazioni)
+ * l'obbligo cade, così il badge "obbligatoria" non compare in fase di compilazione — coerente
+ * col blocco pre-invio, che per quelle voci non richiede foto.
+ */
+function campiPerVoce(campi: TemplateCampo[], voce: { attivita?: string } | undefined, fotoSoloMassive: boolean): TemplateCampo[] {
+  if (!fotoSoloMassive || !voce || attivitaMassiva(voce.attivita)) return campi;
+  return campi.map((c) => (c.tipo === 'foto' && c.obbligatoria ? { ...c, obbligatoria: false } : c));
+}
+
 /* ── Componente principale ─────────────────────────────────────────────────── */
 
 export default function RapportinoForm({
@@ -115,6 +129,7 @@ export default function RapportinoForm({
   campiStandardManuale,
   taskVia = false,
   taskViaIbrido = false,
+  fotoSoloMassive = false,
   tipo,
   righe: righeRisanamento,
 }: Props) {
@@ -394,10 +409,10 @@ export default function RapportinoForm({
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
-    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi).filter((m) => !isVoceTaskVia(voci[m.index]));
+    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]));
     if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
     void eseguiInvio();
-  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, isVoceTaskVia, eseguiInvio]);
+  }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, fotoSoloMassive, isVoceTaskVia, eseguiInvio]);
 
   /* ── Render ───────────────────────────────────────────────────────────────── */
 
@@ -459,7 +474,7 @@ export default function RapportinoForm({
           voce={voci[indiceCorrente]}
           indice={indiceCorrente}
           totale={voci.length}
-          campi={campi}
+          campi={campiPerVoce(campi, voci[indiceCorrente], fotoSoloMassive)}
           dettaglio={dettaglio}
           titoloCampi={titoloCampi}
           disabilitato={disabilitato || (badgeVoceManuale(voci[indiceCorrente].approvazione_stato ?? null)?.bloccata ?? false)}

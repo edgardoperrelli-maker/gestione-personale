@@ -8,8 +8,14 @@
 --   • valvola condizionale: `sostituzione_valvola` = SI ⇒ foto `sost_valvola` obbligatoria
 --     (utils/rapportini/fotoCondizionali.ts: regola /valvol/i). Per questo `sost_valvola` NON è
 --     `obbligatoria` in modo statico: lo diventa solo quando serve, come nel template massive.
--- Le altre 4 foto restano obbligatorie fisse; `sigillo` e `sostituzione_valvola` obbligatori
--- (versione massive, più completa: le sospensioni avevano valvola solo-"SI" facoltativa).
+--   • foto obbligatorie SOLO per le attività di limitazione massiva: le 4 foto qui sotto restano
+--     `obbligatoria:true` (baseline massive), ma il codice le richiede solo sulle voci la cui
+--     `attivita` è massiva; per le sospensioni/limitazioni non sono obbligatorie, come nel template
+--     LIMITAZIONI/SOSPENSIONI (utils/rapportini/attivitaMassiva.ts + fotoObbligatorieMancanti.ts,
+--     gate attivato per NOME del template "Ibrido acea" — nessun altro template è toccato).
+-- Le altre 4 foto restano obbligatorie fisse (per le sole voci massive); `sigillo` e
+-- `sostituzione_valvola` obbligatori (versione massive, più completa: le sospensioni avevano
+-- valvola solo-"SI" facoltativa).
 -- committente='acea' + is_default=false → non è default e non altera la risoluzione dei template
 -- pianificati (il template si sceglie a mano in pianificazione). Additivo/idempotente: non crea
 -- nulla se un template con questo nome esiste già, e non tocca i template esistenti.
