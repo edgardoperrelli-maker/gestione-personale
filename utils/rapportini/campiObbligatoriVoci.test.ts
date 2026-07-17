@@ -53,6 +53,33 @@ describe('campiObbligatoriMancantiVoci', () => {
     ]);
   });
 
+  it('fotoSoloMassive: sigillo obbligatorio solo sulle voci massive, non sulle sospensioni', () => {
+    const campi = [
+      campo('eseguito', { tipo: 'select', obbligatoria: true, etichetta: 'ESEGUITO' }),
+      campo('sigillo', { obbligatoria: true, etichetta: 'SIGILLO' }),
+    ];
+    // Voce NON massiva: eseguito compilato, sigillo vuoto → col gate NON blocca.
+    const sospensione = [{ nominativo: 'Sosp', risposte: { eseguito: 'SI' }, attivita: 'LIMITAZIONI/SOSPENSIONI' }];
+    expect(campiObbligatoriMancantiVoci(sospensione, campi, ['nominativo'], true)).toEqual([]);
+    // Voce massiva: sigillo vuoto → blocca ancora.
+    const massiva = [{ nominativo: 'Mass', risposte: { eseguito: 'SI' }, attivita: 'LIMITAZIONI MASSIVE' }];
+    expect(campiObbligatoriMancantiVoci(massiva, campi, ['nominativo'], true)).toEqual([
+      { index: 0, titolo: 'Mass', campi: ['SIGILLO'] },
+    ]);
+    // Gate spento: sigillo obbligatorio a prescindere dall'attività.
+    expect(campiObbligatoriMancantiVoci(sospensione, campi, ['nominativo'])).toEqual([
+      { index: 0, titolo: 'Sosp', campi: ['SIGILLO'] },
+    ]);
+  });
+
+  it('fotoSoloMassive: gli altri obbligatori (ESEGUITO) restano richiesti anche sulle sospensioni', () => {
+    const campi = [campo('eseguito', { tipo: 'select', obbligatoria: true, etichetta: 'ESEGUITO' })];
+    const sospensione = [{ nominativo: 'Sosp', risposte: {}, attivita: 'LIMITAZIONI/SOSPENSIONI' }];
+    expect(campiObbligatoriMancantiVoci(sospensione, campi, ['nominativo'], true)).toEqual([
+      { index: 0, titolo: 'Sosp', campi: ['ESEGUITO'] },
+    ]);
+  });
+
   it('più campi mancanti nella stessa voce + più voci, con index originale', () => {
     const campi = [
       campo('a', { obbligatoria: true, etichetta: 'A' }),

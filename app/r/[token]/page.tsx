@@ -6,6 +6,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
+import { fotoObbligatorieSoloMassive } from '@/utils/rapportini/attivitaMassiva';
 import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
@@ -243,11 +244,16 @@ export default async function RapportinoPublicPage({
   // Flag "ibrido" del template (query separata e resiliente, indipendente da quella di `task_via`
   // così la colonna mancante non regredisce i task-via puri). Nei rapportini ibridi convivono
   // attività classiche e voci BONIFICHE EXTRA: solo queste ultime aprono il contenitore + "+".
+  // Nella stessa query si legge il `nome`: il template "Ibrido acea" rende le foto obbligatorie
+  // SOLO per le voci di limitazione massiva (le sospensioni non le richiedono, come nel template
+  // LIMITAZIONI/SOSPENSIONI). Riconoscimento per nome → nessun altro template è toccato.
   let taskViaIbrido = false;
+  let fotoSoloMassive = false;
   if (rap.template_id) {
     const { data: tplIbrido } = await supabaseAdmin
-      .from('rapportino_template').select('task_via_ibrido').eq('id', rap.template_id).maybeSingle();
+      .from('rapportino_template').select('task_via_ibrido, nome').eq('id', rap.template_id).maybeSingle();
     taskViaIbrido = Boolean((tplIbrido as { task_via_ibrido?: boolean } | null)?.task_via_ibrido);
+    fotoSoloMassive = fotoObbligatorieSoloMassive((tplIbrido as { nome?: string | null } | null)?.nome);
   }
 
   // Template attivi per committente → alimentano la modale "intervento manuale".
@@ -286,6 +292,7 @@ export default async function RapportinoPublicPage({
         campiStandardManuale={campiStandardLive}
         taskVia={taskVia}
         taskViaIbrido={taskViaIbrido}
+        fotoSoloMassive={fotoSoloMassive}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
       />
