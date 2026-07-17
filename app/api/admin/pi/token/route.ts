@@ -17,7 +17,23 @@ export async function GET(req: Request) {
   if (area) q = q.eq('area_codice', area);
   const { data, error } = await q;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ token: data ?? [] });
+
+  // Conteggio rapportini (chiamate) per link: un solo query, aggregato in memoria.
+  const tokens = (data ?? []) as Array<Record<string, unknown> & { id: string }>;
+  const ids = tokens.map((t) => t.id);
+  const counts: Record<string, number> = {};
+  if (ids.length) {
+    const { data: rows } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('pi_token_id')
+      .eq('fonte', 'pronto_intervento')
+      .in('pi_token_id', ids);
+    for (const r of (rows ?? []) as Array<{ pi_token_id: string | null }>) {
+      if (r.pi_token_id) counts[r.pi_token_id] = (counts[r.pi_token_id] ?? 0) + 1;
+    }
+  }
+  const withCounts = tokens.map((t) => ({ ...t, n_rapportini: counts[t.id] ?? 0 }));
+  return NextResponse.json({ token: withCounts });
 }
 
 /** POST: genera (o riusa) il link condiviso per area + periodo. Idempotente sull'unique
