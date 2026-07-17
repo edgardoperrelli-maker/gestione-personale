@@ -1,18 +1,7 @@
 'use client';
 
-import { dbOutbox, dbBlob } from '@/lib/offline/db';
-import { svuotaCacheApp } from '@/lib/offline/ripristino';
+import { rimuoviItemEBlob, ripristinaApp } from '@/lib/offline/ripristino';
 import type { OutboxItem } from '@/lib/offline/types';
-
-/** Rimuove un elemento della coda e i suoi blob foto (per non lasciare orfani in IndexedDB). */
-async function rimuoviItemEBlob(it: OutboxItem): Promise<void> {
-  if (it.type === 'manuale') {
-    for (const ref of it.payload.fotoBlobRefs) await dbBlob.rimuovi(ref.blobId);
-  } else if (it.type === 'foto') {
-    await dbBlob.rimuovi(it.payload.blobId);
-  }
-  await dbOutbox.rimuovi(it.id);
-}
 
 const ETICHETTA: Record<OutboxItem['type'], string> = {
   voce: 'Compilazione intervento',
@@ -69,8 +58,7 @@ export function CassettoDaRisolvere({
         type="button"
         onClick={async () => {
           if (!window.confirm('Svuota la cache dell’app e ricarica la pagina. Gli elementi “da risolvere” qui sopra verranno eliminati (andranno rifatti). Gli interventi in corso di invio restano al sicuro. Continuare?')) return;
-          for (const it of items) await rimuoviItemEBlob(it);
-          await svuotaCacheApp();
+          await ripristinaApp(items);
           window.location.reload();
         }}
         className="mt-3 w-full rounded-lg border border-[var(--danger)] px-3 py-2 text-xs font-bold text-[var(--danger)] transition hover:bg-[var(--danger)] hover:text-[var(--on-primary)]"
