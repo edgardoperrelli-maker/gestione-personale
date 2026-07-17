@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dimensioniTarget, LATO_LUNGO_MAX, JPEG_QUALITA, MAX_FOTO_BYTES, QUALITA_FALLBACK } from './compressioneFoto';
+import { dimensioniTarget, LATO_LUNGO_MAX, JPEG_QUALITA, MAX_FOTO_BYTES, TENTATIVI_COMPRESSIONE } from './compressioneFoto';
 
 describe('dimensioniTarget', () => {
   it('riduce in orizzontale mantenendo le proporzioni', () => {
@@ -28,19 +28,30 @@ describe('dimensioniTarget', () => {
   });
 });
 
-describe('tetto di peso foto (anti-troncamento upload)', () => {
+describe('scaletta di compressione (anti-troncamento upload)', () => {
   it('MAX_FOTO_BYTES è una soglia positiva e "leggera" (≤ ~1 MB)', () => {
     expect(MAX_FOTO_BYTES).toBeGreaterThan(0);
     expect(MAX_FOTO_BYTES).toBeLessThanOrEqual(1_000_000);
   });
 
-  it('le qualità di ripiego sono decrescenti e sotto la qualità piena', () => {
-    expect(QUALITA_FALLBACK.length).toBeGreaterThan(0);
-    for (const q of QUALITA_FALLBACK) {
-      expect(q).toBeGreaterThan(0);
-      expect(q).toBeLessThan(JPEG_QUALITA); // il caso normale (foto già leggera) non le usa mai
+  it('il primo tentativo è il caso storico (1600 @ 0.8): foto leggera = identica a prima', () => {
+    expect(TENTATIVI_COMPRESSIONE[0]).toEqual({ lato: LATO_LUNGO_MAX, qualita: JPEG_QUALITA });
+  });
+
+  it('i tentativi successivi non aumentano mai peso (lato e qualità non crescono)', () => {
+    expect(TENTATIVI_COMPRESSIONE.length).toBeGreaterThan(1);
+    for (let i = 1; i < TENTATIVI_COMPRESSIONE.length; i++) {
+      const prec = TENTATIVI_COMPRESSIONE[i - 1];
+      const cur = TENTATIVI_COMPRESSIONE[i];
+      expect(cur.lato).toBeLessThanOrEqual(prec.lato);
+      expect(cur.qualita).toBeLessThanOrEqual(prec.qualita);
+      expect(cur.qualita).toBeGreaterThan(0);
+      expect(cur.lato).toBeGreaterThan(0);
     }
-    const ordinate = [...QUALITA_FALLBACK].sort((a, b) => b - a);
-    expect(QUALITA_FALLBACK).toEqual(ordinate); // decrescenti: riduce il peso il minimo necessario
+  });
+
+  it('scende sotto la piena risoluzione per garantire un payload piccolo su rete debole', () => {
+    const ultimo = TENTATIVI_COMPRESSIONE[TENTATIVI_COMPRESSIONE.length - 1];
+    expect(ultimo.lato).toBeLessThan(LATO_LUNGO_MAX);
   });
 });
