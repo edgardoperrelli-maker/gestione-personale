@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react
 import PannelloContabilita from './PannelloContabilita';
 import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
+import { piTokenStato } from '@/lib/pi/tokenValidita';
+import type { PiTokenStato } from '@/lib/pi/types';
 
 type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean; in_attesa?: number };
 
@@ -40,7 +42,7 @@ type CodaRiga = {
   n_segnalazione: unknown; ora_inizio: unknown; ora_fine: unknown; assistente_te: unknown; note: unknown;
   anomalia_reperibilita: boolean;
 };
-type TabRiga = CodaRiga & { intervento_id: string | null; valore: number };
+type TabRiga = CodaRiga & { intervento_id: string | null; valore: number; patch?: boolean; patch_matricola?: unknown };
 
 function fmtData(d: string | null): string {
   if (!d) return '';
@@ -56,12 +58,97 @@ async function condividiPdfTab(r: TabRiga) {
     oraInizio: s(r.ora_inizio), oraFine: s(r.ora_fine),
     indirizzo: s(r.indirizzo), comune: s(r.comune),
     assistenteItg: s(r.assistente_te), assistenteDitta: r.esecutore ?? '',
-    descrizione: s(r.note),
+    descrizione: [s(r.note), r.patch ? `PATCH MATRICOLA: ${s(r.patch_matricola)}` : '']
+      .filter(Boolean)
+      .join('\n'),
   });
   await condividiOScarica({
     blob, filename: nomeFileRapportinoPI(s(r.n_segnalazione), r.data ?? ''),
     title: 'Rapportino manutenzione', text: `Rapportino P.I. ${s(r.n_segnalazione)}`.trim(),
   });
+}
+
+type LinkRow = {
+  id: string; valido_dal: string; valido_al: string; token: string;
+  note: string | null; revocato_at: string | null; created_at: string; n_rapportini: number;
+};
+
+/** Colonne della tabella Interventi: ordinabili + filtrabili dall'intestazione. */
+type ColKey = 'n_segnalazione' | 'data' | 'comune' | 'indirizzo' | 'esecutore' | 'ora_inizio' | 'ora_fine' | 'assistente_te' | 'note' | 'valore';
+const COLONNE: { key: ColKey; label: string; soloContab?: boolean; right?: boolean }[] = [
+  { key: 'n_segnalazione', label: 'N° segn.' },
+  { key: 'data', label: 'Data' },
+  { key: 'comune', label: 'Comune' },
+  { key: 'indirizzo', label: 'Indirizzo' },
+  { key: 'esecutore', label: 'Esecutore' },
+  { key: 'ora_inizio', label: 'Ora inizio' },
+  { key: 'ora_fine', label: 'Ora fine' },
+  { key: 'assistente_te', label: 'Assist. TE' },
+  { key: 'note', label: 'Note' },
+  { key: 'valore', label: 'Valore', soloContab: true, right: true },
+];
+
+/** Valore testuale di una colonna (per filtro e ordinamento). */
+function valoreCol(r: TabRiga, k: ColKey): string {
+  if (k === 'data') return fmtData(r.data);
+  if (k === 'valore') return r.valore ? r.valore.toFixed(2) : '';
+  if (k === 'esecutore') return r.esecutore ?? '';
+  return s(r[k as keyof TabRiga]);
+}
+
+const STATO_LINK: Record<PiTokenStato, { label: string; cls: string }> = {
+  valido: { label: 'Attivo', cls: 'bg-[var(--status-ok-soft,var(--brand-surface-muted))] text-[var(--status-ok,var(--brand-text-main))]' },
+  scaduto: { label: 'Scaduto', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
+  non_attivo: { label: 'Non attivo', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
+  revocato: { label: 'Revocato', cls: 'bg-[var(--danger-soft,transparent)] text-[var(--danger)]' },
+};
+
+/** Storico dei link P.I. della foglia: stato (attivo/scaduto…), validità, n° rapportini, copia. */
+function StoricoLink({ righe }: { righe: LinkRow[] }) {
+  const [copiato, setCopiato] = useState<string | null>(null);
+  const nowIso = new Date().toISOString();
+  async function copia(l: LinkRow) {
+    const url = `${window.location.origin}/pi/${l.token}`;
+    try {
+      await navigator.clipboard?.writeText(url);
+      setCopiato(l.id);
+      setTimeout(() => setCopiato((c) => (c === l.id ? null : c)), 1800);
+    } catch { /* noop */ }
+  }
+  return (
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+      <h3 className="mb-3 text-base font-semibold">Link ({righe.length})</h3>
+      {righe.length === 0 ? (
+        <p className="text-sm text-[var(--brand-text-muted)]">Nessun link generato per questa foglia.</p>
+      ) : (
+        <ul className="space-y-2">
+          {righe.map((l) => {
+            const badge = STATO_LINK[piTokenStato(l, nowIso)];
+            const attivo = badge === STATO_LINK.valido;
+            return (
+              <li key={l.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${attivo ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]' : 'border-[var(--brand-border)]'}`}>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                    <span className="truncate">{l.note || '—'}</span>
+                  </div>
+                  <div className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                    Validità {fmtData(l.valido_dal)} – {fmtData(l.valido_al)} · {l.n_rapportini} rapportini
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button type="button" onClick={() => copia(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">
+                    {copiato === l.id ? 'Copiato ✓' : 'Copia link'}
+                  </button>
+                  <a href={`/pi/${l.token}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">Apri</a>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+    </section>
+  );
 }
 
 export default function ProntoInterventoClient() {
@@ -137,11 +224,16 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   const usaContabilita = area.usa_contabilita;
   const [coda, setCoda] = useState<CodaRiga[]>([]);
   const [tabella, setTabella] = useState<TabRiga[]>([]);
+  const [link, setLink] = useState<LinkRow[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
   const [genera, setGenera] = useState(false);
   const [apertoId, setApertoId] = useState<string | null>(null);
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
+  // Ordinamento + filtri per colonna della tabella Interventi (client-side).
+  const [sortKey, setSortKey] = useState<ColKey | null>('data');
+  const [sortAsc, setSortAsc] = useState(false);
+  const [filtri, setFiltri] = useState<Partial<Record<ColKey, string>>>({});
 
   const periodoQS = useMemo(() => {
     const p = new URLSearchParams({ area: codice });
@@ -151,15 +243,42 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   }, [codice, from, to]);
 
   const carica = useCallback(async () => {
-    const [c, t] = await Promise.all([
+    const [c, t, l] = await Promise.all([
       fetch(`/api/admin/pi/coda?area=${codice}`, { cache: 'no-store' }),
       fetch(`/api/admin/pi/interventi?${periodoQS}`, { cache: 'no-store' }),
+      fetch(`/api/admin/pi/token?area=${codice}`, { cache: 'no-store' }),
     ]);
     if (c.ok) setCoda((await c.json()).righe ?? []);
     if (t.ok) setTabella((await t.json()).righe ?? []);
+    if (l.ok) setLink((await l.json()).token ?? []);
   }, [codice, periodoQS]);
 
   useEffect(() => { void carica(); }, [carica]);
+
+  function toggleSort(k: ColKey) {
+    if (sortKey === k) setSortAsc((v) => !v);
+    else { setSortKey(k); setSortAsc(true); }
+  }
+
+  // Righe visibili: filtro per colonna (substring, case-insensitive) + ordinamento.
+  const righeVisibili = useMemo(() => {
+    const attivi = Object.entries(filtri).filter(([, v]) => (v ?? '').trim() !== '') as [ColKey, string][];
+    let out = tabella.filter((r) =>
+      attivi.every(([k, v]) => valoreCol(r, k).toLowerCase().includes(v.trim().toLowerCase())),
+    );
+    if (sortKey) {
+      const k = sortKey;
+      out = [...out].sort((a, b) => {
+        let av: string | number, bv: string | number;
+        if (k === 'valore') { av = a.valore ?? 0; bv = b.valore ?? 0; }
+        else if (k === 'data') { av = a.data ?? ''; bv = b.data ?? ''; }
+        else { av = valoreCol(a, k).toLowerCase(); bv = valoreCol(b, k).toLowerCase(); }
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortAsc ? cmp : -cmp;
+      });
+    }
+    return out;
+  }, [tabella, filtri, sortKey, sortAsc]);
 
   async function approva(id: string) {
     await fetch(`/api/admin/pi/interventi/${id}/approva`, { method: 'POST' });
@@ -186,6 +305,9 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
       </div>
 
       {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
+
+      {/* Storico link della foglia */}
+      <StoricoLink righe={link} />
 
       {/* Coda di approvazione */}
       <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
@@ -231,8 +353,11 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
       {/* Tabella interventi approvati */}
       <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <h3 className="text-base font-semibold">Interventi ({tabella.length})</h3>
+          <h3 className="text-base font-semibold">Interventi ({righeVisibili.length}{righeVisibili.length !== tabella.length ? ` / ${tabella.length}` : ''})</h3>
           <div className="flex flex-wrap items-end gap-2">
+            {(Object.values(filtri).some((v) => (v ?? '').trim() !== '') || sortKey !== 'data' || sortAsc) && (
+              <button type="button" onClick={() => { setFiltri({}); setSortKey('data'); setSortAsc(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)]">Azzera filtri</button>
+            )}
             <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
               <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
             </label>
@@ -246,25 +371,35 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
-              <tr className="border-b border-[var(--brand-border)] text-left text-xs text-[var(--brand-text-muted)]">
-                <th className="py-2 pr-3">N° segn.</th>
-                <th className="py-2 pr-3">Data</th>
-                <th className="py-2 pr-3">Comune</th>
-                <th className="py-2 pr-3">Indirizzo</th>
-                <th className="py-2 pr-3">Esecutore</th>
-                <th className="py-2 pr-3">Ora inizio</th>
-                <th className="py-2 pr-3">Ora fine</th>
-                <th className="py-2 pr-3">Assist. TE</th>
-                <th className="py-2 pr-3">Note</th>
-                {usaContabilita && <th className="py-2 pr-3 text-right">Valore</th>}
+              <tr className="border-b border-[var(--brand-border)] text-left align-top text-xs text-[var(--brand-text-muted)]">
+                {COLONNE.filter((c) => !c.soloContab || usaContabilita).map((c) => (
+                  <th key={c.key} className={`py-2 pr-3 ${c.right ? 'text-right' : ''}`}>
+                    <button
+                      type="button"
+                      onClick={() => toggleSort(c.key)}
+                      className={`flex items-center gap-1 font-semibold uppercase tracking-wide hover:text-[var(--brand-text-main)] ${c.right ? 'ml-auto' : ''}`}
+                      title="Ordina"
+                    >
+                      {c.label}{sortKey === c.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+                    </button>
+                    <input
+                      type="text"
+                      value={filtri[c.key] ?? ''}
+                      onChange={(e) => setFiltri((f) => ({ ...f, [c.key]: e.target.value }))}
+                      placeholder="filtra"
+                      aria-label={`Filtra per ${c.label}`}
+                      className="mt-1 w-full min-w-[4.5rem] rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-0.5 text-xs font-normal normal-case text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]"
+                    />
+                  </th>
+                ))}
                 <th className="py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {tabella.length === 0 && (
-                <tr><td colSpan={usaContabilita ? 11 : 10} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento approvato.</td></tr>
+              {righeVisibili.length === 0 && (
+                <tr><td colSpan={usaContabilita ? 11 : 10} className="py-6 text-center text-sm text-[var(--brand-text-muted)]">{tabella.length === 0 ? 'Nessun intervento approvato.' : 'Nessun intervento con i filtri selezionati.'}</td></tr>
               )}
-              {tabella.map((r) => (
+              {righeVisibili.map((r) => (
                 <tr key={r.id} className="border-b border-[var(--brand-border)] align-top">
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="n_segnalazione" valore={s(r.n_segnalazione)} onSaved={carica} /></td>
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="data" tipo="data" valore={s(r.data)} onSaved={carica} /></td>

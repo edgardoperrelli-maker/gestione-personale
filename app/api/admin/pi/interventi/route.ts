@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { PATCH_KEY, PATCH_MATRICOLA_KEY } from '@/lib/pi/patch';
 
 export const runtime = 'nodejs';
 
@@ -54,6 +55,8 @@ export async function GET(req: Request) {
       ora_fine: rsp.ora_fine ?? null,
       assistente_te: rsp.assistente_te ?? null,
       note: rsp.note ?? null,
+      patch: rsp[PATCH_KEY] === true,
+      patch_matricola: rsp[PATCH_MATRICOLA_KEY] ?? null,
       anomalia_reperibilita: r.anomalia_reperibilita,
       valore: r.intervento_id ? Math.round((totali.get(r.intervento_id) ?? 0) * 100) / 100 : 0,
     };

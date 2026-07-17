@@ -152,12 +152,15 @@ export async function generaRapportinoManutenzionePdfBlob(d: DatiRapportinoPI): 
   lab(L + 2, y + 10.6, 'TUTTE LE ATTREZZATURE PRESENTI  SI [ ]  NO [ ]     ATTREZZATURE IN BUONO STATO  SI [ ]  NO [ ]', 6.2);
   y += s1;
 
-  // ── Note ──
-  const nH = 14;
+  // ── Note ── (altezza dinamica: la riga PATCH MATRICOLA non deve uscire dal box)
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5);
+  const noteLinee = doc.splitTextToSize((d.descrizione ?? '').toUpperCase(), W - 6) as string[];
+  const noteLineH = 3.6; // mm per riga a 8.5pt
+  const nH = Math.max(14, 8 + noteLinee.length * noteLineH + 2);
   box(L, y, W, nH);
   lab(L + 2, y + 3.5, 'NOTE: descrivere il tipo di intervento ed elencare i materiali', 6.2);
   doc.setFont('helvetica', 'bold'); doc.setFontSize(8.5); doc.setTextColor(20);
-  doc.text(doc.splitTextToSize((d.descrizione ?? '').toUpperCase(), W - 6), L + 3, y + 8);
+  doc.text(noteLinee, L + 3, y + 8, { lineHeightFactor: 1.2 });
   y += nH;
 
   doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5); doc.setTextColor(120);
