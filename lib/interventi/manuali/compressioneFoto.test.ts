@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { dimensioniTarget, LATO_LUNGO_MAX } from './compressioneFoto';
+import { dimensioniTarget, LATO_LUNGO_MAX, JPEG_QUALITA, MAX_FOTO_BYTES, QUALITA_FALLBACK } from './compressioneFoto';
 
 describe('dimensioniTarget', () => {
   it('riduce in orizzontale mantenendo le proporzioni', () => {
@@ -25,5 +25,22 @@ describe('dimensioniTarget', () => {
 
   it('LATO_LUNGO_MAX è 1600', () => {
     expect(LATO_LUNGO_MAX).toBe(1600);
+  });
+});
+
+describe('tetto di peso foto (anti-troncamento upload)', () => {
+  it('MAX_FOTO_BYTES è una soglia positiva e "leggera" (≤ ~1 MB)', () => {
+    expect(MAX_FOTO_BYTES).toBeGreaterThan(0);
+    expect(MAX_FOTO_BYTES).toBeLessThanOrEqual(1_000_000);
+  });
+
+  it('le qualità di ripiego sono decrescenti e sotto la qualità piena', () => {
+    expect(QUALITA_FALLBACK.length).toBeGreaterThan(0);
+    for (const q of QUALITA_FALLBACK) {
+      expect(q).toBeGreaterThan(0);
+      expect(q).toBeLessThan(JPEG_QUALITA); // il caso normale (foto già leggera) non le usa mai
+    }
+    const ordinate = [...QUALITA_FALLBACK].sort((a, b) => b - a);
+    expect(QUALITA_FALLBACK).toEqual(ordinate); // decrescenti: riduce il peso il minimo necessario
   });
 });
