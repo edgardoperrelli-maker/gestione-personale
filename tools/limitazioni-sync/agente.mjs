@@ -16,6 +16,7 @@ import { fetchLavori } from './lib/fetchLavori.mjs';
 import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
+import { risolviPathConfig } from './lib/risolviPathConfig.mjs';
 import { estraiPianificabili } from './lib/pianificabili.mjs';
 import { mappaRigheMaster, trovaIntestazioneAcea } from './lib/acea/leggiMasterAcea.mjs';
 import { mappaMasterSnapshot } from './lib/acea/masterSnapshot.mjs';
@@ -468,9 +469,11 @@ export async function eseguiGiro({
   return report;
 }
 
-/** Scrive il report in <cartella>/_log/<stamp>.json. */
-function scriviLog(cartella, stamp, report) {
-  const dir = path.join(cartella, '_log');
+/** Scrive il report in <cartella>/_log/<stamp>.json. Se la cartella master NON esiste il log va
+ *  nel fallback LOCALE: un mkdir ricorsivo su un path OneDrive sparito ricreerebbe un albero
+ *  fantasma vuoto che risale su SharePoint (successo il 20/07/2026 con la commessa rinominata). */
+export function scriviLog(cartella, stamp, report, { fallbackDir = path.join(import.meta.dirname, '_log') } = {}) {
+  const dir = fs.existsSync(cartella) ? path.join(cartella, '_log') : fallbackDir;
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${stamp}.json`), JSON.stringify(report, null, 2), 'utf8');
 }
@@ -592,7 +595,10 @@ function aggiornaStampScan(cfgPath, oggi) {
 
 async function main() {
   const cfgPath = path.join(import.meta.dirname, 'config.json');
-  const cfg = JSON.parse(fs.readFileSync(cfgPath, 'utf8'));
+  // Se la cartella commessa è stata rinominata su SharePoint, risolve i path in memoria
+  // (una sola gemella valida) invece di girare a vuoto su un percorso morto.
+  const { cfg, avviso: avvisoPercorso } = risolviPathConfig(JSON.parse(fs.readFileSync(cfgPath, 'utf8')));
+  if (avvisoPercorso) console.error(`[lim-sync] ⚠ ${avvisoPercorso}`);
   const baseUrl = baseUrlDaEndpoint(cfg.endpointUrl);
   const oggi = new Date().toISOString().slice(0, 10);
 
@@ -719,6 +725,8 @@ async function main() {
     // scelto nella UI accanto a "Esegui ora"; assente sul giro schedulato → tutti i comuni.
     comune: ris.syncComune,
   });
+  // la risoluzione del percorso deve restare visibile anche nel feedback dell'app
+  if (avvisoPercorso) report.avvisoPercorso = avvisoPercorso;
 
   try {
     scriviLog(cfg.cartella, stamp, report);
