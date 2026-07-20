@@ -2,7 +2,7 @@
 // Nessun I/O. L'I/O sta in ensureInterventiForPiano.ts.
 import { taskToIntervento, type InterventoDaMappa } from './taskToIntervento';
 import type { Task } from '@/utils/routing/types';
-import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { chiaveTassonomia, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type PianoMeta = { data: string };
 export type OperatorePiano = { staff_id: string; tasks: Task[] | null };
@@ -49,7 +49,11 @@ export function identitaIntervento(r: {
   if (odl) return `odl:${odl}`;
   const matr = (r.matricola_contatore ?? '').trim().toLowerCase();
   const ind = (r.indirizzo ?? '').trim().toLowerCase();
-  const tipo = (r.intervento_tipo ?? '').trim().toLowerCase();
+  // Tipo normalizzato come la tassonomia (upper, spazi collassati, senza accenti): una riga
+  // terminale scritta con la variante grezza (giro senza tassonomia) deve matchare il rec
+  // fresco canonicalizzato, altrimenti il guard dei terminali non scatta e si duplica.
+  // Chiave solo in-memory (client+server usano QUESTA stessa funzione): cambiarla è sicuro.
+  const tipo = chiaveTassonomia(r.intervento_tipo);
   if (matr || ind) return `c:${matr}|${ind}|${tipo}`;
   return null;
 }
