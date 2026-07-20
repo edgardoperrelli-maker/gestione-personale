@@ -7,6 +7,7 @@ import {
   partitionInfoCampi,
   resolveInfoCampi,
   titoloVoce,
+  valoreInfo,
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
@@ -858,18 +859,31 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   <p className="mb-3 mt-0.5 text-xs text-[var(--brand-text-muted)]">
                     Si usa il primo dato non vuoto, nell&apos;ordine della lista. Lista vuota = Nominativo, poi PDR.
                   </p>
+                  {/* Riga live: il titolo che risulta ADESSO dalla configurazione (dati d'esempio). */}
+                  <div className="mb-3 rounded-xl border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] px-3 py-2 text-sm">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-primary)]">L&apos;operatore leggerà: </span>
+                    <span className="font-semibold text-[var(--brand-text-main)]">«{anteprimaRiga.titolo}»</span>
+                  </div>
                   <div className="space-y-2">
                     {titoloCampi.map((chiave, idx) => {
                       const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
+                      const esempio = valoreInfo(anteprimaVoce, chiave);
+                      // Col set d'esempio è "usato" il primo campo con valore: gli altri sono riserve.
+                      const usato = idx === titoloCampi.findIndex((k) => valoreInfo(anteprimaVoce, k) !== '');
                       return (
-                        <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                          <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
-                          <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
-                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                          <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
-                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                          <button type="button" onClick={() => toggleTitolo(chiave)} title="Rimuovi"
-                            className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                        <div key={chiave} className={`flex flex-wrap items-center gap-2 rounded-xl border p-3 ${usato ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]' : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)]'}`}>
+                          <span className="text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
+                          <span className="min-w-[120px] flex-1 truncate text-xs text-[var(--brand-text-muted)]">
+                            es. {esempio || '—'}{usato ? ' ← fa da titolo' : ''}
+                          </span>
+                          <span className="ml-auto flex shrink-0 items-center gap-2">
+                            <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                            <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                            <button type="button" onClick={() => toggleTitolo(chiave)} title="Rimuovi"
+                              className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                          </span>
                         </div>
                       );
                     })}
@@ -896,20 +910,26 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 </p>
                 <div className="space-y-2">
                   {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
-                    <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                    <div key={c.chiave} className="flex flex-wrap items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
                       <input
                         type="text"
                         value={c.etichetta}
                         onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
                         title={`Etichetta per ${c.chiave}`}
-                        className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        className="min-w-[140px] flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
                       />
-                      <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                      <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                      <button type="button" onClick={() => toggleInfo(c.chiave)} title="Rimuovi"
-                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                      {/* Resa dinamica: come la vedrà l'operatore (etichetta: valore d'esempio). */}
+                      <span className="min-w-[140px] flex-1 truncate text-xs text-[var(--brand-text-muted)]">
+                        vedrà: <b className="text-[var(--brand-text-main)]">{c.etichetta.trim() || '…'}:</b> {valoreInfo(anteprimaVoce, c.chiave) || '—'}
+                      </span>
+                      <span className="ml-auto flex shrink-0 items-center gap-2">
+                        <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
+                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                        <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
+                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                        <button type="button" onClick={() => toggleInfo(c.chiave)} title="Rimuovi"
+                          className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                      </span>
                     </div>
                   )))}
                 </div>
