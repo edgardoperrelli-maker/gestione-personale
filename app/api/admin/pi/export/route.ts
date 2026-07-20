@@ -35,12 +35,14 @@ export async function GET(req: Request) {
     .order('ordine');
   const articoli = (listino ?? []) as Array<{ codice: string; descrizione: string | null; unita_misura: string | null; prezzo_unitario: number }>;
 
-  // Interventi approvati della foglia.
+  // Interventi approvati della foglia. Il filtro d'area è OBBLIGATORIO: senza,
+  // l'export della foglia conteneva anche le chiamate delle altre aree.
   let q = supabaseAdmin
     .from('interventi_manuali')
     .select('id, intervento_id, data, staff_name, dati_correnti')
     .eq('fonte', 'pronto_intervento')
     .eq('stato', 'approvato')
+    .eq('area_codice', area)
     .order('data', { ascending: true });
   if (from) q = q.gte('data', from);
   if (to) q = q.lte('data', to);
