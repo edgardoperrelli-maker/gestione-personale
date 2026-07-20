@@ -40,3 +40,20 @@ where i.stato = 'completato'
   )
 group by 1, 2, 3
 order by completati desc;
+
+-- ── Guard 2 (dal 2026-07-20): completati NON classificati dalla tassonomia ──────────
+-- Caso Labico 17/07: committente='acea' con intervento_tipo VUOTO → invisibile sia al
+-- filtro export sia alla Guard 1 (che riconosce solo gli stati ordine ACEA). Qui si
+-- flagga OGNI completato che la tassonomia non risolve: gruppo_attivita NULL.
+-- ATTESO: 0 righe con data >= 2026-07-20 (lo storico pregresso non classificabile può
+-- restare NULL: è stato censito dalla migration 20260720151000).
+select i.committente, coalesce(i.intervento_tipo,'') as tipo, i.comune,
+       count(*) as completati,
+       count(*) filter (where i.esito = 'eseguito_positivo') as positivi,
+       min(i.data) as data_min, max(i.data) as data_max
+from interventi i
+where i.stato = 'completato'
+  and i.gruppo_attivita is null
+  and i.data >= '2026-07-20'
+group by 1, 2, 3
+order by completati desc;

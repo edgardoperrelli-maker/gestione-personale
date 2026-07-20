@@ -108,3 +108,23 @@ describe('detectFormat — colonna Note', () => {
     expect(cm!.note).toBe(3);
   });
 });
+
+describe('detectFormat — colonna attività', () => {
+  const base = ['Ordine', 'Indirizzo', 'Località', 'cap', 'matricola'];
+  it("riconosce 'Operazione testo breve' (estrazioni ACEA)", () => {
+    const m = detectFormat([...base, 'Operazione testo breve']);
+    expect(m?.attivita).toBe(5);
+  });
+  it("riconosce 'DESCRIZIONE ATTIVITÀ' (template import)", () => {
+    const m = detectFormat([...base, 'DESCRIZIONE ATTIVITÀ']);
+    expect(m?.attivita).toBe(5);
+  });
+  it("riconosce la colonna GRUPPO ATTIVITA' del template", () => {
+    const m = detectFormat([...base, 'DESCRIZIONE ATTIVITÀ', "GRUPPO ATTIVITA'"]);
+    expect(m?.gruppoFile).toBe(6);
+  });
+  it("i pattern storici restano validi ('attività')", () => {
+    const m = detectFormat([...base, 'Attività']);
+    expect(m?.attivita).toBe(5);
+  });
+});

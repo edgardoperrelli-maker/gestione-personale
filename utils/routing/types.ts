@@ -21,6 +21,8 @@ export interface Task {
   recapito?: string;
   accessibilita?: string;
   attivita?: string;
+  /** Colonna GRUPPO ATTIVITA' del template import (solo check di coerenza; il server la ricalcola). */
+  gruppoFile?: string;
   codice?: string;
   isAppointment?: boolean;
   appointmentId?: string;

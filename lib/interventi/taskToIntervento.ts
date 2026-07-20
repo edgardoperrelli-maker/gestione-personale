@@ -3,6 +3,7 @@
 // Parte dell'unificazione mappa = rapportini = torre sullo stesso `interventi`.
 
 import type { Task } from '@/utils/routing/types';
+import { risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type InterventoContext = {
   committente: string;
@@ -25,6 +26,7 @@ export type InterventoDaMappa = {
   fascia_oraria: string | null;
   matricola_contatore: string | null;
   intervento_tipo: string | null;
+  gruppo_attivita: string | null;
   data: string;
   staff_id: string;
   stato: 'assegnato' | 'annullato';
@@ -33,7 +35,15 @@ export type InterventoDaMappa = {
   created_from_mappa: true;
 };
 
-export function taskToIntervento(task: Task, ctx: InterventoContext): InterventoDaMappa {
+export function taskToIntervento(
+  task: Task,
+  ctx: InterventoContext,
+  indiceTassonomia?: Map<string, TassonomiaRiga>,
+): InterventoDaMappa {
+  // Derivazione soft: se l'indice risolve l'attività, scrive la forma canonica + il
+  // gruppo; se non risolve (o l'indice non è disponibile), comportamento storico
+  // invariato (task.attivita così com'è, gruppo null). Mai bloccante (spec §8).
+  const ris = indiceTassonomia ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia) : null;
   return {
     committente: ctx.committente,
     odl: (task.odl && task.odl.trim()) || null,
@@ -46,7 +56,8 @@ export function taskToIntervento(task: Task, ctx: InterventoContext): Intervento
     lng: task.lng ?? null,
     fascia_oraria: task.fascia_oraria ?? null,
     matricola_contatore: task.matricola ?? null,
-    intervento_tipo: task.attivita ?? null,
+    intervento_tipo: ris ? ris.descrizione : (task.attivita ?? null),
+    gruppo_attivita: ris ? ris.gruppo : null,
     data: ctx.data,
     staff_id: ctx.staffId,
     stato: task.annullato ? 'annullato' : 'assegnato',

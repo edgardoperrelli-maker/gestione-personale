@@ -3,6 +3,7 @@
 import { taskToIntervento, type InterventoDaMappa } from './taskToIntervento';
 import { normOdl } from './odlPositivi';
 import type { Task } from '@/utils/routing/types';
+import { chiaveTassonomia, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type PianoMeta = { data: string };
 export type OperatorePiano = { staff_id: string; tasks: Task[] | null };
@@ -24,6 +25,8 @@ export type PianoPlanInput = {
   territorioId: string | null;
   /** odl già presenti in `interventi` su ALTRI piani della stessa data (indice unico globale). */
   odlGiaPresenti?: Set<string>;
+  /** Indice tassonomia (Task 2) per la derivazione soft di intervento_tipo canonico + gruppo_attivita. */
+  indiceTassonomia?: Map<string, TassonomiaRiga>;
   /**
    * odl (normalizzati con normOdl) che hanno GIÀ un esito positivo altrove (altra data /
    * altro piano): un ODL positivo è definitivamente chiuso e non va mai ripianificato.
@@ -55,7 +58,11 @@ export function identitaIntervento(r: {
   if (odl) return `odl:${odl}`;
   const matr = (r.matricola_contatore ?? '').trim().toLowerCase();
   const ind = (r.indirizzo ?? '').trim().toLowerCase();
-  const tipo = (r.intervento_tipo ?? '').trim().toLowerCase();
+  // Tipo normalizzato come la tassonomia (upper, spazi collassati, senza accenti): una riga
+  // terminale scritta con la variante grezza (giro senza tassonomia) deve matchare il rec
+  // fresco canonicalizzato, altrimenti il guard dei terminali non scatta e si duplica.
+  // Chiave solo in-memory (client+server usano QUESTA stessa funzione): cambiarla è sicuro.
+  const tipo = chiaveTassonomia(r.intervento_tipo);
   if (matr || ind) return `c:${matr}|${ind}|${tipo}`;
   return null;
 }
@@ -104,13 +111,17 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
 
   for (const op of input.operatori) {
     for (const t of op.tasks ?? []) {
-      const rec = taskToIntervento(t, {
-        committente,
-        data: input.piano.data,
-        staffId: op.staff_id,
-        pianoId: input.pianoId,
-        territorioId: input.territorioId,
-      });
+      const rec = taskToIntervento(
+        t,
+        {
+          committente,
+          data: input.piano.data,
+          staffId: op.staff_id,
+          pianoId: input.pianoId,
+          territorioId: input.territorioId,
+        },
+        input.indiceTassonomia,
+      );
       // Già chiuso (per ODL o per identità composta indirizzo+matricola) → preserva, non duplicare.
       const key = identitaIntervento(rec);
       if (key && keyTerminali.has(key)) continue;

@@ -23,4 +23,12 @@ describe('messaggioErroreManuale', () => {
     expect(messaggioErroreManuale({ error: 'boh' }, 500)).toBe('boh');
     expect(messaggioErroreManuale({}, 500)).toBe('Errore 500');
   });
+  it('usa il messaggio del server se presente (anche per codici non in mappa)', () => {
+    expect(messaggioErroreManuale({ error: 'codice_ignoto', messaggio: 'Testo amichevole dal server.' }, 400))
+      .toBe('Testo amichevole dal server.');
+  });
+  it('mappa i codici attività (spec §7) quando manca il messaggio', () => {
+    expect(messaggioErroreManuale({ error: 'attivita_obbligatoria' }, 400)).toBe('Scegli la descrizione attività: è obbligatoria.');
+    expect(messaggioErroreManuale({ error: 'attivita_sconosciuta' }, 400)).toMatch(/non riconosciuta/i);
+  });
 });
