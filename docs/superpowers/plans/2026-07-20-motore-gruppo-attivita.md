@@ -812,130 +812,121 @@ git commit -m "feat(import): rifiuto 422 file non conforme + intervento_tipo can
 
 ---
 
-### Task 7: UI import — modale errore + bottone template
+### Task 7: Guardrail sul caricamento Excel della MAPPA (REVISIONATO 2026-07-20)
+
+> **Revisione**: la pagina import (`app/hub/interventi`) è stata RIMOSSA a giugno (commit
+> `90a870e`): oggi i file attività si caricano SOLO dalla mappa ("+ aggiungi interventi" →
+> Carica Excel; accanto c'è Scarica Template). Le 122 righe rotte di Labico erano
+> `created_from_mappa=true`. Confermato con l'utente: il guardrail va QUI. Il Task 6
+> (422 su /api/interventi/import) resta valido come hardening dell'endpoint.
+> **Eseguire DOPO il Task 8** (usa `GET /api/attivita-tassonomia`).
+
+**Regola template (decisione):** se il file caricato HA una colonna attività valorizzata
+(qualche `task.attivita` non vuoto) o la colonna `GRUPPO ATTIVITA'` → validazione RIGOROSA
+con `validaImport` e **rifiuto totale con modale** se non conforme. File legacy SENZA
+attività → passano come oggi (copertura soft: Task 9 + guard). La validazione usa
+committente **'altro'** (accetta qualsiasi attività nota, acea o italgas: dalla mappa
+passano anche i file ATTGIORN Italgas — vietato rifiutarli).
 
 **Files:**
-- Create: `components/modules/interventi/ModaleErroreImport.tsx`
-- Modify: `app/hub/interventi/page.tsx` (handler del submit: dove gestisce `!res.ok`)
+- Create: `components/modules/interventi/ModaleErroreImport.tsx` (GIÀ CREATO dal primo
+  tentativo del task, non committato: verificare presenza e committarlo)
+- Modify: `components/modules/mappa/MappaOperatoriClient.tsx` (`handleFileChange` ~riga 1375;
+  secondo sito `parseExcelToTasks` ~riga 1521; bottone 'Scarica Template' ~riga 2807-2809 e
+  `downloadTemplate` ~riga 2650)
 
 **Interfaces:**
-- Consumes: payload 422 `{ error: 'file_non_conforme', errori: ErroreImport[] }` (Task 6); endpoint `GET /api/interventi/template` (Task 8, il bottone può precedere: il link darà 404 finché il Task 8 non è deployato nello stesso branch).
+- Consumes: `validaImport` (Task 5), `buildTassonomiaIndex` (Task 2), `GET /api/attivita-tassonomia`
+  e `GET /api/interventi/template` (Task 8).
 
-- [ ] **Step 1: Crea la modale (presentational, nessuna fetch)**
+**Steps (adattamento del flusso, TDD non richiesto: logica pura già testata; verifica = tsc + vitest moduli):**
 
-```tsx
-// components/modules/interventi/ModaleErroreImport.tsx
-'use client';
-
-import type { ErroreImport } from '@/lib/attivita/validaImport';
-
-const TITOLI: Record<ErroreImport['tipo'], string> = {
-  descrizione_mancante: 'Righe senza descrizione attività',
-  descrizione_sconosciuta: 'Descrizione attività non riconosciuta',
-  gruppo_incoerente: 'Gruppo attività non coerente',
-};
-
-/** Elenca al massimo 8 numeri riga, poi "e altre N". */
-function righeLabel(righe: number[]): string {
-  const prime = righe.slice(0, 8).join(', ');
-  return righe.length > 8 ? `${prime} e altre ${righe.length - 8}` : prime;
-}
-
-export function ModaleErroreImport({ errori, onClose }: { errori: ErroreImport[]; onClose: () => void }) {
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">File rifiutato</h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
-          Il file non rispetta la tassonomia attività: correggi le righe indicate e ricaricalo.
-          Nessuna riga è stata importata.
-        </p>
-        <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
-          {errori.map((e, i) => (
-            <li key={i} className="rounded-lg border border-red-200 bg-red-50 p-2 dark:border-red-900 dark:bg-red-950/40">
-              <div className="font-medium">{TITOLI[e.tipo]}</div>
-              {e.valore ? <div className="font-mono text-xs">«{e.valore}»</div> : null}
-              {e.atteso ? <div className="text-xs">Atteso: «{e.atteso}»</div> : null}
-              <div className="text-xs text-zinc-500">Righe file: {righeLabel(e.righe)}</div>
-            </li>
-          ))}
-        </ul>
-        <p className="mt-3 text-xs text-zinc-500">
-          Le descrizioni valide sono nel foglio «Leggenda» del template scaricabile.
-        </p>
-        <div className="mt-4 flex justify-end">
-          <button type="button" onClick={onClose} className="rounded-lg bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">
-            Ho capito
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-```
-
-- [ ] **Step 2: Aggancia nella pagina import**
-
-In `app/hub/interventi/page.tsx`:
-1. Individua l'handler del submit: `grep -n "res.ok\|response.ok\|fetch(" app/hub/interventi/page.tsx`.
-2. Aggiungi stato + import in testa al componente client:
+1. In `MappaOperatoriClient.tsx`, aggiungi stato `erroriImport` + import della modale e della
+   validazione. In `handleFileChange`, SUBITO dopo `const parsed = await parseExcelToTasks(file);`:
 
 ```tsx
-import { ModaleErroreImport } from '@/components/modules/interventi/ModaleErroreImport';
-import type { ErroreImport } from '@/lib/attivita/validaImport';
-// nello stato del componente:
-const [erroriImport, setErroriImport] = useState<ErroreImport[] | null>(null);
-```
-
-3. Nel ramo `!res.ok` dell'handler, PRIMA della gestione errore generica:
-
-```tsx
-      if (res.status === 422) {
-        const body = await res.json().catch(() => null);
-        if (body?.error === 'file_non_conforme' && Array.isArray(body.errori)) {
-          setErroriImport(body.errori);
-          return; // niente messaggio generico: la modale spiega tutto
+    // Guardrail tassonomia (spec §6 rev.): file con attività → validazione rigorosa.
+    const haAttivita = parsed.some((t) => String(t.attivita ?? '').trim() !== '' || String(t.gruppoFile ?? '').trim() !== '');
+    if (haAttivita) {
+      try {
+        const r = await fetch('/api/attivita-tassonomia');
+        if (r.ok) {
+          const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+          const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+          if (!esito.ok) { setErroriImport(esito.errori); return; } // file RIFIUTATO: niente task nel piano
         }
-      }
+        // tassonomia non raggiungibile → non bloccare la pianificazione (guard copre a valle)
+      } catch { /* offline/errore rete: passa, copre la guard */ }
+    }
 ```
 
-4. Nel JSX, accanto al bottone di upload, il link template:
-
-```tsx
-<a
-  href="/api/interventi/template"
-  className="text-sm underline text-zinc-600 hover:text-zinc-900 dark:text-zinc-300"
-  download
->
-  Scarica template
-</a>
-```
-
-5. In fondo al JSX: `{erroriImport ? <ModaleErroreImport errori={erroriImport} onClose={() => setErroriImport(null)} /> : null}`
-
-- [ ] **Step 3: Verifica compilazione**
-
-Run: `npx tsc --noEmit -p tsconfig.json 2>&1 | grep -E "hub/interventi|ModaleErroreImport"` → nessun errore nuovo.
-
-- [ ] **Step 4: Commit**
-
-```bash
-git add components/modules/interventi/ModaleErroreImport.tsx app/hub/interventi/page.tsx
-git commit -m "feat(import-ui): modale di rifiuto file non conforme + link scarica template"
-```
+2. Applica la STESSA guardia al secondo sito `parseExcelToTasks` (~riga 1521, stesso pattern).
+3. Sostituisci `downloadTemplate` client-side: il bottone 'Scarica Template' diventa un link/fetch
+   a `GET /api/interventi/template` (Task 8), che scarica il template con Leggenda dal DB.
+   Rimuovi la vecchia funzione statica SheetJS.
+4. Monta `<ModaleErroreImport errori={erroriImport} onClose={() => setErroriImport(null)} />` nel JSX.
+5. Verifica: `npx tsc --noEmit -p tsconfig.json` pulito; `npx vitest run lib/attivita utils/routing` verde.
+6. Commit: `feat(mappa): guardrail tassonomia sul carica excel + template dal server`
 
 ---
 
-### Task 8: Template Excel (builder puro + route)
+### Task 8: Template Excel (builder puro + route) — REVISIONATO 2026-07-20
+
+> **Revisione**: il template sostituisce quello statico client-side della mappa
+> (`downloadTemplate`, SheetJS): le colonne DEVONO restare quelle che il backoffice usa
+> oggi nella mappa, con la colonna attività rinominata in `DESCRIZIONE ATTIVITÀ` +
+> nuova `GRUPPO ATTIVITA'` (formula) + foglio Leggenda dal DB. Niente righe d'esempio
+> (un upload accidentale degli esempi creerebbe task finti; i valori validi sono in Leggenda).
+> In più questo task crea `GET /api/attivita-tassonomia` (serve al Task 7 rev. e al Task 10).
 
 **Files:**
 - Create: `lib/attivita/templateImport.ts`
 - Create: `app/api/interventi/template/route.ts`
+- Create: `app/api/attivita-tassonomia/route.ts`
 - Test: `lib/attivita/templateImport.test.ts`
 
 **Interfaces:**
-- Consumes: `TassonomiaRiga` (Task 2); exceljs (dipendenza già presente).
-- Produces: `buildTemplateImport(tassonomia: TassonomiaRiga[], righeDati?: number): Promise<Buffer>`; endpoint `GET /api/interventi/template` (autenticato con `requireUser`, come l'import).
+- Consumes: `TassonomiaRiga` (Task 2), `caricaTassonomia` (Task 6); exceljs (già in deps).
+- Produces: `buildTemplateImport(tassonomia: TassonomiaRiga[], righeDati?: number): Promise<Buffer>`;
+  `COLONNE_TEMPLATE` (const, vedi sotto — allineate al parser E alla mappa);
+  `GET /api/interventi/template` e `GET /api/attivita-tassonomia` → `{ righe: TassonomiaRiga[] }`
+  (entrambi autenticati `requireUser`).
+
+**COLONNE_TEMPLATE (sostituisce quella del piano originale):**
+
+```typescript
+export const COLONNE_TEMPLATE = [
+  'CO', 'MATRICOLA', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
+  'DESCRIZIONE ATTIVITÀ', "GRUPPO ATTIVITA'",
+  'Esecutore', 'Fascia Appuntamento/Blocco', 'PdR / Impianto', 'Nominativo',
+  'Tempo Esecuzione', 'Num Risorse', 'Lat', 'Long', 'Note per operatore',
+] as const;
+```
+
+(Verificato contro `detectFormat`: Indirizzo→via, ODS/ODL→odl, DESCRIZIONE ATTIVITÀ→attivita
+[pattern nuovo, primo], GRUPPO ATTIVITA'→gruppoFile, Esecutore→operatore, Fascia→fascia,
+PdR / Impianto→pdR, Tempo Esecuzione→durata, Lat/Long→lat/lng, Note per operatore→note;
+'CO' non mappata = ignorata, come oggi.)
+
+**Endpoint tassonomia (nuovo):**
+
+```typescript
+// app/api/attivita-tassonomia/route.ts
+import 'server-only';
+import { NextResponse } from 'next/server';
+import { requireUser } from '@/lib/apiAuth';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+
+export const runtime = 'nodejs';
+
+/** GET /api/attivita-tassonomia — righe per la validazione client (mappa) e le select del "+". */
+export async function GET() {
+  const auth = await requireUser();
+  if (auth instanceof NextResponse) return auth;
+  const righe = await caricaTassonomia();
+  return NextResponse.json({ righe }, { headers: { 'Cache-Control': 'no-store' } });
+}
+```
 
 - [ ] **Step 1: Scrivi i test (struttura del workbook prodotto)**
 
