@@ -5,6 +5,7 @@ import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from '@/components/modules/cron
 import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 import AnnuncioOdlPositivi, { ANNUNCIO_ODL_POSITIVI_KEY } from '@/components/modules/interventi/AnnuncioOdlPositivi';
 import AnnuncioConfrontoEsiti, { ANNUNCIO_CONFRONTO_ESITI_KEY } from '@/components/modules/assegnazione-ai/AnnuncioConfrontoEsiti';
+import AnnuncioGruppoAttivita, { ANNUNCIO_GRUPPO_ATTIVITA_KEY } from '@/components/modules/interventi/AnnuncioGruppoAttivita';
 
 /** Registro delle "novità" del progetto: un annuncio = una voce (chiave versionata + testo), le più recenti in cima. */
 type Annuncio = { key: string; title: string; subtitle: string };
@@ -18,6 +19,11 @@ const ANNUNCI: Annuncio[] = [
     key: ANNUNCIO_CONFRONTO_ESITI_KEY,
     title: 'Controllo esiti DB ↔ ACEA',
     subtitle: 'In Aggiorna stato ODL: doppia conferma dei positivi tra il nostro DB e il portale, con export Excel.',
+  },
+  {
+    key: ANNUNCIO_GRUPPO_ATTIVITA_KEY,
+    title: 'Motore Gruppo attività: una tassonomia unica',
+    subtitle: 'Attività a lista ufficiale con il loro Gruppo: import validato, template Excel dal server, manuali a menù.',
   },
   {
     key: ANNUNCIO_SEGNALAZIONE_KEY,
@@ -150,6 +156,7 @@ export default function NovitaCenter() {
 
       <AnnuncioOdlPositivi open={openKey === ANNUNCIO_ODL_POSITIVI_KEY} onClose={chiudiModal} />
       <AnnuncioConfrontoEsiti open={openKey === ANNUNCIO_CONFRONTO_ESITI_KEY} onClose={chiudiModal} />
+      <AnnuncioGruppoAttivita open={openKey === ANNUNCIO_GRUPPO_ATTIVITA_KEY} onClose={chiudiModal} />
       <AnnuncioSegnalazione open={openKey === ANNUNCIO_SEGNALAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioSquadre open={openKey === ANNUNCIO_SQUADRE_KEY} onClose={chiudiModal} />
     </>
