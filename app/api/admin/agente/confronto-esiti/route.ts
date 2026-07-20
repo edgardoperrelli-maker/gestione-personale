@@ -9,10 +9,17 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import {
   confrontaEsiti,
+  type FontePositivoDb,
   type PositivoDb,
   type SnapshotRow,
 } from '@/lib/agente/confrontoEsitiAcea';
 import { normOdl } from '@/lib/interventi/odlPositivi';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { buildTassonomiaIndex, risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+
+/** Ambito del confronto: solo il gruppo attività DUNNING (decisione utente 20/07 — gli ODL
+ *  delle massive e i lavori senza ODS reale, cioè ordini ancora da creare, restano fuori). */
+const GRUPPO_AMBITO = 'DUNNING';
 
 export const runtime = 'nodejs';
 
@@ -35,8 +42,8 @@ async function tutteLePagine<T>(query: QueryPagina<T>): Promise<T[]> {
   return out;
 }
 
-type VoceSiRow = { odl: string | null; rapportini: { data: string | null } | { data: string | null }[] | null };
-type IntPosRow = { odl: string | null; data: string | null };
+type VoceSiRow = { odl: string | null; attivita: string | null; rapportini: { data: string | null } | { data: string | null }[] | null };
+type IntPosRow = { odl: string | null; data: string | null; gruppo_attivita: string | null };
 type IntStatoRow = { odl: string | null; stato: string; esito: string | null; data: string | null };
 
 function dataRapportino(r: VoceSiRow): string | null {
@@ -75,11 +82,12 @@ export async function GET(req: Request) {
     );
 
     // Positivi DB su TUTTO lo storico (servono comunque alla direzione ACEA→DB per evitare
-    // falsi "mancanti" su lavori vecchi); la finestra filtra solo la direzione DB→ACEA.
+    // falsi "mancanti" su lavori vecchi); la finestra e l'AMBITO Dunning filtrano solo
+    // l'insieme verificato della direzione DB→ACEA.
     const intPositivi = await tutteLePagine<IntPosRow>((from, to) =>
       supabaseAdmin
         .from('interventi')
-        .select('odl, data')
+        .select('odl, data, gruppo_attivita')
         .eq('committente', 'acea')
         .eq('esito', 'eseguito_positivo')
         .not('odl', 'is', null)
@@ -89,57 +97,87 @@ export async function GET(req: Request) {
     const vociSi = await tutteLePagine<VoceSiRow>((from, to) =>
       supabaseAdmin
         .from('rapportino_voci')
-        .select('odl, rapportini!inner(data)')
+        .select('odl, attivita, rapportini!inner(data)')
         .in('risposte->>eseguito', SI_VARIANTS)
         .not('odl', 'is', null)
         .order('id', { ascending: true })
         .range(from, to),
     );
-    const odlInterventi = await tutteLePagine<{ odl: string | null; committente: string | null }>((from, to) =>
+    const odlInterventi = await tutteLePagine<{ odl: string | null; committente: string | null; gruppo_attivita: string | null }>((from, to) =>
       supabaseAdmin
         .from('interventi')
-        .select('odl, committente')
+        .select('odl, committente, gruppo_attivita')
         .not('odl', 'is', null)
         .order('id', { ascending: true })
         .range(from, to),
     );
 
-    // odl(norm) → { odl grezzo, data più recente } dai due canali (intervento positivo, voce SI).
-    // Le voci SI valgono solo se l'ODL è riconducibile ad ACEA (in interventi ACEA o nel
-    // portale stesso): esclude i flussi non ACEA (es. P.I.) senza perdere i positivi veri.
+    // Tassonomia (best-effort): risolve il gruppo delle VOCI dalla loro attività, per
+    // riconoscere come Dunning anche le voci SI mai materializzate in interventi.
+    let indiceTassonomia: Map<string, TassonomiaRiga> | null = null;
+    try {
+      indiceTassonomia = buildTassonomiaIndex(await caricaTassonomia());
+    } catch {
+      indiceTassonomia = null;
+    }
+    const gruppoVoce = (attivita: string | null): string | null =>
+      indiceTassonomia ? (risolviGruppo('acea', attivita, indiceTassonomia)?.gruppo ?? null) : null;
+
     const odlAceaNoti = new Set<string>();
     for (const s of snapshot) { const k = normOdl(s.odl); if (k) odlAceaNoti.add(k); }
-    // (le righe di intPositivi sono già committente acea)
-    const posTutti = new Map<string, PositivoDb>();
-    const registra = (odlRaw: string | null, data: string | null) => {
-      const k = normOdl(odlRaw);
-      if (!k) return;
-      const cur = posTutti.get(k);
-      if (!cur) posTutti.set(k, { odl: String(odlRaw).trim(), data });
-      else if ((data ?? '') > (cur.data ?? '')) cur.data = data;
-    };
-    for (const r of intPositivi) registra(r.odl, r.data);
     const odlTuttiInterventi = new Set<string>();
     const odlAceaInterventi = new Set<string>();
+    const odlDunningNoti = new Set<string>(); // odl con almeno una riga interventi in ambito
     for (const r of odlInterventi) {
       const k = normOdl(r.odl);
       if (!k) continue;
       odlTuttiInterventi.add(k);
-      if (r.committente === 'acea') odlAceaInterventi.add(k);
+      if (r.committente === 'acea') {
+        odlAceaInterventi.add(k);
+        if (r.gruppo_attivita === GRUPPO_AMBITO) odlDunningNoti.add(k);
+      }
+    }
+
+    // Due mappe: TUTTI i positivi (anti falsi-mancanti) e i positivi in AMBITO (verificati),
+    // con la fonte per la doppia conferma (intervento chiuso / voce rapportino / entrambi).
+    const posTutti = new Map<string, PositivoDb>();
+    const posAmbito = new Map<string, PositivoDb>();
+    const registra = (mappa: Map<string, PositivoDb>, odlRaw: string | null, data: string | null, fonte: FontePositivoDb) => {
+      const k = normOdl(odlRaw);
+      if (!k) return;
+      const cur = mappa.get(k);
+      if (!cur) {
+        mappa.set(k, { odl: String(odlRaw).trim(), data, fonte });
+      } else {
+        if ((data ?? '') > (cur.data ?? '')) cur.data = data;
+        if (cur.fonte !== fonte) cur.fonte = 'entrambi';
+      }
+    };
+    for (const r of intPositivi) {
+      registra(posTutti, r.odl, r.data, 'intervento');
+      if (r.gruppo_attivita === GRUPPO_AMBITO) registra(posAmbito, r.odl, r.data, 'intervento');
     }
     for (const v of vociSi) {
       const k = normOdl(v.odl);
       if (!k) continue;
+      // riconducibile ad ACEA (in interventi ACEA o nel portale): esclude i flussi non ACEA
       if (!odlAceaNoti.has(k) && !odlAceaInterventi.has(k)) continue;
-      registra(v.odl, dataRapportino(v));
+      registra(posTutti, v.odl, dataRapportino(v), 'voce');
+      // in ambito se l'ODL è noto come Dunning in interventi o la voce risolve al gruppo Dunning
+      if (odlDunningNoti.has(k) || gruppoVoce(v.attivita) === GRUPPO_AMBITO) {
+        registra(posAmbito, v.odl, dataRapportino(v), 'voce');
+      }
     }
 
     const cutoff = new Date(Date.now() - finestraGiorni * 86400000).toISOString().slice(0, 10);
-    const positiviDb = [...posTutti.values()].filter((p) => storico || (p.data ?? '') >= cutoff);
+    const positiviDb = [...posAmbito.values()].filter((p) => storico || (p.data ?? '') >= cutoff);
     const positiviDbTutti = new Set(posTutti.keys());
-    const odlConosciuti = new Set<string>([...odlTuttiInterventi, ...positiviDbTutti]);
+    const odlConosciuti = new Set<string>([...odlDunningNoti, ...posAmbito.keys()]);
+    const odlFuoriAmbito = new Set<string>(
+      [...odlTuttiInterventi, ...positiviDbTutti].filter((k) => !odlConosciuti.has(k)),
+    );
 
-    const confronto = confrontaEsiti({ positiviDb, snapshot, positiviDbTutti, odlConosciuti });
+    const confronto = confrontaEsiti({ positiviDb, snapshot, positiviDbTutti, odlConosciuti, odlFuoriAmbito });
 
     // Arricchimento "mancanti": cosa dice il nostro DB per quegli ODL (negativo/aperto/annullato).
     const mancantiOdl = confronto.aceaVersoDb.mancanti.map((m) => m.odl);

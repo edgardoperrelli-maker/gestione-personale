@@ -20,7 +20,10 @@ export type SnapshotRow = {
   operatore?: string | null;
 };
 
-export type PositivoDb = { odl: string; data: string | null };
+/** Da dove risulta il positivo nel nostro DB (doppia conferma: la fonte è mostrata in riga). */
+export type FontePositivoDb = 'intervento' | 'voce' | 'entrambi';
+
+export type PositivoDb = { odl: string; data: string | null; fonte?: FontePositivoDb };
 
 export type EsitoConfrontoAcea =
   | 'ok'
@@ -32,12 +35,13 @@ export type EsitoConfrontoAcea =
 export type RigaDbVersoAcea = {
   odl: string;
   dataDb: string | null;
+  fonte: FontePositivoDb;
   esito: EsitoConfrontoAcea;
   statoAcea: string | null;
   causa: string | null;
 };
 
-export type RigaAceaVersoDb = { odl: string; operatore: string | null };
+export type RigaAceaVersoDb = { odl: string; operatore: string | null; causa: string | null };
 
 export type ConfrontoEsiti = {
   dbVersoAcea: {
@@ -49,8 +53,10 @@ export type ConfrontoEsiti = {
   aceaVersoDb: {
     totale: number;
     ok: number;
-    /** ACEA positivo, noi l'abbiamo lavorato ma senza positivo. */
+    /** ACEA positivo, noi l'abbiamo lavorato (ambito Dunning) ma senza positivo. */
     mancanti: RigaAceaVersoDb[];
+    /** ACEA positivo su ODL conosciuto ma FUORI ambito (es. limitazioni massive): non confrontato. */
+    fuoriAmbito: number;
     /** ACEA positivo, ODL mai comparso nell'app (lavori pre-app / mai pianificati qui). */
     maiVisti: RigaAceaVersoDb[];
   };
@@ -92,16 +98,19 @@ export function runIdUltimoGiro(rows: SnapshotRow[]): string | null {
 }
 
 export function confrontaEsiti(args: {
-  /** positivi DB (odl grezzo + data più recente), GIÀ filtrati per finestra dal chiamante se richiesto. */
+  /** positivi DB in AMBITO (gruppo Dunning), GIÀ filtrati per finestra dal chiamante se richiesto. */
   positiviDb: PositivoDb[];
   /** intero snapshot portale. */
   snapshot: SnapshotRow[];
-  /** odl (norm) di TUTTI i positivi DB senza filtro finestra: evita falsi "mancanti" su lavori vecchi. */
+  /** odl (norm) di TUTTI i positivi DB (ogni gruppo, senza finestra): evita falsi "mancanti". */
   positiviDbTutti: ReadonlySet<string>;
-  /** odl (norm) conosciuti dall'app (interventi/voci, qualsiasi esito): separa "mancante" da "mai visto". */
+  /** odl (norm) conosciuti in AMBITO (Dunning, qualsiasi esito): separa "mancante" da "mai visto". */
   odlConosciuti: ReadonlySet<string>;
+  /** odl (norm) conosciuti dall'app FUORI ambito (es. massive): contati, non confrontati. */
+  odlFuoriAmbito?: ReadonlySet<string>;
 }): ConfrontoEsiti {
   const { positiviDb, snapshot, positiviDbTutti, odlConosciuti } = args;
+  const odlFuoriAmbito = args.odlFuoriAmbito ?? new Set<string>();
   const byOdl = indicizzaSnapshot(snapshot);
   const ultimoRun = runIdUltimoGiro(snapshot);
 
@@ -121,6 +130,7 @@ export function confrontaEsiti(args: {
       righe.push({
         odl: p.odl.trim(),
         dataDb: p.data,
+        fonte: p.fonte ?? 'intervento',
         esito,
         statoAcea: snap?.stato_norm ?? null,
         causa: snap ? (String(snap.causa_scostamento ?? '').trim() || null) : null,
@@ -131,6 +141,7 @@ export function confrontaEsiti(args: {
 
   // ACEA → DB: solo le righe dell'ULTIMO giro (le stale di giri vecchi non sono più verificabili).
   let ok = 0;
+  let fuoriAmbito = 0;
   const mancanti: RigaAceaVersoDb[] = [];
   const maiVisti: RigaAceaVersoDb[] = [];
   const vistiAcea = new Set<string>();
@@ -141,8 +152,13 @@ export function confrontaEsiti(args: {
     if (!k || vistiAcea.has(k)) continue;
     vistiAcea.add(k);
     if (positiviDbTutti.has(k)) { ok += 1; continue; }
-    const riga: RigaAceaVersoDb = { odl: String(s.odl ?? '').trim(), operatore: s.operatore ?? null };
+    const riga: RigaAceaVersoDb = {
+      odl: String(s.odl ?? '').trim(),
+      operatore: s.operatore ?? null,
+      causa: String(s.causa_scostamento ?? '').trim() || null,
+    };
     if (odlConosciuti.has(k)) mancanti.push(riga);
+    else if (odlFuoriAmbito.has(k)) fuoriAmbito += 1;
     else maiVisti.push(riga);
   }
   mancanti.sort((a, b) => a.odl.localeCompare(b.odl));
@@ -150,6 +166,6 @@ export function confrontaEsiti(args: {
 
   return {
     dbVersoAcea: { totale: vistiDb.size, conteggi, righe },
-    aceaVersoDb: { totale: vistiAcea.size, ok, mancanti, maiVisti },
+    aceaVersoDb: { totale: vistiAcea.size, ok, mancanti, fuoriAmbito, maiVisti },
   };
 }
