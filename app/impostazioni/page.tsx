@@ -56,10 +56,10 @@ const MODULES = [
     icon: 'W',
   },
   {
-    href: '/impostazioni/template-rapportini',
-    title: 'Template rapportini',
-    description: 'Configura i campi dei rapportini compilabili dai tecnici.',
-    icon: 'R',
+    href: '/impostazioni/azioni-operatori',
+    title: 'Azioni operatori',
+    description: 'Committente → gruppo attività → azioni dei flussi compilati dai tecnici (sostituisce i Template rapportini).',
+    icon: 'F',
   },
   {
     href: '/impostazioni/risanamento-misuratori',

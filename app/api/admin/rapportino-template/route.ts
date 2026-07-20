@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { TemplateSchema } from '@/lib/rapportini/templateSchema';
+import { normalizzaCollegamento } from '@/lib/rapportini/flussiGruppo';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
@@ -22,7 +23,7 @@ async function requireAdmin(): Promise<true | NextResponse> {
 
 export async function GET() {
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, is_default, active, solo_manuale, task_via, task_via_ibrido, created_at, updated_at')
+    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, is_default, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at')
     .order('is_default', { ascending: false }).order('nome');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
@@ -33,7 +34,7 @@ export async function POST(req: Request) {
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false }).select('id, updated_at').single();
+    .insert({ nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false, ...normalizzaCollegamento(parsed.data) }).select('id, updated_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true, id: data.id, updated_at: data.updated_at });
 }
@@ -46,6 +47,11 @@ export async function PATCH(req: Request) {
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
   for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'foto_id_priority', 'tipo', 'active', 'solo_manuale', 'task_via', 'task_via_ibrido'] as const) if (k in parsed.data) patch[k] = (parsed.data as Record<string, unknown>)[k];
+  // Collegamento "Azioni operatori": il client manda sempre la coppia; qui la si rende coerente
+  // col check DB (committente + gruppi non vuoti, oppure entrambi null).
+  if ('gruppo_committente' in parsed.data || 'gruppi_attivita' in parsed.data) {
+    Object.assign(patch, normalizzaCollegamento(parsed.data));
+  }
   // DB pulito: nome ed etichette dei campi in MAIUSCOLO (chiave/tipo/opzioni intatti).
   if (typeof patch.nome === 'string') patch.nome = maiuscolo(patch.nome);
   if ('campi' in patch) patch.campi = maiuscolaEtichette(patch.campi as Array<{ etichetta?: unknown }>);

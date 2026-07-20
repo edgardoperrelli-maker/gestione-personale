@@ -5,6 +5,21 @@
 
 ## Fatto
 
+- ✅ **Flusso sostitutivo dei template + rimozione modulo Template** *(2026-07-20, task ATLAS)* —
+  le azioni che gli operatori eseguono sono ora collegate al **Gruppo attività** (motore
+  tassonomia): nuovo modulo **Impostazioni → Azioni operatori** con la gerarchia del flowchart
+  ATLAS (Committente → Gruppo attività → flusso), gruppi letti da `attivita_tassonomia`
+  (data-driven) + foglia extra ACQUALATINA / SOSTITUZIONE MISURATORI (flusso risanamento);
+  editor azioni invariato (auto-save, lock ottimistico, anteprime) + nuova sezione
+  "Collegamento al gruppo attività" — un flusso può coprire più gruppi (es. Ibrido acea =
+  LIMITAZIONI MASSIVE + DUNNING); sezioni "Interventi manuali (+)" per committente e "Flussi
+  non collegati". Il modulo **Template rapportini è rimosso** (route in redirect, card
+  sostituita); i flussi runtime (mappa, rapportini operatore, "+", pronto intervento) NON
+  cambiano: `committente`/`is_default`/`solo_manuale` restano l'instradamento. DB: colonne
+  `gruppo_committente` + `gruppi_attivita` su `rapportino_template` con seed dei collegamenti
+  (migration `20260720190000_template_gruppo_attivita.sql` — ⚠️ da applicare al prod PRIMA del
+  merge: la GET template seleziona le colonne nuove). Logica pura in
+  `lib/rapportini/flussiGruppo.ts` (testata).
 - ✅ **Template ibrido «Ibrido acea»** *(2026-07-15)* — un UNICO template rapportino che copre nello
   stesso giro Acea sia le **limitazioni massive** sia le **limitazioni/sospensioni**: superset dei
   due template esistenti (`RAPPORTINO LIMITAZIONI MASSIVE` + `LIMITAZIONI/SOSPENSIONI`). Mantiene le
@@ -92,6 +107,9 @@
       emersa durante l'analisi bundle mappa) → aggiungere `requireAdmin`.
 
 ### Funzionale
+- [ ] **Azioni operatori — fase 2**: risolvere il modello rapportino in pianificazione dal
+      `gruppo_attivita` degli interventi (il collegamento flusso↔gruppo ora esiste in DB),
+      al posto della select manuale "Modello" nella mappa.
 - [ ] Verifica end-to-end squadre cronoprogramma sul preview (aggancio, capo ⭐,
       scioglimento) — residuo della sessione 2026-07-13.
 - [ ] Mini-card di `AnnuncioSquadre.tsx` con tinte territorio hardcoded (dark) →
