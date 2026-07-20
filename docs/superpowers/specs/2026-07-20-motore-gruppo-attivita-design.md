@@ -126,11 +126,23 @@ ricalcola comunque il server (vedi §6).
 5. Se valido: insert/update come oggi, più `intervento_tipo` = descrizione **canonica** e
    `gruppo_attivita` derivato.
 
-## 7. Inserimento manuale ("+")
+## 7. Inserimento manuale (tutti i punti d'ingresso)
 
-Nella modale dell'intervento manuale la **descrizione attività diventa obbligatoria**,
-scelta da lista (tassonomia filtrata per committente, solo `attivo`) — niente testo libero.
-Il gruppo si deriva e si salva automaticamente. Stesso motore dell'import.
+La **descrizione attività diventa obbligatoria**, scelta da lista (tassonomia filtrata per
+committente, solo `attivo`) — niente testo libero. Il gruppo si deriva e si salva
+automaticamente. Stesso motore dell'import. Vale per **ogni percorso che crea un intervento
+manuale**, non solo il "+" della pianificazione:
+
+- `ModaleInterventoManuale` ovunque sia montata: pianificazione ("+"), rapportino in
+  compilazione **e rapportino riaperto** (RapportinoForm), FAB operatore, pannello
+  revisione lista attesa;
+- endpoint operatore PWA `/api/r/[token]/intervento-manuale` (aggiunta manuale dal
+  rapportino, anche riaperto);
+- le voci **task-via** ereditano descrizione/gruppo dall'intervento padre (nessun input).
+
+L'obbligo è applicato **due volte**: in UI (campo obbligatorio, lista chiusa) e **lato
+server** su ogni endpoint di creazione (400 se descrizione mancante o fuori tassonomia),
+così un client vecchio o un percorso dimenticato non può creare manuali non classificati.
 
 ## 8. Rete di sicurezza e fase 2 (fuori scope qui)
 
