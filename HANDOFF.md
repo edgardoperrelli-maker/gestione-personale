@@ -1,135 +1,149 @@
-# Handoff — 2026-07-20 (sera): Azioni operatori + rapportino per-attività
+# Handoff — 2026-07-20 (notte): Azioni operatori COMPLETO — modulo, per-attività, anteprime
 
-> **Aggiornamento ultima sessione (PR `feat/azioni-operatori-semplice`)**: oltre all'editor
-> semplificato, la stessa PR porta la **fase 2**: il rapportino si genera per-attività — ogni
-> voce prende le azioni dal flusso del gruppo attività del SUO intervento
-> (`rapportino_voci.template_id` + `campi_snapshot`, migration `20260720210000` GIÀ APPLICATA
-> al prod insieme alla `20260720190000`). Il "Modello" in mappa è solo il fallback per
-> attività senza flusso. Catena per-voce completa: render/salvataggio/validazioni operatore,
-> propagazione esiti (invio, live, risincronizza, correzioni ufficio), export Excel/PDF/foto
-> con unione colonne (`utils/rapportini/campiDiVoce.ts`); lookup `risolviFlussoPerGruppo`
-> (dedicato batte ibrido, manuali esclusi, lim_massive≡acea). Retro-compat: voce senza
-> snapshot = campi del rapportino. Limiti noti: task-via/ibrido e `tipo` risanamento restano
-> per-rapportino; `/hub/rapportini/eseguiti` conta ancora sui campi del rapportino.
-> E il template import Excel ora ha DESCRIZIONE ATTIVITÀ **solo-tendina** (validazione stop
-> sulla Leggenda). Il resto di questo handoff descrive la base (PR #116, mergiata).
-
-**Generated**: 2026-07-20 ~17:30 · **Status**: IN PRODUZIONE — PR #116 (2 task ATLAS) mergiata, migration `template_gruppo_attivita` APPLICATA al prod (seed verificato: 7 flussi collegati, 3 non collegati), repo principale allineato. Seconda passata su feedback utente: **editor semplificato per il backoffice** (PR `feat/azioni-operatori-semplice`) — le azioni in primo piano, tutti i tecnicismi (collegamento, instradamento, anagrafica, nomi foto, elimina) dentro "Impostazioni avanzate" chiusa; click sul gruppo apre direttamente l'unico flusso; "+ Flusso" dal gruppo precompila nome e collegamento.
+**Generated**: 2026-07-20 ~20:00 · **Branch**: `main` = produzione Vercel (ultimo merge `3960d6e`, PR #122) · **Status**: TUTTO MERGIATO E DEPLOYATO. Migrations applicate al prod. Un solo controllo rimandato: il primo giro generato per-attività (vedi Resume 1).
 
 ## Goal
 
-I due task ATLAS "FLUSSO SOSTITUTIVO DEI TEMPLATE" + "RIMOZIONE TEMPLATE": le azioni che gli
-operatori eseguono sono collegate direttamente al **Gruppo attività** (motore tassonomia,
-handoff precedente); il modulo Template rapportini è eliminato e sostituito dal nuovo modulo
-**Impostazioni → Azioni operatori** con la gerarchia del flowchart ATLAS:
-COMMITTENTE (Italgas, Acea, Acqualatina) → GRUPPO ATTIVITA' → FLUSSO (già presente).
-I flussi runtime NON cambiano: "occorre solo renderli modificabili nel nuovo modulo".
+Giornata in 4 tappe sullo stesso filone (2 task ATLAS + 3 iterazioni su feedback dal vivo):
+sostituire i Template rapportini con **Azioni operatori** (Committente → Gruppo attività → flusso),
+generare il rapportino **per-attività** (ogni voce = azioni del flusso del SUO gruppo), e rendere
+il modulo usabile da tutto il backoffice (editor semplice, anteprime dinamiche). In coda: commit
+dell'hardening lim-sync "commessa rinominata" rimasto in sospeso dalla sessione concorrente.
 
-## Completed
+## Completed (tutto in produzione)
 
-- [x] **DB**: colonne `gruppo_committente` (check acea|italgas|acqualatina) + `gruppi_attivita text[]`
-  su `rapportino_template`, check coppia coerente, seed idempotente per nome dei collegamenti dei
-  flussi esistenti (migration `20260720190000_template_gruppo_attivita.sql`). Un flusso può coprire
-  più gruppi: Ibrido acea = LIMITAZIONI MASSIVE + DUNNING; ITALGAS = ATTIVITA' ALLA CLIENTELA +
-  BONIFICHE. NON tocca `committente`/`is_default`/`solo_manuale` (instradamento runtime intatto).
-- [x] **Logica pura** `lib/rapportini/flussiGruppo.ts` (testata, 12 test): `buildAlberoFlussi`
-  (committenti fissi del flowchart; gruppi = tassonomia attiva ∪ foglia extra
-  acqualatina/SOSTITUZIONE MISURATORI ∪ gruppi referenziati dai collegamenti, match su chiave
-  normalizzata `chiaveTassonomia`; manuali per committente con equivalenza lim_massive→acea;
-  non collegati) + `normalizzaCollegamento` (coppia coerente col check DB, dedup normalizzato).
-- [x] **API** `/api/admin/rapportino-template`: GET/POST/PATCH portano `gruppo_committente` +
-  `gruppi_attivita` (zod esteso in `templateSchema.ts`; il PATCH normalizza la coppia — il client
-  manda sempre entrambe).
-- [x] **Nuovo modulo** `app/impostazioni/azioni-operatori/`: navigazione a livelli (card
-  committente con conteggi → gruppi con flussi collegati → editor), sezione "Interventi manuali (+)"
-  per committente, "Flussi non collegati" in home, "+ Flusso" per creare un flusso già collegato al
-  gruppo, "+ Modello manuale". Editor = quello storico (auto-save 800ms, lock ottimistico 409,
-  anteprime, scope foto risanamento) + sezione "Collegamento al gruppo attività" (select committente
-  + chips multi-gruppo). `soloManuale` è un checkbox esplicito (niente più schede).
-- [x] **Rimozione Template rapportini**: client/schede eliminati; `template-rapportini/page.tsx` →
-  `redirect('/impostazioni/azioni-operatori')`; card Impostazioni sostituita ("Azioni operatori");
-  `templateScheda.ts` snellito a `erroreCommittenteManuale` (schede orfane rimosse coi loro test).
-- [x] **Verifica**: vitest 244 file / 1870 test verdi; `tsc --noEmit` pulito; eslint pulito sui file
-  toccati; `next build` ok (nel worktree serve `.env.local` copiato a mano: è gitignorato).
-- [x] ROADMAP.md aggiornata (task nei "Fatto", follow-up fase 2 nei "Da fare").
+- [x] **PR #116** (task ATLAS `4c616de3…` + `e81c9fd4…`): modulo `/impostazioni/azioni-operatori`
+  (gerarchia flowchart, gruppi data-driven dalla tassonomia, foglia extra acqualatina/SOSTITUZIONE
+  MISURATORI), collegamento `rapportino_template.gruppo_committente`+`gruppi_attivita[]` con seed
+  (migration `20260720190000` APPLICATA: 7 collegati / 3 non collegati verificati), modulo
+  Template rapportini rimosso (route in redirect). ROADMAP/HANDOFF nella stessa PR.
+- [x] **PR #119**: (a) editor semplice per il backoffice; (b) **rapportino per-attività**:
+  `rapportino_voci.template_id`+`campi_snapshot` (migration `20260720210000` APPLICATA),
+  generazione risolve il flusso dal gruppo dell'intervento (`risolviFlussoPerGruppo`: dedicato
+  batte ibrido, manuali esclusi, lim_massive≡acea; fallback = "Modello" scelto in mappa), catena
+  per-voce completa (operatore, validazioni, esiti, export con `unioneCampi`); (c) template
+  import Excel: DESCRIZIONE ATTIVITÀ **solo-tendina** (data validation stop sulla Leggenda).
+- [x] **PR #121**: sezione di primo livello "Anteprima del task nel rapportino" (titolo card +
+  dettagli anagrafici + anteprima unica; per i manuali "Anagrafica da compilare (+)"); ELIMINATI
+  i 3 blocchi avanzati duplicati e la select committente dei flussi CLASSICI (funzione morta:
+  `risolviTemplateCommittente` gira solo sui `solo_manuale`; nei manuali resta "Committente del +").
+- [x] **PR #122**: anteprima DINAMICA — box live «L'operatore leggerà: …», valore d'esempio su
+  ogni riga del titolo con evidenza "← fa da titolo", resa `vedrà: ETICHETTA: valore` sui dettagli.
+- [x] **`24f2efa` su main**: hardening lim-sync "commessa rinominata" (filone della sessione
+  concorrente, committato su richiesta): `risolviPathConfig` (risoluzione path in memoria SOLO con
+  UNA gemella valida) + `scriviLog` con fallback locale (mai ricreare alberi fantasma su OneDrive).
+  227 test lim-sync verdi + `node --check` prima del commit; l'agente serale gira col fix.
+- [x] Verifica post-deploy #119 in prod: pagina operatore `/r/<token>` di un rapportino
+  pre-merge renderizza perfettamente in fallback (lista, focus, azioni ESEGUITO/NOTE/lavorazioni).
 
 ## Not Yet Done
 
-- [x] ~~Migration al prod~~ APPLICATA (20/07 ~17:00, con ok esplicito utente dopo il primo blocco
-  del classifier) e seed verificato con select.
-- [ ] Il gruppo italgas **BONIFICHE** è seedato sul flusso ITALGAS (ibrido) e **AGENDA AEREA** resta
-  senza flusso: se l'ufficio non è d'accordo, si cambia dalla UI (Impostazioni avanzate →
-  Collegamento).
-- [ ] Follow-up fase 2 (ROADMAP): pianificazione risolve il modello dal `gruppo_attivita` degli
-  interventi invece della select manuale.
-- [ ] Se "tutti nel backoffice" deve includere utenti NON admin: oggi `/impostazioni` è solo admin
-  (layout con redirect). Aprire il solo modulo Azioni operatori ad altri ruoli è una scelta di
-  permessi da confermare con l'utente prima di toccarla.
+- [ ] **Controllare il PRIMO GIRO generato per-attività** (Resume 1): i 14 rapportini del 21/07
+  sono stati generati alle 17:16, PRIMA del merge #119 → viaggiano in fallback (comportamento
+  identico al vecchio, corretto). Le voci per-attività compaiono alla prossima
+  generazione/risalvataggio di un piano dalla mappa.
+- [ ] Follow-up in ROADMAP ("Azioni operatori — rifiniture per-voce"): valutare "Modello" mappa
+  non più obbligatorio quando tutti i task risolvono; task-via/ibrido e `tipo` risanamento
+  per-voce; `/hub/rapportini/eseguiti` sui campi unione.
+- [ ] Se "tutti nel backoffice" dovrà includere NON-admin: `/impostazioni` è solo admin (layout
+  con redirect) — scelta di permessi da confermare con l'utente.
+- [ ] Gruppo italgas BONIFICHE seedato sul flusso ITALGAS (ibrido) e AGENDA AEREA senza flusso
+  (ha già un flusso creato a mano dall'utente il 20/07 sera, "AGENDA AEREA — 1 azione ESITO"):
+  verificare che l'ufficio confermi i collegamenti.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **`apply_migration` E `execute_sql` per DDL/UPDATE prod**: il classifier può bloccarli entrambi;
-  non aggirare — chiedere l'ok esplicito all'utente e riprovare con quello.
-- **Riusare il committente template per la gerarchia**: NO — `committente` instrada il runtime
-  (modale "+", risolviTemplateCommittente) e non ha 'acqualatina' nel check; la gerarchia del
-  flowchart è una dimensione NUOVA (`gruppo_committente`), acqualatina esiste solo lì.
-- **Inserire SOSTITUZIONE MISURATORI in tassonomia**: NO — `attivita_tassonomia.committente` ha
-  check acea|italgas|altro e il flusso risanamento non importa attività; è una foglia "extra"
-  hardcoded in `GRUPPI_EXTRA` (flussiGruppo.ts).
+- **`apply_migration`/`execute_sql` per mutazioni prod**: il classifier li può bloccare anche
+  sulla "via sanzionata"; NON aggirare — chiedere l'ok esplicito in chat e rilanciare (così è
+  passato due volte oggi).
+- **`.not('col','is',null)` nelle query del motore rapportini**: il fake Supabase dei test
+  (`lib/interventi/testUtils/fakeSupabase.ts`) non lo implementa → 17 test rossi. Filtrare in JS
+  dopo una select semplice (`.eq()` sola) — più robusto anche per il fake.
+- **Select `campi_snapshot` per-voce dentro la select principale del render `/r/[token]`**:
+  se la colonna non esiste ancora, TUTTA la select fallisce (rapportino "vuoto"). Pattern giusto
+  (usato nel file per task_via ecc.): query separata e resiliente, merge per id.
+- **Riusare `committente`/tassonomia per la gerarchia del flowchart**: no — `committente` instrada
+  il runtime e non ha 'acqualatina' nei check; la gerarchia è una dimensione NUOVA
+  (`gruppo_committente`), acqualatina esiste solo lì (foglia extra hardcoded, non in tassonomia).
+- **Chips/valori "coordinate" nel titolo card**: escluse dalla scelta titolo (sarebbe un titolo
+  insensato); la coordinata resta solo come link "Punto esatto".
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Collegamento = 2 colonne su `rapportino_template` (niente tabella ponte) | 10 template, N:M coperto da `text[]`; una join table è overkill |
-| `gruppi_attivita text[]` (un flusso → più gruppi) | Ibrido acea copre LIMITAZIONI MASSIVE + DUNNING; ITALGAS copre clientela + bonifiche |
-| Gruppi data-driven dalla tassonomia (no hardcode) | 1 INSERT in tassonomia = nuovo gruppo visibile nel modulo, coerente col motore |
-| Flussi runtime intatti | Il task lo dice esplicitamente; la select "Modello" in mappa resta (fase 2 in ROADMAP) |
-| Route vecchia in redirect (non 404) | Bookmark dell'ufficio; il modulo è comunque eliminato |
-| Match gruppi su `chiaveTassonomia` | Robusto a maiuscole/accenti/spazi (stessa chiave del motore tassonomia) |
+| Collegamento = 2 colonne su `rapportino_template` (`gruppo_committente` + `gruppi_attivita text[]`) | N:M leggero senza tabella ponte; un ibrido copre più gruppi |
+| Per-voce = snapshot sulla voce (`template_id`+`campi_snapshot`), NULL = fallback rapportino | Retro-compat totale; rapportini storici intatti; zero blocchi alla pianificazione |
+| `risolviFlussoPerGruppo`: dedicato batte ibrido (meno gruppi coperti), poi nome | Determinismo quando due flussi coprono lo stesso gruppo |
+| "Modello" in mappa resta obbligatorio come fallback | Interventi senza gruppo o gruppi scoperti non bloccano mai il giro |
+| Export/PDF/foto: unione colonne (`utils/rapportini/campiDiVoce.ts`) | Voci miste nello stesso rapportino: ogni risposta trova la sua colonna |
+| UI backoffice: essenziale in primo piano, tecnicismi in "Impostazioni avanzate" chiusa | Feedback esplicito utente (memoria `ui-config-semplice-backoffice`) |
+| Select committente SOLO sui manuali | Verificato: `risolviTemplateCommittente` è chiamato solo su `solo_manuale=true` (modale "+", lista attesa) |
 
 ## Current State
 
-**Working**: branch `feat/azioni-operatori` (worktree `.claude/worktrees/azioni-operatori`), tutto
-implementato e verde (test/tsc/lint/build). Il repo principale è rimasto su `main` (l'agente
-lim-sync gira da lì). Migration in attesa di ok → poi merge PR → deploy Vercel.
+**Working**: tutto il filone in produzione (`3960d6e`); migrations applicate; repo principale
+allineato su `main` (l'agente lim-sync gira da lì col fix `24f2efa`). L'utente ha già usato il
+modulo (creato flusso "AGENDA AEREA", provato l'editor). Worktree
+`.claude/worktrees/azioni-operatori` su `feat/anteprima-dinamica` (mergiato: può essere rimosso;
+contiene `.env.local` copiato a mano, gitignorato).
 
-**Contesto precedente ancora vivo** (handoff motore tassonomia, `736fb4e`): guard runbook
-`tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` dopo ogni import ACEA (attese:
-G1=0, G2=11 note italgas, G3=0); non disattivare la voce acea "LIMITAZIONI MASSIVE" (l'export
-si àncora al literal); giro agente serale da controllare in `/hub/agente`. Le modifiche
-uncommitted su `tools/limitazioni-sync/` nel repo principale sono di un filone concorrente
-("commessa rinominata") — NON toccarle.
+**Broken**: nulla di noto.
 
 ## Files to Know
 
 | File | Perché |
 |---|---|
-| `lib/rapportini/flussiGruppo.ts` | Albero flowchart + normalizzaCollegamento (PURO, testato) |
-| `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` | Navigazione + editor (erede del vecchio TemplateRapportiniClient) |
-| `app/impostazioni/azioni-operatori/page.tsx` | Server: template + tassonomia (range 0-4999, no cap 1000) |
-| `app/api/admin/rapportino-template/route.ts` | API estesa col collegamento (lock ottimistico invariato) |
-| `supabase/migrations/20260720190000_template_gruppo_attivita.sql` | Colonne + check + seed — ⚠️ DA APPLICARE AL PROD |
-| `lib/rapportini/templateScheda.ts` | Ridotto a erroreCommittenteManuale |
-| `docs/superpowers/plans/2026-07-20-azioni-operatori.md` | Piano/decisioni di questa sessione |
+| `lib/rapportini/flussiGruppo.ts` | Albero flowchart + `risolviFlussoPerGruppo` + `normalizzaCollegamento` (PURO, testato) |
+| `utils/rapportini/campiDiVoce.ts` | `campiDiVoce` (per-voce con fallback) + `unioneCampi` (export/PDF) |
+| `lib/interventi/sincronizzaRapportini.ts` | Generazione: `flussoPerVoce` via intervento→gruppo→flusso; retry resilienti |
+| `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` | UI completa: navigazione, azioni, anteprima dinamica, avanzate |
+| `app/r/[token]/page.tsx` + `api/r/[token]/{voce,invia}` | Catena operatore per-voce (query snapshot separata e resiliente) |
+| `supabase/migrations/20260720{190000,210000}_*.sql` | Collegamenti + colonne voci (GIÀ applicate al prod) |
+| `tools/limitazioni-sync/lib/risolviPathConfig.mjs` | Risoluzione path commessa rinominata (agente) |
+
+## Code Context
+
+```ts
+// Generazione per-voce (sincronizzaRapportini): la voce salva il flusso del SUO gruppo
+flussoPerVoce(interventoId) // → { template_id, campi_snapshot } | null (null = fallback rapportino)
+risolviFlussoPerGruppo(committenteEq, gruppo, templates) // dedicato < ibrido, no manuali, 'altro' = qualsiasi
+
+// Ovunque si valuta una voce:
+campiDiVoce(voce, campiRapportino)   // i SUOI campi o il fallback
+unioneCampi(base, vociCampi[])       // colonne export/PDF, dedup per chiave, ordine rinumerato
+```
+
+```sql
+-- Salute collegamenti (attesi oggi: 8 collegati con AGENDA AEREA, 2-3 non collegati):
+select nome, gruppo_committente, gruppi_attivita from rapportino_template order by 2 nulls last, 1;
+-- Voci per-attività generate (0 finché non si rigenera un piano post-deploy):
+select count(*) from rapportino_voci where campi_snapshot is not null;
+```
 
 ## Resume Instructions
 
-1. **Applicare la migration al prod** (con ok utente): `apply_migration` con il contenuto del file
-   `20260720190000...` — poi verificare il seed: `select nome, gruppo_committente, gruppi_attivita
-   from rapportino_template order by nome;` (attesi 7 collegati, 3 non collegati: IBRIDO
-   ITALGAS/ACEA + i 2 manuali).
-2. **Merge PR** (serve ok esplicito per-azione, classifier) → deploy Vercel automatico.
-3. Smoke test su prod: Impostazioni → Azioni operatori (3 card committente; Acea → 2 gruppi con
-   flussi; Italgas → clientela/bonifiche/extra/P.I.+AGENDA AEREA vuoto; Acqualatina → RESINE);
-   la vecchia route `/impostazioni/template-rapportini` deve reindirizzare; il dropdown "Modello"
-   della mappa deve continuare a popolare.
-4. Dopo il merge: `git pull` nel repo principale (l'agente lim-sync gira da lì — prassi standard).
+1. **Primo giro per-attività**: dopo che l'ufficio risalva/genera un piano dalla mappa (o su
+   richiesta: risalvare il piano del 21/07 — tutte le voci sono a 0 compilati, operazione sicura):
+   - `select count(*) from rapportino_voci where campi_snapshot is not null;` → atteso > 0.
+   - Campione di correttezza: join voce→intervento e verificare che `voce.template_id` sia il
+     flusso del `gruppo_attivita` dell'intervento (es. DUNNING → LIMITAZIONI/SOSPENSIONI,
+     massive → RAPPORTINO LIMITAZIONI MASSIVE); interventi con gruppo NULL → voce con snapshot NULL.
+   - Aprire `/r/<token>` di quel giro: voci di gruppi diversi mostrano azioni diverse.
+   - Se snapshot tutti NULL con gruppi valorizzati: controllare che i flussi siano `active` e
+     collegati (query salute sopra), e che il deploy sia ≥ `14552c0`.
+2. **Guard motore tassonomia** (runbook invariato): dopo ogni import ACEA le 3 guard di
+   `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` (attese G1=0 / G2=11 note / G3=0).
+3. Giro agente serale 20/07: verificare in `/hub/agente` nessuna anomalia; il fix commessa
+   rinominata emette `avvisoPercorso` nel report se i path cambiano ancora.
 
 ## Warnings
 
-- Repo PUBBLICO: niente dati prod (matricole/ODL/nomi) in PR/commit. Le colonne nuove e i nomi
-  template/gruppi NON sono dati sensibili (sono configurazione).
-- Il worktree ha `.env.local` copiato a mano (gitignorato): se si ricrea il worktree, ricopiarlo.
-- L'auto-save dell'editor salva anche il collegamento: cambi di gruppo si propagano all'albero a
-  sinistra dopo ~1s (reload della lista) — comportamento voluto.
+- **NON disattivare** la voce acea "LIMITAZIONI MASSIVE" in tassonomia (l'export si àncora al literal).
+- Repo PUBBLICO: mai dati prod (matricole/ODL/nomi operatori) in commit/PR.
+- I rapportini del 21/07 in fallback sono CORRETTI così: non rigenerarli per forza — il per-voce
+  arriva naturalmente col prossimo salvataggio.
+- L'auto-save dell'editor propaga anche il collegamento gruppi: l'albero a sinistra si aggiorna
+  ~1s dopo la modifica (voluto).
+- Sessioni concorrenti attive oggi su questo repo (#114→#122): SEMPRE `git fetch` + rebase prima
+  di push; verificare che un merge prenda tutti i commit del ramo.
