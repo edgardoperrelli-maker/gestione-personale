@@ -79,6 +79,9 @@ export function ModaleInterventoManuale({
     () => anagraficaCampi((committente && infoCampiPerCommittente[committente]) || infoCampi),
     [committente, infoCampiPerCommittente, infoCampi],
   );
+  // Etichetta del campo attività: quella del template se lo dichiara, altrimenti il default
+  // (la select si renderizza comunque: il campo è di tassonomia, non di template).
+  const etichettaAttivita = campiAnag.find((c) => c.chiave === 'attivita')?.etichetta ?? 'DESCRIZIONE ATTIVITÀ';
   // Descrizione attività: lista chiusa dalla tassonomia (spec §7), filtrata per committente
   // equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive, nessuna riga propria).
   const opzioniAttivita = useMemo(() => {
@@ -198,40 +201,42 @@ export function ModaleInterventoManuale({
         {step === 2 && !(committente === 'lim_massive' && !cercaFatta) && (
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-              {campiAnag.map((c) => (
-                <div key={c.chiave} className={c.chiave === 'attivita' ? 'col-span-2 min-w-0' : 'min-w-0'}>
-                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    {c.etichetta}
-                    {c.chiave === 'attivita' && <span className="text-[var(--danger)]"> *</span>}
-                  </label>
-                  {c.chiave === 'attivita' ? (
-                    // Descrizione attività: OBBLIGATORIA, lista chiusa dalla tassonomia (spec §7).
-                    <select
-                      required
-                      value={String(anagrafica.attivita ?? '')}
-                      onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
-                      className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                    >
-                      <option value="">— scegli l&apos;attività —</option>
-                      {opzioniAttivita.map((o) => (
-                        <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
-                          {o.descrizione} — {o.gruppo}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <input
-                      type="text"
-                      value={anagrafica[c.chiave] ?? ''}
-                      // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
-                      // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
-                      // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
-                      // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
-                      onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                      onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                      className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                    />
-                  )}
+              {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
+                  presente, per ogni committente, anche se l'anagrafica del template non prevede
+                  `attivita` (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). */}
+              <div className="col-span-2 min-w-0">
+                <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                  {etichettaAttivita}
+                  <span className="text-[var(--danger)]"> *</span>
+                </label>
+                <select
+                  required
+                  value={String(anagrafica.attivita ?? '')}
+                  onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
+                  className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                >
+                  <option value="">— scegli l&apos;attività —</option>
+                  {opzioniAttivita.map((o) => (
+                    <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
+                      {o.descrizione} — {o.gruppo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
+                <div key={c.chiave} className="min-w-0">
+                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
+                  <input
+                    type="text"
+                    value={anagrafica[c.chiave] ?? ''}
+                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
+                    // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
+                    // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
+                    // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
+                    onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                    onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  />
                 </div>
               ))}
             </div>

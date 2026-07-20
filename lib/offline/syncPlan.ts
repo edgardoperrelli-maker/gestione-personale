@@ -1,4 +1,5 @@
 import type { OutboxItem } from './types';
+import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 
 function priorita(type: OutboxItem['type']): number {
   switch (type) {
@@ -55,6 +56,17 @@ export function classificaEsito(status: number): EsitoSync {
 /** Rilascia i blob solo se il server conferma la DURABILITÀ (non la semplice presenza immediata). */
 export function deveRilasciareFoto(status: number, durabile: boolean): boolean {
   return status >= 200 && status < 300 && durabile === true;
+}
+
+/**
+ * Motivo amichevole per il 400 del percorso manuale quando il body porta uno dei codici
+ * attività (spec §7: obbligo descrizione a lista chiusa). Per gli altri 400 ritorna null
+ * → resta il motivo storico di classificaEsito ("riapri il link"), che lì è corretto.
+ */
+export function motivoManuale400(body: { error?: string; messaggio?: string } | null): string | null {
+  if (!body) return null;
+  if (body.error !== 'attivita_obbligatoria' && body.error !== 'attivita_sconosciuta') return null;
+  return messaggioErroreManuale(body, 400);
 }
 
 /** Finestra minima prima di tentare la conferma differita: supera la finestra di sparizione osservata. */

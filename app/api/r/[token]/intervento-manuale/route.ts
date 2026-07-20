@@ -11,6 +11,7 @@ import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefa
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
+import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import { risolviCampiManuali } from '@/lib/interventi/manuali/risolviCampiManuali';
@@ -143,10 +144,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   const indiceTassonomia = buildTassonomiaIndex(await caricaTassonomia());
   const attivitaRaw = String((anagrafica as { attivita?: unknown }).attivita ?? '').trim();
   if (!attivitaRaw) {
-    return NextResponse.json({ error: 'attivita_obbligatoria' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'attivita_obbligatoria', messaggio: messaggioErroreManuale({ error: 'attivita_obbligatoria' }, 400) },
+      { status: 400 },
+    );
   }
   if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia)) {
-    return NextResponse.json({ error: 'attivita_sconosciuta', attivita: attivitaRaw }, { status: 400 });
+    return NextResponse.json(
+      { error: 'attivita_sconosciuta', attivita: attivitaRaw, messaggio: messaggioErroreManuale({ error: 'attivita_sconosciuta' }, 400) },
+      { status: 400 },
+    );
   }
   (anagrafica as { attivita?: string }).attivita = attivitaRaw;
 

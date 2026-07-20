@@ -57,6 +57,9 @@ export function PannelloRevisioneRichiesta({
   const [sigBloccante, setSigBloccante] = useState<{ sigillo: string; duplicati: DuplicatoSigillo[] } | null>(null);
   const [fotoAvviso, setFotoAvviso] = useState<number | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
+  // Etichetta del campo attività: quella del template se lo dichiara, altrimenti il default
+  // (la select si renderizza comunque: il campo è di tassonomia, non di template).
+  const etichettaAttivita = campiAnag.find((c) => c.chiave === 'attivita')?.etichetta ?? 'DESCRIZIONE ATTIVITÀ';
   // Descrizione attività: lista chiusa dalla tassonomia (spec §7), come nel "+" — stesso filtro
   // per committente equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive).
   const opzioniAttivita = useMemo(() => {
@@ -118,41 +121,43 @@ export function PannelloRevisioneRichiesta({
       </p>
 
       {/* Anagrafica compatta: 2 colonne */}
-      {campiAnag.length > 0 && (
-        <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-          {campiAnag.map((c) => (
-            <div key={c.chiave} className={c.chiave === 'attivita' ? 'col-span-2 min-w-0' : 'min-w-0'}>
-              <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                {c.etichetta}
-                {c.chiave === 'attivita' && <span className="text-[var(--danger)]"> *</span>}
-              </label>
-              {c.chiave === 'attivita' ? (
-                // Descrizione attività: OBBLIGATORIA, lista chiusa dalla tassonomia (spec §7).
-                <Select
-                  required
-                  value={anagrafica.attivita ?? ''}
-                  onChange={(e) => setAnagrafica((p) => ({ ...p, attivita: e.target.value }))}
-                  className="py-1.5 text-xs"
-                >
-                  <option value="">— scegli l&apos;attività —</option>
-                  {opzioniAttivita.map((o) => (
-                    <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
-                      {o.descrizione} — {o.gruppo}
-                    </option>
-                  ))}
-                </Select>
-              ) : (
-                <Input
-                  type="text"
-                  value={anagrafica[c.chiave] ?? ''}
-                  onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))}
-                  className="py-1.5 text-xs"
-                />
-              )}
-            </div>
-          ))}
+      <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+        {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
+            presente, anche se l'anagrafica del template non prevede `attivita` (spec §7:
+            senza, il check bloccante in approvazione sarebbe insoddisfacibile). */}
+        <div className="col-span-2 min-w-0">
+          <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            {etichettaAttivita}
+            <span className="text-[var(--danger)]"> *</span>
+          </label>
+          <Select
+            required
+            value={anagrafica.attivita ?? ''}
+            onChange={(e) => setAnagrafica((p) => ({ ...p, attivita: e.target.value }))}
+            className="py-1.5 text-xs"
+          >
+            <option value="">— scegli l&apos;attività —</option>
+            {opzioniAttivita.map((o) => (
+              <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
+                {o.descrizione} — {o.gruppo}
+              </option>
+            ))}
+          </Select>
         </div>
-      )}
+        {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
+          <div key={c.chiave} className="min-w-0">
+            <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              {c.etichetta}
+            </label>
+            <Input
+              type="text"
+              value={anagrafica[c.chiave] ?? ''}
+              onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))}
+              className="py-1.5 text-xs"
+            />
+          </div>
+        ))}
+      </div>
 
       {/* Esiti — solo campi NON foto, su 2 colonne */}
       {campiEsito.some((c) => c.tipo !== 'foto') && (

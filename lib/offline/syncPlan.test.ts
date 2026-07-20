@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale, GRACE_CONFERMA_MS } from './syncPlan';
+import { ordineInvio, classificaEsito, deveRilasciareFoto, modoInvioManuale, esitoInvioManuale, motivoManuale400, GRACE_CONFERMA_MS } from './syncPlan';
 import type { OutboxItem } from './types';
 
 const base = { token: 'tok', tentativi: 0, stato: 'in_attesa' as const };
@@ -106,5 +106,22 @@ describe('deveRilasciareFoto (durabile)', () => {
     expect(deveRilasciareFoto(200, true)).toBe(true);
     expect(deveRilasciareFoto(200, false)).toBe(false);
     expect(deveRilasciareFoto(500, true)).toBe(false);
+  });
+});
+
+describe('motivoManuale400', () => {
+  it('codice attivita_obbligatoria → messaggio amichevole (non "riapri il link")', () => {
+    expect(motivoManuale400({ error: 'attivita_obbligatoria' })).toBe('Scegli la descrizione attività: è obbligatoria.');
+  });
+  it('codice attivita_sconosciuta → messaggio amichevole', () => {
+    expect(motivoManuale400({ error: 'attivita_sconosciuta' })).toMatch(/non riconosciuta/i);
+  });
+  it('preferisce il messaggio del server se presente', () => {
+    expect(motivoManuale400({ error: 'attivita_sconosciuta', messaggio: 'MSG DAL SERVER' })).toBe('MSG DAL SERVER');
+  });
+  it('altri codici o body assente → null (resta il motivo storico del 400)', () => {
+    expect(motivoManuale400({ error: 'campi_mancanti' })).toBeNull();
+    expect(motivoManuale400({})).toBeNull();
+    expect(motivoManuale400(null)).toBeNull();
   });
 });

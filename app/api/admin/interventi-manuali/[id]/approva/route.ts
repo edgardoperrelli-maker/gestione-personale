@@ -10,6 +10,7 @@ import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/v
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
+import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 
 export const runtime = 'nodejs';
 
@@ -53,10 +54,16 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   const indiceTassonomia = buildTassonomiaIndex(await caricaTassonomia());
   const attivitaRaw = String((dati.anagrafica as { attivita?: unknown } | undefined)?.attivita ?? '').trim();
   if (!attivitaRaw) {
-    return NextResponse.json({ error: 'attivita_obbligatoria' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'attivita_obbligatoria', messaggio: messaggioErroreManuale({ error: 'attivita_obbligatoria' }, 400) },
+      { status: 400 },
+    );
   }
   if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia)) {
-    return NextResponse.json({ error: 'attivita_sconosciuta', attivita: attivitaRaw }, { status: 400 });
+    return NextResponse.json(
+      { error: 'attivita_sconosciuta', attivita: attivitaRaw, messaggio: messaggioErroreManuale({ error: 'attivita_sconosciuta' }, 400) },
+      { status: 400 },
+    );
   }
   dati.anagrafica.attivita = attivitaRaw;
 
