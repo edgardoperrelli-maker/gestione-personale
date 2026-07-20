@@ -4,6 +4,9 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { parseExcelToTasks } from '@/utils/routing/excelParser';
 import { requireUser } from '@/lib/apiAuth';
 import type { Task } from '@/utils/routing/types';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { buildTassonomiaIndex } from '@/lib/attivita/tassonomia';
+import { validaImport } from '@/lib/attivita/validaImport';
 
 export const runtime = 'nodejs';
 
@@ -18,7 +21,7 @@ function nrm(v: unknown): string | null {
 }
 
 /** Campi descrittivi mappati da un Task dell'Excel a una riga `interventi`. */
-function taskToDescrittivi(t: Task) {
+function taskToDescrittivi(t: Task, extra?: { descrizioneCanonica: string; gruppo: string }) {
   return {
     odl: nrm(t.odl),
     pdr: nrm(t.pdr),
@@ -29,7 +32,8 @@ function taskToDescrittivi(t: Task) {
     cap: nrm(t.cap),
     fascia_oraria: nrm(t.fascia_oraria),
     codice_servizio: nrm(t.codice),
-    intervento_tipo: nrm(t.attivita),
+    intervento_tipo: extra ? extra.descrizioneCanonica : nrm(t.attivita),
+    gruppo_attivita: extra ? extra.gruppo : null,
     lat: typeof t.lat === 'number' ? t.lat : null,
     lng: typeof t.lng === 'number' ? t.lng : null,
   };
@@ -81,6 +85,17 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Nessuna riga valida trovata nel file.' }, { status: 400 });
     }
 
+    // Guardrail tassonomia (spec §6): il file è accettato SOLO se ogni riga ha una
+    // descrizione attività riconosciuta; un solo errore rifiuta TUTTO il file.
+    const index = buildTassonomiaIndex(await caricaTassonomia());
+    const esito = validaImport(tasks, committente, index);
+    if (!esito.ok) {
+      return NextResponse.json({ error: 'file_non_conforme', errori: esito.errori }, { status: 422 });
+    }
+    // Da qui in poi si lavora con descrizione CANONICA + gruppo derivato.
+    const arricchiti = new Map<Task, { descrizioneCanonica: string; gruppo: string }>();
+    for (const r of esito.righe) arricchiti.set(r.task, { descrizioneCanonica: r.descrizioneCanonica, gruppo: r.gruppo });
+
     // Dedup interno al batch sulle righe con odl (l'ultima occorrenza vince).
     const conOdl = new Map<string, Task>();
     const senzaOdl: Task[] = [];
@@ -108,7 +123,7 @@ export async function POST(req: Request) {
 
     const batchId = randomUUID();
     const baseRiga = (t: Task) => ({
-      ...taskToDescrittivi(t),
+      ...taskToDescrittivi(t, arricchiti.get(t)),
       committente,
       data,
       lotto,
@@ -123,7 +138,7 @@ export async function POST(req: Request) {
     // Aggiornamenti: righe con odl già presente (solo campi descrittivi).
     const toUpdate = [...conOdl.entries()]
       .filter(([odl]) => esistenti.has(odl))
-      .map(([odl, t]) => ({ id: esistenti.get(odl)!, descrittivi: { ...taskToDescrittivi(t), import_batch_id: batchId } }));
+      .map(([odl, t]) => ({ id: esistenti.get(odl)!, descrittivi: { ...taskToDescrittivi(t, arricchiti.get(t)), import_batch_id: batchId } }));
 
     if (toInsert.length > 0) {
       const { error } = await supabaseAdmin.from('interventi').insert(toInsert);
