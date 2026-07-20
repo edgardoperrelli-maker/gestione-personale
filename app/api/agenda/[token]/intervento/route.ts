@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { pianificaChiusuraOperatore, type AzioneOperatore } from '@/lib/interventi/chiusuraOperatore';
-import { rilevaDoppioPositivo, type AltroCompletatoPositivo } from '@/lib/interventi/rilevaDoppioPositivo';
+import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
 import type { EsitoIntervento, StatoIntervento } from '@/lib/interventi/statoInterventi';
 
 export const runtime = 'nodejs';
@@ -67,35 +67,49 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     });
     if (!piano.ok) return NextResponse.json({ error: piano.errore }, { status: 400 });
 
-    // Doppio positivo: un altro intervento con lo stesso ODL è già completato+positivo
-    // (tipicamente perché il master non risultava ancora aggiornato quando è stato ripianificato).
-    // Non blocca l'operatore: chiude comunque, ma marca la riga per la riconciliazione ufficio.
-    let riconciliazione: { da_riconciliare: true; riconciliazione_rif_id: string } | null = null;
-    if (piano.patch.esito === 'eseguito_positivo' && it.odl) {
-      const { data: altriRows } = await supabaseAdmin
+    // ODL con positivo GIÀ presente altrove (qualsiasi data): un ODL positivo è
+    // definitivamente chiuso. Un secondo "Fatto" non è un esito reale → l'intervento viene
+    // annullato come DOPPIO POSITIVO e marcato per la riconciliazione ufficio; un "Non fatto"
+    // chiude normalmente ma viene comunque marcato (visita non dovuta). Non blocca l'operatore.
+    let originale: { id: string; data: string | null } | undefined;
+    if (it.odl && (it.odl ?? '').trim()) {
+      const { data: posRows } = await supabaseAdmin
         .from('interventi')
-        .select('id, created_at')
-        .eq('odl', it.odl)
-        .eq('stato', 'completato')
+        .select('id, odl, data, committente')
         .eq('esito', 'eseguito_positivo')
+        .eq('odl', it.odl)
         .neq('id', interventoId);
-      const rif = rilevaDoppioPositivo((altriRows ?? []) as AltroCompletatoPositivo[]);
-      if (rif) riconciliazione = { da_riconciliare: true, riconciliazione_rif_id: rif.rifId };
+      originale = indicizzaPositivi(
+        (posRows ?? []) as Array<{ id: string; odl: string | null; data: string | null; committente: string | null }>,
+      ).get(chiavePositivo(it.committente, it.odl));
     }
+    const decisione = decidiChiusuraConPositivi({
+      interventoId,
+      esitoPositivo: piano.patch.esito === 'eseguito_positivo',
+      originale,
+    });
 
+    const patch =
+      decisione.tipo === 'annulla_doppio_positivo'
+        ? {
+            stato: 'annullato' as const, esito: null, esito_motivo: decisione.motivo,
+            da_riconciliare: true, riconciliazione_rif_id: decisione.rifId,
+          }
+        : {
+            stato: piano.patch.stato,
+            esito: piano.patch.esito,
+            esito_motivo: piano.patch.esito_motivo,
+            ...(decisione.tipo === 'chiudi_e_riconcilia'
+              ? { da_riconciliare: true, riconciliazione_rif_id: decisione.rifId }
+              : {}),
+          };
     const { error: ue } = await supabaseAdmin
       .from('interventi')
-      .update({
-        stato: piano.patch.stato,
-        esito: piano.patch.esito,
-        esito_motivo: piano.patch.esito_motivo,
-        chiuso_at: new Date().toISOString(),
-        ...(riconciliazione ?? {}),
-      })
+      .update({ ...patch, chiuso_at: new Date().toISOString() })
       .eq('id', interventoId);
     if (ue) return NextResponse.json({ error: ue.message }, { status: 500 });
 
-    return NextResponse.json({ ok: true, stato: piano.patch.stato, esito: piano.patch.esito });
+    return NextResponse.json({ ok: true, stato: patch.stato, esito: patch.esito });
   } catch (e) {
     return NextResponse.json({ error: e instanceof Error ? e.message : 'Errore.' }, { status: 500 });
   }
