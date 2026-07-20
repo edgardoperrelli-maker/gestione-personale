@@ -54,12 +54,16 @@ export async function POST(req: Request) {
   for (const item of voci) {
     const { data: voce } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('id, intervento_id, risposte')
+      .select('id, intervento_id, risposte, campi_snapshot')
       .eq('id', item.voceId)
       .eq('rapportino_id', rapportinoId)
       .maybeSingle();
     if (!voce) continue;
-    const v = voce as { intervento_id: string | null; risposte: Record<string, unknown> | null };
+    const v = voce as { intervento_id: string | null; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
+    // Esito/propagazione valutati sui campi DELLA voce (flusso del suo gruppo attività).
+    const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
+      ? (v.campi_snapshot as TemplateCampo[])
+      : campi;
 
     // soloCompletamentoFoto: false → modalità modifica piena (le risposte corrette
     // vincono, le chiavi non toccate restano, le foto già caricate sono protette).
@@ -80,7 +84,7 @@ export async function POST(req: Request) {
     // 'riapri' annulla SOLO una nostra precedente chiusura (tocca solo se 'completato').
     if (v.intervento_id) {
       try {
-        const patch = patchInterventoLiveDaVoce(merged, campi);
+        const patch = patchInterventoLiveDaVoce(merged, campiV);
         const interventoPatch =
           patch.azione === 'completa'
             ? { stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: new Date().toISOString() }

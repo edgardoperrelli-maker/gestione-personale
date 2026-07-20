@@ -253,3 +253,50 @@ describe('sincronizzaRapportini — ordine voci = ordine file (master), non la r
     expect(ord['row-3']).toBe(3);
   });
 });
+
+describe('sincronizzaRapportini — voci per-attività (flusso dal gruppo)', () => {
+  const CAMPI_DUNNING = [{ chiave: 'esito_dunning', etichetta: 'ESITO DUNNING', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 }];
+  const FLUSSO_DUNNING = {
+    id: 'fl-dunning', nome: 'LIMITAZIONI/SOSPENSIONI', active: true, solo_manuale: false,
+    campi: CAMPI_DUNNING, info_campi: [], gruppo_committente: 'acea', gruppi_attivita: ['DUNNING'],
+  };
+
+  it('la voce prende template_id + campi dal flusso del gruppo del SUO intervento; senza gruppo resta sul fallback', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [{ id: 'tpl1', campi: [], info_campi: [] }, FLUSSO_DUNNING],
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [
+        { id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' },
+      ] }],
+      interventi: [
+        { id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato', committente: 'acea', gruppo_attivita: 'DUNNING' },
+        { id: 'i2', piano_id: 'p1', staff_id: 's1', odl: 'ODL2', stato: 'assegnato', committente: 'acea', gruppo_attivita: null },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const v1 = tables.rapportino_voci.find((v) => v.task_id === 't1');
+    const v2 = tables.rapportino_voci.find((v) => v.task_id === 't2');
+    expect(v1?.template_id).toBe('fl-dunning');
+    expect(v1?.campi_snapshot).toEqual(CAMPI_DUNNING);
+    expect(v2?.template_id ?? null).toBeNull();
+    expect(v2?.campi_snapshot ?? null).toBeNull();
+  });
+
+  it("committente lim_massive equivale ad acea nel lookup; flusso inattivo o manuale non concorre", async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl1', campi: [], info_campi: [] },
+        { ...FLUSSO_DUNNING, id: 'fl-spento', active: false },
+        { ...FLUSSO_DUNNING, id: 'fl-manuale', solo_manuale: true },
+        FLUSSO_DUNNING,
+      ],
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      interventi: [
+        { id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato', committente: 'lim_massive', gruppo_attivita: 'DUNNING' },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    expect(tables.rapportino_voci.find((v) => v.task_id === 't1')?.template_id).toBe('fl-dunning');
+  });
+});

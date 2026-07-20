@@ -39,6 +39,7 @@ type VoceRow = {
   fascia_oraria: string | null;
   risposte: Record<string, unknown> | null;
   manuale: boolean | null;
+  campi_snapshot?: unknown;
 };
 
 function safeStr(v: unknown): string {
@@ -122,10 +123,6 @@ export async function GET(req: Request) {
         }
       }
     }
-    const campiUniti = [...campiMap.values()].sort(
-      (a, b) => a.ordine - b.ordine || a.etichetta.localeCompare(b.etichetta, 'it'),
-    );
-
     // ── 4. Voci di tutti i rapportini ─────────────────────────────────────
     const rapIds = rapList.map((r) => r.id);
     const vociByRap = new Map<string, VoceRow[]>();
@@ -134,7 +131,7 @@ export async function GET(req: Request) {
       const { data: voci, error: vErr } = await supabaseAdmin
         .from('rapportino_voci')
         .select(
-          'id, rapportino_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, manuale',
+          'id, rapportino_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, manuale, campi_snapshot',
         )
         .in('rapportino_id', rapIds)
         .order('ordine', { ascending: true })
@@ -145,9 +142,19 @@ export async function GET(req: Request) {
         const arr = vociByRap.get(v.rapportino_id) ?? [];
         arr.push(v);
         vociByRap.set(v.rapportino_id, arr);
+        // Voci per-attività: i campi del flusso della voce entrano nell'unione delle colonne.
+        for (const c of (Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : [])) {
+          if (!campiMap.has(c.chiave)) {
+            campiMap.set(c.chiave, { chiave: c.chiave, etichetta: c.etichetta, tipo: c.tipo, ordine: c.ordine ?? 0 });
+          }
+        }
       }
       if (batch.length < PAGE) break;
     }
+
+    const campiUniti = [...campiMap.values()].sort(
+      (a, b) => a.ordine - b.ordine || a.etichetta.localeCompare(b.etichetta, 'it'),
+    );
 
     // ── 5. Costruisce il workbook ─────────────────────────────────────────
     const wb = new ExcelJS.Workbook();

@@ -3,6 +3,7 @@ import {
   COMMITTENTI_FLUSSO,
   buildAlberoFlussi,
   normalizzaCollegamento,
+  risolviFlussoPerGruppo,
   templateCollegato,
   type TemplateFlussoRow,
 } from './flussiGruppo';
@@ -99,6 +100,34 @@ describe('templateCollegato', () => {
     expect(templateCollegato(tpl('b', { gruppo_committente: 'acea', gruppi_attivita: [] }))).toBe(false);
     expect(templateCollegato(tpl('c', { gruppi_attivita: ['DUNNING'] }))).toBe(false);
     expect(templateCollegato(tpl('d'))).toBe(false);
+  });
+});
+
+describe('risolviFlussoPerGruppo', () => {
+  const dedicato = tpl('RAPPORTINO LIMITAZIONI MASSIVE', { gruppo_committente: 'acea', gruppi_attivita: ['LIMITAZIONI MASSIVE'] });
+  const ibrido = tpl('IBRIDO ACEA', { gruppo_committente: 'acea', gruppi_attivita: ['LIMITAZIONI MASSIVE', 'DUNNING'] });
+  const manuale = tpl('MANUALE', { solo_manuale: true, gruppo_committente: 'acea', gruppi_attivita: ['DUNNING'] });
+  const italgas = tpl('ITALGAS', { gruppo_committente: 'italgas', gruppi_attivita: ['BONIFICHE'] });
+  const flussi = [ibrido, dedicato, manuale, italgas];
+
+  it('match normalizzato sul gruppo, filtrato per committente equivalente', () => {
+    expect(risolviFlussoPerGruppo('acea', 'limitazioni  massive', flussi)?.id).toBe('RAPPORTINO LIMITAZIONI MASSIVE');
+    expect(risolviFlussoPerGruppo('italgas', 'LIMITAZIONI MASSIVE', flussi)).toBeNull();
+  });
+
+  it('il dedicato (meno gruppi) batte l\'ibrido; l\'ibrido resta per i gruppi solo suoi', () => {
+    expect(risolviFlussoPerGruppo('acea', 'LIMITAZIONI MASSIVE', flussi)?.id).toBe('RAPPORTINO LIMITAZIONI MASSIVE');
+    expect(risolviFlussoPerGruppo('acea', 'DUNNING', flussi)?.id).toBe('IBRIDO ACEA');
+  });
+
+  it('i modelli manuali (+) non concorrono; gruppo/committente ignoti → null', () => {
+    expect(risolviFlussoPerGruppo('acea', 'DUNNING', [manuale])).toBeNull();
+    expect(risolviFlussoPerGruppo('acea', null, flussi)).toBeNull();
+    expect(risolviFlussoPerGruppo('acea', 'GRUPPO IGNOTO', flussi)).toBeNull();
+  });
+
+  it("'altro' accetta qualsiasi committente della gerarchia", () => {
+    expect(risolviFlussoPerGruppo('altro', 'BONIFICHE', flussi)?.id).toBe('ITALGAS');
   });
 });
 

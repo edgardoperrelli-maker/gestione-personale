@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { contaFotoScaricabili } from '@/utils/rapportini/contaFotoScaricabili';
+import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -24,19 +25,24 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
   if (rapErr) return NextResponse.json({ error: rapErr.message }, { status: 500 });
   if (!rap) return NextResponse.json({ error: 'rapportino non trovato' }, { status: 404 });
 
-  const chiaviFoto = ((rap.campi_snapshot ?? []) as TemplateCampo[])
-    .filter((c) => c.tipo === 'foto')
-    .map((c) => c.chiave);
-  if (chiaviFoto.length === 0) return NextResponse.json([]);
-
   const { data: vociRows, error } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, via, odl, risposte')
+    .select('id, via, odl, risposte, campi_snapshot')
     .eq('rapportino_id', rapportinoId)
     .order('ordine', { ascending: true });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  const out = ((vociRows ?? []) as Array<{ id: string; via: string | null; odl: string | null; risposte: Record<string, unknown> | null }>)
+  const tipizzate = (vociRows ?? []) as Array<{ id: string; via: string | null; odl: string | null; risposte: Record<string, unknown> | null; campi_snapshot?: unknown }>;
+  // Chiavi foto = unione rapportino + per-voce (flussi diversi nello stesso rapportino).
+  const chiaviFoto = unioneCampi(
+    (rap.campi_snapshot ?? []) as TemplateCampo[],
+    tipizzate.map((v) => (Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null)),
+  )
+    .filter((c) => c.tipo === 'foto')
+    .map((c) => c.chiave);
+  if (chiaviFoto.length === 0) return NextResponse.json([]);
+
+  const out = tipizzate
     .map((v) => ({ voceId: v.id, via: v.via, odl: v.odl, nFoto: contaFotoScaricabili(v.risposte, chiaviFoto) }))
     .filter((v) => v.nFoto > 0);
 

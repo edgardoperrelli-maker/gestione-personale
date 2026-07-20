@@ -22,7 +22,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // 'scaduto' resta bloccato (l'ufficio può riaprire).
   if (stato === 'scaduto')
     return NextResponse.json({ error: 'non_modificabile' }, { status: 409 });
-  const colonne = 'id, intervento_id, raw_json, risposte';
+  const colonne = 'id, intervento_id, raw_json, risposte, campi_snapshot';
   let { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
     .select(colonne)
@@ -44,9 +44,13 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // L'id effettivo della voce (può differire da quello inviato dal client dopo una rigenerazione).
   const voceIdReale = (voce as { id: string }).id;
 
-  // Campi del template (snapshot del rapportino): servono sia per la normalizzazione
-  // MAIUSCOLO dei campi di testo, sia per la propagazione live dell'esito.
-  const campi = (((rap as { campi_snapshot?: unknown }).campi_snapshot ?? []) as TemplateCampo[]);
+  // Campi della VOCE (flusso del suo gruppo attività) con fallback allo snapshot del
+  // rapportino: servono sia per la normalizzazione MAIUSCOLO dei campi di testo, sia per
+  // la propagazione live dell'esito.
+  const campiVoceSnap = (voce as { campi_snapshot?: unknown }).campi_snapshot;
+  const campi = (Array.isArray(campiVoceSnap) && campiVoceSnap.length > 0
+    ? campiVoceSnap
+    : ((rap as { campi_snapshot?: unknown }).campi_snapshot ?? [])) as TemplateCampo[];
 
   const esistenti = ((voce as { risposte: Record<string, unknown> | null }).risposte ?? {});
   const mergedRaw = mergeRisposte(esistenti, (risposte ?? {}) as Record<string, unknown>, {

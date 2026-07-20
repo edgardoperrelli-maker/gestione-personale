@@ -146,6 +146,23 @@ export default async function RapportinoPublicPage({
     .eq('rapportino_id', rap.id)
     .order('ordine');
 
+  // Campi per-voce (flusso del gruppo attività dell'intervento): query separata e resiliente —
+  // se la colonna non esiste ancora (migration non applicata) si resta sui campi del rapportino.
+  const campiVoceById = new Map<string, TemplateCampo[]>();
+  {
+    const { data: snapRows, error: eSnap } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('id, campi_snapshot')
+      .eq('rapportino_id', rap.id);
+    if (!eSnap) {
+      for (const r of (snapRows ?? []) as Array<{ id: string; campi_snapshot: unknown }>) {
+        if (Array.isArray(r.campi_snapshot) && r.campi_snapshot.length > 0) {
+          campiVoceById.set(r.id, (r.campi_snapshot as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine));
+        }
+      }
+    }
+  }
+
   // Risanamento: carica le righe-misuratore (figlie delle voci-civico) per il rendering gerarchico.
   let righe: Array<{ id: string; voce_id: string; matricola: string | null; pdr: string | null; nominativo: string | null; risposte: Record<string, unknown> | null; ordine: number; fonte: string }> = [];
   if ((rap as { tipo?: string }).tipo === 'risanamento') {
@@ -200,6 +217,7 @@ export default async function RapportinoPublicPage({
     manuale: Boolean(v.manuale),
     approvazione_stato: v.approvazione_stato ?? null,
     motivo_rifiuto: v.richiesta_id ? (motivoByRichiesta[v.richiesta_id] ?? null) : null,
+    campi: campiVoceById.get(v.id),
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])

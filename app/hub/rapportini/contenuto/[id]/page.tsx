@@ -4,6 +4,7 @@ import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import RapportinoEditor, { type VoceEditabile } from '@/components/modules/rapportini/RapportinoEditor';
 
 export const dynamic = 'force-dynamic';
@@ -43,15 +44,18 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
 
   const { data: vociRows } = await supabase
     .from('rapportino_voci')
-    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte')
+    .select('id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, campi_snapshot')
     .eq('rapportino_id', id)
     .order('ordine', { ascending: true });
 
-  // Tutti i campi del template tranne le foto (non editabili in tabella), ordinati.
-  const campi = ((r.campi_snapshot ?? []) as TemplateCampo[])
-    .slice()
-    .sort((a, b) => a.ordine - b.ordine)
-    .filter((c) => c.tipo !== 'foto');
+  // Colonne = unione campi rapportino + per-voce (flussi del gruppo attività), foto escluse
+  // (non editabili in tabella).
+  const campi = unioneCampi(
+    (r.campi_snapshot ?? []) as TemplateCampo[],
+    ((vociRows ?? []) as Array<{ campi_snapshot?: unknown }>).map((v) =>
+      Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null,
+    ),
+  ).filter((c) => c.tipo !== 'foto');
   const voci = (vociRows ?? []) as VoceEditabile[];
 
   return (

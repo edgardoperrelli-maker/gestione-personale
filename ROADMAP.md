@@ -5,6 +5,18 @@
 
 ## Fatto
 
+- ✅ **Rapportino per-attività (fase 2 Azioni operatori)** *(2026-07-20 sera)* — il rapportino non
+  si genera più dal solo modello scelto in mappa: **ogni voce prende le azioni dal flusso del
+  GRUPPO ATTIVITÀ del suo intervento** (`interventi.gruppo_attivita` → collegamento su
+  `rapportino_template` → `rapportino_voci.template_id` + `campi_snapshot` per-voce, migration
+  `20260720210000`). Il "Modello" della mappa resta solo come fallback per attività senza flusso
+  collegato; il dedicato batte l'ibrido nel lookup (`risolviFlussoPerGruppo`). Per-voce in tutta
+  la catena: render operatore, salvataggio, obbligatori/foto pre-invio, propagazione esiti
+  (invio, live, risincronizza, correzioni ufficio), export Excel/PDF/foto con **unione colonne**
+  (`utils/rapportini/campiDiVoce.ts`). Retro-compat totale: voce senza snapshot = campi del
+  rapportino. Limite noto: le meccaniche task-via/ibrido e `tipo` risanamento restano
+  per-rapportino. + **Template import Excel**: colonna DESCRIZIONE ATTIVITÀ solo-tendina
+  (data validation sulla Leggenda, testo libero rifiutato da Excel).
 - ✅ **Flusso sostitutivo dei template + rimozione modulo Template** *(2026-07-20, task ATLAS)* —
   le azioni che gli operatori eseguono sono ora collegate al **Gruppo attività** (motore
   tassonomia): nuovo modulo **Impostazioni → Azioni operatori** con la gerarchia del flowchart
@@ -107,9 +119,9 @@
       emersa durante l'analisi bundle mappa) → aggiungere `requireAdmin`.
 
 ### Funzionale
-- [ ] **Azioni operatori — fase 2**: risolvere il modello rapportino in pianificazione dal
-      `gruppo_attivita` degli interventi (il collegamento flusso↔gruppo ora esiste in DB),
-      al posto della select manuale "Modello" nella mappa.
+- [ ] **Azioni operatori — rifiniture per-voce**: valutare se togliere l'obbligo del "Modello"
+      in mappa quando tutti i task del piano risolvono un flusso dal gruppo; portare per-voce
+      anche le meccaniche task-via/ibrido e la vista `/hub/rapportini/eseguiti`.
 - [ ] Verifica end-to-end squadre cronoprogramma sul preview (aggancio, capo ⭐,
       scioglimento) — residuo della sessione 2026-07-13.
 - [ ] Mini-card di `AnnuncioSquadre.tsx` con tinte territorio hardcoded (dark) →

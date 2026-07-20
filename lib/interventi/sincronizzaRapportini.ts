@@ -11,6 +11,9 @@ import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPi
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 import { normOdl, taskDaSaltare } from '@/lib/interventi/odlPositivi';
+import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
+import { committenteEquivalente } from '@/lib/attivita/tassonomia';
+import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type SincronizzaOpts = {
   templateId: string;
@@ -110,8 +113,33 @@ export async function sincronizzaRapportini(
   if (interventiWarning) console.error('sincronizza: ensureInterventiForPiano:', interventiWarning);
 
   const { data: intRows } = await db
-    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato').eq('piano_id', pianoId);
+    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita').eq('piano_id', pianoId);
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
+
+  // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
+  // intervento (collegamento su rapportino_template); il template scelto in mappa resta il
+  // fallback per interventi senza gruppo o gruppi senza flusso. Resiliente: se le colonne di
+  // collegamento non esistono ancora (migration non applicata), si degrada al solo fallback.
+  type FlussoRow = { id: string; nome: string | null; campi: unknown; solo_manuale: boolean | null; gruppo_committente: string | null; gruppi_attivita: string[] | null };
+  const { data: flussiRows, error: eFlussi } = await db
+    .from('rapportino_template')
+    .select('id, nome, campi, solo_manuale, gruppo_committente, gruppi_attivita')
+    .eq('active', true);
+  const flussi = eFlussi
+    ? []
+    : ((flussiRows ?? []) as FlussoRow[]).filter((f) => Boolean(f.gruppo_committente));
+  const gruppoByIntervento = new Map(
+    ((intRows ?? []) as Array<{ id: string; committente?: string | null; gruppo_attivita?: string | null }>)
+      .map((i) => [i.id, { committente: i.committente ?? null, gruppo: i.gruppo_attivita ?? null }]),
+  );
+  const flussoPerVoce = (interventoId: string | null): { template_id: string; campi_snapshot: TemplateCampo[] } | null => {
+    if (!interventoId || flussi.length === 0) return null;
+    const int = gruppoByIntervento.get(interventoId);
+    if (!int) return null;
+    const flusso = risolviFlussoPerGruppo(committenteEquivalente(int.committente), int.gruppo, flussi);
+    if (!flusso || !Array.isArray(flusso.campi) || flusso.campi.length === 0) return null;
+    return { template_id: flusso.id, campi_snapshot: flusso.campi as TemplateCampo[] };
+  };
 
   // Blocco: un intervento 'completato' non può cambiare operatore (riassegnazione vietata).
   // Dopo ensureInterventiForPiano i completati mantengono lo staff_id originale: se un task
@@ -218,7 +246,14 @@ export async function sincronizzaRapportini(
         });
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
         const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(annullato) };
-        return { rapportino_id: rapId, intervento_id, ...v, raw_json };
+        // Voce per-attività: azioni dal flusso del gruppo del suo intervento (null = fallback
+        // rapportino). Le chiavi si scrivono solo se la select dei flussi è passata: così una
+        // migration voci non ancora applicata non fa fallire l'insert.
+        const flussoVoce = flussi.length > 0 ? flussoPerVoce(intervento_id) : null;
+        return {
+          rapportino_id: rapId, intervento_id, ...v, raw_json,
+          ...(flussi.length > 0 ? { template_id: flussoVoce?.template_id ?? null, campi_snapshot: flussoVoce?.campi_snapshot ?? null } : {}),
+        };
       });
       let { error: eVoci } = await db.from('rapportino_voci').insert(vociRows);
       // Race: una generazione concorrente può aver ricreato gli interventi (id cambiati) →
@@ -226,6 +261,16 @@ export async function sincronizzaRapportini(
       // (campo opzionale), che si ricollega alla generazione successiva. Evita il 500.
       if (eVoci && isInterventoFkError(eVoci.message)) {
         ({ error: eVoci } = await db.from('rapportino_voci').insert(vociRows.map((r) => ({ ...r, intervento_id: null }))));
+      }
+      // Migration voci per-attività non ancora applicata (colonne assenti nello schema cache):
+      // riprova senza le colonne per-voce — comportamento identico al pre-feature.
+      if (eVoci && /template_id|campi_snapshot/i.test(eVoci.message) && /column|schema/i.test(eVoci.message)) {
+        ({ error: eVoci } = await db.from('rapportino_voci').insert(vociRows.map((r) => {
+          const rest = { ...(r as Record<string, unknown>) };
+          delete rest.template_id;
+          delete rest.campi_snapshot;
+          return rest;
+        })));
       }
       if (eVoci) return { ok: false, status: 500, error: eVoci.message };
     }

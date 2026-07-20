@@ -1,4 +1,18 @@
-# Handoff — 2026-07-20 (sera): modulo "Azioni operatori" sostituisce i Template rapportini
+# Handoff — 2026-07-20 (sera): Azioni operatori + rapportino per-attività
+
+> **Aggiornamento ultima sessione (PR `feat/azioni-operatori-semplice`)**: oltre all'editor
+> semplificato, la stessa PR porta la **fase 2**: il rapportino si genera per-attività — ogni
+> voce prende le azioni dal flusso del gruppo attività del SUO intervento
+> (`rapportino_voci.template_id` + `campi_snapshot`, migration `20260720210000` GIÀ APPLICATA
+> al prod insieme alla `20260720190000`). Il "Modello" in mappa è solo il fallback per
+> attività senza flusso. Catena per-voce completa: render/salvataggio/validazioni operatore,
+> propagazione esiti (invio, live, risincronizza, correzioni ufficio), export Excel/PDF/foto
+> con unione colonne (`utils/rapportini/campiDiVoce.ts`); lookup `risolviFlussoPerGruppo`
+> (dedicato batte ibrido, manuali esclusi, lim_massive≡acea). Retro-compat: voce senza
+> snapshot = campi del rapportino. Limiti noti: task-via/ibrido e `tipo` risanamento restano
+> per-rapportino; `/hub/rapportini/eseguiti` conta ancora sui campi del rapportino.
+> E il template import Excel ora ha DESCRIZIONE ATTIVITÀ **solo-tendina** (validazione stop
+> sulla Leggenda). Il resto di questo handoff descrive la base (PR #116, mergiata).
 
 **Generated**: 2026-07-20 ~17:30 · **Status**: IN PRODUZIONE — PR #116 (2 task ATLAS) mergiata, migration `template_gruppo_attivita` APPLICATA al prod (seed verificato: 7 flussi collegati, 3 non collegati), repo principale allineato. Seconda passata su feedback utente: **editor semplificato per il backoffice** (PR `feat/azioni-operatori-semplice`) — le azioni in primo piano, tutti i tecnicismi (collegamento, instradamento, anagrafica, nomi foto, elimina) dentro "Impostazioni avanzate" chiusa; click sul gruppo apre direttamente l'unico flusso; "+ Flusso" dal gruppo precompila nome e collegamento.
 
