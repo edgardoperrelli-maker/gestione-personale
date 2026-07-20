@@ -25,7 +25,7 @@ export function validaImport(
   const incoerenti: ErroreImport[] = [];
 
   for (const t of tasks ?? []) {
-    const riga = t.ordine;
+    const riga = t.ordine ?? 0;
     const descr = String(t.attivita ?? '').trim();
     if (!descr) { mancanti.push(riga); continue; }
     const ris = risolviGruppo(committente, descr, index);
