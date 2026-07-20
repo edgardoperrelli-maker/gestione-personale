@@ -68,6 +68,7 @@ type ColMap = {
   accessibilita: number | null;
   note: number | null;
   attivita: number | null;
+  gruppoFile: number | null;
   codice: number | null;
   durata: number | null;
   lat: number | null;
@@ -100,6 +101,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       accessibilita: ATTGIORN_COL.ACCESSIBILITA,
       note: null,
       attivita: ATTGIORN_COL.ATTIVITA,
+      gruppoFile: null,
       codice: ATTGIORN_COL.CODICE,
       durata: null,
       lat,
@@ -125,7 +127,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
         recapito: null,
         accessibilita: null,
         note: null,
-        attivita: null,
+        attivita: findCol(headers, [/^descrizione attivit/, /^operazione testo breve$/]),
+        gruppoFile: null,
         codice: null,
         durata: null,
         lat,
@@ -147,7 +150,8 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       recapito: null,
       accessibilita: null,
       note: null,
-      attivita: null,
+      attivita: findCol(headers, [/^descrizione attivit/, /^operazione testo breve$/]),
+      gruppoFile: null,
       codice: null,
       durata: null,
       lat,
@@ -173,7 +177,12 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     recapito: null,
     accessibilita: null,
     note: findCol(headers, [/^note per operatore$/, /^note$/, /^nota$/, /^annotazioni$/]),
-    attivita: findCol(headers, [/^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/]),
+    attivita: findCol(headers, [
+      /^descrizione attivit/,       // template import (nuovo)
+      /^operazione testo breve$/,   // estrazioni ACEA / master DUNNING
+      /^attivit/, /^tipo.*(odl|servizio|intervento)/, /^servizio$/, /^tipo$/,
+    ]),
+    gruppoFile: findCol(headers, [/^gruppo attivit/]),
     codice: null,
     durata: findCol(headers, [/tempo.*esec/, /^durata$/, /^tempo$/, /minut/]),
     lat,
@@ -297,6 +306,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       accessibilita: colMap.accessibilita != null ? str(row[colMap.accessibilita]) : undefined,
       note: colMap.note != null ? (str(row[colMap.note]) || undefined) : undefined,
       attivita: colMap.attivita != null ? str(row[colMap.attivita]) : undefined,
+      gruppoFile: colMap.gruppoFile != null ? (str(row[colMap.gruppoFile]) || undefined) : undefined,
       codice: colMap.codice != null ? str(row[colMap.codice]) : undefined,
       durata_min: colMap.durata != null ? (Number.parseInt(str(row[colMap.durata]), 10) || undefined) : undefined,
       coordinate:
