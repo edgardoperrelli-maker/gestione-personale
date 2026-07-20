@@ -746,6 +746,37 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [esecutoreWarnings, setEsecutoreWarnings] = useState<string[]>([]);
   const esecutoreAutoDistributedRef = useRef(false);
 
+  // ODL dei task caricati GIÀ eseguiti positivi altrove: non affidabili (il salvataggio li
+  // esclude da rapportini e torre). Check proattivo così l'ufficio lo vede PRIMA di salvare.
+  const [odlGiaPositivi, setOdlGiaPositivi] = useState<string[]>([]);
+  const odlCheckKeyRef = useRef('');
+
+  useEffect(() => {
+    const odls = [...new Set(excelTasks.map((t) => (t.odl ?? '').trim()).filter(Boolean))];
+    if (odls.length === 0) {
+      odlCheckKeyRef.current = '';
+      setOdlGiaPositivi([]);
+      return;
+    }
+    const key = `${currentPianoId ?? ''}|${odls.join(',')}`;
+    if (key === odlCheckKeyRef.current) return; // già verificato per questo set
+    odlCheckKeyRef.current = key;
+    (async () => {
+      try {
+        const res = await fetch('/api/interventi/odl-bloccati', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ odls, pianoId: currentPianoId }),
+        });
+        if (!res.ok) return; // best-effort: il salvataggio esclude comunque
+        const j = (await res.json().catch(() => ({}))) as { bloccati?: string[] };
+        if (odlCheckKeyRef.current === key) setOdlGiaPositivi(j.bloccati ?? []);
+      } catch {
+        /* best-effort */
+      }
+    })();
+  }, [excelTasks, currentPianoId]);
+
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
   const [rapTemplateId, setRapTemplateId] = useState('');
@@ -1905,11 +1936,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ pianoId: pid }),
             });
-            const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; error?: string };
+            const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; odlBloccati?: string[]; error?: string };
             if (!ri.ok) {
               alert(`Torre: creazione interventi NON riuscita — ${rj.error ?? ri.status}.\nHai applicato la migration 20260603030000?`);
             } else {
-              alert(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).`);
+              const bloccati = rj.odlBloccati ?? [];
+              const rigaBloccati = bloccati.length
+                ? `\n\n⛔ ${bloccati.length === 1 ? 'ODL ESCLUSO perché già eseguito positivo' : `${bloccati.length} ODL ESCLUSI perché già eseguiti positivi`}: ${bloccati.join(', ')}.\nNon compariranno né in torre né nei rapportini.`
+                : '';
+              alert(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).${rigaBloccati}`);
+              setOdlGiaPositivi(bloccati);
             }
           } catch {
             alert('Torre: errore di rete nella creazione interventi.');
@@ -2044,6 +2080,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       }
       setRapConflicts(null);
       setOverwriteInviati(false);
+      const bloccati = (data?.odlBloccati as string[] | undefined) ?? [];
+      if (bloccati.length > 0) {
+        alert(`⛔ ODL esclusi dai rapportini perché già eseguiti positivi: ${bloccati.join(', ')}.`);
+        setOdlGiaPositivi(bloccati);
+      }
       await caricaRapportini(currentPianoId);
     } catch {
       setRapError('Errore durante la generazione.');
@@ -2952,6 +2993,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 {esecutoreWarnings.length > 0 && (
                   <div className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2.5 py-1.5 text-[10px] text-[var(--warning)]">
                     ⚠ Esecutori non riconosciuti (distribuiti automaticamente): {esecutoreWarnings.join(', ')}
+                  </div>
+                )}
+
+                {odlGiaPositivi.length > 0 && (
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                    ⛔ {odlGiaPositivi.length === 1 ? 'ODL già eseguito positivo — non affidabile, al salvataggio verrà escluso' : `${odlGiaPositivi.length} ODL già eseguiti positivi — non affidabili, al salvataggio verranno esclusi`} da rapportini e torre: {odlGiaPositivi.join(', ')}
                   </div>
                 )}
 
