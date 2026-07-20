@@ -101,6 +101,39 @@ describe('confrontaEsiti', () => {
     expect(r.aceaVersoDb.maiVisti.map((x) => x.odl)).toEqual(['C']);
   });
 
+  it('doppia conferma: la fonte del positivo DB viaggia fino alla riga', () => {
+    const r = confrontaEsiti({
+      positiviDb: [{ odl: 'B', data: '2026-07-02', fonte: 'voce' }],
+      snapshot: [snap({ odl: 'B', stato_norm: 'ASSEGNATO' })],
+      positiviDbTutti: new Set(['b']),
+      odlConosciuti: new Set(['b']),
+    });
+    expect(r.dbVersoAcea.righe[0]).toMatchObject({ odl: 'B', fonte: 'voce', esito: 'non_consuntivato' });
+  });
+
+  it('la causale ACEA compare nelle righe della direzione ACEA→DB', () => {
+    const r = confrontaEsiti({
+      positiviDb: [],
+      snapshot: [snap({ odl: 'B', causa_scostamento: ' EIES ' })],
+      positiviDbTutti: new Set(),
+      odlConosciuti: new Set(['b']),
+    });
+    expect(r.aceaVersoDb.mancanti[0]).toMatchObject({ odl: 'B', causa: 'EIES' });
+  });
+
+  it('ODL conosciuto ma FUORI ambito (massive) → contato in fuoriAmbito, non mancante né mai visto', () => {
+    const r = confrontaEsiti({
+      positiviDb: [],
+      snapshot: [snap({ odl: 'MASSIVA' })],
+      positiviDbTutti: new Set(),
+      odlConosciuti: new Set(),
+      odlFuoriAmbito: new Set(['massiva']),
+    });
+    expect(r.aceaVersoDb.fuoriAmbito).toBe(1);
+    expect(r.aceaVersoDb.mancanti).toEqual([]);
+    expect(r.aceaVersoDb.maiVisti).toEqual([]);
+  });
+
   it('un positivo DB FUORI finestra non produce un falso "mancante" (positiviDbTutti)', () => {
     const r = confrontaEsiti({
       positiviDb: [],                              // finestra: nessun positivo recente

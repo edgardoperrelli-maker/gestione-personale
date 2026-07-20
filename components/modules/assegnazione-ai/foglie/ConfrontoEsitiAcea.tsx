@@ -8,10 +8,10 @@ import { useCallback, useEffect, useState } from 'react';
 import * as XLSX from 'xlsx';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
-import type { EsitoConfrontoAcea, RigaDbVersoAcea } from '@/lib/agente/confrontoEsitiAcea';
+import type { EsitoConfrontoAcea, FontePositivoDb, RigaDbVersoAcea } from '@/lib/agente/confrontoEsitiAcea';
 
-type MancanteRow = { odl: string; operatore: string | null; statoDb: string | null; ultimaData: string | null };
-type MaiVistoRow = { odl: string; operatore: string | null };
+type MancanteRow = { odl: string; operatore: string | null; causa: string | null; statoDb: string | null; ultimaData: string | null };
+type MaiVistoRow = { odl: string; operatore: string | null; causa: string | null };
 
 type ConfrontoResponse = {
   vuoto?: boolean;
@@ -21,7 +21,7 @@ type ConfrontoResponse = {
   finestraGiorni?: number;
   storico?: boolean;
   dbVersoAcea?: { totale: number; conteggi: Record<EsitoConfrontoAcea, number>; righe: RigaDbVersoAcea[] };
-  aceaVersoDb?: { totale: number; ok: number; mancanti: MancanteRow[]; maiVisti: MaiVistoRow[] };
+  aceaVersoDb?: { totale: number; ok: number; mancanti: MancanteRow[]; fuoriAmbito: number; maiVisti: MaiVistoRow[] };
 };
 
 const ETICHETTA_ESITO: Record<EsitoConfrontoAcea, string> = {
@@ -30,6 +30,13 @@ const ETICHETTA_ESITO: Record<EsitoConfrontoAcea, string> = {
   nostro_carico: 'A nostro carico (non pagato)',
   non_consuntivato: 'Non esitato su ACEA',
   non_in_export: "Non nell'export",
+};
+
+// Doppia conferma: ogni riga mostra da dove risulta il positivo nel nostro DB.
+const ETICHETTA_FONTE: Record<FontePositivoDb, string> = {
+  intervento: 'intervento chiuso',
+  voce: 'rapportino',
+  entrambi: 'rapportino + intervento',
 };
 
 const MAX_RIGHE_VISTA = 150;
@@ -97,19 +104,22 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
     const disallineati = dati.dbVersoAcea.righe.map((r) => ({
       'ODL': r.odl,
       'Data esecuzione (DB)': dataIt(r.dataDb),
-      'Esito controllo': ETICHETTA_ESITO[r.esito],
+      'Esito DB': `POSITIVO (${ETICHETTA_FONTE[r.fonte]})`,
+      'Esito ACEA': ETICHETTA_ESITO[r.esito],
       'Stato ACEA': r.statoAcea ?? '—',
       'Causale scostamento': r.causa ?? '—',
     }));
     const mancanti = dati.aceaVersoDb.mancanti.map((r) => ({
       'ODL': r.odl,
       'Assegnatario ACEA': r.operatore ?? '—',
-      'Nel nostro DB': r.statoDb ?? '—',
+      'Esito ACEA': `POSITIVO${r.causa ? ` · ${r.causa}` : ''}`,
+      'Esito DB': r.statoDb ?? '—',
       'Ultima data (DB)': dataIt(r.ultimaData),
     }));
     const maiVisti = dati.aceaVersoDb.maiVisti.map((r) => ({
       'ODL': r.odl,
       'Assegnatario ACEA': r.operatore ?? '—',
+      'Esito ACEA': `POSITIVO${r.causa ? ` · ${r.causa}` : ''}`,
     }));
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(disallineati), 'DB non su ACEA');
     XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(mancanti), 'ACEA non nel DB');
@@ -131,7 +141,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
             <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
               {dati?.vuoto
                 ? dati.motivo
-                : <>Dati ACEA al {dataOraIt(dati?.aggiornatoAl)} · {dati?.storico ? 'tutto lo storico' : `ultimi ${dati?.finestraGiorni ?? 60} giorni`}</>}
+                : <>Dati ACEA al {dataOraIt(dati?.aggiornatoAl)} · {dati?.storico ? 'tutto lo storico' : `ultimi ${dati?.finestraGiorni ?? 60} giorni`} · solo gruppo Dunning</>}
             </p>
           </div>
           <div className="flex items-center gap-2">
@@ -155,8 +165,8 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
         {c && dati?.dbVersoAcea && dati?.aceaVersoDb && (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-              <StatBox label="Positivi DB verificati" value={dati.dbVersoAcea.totale} />
-              <StatBox label="OK su ACEA" value={c.ok} tono="ok" />
+              <StatBox label="Positivi DB (Dunning)" value={dati.dbVersoAcea.totale} />
+              <StatBox label="Doppia conferma OK" value={c.ok} tono="ok" />
               <StatBox label="Non esitati su ACEA" value={c.non_consuntivato} tono="danger" />
               <StatBox label="A nostro carico" value={c.nostro_carico} tono="warn" />
               <StatBox label="Non nell'export" value={c.non_in_export} tono="warn" />
@@ -175,7 +185,8 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                       <tr style={{ color: 'var(--brand-text-muted)' }}>
                         <th className="px-2 py-1 text-left">ODL</th>
                         <th className="px-2 py-1 text-left">Data (DB)</th>
-                        <th className="px-2 py-1 text-left">Esito controllo</th>
+                        <th className="px-2 py-1 text-left">Esito DB</th>
+                        <th className="px-2 py-1 text-left">Esito ACEA</th>
                         <th className="px-2 py-1 text-left">Stato ACEA</th>
                         <th className="px-2 py-1 text-left">Causale</th>
                       </tr>
@@ -185,6 +196,9 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
                           <td className="px-2 py-1 font-mono">{r.odl}</td>
                           <td className="px-2 py-1">{dataIt(r.dataDb)}</td>
+                          <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
+                            POSITIVO <span style={{ color: 'var(--brand-text-muted)' }}>({ETICHETTA_FONTE[r.fonte]})</span>
+                          </td>
                           <td className="px-2 py-1" style={{ color: r.esito === 'non_consuntivato' ? 'var(--danger)' : 'var(--warning)' }}>
                             {ETICHETTA_ESITO[r.esito]}
                           </td>
@@ -214,7 +228,8 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                       <tr style={{ color: 'var(--brand-text-muted)' }}>
                         <th className="px-2 py-1 text-left">ODL</th>
                         <th className="px-2 py-1 text-left">Assegnatario ACEA</th>
-                        <th className="px-2 py-1 text-left">Nel nostro DB</th>
+                        <th className="px-2 py-1 text-left">Esito ACEA</th>
+                        <th className="px-2 py-1 text-left">Esito DB</th>
                         <th className="px-2 py-1 text-left">Ultima data (DB)</th>
                       </tr>
                     </thead>
@@ -223,6 +238,9 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
                           <td className="px-2 py-1 font-mono">{r.odl}</td>
                           <td className="px-2 py-1">{r.operatore ?? '—'}</td>
+                          <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
+                            POSITIVO{r.causa ? <span style={{ color: 'var(--brand-text-muted)' }}> · {r.causa}</span> : null}
+                          </td>
                           <td className="px-2 py-1" style={{ color: 'var(--danger)' }}>{r.statoDb ?? '—'}</td>
                           <td className="px-2 py-1">{dataIt(r.ultimaData)}</td>
                         </tr>
@@ -238,10 +256,15 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
               </div>
             )}
 
-            {dati.aceaVersoDb.maiVisti.length > 0 && (
+            {(dati.aceaVersoDb.maiVisti.length > 0 || dati.aceaVersoDb.fuoriAmbito > 0) && (
               <p className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>
-                {dati.aceaVersoDb.maiVisti.length} ODL positivi su ACEA mai comparsi nell&rsquo;app
-                (lavori pre-app o mai pianificati qui): elenco nell&rsquo;export Excel.
+                {dati.aceaVersoDb.maiVisti.length > 0 && (
+                  <>{dati.aceaVersoDb.maiVisti.length} ODL positivi su ACEA mai comparsi nell&rsquo;app
+                  (lavori pre-app o mai pianificati qui): elenco nell&rsquo;export Excel.{' '}</>
+                )}
+                {dati.aceaVersoDb.fuoriAmbito > 0 && (
+                  <>{dati.aceaVersoDb.fuoriAmbito} ODL fuori ambito Dunning (es. limitazioni massive): esclusi dal confronto.</>
+                )}
               </p>
             )}
           </>
