@@ -57,3 +57,24 @@ where i.stato = 'completato'
   and i.data >= '2026-07-20'
 group by 1, 2, 3
 order by completati desc;
+
+-- ── Guard 3 (fase 2, dal 2026-07-20): gruppi "massiva-like" DIVERSI dal literal atteso ──
+-- L'export dell'agente seleziona per gruppo_attivita = 'LIMITAZIONI MASSIVE' (esatto).
+-- Una voce di tassonomia creata dalla UI con un gruppo scritto male (es. refuso) produce
+-- righe con gruppo NON-null ma diverso dal literal: invisibili all'export E alla Guard 2.
+-- Qui si flagga ogni gruppo che "somiglia" a una massiva senza esserlo, sia in tassonomia
+-- sia sugli interventi. ATTESO: 0 righe. SE RITORNA RIGHE: correggere la voce in
+-- Impostazioni → Tassonomia attività (disattiva la voce sbagliata, ricreala col gruppo
+-- giusto) e ri-classificare le righe toccate (UPDATE gruppo_attivita al literal).
+select 'tassonomia' as dove, committente, gruppo, count(*) as voci
+from attivita_tassonomia
+where (gruppo ilike '%massiv%' or gruppo ilike '%limitaz%')
+  and gruppo <> 'LIMITAZIONI MASSIVE'
+group by 1, 2, 3
+union all
+select 'interventi', committente, gruppo_attivita, count(*)
+from interventi
+where (gruppo_attivita ilike '%massiv%' or gruppo_attivita ilike '%limitaz%')
+  and gruppo_attivita <> 'LIMITAZIONI MASSIVE'
+group by 1, 2, 3
+order by 1, 4 desc;
