@@ -1,6 +1,6 @@
 # Handoff — 2026-07-20 (sera): modulo "Azioni operatori" sostituisce i Template rapportini
 
-**Generated**: 2026-07-20 ~17:00 · **Branch**: `feat/azioni-operatori` (worktree, base = origin/main `736fb4e`) · **Status**: implementazione COMPLETA, PR aperta (2 task ATLAS). ⚠️ Un solo passo mancante: **applicare la migration al prod PRIMA del merge** (vedi "Not Yet Done").
+**Generated**: 2026-07-20 ~17:30 · **Status**: IN PRODUZIONE — PR #116 (2 task ATLAS) mergiata, migration `template_gruppo_attivita` APPLICATA al prod (seed verificato: 7 flussi collegati, 3 non collegati), repo principale allineato. Seconda passata su feedback utente: **editor semplificato per il backoffice** (PR `feat/azioni-operatori-semplice`) — le azioni in primo piano, tutti i tecnicismi (collegamento, instradamento, anagrafica, nomi foto, elimina) dentro "Impostazioni avanzate" chiusa; click sul gruppo apre direttamente l'unico flusso; "+ Flusso" dal gruppo precompila nome e collegamento.
 
 ## Goal
 
@@ -41,18 +41,16 @@ I flussi runtime NON cambiano: "occorre solo renderli modificabili nel nuovo mod
 
 ## Not Yet Done
 
-- [ ] ⚠️ **Migration NON applicata al prod**: `apply_migration` bloccata dal classifier in questa
-  sessione (serve ok esplicito per-azione). SENZA la migration, dopo il deploy la GET template
-  fallisce (seleziona le colonne nuove) e si rompe anche il dropdown "Modello" della mappa.
-  **Applicarla PRIMA del merge**: contenuto = `supabase/migrations/20260720190000_template_gruppo_attivita.sql`
-  (additiva + idempotente, il codice in prod attuale la ignora → si può applicare subito senza rischi).
-- [ ] Verifica visiva completa del modulo post-migration (senza colonne il dev locale mostra
-  l'albero dalla tassonomia ma senza flussi). La navigazione/il layout sono da smoke-testare su
-  preview Vercel della PR dopo la migration.
+- [x] ~~Migration al prod~~ APPLICATA (20/07 ~17:00, con ok esplicito utente dopo il primo blocco
+  del classifier) e seed verificato con select.
 - [ ] Il gruppo italgas **BONIFICHE** è seedato sul flusso ITALGAS (ibrido) e **AGENDA AEREA** resta
-  senza flusso: se l'ufficio non è d'accordo, si cambia dalla UI (sezione Collegamento).
+  senza flusso: se l'ufficio non è d'accordo, si cambia dalla UI (Impostazioni avanzate →
+  Collegamento).
 - [ ] Follow-up fase 2 (ROADMAP): pianificazione risolve il modello dal `gruppo_attivita` degli
   interventi invece della select manuale.
+- [ ] Se "tutti nel backoffice" deve includere utenti NON admin: oggi `/impostazioni` è solo admin
+  (layout con redirect). Aprire il solo modulo Azioni operatori ad altri ruoli è una scelta di
+  permessi da confermare con l'utente prima di toccarla.
 
 ## Failed Approaches (Don't Repeat These)
 

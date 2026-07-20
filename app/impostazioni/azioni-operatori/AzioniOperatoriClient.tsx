@@ -73,10 +73,23 @@ function AnteprimaBox({ children }: { children: React.ReactNode }) {
   );
 }
 
+/** Blocco tematico dentro "Impostazioni avanzate": titolo + contenuto, separati da una riga. */
+function BloccoAvanzato({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div className="border-t border-[var(--brand-border)] pt-4 first:border-t-0 first:pt-0">
+      <p className="text-sm font-semibold text-[var(--brand-text-main)]">{title}</p>
+      {hint && <p className="mb-3 mt-0.5 text-xs text-[var(--brand-text-muted)]">{hint}</p>}
+      {!hint && <div className="mb-3" />}
+      {children}
+    </div>
+  );
+}
+
+/** Etichette semplici, pensate per il backoffice. */
 const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
-  crocetta: 'Crocetta',
+  crocetta: 'Casella da spuntare',
   testo: 'Testo libero',
-  select: 'Selezione',
+  select: 'Scelta da elenco',
   numero: 'Numero',
   foto: 'Foto',
   ora: 'Ora',
@@ -158,6 +171,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
   }
 
   function startNew(preset: {
+    nome?: string;
     soloManuale?: boolean;
     committente?: Committente | '';
     gruppoCommittente?: CommittenteFlusso | '';
@@ -168,7 +182,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     setAutoState('idle');
     setIsNew(true);
     setSelectedId(null);
-    setNome('');
+    setNome(preset.nome ?? '');
     setCommittente(preset.committente ?? '');
     setSoloManuale(preset.soloManuale ?? false);
     setTipo('standard');
@@ -471,10 +485,15 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     fotoIdPriority,
   );
 
+  /** Riga leggibile del collegamento corrente, per l'header dell'editor. */
+  const collegamentoLabel = gruppoCommittente && gruppiAttivita.length > 0
+    ? `${COMMITTENTE_FLUSSO_LABEL[gruppoCommittente as CommittenteFlusso].toUpperCase()} → ${gruppiAttivita.join(' · ')}`
+    : null;
+
   const cardFlusso = (t: Template) => (
     <div
       key={t.id}
-      onClick={() => loadTemplate(t)}
+      onClick={(e) => { e.stopPropagation(); loadTemplate(t); }}
       className={`cursor-pointer rounded-xl border p-3 transition ${
         selectedId === t.id && !isNew
           ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
@@ -492,20 +511,11 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       <div className="flex w-full max-w-md flex-col gap-4">
         {committenteSel === null ? (
           <>
-            <div className="flex items-center justify-between">
-              <div>
-                <h2 className="text-xl font-bold text-[var(--brand-text-main)]">Azioni operatori</h2>
-                <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
-                  Committente → Gruppo attività → azioni del flusso
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => startNew()}
-                className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
-              >
-                + Nuovo
-              </button>
+            <div>
+              <h2 className="text-xl font-bold text-[var(--brand-text-main)]">Azioni operatori</h2>
+              <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                Scegli il committente, poi il gruppo attività: dentro trovi le azioni che l&apos;operatore compila.
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -536,7 +546,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   Flussi non collegati
                 </h3>
                 <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
-                  Aprili e collegali a un gruppo dalla sezione &quot;Collegamento al gruppo attività&quot;.
+                  Aprili e collegali a un gruppo da &quot;Impostazioni avanzate&quot;.
                 </p>
                 <div className="space-y-2">{albero.nonCollegati.map((t) => cardFlusso(t as Template))}</div>
               </div>
@@ -556,38 +566,57 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 {COMMITTENTE_FLUSSO_LABEL[committenteSel]}
               </h2>
               <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
-                Gruppi attività e flussi collegati. Le azioni si modificano aprendo il flusso.
+                Tocca un gruppo per aprire le sue azioni.
               </p>
             </div>
 
             <div className="space-y-2">
-              {nodoSel?.gruppi.map((g) => (
-                <div
-                  key={g.gruppo}
-                  className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4"
-                >
-                  <div className="mb-2 flex items-center justify-between gap-2">
-                    <span className="text-sm font-semibold text-[var(--brand-text-main)]">{g.gruppo}</span>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        startNew({ gruppoCommittente: committenteSel, gruppiAttivita: [g.gruppo] })
-                      }
-                      title="Crea un nuovo flusso collegato a questo gruppo"
-                      className="rounded-lg border border-dashed border-[var(--brand-primary)] px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
-                    >
-                      ＋ Flusso
-                    </button>
+              {nodoSel?.gruppi.map((g) => {
+                const unico = g.flussi.length === 1;
+                return (
+                  <div
+                    key={g.gruppo}
+                    onClick={unico ? () => loadTemplate(g.flussi[0] as Template) : undefined}
+                    className={`rounded-2xl border bg-[var(--brand-surface)] p-4 transition ${
+                      unico ? 'cursor-pointer hover:border-[var(--brand-primary)]' : ''
+                    } ${
+                      unico && selectedId === g.flussi[0].id && !isNew
+                        ? 'border-[var(--brand-primary)]'
+                        : 'border-[var(--brand-border)]'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-semibold text-[var(--brand-text-main)]">{g.gruppo}</span>
+                      <span className="flex shrink-0 items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            startNew({ nome: g.gruppo, gruppoCommittente: committenteSel, gruppiAttivita: [g.gruppo] });
+                          }}
+                          title="Crea un nuovo flusso collegato a questo gruppo"
+                          className="rounded-lg border border-dashed border-[var(--brand-primary)] px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                        >
+                          ＋
+                        </button>
+                        {unico && <span aria-hidden className="text-[var(--brand-text-muted)]">›</span>}
+                      </span>
+                    </div>
+                    {unico ? (
+                      <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
+                        {g.flussi[0].id === selectedId && !isNew ? 'Aperto qui a fianco · ' : ''}
+                        {(g.flussi[0] as Template).nome} — {sottotitoloFlusso(g.flussi[0] as Template)}
+                      </p>
+                    ) : g.flussi.length === 0 ? (
+                      <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
+                        Nessun flusso: creane uno con ＋ (nome e collegamento sono già pronti).
+                      </p>
+                    ) : (
+                      <div className="mt-2 space-y-2">{g.flussi.map((t) => cardFlusso(t as Template))}</div>
+                    )}
                   </div>
-                  {g.flussi.length === 0 ? (
-                    <p className="text-xs text-[var(--brand-text-muted)]">
-                      Nessun flusso collegato: creane uno, o apri un flusso esistente e collegalo a questo gruppo.
-                    </p>
-                  ) : (
-                    <div className="space-y-2">{g.flussi.map((t) => cardFlusso(t as Template))}</div>
-                  )}
-                </div>
-              ))}
+                );
+              })}
             </div>
 
             <div>
@@ -629,401 +658,156 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               <p className="text-sm text-[var(--brand-text-muted)]">
                 {committenteSel === null
                   ? 'Scegli un committente, poi il gruppo attività: qui trovi le azioni del flusso.'
-                  : 'Apri un flusso per modificarne le azioni, o creane uno da un gruppo.'}
+                  : 'Tocca un gruppo per aprire le sue azioni.'}
               </p>
             </div>
           </div>
         ) : (
           <>
-            {/* ── Impostazioni base ─────────────────────────────────────────── */}
-            <SezioneAccordion title="Impostazioni base" defaultOpen>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Nome flusso</label>
-              <input
-                type="text"
-                value={nome}
-                onChange={(e) => setNome(e.target.value)}
-                className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
-                placeholder="es. Rapportino standard"
-              />
-
-              <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+            {/* ── Header: nome + collegamento + stato salvataggio ─────────────── */}
+            <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
+              <div className="flex flex-wrap items-center justify-between gap-3">
                 <input
-                  type="checkbox"
-                  checked={soloManuale}
-                  onChange={(e) => setSoloManuale(e.target.checked)}
-                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                  type="text"
+                  value={nome}
+                  onChange={(e) => setNome(e.target.value)}
+                  className="min-w-[220px] flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-base font-semibold text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  placeholder="Nome del flusso (es. DUNNING)"
                 />
-                <span className="text-xs text-[var(--brand-text-muted)]">
-                  <b className="text-[var(--brand-text-main)]">Modello manuale (+)</b> — usato dalla modale &quot;+&quot; dell&apos;operatore invece che dai rapportini pianificati.
-                </span>
-              </label>
-
-              {!soloManuale && (
-                <>
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo rapportino</label>
-                  <select
-                    value={tipo}
-                    onChange={(e) => setTipo(e.target.value as 'standard' | 'risanamento')}
-                    className="mb-4 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                {isNew ? (
+                  <button
+                    type="button"
+                    onClick={handleSave}
+                    disabled={saving}
+                    className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
                   >
-                    <option value="standard">Standard</option>
-                    <option value="risanamento">Risanamento colonne</option>
-                  </select>
-                </>
-              )}
-
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                Committente (instradamento){soloManuale && <span className="text-[var(--danger)]"> *</span>}
-              </label>
-              <select
-                value={committente}
-                onChange={(e) => setCommittente(e.target.value as Committente | '')}
-                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-              >
-                <option value="">— Nessuno —</option>
-                <option value="acea">Acea</option>
-                <option value="italgas">Italgas</option>
-                <option value="altro">Altro</option>
-                <option value="lim_massive">Limitazioni massive</option>
-              </select>
+                    {saving ? 'Creazione…' : 'Crea flusso'}
+                  </button>
+                ) : (
+                  <span
+                    aria-live="polite"
+                    className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
+                      autoState === 'saved'
+                        ? 'border-transparent bg-[var(--success-soft)] text-[var(--success)]'
+                        : autoState === 'error'
+                          ? 'border-transparent bg-[var(--danger-soft)] text-[var(--danger)]'
+                          : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'
+                    }`}
+                  >
+                    {autoState === 'saving' && (
+                      <span className="h-2 w-2 animate-pulse rounded-full bg-current" aria-hidden />
+                    )}
+                    {autoState === 'saving'
+                      ? 'Salvataggio…'
+                      : autoState === 'saved'
+                        ? 'Salvato ✓'
+                        : autoState === 'error'
+                          ? 'Non salvato — riprova'
+                          : 'Le modifiche si salvano da sole'}
+                  </span>
+                )}
+              </div>
               <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
                 {soloManuale
-                  ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica le azioni di questo modello.'
-                  : 'Opzionale: instradamento runtime storico (fallback al default se assente). Il collegamento del flowchart è nella sezione sotto.'}
+                  ? 'Modello per il "+" dell\'operatore (interventi manuali).'
+                  : collegamentoLabel
+                    ? <>Si usa per: <b className="text-[var(--brand-text-main)]">{collegamentoLabel}</b></>
+                    : 'Non collegato a un gruppo attività (si collega da Impostazioni avanzate).'}
               </p>
+            </div>
 
-              {!soloManuale && (
-                <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                  <input
-                    type="checkbox"
-                    checked={taskVia}
-                    onChange={(e) => { setTaskVia(e.target.checked); if (e.target.checked) setTaskViaIbrido(false); }}
-                    className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
-                  />
-                  <span className="text-xs text-[var(--brand-text-muted)]">
-                    <b className="text-[var(--brand-text-main)]">Task-via (solo via)</b> — i rapportini generati con questo flusso mostrano il contenitore indirizzo con il tasto <b>+</b>: l&apos;operatore crea gli interventi sotto la via. Lascia disattivo per i flussi normali.
-                  </span>
-                </label>
-              )}
-
-              {!soloManuale && (
-                <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                  <input
-                    type="checkbox"
-                    checked={taskViaIbrido}
-                    onChange={(e) => { setTaskViaIbrido(e.target.checked); if (e.target.checked) setTaskVia(false); }}
-                    className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
-                  />
-                  <span className="text-xs text-[var(--brand-text-muted)]">
-                    <b className="text-[var(--brand-text-main)]">Ibrido (classiche + BONIFICHE EXTRA)</b> — nello stesso rapportino convivono le attività classiche (con il loro esito) e le voci con attività <b>BONIFICHE EXTRA</b>, che diventano contenitori a sola via con il tasto <b>+</b>. Le altre voci restano normali. Pensato per Italgas.
-                  </span>
-                </label>
-              )}
-            </SezioneAccordion>
-
-            {/* ── Collegamento al gruppo attività (flowchart) ──────────────────── */}
+            {/* ── Azioni per l'operatore — il cuore del modulo ────────────────── */}
             <SezioneAccordion
-              title="Collegamento al gruppo attività"
-              subtitle="Committente → Gruppo attività: dove questo flusso compare nel modulo"
+              title="Azioni per l'operatore"
+              subtitle="Cosa compila sul campo, nell'ordine in cui lo vede. Spunta «Obbligatoria» per bloccare l'invio senza risposta."
               defaultOpen
             >
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Committente</label>
-              <select
-                value={gruppoCommittente}
-                onChange={(e) => cambiaGruppoCommittente(e.target.value as CommittenteFlusso | '')}
-                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-              >
-                <option value="">— Non collegato —</option>
-                {albero.committenti.map((c) => (
-                  <option key={c.committente} value={c.committente}>{c.label}</option>
-                ))}
-              </select>
-
-              {gruppoCommittente ? (
-                <>
-                  <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Gruppi attività coperti dal flusso
-                  </p>
-                  <div className="flex flex-wrap gap-2">
-                    {gruppiDisponibili.map((g) => {
-                      const attivo = gruppiAttivita.some((x) => chiaveTassonomia(x) === chiaveTassonomia(g));
-                      return (
-                        <button
-                          key={g}
-                          type="button"
-                          onClick={() => toggleGruppo(g)}
-                          aria-pressed={attivo}
-                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
-                            attivo
-                              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
-                              : 'border-dashed border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]'
-                          }`}
-                        >
-                          {attivo ? '✓ ' : '＋ '}{g}
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {gruppiAttivita.length === 0 && (
-                    <p className="mt-2 text-xs text-[var(--danger)]">
-                      Scegli almeno un gruppo: senza gruppo il flusso resta tra i non collegati.
-                    </p>
-                  )}
-                  <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
-                    Un flusso ibrido può coprire più gruppi (es. LIMITAZIONI MASSIVE + DUNNING).
-                  </p>
-                </>
-              ) : (
-                <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
-                  Non collegato: il flusso resta visibile nella sezione &quot;Flussi non collegati&quot;.
-                </p>
-              )}
-            </SezioneAccordion>
-
-            {/* ── Card nella lista interventi ──────────────────────────────────────── */}
-            {!soloManuale && (
-            <SezioneAccordion title="Titolo della card voce">
-              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-                Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
-                Se tutti vuoti → &quot;Voce N&quot;. Lista vuota = comportamento storico (Nominativo, poi PDR).
-              </p>
-
-              <div className="space-y-2">
-                {titoloCampi.length === 0 && (
-                  <p className="text-xs text-[var(--brand-text-muted)]">Nessun campo selezionato: titolo storico (Nominativo → PDR → &quot;Voce N&quot;).</p>
-                )}
-                {titoloCampi.map((chiave, idx) => {
-                  const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
-                  return (
-                    <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                      <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
-                      <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{chiave}</span>
-                      <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                      <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                      <button type="button" onClick={() => toggleTitolo(chiave)}
-                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
-                    </div>
-                  );
-                })}
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {INFO_CAMPI_DISPONIBILI.filter((d) => !titoloCampi.includes(d.chiave)).map((d) => (
-                  <button key={d.chiave} type="button" onClick={() => toggleTitolo(d.chiave)}
-                    className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
-                    ＋ {d.etichettaDefault}
-                  </button>
-                ))}
-              </div>
-              <AnteprimaBox>
-                <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
-              </AnteprimaBox>
-            </SezioneAccordion>
-            )}
-
-            {/* ── Dettaglio card ────────────────────────────────────────── */}
-            {!soloManuale && (
-            <SezioneAccordion title="Dettaglio card">
-              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-                Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata &quot;Punto esatto&quot;.
-              </p>
-              <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-                <input
-                  type="checkbox"
-                  checked={infoCampi.some((c) => c.chiave === 'coordinate')}
-                  onChange={() => toggleInfo('coordinate')}
-                  className="h-4 w-4 accent-[var(--brand-primary)]"
-                />
-                Mostra coordinate (link &quot;Punto esatto&quot;)
-              </label>
-              <AnteprimaBox>
-                <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
-                <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
-              </AnteprimaBox>
-            </SezioneAccordion>
-            )}
-
-            {/* ── Dettaglio anagrafica ──────────────────────────────────────────────────────────── */}
-            <SezioneAccordion title={soloManuale ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}>
-              <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-                Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
-                Nessuna selezione = mostra tutti gli 11 campi di default.
-              </p>
-
-              <div className="space-y-2">
-                {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
-                  <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                    <input
-                      type="text"
-                      value={c.etichetta}
-                      onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
-                      className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                    />
-                    <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{c.chiave}</span>
-                    <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                    <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                    <button type="button" onClick={() => toggleInfo(c.chiave)}
-                      className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
-                  </div>
-                )))}
-              </div>
-
-              <div className="mt-4 flex flex-wrap gap-2">
-                {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
-                  <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
-                    className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
-                    ＋ {d.etichettaDefault}
-                  </button>
-                ))}
-              </div>
-              <AnteprimaBox>
-                <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
-              </AnteprimaBox>
-            </SezioneAccordion>
-
-            {/* ── Lista azioni da fare ─────────────────────────────────────────────────────── */}
-            <SezioneAccordion title="Azioni da fare" defaultOpen>
-
               {campi.length === 0 && (
                 <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessuna azione. Aggiungine una.</p>
               )}
 
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {campi.map((campo, idx) => (
                   <div
                     key={idx}
-                    className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4"
+                    className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3"
                   >
-                    {/* Row 1: etichetta + tipo */}
-                    <div className="mb-3 flex gap-3">
-                      <div className="flex-1">
-                        <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
-                          Etichetta
-                        </label>
-                        <input
-                          type="text"
-                          value={campo.etichetta}
-                          onChange={(e) => updateCampo(idx, { etichetta: e.target.value })}
-                          className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
-                          placeholder="es. Firma tecnico"
-                        />
-                        {campo.chiave && (
-                          <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">chiave: {campo.chiave}</p>
-                        )}
+                    <div className="flex flex-wrap items-center gap-2">
+                      <div className="flex shrink-0 flex-col">
+                        <button type="button" onClick={() => moveCampo(idx, -1)} disabled={idx === 0}
+                          className="rounded-t-lg border border-b-0 border-[var(--brand-border)] px-1.5 text-[10px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                        <button type="button" onClick={() => moveCampo(idx, 1)} disabled={idx === campi.length - 1}
+                          className="rounded-b-lg border border-[var(--brand-border)] px-1.5 text-[10px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
                       </div>
-                      <div className="w-40">
-                        <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
-                          Tipo
+                      <input
+                        type="text"
+                        value={campo.etichetta}
+                        onChange={(e) => updateCampo(idx, { etichetta: e.target.value })}
+                        className="min-w-[160px] flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        placeholder="Cosa deve fare? es. Foto contatore"
+                      />
+                      <select
+                        value={campo.tipo}
+                        onChange={(e) => updateCampo(idx, { tipo: e.target.value as TemplateCampo['tipo'] })}
+                        title="Tipo di risposta"
+                        className="w-44 rounded-lg border border-[var(--brand-border)] px-2 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      >
+                        {(Object.keys(TIPO_LABELS) as TemplateCampo['tipo'][]).map((t) => (
+                          <option key={t} value={t}>{TIPO_LABELS[t]}</option>
+                        ))}
+                      </select>
+                      {!(tipo === 'risanamento' && campo.tipo === 'foto' && (campo.scope_foto ?? 'misuratore') === 'accessoria') && (
+                        <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-[var(--brand-text-main)]">
+                          <input
+                            type="checkbox"
+                            checked={campo.obbligatoria === true}
+                            onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
+                            className="h-4 w-4 accent-[var(--brand-primary)]"
+                          />
+                          Obbligatoria
                         </label>
-                        <select
-                          value={campo.tipo}
-                          onChange={(e) => updateCampo(idx, { tipo: e.target.value as TemplateCampo['tipo'] })}
-                          className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                        >
-                          {(Object.keys(TIPO_LABELS) as TemplateCampo['tipo'][]).map((t) => (
-                            <option key={t} value={t}>{TIPO_LABELS[t]}</option>
-                          ))}
-                        </select>
-                      </div>
+                      )}
+                      <button
+                        type="button"
+                        onClick={() => removeCampo(idx)}
+                        title="Rimuovi azione"
+                        className="shrink-0 rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
+                      >
+                        ✕
+                      </button>
                     </div>
 
-                    {/* Row 2: opzioni (solo se tipo=select) */}
                     {campo.tipo === 'select' && (
-                      <div className="mb-3">
+                      <div className="mt-2">
                         <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">
-                          Opzioni (una per riga)
+                          Scelte possibili (una per riga)
                         </label>
                         <textarea
                           rows={3}
                           value={(campo.opzioni ?? []).join('\n')}
-                          onChange={(e) =>
-                            updateCampo(idx, { opzioni: e.target.value.split('\n') })
-                          }
+                          onChange={(e) => updateCampo(idx, { opzioni: e.target.value.split('\n') })}
                           className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none"
                           placeholder={'SI\nNO'}
                         />
                       </div>
                     )}
 
-                    {/* Row 2b: scope + flag obbligatoria (solo se tipo=foto) */}
-                    {campo.tipo === 'foto' && (
-                      <div className="mb-3 space-y-2">
-                        {tipo === 'risanamento' && (
-                          <div>
-                            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Sezione foto</label>
-                            <select
-                              value={campo.scope_foto ?? 'misuratore'}
-                              onChange={(e) => {
-                                const scope = e.target.value as 'misuratore' | 'fase' | 'accessoria';
-                                // Accessoria = sempre opzionale; uscendo riporta obbligatoria al neutro (undefined), non 'false' residuo.
-                                updateCampo(idx, scope === 'accessoria' ? { scope_foto: scope, obbligatoria: false } : { scope_foto: scope, obbligatoria: undefined });
-                              }}
-                              className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                            >
-                              {SCOPE_FOTO.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
-                            </select>
-                          </div>
-                        )}
-                        {!(tipo === 'risanamento' && (campo.scope_foto ?? 'misuratore') === 'accessoria') && (
-                          <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-                            <input
-                              type="checkbox"
-                              checked={campo.obbligatoria === true}
-                              onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
-                              className="h-4 w-4 accent-[var(--brand-primary)]"
-                            />
-                            Foto obbligatoria
-                          </label>
-                        )}
+                    {campo.tipo === 'foto' && tipo === 'risanamento' && (
+                      <div className="mt-2">
+                        <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Sezione foto</label>
+                        <select
+                          value={campo.scope_foto ?? 'misuratore'}
+                          onChange={(e) => {
+                            const scope = e.target.value as 'misuratore' | 'fase' | 'accessoria';
+                            // Accessoria = sempre opzionale; uscendo riporta obbligatoria al neutro (undefined), non 'false' residuo.
+                            updateCampo(idx, scope === 'accessoria' ? { scope_foto: scope, obbligatoria: false } : { scope_foto: scope, obbligatoria: undefined });
+                          }}
+                          className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        >
+                          {SCOPE_FOTO.map((s) => <option key={s.v} value={s.v}>{s.label}</option>)}
+                        </select>
                       </div>
                     )}
-
-                    {/* Row 2c: obbligatoria (campi non-foto, tutti i flussi) */}
-                    {campo.tipo !== 'foto' && (
-                      <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-                        <input
-                          type="checkbox"
-                          checked={campo.obbligatoria === true}
-                          onChange={(e) => updateCampo(idx, { obbligatoria: e.target.checked })}
-                          className="h-4 w-4 accent-[var(--brand-primary)]"
-                        />
-                        Obbligatoria
-                      </label>
-                    )}
-
-                    {/* Row 3: azioni */}
-                    <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => moveCampo(idx, -1)}
-                        disabled={idx === 0}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30"
-                        title="Sposta su"
-                      >
-                        ▲
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => moveCampo(idx, 1)}
-                        disabled={idx === campi.length - 1}
-                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30"
-                        title="Sposta giù"
-                      >
-                        ▼
-                      </button>
-                      <span className="flex-1" />
-                      <button
-                        type="button"
-                        onClick={() => removeCampo(idx)}
-                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
-                      >
-                        Rimuovi
-                      </button>
-                    </div>
                   </div>
                 ))}
               </div>
@@ -1035,6 +819,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               >
                 ＋ Aggiungi azione
               </button>
+
               {tipo === 'risanamento' && campi.some((c) => c.tipo === 'foto') && (
                 <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3 text-xs">
                   <p className="mb-2 font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima sezioni foto</p>
@@ -1053,103 +838,295 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   <p className="mt-1 text-[var(--brand-text-subtle)]">* obbligatoria · (più foto) = l&apos;operatore può caricarne diverse</p>
                 </div>
               )}
+
               <AnteprimaBox>
                 <VoceCampi campi={campi} voce={anteprimaVoce} disabilitato onChange={() => {}} />
               </AnteprimaBox>
             </SezioneAccordion>
 
-            {/* ── Priorità nome foto (solo se ci sono campi foto) ───────────────── */}
-            {haCampiFoto && (
-              <SezioneAccordion title="Foto — priorità nome file">
-                <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-                  Le foto vengono rinominate come <b>&lt;identificativo&gt;_&lt;tipo foto&gt;</b>. Scegli quale
-                  identificativo usare (il <b>primo non vuoto</b> della lista, in ordine).
-                  Lista vuota = ordine predefinito: PDR → Matricola → ODS/ODL → Indirizzo.
-                </p>
-
-                <div className="space-y-2">
-                  {fotoIdPriority.length === 0 && (
-                    <p className="text-xs text-[var(--brand-text-muted)]">
-                      Nessun identificativo selezionato: ordine predefinito (PDR → Matricola → ODS/ODL → Indirizzo).
+            {/* ── Impostazioni avanzate — tutto il resto, chiuso di default ───── */}
+            <SezioneAccordion
+              title="Impostazioni avanzate"
+              subtitle="Collegamento al gruppo, instradamento, anagrafica, nomi foto, eliminazione. Di solito non serve toccarle."
+            >
+              <div className="space-y-4">
+                <BloccoAvanzato
+                  title="Collegamento al gruppo attività"
+                  hint="Dove questo flusso compare nel modulo (Committente → Gruppo). Un flusso può coprire più gruppi."
+                >
+                  <select
+                    value={gruppoCommittente}
+                    onChange={(e) => cambiaGruppoCommittente(e.target.value as CommittenteFlusso | '')}
+                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  >
+                    <option value="">— Non collegato —</option>
+                    {albero.committenti.map((c) => (
+                      <option key={c.committente} value={c.committente}>{c.label}</option>
+                    ))}
+                  </select>
+                  {gruppoCommittente ? (
+                    <>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {gruppiDisponibili.map((g) => {
+                          const attivo = gruppiAttivita.some((x) => chiaveTassonomia(x) === chiaveTassonomia(g));
+                          return (
+                            <button
+                              key={g}
+                              type="button"
+                              onClick={() => toggleGruppo(g)}
+                              aria-pressed={attivo}
+                              className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                                attivo
+                                  ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+                                  : 'border-dashed border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]'
+                              }`}
+                            >
+                              {attivo ? '✓ ' : '＋ '}{g}
+                            </button>
+                          );
+                        })}
+                      </div>
+                      {gruppiAttivita.length === 0 && (
+                        <p className="mt-2 text-xs text-[var(--danger)]">
+                          Scegli almeno un gruppo: senza gruppo il flusso resta tra i non collegati.
+                        </p>
+                      )}
+                    </>
+                  ) : (
+                    <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                      Non collegato: il flusso resta visibile nella sezione &quot;Flussi non collegati&quot;.
                     </p>
                   )}
-                  {fotoIdPriority.map((chiave, idx) => {
-                    const def = FOTO_ID_CAMPI.find((d) => d.chiave === chiave);
-                    return (
-                      <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                        <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichetta ?? chiave}</span>
-                        <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{chiave}</span>
-                        <button type="button" onClick={() => moveFotoId(idx, -1)} disabled={idx === 0}
+                </BloccoAvanzato>
+
+                <BloccoAvanzato
+                  title="Natura e instradamento"
+                  hint="Come i flussi runtime scelgono questo modello. Se non sai cosa sono, lasciali come stanno."
+                >
+                  <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                    <input
+                      type="checkbox"
+                      checked={soloManuale}
+                      onChange={(e) => setSoloManuale(e.target.checked)}
+                      className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    <span className="text-xs text-[var(--brand-text-muted)]">
+                      <b className="text-[var(--brand-text-main)]">Modello manuale (+)</b> — usato dalla modale &quot;+&quot; dell&apos;operatore invece che dai rapportini pianificati.
+                    </span>
+                  </label>
+
+                  {!soloManuale && (
+                    <>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo rapportino</label>
+                      <select
+                        value={tipo}
+                        onChange={(e) => setTipo(e.target.value as 'standard' | 'risanamento')}
+                        className="mb-3 w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      >
+                        <option value="standard">Standard</option>
+                        <option value="risanamento">Risanamento colonne</option>
+                      </select>
+                    </>
+                  )}
+
+                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    Committente (instradamento){soloManuale && <span className="text-[var(--danger)]"> *</span>}
+                  </label>
+                  <select
+                    value={committente}
+                    onChange={(e) => setCommittente(e.target.value as Committente | '')}
+                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                  >
+                    <option value="">— Nessuno —</option>
+                    <option value="acea">Acea</option>
+                    <option value="italgas">Italgas</option>
+                    <option value="altro">Altro</option>
+                    <option value="lim_massive">Limitazioni massive</option>
+                  </select>
+                  <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                    {soloManuale
+                      ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica le azioni di questo modello.'
+                      : 'Instradamento runtime storico (fallback al default se assente). Non è il collegamento del modulo, che sta qui sopra.'}
+                  </p>
+
+                  {!soloManuale && (
+                    <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                      <input
+                        type="checkbox"
+                        checked={taskVia}
+                        onChange={(e) => { setTaskVia(e.target.checked); if (e.target.checked) setTaskViaIbrido(false); }}
+                        className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                      <span className="text-xs text-[var(--brand-text-muted)]">
+                        <b className="text-[var(--brand-text-main)]">Task-via (solo via)</b> — i rapportini generati con questo flusso mostrano il contenitore indirizzo con il tasto <b>+</b>: l&apos;operatore crea gli interventi sotto la via. Lascia disattivo per i flussi normali.
+                      </span>
+                    </label>
+                  )}
+
+                  {!soloManuale && (
+                    <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                      <input
+                        type="checkbox"
+                        checked={taskViaIbrido}
+                        onChange={(e) => { setTaskViaIbrido(e.target.checked); if (e.target.checked) setTaskVia(false); }}
+                        className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                      <span className="text-xs text-[var(--brand-text-muted)]">
+                        <b className="text-[var(--brand-text-main)]">Ibrido (classiche + BONIFICHE EXTRA)</b> — nello stesso rapportino convivono le attività classiche (con il loro esito) e le voci con attività <b>BONIFICHE EXTRA</b>, che diventano contenitori a sola via con il tasto <b>+</b>. Le altre voci restano normali. Pensato per Italgas.
+                      </span>
+                    </label>
+                  )}
+                </BloccoAvanzato>
+
+                {!soloManuale && (
+                  <BloccoAvanzato
+                    title="Titolo della card voce"
+                    hint='Il titolo di ogni voce usa il primo campo non vuoto di questa lista (in ordine). Lista vuota = comportamento storico (Nominativo, poi PDR).'
+                  >
+                    <div className="space-y-2">
+                      {titoloCampi.length === 0 && (
+                        <p className="text-xs text-[var(--brand-text-muted)]">Nessun campo selezionato: titolo storico (Nominativo → PDR → &quot;Voce N&quot;).</p>
+                      )}
+                      {titoloCampi.map((chiave, idx) => {
+                        const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
+                        return (
+                          <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                            <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
+                            <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                            <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                            <button type="button" onClick={() => toggleTitolo(chiave)}
+                              className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {INFO_CAMPI_DISPONIBILI.filter((d) => !titoloCampi.includes(d.chiave)).map((d) => (
+                        <button key={d.chiave} type="button" onClick={() => toggleTitolo(d.chiave)}
+                          className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                          ＋ {d.etichettaDefault}
+                        </button>
+                      ))}
+                    </div>
+                    <AnteprimaBox>
+                      <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
+                    </AnteprimaBox>
+                  </BloccoAvanzato>
+                )}
+
+                {!soloManuale && (
+                  <BloccoAvanzato
+                    title="Dettaglio card"
+                    hint="Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata «Punto esatto»."
+                  >
+                    <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                      <input
+                        type="checkbox"
+                        checked={infoCampi.some((c) => c.chiave === 'coordinate')}
+                        onChange={() => toggleInfo('coordinate')}
+                        className="h-4 w-4 accent-[var(--brand-primary)]"
+                      />
+                      Mostra coordinate (link &quot;Punto esatto&quot;)
+                    </label>
+                    <AnteprimaBox>
+                      <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
+                      <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
+                    </AnteprimaBox>
+                  </BloccoAvanzato>
+                )}
+
+                <BloccoAvanzato
+                  title={soloManuale ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}
+                  hint="Quali dati del DB compaiono nel rapportino e nell'Excel, in che ordine e con quale etichetta. Nessuna selezione = tutti gli 11 campi di default."
+                >
+                  <div className="space-y-2">
+                    {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
+                      <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                        <input
+                          type="text"
+                          value={c.etichetta}
+                          onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
+                          className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                        />
+                        <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{c.chiave}</span>
+                        <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
                           className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                        <button type="button" onClick={() => moveFotoId(idx, 1)} disabled={idx === fotoIdPriority.length - 1}
+                        <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
                           className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                        <button type="button" onClick={() => toggleFotoId(chiave)}
+                        <button type="button" onClick={() => toggleInfo(c.chiave)}
                           className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
                       </div>
-                    );
-                  })}
-                </div>
+                    )))}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
+                      <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
+                        className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                        ＋ {d.etichettaDefault}
+                      </button>
+                    ))}
+                  </div>
+                  <AnteprimaBox>
+                    <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
+                  </AnteprimaBox>
+                </BloccoAvanzato>
 
-                <div className="mt-4 flex flex-wrap gap-2">
-                  {FOTO_ID_CAMPI.filter((d) => !fotoIdPriority.includes(d.chiave)).map((d) => (
-                    <button key={d.chiave} type="button" onClick={() => toggleFotoId(d.chiave)}
-                      className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
-                      ＋ {d.etichetta}
+                {haCampiFoto && (
+                  <BloccoAvanzato
+                    title="Foto — priorità nome file"
+                    hint="Le foto vengono rinominate come <identificativo>_<tipo foto>: il primo campo non vuoto della lista. Lista vuota = PDR → Matricola → ODS/ODL → Indirizzo."
+                  >
+                    <div className="space-y-2">
+                      {fotoIdPriority.length === 0 && (
+                        <p className="text-xs text-[var(--brand-text-muted)]">
+                          Nessun identificativo selezionato: ordine predefinito (PDR → Matricola → ODS/ODL → Indirizzo).
+                        </p>
+                      )}
+                      {fotoIdPriority.map((chiave, idx) => {
+                        const def = FOTO_ID_CAMPI.find((d) => d.chiave === chiave);
+                        return (
+                          <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                            <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichetta ?? chiave}</span>
+                            <button type="button" onClick={() => moveFotoId(idx, -1)} disabled={idx === 0}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                            <button type="button" onClick={() => moveFotoId(idx, 1)} disabled={idx === fotoIdPriority.length - 1}
+                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                            <button type="button" onClick={() => toggleFotoId(chiave)}
+                              className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
+                          </div>
+                        );
+                      })}
+                    </div>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      {FOTO_ID_CAMPI.filter((d) => !fotoIdPriority.includes(d.chiave)).map((d) => (
+                        <button key={d.chiave} type="button" onClick={() => toggleFotoId(d.chiave)}
+                          className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                          ＋ {d.etichetta}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
+                      <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
+                      <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
+                    </div>
+                  </BloccoAvanzato>
+                )}
+
+                {!isNew && selectedTpl && (
+                  <BloccoAvanzato title="Eliminazione" hint="Rimuove il flusso per sempre. I rapportini già generati non vengono toccati.">
+                    <button
+                      type="button"
+                      onClick={handleDelete}
+                      className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
+                    >
+                      Elimina flusso
                     </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
-                  <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
-                  <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
-                </div>
-              </SezioneAccordion>
-            )}
-
-            {/* ── Azioni ────────────────────────────────────────────────────── */}
-            <div className="flex items-center gap-3">
-              {isNew ? (
-                <button
-                  type="button"
-                  onClick={handleSave}
-                  disabled={saving}
-                  className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
-                >
-                  {saving ? 'Creazione…' : 'Crea flusso'}
-                </button>
-              ) : (
-                <span
-                  aria-live="polite"
-                  className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-medium ${
-                    autoState === 'saved'
-                      ? 'border-transparent bg-[var(--success-soft)] text-[var(--success)]'
-                      : autoState === 'error'
-                        ? 'border-transparent bg-[var(--danger-soft)] text-[var(--danger)]'
-                        : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'
-                  }`}
-                >
-                  {autoState === 'saving' && (
-                    <span className="h-2 w-2 animate-pulse rounded-full bg-current" aria-hidden />
-                  )}
-                  {autoState === 'saving'
-                    ? 'Salvataggio…'
-                    : autoState === 'saved'
-                      ? 'Salvato ✓'
-                      : autoState === 'error'
-                        ? 'Non salvato — riprova'
-                        : 'Le modifiche si salvano da sole'}
-                </span>
-              )}
-              {!isNew && selectedTpl && (
-                <button
-                  type="button"
-                  onClick={handleDelete}
-                  className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
-                >
-                  Elimina flusso
-                </button>
-              )}
-            </div>
+                  </BloccoAvanzato>
+                )}
+              </div>
+            </SezioneAccordion>
           </>
         )}
       </div>
