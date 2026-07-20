@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import ModalePIManuale from './ModalePIManuale';
+import ModalePIManuale, { type RigaEsistente } from './ModalePIManuale';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { ReperibileRef } from '@/lib/pi/types';
@@ -10,6 +10,7 @@ import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 
 type Riga = {
   id: string;
+  staff_id: string | null;
   staff_name: string | null;
   data: string | null;
   stato: string;
@@ -72,6 +73,18 @@ export default function PILinkClient({ token }: { token: string }) {
   const [payload, setPayload] = useState<Payload | null>(null);
   const [caricamento, setCaricamento] = useState(true);
   const [modale, setModale] = useState(false);
+  // Riga in modifica (solo in_attesa, con link valido). null = nessuna modifica in corso.
+  const [modifica, setModifica] = useState<RigaEsistente | null>(null);
+
+  function apriModifica(r: Riga) {
+    setModifica({
+      id: r.id,
+      data: r.data,
+      esecutoreStaffId: r.staff_id,
+      anagrafica: r.dati_correnti?.anagrafica ?? {},
+      risposte: r.dati_correnti?.risposte ?? {},
+    });
+  }
 
   const carica = useCallback(async () => {
     const res = await fetch(`/api/pi/${token}`, { cache: 'no-store' });
@@ -138,6 +151,15 @@ export default function PILinkClient({ token }: { token: string }) {
                   >
                     📄 Genera PDF
                   </button>
+                  {r.stato === 'in_attesa' && valido && (
+                    <button
+                      type="button"
+                      onClick={() => apriModifica(r)}
+                      className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
+                    >
+                      ✏️ Modifica
+                    </button>
+                  )}
                   {r.stato === 'in_attesa' && (
                     <button
                       type="button"
@@ -174,6 +196,19 @@ export default function PILinkClient({ token }: { token: string }) {
           operatori={payload.operatori}
           onClose={() => setModale(false)}
           onSaved={() => { setModale(false); void carica(); }}
+        />
+      )}
+
+      {modifica && payload && (
+        <ModalePIManuale
+          token={token}
+          campi={payload.campi}
+          infoCampi={payload.infoCampi}
+          reperibili={payload.reperibili}
+          operatori={payload.operatori}
+          esistente={modifica}
+          onClose={() => setModifica(null)}
+          onSaved={() => { setModifica(null); void carica(); }}
         />
       )}
     </main>

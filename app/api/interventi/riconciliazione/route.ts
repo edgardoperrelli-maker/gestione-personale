@@ -1,5 +1,5 @@
 // GET /api/interventi/riconciliazione — lista interventi flaggati da_riconciliare (admin_plus).
-// Doppio positivo sullo stesso ODL: vedi lib/interventi/rilevaDoppioPositivo.ts.
+// Doppio esito sullo stesso ODL: vedi lib/interventi/odlPositivi.ts.
 import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';

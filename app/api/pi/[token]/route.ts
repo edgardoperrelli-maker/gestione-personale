@@ -62,7 +62,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ token: 
 
   const { data: righe } = await supabaseAdmin
     .from('interventi_manuali')
-    .select('id, staff_name, data, stato, dati_correnti, anomalia_reperibilita, created_at')
+    .select('id, staff_id, staff_name, data, stato, dati_correnti, anomalia_reperibilita, created_at')
     .eq('pi_token_id', tok.id)
     .eq('fonte', 'pronto_intervento')
     .order('created_at', { ascending: false });

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import PannelloContabilita from './PannelloContabilita';
+import ModalePIBackoffice from './ModalePIBackoffice';
 import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
 import { condividiOScarica } from '@/utils/rapportini/condividiFile';
 import { piTokenStato } from '@/lib/pi/tokenValidita';
@@ -43,6 +44,10 @@ type CodaRiga = {
   anomalia_reperibilita: boolean;
 };
 type TabRiga = CodaRiga & { intervento_id: string | null; valore: number; patch?: boolean; patch_matricola?: unknown };
+type RifiutataRiga = {
+  id: string; data: string | null; esecutore: string | null; indirizzo: unknown; comune: unknown;
+  n_segnalazione: unknown; motivo_rifiuto: string | null; anomalia_reperibilita: boolean;
+};
 
 function fmtData(d: string | null): string {
   if (!d) return '';
@@ -103,10 +108,22 @@ const STATO_LINK: Record<PiTokenStato, { label: string; cls: string }> = {
   revocato: { label: 'Revocato', cls: 'bg-[var(--danger-soft,transparent)] text-[var(--danger)]' },
 };
 
-/** Storico dei link P.I. della foglia: stato (attivo/scaduto…), validità, n° rapportini, copia. */
-function StoricoLink({ righe }: { righe: LinkRow[] }) {
+function oggiRomaYmd(): string {
+  return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
+}
+function addGiorniYmd(ymd: string, n: number): string {
+  return new Date(Date.parse(`${ymd}T00:00:00Z`) + n * 86_400_000).toISOString().slice(0, 10);
+}
+
+/** Storico dei link P.I. della foglia: stato, validità, n° rapportini, copia e toggle Apri/Chiudi.
+ *  "Chiudi" scade il link (valido_al=ieri); "Apri" lo riapre a una nuova data di fine (default +7). */
+function StoricoLink({ righe, onCambiato }: { righe: LinkRow[]; onCambiato: () => void }) {
   const [copiato, setCopiato] = useState<string | null>(null);
+  const [apriPer, setApriPer] = useState<string | null>(null);
+  const [nuovaData, setNuovaData] = useState<string>('');
+  const [busy, setBusy] = useState<string | null>(null);
   const nowIso = new Date().toISOString();
+
   async function copia(l: LinkRow) {
     const url = `${window.location.origin}/pi/${l.token}`;
     try {
@@ -115,6 +132,28 @@ function StoricoLink({ righe }: { righe: LinkRow[] }) {
       setTimeout(() => setCopiato((c) => (c === l.id ? null : c)), 1800);
     } catch { /* noop */ }
   }
+  async function chiudi(l: LinkRow) {
+    setBusy(l.id);
+    await fetch(`/api/admin/pi/token/${l.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ azione: 'chiudi' }),
+    });
+    setBusy(null);
+    onCambiato();
+  }
+  function iniziaApri(l: LinkRow) {
+    setApriPer(l.id);
+    setNuovaData(addGiorniYmd(oggiRomaYmd(), 7));
+  }
+  async function confermaApri(l: LinkRow) {
+    setBusy(l.id);
+    const res = await fetch(`/api/admin/pi/token/${l.id}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ azione: 'apri', valido_al: nuovaData }),
+    });
+    setBusy(null);
+    if (res.ok) { setApriPer(null); onCambiato(); }
+    else { const j = await res.json().catch(() => ({})); window.alert(j.dettaglio || j.error || 'Errore nella riapertura.'); }
+  }
+
   return (
     <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <h3 className="mb-3 text-base font-semibold">Link ({righe.length})</h3>
@@ -123,8 +162,9 @@ function StoricoLink({ righe }: { righe: LinkRow[] }) {
       ) : (
         <ul className="space-y-2">
           {righe.map((l) => {
-            const badge = STATO_LINK[piTokenStato(l, nowIso)];
-            const attivo = badge === STATO_LINK.valido;
+            const stato = piTokenStato(l, nowIso);
+            const badge = STATO_LINK[stato];
+            const attivo = stato === 'valido';
             return (
               <li key={l.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${attivo ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]' : 'border-[var(--brand-border)]'}`}>
                 <div className="min-w-0">
@@ -135,12 +175,25 @@ function StoricoLink({ righe }: { righe: LinkRow[] }) {
                   <div className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
                     Validità {fmtData(l.valido_dal)} – {fmtData(l.valido_al)} · {l.n_rapportini} rapportini
                   </div>
+                  {apriPer === l.id && (
+                    <div className="mt-2 flex flex-wrap items-center gap-2">
+                      <label className="text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Riapri fino al</label>
+                      <input type="date" value={nuovaData} min={oggiRomaYmd()} onChange={(e) => setNuovaData(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+                      <button type="button" disabled={busy === l.id} onClick={() => confermaApri(l)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)] disabled:opacity-50">Conferma</button>
+                      <button type="button" onClick={() => setApriPer(null)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">Annulla</button>
+                    </div>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <button type="button" onClick={() => copia(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">
                     {copiato === l.id ? 'Copiato ✓' : 'Copia link'}
                   </button>
-                  <a href={`/pi/${l.token}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">Apri</a>
+                  <a href={`/pi/${l.token}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">Apri pagina ↗</a>
+                  {attivo ? (
+                    <button type="button" disabled={busy === l.id} onClick={() => chiudi(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] hover:border-[var(--danger)] disabled:opacity-50">Chiudi</button>
+                  ) : apriPer !== l.id ? (
+                    <button type="button" onClick={() => iniziaApri(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)]">Apri</button>
+                  ) : null}
                 </div>
               </li>
             );
@@ -218,16 +271,40 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
   );
 }
 
-/** Dettaglio di una foglia: genera link, coda, tabella, contabilità, export. */
+/** Striscia di conteggi in cima al Riepilogo. */
+function StrisciaConteggi({ inAttesa, rifiutati, interventi, valore, mostraValore }: {
+  inAttesa: number; rifiutati: number; interventi: number; valore: number; mostraValore: boolean;
+}) {
+  const Item = ({ label, value }: { label: string; value: string }) => (
+    <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
+      <div className="text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">{label}</div>
+      <div className="text-lg font-semibold">{value}</div>
+    </div>
+  );
+  return (
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <Item label="In attesa" value={String(inAttesa)} />
+      <Item label="Rifiutati" value={String(rifiutati)} />
+      <Item label="Interventi" value={String(interventi)} />
+      {mostraValore && <Item label="Valore totale" value={`${valore.toFixed(2)} €`} />}
+    </div>
+  );
+}
+
+/** Dettaglio di una foglia: due tab (Riepilogo / Interventi). */
 function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => void }) {
   const codice = area.codice;
   const usaContabilita = area.usa_contabilita;
   const [coda, setCoda] = useState<CodaRiga[]>([]);
   const [tabella, setTabella] = useState<TabRiga[]>([]);
   const [link, setLink] = useState<LinkRow[]>([]);
+  const [rifiutati, setRifiutati] = useState<RifiutataRiga[]>([]);
   const [contabilitaPer, setContabilitaPer] = useState<string | null>(null);
   const [genera, setGenera] = useState(false);
+  const [inserimento, setInserimento] = useState(false);
   const [apertoId, setApertoId] = useState<string | null>(null);
+  const [mostraRifiutati, setMostraRifiutati] = useState(false);
+  const [tab, setTab] = useState<'riepilogo' | 'interventi'>('riepilogo');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   // Ordinamento + filtri per colonna della tabella Interventi (client-side).
@@ -243,14 +320,16 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   }, [codice, from, to]);
 
   const carica = useCallback(async () => {
-    const [c, t, l] = await Promise.all([
+    const [c, t, l, rf] = await Promise.all([
       fetch(`/api/admin/pi/coda?area=${codice}`, { cache: 'no-store' }),
       fetch(`/api/admin/pi/interventi?${periodoQS}`, { cache: 'no-store' }),
       fetch(`/api/admin/pi/token?area=${codice}`, { cache: 'no-store' }),
+      fetch(`/api/admin/pi/rifiutati?area=${codice}`, { cache: 'no-store' }),
     ]);
     if (c.ok) setCoda((await c.json()).righe ?? []);
     if (t.ok) setTabella((await t.json()).righe ?? []);
     if (l.ok) setLink((await l.json()).token ?? []);
+    if (rf.ok) setRifiutati((await rf.json()).righe ?? []);
   }, [codice, periodoQS]);
 
   useEffect(() => { void carica(); }, [carica]);
@@ -280,6 +359,8 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
     return out;
   }, [tabella, filtri, sortKey, sortAsc]);
 
+  const valoreTotale = useMemo(() => tabella.reduce((acc, r) => acc + (r.valore ?? 0), 0), [tabella]);
+
   async function approva(id: string) {
     await fetch(`/api/admin/pi/interventi/${id}/approva`, { method: 'POST' });
     void carica();
@@ -291,70 +372,130 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
     });
     void carica();
   }
+  /** Riapre un rapportino → torna in coda (in_attesa). `avviso` per il caso approvato. */
+  async function riapri(id: string, avviso: boolean) {
+    const msg = avviso
+      ? 'Riaprire questo rapportino? Tornerà in approvazione e l’eventuale contabilità già inserita verrà cancellata.'
+      : 'Riaprire questo rapportino rifiutato? Tornerà in approvazione, modificabile dall’operatore con link aperto.';
+    if (!window.confirm(msg)) return;
+    const res = await fetch(`/api/admin/pi/interventi/${id}/riapri`, { method: 'POST' });
+    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || 'Errore nella riapertura.'); }
+    void carica();
+  }
+
+  const tabBtn = (k: 'riepilogo' | 'interventi', label: string) => (
+    <button
+      type="button"
+      onClick={() => setTab(k)}
+      className={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab === k ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]' : 'border border-[var(--brand-border)] hover:border-[var(--brand-primary)]'}`}
+    >
+      {label}
+    </button>
+  );
 
   return (
     <div className="space-y-5">
-      <div className="flex items-center gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <button type="button" onClick={onIndietro} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">← Sottomoduli</button>
         <h2 className="text-lg font-semibold">{area.label}</h2>
-        <div className="ml-auto">
-          <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium">
-            {genera ? 'Chiudi' : 'Genera link'}
-          </button>
+        <div className="ml-auto flex items-center gap-2">
+          {tabBtn('riepilogo', 'Riepilogo')}
+          {tabBtn('interventi', 'Interventi')}
         </div>
       </div>
 
-      {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
+      {tab === 'riepilogo' && (
+        <div className="space-y-5">
+          <StrisciaConteggi inAttesa={coda.length} rifiutati={rifiutati.length} interventi={tabella.length} valore={valoreTotale} mostraValore={usaContabilita} />
 
-      {/* Storico link della foglia */}
-      <StoricoLink righe={link} />
+          <div className="flex justify-end">
+            <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">
+              {genera ? 'Chiudi' : 'Genera link'}
+            </button>
+          </div>
+          {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
 
-      {/* Coda di approvazione */}
-      <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-        <h3 className="mb-3 text-base font-semibold">In approvazione ({coda.length})</h3>
-        {coda.length === 0 ? (
-          <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
-        ) : (
-          <ul className="space-y-2">
-            {coda.map((r) => (
-              <li key={r.id} className="rounded-lg border border-[var(--brand-border)] p-3">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
-                    <div className="text-xs text-[var(--brand-text-muted)]">
-                      {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
-                      {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+          {/* Storico link della foglia (con toggle Apri/Chiudi) */}
+          <StoricoLink righe={link} onCambiato={() => void carica()} />
+
+          {/* Coda di approvazione */}
+          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+            <h3 className="mb-3 text-base font-semibold">In approvazione ({coda.length})</h3>
+            {coda.length === 0 ? (
+              <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
+            ) : (
+              <ul className="space-y-2">
+                {coda.map((r) => (
+                  <li key={r.id} className="rounded-lg border border-[var(--brand-border)] p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
+                        <div className="text-xs text-[var(--brand-text-muted)]">
+                          {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
+                          {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => setApertoId(apertoId === r.id ? null : r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">{apertoId === r.id ? 'Chiudi' : 'Apri'}</button>
+                        <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
+                        <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
+                      </div>
                     </div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button type="button" onClick={() => setApertoId(apertoId === r.id ? null : r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">{apertoId === r.id ? 'Chiudi' : 'Apri'}</button>
-                    <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
-                    <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
-                  </div>
-                </div>
-                {apertoId === r.id && (
-                  <div className="mt-3 grid gap-x-4 gap-y-2 border-t border-[var(--brand-border)] pt-3 sm:grid-cols-2">
-                    <CampoMod label="N° segnalazione"><EditableCell id={r.id} campo="n_segnalazione" valore={s(r.n_segnalazione)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Data"><EditableCell id={r.id} campo="data" tipo="data" valore={s(r.data)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Comune"><EditableCell id={r.id} campo="comune" valore={s(r.comune)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Indirizzo"><EditableCell id={r.id} campo="indirizzo" valore={s(r.indirizzo)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Ora inizio"><EditableCell id={r.id} campo="ora_inizio" tipo="ora" valore={s(r.ora_inizio)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Ora fine"><EditableCell id={r.id} campo="ora_fine" tipo="ora" valore={s(r.ora_fine)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Assistente TE"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></CampoMod>
-                    <CampoMod label="Note"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></CampoMod>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </section>
+                    {apertoId === r.id && (
+                      <div className="mt-3 grid gap-x-4 gap-y-2 border-t border-[var(--brand-border)] pt-3 sm:grid-cols-2">
+                        <CampoMod label="N° segnalazione"><EditableCell id={r.id} campo="n_segnalazione" valore={s(r.n_segnalazione)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Data"><EditableCell id={r.id} campo="data" tipo="data" valore={s(r.data)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Comune"><EditableCell id={r.id} campo="comune" valore={s(r.comune)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Indirizzo"><EditableCell id={r.id} campo="indirizzo" valore={s(r.indirizzo)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Ora inizio"><EditableCell id={r.id} campo="ora_inizio" tipo="ora" valore={s(r.ora_inizio)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Ora fine"><EditableCell id={r.id} campo="ora_fine" tipo="ora" valore={s(r.ora_fine)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Assistente TE"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></CampoMod>
+                        <CampoMod label="Note"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></CampoMod>
+                      </div>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </section>
 
-      {/* Tabella interventi approvati */}
+          {/* Rifiutati (collassabile): da qui si riaprono */}
+          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+            <button type="button" onClick={() => setMostraRifiutati((v) => !v)} className="flex w-full items-center justify-between text-base font-semibold">
+              <span>Rifiutati ({rifiutati.length})</span>
+              <span className="text-sm text-[var(--brand-text-muted)]">{mostraRifiutati ? '▲' : '▼'}</span>
+            </button>
+            {mostraRifiutati && (
+              rifiutati.length === 0 ? (
+                <p className="mt-3 text-sm text-[var(--brand-text-muted)]">Nessun rapportino rifiutato.</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {rifiutati.map((r) => (
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] p-3">
+                      <div className="min-w-0">
+                        <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
+                        <div className="text-xs text-[var(--brand-text-muted)]">
+                          {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'}
+                          {r.motivo_rifiuto ? ` · motivo: ${r.motivo_rifiuto}` : ''}
+                          {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia</span>}
+                        </div>
+                      </div>
+                      <button type="button" onClick={() => riapri(r.id, false)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)]">Riapri</button>
+                    </li>
+                  ))}
+                </ul>
+              )
+            )}
+          </section>
+        </div>
+      )}
+
+      {tab === 'interventi' && (
       <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
           <h3 className="text-base font-semibold">Interventi ({righeVisibili.length}{righeVisibili.length !== tabella.length ? ` / ${tabella.length}` : ''})</h3>
           <div className="flex flex-wrap items-end gap-2">
+            <button type="button" onClick={() => setInserimento(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)]">+ Inserisci intervento</button>
             {(Object.values(filtri).some((v) => (v ?? '').trim() !== '') || sortKey !== 'data' || sortAsc) && (
               <button type="button" onClick={() => { setFiltri({}); setSortKey('data'); setSortAsc(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)]">Azzera filtri</button>
             )}
@@ -417,6 +558,7 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                       {usaContabilita && r.intervento_id && (
                         <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
                       )}
+                      <button type="button" onClick={() => riapri(r.id, true)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium text-[var(--danger)] hover:border-[var(--danger)]" title="Riapri: torna in approvazione">Riapri</button>
                     </div>
                   </td>
                 </tr>
@@ -425,12 +567,22 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           </table>
         </div>
       </section>
+      )}
 
       {contabilitaPer && (
         <PannelloContabilita
           interventoId={contabilitaPer}
           onClose={() => setContabilitaPer(null)}
           onSaved={() => { setContabilitaPer(null); void carica(); }}
+        />
+      )}
+
+      {inserimento && (
+        <ModalePIBackoffice
+          area={codice}
+          links={link.map((l) => ({ id: l.id, valido_dal: l.valido_dal, valido_al: l.valido_al, note: l.note, revocato_at: l.revocato_at }))}
+          onClose={() => setInserimento(false)}
+          onSaved={() => { setInserimento(false); setTab('interventi'); void carica(); }}
         />
       )}
     </div>
