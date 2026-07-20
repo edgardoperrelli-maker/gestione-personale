@@ -844,10 +844,115 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               </AnteprimaBox>
             </SezioneAccordion>
 
+            {/* ── Anteprima del task — titolo e dettagli della card, semplice come le azioni ── */}
+            <SezioneAccordion
+              title={soloManuale ? 'Anagrafica da compilare (+)' : 'Anteprima del task nel rapportino'}
+              subtitle={soloManuale
+                ? 'I dati che l\'operatore compila creando l\'intervento dal «+», con etichetta e ordine.'
+                : 'Come l\'operatore vede il task: cosa fa da titolo della card e quali dati compaiono aprendola.'}
+              defaultOpen
+            >
+              {!soloManuale && (
+                <div className="mb-6">
+                  <p className="text-sm font-semibold text-[var(--brand-text-main)]">Titolo della card</p>
+                  <p className="mb-3 mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                    Si usa il primo dato non vuoto, nell&apos;ordine della lista. Lista vuota = Nominativo, poi PDR.
+                  </p>
+                  <div className="space-y-2">
+                    {titoloCampi.map((chiave, idx) => {
+                      const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
+                      return (
+                        <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                          <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
+                          <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
+                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                          <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
+                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                          <button type="button" onClick={() => toggleTitolo(chiave)} title="Rimuovi"
+                            className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !titoloCampi.includes(d.chiave)).map((d) => (
+                      <button key={d.chiave} type="button" onClick={() => toggleTitolo(d.chiave)}
+                        className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                        ＋ {d.etichettaDefault}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              <div>
+                <p className="text-sm font-semibold text-[var(--brand-text-main)]">
+                  {soloManuale ? 'Dati da compilare' : 'Dettagli mostrati sul task'}
+                </p>
+                <p className="mb-3 mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                  {soloManuale
+                    ? 'Quali dati chiede la modale «+», con quale etichetta e in che ordine.'
+                    : 'Quali dati del task compaiono aprendo la card (e nell\'Excel), con quale etichetta e in che ordine. Nessuna selezione = tutti gli 11 di default.'}
+                </p>
+                <div className="space-y-2">
+                  {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
+                    <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                      <input
+                        type="text"
+                        value={c.etichetta}
+                        onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
+                        title={`Etichetta per ${c.chiave}`}
+                        className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      />
+                      <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
+                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
+                      <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
+                        className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
+                      <button type="button" onClick={() => toggleInfo(c.chiave)} title="Rimuovi"
+                        className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">✕</button>
+                    </div>
+                  )))}
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
+                    <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
+                      className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
+                      ＋ {d.etichettaDefault}
+                    </button>
+                  ))}
+                </div>
+                {!soloManuale && (
+                  <label className="mt-3 flex cursor-pointer items-center gap-2 text-sm text-[var(--brand-text-main)]">
+                    <input
+                      type="checkbox"
+                      checked={infoCampi.some((c) => c.chiave === 'coordinate')}
+                      onChange={() => toggleInfo('coordinate')}
+                      className="h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                    Mostra il link «Punto esatto» (coordinate)
+                  </label>
+                )}
+              </div>
+
+              <AnteprimaBox>
+                {!soloManuale && (
+                  <>
+                    <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
+                    <div className="my-3 border-t border-dashed border-[var(--brand-border)]" />
+                  </>
+                )}
+                <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
+                {!soloManuale && (
+                  <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
+                )}
+                <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
+              </AnteprimaBox>
+            </SezioneAccordion>
+
             {/* ── Impostazioni avanzate — tutto il resto, chiuso di default ───── */}
             <SezioneAccordion
               title="Impostazioni avanzate"
-              subtitle="Collegamento al gruppo, instradamento, anagrafica, nomi foto, eliminazione. Di solito non serve toccarle."
+              subtitle="Collegamento al gruppo, natura del flusso, nomi foto, eliminazione. Di solito non serve toccarle."
             >
               <div className="space-y-4">
                 <BloccoAvanzato
@@ -900,8 +1005,8 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 </BloccoAvanzato>
 
                 <BloccoAvanzato
-                  title="Natura e instradamento"
-                  hint="Come i flussi runtime scelgono questo modello. Se non sai cosa sono, lasciali come stanno."
+                  title="Natura del flusso"
+                  hint="Modello manuale, tipo risanamento, task-via. Se non sai cosa sono, lasciali come stanno."
                 >
                   <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
                     <input
@@ -929,25 +1034,29 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                     </>
                   )}
 
-                  <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                    Committente (instradamento){soloManuale && <span className="text-[var(--danger)]"> *</span>}
-                  </label>
-                  <select
-                    value={committente}
-                    onChange={(e) => setCommittente(e.target.value as Committente | '')}
-                    className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  >
-                    <option value="">— Nessuno —</option>
-                    <option value="acea">Acea</option>
-                    <option value="italgas">Italgas</option>
-                    <option value="altro">Altro</option>
-                    <option value="lim_massive">Limitazioni massive</option>
-                  </select>
-                  <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
-                    {soloManuale
-                      ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica le azioni di questo modello.'
-                      : 'Instradamento runtime storico (fallback al default se assente). Non è il collegamento del modulo, che sta qui sopra.'}
-                  </p>
+                  {/* Il committente instrada SOLO la modale "+" (risolviTemplateCommittente gira
+                      sui soli solo_manuale): per i flussi classici è una funzione morta → niente select. */}
+                  {soloManuale && (
+                    <>
+                      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                        Committente del &quot;+&quot;<span className="text-[var(--danger)]"> *</span>
+                      </label>
+                      <select
+                        value={committente}
+                        onChange={(e) => setCommittente(e.target.value as Committente | '')}
+                        className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                      >
+                        <option value="">— Nessuno —</option>
+                        <option value="acea">Acea</option>
+                        <option value="italgas">Italgas</option>
+                        <option value="altro">Altro</option>
+                        <option value="lim_massive">Limitazioni massive</option>
+                      </select>
+                      <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                        Instrada la modale &quot;+&quot; dell&apos;operatore: il committente scelto carica le azioni di questo modello.
+                      </p>
+                    </>
+                  )}
 
                   {!soloManuale && (
                     <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
@@ -976,101 +1085,6 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                       </span>
                     </label>
                   )}
-                </BloccoAvanzato>
-
-                {!soloManuale && (
-                  <BloccoAvanzato
-                    title="Titolo della card voce"
-                    hint='Il titolo di ogni voce usa il primo campo non vuoto di questa lista (in ordine). Lista vuota = comportamento storico (Nominativo, poi PDR).'
-                  >
-                    <div className="space-y-2">
-                      {titoloCampi.length === 0 && (
-                        <p className="text-xs text-[var(--brand-text-muted)]">Nessun campo selezionato: titolo storico (Nominativo → PDR → &quot;Voce N&quot;).</p>
-                      )}
-                      {titoloCampi.map((chiave, idx) => {
-                        const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
-                        return (
-                          <div key={chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                            <span className="flex-1 text-sm font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
-                            <button type="button" onClick={() => moveTitolo(idx, -1)} disabled={idx === 0}
-                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                            <button type="button" onClick={() => moveTitolo(idx, 1)} disabled={idx === titoloCampi.length - 1}
-                              className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                            <button type="button" onClick={() => toggleTitolo(chiave)}
-                              className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
-                          </div>
-                        );
-                      })}
-                    </div>
-                    <div className="mt-3 flex flex-wrap gap-2">
-                      {INFO_CAMPI_DISPONIBILI.filter((d) => !titoloCampi.includes(d.chiave)).map((d) => (
-                        <button key={d.chiave} type="button" onClick={() => toggleTitolo(d.chiave)}
-                          className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
-                          ＋ {d.etichettaDefault}
-                        </button>
-                      ))}
-                    </div>
-                    <AnteprimaBox>
-                      <RigaVoceCard riga={anteprimaRiga} onApri={() => {}} />
-                    </AnteprimaBox>
-                  </BloccoAvanzato>
-                )}
-
-                {!soloManuale && (
-                  <BloccoAvanzato
-                    title="Dettaglio card"
-                    hint="Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata «Punto esatto»."
-                  >
-                    <label className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-                      <input
-                        type="checkbox"
-                        checked={infoCampi.some((c) => c.chiave === 'coordinate')}
-                        onChange={() => toggleInfo('coordinate')}
-                        className="h-4 w-4 accent-[var(--brand-primary)]"
-                      />
-                      Mostra coordinate (link &quot;Punto esatto&quot;)
-                    </label>
-                    <AnteprimaBox>
-                      <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
-                      <VoceHeaderInfo voce={anteprimaVoce} coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')} />
-                    </AnteprimaBox>
-                  </BloccoAvanzato>
-                )}
-
-                <BloccoAvanzato
-                  title={soloManuale ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}
-                  hint="Quali dati del DB compaiono nel rapportino e nell'Excel, in che ordine e con quale etichetta. Nessuna selezione = tutti gli 11 campi di default."
-                >
-                  <div className="space-y-2">
-                    {infoCampi.map((c, idx) => (c.chiave === 'coordinate' ? null : (
-                      <div key={c.chiave} className="flex items-center gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-                        <input
-                          type="text"
-                          value={c.etichetta}
-                          onChange={(e) => updateInfoEtichetta(c.chiave, e.target.value)}
-                          className="flex-1 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                        />
-                        <span className="w-28 shrink-0 text-xs text-[var(--brand-text-muted)]">{c.chiave}</span>
-                        <button type="button" onClick={() => moveInfo(idx, -1)} disabled={idx === 0}
-                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta su">▲</button>
-                        <button type="button" onClick={() => moveInfo(idx, 1)} disabled={idx === infoCampi.length - 1}
-                          className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30" title="Sposta giù">▼</button>
-                        <button type="button" onClick={() => toggleInfo(c.chiave)}
-                          className="rounded-lg border border-[var(--danger)] px-2 py-1 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)]">Rimuovi</button>
-                      </div>
-                    )))}
-                  </div>
-                  <div className="mt-3 flex flex-wrap gap-2">
-                    {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !infoCampi.some((c) => c.chiave === d.chiave)).map((d) => (
-                      <button key={d.chiave} type="button" onClick={() => toggleInfo(d.chiave)}
-                        className="rounded-lg border border-dashed border-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]">
-                        ＋ {d.etichettaDefault}
-                      </button>
-                    ))}
-                  </div>
-                  <AnteprimaBox>
-                    <VoceDettagli voce={anteprimaVoce} dettaglio={anteprimaDettaglio} />
-                  </AnteprimaBox>
                 </BloccoAvanzato>
 
                 {haCampiFoto && (
