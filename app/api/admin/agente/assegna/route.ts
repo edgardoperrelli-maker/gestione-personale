@@ -135,6 +135,11 @@ export async function POST(req: Request) {
         pianiCreati += 1;
         rapportiniCreati += res.rapportini.length;
         if (res.interventiWarning) avvisi.push(`Interventi ${p.territorio} ${p.data}: ${res.interventiWarning}`);
+        if (res.odlBloccati?.length) {
+          avvisi.push(
+            `ODL già eseguiti positivi esclusi da ${p.territorio} ${p.data}: ${res.odlBloccati.join(', ')}.`,
+          );
+        }
 
         // storico (best-effort): una riga per operatore pianificato
         const logRows = costruisciLogRows({ data: p.data, comune: p.territorio, file, pianoId, userId, operatori: operatoriLiberi });

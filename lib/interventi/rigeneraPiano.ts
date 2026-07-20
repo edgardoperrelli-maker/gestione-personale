@@ -11,7 +11,16 @@ import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 import { recuperaTemplateIdPiano } from '@/lib/interventi/templatePiano';
 
 export type RigeneraResult =
-  | { ok: true; creati: number; preservati: number; scartati: number; rapportiniSync?: number; rapportiniWarning?: string }
+  | {
+      ok: true;
+      creati: number;
+      preservati: number;
+      scartati: number;
+      /** odl esclusi perché già eseguiti positivi altrove (invariante odlPositivi). */
+      odlBloccati?: string[];
+      rapportiniSync?: number;
+      rapportiniWarning?: string;
+    }
   | { ok: false; status: number; error: string };
 
 export async function rigeneraPiano(db: SupabaseClient, pianoId: string): Promise<RigeneraResult> {
@@ -20,7 +29,13 @@ export async function rigeneraPiano(db: SupabaseClient, pianoId: string): Promis
     const status = ens.error === 'Piano non trovato.' ? 404 : 500;
     return { ok: false, status, error: ens.error };
   }
-  const base = { ok: true as const, creati: ens.creati, preservati: ens.preservati, scartati: ens.scartati };
+  const base = {
+    ok: true as const,
+    creati: ens.creati,
+    preservati: ens.preservati,
+    scartati: ens.scartati,
+    ...(ens.odlBloccati?.length ? { odlBloccati: ens.odlBloccati } : {}),
+  };
 
   // Solo i piani che hanno GIÀ dei rapportini hanno un template "stabilito": la prima
   // generazione (scelta del modello + conferma) resta competenza del flusso esplicito.

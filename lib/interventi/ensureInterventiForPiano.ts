@@ -6,8 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
 import { reapplyOverridesInterventi } from './territorioOverride';
+import { caricaOdlGiaPositivi } from './caricaOdlPositivi';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
-import { normOdl, setOdl, vocePositiva } from './odlPositivi';
 
 export type EnsureResult = {
   creati: number;
@@ -19,43 +19,6 @@ export type EnsureResult = {
   odlGiaPositivi?: Set<string>;
   error?: string;
 };
-
-/**
- * ODL (normalizzati) del piano che hanno GIÀ un esito positivo ALTROVE: in `interventi`
- * (esito='eseguito_positivo', qualsiasi data, escluso questo piano) oppure in una voce
- * di rapportino compilata SI di un ALTRO piano (copre anche il caso "voce positiva con
- * intervento annullato"). Un ODL positivo è definitivamente chiuso: mai ripianificarlo.
- */
-async function caricaOdlGiaPositivi(
-  db: SupabaseClient,
-  pianoId: string,
-  odlTasks: string[],
-): Promise<Set<string>> {
-  if (odlTasks.length === 0) return new Set();
-
-  const { data: posInterventi } = await db
-    .from('interventi')
-    .select('odl')
-    .eq('committente', 'acea')
-    .eq('esito', 'eseguito_positivo')
-    .in('odl', odlTasks)
-    .or(`piano_id.is.null,piano_id.neq.${pianoId}`);
-
-  const { data: posVoci } = await db
-    .from('rapportino_voci')
-    .select('odl, risposte, rapportini!inner(piano_id)')
-    .in('odl', odlTasks)
-    .neq('rapportini.piano_id', pianoId);
-
-  const positivi = setOdl(((posInterventi ?? []) as Array<{ odl: string | null }>).map((r) => r.odl));
-  for (const v of (posVoci ?? []) as Array<{ odl: string | null; risposte: Record<string, unknown> | null }>) {
-    if (vocePositiva(v.risposte)) {
-      const k = normOdl(v.odl);
-      if (k) positivi.add(k);
-    }
-  }
-  return positivi;
-}
 
 // Import dinamico (non statico): `caricaTassonomia` porta `import 'server-only'`, che il bundler
 // di Next risolve ma che NON esiste come pacchetto reale — un import statico romperebbe
@@ -118,12 +81,10 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
 
   const indiceTassonomia = await caricaIndiceTassonomiaSafe();
 
-  const odlTasks = [
-    ...new Set(
-      operatori.flatMap((o) => (o.tasks ?? []).map((t) => (t.odl ?? '').trim()).filter(Boolean)),
-    ),
-  ];
-  const odlGiaPositivi = await caricaOdlGiaPositivi(db, pianoId, odlTasks);
+  // ODL del piano con positivo ALTROVE (interventi o voce SI di altro piano): un ODL
+  // positivo è definitivamente chiuso, non va mai ripianificato (lib/interventi/odlPositivi.ts).
+  const odlTasks = operatori.flatMap((o) => (o.tasks ?? []).map((t) => t.odl ?? ''));
+  const odlGiaPositivi = await caricaOdlGiaPositivi(db, odlTasks, { escludiPianoId: pianoId });
 
   const { idDaEliminare, daInserire, odlBloccati } = planInterventi({
     piano, pianoId, operatori, esistenti, territorioId, odlGiaPresenti, odlGiaPositivi, indiceTassonomia,

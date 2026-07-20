@@ -21,7 +21,7 @@ export async function POST(req: Request) {
       if (res.conflicts) body.conflicts = res.conflicts;
       return NextResponse.json(body, { status: res.status });
     }
-    return NextResponse.json({ ok: true, rapportini: res.rapportini, interventiWarning: res.interventiWarning });
+    return NextResponse.json({ ok: true, rapportini: res.rapportini, interventiWarning: res.interventiWarning, odlBloccati: res.odlBloccati });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Errore generazione rapportini.' }, { status: 500 });
   }

@@ -10,6 +10,7 @@ import { opzioniComuneGiro, etichettaComune, TARGET_DUNNING, TARGET_TUTTI, type 
 import { StoricoCard } from '@/components/modules/agente/StoricoCard';
 import { useAttesaAgente } from '../useAttesaAgente';
 import { BarraAttesaAgente } from '../BarraAttesaAgente';
+import { ConfrontoEsitiAcea } from './ConfrontoEsitiAcea';
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -157,6 +158,9 @@ export function AggiornaStatoOdl({ nav, runs, filesMaster, online }: AggiornaSta
         />
       </CardContent>
       </Card>
+
+      {/* Controllo esiti DB ↔ ACEA: si ricalcola da solo quando arriva un nuovo giro acea-stato. */}
+      <ConfrontoEsitiAcea ultimoGiroTs={runsStato[0]?.creato_il ?? null} />
 
       <StoricoCard runs={runsStato} />
     </div>
