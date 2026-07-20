@@ -93,6 +93,16 @@ non ancora lavorate. Passi, ciascuno con report conteggi prima/dopo:
 6. **Residui non mappabili** → `gruppo_attivita=NULL` + report (es. ~350 italgas con tipo
    vuoto). Decisione umana successiva; nessuna invenzione automatica.
 
+> **Revisione in esecuzione (2026-07-20, confermata con l'utente):** la pagina import
+> dedicata era stata rimossa a giugno; i file attività si caricano dalla **mappa**
+> ("+ aggiungi interventi" → Carica Excel / Scarica Template) — è da lì che sono entrate
+> le 122 righe rotte. Quindi: il rifiuto bloccante con modale (§6) vive sul caricamento
+> Excel della mappa (regola template: rigoroso se il file porta attività/gruppo, soft sui
+> file legacy senza colonna, committente 'altro' = accetta attività acea+italgas perché
+> dalla mappa passano anche file Italgas); il template (§5) sostituisce lo "Scarica
+> Template" statico della mappa, stesse colonne operative + DESCRIZIONE/GRUPPO + Leggenda.
+> `/api/interventi/import` mantiene comunque la validazione 422 come hardening.
+
 ## 5. Template Excel (download dall'app)
 
 Endpoint `GET /api/interventi/template` (autenticato): genera al volo un `.xlsx` con:

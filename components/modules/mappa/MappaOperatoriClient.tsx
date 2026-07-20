@@ -4,7 +4,6 @@ import type * as Leaflet from 'leaflet';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { isTerritoryValidOnDay } from '@/lib/territories';
-import * as XLSX from 'xlsx';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
@@ -33,6 +32,9 @@ import DatePicker from '@/components/ui/DatePicker';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 import MenuDropdown, { type MenuItem } from './MenuDropdown';
+import { ModaleErroreImport } from '@/components/modules/interventi/ModaleErroreImport';
+import { validaImport, type ErroreImport } from '@/lib/attivita/validaImport';
+import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type MappaStaffRow = {
   staffId: string;
@@ -677,6 +679,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [excelMode, setExcelMode] = useState(false);
   const [sorgente, setSorgente] = useState<'excel' | 'interventi'>('excel');
   const [excelOnlyManualAction, setExcelOnlyManualAction] = useState(false);
+  // Guardrail tassonomia sul carica Excel (spec §6 rev.): file rifiutato → modale, niente import.
+  const [erroriImport, setErroriImport] = useState<ErroreImport[] | null>(null);
   // Modalità "senza interventi": piano con solo personale, rapportini vuoti da compilare
   // unicamente con ordini manuali (es. limitazioni massive). Nessun task → niente data sul master.
   const [modalitaSenzaInterventi, setModalitaSenzaInterventi] = useState(false);
@@ -1408,6 +1412,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (!file) return;
     e.target.value = '';
     const parsed = await parseExcelToTasks(file);
+
+    // Guardrail tassonomia (spec §6 rev.): file con attività → validazione rigorosa.
+    const haAttivita = parsed.some((t) => String(t.attivita ?? '').trim() !== '' || String(t.gruppoFile ?? '').trim() !== '');
+    if (haAttivita) {
+      try {
+        const r = await fetch('/api/attivita-tassonomia');
+        if (r.ok) {
+          const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+          const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+          if (!esito.ok) { setErroriImport(esito.errori); return; } // file RIFIUTATO: niente task nel piano
+        }
+        // tassonomia non raggiungibile → non bloccare la pianificazione (guard copre a valle)
+      } catch { /* offline/errore rete: passa, copre la guard */ }
+    }
+
     // Filtra i record con codice S-AI-051
     const filtered = parsed.filter((t) => {
       const codice = (t.codice ?? '').toString().trim();
@@ -1550,6 +1569,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       // supporta ATTGIORN, Massiva/Rapportini e Export Dati/Geocall.
       // Legge anche la colonna esecutore/operatore se presente.
       const parsed = await parseExcelToTasks(file);
+
+      // Guardrail tassonomia (spec §6 rev.): file con attività → validazione rigorosa.
+      const haAttivita = parsed.some((t) => String(t.attivita ?? '').trim() !== '' || String(t.gruppoFile ?? '').trim() !== '');
+      if (haAttivita) {
+        try {
+          const r = await fetch('/api/attivita-tassonomia');
+          if (r.ok) {
+            const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+            const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+            if (!esito.ok) { setErroriImport(esito.errori); setTemplateGeocoding(null); return; } // file RIFIUTATO: niente task nel piano
+          }
+          // tassonomia non raggiungibile → non bloccare la pianificazione (guard copre a valle)
+        } catch { /* offline/errore rete: passa, copre la guard */ }
+      }
+
       if (parsed.length === 0) {
         setTemplateGeocoding(null);
         return;
@@ -2689,21 +2723,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   }, []);
 
   const downloadTemplate = useCallback(() => {
-    const headers = [
-      'CO', 'MATRICOLA', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
-      'Tipo OdL(CdL)/Servizio', 'Esecutore', 'Fascia Appuntamento/Blocco',
-      'PdR / Impianto', 'Nominativo', 'Tempo Esecuzione', 'Num Risorse', 'Lat', 'Long', 'Note per operatore',
-    ];
-    const examples = [
-      ['FIRENZE', 'MAT00012345', '20043151148', 'VIA MOLINA 4', '50013', 'CAMPI BISENZIO', 'S-PR-007', 'ROSSI', '08:00-10:00', '00594202203925', 'Mario Rossi', '30', '1', '43.819489', '11.133204', 'Citofonare Rossi'],
-      ['FIRENZE', 'MAT00067890', '20043043524', 'VIA DEI MALCONTENTI 1', '50122', 'FIRENZE', 'S-PR-053', 'BIANCHI', '08:00-10:00', '00594201242775', 'Lucia Bianchi', '30', '1', '43.768214', '11.262435', ''],
-      ['ROMA', 'MAT00099999', '30012345678', 'VIA NAZIONALE 10', '00184', 'ROMA', 'S-MR-002', 'VERDI', '10:00-12:00', '00596100174001', 'Giuseppe Verdi', '15', '2', '41.901559', '12.492510', 'Accesso dal retro'],
-    ];
-    const ws = XLSX.utils.aoa_to_sheet([headers, ...examples]);
-    ws['!cols'] = [8, 14, 16, 30, 8, 20, 20, 14, 22, 18, 24, 8, 8, 12, 12, 28].map((w) => ({ wch: w }));
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Export Dati');
-    XLSX.writeFile(wb, 'template_mappa_operatori_con_nominativo.xlsx');
+    // Template servito dal backend: 2 fogli (Import + Leggenda) sempre allineati
+    // alla tassonomia attività corrente (Task 8, GET /api/interventi/template).
+    window.location.href = '/api/interventi/template';
   }, []);
 
   // ─── Render ─────────────────────────────────────────────────────────────────
@@ -3959,6 +3981,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             </div>
           </div>
         </div>
+      )}
+      {erroriImport && (
+        <ModaleErroreImport errori={erroriImport} onClose={() => setErroriImport(null)} />
       )}
     </div>
   );

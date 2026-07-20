@@ -1,9 +1,10 @@
 /** Traduce la risposta d'errore del server (intervento manuale) in un messaggio leggibile per l'operatore. */
 export function messaggioErroreManuale(
-  j: { error?: string; dettaglio?: string; mancanti?: string[] },
+  j: { error?: string; dettaglio?: string; messaggio?: string; mancanti?: string[] },
   status: number,
 ): string {
   if (j.dettaglio && j.dettaglio.trim()) return j.dettaglio;
+  if (j.messaggio && j.messaggio.trim()) return j.messaggio;
   if (j.mancanti && j.mancanti.length > 0) return `Foto obbligatorie mancanti: ${j.mancanti.join(', ')}`;
   const map: Record<string, string> = {
     campi_mancanti: 'Indica almeno un identificativo (PDR, ODL o matricola) e un campo indirizzo (via o comune).',
@@ -14,6 +15,8 @@ export function messaggioErroreManuale(
     matricola_gia_eseguita: "Intervento già eseguito su questo misuratore. Contatta l'ufficio per la verifica.",
     tipo_file_non_valido: "Una delle foto non è un'immagine valida.",
     upload_foto_fallito: 'Caricamento foto non riuscito, riprova.',
+    attivita_obbligatoria: 'Scegli la descrizione attività: è obbligatoria.',
+    attivita_sconosciuta: "Descrizione attività non riconosciuta. Scegline una dall'elenco.",
   };
   if (j.error && map[j.error]) return map[j.error];
   return j.error && j.error.trim() ? j.error : `Errore ${status}`;

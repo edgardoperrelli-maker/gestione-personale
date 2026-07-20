@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { planInterventi, identitaIntervento, idAnnullatiDaEliminare } from './planInterventiForPiano';
 import type { Task } from '@/utils/routing/types';
+import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 const task = (over: Partial<Task>): Task => ({
   id: 't', odl: '', indirizzo: '', cap: '', citta: '', priorita: 0, fascia_oraria: '', ...over,
@@ -92,6 +93,31 @@ describe('planInterventi', () => {
     });
     // matricola diversa → job distinto → va inserito (no over-dedup)
     expect(r.daInserire).toHaveLength(1);
+  });
+
+  it('terminale senza odl con tipo variante grezza NON viene duplicato dopo la canonicalizzazione', () => {
+    // Riga terminale scritta in un giro SENZA tassonomia (variante grezza: doppi spazi, case
+    // libero); il task fresco risolve alla canonica via indice. La chiave identitaIntervento
+    // deve normalizzare il tipo (chiaveTassonomia) → stesso lavoro, niente duplicato.
+    const indice = buildTassonomiaIndex([
+      {
+        committente: 'acea',
+        descrizione: 'S-PR-003 A SONDA',
+        descrizioneNorm: 'S-PR-003 A SONDA',
+        gruppo: 'PRELIEVI',
+        attivo: true,
+      },
+    ] as TassonomiaRiga[]);
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: '', matricola: 'M1', indirizzo: 'Via Roma 1', attivita: 's-pr-003 a sonda' })] }],
+      esistenti: [
+        { id: 'e1', odl: null, stato: 'completato', matricola_contatore: 'M1', indirizzo: 'Via Roma 1', intervento_tipo: 'S-PR-003  A  Sonda' },
+      ],
+      indiceTassonomia: indice,
+    });
+    expect(r.daInserire).toHaveLength(0);
+    expect(r.idDaEliminare).toEqual([]);
   });
 
   it('scarta gli ODL già eseguiti positivi altrove e li riporta in odlBloccati', () => {

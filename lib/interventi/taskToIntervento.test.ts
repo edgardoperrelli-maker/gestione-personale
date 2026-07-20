@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { taskToIntervento } from './taskToIntervento';
 import type { Task } from '@/utils/routing/types';
+import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 const task: Task = {
   id: 't1',
@@ -52,6 +53,33 @@ describe('taskToIntervento', () => {
     const r = taskToIntervento(task, ctx);
     expect(r.stato).toBe('assegnato');
     expect(r.created_from_mappa).toBe(true);
+  });
+});
+
+const INDICE = buildTassonomiaIndex([
+  {
+    committente: 'acea',
+    descrizione: 'Limitazione Massiva su Impianto',
+    descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO',
+    gruppo: 'LIMITAZIONI MASSIVE',
+    attivo: true,
+  },
+] as TassonomiaRiga[]);
+
+describe('taskToIntervento — tassonomia', () => {
+  it('attività riconosciuta → canonica + gruppo_attivita', () => {
+    const r = taskToIntervento({ ...task, attivita: ' limitazione massiva su impianto ' }, ctx, INDICE);
+    expect(r.intervento_tipo).toBe('Limitazione Massiva su Impianto');
+    expect(r.gruppo_attivita).toBe('LIMITAZIONI MASSIVE');
+  });
+  it('attività ignota → comportamento storico, gruppo null (soft)', () => {
+    const r = taskToIntervento({ ...task, attivita: 'QUALCOSA' }, ctx, INDICE);
+    expect(r.intervento_tipo).toBe('QUALCOSA');
+    expect(r.gruppo_attivita).toBeNull();
+  });
+  it('senza indice → gruppo null, nessun errore', () => {
+    const r = taskToIntervento({ ...task, attivita: 'X' }, ctx);
+    expect(r.gruppo_attivita).toBeNull();
   });
 });
 

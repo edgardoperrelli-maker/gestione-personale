@@ -1,5 +1,5 @@
 import { dbOutbox, dbBlob, dbLavoro, indexedDbDisponibile } from './db';
-import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale } from './syncPlan';
+import { ordineInvio, classificaEsito, modoInvioManuale, esitoInvioManuale, motivoManuale400 } from './syncPlan';
 import { esitoErroreRete } from './outboxModel';
 import { idOutboxVoce } from './ids';
 import { inviaRitentabile } from './inviaRitentabile';
@@ -7,8 +7,10 @@ import type { OutboxItem } from './types';
 
 let inCorso = false;
 
-/** Esegue l'invio HTTP di un singolo elemento; restituisce lo status (0 = errore rete). */
-async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean; differita?: boolean }> {
+/** Esegue l'invio HTTP di un singolo elemento; restituisce lo status (0 = errore rete).
+ *  `motivo` (opzionale) sovrascrive il motivo generico di classificaEsito per i blocchi
+ *  in cui il body del server porta un messaggio più specifico (es. attività, spec §7). */
+async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritentabile?: boolean; differita?: boolean; motivo?: string }> {
   try {
     if (item.type === 'voce') {
       // Le risposte CORRENTI stanno in dbLavoro: il ramo foto vi riscrive il path reale dopo
@@ -121,7 +123,13 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         return { status: r.status, differita: true };
       }
       if (esito.tipo === 'ritenta') return { status: r.status === 0 ? 0 : r.status, ritentabile: true };
-      // bloccato
+      // bloccato: sul 400 leggi il body — i codici attività (spec §7) hanno un messaggio
+      // amichevole dedicato al posto del generico "riapri il link" (che qui sarebbe fuorviante).
+      if (r.status === 400) {
+        const j = (await r.json().catch(() => null)) as { error?: string; messaggio?: string } | null;
+        const motivo = motivoManuale400(j);
+        if (motivo) return { status: r.status, motivo };
+      }
       return { status: r.status };
     }
     // invia
@@ -152,13 +160,13 @@ export async function sincronizzaToken(token: string): Promise<boolean> {
     const ordinati = ordineInvio(items);
     for (const item of ordinati) {
       await dbOutbox.put({ ...item, stato: 'in_invio' });
-      const { status, ritentabile, differita } = await inviaElemento(item);
+      const { status, ritentabile, differita, motivo } = await inviaElemento(item);
       if (differita) continue; // attesa/conferma differita: stato già persistito, prosegui con gli altri item
       const esito = ritentabile ? ({ esito: 'ritenta' } as const) : classificaEsito(status);
       if (esito.esito === 'completato') {
         await dbOutbox.rimuovi(item.id);
       } else if (esito.esito === 'bloccato') {
-        await dbOutbox.put({ ...item, stato: 'bloccato', ultimoErrore: esito.motivo });
+        await dbOutbox.put({ ...item, stato: 'bloccato', ultimoErrore: motivo ?? esito.motivo });
       } else {
         const aggiornato = esitoErroreRete(item);
         await dbOutbox.put(aggiornato);

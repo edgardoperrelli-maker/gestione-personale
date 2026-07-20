@@ -5,7 +5,7 @@ import { caricaDatiListaAttesa } from '@/lib/interventi/manuali/datiListaAttesa'
 export const dynamic = 'force-dynamic';
 
 export default async function ListaAttesaPage() {
-  const { userId, infoCampi, infoCampiPerCommittente, campiPerCommittente, adminNomi } = await caricaDatiListaAttesa();
+  const { userId, infoCampi, infoCampiPerCommittente, campiPerCommittente, adminNomi, tassonomia } = await caricaDatiListaAttesa();
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
@@ -13,7 +13,7 @@ export default async function ListaAttesaPage() {
         <p className="text-xs font-medium uppercase tracking-widest text-[var(--brand-text-muted)]">Lista attesa</p>
         <ListaAttesaNav attivo="richieste" />
       </header>
-      <CodaRichiesteManuali infoCampi={infoCampi} infoCampiPerCommittente={infoCampiPerCommittente} campiPerCommittente={campiPerCommittente} userId={userId} adminNomi={adminNomi} />
+      <CodaRichiesteManuali infoCampi={infoCampi} infoCampiPerCommittente={infoCampiPerCommittente} campiPerCommittente={campiPerCommittente} userId={userId} adminNomi={adminNomi} tassonomia={tassonomia} />
     </main>
   );
 }

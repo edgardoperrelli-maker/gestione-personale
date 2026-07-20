@@ -9,6 +9,8 @@ import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/inf
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type DatiListaAttesa = {
   userId: string;
@@ -18,6 +20,8 @@ export type DatiListaAttesa = {
   infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
   adminNomi: Record<string, string>;
+  /** Tassonomia attività: alimenta la select obbligatoria nel pannello di revisione (spec §7). */
+  tassonomia: TassonomiaRiga[];
 };
 
 /**
@@ -77,5 +81,7 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
     adminNomi[u.id] = usernameFromEmail(u.email) || u.id;
   }
 
-  return { userId: user.id, infoCampi, infoCampiPerCommittente, campiPerCommittente, adminNomi };
+  const tassonomia = await caricaTassonomia().catch(() => []);
+
+  return { userId: user.id, infoCampi, infoCampiPerCommittente, campiPerCommittente, adminNomi, tassonomia };
 }
