@@ -2,6 +2,7 @@
 // Nessun I/O. L'I/O sta in ensureInterventiForPiano.ts.
 import { taskToIntervento, type InterventoDaMappa } from './taskToIntervento';
 import type { Task } from '@/utils/routing/types';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type PianoMeta = { data: string };
 export type OperatorePiano = { staff_id: string; tasks: Task[] | null };
@@ -23,6 +24,8 @@ export type PianoPlanInput = {
   territorioId: string | null;
   /** odl già presenti in `interventi` su ALTRI piani della stessa data (indice unico globale). */
   odlGiaPresenti?: Set<string>;
+  /** Indice tassonomia (Task 2) per la derivazione soft di intervento_tipo canonico + gruppo_attivita. */
+  indiceTassonomia?: Map<string, TassonomiaRiga>;
 };
 
 export type PianoPlan = {
@@ -93,13 +96,17 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
 
   for (const op of input.operatori) {
     for (const t of op.tasks ?? []) {
-      const rec = taskToIntervento(t, {
-        committente,
-        data: input.piano.data,
-        staffId: op.staff_id,
-        pianoId: input.pianoId,
-        territorioId: input.territorioId,
-      });
+      const rec = taskToIntervento(
+        t,
+        {
+          committente,
+          data: input.piano.data,
+          staffId: op.staff_id,
+          pianoId: input.pianoId,
+          territorioId: input.territorioId,
+        },
+        input.indiceTassonomia,
+      );
       // Già chiuso (per ODL o per identità composta indirizzo+matricola) → preserva, non duplicare.
       const key = identitaIntervento(rec);
       if (key && keyTerminali.has(key)) continue;

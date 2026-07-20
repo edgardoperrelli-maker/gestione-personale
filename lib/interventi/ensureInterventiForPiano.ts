@@ -1,11 +1,29 @@
 // Garantisce che gli interventi del piano esistano e siano allineati ai task correnti.
-// Riceve il client Supabase per dependency injection: NON importa server-only/supabaseAdmin,
-// così è riusabile sia dalle route API sia dallo script di backfill (tsx).
+// Riceve il client Supabase per dependency injection: NON importa staticamente server-only/
+// supabaseAdmin, così è riusabile sia dalle route API sia dallo script di backfill (tsx).
+// (L'arricchimento tassonomia sotto è un'eccezione best-effort: import DINAMICO, dentro try/
+// catch — se fallisce, es. nello script tsx, degrada a comportamento storico senza rompere il giro.)
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
 import { reapplyOverridesInterventi } from './territorioOverride';
+import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type EnsureResult = { creati: number; preservati: number; scartati: number; error?: string };
+
+// Import dinamico (non statico): `caricaTassonomia` porta `import 'server-only'`, che il bundler
+// di Next risolve ma che NON esiste come pacchetto reale — un import statico romperebbe
+// l'esecuzione di questo file fuori da Next (lo script di backfill via tsx). L'import dinamico
+// posticipa la resoluzione al momento della chiamata, dentro il try/catch: se fallisce (script
+// tsx, o errore DB) la derivazione tassonomia è best-effort e la pianificazione NON si blocca.
+async function caricaIndiceTassonomiaSafe(): Promise<Map<string, TassonomiaRiga> | undefined> {
+  try {
+    const { caricaTassonomia } = await import('@/lib/attivita/caricaTassonomia');
+    const righe = await caricaTassonomia();
+    return buildTassonomiaIndex(righe);
+  } catch {
+    return undefined;
+  }
+}
 
 export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: string): Promise<EnsureResult> {
   const { data: pianoRow } = await db
@@ -51,8 +69,10 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
     ((altri ?? []) as Array<{ odl: string | null }>).map((r) => r.odl).filter((x): x is string => !!x),
   );
 
+  const indiceTassonomia = await caricaIndiceTassonomiaSafe();
+
   const { idDaEliminare, daInserire } = planInterventi({
-    piano, pianoId, operatori, esistenti, territorioId, odlGiaPresenti,
+    piano, pianoId, operatori, esistenti, territorioId, odlGiaPresenti, indiceTassonomia,
   });
 
   const preservati = esistenti.length - idDaEliminare.length;
