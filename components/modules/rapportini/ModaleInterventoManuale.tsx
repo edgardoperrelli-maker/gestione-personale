@@ -20,6 +20,7 @@ import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { accodaManuale } from '@/lib/offline/persistManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
 import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
+import { committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
@@ -40,6 +41,7 @@ export function ModaleInterventoManuale({
   committenteIniziale,
   anagraficaIniziale,
   parentVoceId,
+  tassonomia,
 }: {
   token: string;
   /** Anagrafica del rapportino: fallback quando il template manuale non ne definisce una. */
@@ -59,6 +61,8 @@ export function ModaleInterventoManuale({
   committenteIniziale?: CommittenteManuale;
   anagraficaIniziale?: AnagraficaManuale;
   parentVoceId?: string | null;
+  /** Tassonomia attività (committente, descrizione, gruppo): alimenta la select obbligatoria (spec §7). */
+  tassonomia?: TassonomiaRiga[];
 }) {
   const [step, setStep] = useState<1 | 2 | 3 | 4>(committenteIniziale ? 2 : 1);
   const [committente, setCommittente] = useState<CommittenteManuale | null>(committenteIniziale ?? null);
@@ -75,6 +79,15 @@ export function ModaleInterventoManuale({
     () => anagraficaCampi((committente && infoCampiPerCommittente[committente]) || infoCampi),
     [committente, infoCampiPerCommittente, infoCampi],
   );
+  // Descrizione attività: lista chiusa dalla tassonomia (spec §7), filtrata per committente
+  // equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive, nessuna riga propria).
+  const opzioniAttivita = useMemo(() => {
+    const ce = committente ? committenteEquivalente(committente) : null;
+    const attive = (tassonomia ?? []).filter((t) => t.attivo);
+    if (!ce) return [];
+    if (ce === 'altro') return attive;
+    return attive.filter((t) => t.committente === ce);
+  }, [tassonomia, committente]);
   // Lo STANDARD (template del rapportino) comanda; il template manuale del committente fa
   // override SOLO se valorizzato. Vuoto ⇒ eredita lo standard → "modifico lo standard, segue il +".
   const override = committente ? campiPerCommittente[committente] : undefined;
@@ -95,6 +108,10 @@ export function ModaleInterventoManuale({
     const mancanti = campiObbligatoriMancanti(campiEsito, risposte);
     if (mancanti.length > 0) {
       setErrore(`Compila i campi obbligatori: ${mancanti.join(', ')}.`);
+      return;
+    }
+    if (!String(anagrafica.attivita ?? '').trim()) {
+      setErrore('Scegli la descrizione attività: è obbligatoria.');
       return;
     }
     setInviando(true);
@@ -182,19 +199,39 @@ export function ModaleInterventoManuale({
           <div className="space-y-3">
             <div className="grid grid-cols-2 gap-x-2 gap-y-2">
               {campiAnag.map((c) => (
-                <div key={c.chiave} className="min-w-0">
-                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
-                  <input
-                    type="text"
-                    value={anagrafica[c.chiave] ?? ''}
-                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
-                    // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
-                    // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
-                    // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
-                    onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                    onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  />
+                <div key={c.chiave} className={c.chiave === 'attivita' ? 'col-span-2 min-w-0' : 'min-w-0'}>
+                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    {c.etichetta}
+                    {c.chiave === 'attivita' && <span className="text-[var(--danger)]"> *</span>}
+                  </label>
+                  {c.chiave === 'attivita' ? (
+                    // Descrizione attività: OBBLIGATORIA, lista chiusa dalla tassonomia (spec §7).
+                    <select
+                      required
+                      value={String(anagrafica.attivita ?? '')}
+                      onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
+                      className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    >
+                      <option value="">— scegli l&apos;attività —</option>
+                      {opzioniAttivita.map((o) => (
+                        <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
+                          {o.descrizione} — {o.gruppo}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input
+                      type="text"
+                      value={anagrafica[c.chiave] ?? ''}
+                      // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
+                      // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
+                      // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
+                      // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
+                      onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                      onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                      className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+                    />
+                  )}
                 </div>
               ))}
             </div>

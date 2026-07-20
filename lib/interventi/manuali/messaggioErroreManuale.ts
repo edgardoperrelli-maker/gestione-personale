@@ -14,6 +14,8 @@ export function messaggioErroreManuale(
     matricola_gia_eseguita: "Intervento già eseguito su questo misuratore. Contatta l'ufficio per la verifica.",
     tipo_file_non_valido: "Una delle foto non è un'immagine valida.",
     upload_foto_fallito: 'Caricamento foto non riuscito, riprova.',
+    attivita_obbligatoria: 'Scegli la descrizione attività: è obbligatoria.',
+    attivita_sconosciuta: "Descrizione attività non riconosciuta. Scegline una dall'elenco.",
   };
   if (j.error && map[j.error]) return map[j.error];
   return j.error && j.error.trim() ? j.error : `Errore ${status}`;

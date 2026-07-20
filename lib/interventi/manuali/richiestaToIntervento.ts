@@ -2,6 +2,7 @@
 // per la tabella canonica `interventi`. Speculare a lib/interventi/taskToIntervento.ts,
 // ma origine='manuale' e created_from_mappa=false. L'I/O (insert) sta nella route.
 import type { CommittenteManuale, DatiInterventoManuale } from './types';
+import { risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type ContextInterventoManuale = {
   committente: CommittenteManuale;
@@ -24,6 +25,7 @@ export type InterventoManualeRecord = {
   fascia_oraria: string | null;
   matricola_contatore: string | null;
   intervento_tipo: string | null;
+  gruppo_attivita: string | null;
   data: string;
   staff_id: string;
   stato: 'completato';
@@ -50,6 +52,7 @@ function parseCoord(raw: string | null | undefined): [number | null, number | nu
 export function richiestaToIntervento(
   dati: DatiInterventoManuale,
   ctx: ContextInterventoManuale,
+  indice?: Map<string, TassonomiaRiga>,
 ): InterventoManualeRecord {
   const a = dati.anagrafica;
   const [lat, lng] = parseCoord(a.coordinate);
@@ -65,7 +68,15 @@ export function richiestaToIntervento(
     lng,
     fascia_oraria: trimOrNull(a.fascia_oraria),
     matricola_contatore: trimOrNull(a.matricola),
-    intervento_tipo: trimOrNull(a.attivita),
+    // Descrizione canonica + gruppo se l'attività risolve in tassonomia; altrimenti il testo
+    // grezzo (retro-compat coda offline) con gruppo null.
+    ...(function classifica() {
+      const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice) : null;
+      return {
+        intervento_tipo: ris ? ris.descrizione : trimOrNull(a.attivita),
+        gruppo_attivita: ris ? ris.gruppo : null,
+      };
+    })(),
     data: ctx.data,
     staff_id: ctx.staff_id,
     stato: 'completato',

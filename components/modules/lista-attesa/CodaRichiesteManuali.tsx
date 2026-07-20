@@ -10,6 +10,7 @@ import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommitte
 import { formatDataIt, formatOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { datiAnagraficaCoda, filtraCoda } from '@/lib/interventi/manuali/filtraCoda';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
@@ -20,12 +21,15 @@ export function CodaRichiesteManuali({
   campiPerCommittente,
   userId,
   adminNomi,
+  tassonomia,
 }: {
   infoCampi: TemplateInfoCampo[];
   infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>>;
   campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
   userId: string;
   adminNomi: Record<string, string>;
+  /** Tassonomia attività: alimenta la select obbligatoria nel pannello di revisione (spec §7). */
+  tassonomia?: TassonomiaRiga[];
 }) {
   const { richieste, count, live, refresh } = useRichiesteManualiFeed();
   const [aperta, setAperta] = useState<string | null>(null);
@@ -186,6 +190,7 @@ export function CodaRichiesteManuali({
                       riga={r}
                       infoCampi={infoCampiPerCommittente[r.committente] ?? infoCampi}
                       campiEsito={campiPerCommittente[r.committente] ?? []}
+                      tassonomia={tassonomia}
                       onDecisa={() => { setAperta(null); void refresh(); }}
                     />
                   </div>

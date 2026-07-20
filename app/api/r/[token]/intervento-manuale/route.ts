@@ -9,6 +9,8 @@ import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
 import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefault';
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 import { campiFoto, validaFotoObbligatorie } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { maiuscolo, maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
 import { risolviCampiManuali } from '@/lib/interventi/manuali/risolviCampiManuali';
@@ -134,6 +136,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   if (attivitaDefault && !String((anagrafica as { attivita?: unknown }).attivita ?? '').trim()) {
     (anagrafica as { attivita?: string }).attivita = attivitaDefault;
   }
+
+  // Obbligo descrizione attività (spec §7) con retro-compat per la coda offline: i payload
+  // vecchi (senza attività) sono già coperti dal fallback del default storico sopra; un'attività
+  // PRESENTE ma fuori tassonomia è un errore (client nuovo → lista chiusa).
+  const indiceTassonomia = buildTassonomiaIndex(await caricaTassonomia());
+  const attivitaRaw = String((anagrafica as { attivita?: unknown }).attivita ?? '').trim();
+  if (!attivitaRaw) {
+    return NextResponse.json({ error: 'attivita_obbligatoria' }, { status: 400 });
+  }
+  if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia)) {
+    return NextResponse.json({ error: 'attivita_sconosciuta', attivita: attivitaRaw }, { status: 400 });
+  }
+  (anagrafica as { attivita?: string }).attivita = attivitaRaw;
 
   const dati: DatiInterventoManuale = {
     committente,
@@ -376,7 +391,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       data: rap.data as string,
       staff_id: String(rap.staff_id ?? ''),
       piano_id: (rap.piano_id as string | null) ?? null,
-    });
+    }, indiceTassonomia);
     const { data: intRow, error: eInt } = await supabaseAdmin
       .from('interventi')
       .insert(record)

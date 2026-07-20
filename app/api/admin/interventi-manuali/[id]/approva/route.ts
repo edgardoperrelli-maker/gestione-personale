@@ -8,6 +8,8 @@ import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigil
 import { usernameFromEmail } from '@/lib/auth/usernameFromEmail';
 import { fotoPresentiVerificate, pathMancanti } from '@/lib/interventi/manuali/verificaFotoStorage';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 
 export const runtime = 'nodejs';
 
@@ -42,6 +44,21 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
 
   const dati = (body.dati_correnti ?? richiesta.dati_correnti) as DatiInterventoManuale;
   const committente = (dati.committente ?? richiesta.committente) as CommittenteManuale;
+
+  // ── OBBLIGO DESCRIZIONE ATTIVITÀ (spec §7, BLOCCANTE) ────────────────────────
+  // Anche l'approvazione crea un intervento (corsia "normale"): senza questo controllo una
+  // richiesta vecchia/non classificata (o corretta a mano fuori tassonomia) genererebbe un
+  // intervento con gruppo_attivita mancante. Stesso motore/lista chiusa del "+" e della route
+  // di creazione.
+  const indiceTassonomia = buildTassonomiaIndex(await caricaTassonomia());
+  const attivitaRaw = String((dati.anagrafica as { attivita?: unknown } | undefined)?.attivita ?? '').trim();
+  if (!attivitaRaw) {
+    return NextResponse.json({ error: 'attivita_obbligatoria' }, { status: 400 });
+  }
+  if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia)) {
+    return NextResponse.json({ error: 'attivita_sconosciuta', attivita: attivitaRaw }, { status: 400 });
+  }
+  dati.anagrafica.attivita = attivitaRaw;
 
   // ── CONTROLLO SIGILLO DUPLICATO (BLOCCANTE, NON forzabile) ───────────────────
   // Un sigillo è un identificativo fisico unico: lo stesso sigillo su due interventi è
@@ -180,7 +197,7 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
     data: (richiesta.data as string),
     staff_id: String(richiesta.staff_id ?? ''),
     piano_id: (richiesta.piano_id as string | null) ?? null,
-  });
+  }, indiceTassonomia);
 
   const { data: intRow, error: eInt } = await supabaseAdmin
     .from('interventi')

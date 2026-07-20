@@ -11,6 +11,7 @@ import RapportinoForm, {
   type Voce as FormVoce,
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { BrandHeader } from '@/components/brand/BrandHeader';
 import { BRAND, appBaseUrl } from '@/lib/brand';
 
@@ -275,6 +276,11 @@ export default async function RapportinoPublicPage({
     }
   }
 
+  // Tassonomia attività: alimenta la select obbligatoria del "+" (spec §7). Non fatale: se il
+  // caricamento fallisce, la select resta vuota (l'operatore non può inviare senza scegliere,
+  // meglio bloccato in modo esplicito che con un default silenzioso).
+  const tassonomia = await caricaTassonomia().catch(() => []);
+
   return (
     <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
       <ServiceWorkerRegister />
@@ -295,6 +301,7 @@ export default async function RapportinoPublicPage({
         fotoSoloMassive={fotoSoloMassive}
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
+        tassonomia={tassonomia}
       />
     </main>
   );

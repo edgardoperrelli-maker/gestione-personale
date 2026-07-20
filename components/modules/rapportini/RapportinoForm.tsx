@@ -15,6 +15,7 @@ import { TaskViaFocus } from './TaskViaFocus';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import { voceTaskVia } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
@@ -86,6 +87,8 @@ type Props = {
   fotoSoloMassive?: boolean;
   tipo?: 'standard' | 'risanamento';
   righe?: RigaRisanamento[];
+  /** Tassonomia attività (committente, descrizione, gruppo): alimenta la select obbligatoria del "+" (spec §7). */
+  tassonomia?: TassonomiaRiga[];
 };
 
 const DEBOUNCE_MS = 800;
@@ -134,6 +137,7 @@ export default function RapportinoForm({
   fotoSoloMassive = false,
   tipo,
   righe: righeRisanamento,
+  tassonomia,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
   // Risanamento: le "azioni" (campi foto) si leggono LIVE dal template collegato, non dallo snapshot
@@ -547,6 +551,7 @@ export default function RapportinoForm({
           committenteIniziale={prefillManuale?.committenteIniziale}
           anagraficaIniziale={prefillManuale?.anagraficaIniziale}
           parentVoceId={prefillManuale?.parentVoceId}
+          tassonomia={tassonomia}
           voci={voci}
           onApriAssegnato={(voceId) => {
             setModaleAperta(false);

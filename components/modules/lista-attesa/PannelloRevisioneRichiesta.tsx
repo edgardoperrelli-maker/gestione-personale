@@ -11,8 +11,10 @@ import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
+import { committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
 
 type DuplicatoMatricola = {
   id: string;
@@ -35,11 +37,14 @@ export function PannelloRevisioneRichiesta({
   riga,
   infoCampi,
   campiEsito,
+  tassonomia,
   onDecisa,
 }: {
   riga: RigaRichiesta;
   infoCampi: TemplateInfoCampo[];
   campiEsito: TemplateCampo[];
+  /** Tassonomia attività: alimenta la select obbligatoria (spec §7). */
+  tassonomia?: TassonomiaRiga[];
   onDecisa: () => void;
 }) {
   const iniziali = useMemo(() => datiFormRevisione(riga), [riga]);
@@ -52,6 +57,13 @@ export function PannelloRevisioneRichiesta({
   const [sigBloccante, setSigBloccante] = useState<{ sigillo: string; duplicati: DuplicatoSigillo[] } | null>(null);
   const [fotoAvviso, setFotoAvviso] = useState<number | null>(null);
   const campiAnag = useMemo(() => anagraficaCampi(infoCampi), [infoCampi]);
+  // Descrizione attività: lista chiusa dalla tassonomia (spec §7), come nel "+" — stesso filtro
+  // per committente equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive).
+  const opzioniAttivita = useMemo(() => {
+    const ce = committenteEquivalente(riga.committente);
+    const attive = (tassonomia ?? []).filter((t) => t.attivo);
+    return ce === 'altro' ? attive : attive.filter((t) => t.committente === ce);
+  }, [tassonomia, riga.committente]);
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }>>([]);
   const caricaFoto = useCallback(async () => {
     try {
@@ -63,6 +75,10 @@ export function PannelloRevisioneRichiesta({
   useEffect(() => { void caricaFoto(); }, [caricaFoto]);
 
   const approva = async (forza = false, forzaFoto = false) => {
+    if (!String(anagrafica.attivita ?? '').trim()) {
+      setErrore('Scegli la descrizione attività: è obbligatoria.');
+      return;
+    }
     setBusy(true); setErrore(null); setSigBloccante(null);
     try {
       const dati_correnti: DatiInterventoManuale = { committente: iniziali.committente, anagrafica, risposte };
@@ -105,16 +121,34 @@ export function PannelloRevisioneRichiesta({
       {campiAnag.length > 0 && (
         <div className="grid grid-cols-2 gap-x-2 gap-y-2">
           {campiAnag.map((c) => (
-            <div key={c.chiave} className="min-w-0">
+            <div key={c.chiave} className={c.chiave === 'attivita' ? 'col-span-2 min-w-0' : 'min-w-0'}>
               <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
                 {c.etichetta}
+                {c.chiave === 'attivita' && <span className="text-[var(--danger)]"> *</span>}
               </label>
-              <Input
-                type="text"
-                value={anagrafica[c.chiave] ?? ''}
-                onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))}
-                className="py-1.5 text-xs"
-              />
+              {c.chiave === 'attivita' ? (
+                // Descrizione attività: OBBLIGATORIA, lista chiusa dalla tassonomia (spec §7).
+                <Select
+                  required
+                  value={anagrafica.attivita ?? ''}
+                  onChange={(e) => setAnagrafica((p) => ({ ...p, attivita: e.target.value }))}
+                  className="py-1.5 text-xs"
+                >
+                  <option value="">— scegli l&apos;attività —</option>
+                  {opzioniAttivita.map((o) => (
+                    <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
+                      {o.descrizione} — {o.gruppo}
+                    </option>
+                  ))}
+                </Select>
+              ) : (
+                <Input
+                  type="text"
+                  value={anagrafica[c.chiave] ?? ''}
+                  onChange={(e) => setAnagrafica((p) => ({ ...p, [c.chiave]: e.target.value }))}
+                  className="py-1.5 text-xs"
+                />
+              )}
             </div>
           ))}
         </div>
