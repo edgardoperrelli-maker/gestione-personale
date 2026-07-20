@@ -45,4 +45,8 @@ export const TemplateSchema = z.object({
   task_via: z.boolean().optional().default(false),
   /** Template "ibrido": attività classiche + voci BONIFICHE EXTRA (task-via) nello stesso rapportino. */
   task_via_ibrido: z.boolean().optional().default(false),
+  /** Collegamento "Azioni operatori": committente della gerarchia del flowchart (≠ `committente` runtime). */
+  gruppo_committente: z.enum(['acea', 'italgas', 'acqualatina']).nullable().optional(),
+  /** Gruppi attività coperti dal flusso (un ibrido può coprirne più d'uno). */
+  gruppi_attivita: z.array(z.string().min(1)).nullable().optional(),
 });

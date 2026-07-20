@@ -1,14 +1,7 @@
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import TemplateRapportiniClient from './TemplateRapportiniClient';
+import { redirect } from 'next/navigation';
 
-export const dynamic = 'force-dynamic';
-
-export default async function TemplateRapportiniPage() {
-  const { data } = await supabaseAdmin
-    .from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, is_default, active, solo_manuale, task_via, task_via_ibrido, updated_at')
-    .order('is_default', { ascending: false })
-    .order('nome');
-
-  return <TemplateRapportiniClient initial={data ?? []} />;
+// Modulo Template rapportini RIMOSSO: sostituito da Azioni operatori
+// (Committente → Gruppo attività → azioni del flusso). Redirect di cortesia per i bookmark.
+export default function TemplateRapportiniPage() {
+  redirect('/impostazioni/azioni-operatori');
 }

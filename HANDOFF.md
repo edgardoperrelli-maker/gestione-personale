@@ -1,91 +1,123 @@
-# Handoff — 2026-07-20: Motore Gruppo attività (fase 1+2) IN PRODUZIONE
+# Handoff — 2026-07-20 (sera): modulo "Azioni operatori" sostituisce i Template rapportini
 
-**Generated**: 2026-07-20 ~16:10 · **Branch**: `main` (= produzione Vercel, deploy live 15:59) · **Status**: CONCLUSO — fase 1 (PR #113) e fase 2 (PR #115) mergiate, deployate e verificate E2E. Restano solo follow-up minori tracciati.
+**Generated**: 2026-07-20 ~17:00 · **Branch**: `feat/azioni-operatori` (worktree, base = origin/main `736fb4e`) · **Status**: implementazione COMPLETA, PR aperta (2 task ATLAS). ⚠️ Un solo passo mancante: **applicare la migration al prod PRIMA del merge** (vedi "Not Yet Done").
 
 ## Goal
 
-Partito da: "perché l'agente non ha riportato gli interventi del 17/07 sul master Labico?" → diagnosi silent-drop → costruito il **motore tassonomia attività** (fonte di verità unica `attivita_tassonomia`) con guardrail su tutti i punti d'ingresso, e (fase 2) filtro export dell'agente sul gruppo + UI self-service. Base dichiarata della prossima feature dell'utente.
+I due task ATLAS "FLUSSO SOSTITUTIVO DEI TEMPLATE" + "RIMOZIONE TEMPLATE": le azioni che gli
+operatori eseguono sono collegate direttamente al **Gruppo attività** (motore tassonomia,
+handoff precedente); il modulo Template rapportini è eliminato e sostituito dal nuovo modulo
+**Impostazioni → Azioni operatori** con la gerarchia del flowchart ATLAS:
+COMMITTENTE (Italgas, Acea, Acqualatina) → GRUPPO ATTIVITA' → FLUSSO (già presente).
+I flussi runtime NON cambiano: "occorre solo renderli modificabili nel nuovo modulo".
 
 ## Completed
 
-- [x] **Diagnosi**: 122 interventi Labico 17/07 (`committente='acea'`, `intervento_tipo` VUOTO, `created_from_mappa`) invisibili al filtro export testuale. Causa a monte: parser che non riconosceva "Operazione testo breve" + travaso manuale dal master per-comune (che non ha colonna attività).
-- [x] **Backfill immediato** dei 122 (tipo='Limitazione Massiva su Impianto') — esiti verificati sui rapportini (52 eseguito / 70 No reali, nessun positivo nascosto).
-- [x] **Fase 1 (PR #113)**: tabella `attivita_tassonomia` (69 voci; chiave = `attivita_norm` SQL ≡ `normalizzaAttivita` TS), colonna `interventi.gruppo_attivita` + backfill/canonicalizzazione/fix committente (alias produzione clonati), guardrail MAPPA (rifiuto totale con `ModaleErroreImport` se il file ha attività non conformi; lookup con committente 'altro' perché dalla mappa passano anche file Italgas), template server con Leggenda dal DB, select obbligatoria su TUTTI i percorsi manuali (+400 server con retro-compat coda offline), derivazione soft in pianificazione + dedup `identitaIntervento` normalizzata, Guard 2.
-- [x] **Fase 2 (PR #115)**: export `app/api/export/limitazioni-massive` seleziona per `.eq('gruppo_attivita','LIMITAZIONI MASSIVE')` (−256 contaminazioni DUNNING da omonimia ilike, 0 massive perse); pagina **Impostazioni → Tassonomia attività** (aggiungi/attiva-disattiva/elimina-se-inutilizzata, NO rename by design) + API `admin/attivita-tassonomia`; Guard 3 (gruppi massiva-like ≠ literal).
-- [x] Post-merge verificato: Guard 1=0, Guard 2=11 (sole italgas tipo-vuoto note, buco soft voluto), Guard 3=0; **E2E endpoint deployato con chiave agente: 1064 righe = DB esatto** (929 eseguito + 135 No).
-- [x] Chip chiuso: `scanColonne.stamp` gitignorato e untracked (`bf7a543`).
+- [x] **DB**: colonne `gruppo_committente` (check acea|italgas|acqualatina) + `gruppi_attivita text[]`
+  su `rapportino_template`, check coppia coerente, seed idempotente per nome dei collegamenti dei
+  flussi esistenti (migration `20260720190000_template_gruppo_attivita.sql`). Un flusso può coprire
+  più gruppi: Ibrido acea = LIMITAZIONI MASSIVE + DUNNING; ITALGAS = ATTIVITA' ALLA CLIENTELA +
+  BONIFICHE. NON tocca `committente`/`is_default`/`solo_manuale` (instradamento runtime intatto).
+- [x] **Logica pura** `lib/rapportini/flussiGruppo.ts` (testata, 12 test): `buildAlberoFlussi`
+  (committenti fissi del flowchart; gruppi = tassonomia attiva ∪ foglia extra
+  acqualatina/SOSTITUZIONE MISURATORI ∪ gruppi referenziati dai collegamenti, match su chiave
+  normalizzata `chiaveTassonomia`; manuali per committente con equivalenza lim_massive→acea;
+  non collegati) + `normalizzaCollegamento` (coppia coerente col check DB, dedup normalizzato).
+- [x] **API** `/api/admin/rapportino-template`: GET/POST/PATCH portano `gruppo_committente` +
+  `gruppi_attivita` (zod esteso in `templateSchema.ts`; il PATCH normalizza la coppia — il client
+  manda sempre entrambe).
+- [x] **Nuovo modulo** `app/impostazioni/azioni-operatori/`: navigazione a livelli (card
+  committente con conteggi → gruppi con flussi collegati → editor), sezione "Interventi manuali (+)"
+  per committente, "Flussi non collegati" in home, "+ Flusso" per creare un flusso già collegato al
+  gruppo, "+ Modello manuale". Editor = quello storico (auto-save 800ms, lock ottimistico 409,
+  anteprime, scope foto risanamento) + sezione "Collegamento al gruppo attività" (select committente
+  + chips multi-gruppo). `soloManuale` è un checkbox esplicito (niente più schede).
+- [x] **Rimozione Template rapportini**: client/schede eliminati; `template-rapportini/page.tsx` →
+  `redirect('/impostazioni/azioni-operatori')`; card Impostazioni sostituita ("Azioni operatori");
+  `templateScheda.ts` snellito a `erroreCommittenteManuale` (schede orfane rimosse coi loro test).
+- [x] **Verifica**: vitest 244 file / 1870 test verdi; `tsc --noEmit` pulito; eslint pulito sui file
+  toccati; `next build` ok (nel worktree serve `.env.local` copiato a mano: è gitignorato).
+- [x] ROADMAP.md aggiornata (task nei "Fatto", follow-up fase 2 nei "Da fare").
 
-## Not Yet Done (follow-up minori, tutti fail-safe, nessuno urgente)
+## Not Yet Done
 
-- [ ] Guardrail UI: impedire (o confermare fortemente) la disattivazione della voce acea "LIMITAZIONI MASSIVE" — l'export si àncora a quel literal (Guard 3 copre il typo, non la disattivazione).
-- [ ] Divergenza mappa: guardrail valida con 'altro' ma `planInterventi` persiste con committente 'acea' → file Italgas via mappa producono `gruppo_attivita=NULL` (visibili in Guard 2). Si chiude decidendo il committente per-file o in una fase 3.
-- [ ] `validaImport` gira prima del filtro S-AI-051 in `MappaOperatoriClient` (rifiuto strict-safe di righe che sarebbero comunque scartate).
-- [ ] Idempotenza dopo l'obbligo in `/api/r/[token]/intervento-manuale` (re-invio di già-persistito con attività legacy → chip bloccato spurio, nessuna perdita).
-- [ ] `caricaTassonomia` senza `.range()` (cap PostgREST 1000, latente a 69 righe); `utilizzoVoce` match esatto vs normalizzato; POST dup su message-regex vs `code==='23505'`; PATCH senza 404; Guard 2 con data fissa 2026-07-20 (accumula).
-- [ ] Nota fase 1: richieste manuali pendenti senza attività classificabile bloccano all'approvazione finché l'ufficio non sceglie dalla select (VOLUTO, non bug).
+- [ ] ⚠️ **Migration NON applicata al prod**: `apply_migration` bloccata dal classifier in questa
+  sessione (serve ok esplicito per-azione). SENZA la migration, dopo il deploy la GET template
+  fallisce (seleziona le colonne nuove) e si rompe anche il dropdown "Modello" della mappa.
+  **Applicarla PRIMA del merge**: contenuto = `supabase/migrations/20260720190000_template_gruppo_attivita.sql`
+  (additiva + idempotente, il codice in prod attuale la ignora → si può applicare subito senza rischi).
+- [ ] Verifica visiva completa del modulo post-migration (senza colonne il dev locale mostra
+  l'albero dalla tassonomia ma senza flussi). La navigazione/il layout sono da smoke-testare su
+  preview Vercel della PR dopo la migration.
+- [ ] Il gruppo italgas **BONIFICHE** è seedato sul flusso ITALGAS (ibrido) e **AGENDA AEREA** resta
+  senza flusso: se l'ufficio non è d'accordo, si cambia dalla UI (sezione Collegamento).
+- [ ] Follow-up fase 2 (ROADMAP): pianificazione risolve il modello dal `gruppo_attivita` degli
+  interventi invece della select manuale.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **Guardrail sulla pagina import (Task 7 originale)**: `app/hub/interventi` NON ha più l'upload — la pagina import fu rimossa a giugno (`90a870e`); l'endpoint `/api/interventi/import` è orfano (hardening 422 mantenuto comunque). I file si caricano SOLO dalla mappa ("+ aggiungi interventi" → Carica Excel / Scarica Template): il guardrail vive LÌ.
-- **Riclassificazione `lim_massive`→`acea`**: SCARTATA deliberatamente (decisione fase 2). Tocca ~20 file con semantiche vive e utili (anagrafica leggera del "+", cerca-matricola, blocco duplicati, produzione); col filtro su gruppo non compra nulla — `attivitaCanonica` già riclassifica per i KPI. `committente='lim_massive'` resta un marcatore di canale documentato.
-- **UPDATE prod via `execute_sql`**: il classifier lo blocca a volte; la via sanzionata e sempre passata è `apply_migration` con nome descrittivo (SQL idempotente).
-- **Import statico di `caricaTassonomia` fuori da Next**: `'server-only'` non esiste come pacchetto reale → crash sotto `tsx` (script backfill). Soluzione in `ensureInterventiForPiano`: **import dinamico dentro try/catch** (best-effort, degrada a soft).
-- **Validazione attività legata al template**: primo giro del Task 10 la richiedeva incondizionatamente ma la select era renderizzata solo se il campo era nel template → corsia manuale italgas completamente bloccata (il template italgas non ha il campo). Fix: la select tassonomia è SEMPRE renderizzata, indipendente da `info_campi`.
+- **`apply_migration` E `execute_sql` per DDL/UPDATE prod**: il classifier può bloccarli entrambi;
+  non aggirare — chiedere l'ok esplicito all'utente e riprovare con quello.
+- **Riusare il committente template per la gerarchia**: NO — `committente` instrada il runtime
+  (modale "+", risolviTemplateCommittente) e non ha 'acqualatina' nel check; la gerarchia del
+  flowchart è una dimensione NUOVA (`gruppo_committente`), acqualatina esiste solo lì.
+- **Inserire SOSTITUZIONE MISURATORI in tassonomia**: NO — `attivita_tassonomia.committente` ha
+  check acea|italgas|altro e il flusso risanamento non importa attività; è una foglia "extra"
+  hardcoded in `GRUPPI_EXTRA` (flussiGruppo.ts).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Chiave normalizzazione = `normalizzaAttivita` (upper, spazi, senza accenti) | Stessa chiave del listino/alias: zero doppioni; SQL `attivita_norm` speculare |
-| Mappa: rigoroso solo se il file porta attività; legacy → soft + Guard | Non bloccare mai la pianificazione quotidiana per un formato vecchio |
-| Lookup mappa con committente 'altro' | Dalla mappa passano anche file ATTGIORN Italgas: rifiutarli sarebbe un bug |
-| No rename in UI tassonomia | La descrizione canonica è referenziata dallo storico: rinominare = nuova voce + disattiva vecchia |
-| Blocco duplicati resta con l'OR largo (`approva/route.ts:100`) | Un contatore già limitato dal DUNNING deve bloccare un doppio "+" massivo |
+| Collegamento = 2 colonne su `rapportino_template` (niente tabella ponte) | 10 template, N:M coperto da `text[]`; una join table è overkill |
+| `gruppi_attivita text[]` (un flusso → più gruppi) | Ibrido acea copre LIMITAZIONI MASSIVE + DUNNING; ITALGAS copre clientela + bonifiche |
+| Gruppi data-driven dalla tassonomia (no hardcode) | 1 INSERT in tassonomia = nuovo gruppo visibile nel modulo, coerente col motore |
+| Flussi runtime intatti | Il task lo dice esplicitamente; la select "Modello" in mappa resta (fase 2 in ROADMAP) |
+| Route vecchia in redirect (non 404) | Bookmark dell'ufficio; il modulo è comunque eliminato |
+| Match gruppi su `chiaveTassonomia` | Robusto a maiuscole/accenti/spazi (stessa chiave del motore tassonomia) |
 
 ## Current State
 
-**Working**: tutto il motore in prod, E2E verificato. L'agente lim-sync (gira da QUESTO repo, tick da scheduler) riceve dal filtro nuovo già stasera; Guard 1+2+3 in `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` (eseguire dopo ogni import ACEA; attese: 0 / 11-note / 0).
+**Working**: branch `feat/azioni-operatori` (worktree `.claude/worktrees/azioni-operatori`), tutto
+implementato e verde (test/tsc/lint/build). Il repo principale è rimasto su `main` (l'agente
+lim-sync gira da lì). Migration in attesa di ok → poi merge PR → deploy Vercel.
 
-**Uncommitted changes (NON di questa sessione — sessione concorrente in corso, NON toccare)**: `tools/limitazioni-sync/{agente.mjs, config.example.json, probe.cjs}` + nuovi `lib/risolviPathConfig.*`, `scriviLog.test.ts` — filone "commessa rinominata" (memoria `acea-commessa-rinominata-path-config`).
+**Contesto precedente ancora vivo** (handoff motore tassonomia, `736fb4e`): guard runbook
+`tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` dopo ogni import ACEA (attese:
+G1=0, G2=11 note italgas, G3=0); non disattivare la voce acea "LIMITAZIONI MASSIVE" (l'export
+si àncora al literal); giro agente serale da controllare in `/hub/agente`. Le modifiche
+uncommitted su `tools/limitazioni-sync/` nel repo principale sono di un filone concorrente
+("commessa rinominata") — NON toccarle.
 
 ## Files to Know
 
 | File | Perché |
 |---|---|
-| `lib/attivita/tassonomia.ts` | Lookup puro: `risolviGruppo`, `committenteEquivalente` (lim_massive→acea), `chiaveTassonomia` |
-| `lib/attivita/validaImport.ts` | Verdetto import: un errore → rifiuto TOTALE, errori strutturati per la modale |
-| `app/api/export/limitazioni-massive/route.ts` | Filtro agente: `.eq('gruppo_attivita','LIMITAZIONI MASSIVE')` |
-| `app/api/admin/attivita-tassonomia/route.ts` + `app/impostazioni/attivita-tassonomia/` | UI self-service tassonomia |
-| `components/modules/mappa/MappaOperatoriClient.tsx` | Guardrail sui 2 siti `parseExcelToTasks` + `downloadTemplate` → server |
-| `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` | Guard 1+2+3 (runbook post-import) |
-| `supabase/migrations/2026072015*/16*` | Schema+seed, backfill, completamento DUNNING (tutte GIÀ APPLICATE in prod) |
-| `.superpowers/sdd/progress.md` | Ledger completo dei 2 cicli SDD (locale, gitignorato) |
-
-## Code Context
-
-```typescript
-// lib/attivita/tassonomia.ts — il cuore
-risolviGruppo(committente, descrizione, index) // → TassonomiaRiga | null; 'altro' prova acea→italgas
-buildTassonomiaIndex(righe)                    // Map, solo attive; chiave `${committenteEq}|${descrizioneNorm}`
-// SQL speculare: attivita_norm(s) = upper(regexp_replace(unaccent(trim(s)),'\s+',' ','g'))
-```
-
-```sql
--- Aggiungere un'attività legittima rifiutata dalla mappa (zero deploy) — o dalla UI Impostazioni:
-insert into attivita_tassonomia (committente, descrizione, gruppo) values ('acea', 'Nuova Attività', 'DUNNING');
-```
+| `lib/rapportini/flussiGruppo.ts` | Albero flowchart + normalizzaCollegamento (PURO, testato) |
+| `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` | Navigazione + editor (erede del vecchio TemplateRapportiniClient) |
+| `app/impostazioni/azioni-operatori/page.tsx` | Server: template + tassonomia (range 0-4999, no cap 1000) |
+| `app/api/admin/rapportino-template/route.ts` | API estesa col collegamento (lock ottimistico invariato) |
+| `supabase/migrations/20260720190000_template_gruppo_attivita.sql` | Colonne + check + seed — ⚠️ DA APPLICARE AL PROD |
+| `lib/rapportini/templateScheda.ts` | Ridotto a erroreCommittenteManuale |
+| `docs/superpowers/plans/2026-07-20-azioni-operatori.md` | Piano/decisioni di questa sessione |
 
 ## Resume Instructions
 
-1. **Salute del motore**: eseguire le 3 guard di `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` su Supabase. Atteso: G1=0, G2=11 righe italgas tipo-vuoto (fisso storico), G3=0. Righe NUOVE in G2 = un flusso scrive senza gruppo (probabile: file Italgas via mappa, follow-up noto).
-2. **Se la mappa rifiuta un file legittimo**: la modale elenca i valori sconosciuti; aggiungere la voce da Impostazioni → Tassonomia attività (o INSERT sopra) e ricaricare il file. Successo di riferimento: 9 attività DUNNING aggiunte così il 20/07.
-3. **Prossima feature dell'utente**: dichiarata "sulla base di questo motore", non ancora specificata. Modello dati pronto: `interventi.gruppo_attivita` + tassonomia interrogabile via `GET /api/attivita-tassonomia`.
-4. Giro agente serale del 20/07: verificare in `/hub/agente` che il report non segnali anomalie (lavori≈1064 in finestra).
+1. **Applicare la migration al prod** (con ok utente): `apply_migration` con il contenuto del file
+   `20260720190000...` — poi verificare il seed: `select nome, gruppo_committente, gruppi_attivita
+   from rapportino_template order by nome;` (attesi 7 collegati, 3 non collegati: IBRIDO
+   ITALGAS/ACEA + i 2 manuali).
+2. **Merge PR** (serve ok esplicito per-azione, classifier) → deploy Vercel automatico.
+3. Smoke test su prod: Impostazioni → Azioni operatori (3 card committente; Acea → 2 gruppi con
+   flussi; Italgas → clientela/bonifiche/extra/P.I.+AGENDA AEREA vuoto; Acqualatina → RESINE);
+   la vecchia route `/impostazioni/template-rapportini` deve reindirizzare; il dropdown "Modello"
+   della mappa deve continuare a popolare.
+4. Dopo il merge: `git pull` nel repo principale (l'agente lim-sync gira da lì — prassi standard).
 
 ## Warnings
 
-- **NON disattivare** la voce acea "LIMITAZIONI MASSIVE" dalla UI: l'export si àncora a quel literal.
-- Repo PUBBLICO: mai committare chiavi (la export key sta in `tools/limitazioni-sync/config.json`, gitignorato), nomi operatori, matricole/ODL reali.
-- L'agente gira da questo repo: dopo ogni merge che tocca `tools/limitazioni-sync` serve `git pull` qui (fatto oggi).
-- Le migration di sessione sono GIÀ applicate in prod: ri-applicarle è safe (idempotenti) ma inutile.
-- Spec/piani: `docs/superpowers/{specs,plans}/2026-07-20-*`; sintesi viva in memoria `motore-gruppo-attivita.md`.
+- Repo PUBBLICO: niente dati prod (matricole/ODL/nomi) in PR/commit. Le colonne nuove e i nomi
+  template/gruppi NON sono dati sensibili (sono configurazione).
+- Il worktree ha `.env.local` copiato a mano (gitignorato): se si ricrea il worktree, ricopiarlo.
+- L'auto-save dell'editor salva anche il collegamento: cambi di gruppo si propagano all'albero a
+  sinistra dopo ~1s (reload della lista) — comportamento voluto.

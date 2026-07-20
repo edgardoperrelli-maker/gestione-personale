@@ -1,26 +1,7 @@
-/** Le due schede dell'editor template: classici (pianificati) e interventi manuali. */
-export type SchedaTemplate = 'classici' | 'manuali';
-
-/** Riga minima per lo smistamento (solo il flag che discrimina). */
-export interface TemplateSchedaRow {
-  solo_manuale?: boolean | null;
-}
-
-/** Scheda di appartenenza di un template. `solo_manuale` falsy ⇒ classico (default storico). */
-export function schedaDiTemplate(t: TemplateSchedaRow): SchedaTemplate {
-  return t.solo_manuale ? 'manuali' : 'classici';
-}
-
-/** Filtra i template per la scheda indicata. Non muta l'array di input. */
-export function filtraTemplatePerScheda<T extends TemplateSchedaRow>(
-  templates: T[],
-  scheda: SchedaTemplate,
-): T[] {
-  return templates.filter((t) => schedaDiTemplate(t) === scheda);
-}
-
 /**
- * Validazione specifica della scheda Manuali: il committente è obbligatorio.
+ * Validazione dei modelli manuali (+): il committente è obbligatorio perché instrada
+ * la modale "+" dell'operatore. (Le schede classici/manuali dell'editor storico sono
+ * state rimosse col modulo Template rapportini → Azioni operatori.)
  * Ritorna il messaggio d'errore, oppure `null` se va bene (classico o manuale con committente).
  */
 export function erroreCommittenteManuale(input: {

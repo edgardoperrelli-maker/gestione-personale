@@ -1,5 +1,5 @@
-﻿'use client';
-import { useEffect, useRef, useState } from 'react';
+'use client';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { nomeFotoFile, FOTO_ID_CAMPI, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import {
@@ -13,14 +13,15 @@ import {
 import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
 import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
 import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
-import SchedeTipo from './SchedeTipo';
 import SezioneAccordion from './SezioneAccordion';
+import { erroreCommittenteManuale } from '@/lib/rapportini/templateScheda';
+import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
 import {
-  schedaDiTemplate,
-  filtraTemplatePerScheda,
-  erroreCommittenteManuale,
-  type SchedaTemplate,
-} from '@/lib/rapportini/templateScheda';
+  buildAlberoFlussi,
+  COMMITTENTE_FLUSSO_LABEL,
+  type CommittenteFlusso,
+  type TassonomiaGruppoRiga,
+} from '@/lib/rapportini/flussiGruppo';
 
 const SCOPE_FOTO: { v: 'misuratore' | 'fase' | 'accessoria'; label: string }[] = [
   { v: 'misuratore', label: 'Misuratore (prima/dopo)' },
@@ -44,10 +45,12 @@ type Template = {
   task_via?: boolean;
   task_via_ibrido?: boolean;
   tipo?: 'standard' | 'risanamento';
+  gruppo_committente?: string | null;
+  gruppi_attivita?: string[] | null;
   updated_at?: string;
 };
 
-type Props = { initial: Template[] };
+type Props = { initial: Template[]; tassonomia: TassonomiaGruppoRiga[] };
 
 type Feedback = { type: 'success' | 'error'; message: string };
 
@@ -79,36 +82,53 @@ const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
   ora: 'Ora',
 };
 
-export default function TemplateRapportiniClient({ initial }: Props) {
+/** Riassunto del flusso nelle liste: n azioni + natura. */
+function sottotitoloFlusso(t: Template): string {
+  const parti = [`${t.campi?.length ?? 0} azioni`];
+  if (t.solo_manuale) parti.push('manuale (+)');
+  if (t.task_via) parti.push('task-via');
+  if (t.task_via_ibrido) parti.push('ibrido task-via');
+  if (t.tipo === 'risanamento') parti.push('risanamento');
+  return parti.join(' · ');
+}
+
+export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
   const [templates, setTemplates] = useState<Template[]>(initial);
+  const [committenteSel, setCommittenteSel] = useState<CommittenteFlusso | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(false);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<Committente | ''>('');
-  const [scheda, setScheda] = useState<SchedaTemplate>('classici');
-  const soloManuale = scheda === 'manuali';
+  const [soloManuale, setSoloManuale] = useState(false);
   const [tipo, setTipo] = useState<'standard' | 'risanamento'>('standard');
-  // Flag "task-via" (solo via): i rapportini generati con questo template mostrano il contenitore + "+".
+  // Flag "task-via" (solo via): i rapportini generati con questo flusso mostrano il contenitore + "+".
   const [taskVia, setTaskVia] = useState(false);
   // Flag "ibrido": attività classiche + voci BONIFICHE EXTRA (task-via) nello stesso rapportino.
   const [taskViaIbrido, setTaskViaIbrido] = useState(false);
+  // Collegamento al flowchart: committente della gerarchia + gruppi attività coperti dal flusso.
+  const [gruppoCommittente, setGruppoCommittente] = useState<CommittenteFlusso | ''>('');
+  const [gruppiAttivita, setGruppiAttivita] = useState<string[]>([]);
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
   const [fotoIdPriority, setFotoIdPriority] = useState<FotoIdCampo[]>([]);
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
-  // Stato auto-save per i template esistenti (i nuovi si creano con "Crea template").
+  // Stato auto-save per i flussi esistenti (i nuovi si creano con "Crea flusso").
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
   // Salta l'auto-save sul primo render dopo un load/startNew (non è una modifica utente).
   const skipAutosave = useRef(true);
-  // "Version token" del template caricato (updated_at): inviato a ogni salvataggio per il lock
+  // "Version token" del flusso caricato (updated_at): inviato a ogni salvataggio per il lock
   // ottimistico. Se il DB è cambiato altrove (SQL/altra sessione) il salvataggio torna 409 e
   // l'editor ricarica invece di sovrascrivere con lo stato vecchio.
   const baseUpdatedAt = useRef<string | null>(null);
   // "Latest ref" al gestore conflitti: usato dall'auto-save senza metterlo nelle deps dell'effetto
   // (lo azzererebbe il debounce a ogni render).
   const conflictHandlerRef = useRef<(id: string) => void | Promise<void>>(() => {});
+
+  // Albero del flowchart: COMMITTENTE → GRUPPO ATTIVITA' → flussi collegati.
+  const albero = useMemo(() => buildAlberoFlussi(tassonomia, templates), [tassonomia, templates]);
+  const nodoSel = albero.committenti.find((c) => c.committente === committenteSel) ?? null;
 
   // ── Helpers ────────────────────────────────────────────────────────────────
 
@@ -125,38 +145,52 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSelectedId(tpl.id);
     setNome(tpl.nome);
     setCommittente(tpl.committente ?? '');
-    setScheda(schedaDiTemplate(tpl));
+    setSoloManuale(Boolean(tpl.solo_manuale));
     setTipo(tpl.tipo ?? 'standard');
     setTaskVia(Boolean(tpl.task_via));
     setTaskViaIbrido(Boolean(tpl.task_via_ibrido));
+    setGruppoCommittente((tpl.gruppo_committente as CommittenteFlusso | null) ?? '');
+    setGruppiAttivita(tpl.gruppi_attivita ?? []);
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
     setFotoIdPriority(tpl.foto_id_priority ?? []);
   }
 
-  function startNew() {
+  function startNew(preset: {
+    soloManuale?: boolean;
+    committente?: Committente | '';
+    gruppoCommittente?: CommittenteFlusso | '';
+    gruppiAttivita?: string[];
+  } = {}) {
     skipAutosave.current = true;
     baseUpdatedAt.current = null;
     setAutoState('idle');
     setIsNew(true);
     setSelectedId(null);
     setNome('');
-    setCommittente('');
+    setCommittente(preset.committente ?? '');
+    setSoloManuale(preset.soloManuale ?? false);
     setTipo('standard');
     setTaskVia(false);
     setTaskViaIbrido(false);
+    setGruppoCommittente(preset.gruppoCommittente ?? '');
+    setGruppiAttivita(preset.gruppiAttivita ?? []);
     setCampi([]);
     setInfoCampi([]);
     setTitoloCampi([]);
     setFotoIdPriority([]);
   }
 
-  function cambiaScheda(s: SchedaTemplate) {
+  function chiudiEditor() {
     skipAutosave.current = true;
-    setScheda(s);
     setSelectedId(null);
     setIsNew(false);
+  }
+
+  function apriCommittente(c: CommittenteFlusso | null) {
+    setCommittenteSel(c);
+    chiudiEditor();
   }
 
   async function reloadTemplates() {
@@ -167,7 +201,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     }
   }
 
-  // Conflitto di concorrenza (409): il template è stato cambiato altrove (SQL/altra sessione).
+  // Conflitto di concorrenza (409): il flusso è stato cambiato altrove (SQL/altra sessione).
   // Ricarica dal DB la versione aggiornata invece di sovrascriverla con lo stato vecchio.
   async function handleConflict(id: string) {
     const res = await fetch('/api/admin/rapportino-template');
@@ -176,7 +210,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setTemplates(data);
     const tpl = data.find((t) => t.id === id);
     if (tpl) loadTemplate(tpl); // resetta stato + baseUpdatedAt + skipAutosave
-    showFeedback('error', 'Template modificato altrove: ho ricaricato la versione aggiornata. Riapplica le tue modifiche.');
+    showFeedback('error', 'Flusso modificato altrove: ho ricaricato la versione aggiornata. Riapplica le tue modifiche.');
   }
   conflictHandlerRef.current = handleConflict;
 
@@ -269,13 +303,60 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     });
   }
 
+  // ── Collegamento al gruppo attività ────────────────────────────────────────
+
+  /** Gruppi proponibili per il committente scelto nell'editor (albero + eventuali già selezionati). */
+  const gruppiDisponibili = useMemo(() => {
+    if (!gruppoCommittente) return [];
+    const nodo = albero.committenti.find((c) => c.committente === gruppoCommittente);
+    const base = (nodo?.gruppi ?? []).map((g) => g.gruppo);
+    const chiavi = new Set(base.map((g) => chiaveTassonomia(g)));
+    const extra = gruppiAttivita.filter((g) => !chiavi.has(chiaveTassonomia(g)));
+    return [...base, ...extra];
+  }, [albero, gruppoCommittente, gruppiAttivita]);
+
+  function toggleGruppo(gruppo: string) {
+    const k = chiaveTassonomia(gruppo);
+    setGruppiAttivita((prev) => {
+      const presente = prev.some((g) => chiaveTassonomia(g) === k);
+      return presente ? prev.filter((g) => chiaveTassonomia(g) !== k) : [...prev, gruppo];
+    });
+  }
+
+  function cambiaGruppoCommittente(v: CommittenteFlusso | '') {
+    setGruppoCommittente(v);
+    setGruppiAttivita([]); // i gruppi appartengono al committente: cambiandolo si riparte
+  }
+
   // ── Save ───────────────────────────────────────────────────────────────────
 
+  function payloadCorrente() {
+    return {
+      nome: nome.trim(),
+      committente: committente || null,
+      solo_manuale: soloManuale,
+      task_via: taskVia,
+      task_via_ibrido: taskViaIbrido,
+      tipo,
+      gruppo_committente: gruppoCommittente || null,
+      gruppi_attivita: gruppiAttivita,
+      campi: campi.map((c, i) => ({
+        ...c,
+        ordine: i + 1,
+        opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
+      })),
+      info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
+      titolo_campi: titoloCampi,
+      foto_id_priority: fotoIdPriority,
+      active: true,
+    };
+  }
+
   async function handleSave() {
-    if (!nome.trim()) { showFeedback('error', 'Il nome del template è obbligatorio'); return; }
-    if (campi.length === 0) { showFeedback('error', 'Aggiungi almeno un campo'); return; }
+    if (!nome.trim()) { showFeedback('error', 'Il nome del flusso è obbligatorio'); return; }
+    if (campi.length === 0) { showFeedback('error', 'Aggiungi almeno un\'azione'); return; }
     for (const c of campi) {
-      if (!c.etichetta.trim()) { showFeedback('error', 'Tutti i campi devono avere un\'etichetta'); return; }
+      if (!c.etichetta.trim()) { showFeedback('error', 'Tutte le azioni devono avere un\'etichetta'); return; }
     }
 
     const errComm = erroreCommittenteManuale({ solo_manuale: soloManuale, committente: committente || null });
@@ -284,21 +365,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     setSaving(true);
     try {
       const payload = {
-        nome: nome.trim(),
-        committente: committente || null,
-        solo_manuale: soloManuale,
-        task_via: taskVia,
-        task_via_ibrido: taskViaIbrido,
-        tipo,
-        campi: campi.map((c, i) => ({
-          ...c,
-          ordine: i + 1,
-          opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
-        })),
-        info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
-        titolo_campi: titoloCampi,
-        foto_id_priority: fotoIdPriority,
-        active: true,
+        ...payloadCorrente(),
         ...(isNew ? {} : { id: selectedId, expected_updated_at: baseUpdatedAt.current }),
       };
 
@@ -313,7 +380,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
       if (!res.ok) { showFeedback('error', json.error ?? 'Errore durante il salvataggio'); return; }
 
       if (typeof json.updated_at === 'string') baseUpdatedAt.current = json.updated_at;
-      showFeedback('success', isNew ? 'Template creato' : 'Template aggiornato');
+      showFeedback('success', isNew ? 'Flusso creato' : 'Flusso aggiornato');
       await reloadTemplates();
 
       if (isNew && json.id) {
@@ -332,25 +399,24 @@ export default function TemplateRapportiniClient({ initial }: Props) {
   async function handleDelete() {
     if (!selectedId) return;
     const tpl = templates.find((t) => t.id === selectedId);
-    if (!confirm(`Confermi di eliminare il template "${tpl?.nome}"?`)) return;
+    if (!confirm(`Confermi di eliminare il flusso "${tpl?.nome}"?`)) return;
 
     const res = await fetch(`/api/admin/rapportino-template?id=${selectedId}`, { method: 'DELETE' });
     const json = await res.json();
     if (!res.ok) { showFeedback('error', json.error ?? 'Errore durante l\'eliminazione'); return; }
 
-    showFeedback('success', 'Template eliminato');
+    showFeedback('success', 'Flusso eliminato');
     await reloadTemplates();
-    setSelectedId(null);
-    setIsNew(false);
+    chiudiEditor();
     setNome('');
     setCampi([]);
   }
 
-  // ── Auto-save (template esistenti, con debounce) ─────────────────────────────
+  // ── Auto-save (flussi esistenti, con debounce) ───────────────────────────────
   useEffect(() => {
     // Salta il run dovuto a load/startNew/mount: non è una modifica dell'utente.
     if (skipAutosave.current) { skipAutosave.current = false; return; }
-    if (isNew || !selectedId) return; // i nuovi si salvano con "Crea template"
+    if (isNew || !selectedId) return; // i nuovi si salvano con "Crea flusso"
     const valido =
       nome.trim() !== '' && campi.length > 0 && campi.every((c) => c.etichetta.trim() !== '');
     const committenteOk = !erroreCommittenteManuale({ solo_manuale: soloManuale, committente: committente || null });
@@ -360,48 +426,29 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     const id = selectedId;
     const timer = setTimeout(async () => {
       try {
-        const payload = {
-          id,
-          expected_updated_at: baseUpdatedAt.current,
-          nome: nome.trim(),
-          committente: committente || null,
-          solo_manuale: soloManuale,
-          task_via: taskVia,
-          task_via_ibrido: taskViaIbrido,
-          tipo,
-          campi: campi.map((c, i) => ({
-            ...c,
-            ordine: i + 1,
-            opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
-          })),
-          info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
-          titolo_campi: titoloCampi,
-          foto_id_priority: fotoIdPriority,
-          active: true,
-        };
+        const payload = { id, expected_updated_at: baseUpdatedAt.current, ...payloadCorrente() };
         const res = await fetch('/api/admin/rapportino-template', {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
-        // Conflitto: il template è cambiato altrove (SQL/altra sessione) → NON sovrascrivere, ricarica.
+        // Conflitto: il flusso è cambiato altrove (SQL/altra sessione) → NON sovrascrivere, ricarica.
         if (res.status === 409) { setAutoState('idle'); await conflictHandlerRef.current(id); return; }
         const json = await res.json().catch(() => ({} as { updated_at?: string }));
         if (res.ok && typeof json.updated_at === 'string') baseUpdatedAt.current = json.updated_at;
         setAutoState(res.ok ? 'saved' : 'error');
+        if (res.ok) await reloadTemplates(); // l'albero a sinistra segue i collegamenti modificati
       } catch {
         setAutoState('error');
       }
     }, 800);
     return () => clearTimeout(timer);
-  }, [nome, committente, scheda, soloManuale, tipo, taskVia, taskViaIbrido, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
-
-  // Nessun template selezionato all'apertura: l'utente sceglie a mano.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nome, committente, soloManuale, tipo, taskVia, taskViaIbrido, gruppoCommittente, gruppiAttivita, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const selectedTpl = templates.find((t) => t.id === selectedId);
-  const templatesVisibili = filtraTemplatePerScheda(templates, scheda);
   const isEditing = isNew || selectedTpl != null;
 
   const anteprimaDettaglio = partitionInfoCampi(infoCampi).dettaglio;
@@ -424,74 +471,165 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     fotoIdPriority,
   );
 
+  const cardFlusso = (t: Template) => (
+    <div
+      key={t.id}
+      onClick={() => loadTemplate(t)}
+      className={`cursor-pointer rounded-xl border p-3 transition ${
+        selectedId === t.id && !isNew
+          ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
+          : 'border-[var(--brand-border)] bg-[var(--brand-surface)] hover:border-[var(--brand-primary)]'
+      }`}
+    >
+      <p className="text-sm font-semibold text-[var(--brand-text-main)]">{t.nome}</p>
+      <p className="text-xs text-[var(--brand-text-muted)]">{sottotitoloFlusso(t)}</p>
+    </div>
+  );
+
   return (
     <div className="flex flex-col gap-6 lg:flex-row">
-      {/* ─── COLONNA SINISTRA: Lista template ───────────────────────────────── */}
-      <div className="flex max-w-sm flex-col gap-4">
-        <div className="flex items-center justify-between">
-          <h2 className="text-xl font-bold text-[var(--brand-text-main)]">Template rapportini</h2>
-          <button
-            type="button"
-            onClick={startNew}
-            className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
-          >
-            + Nuovo
-          </button>
-        </div>
-
-        <SchedeTipo attiva={scheda} onChange={cambiaScheda} />
-
-        {templatesVisibili.length === 0 && !isNew ? (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 text-center text-sm text-[var(--brand-text-muted)]">
-            {scheda === 'manuali' ? 'Nessun template per interventi manuali. Creane uno.' : 'Nessun template classico. Creane uno.'}
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {isNew && (
-              <div className="cursor-pointer rounded-2xl border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] p-4">
-                <p className="font-semibold text-[var(--brand-primary)]">Nuovo template…</p>
-              </div>
-            )}
-            {templatesVisibili.map((tpl) => (
-              <div
-                key={tpl.id}
-                onClick={() => loadTemplate(tpl)}
-                className={`cursor-pointer rounded-2xl border p-4 transition ${
-                  selectedId === tpl.id && !isNew
-                    ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)]'
-                    : 'border-[var(--brand-border)] bg-[var(--brand-surface)] hover:border-[var(--brand-primary)]'
-                }`}
-              >
-                <div className="mb-1 flex items-center gap-2">
-                  <span className="font-semibold text-[var(--brand-text-main)]">{tpl.nome}</span>
-                  {tpl.is_default && (
-                    <span className="rounded-full bg-[var(--brand-primary)] px-2 py-0.5 text-xs font-bold text-[var(--on-primary)]">
-                      default
-                    </span>
-                  )}
-                  {!tpl.active && (
-                    <span className="rounded-full border border-[var(--brand-border)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)]">
-                      inattivo
-                    </span>
-                  )}
-                </div>
-                <p className="text-xs text-[var(--brand-text-muted)]">
-                  {tpl.campi?.length ?? 0} campi
+      {/* ─── COLONNA SINISTRA: Committente → Gruppo attività → flussi ────────── */}
+      <div className="flex w-full max-w-md flex-col gap-4">
+        {committenteSel === null ? (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <h2 className="text-xl font-bold text-[var(--brand-text-main)]">Azioni operatori</h2>
+                <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                  Committente → Gruppo attività → azioni del flusso
                 </p>
               </div>
-            ))}
-          </div>
+              <button
+                type="button"
+                onClick={() => startNew()}
+                className="rounded-xl bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90"
+              >
+                + Nuovo
+              </button>
+            </div>
+
+            <div className="space-y-2">
+              {albero.committenti.map((c) => {
+                const flussiCollegati = new Set(c.gruppi.flatMap((g) => g.flussi.map((t) => t.id))).size;
+                return (
+                  <div
+                    key={c.committente}
+                    onClick={() => apriCommittente(c.committente)}
+                    className="cursor-pointer rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 transition hover:border-[var(--brand-primary)]"
+                  >
+                    <div className="flex items-center justify-between">
+                      <span className="font-semibold uppercase text-[var(--brand-text-main)]">{c.label}</span>
+                      <span aria-hidden className="text-[var(--brand-text-muted)]">›</span>
+                    </div>
+                    <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
+                      {c.gruppi.length} gruppi attività · {flussiCollegati} flussi
+                      {c.manuali.length > 0 ? ` · ${c.manuali.length} manuali` : ''}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {albero.nonCollegati.length > 0 && (
+              <div>
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
+                  Flussi non collegati
+                </h3>
+                <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
+                  Aprili e collegali a un gruppo dalla sezione &quot;Collegamento al gruppo attività&quot;.
+                </p>
+                <div className="space-y-2">{albero.nonCollegati.map((t) => cardFlusso(t as Template))}</div>
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div>
+              <button
+                type="button"
+                onClick={() => apriCommittente(null)}
+                className="text-sm font-semibold text-[var(--brand-primary)] transition hover:opacity-80"
+              >
+                ← Tutti i committenti
+              </button>
+              <h2 className="mt-1 text-xl font-bold uppercase text-[var(--brand-text-main)]">
+                {COMMITTENTE_FLUSSO_LABEL[committenteSel]}
+              </h2>
+              <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
+                Gruppi attività e flussi collegati. Le azioni si modificano aprendo il flusso.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              {nodoSel?.gruppi.map((g) => (
+                <div
+                  key={g.gruppo}
+                  className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4"
+                >
+                  <div className="mb-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-[var(--brand-text-main)]">{g.gruppo}</span>
+                    <button
+                      type="button"
+                      onClick={() =>
+                        startNew({ gruppoCommittente: committenteSel, gruppiAttivita: [g.gruppo] })
+                      }
+                      title="Crea un nuovo flusso collegato a questo gruppo"
+                      className="rounded-lg border border-dashed border-[var(--brand-primary)] px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                    >
+                      ＋ Flusso
+                    </button>
+                  </div>
+                  {g.flussi.length === 0 ? (
+                    <p className="text-xs text-[var(--brand-text-muted)]">
+                      Nessun flusso collegato: creane uno, o apri un flusso esistente e collegalo a questo gruppo.
+                    </p>
+                  ) : (
+                    <div className="space-y-2">{g.flussi.map((t) => cardFlusso(t as Template))}</div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div>
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
+                  Interventi manuali (+)
+                </h3>
+                <button
+                  type="button"
+                  onClick={() =>
+                    startNew({
+                      soloManuale: true,
+                      committente: committenteSel === 'acqualatina' ? '' : committenteSel,
+                    })
+                  }
+                  className="rounded-lg border border-dashed border-[var(--brand-primary)] px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                >
+                  ＋ Modello manuale
+                </button>
+              </div>
+              {nodoSel && nodoSel.manuali.length > 0 ? (
+                <div className="space-y-2">{nodoSel.manuali.map((t) => cardFlusso(t as Template))}</div>
+              ) : (
+                <p className="text-xs text-[var(--brand-text-muted)]">
+                  Nessun modello per il &quot;+&quot; dell&apos;operatore su questo committente.
+                </p>
+              )}
+            </div>
+          </>
         )}
       </div>
 
-      {/* ─── COLONNA DESTRA: Editor ──────────────────────────────────────────── */}
+      {/* ─── COLONNA DESTRA: Editor azioni ───────────────────────────────────── */}
       <div className="flex-1 space-y-4">
         {!isEditing ? (
           <div className="flex h-64 items-center justify-center rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
             <div className="text-center">
-              <div className="mb-3 text-4xl">📋</div>
+              <div className="mb-3 text-4xl">🧭</div>
               <p className="text-sm text-[var(--brand-text-muted)]">
-                Seleziona un template per modificarlo o creane uno nuovo
+                {committenteSel === null
+                  ? 'Scegli un committente, poi il gruppo attività: qui trovi le azioni del flusso.'
+                  : 'Apri un flusso per modificarne le azioni, o creane uno da un gruppo.'}
               </p>
             </div>
           </div>
@@ -499,7 +637,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
           <>
             {/* ── Impostazioni base ─────────────────────────────────────────── */}
             <SezioneAccordion title="Impostazioni base" defaultOpen>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Nome template</label>
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Nome flusso</label>
               <input
                 type="text"
                 value={nome}
@@ -508,7 +646,19 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 placeholder="es. Rapportino standard"
               />
 
-              {scheda === 'classici' && (
+              <label className="mb-2 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+                <input
+                  type="checkbox"
+                  checked={soloManuale}
+                  onChange={(e) => setSoloManuale(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
+                />
+                <span className="text-xs text-[var(--brand-text-muted)]">
+                  <b className="text-[var(--brand-text-main)]">Modello manuale (+)</b> — usato dalla modale &quot;+&quot; dell&apos;operatore invece che dai rapportini pianificati.
+                </span>
+              </label>
+
+              {!soloManuale && (
                 <>
                   <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Tipo rapportino</label>
                   <select
@@ -523,7 +673,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               )}
 
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                Committente{scheda === 'manuali' && <span className="text-[var(--danger)]"> *</span>}
+                Committente (instradamento){soloManuale && <span className="text-[var(--danger)]"> *</span>}
               </label>
               <select
                 value={committente}
@@ -537,12 +687,12 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 <option value="lim_massive">Limitazioni massive</option>
               </select>
               <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
-                {scheda === 'manuali'
-                  ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica i campi di questo template.'
-                  : 'Opzionale: associa il template a un committente (fallback al default se assente).'}
+                {soloManuale
+                  ? 'Instrada la modale "+" dell\'operatore: il committente scelto carica le azioni di questo modello.'
+                  : 'Opzionale: instradamento runtime storico (fallback al default se assente). Il collegamento del flowchart è nella sezione sotto.'}
               </p>
 
-              {scheda === 'classici' && (
+              {!soloManuale && (
                 <label className="mt-4 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
                   <input
                     type="checkbox"
@@ -551,12 +701,12 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                     className="mt-0.5 h-4 w-4 accent-[var(--brand-primary)]"
                   />
                   <span className="text-xs text-[var(--brand-text-muted)]">
-                    <b className="text-[var(--brand-text-main)]">Task-via (solo via)</b> — i rapportini generati con questo template mostrano il contenitore indirizzo con il tasto <b>+</b>: l&apos;operatore crea gli interventi sotto la via. Lascia disattivo per i template normali.
+                    <b className="text-[var(--brand-text-main)]">Task-via (solo via)</b> — i rapportini generati con questo flusso mostrano il contenitore indirizzo con il tasto <b>+</b>: l&apos;operatore crea gli interventi sotto la via. Lascia disattivo per i flussi normali.
                   </span>
                 </label>
               )}
 
-              {scheda === 'classici' && (
+              {!soloManuale && (
                 <label className="mt-3 flex cursor-pointer items-start gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
                   <input
                     type="checkbox"
@@ -571,8 +721,67 @@ export default function TemplateRapportiniClient({ initial }: Props) {
               )}
             </SezioneAccordion>
 
+            {/* ── Collegamento al gruppo attività (flowchart) ──────────────────── */}
+            <SezioneAccordion
+              title="Collegamento al gruppo attività"
+              subtitle="Committente → Gruppo attività: dove questo flusso compare nel modulo"
+              defaultOpen
+            >
+              <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Committente</label>
+              <select
+                value={gruppoCommittente}
+                onChange={(e) => cambiaGruppoCommittente(e.target.value as CommittenteFlusso | '')}
+                className="w-full rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+              >
+                <option value="">— Non collegato —</option>
+                {albero.committenti.map((c) => (
+                  <option key={c.committente} value={c.committente}>{c.label}</option>
+                ))}
+              </select>
+
+              {gruppoCommittente ? (
+                <>
+                  <p className="mb-2 mt-4 text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                    Gruppi attività coperti dal flusso
+                  </p>
+                  <div className="flex flex-wrap gap-2">
+                    {gruppiDisponibili.map((g) => {
+                      const attivo = gruppiAttivita.some((x) => chiaveTassonomia(x) === chiaveTassonomia(g));
+                      return (
+                        <button
+                          key={g}
+                          type="button"
+                          onClick={() => toggleGruppo(g)}
+                          aria-pressed={attivo}
+                          className={`rounded-lg border px-3 py-1.5 text-xs font-semibold transition ${
+                            attivo
+                              ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+                              : 'border-dashed border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]'
+                          }`}
+                        >
+                          {attivo ? '✓ ' : '＋ '}{g}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  {gruppiAttivita.length === 0 && (
+                    <p className="mt-2 text-xs text-[var(--danger)]">
+                      Scegli almeno un gruppo: senza gruppo il flusso resta tra i non collegati.
+                    </p>
+                  )}
+                  <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                    Un flusso ibrido può coprire più gruppi (es. LIMITAZIONI MASSIVE + DUNNING).
+                  </p>
+                </>
+              ) : (
+                <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                  Non collegato: il flusso resta visibile nella sezione &quot;Flussi non collegati&quot;.
+                </p>
+              )}
+            </SezioneAccordion>
+
             {/* ── Card nella lista interventi ──────────────────────────────────────── */}
-            {scheda === 'classici' && (
+            {!soloManuale && (
             <SezioneAccordion title="Titolo della card voce">
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Il titolo di ogni voce userà il <b>primo campo non vuoto</b> di questa lista (in ordine).
@@ -615,7 +824,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             )}
 
             {/* ── Dettaglio card ────────────────────────────────────────── */}
-            {scheda === 'classici' && (
+            {!soloManuale && (
             <SezioneAccordion title="Dettaglio card">
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Indirizzo e fascia oraria arrivano dai dati importati (non configurabili). Qui attivi la coordinata &quot;Punto esatto&quot;.
@@ -637,7 +846,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             )}
 
             {/* ── Dettaglio anagrafica ──────────────────────────────────────────────────────────── */}
-            <SezioneAccordion title={scheda === 'manuali' ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}>
+            <SezioneAccordion title={soloManuale ? 'Anagrafica da compilare' : 'Dettaglio anagrafica'}>
               <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
                 Scegli quali dati del DB compaiono nel rapportino e nell&apos;Excel, in che ordine e con quale etichetta.
                 Nessuna selezione = mostra tutti gli 11 campi di default.
@@ -680,7 +889,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
             <SezioneAccordion title="Azioni da fare" defaultOpen>
 
               {campi.length === 0 && (
-                <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessun campo. Aggiungine uno.</p>
+                <p className="mb-4 text-sm text-[var(--brand-text-muted)]">Nessuna azione. Aggiungine una.</p>
               )}
 
               <div className="space-y-3">
@@ -773,7 +982,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                       </div>
                     )}
 
-                    {/* Row 2c: obbligatoria (campi non-foto, tutti i template) */}
+                    {/* Row 2c: obbligatoria (campi non-foto, tutti i flussi) */}
                     {campo.tipo !== 'foto' && (
                       <label className="mb-3 flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
                         <input
@@ -824,7 +1033,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                 onClick={addCampo}
                 className="mt-4 rounded-lg border border-dashed border-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
               >
-                ＋ Aggiungi campo
+                ＋ Aggiungi azione
               </button>
               {tipo === 'risanamento' && campi.some((c) => c.tipo === 'foto') && (
                 <div className="mt-4 rounded-xl border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3 text-xs">
@@ -906,7 +1115,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   disabled={saving}
                   className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
                 >
-                  {saving ? 'Creazione…' : 'Crea template'}
+                  {saving ? 'Creazione…' : 'Crea flusso'}
                 </button>
               ) : (
                 <span
@@ -937,7 +1146,7 @@ export default function TemplateRapportiniClient({ initial }: Props) {
                   onClick={handleDelete}
                   className="rounded-lg border border-[var(--danger)] px-4 py-2 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
                 >
-                  Elimina template
+                  Elimina flusso
                 </button>
               )}
             </div>
@@ -960,4 +1169,3 @@ export default function TemplateRapportiniClient({ initial }: Props) {
     </div>
   );
 }
-
