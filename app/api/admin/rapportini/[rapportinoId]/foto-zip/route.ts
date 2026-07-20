@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
 import { nomeFotoFile, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
+import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -61,17 +62,19 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   }
 
   // ── 3. Fonte B: foto nei campi tipo='foto' delle voci (risposte[campo.chiave]) ─
+  // Le chiavi foto sono l'UNIONE di quelle del rapportino + quelle per-voce (flusso del
+  // gruppo attività della voce): un rapportino misto scarica le foto di tutti i flussi.
   const fotoVoci: FotoZip[] = [];
-  if (campiFoto.length > 0) {
+  {
     let vociQuery = supabaseAdmin
       .from('rapportino_voci')
-      .select('id, nominativo, matricola, pdr, odl, via, risposte')
+      .select('id, nominativo, matricola, pdr, odl, via, risposte, campi_snapshot')
       .eq('rapportino_id', rapportinoId);
     if (voceId) vociQuery = vociQuery.eq('id', voceId);
     const { data: vociRows, error: vociErr } = await vociQuery.order('ordine', { ascending: true });
     if (vociErr) return NextResponse.json({ error: vociErr.message }, { status: 500 });
 
-    for (const v of (vociRows ?? []) as Array<{
+    const tipizzate = (vociRows ?? []) as Array<{
       id: string;
       nominativo: string | null;
       matricola: string | null;
@@ -79,7 +82,14 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
       odl: string | null;
       via: string | null;
       risposte: Record<string, unknown> | null;
-    }>) {
+      campi_snapshot?: unknown;
+    }>;
+    const campiFotoZip = unioneCampi(
+      campiSnapshot,
+      tipizzate.map((v) => (Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null)),
+    ).filter((c) => c.tipo === 'foto');
+
+    for (const v of campiFotoZip.length > 0 ? tipizzate : []) {
       const ids = {
         pdr: v.pdr ?? undefined,
         matricola: v.matricola ?? undefined,
@@ -87,7 +97,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
         indirizzo: v.via ?? undefined,
       };
       if (voceId && !voceForName) voceForName = { via: v.via, odl: v.odl };
-      for (const campo of campiFoto) {
+      for (const campo of campiFotoZip) {
         const paths = comeArrayFoto((v.risposte ?? {})[campo.chiave]);
         paths.forEach((storagePath, i) => {
           const ext = storagePath.split('.').pop() ?? 'jpg';

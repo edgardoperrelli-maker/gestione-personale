@@ -39,18 +39,21 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
 
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('risposte, rapportino_id, richiesta_id')
+    .select('risposte, rapportino_id, richiesta_id, campi_snapshot')
     .eq('id', voceId)
     .maybeSingle();
   if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
-  const v = voce as { risposte: Record<string, unknown> | null; rapportino_id: string; richiesta_id: string | null };
+  const v = voce as { risposte: Record<string, unknown> | null; rapportino_id: string; richiesta_id: string | null; campi_snapshot?: unknown };
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
     .select('campi_snapshot')
     .eq('id', v.rapportino_id)
     .maybeSingle();
-  const campi = ((rap?.campi_snapshot ?? []) as TemplateCampo[]);
+  // Campi della voce (flusso del suo gruppo attività) con fallback allo snapshot del rapportino.
+  const campi = (Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
+    ? v.campi_snapshot
+    : (rap?.campi_snapshot ?? [])) as TemplateCampo[];
 
   const sorgenti: { etichetta: string; path: string }[] = [];
 

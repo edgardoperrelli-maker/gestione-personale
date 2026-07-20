@@ -22,6 +22,7 @@ export async function buildTemplateImport(
   righeDati: number = RIGHE_DEFAULT,
 ): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
+  const attive = (tassonomia ?? []).filter((t) => t.attivo);
 
   const ws = wb.addWorksheet('Interventi');
   ws.addRow([...COLONNE_TEMPLATE]);
@@ -29,15 +30,25 @@ export async function buildTemplateImport(
   const colDescr = COLONNE_TEMPLATE.indexOf('DESCRIZIONE ATTIVITÀ') + 1;
   const colGruppo = COLONNE_TEMPLATE.indexOf("GRUPPO ATTIVITA'") + 1;
   const letteraDescr = ws.getColumn(colDescr).letter;
+  // Descrizione attività NON compilabile a mano: solo la tendina con le canoniche della
+  // Leggenda (errorStyle stop = Excel rifiuta il testo libero). Blank ammesso (righe vuote).
+  const validazioneDescr: ExcelJS.DataValidation = {
+    type: 'list',
+    allowBlank: true,
+    formulae: [`Leggenda!$B$2:$B$${attive.length + 1}`],
+    showErrorMessage: true,
+    errorStyle: 'stop',
+    errorTitle: 'Attività non valida',
+    error: 'Scegli l\'attività dalla tendina: il testo libero non è ammesso. I valori validi sono nel foglio Leggenda.',
+  };
   for (let r = 2; r <= righeDati + 1; r++) {
+    ws.getRow(r).getCell(colDescr).dataValidation = validazioneDescr;
     // UPPER+TRIM avvicina la chiave della Leggenda (che è l'upper della canonica).
     ws.getRow(r).getCell(colGruppo).value = {
       formula: `IFERROR(VLOOKUP(UPPER(TRIM(${letteraDescr}${r})),Leggenda!$A:$C,3,FALSE),"")`,
     } as ExcelJS.CellFormulaValue;
   }
   ws.columns.forEach((c) => { c.width = 22; });
-
-  const attive = (tassonomia ?? []).filter((t) => t.attivo);
   const wl = wb.addWorksheet('Leggenda');
   wl.addRow(['CHIAVE', 'DESCRIZIONE ATTIVITÀ', 'GRUPPO', 'COMMITTENTE']);
   wl.getRow(1).font = { bold: true };

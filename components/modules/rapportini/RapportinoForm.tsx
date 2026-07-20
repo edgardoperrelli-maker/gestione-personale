@@ -37,6 +37,7 @@ import { attivitaMassiva, campoObbligatorioSoloMassive } from '@/utils/rapportin
 import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
 import { ModaleCampiMancanti } from './ModaleCampiMancanti';
+import { campiDiVoce, unioneCampi } from '@/utils/rapportini/campiDiVoce';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -64,6 +65,8 @@ export type Voce = {
   manuale?: boolean;
   approvazione_stato?: string | null;
   motivo_rifiuto?: string | null;
+  /** Azioni della voce dal flusso del SUO gruppo attività; assenti = campi del rapportino. */
+  campi?: TemplateCampo[];
 };
 
 type Props = {
@@ -106,14 +109,16 @@ function fasciaBreve(raw: string): string {
 }
 
 /**
- * Campi effettivi per la voce. Nel template "Ibrido acea" (`fotoSoloMassive`) le foto e il
- * campo SIGILLO sono obbligatori solo per le voci di limitazione massiva: sulle altre
- * (sospensioni/limitazioni) l'obbligo cade, così il badge "obbligatoria"/asterisco non compare
- * in fase di compilazione — coerente col blocco pre-invio, che per quelle voci non li richiede.
+ * Campi effettivi per la voce: prima i SUOI (flusso del gruppo attività della voce, fallback
+ * campi del rapportino), poi la regola "Ibrido acea" (`fotoSoloMassive`): foto e campo SIGILLO
+ * obbligatori solo per le voci di limitazione massiva — sulle altre (sospensioni/limitazioni)
+ * l'obbligo cade, così il badge "obbligatoria"/asterisco non compare in fase di compilazione,
+ * coerente col blocco pre-invio, che per quelle voci non li richiede.
  */
-function campiPerVoce(campi: TemplateCampo[], voce: { attivita?: string } | undefined, fotoSoloMassive: boolean): TemplateCampo[] {
-  if (!fotoSoloMassive || !voce || attivitaMassiva(voce.attivita)) return campi;
-  return campi.map((c) =>
+function campiPerVoce(campi: TemplateCampo[], voce: { attivita?: string; campi?: TemplateCampo[] } | undefined, fotoSoloMassive: boolean): TemplateCampo[] {
+  const base = campiDiVoce(voce, campi);
+  if (!fotoSoloMassive || !voce || attivitaMassiva(voce.attivita)) return base;
+  return base.map((c) =>
     (c.tipo === 'foto' || campoObbligatorioSoloMassive(c)) && c.obbligatoria ? { ...c, obbligatoria: false } : c,
   );
 }
@@ -330,6 +335,9 @@ export default function RapportinoForm({
   const riepilogo = useMemo(() => riepilogoRapportino(voci.filter((v) => !isVoceTaskVia(v)), campi), [voci, campi, isVoceTaskVia]);
   const inviabile = riepilogo.daFare === 0 && voci.length > 0;
 
+  // Colonne per il PDF condiviso: unione dei campi del rapportino + quelli per-voce (voci miste).
+  const campiUnione = useMemo(() => unioneCampi(campi, voci.map((v) => v.campi)), [campi, voci]);
+
   const righe: RigaVoce[] = useMemo(
     () =>
       voci.map((v, idx) => {
@@ -337,7 +345,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campi), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
     [voci, campi, titoloCampi],
   );
@@ -347,7 +355,7 @@ export default function RapportinoForm({
       voci
         .map((v, idx) => ({ index: idx, v }))
         .filter(({ v }) => !v.annullato && !isVoceTaskVia(v))
-        .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campi) }))
+        .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campiDiVoce(v, campi)) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
     [voci, campi, titoloCampi, isVoceTaskVia],
   );
@@ -484,7 +492,7 @@ export default function RapportinoForm({
           dettaglio={dettaglio}
           titoloCampi={titoloCampi}
           disabilitato={disabilitato || (badgeVoceManuale(voci[indiceCorrente].approvazione_stato ?? null)?.bloccata ?? false)}
-          stato={statoVoce(voci[indiceCorrente].risposte, campi)}
+          stato={statoVoce(voci[indiceCorrente].risposte, campiDiVoce(voci[indiceCorrente], campi))}
           saveState={statoBadgeDaOutbox(outboxPerVoce[voci[indiceCorrente].id]) as SaveState}
           onChange={(chiave, valore) => setRisposta(voci[indiceCorrente].id, chiave, valore)}
           onPrev={onPrev}
@@ -500,7 +508,7 @@ export default function RapportinoForm({
           dataLabel={dataLabel}
           dataIso={rapportino.data}
           voci={voci}
-          campi={campi}
+          campi={campiUnione}
           infoCampi={infoCampi}
           taskVia={taskVia}
           taskViaIbrido={taskViaIbrido}

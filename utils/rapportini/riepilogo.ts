@@ -1,5 +1,6 @@
 import { voceEsitoColore } from './voceColore';
 import type { TemplateCampo } from './buildVoci';
+import { campiDiVoce, unioneCampi } from './campiDiVoce';
 
 export type StatoVoce = 'eseguito' | 'non_eseguito' | 'da_fare';
 
@@ -31,7 +32,7 @@ export function statoVoce(
 
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
-  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean; approvazione_stato?: string | null }[],
+  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean; approvazione_stato?: string | null; campi?: TemplateCampo[] | null }[],
   campi: TemplateCampo[],
 ): RiepilogoRapportino {
   // Le voci RIFIUTATE dall'ufficio sono SCARTATE: non sono interventi validi e non entrano in
@@ -46,12 +47,14 @@ export function riepilogoRapportino(
     if (v.annullato) { annullati += 1; continue; }
     // Voci create dal "+" (manuali): già complete con esito e foto → contano come eseguite, mai "da fare".
     if (v.manuale) { eseguiti += 1; continue; }
-    const s = statoVoce(v.risposte, campi);
+    // L'esito si valuta sui campi DELLA voce (flusso del suo gruppo attività, fallback rapportino).
+    const s = statoVoce(v.risposte, campiDiVoce(v, campi));
     if (s === 'eseguito') eseguiti += 1;
     else if (s === 'non_eseguito') nonEseguiti += 1;
     else daFare += 1;
   }
-  const lavorazioni: LavorazioneConteggio[] = campi
+  // Le lavorazioni contano su TUTTE le crocette presenti nel rapportino (voci miste incluse).
+  const lavorazioni: LavorazioneConteggio[] = unioneCampi(campi, attive.map((v) => v.campi))
     .filter((c) => c.tipo === 'crocetta')
     .map((c) => ({
       chiave: c.chiave,

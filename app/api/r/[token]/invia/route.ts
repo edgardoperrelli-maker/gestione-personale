@@ -76,7 +76,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
   const { data: voci } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('intervento_id, risposte, updated_at, matricola, pdr, odl, via, comune')
+    .select('intervento_id, risposte, updated_at, matricola, pdr, odl, via, comune, campi_snapshot')
     .eq('rapportino_id', rap.id);
   const misuratoriFermi: Array<{
     intervento_id: string;
@@ -126,9 +126,14 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     odl: string | null;
     via: string | null;
     comune: string | null;
+    campi_snapshot?: unknown;
   }>) {
     if (!v.intervento_id) continue;
-    const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
+    // Esito valutato sui campi DELLA voce (flusso del suo gruppo attività, fallback rapportino).
+    const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
+      ? (v.campi_snapshot as TemplateCampo[])
+      : campi;
+    const patch = esitoInterventoDaVoce(v.risposte ?? {}, campiV);
     if (!patch) continue;
 
     const odlVoce = odlMap.get(v.intervento_id) || '';

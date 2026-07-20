@@ -16,7 +16,7 @@ const XLSX_MIME =
   'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
 
 const VOCI_COLS =
-  'ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json';
+  'ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, campi_snapshot';
 const RAP_COLS = 'id, staff_name, data, campi_snapshot, info_snapshot, template_id';
 
 /** Slug ASCII-safe per nomi file / fogli (rimuove caratteri non validi). */

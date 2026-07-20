@@ -48,6 +48,35 @@ export function templateCollegato(t: TemplateFlussoRow): boolean {
 }
 
 /**
+ * Flusso di un (committente equivalente, gruppo attività) per la GENERAZIONE delle voci:
+ * tra i flussi classici collegati che coprono il gruppo vince il più SPECIFICO (meno gruppi
+ * coperti: il dedicato batte l'ibrido), a pari merito il nome, per determinismo.
+ * I modelli manuali (+) non concorrono. 'altro' accetta qualsiasi committente della gerarchia.
+ */
+export function risolviFlussoPerGruppo<T extends TemplateFlussoRow & { nome?: string | null }>(
+  committenteEq: string | null | undefined,
+  gruppo: string | null | undefined,
+  templates: T[],
+): T | null {
+  const k = chiaveTassonomia(gruppo);
+  if (!k) return null;
+  const c = String(committenteEq ?? '').trim().toLowerCase();
+  const candidati = templates.filter(
+    (t) =>
+      !t.solo_manuale &&
+      templateCollegato(t) &&
+      (c === 'altro' || t.gruppo_committente === c) &&
+      (t.gruppi_attivita ?? []).some((g) => chiaveTassonomia(g) === k),
+  );
+  if (candidati.length === 0) return null;
+  return candidati.sort(
+    (a, b) =>
+      (a.gruppi_attivita!.length - b.gruppi_attivita!.length) ||
+      String(a.nome ?? '').localeCompare(String(b.nome ?? '')),
+  )[0];
+}
+
+/**
  * Coppia coerente per il DB (check rapportino_template_gruppo_coppia_check):
  * collegato = committente + almeno un gruppo (dedup normalizzato), altrimenti entrambi null.
  */

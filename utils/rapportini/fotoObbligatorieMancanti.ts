@@ -1,6 +1,7 @@
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { campiDiVoce } from '@/utils/rapportini/campiDiVoce';
 import { slotFotoCondizionali, fotoSlotObbligatorio } from '@/utils/rapportini/fotoCondizionali';
 import { attivitaMassiva } from '@/utils/rapportini/attivitaMassiva';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
@@ -21,20 +22,22 @@ function fotoVuota(valore: unknown): boolean {
  * di limitazione massiva; per le altre attività (sospensioni/limitazioni) non lo sono.
  */
 export function contaFotoObbligatorieMancanti(
-  voci: Array<{ risposte: Record<string, unknown> | null; manuale?: boolean; attivita?: string | null }>,
+  voci: Array<{ risposte: Record<string, unknown> | null; manuale?: boolean; attivita?: string | null; campi?: TemplateCampo[] | null }>,
   campi: TemplateCampo[],
   fotoSoloMassive = false,
 ): number {
-  const campiFotoTpl = campi.filter((c) => c.tipo === 'foto');
-  if (campiFotoTpl.length === 0) return 0;
   let n = 0;
   for (const v of voci) {
     if (v.manuale) continue; // creata dal "+": le foto sono già nella richiesta, non nel template pianificato
     if (fotoSoloMassive && !attivitaMassiva(v.attivita)) continue; // ibrido: solo le massive richiedono foto
+    // I campi da valutare sono quelli DELLA voce (flusso del suo gruppo attività, fallback rapportino).
+    const base = campiDiVoce(v, campi);
+    const campiFotoTpl = base.filter((c) => c.tipo === 'foto');
+    if (campiFotoTpl.length === 0) continue;
     const risposte = v.risposte ?? {};
-    if (haEsitoNegativo(risposte, campi)) continue; // esito negativo → foto non obbligatorie
+    if (haEsitoNegativo(risposte, base)) continue; // esito negativo → foto non obbligatorie
     // L'obbligo può dipendere dalle risposte (es. "Sostituzione valvola" = SI → foto valvola).
-    const condizionali = slotFotoCondizionali(campi, risposte);
+    const condizionali = slotFotoCondizionali(base, risposte);
     for (const c of campiFotoTpl) {
       if (!fotoSlotObbligatorio(c, condizionali)) continue;
       if (fotoVuota(risposte[c.chiave])) n += 1;
@@ -57,20 +60,22 @@ export interface FotoMancanteVoce {
  * mancano, per mostrarlo all'operatore.
  */
 export function fotoObbligatorieMancantiDettaglio(
-  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean }>,
+  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean; campi?: TemplateCampo[] | null }>,
   campi: TemplateCampo[],
   titoloCampi: InfoChiave[] = [],
   fotoSoloMassive = false,
 ): FotoMancanteVoce[] {
-  const campiFotoTpl = campi.filter((c) => c.tipo === 'foto');
-  if (campiFotoTpl.length === 0) return [];
   const out: FotoMancanteVoce[] = [];
   voci.forEach((v, index) => {
     if (v.manuale) return;
     if (fotoSoloMassive && !attivitaMassiva(v.attivita)) return; // ibrido: solo le massive richiedono foto
+    // I campi da valutare sono quelli DELLA voce (flusso del suo gruppo attività, fallback rapportino).
+    const base = campiDiVoce(v, campi);
+    const campiFotoTpl = base.filter((c) => c.tipo === 'foto');
+    if (campiFotoTpl.length === 0) return;
     const risposte = v.risposte ?? {};
-    if (haEsitoNegativo(risposte, campi)) return;
-    const condizionali = slotFotoCondizionali(campi, risposte);
+    if (haEsitoNegativo(risposte, base)) return;
+    const condizionali = slotFotoCondizionali(base, risposte);
     const tipi = campiFotoTpl
       .filter((c) => fotoSlotObbligatorio(c, condizionali) && fotoVuota(risposte[c.chiave]))
       .map((c) => c.etichetta);

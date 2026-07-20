@@ -42,7 +42,12 @@ async function requireEditStorico(): Promise<true | NextResponse> {
 }
 
 const VOCE_SELECT =
-  'id, intervento_id, rapportino_id, risposte, odl, via, comune, attivita, matricola, pdr, nominativo, cap, fascia_oraria';
+  'id, intervento_id, rapportino_id, risposte, odl, via, comune, attivita, matricola, pdr, nominativo, cap, fascia_oraria, campi_snapshot';
+
+/** Campi della voce (flusso del suo gruppo attività) con fallback allo snapshot del rapportino. */
+function campiEffettivi(voceSnap: unknown, rapSnap: unknown): TemplateCampo[] {
+  return (Array.isArray(voceSnap) && voceSnap.length > 0 ? voceSnap : (rapSnap ?? [])) as TemplateCampo[];
+}
 
 export async function GET(_req: Request, { params }: { params: Promise<{ voceId: string }> }) {
   const guard = await requireEditStorico();
@@ -55,7 +60,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ voceId:
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id as string).maybeSingle();
-  const campi = buildCampiEditor((rap?.campi_snapshot ?? []) as TemplateCampo[]);
+  const campi = buildCampiEditor(campiEffettivi(v.campi_snapshot, rap?.campi_snapshot));
 
   const anagrafica: Record<string, string | null> = {};
   for (const k of ANAGRAFICA_COLONNE) anagrafica[k] = (v[k] as string | null) ?? null;
@@ -77,13 +82,13 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   }
 
   const { data: voce } = await supabaseAdmin
-    .from('rapportino_voci').select('id, intervento_id, rapportino_id, risposte').eq('id', voceId).maybeSingle();
+    .from('rapportino_voci').select('id, intervento_id, rapportino_id, risposte, campi_snapshot').eq('id', voceId).maybeSingle();
   if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
-  const v = voce as { intervento_id: string | null; rapportino_id: string; risposte: Record<string, unknown> | null };
+  const v = voce as { intervento_id: string | null; rapportino_id: string; risposte: Record<string, unknown> | null; campi_snapshot?: unknown };
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id).maybeSingle();
-  const campi = ((rap?.campi_snapshot ?? []) as TemplateCampo[]);
+  const campi = campiEffettivi(v.campi_snapshot, rap?.campi_snapshot);
 
   const merged = risposteIn
     ? mergeRisposte(v.risposte ?? {}, risposteIn, { soloCompletamentoFoto: false })
@@ -130,18 +135,18 @@ export async function DELETE(_req: Request, { params }: { params: Promise<{ voce
 
   const { data: voce } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, intervento_id, rapportino_id, richiesta_id, risposte')
+    .select('id, intervento_id, rapportino_id, richiesta_id, risposte, campi_snapshot')
     .eq('id', voceId)
     .maybeSingle();
   if (!voce) return NextResponse.json({ error: 'Voce non trovata.' }, { status: 404 });
   const v = voce as {
     intervento_id: string | null; rapportino_id: string; richiesta_id: string | null;
-    risposte: Record<string, unknown> | null;
+    risposte: Record<string, unknown> | null; campi_snapshot?: unknown;
   };
 
   const { data: rap } = await supabaseAdmin
     .from('rapportini').select('campi_snapshot').eq('id', v.rapportino_id).maybeSingle();
-  const campiFoto = ((rap?.campi_snapshot ?? []) as TemplateCampo[]).filter((c) => c.tipo === 'foto');
+  const campiFoto = campiEffettivi(v.campi_snapshot, rap?.campi_snapshot).filter((c) => c.tipo === 'foto');
 
   // Raccoglie i path da rimuovere dallo storage (foto voce + richiesta manuale + righe).
   const storagePaths = new Set<string>();

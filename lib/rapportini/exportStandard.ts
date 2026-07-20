@@ -4,6 +4,7 @@ import { readFile } from 'fs/promises';
 import ExcelJS from 'exceljs';
 import { resolveInfoCampi, valoreInfo, coordinateFromRaw, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import { campiEsportabili, type TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import { colonneVisibili, type VoceColonne } from '@/utils/rapportini/colonneVisibili';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { preparaBanda, posizionaBanda } from './bandaRapportino';
@@ -37,6 +38,8 @@ export interface RapportinoVoce {
   fascia_oraria?: string | null;
   risposte?: Record<string, unknown> | null;
   raw_json?: unknown;
+  /** Azioni per-voce (flusso del gruppo attività): entrano nell'unione delle colonne. */
+  campi_snapshot?: unknown;
 }
 
 /** Rapportino dalla tabella `rapportini`. */
@@ -89,7 +92,14 @@ export async function buildRapportinoXlsx(
 
   const vociC = voci.map((v) => ({ ...v, coordinate: coordinateFromRaw(v.raw_json) }));
   const info = resolveInfoCampi((rapportino.info_snapshot ?? []) as TemplateInfoCampo[]);
-  const campi = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
+  // Colonne = campi del rapportino + unione dei campi per-voce (voci di gruppi attività diversi
+  // nello stesso rapportino): ogni risposta trova la sua colonna, le voci senza quel campo
+  // lasciano la cella vuota.
+  const campiRap = (Array.isArray(rapportino.campi_snapshot) ? rapportino.campi_snapshot : []) as TemplateCampo[];
+  const campi = unioneCampi(
+    campiRap,
+    voci.map((v) => (Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null)),
+  );
   const campiOrd = campiEsportabili(campi).sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
   const { info: infoVis, campi: campiVis } = vociC.length > 0
     ? colonneVisibili(info, campiOrd, vociC as unknown as VoceColonne[])

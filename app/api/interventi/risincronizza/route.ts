@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       const campi = (rap.campi_snapshot ?? []) as TemplateCampo[];
       const { data: voci } = await supabaseAdmin
         .from('rapportino_voci')
-        .select('id, intervento_id, raw_json, risposte, updated_at')
+        .select('id, intervento_id, raw_json, risposte, updated_at, campi_snapshot')
         .eq('rapportino_id', rap.id);
 
       for (const v of (voci ?? []) as Array<{
@@ -55,6 +55,7 @@ export async function POST(req: Request) {
         raw_json: unknown;
         risposte: Record<string, unknown> | null;
         updated_at: string;
+        campi_snapshot?: unknown;
       }>) {
         let interventoId = v.intervento_id;
         if (!interventoId) {
@@ -72,8 +73,12 @@ export async function POST(req: Request) {
           }
         }
         if (!interventoId) continue;
-        // Voce neutra → non tocca (non riapre nel recupero).
-        const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
+        // Voce neutra → non tocca (non riapre nel recupero). Esito valutato sui campi
+        // DELLA voce (flusso del suo gruppo attività, fallback rapportino).
+        const campiV = Array.isArray(v.campi_snapshot) && v.campi_snapshot.length > 0
+          ? (v.campi_snapshot as TemplateCampo[])
+          : campi;
+        const patch = esitoInterventoDaVoce(v.risposte ?? {}, campiV);
         if (!patch) continue;
         const { error: e } = await supabaseAdmin
           .from('interventi')
