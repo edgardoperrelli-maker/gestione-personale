@@ -68,6 +68,9 @@ function StatBox({ label, value, tono }: { label: string; value: number; tono?: 
 }
 
 export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | null }) {
+  // Card comprimibile, chiusa di default: il confronto si calcola SOLO alla prima apertura
+  // (lazy), così la pagina non paga le query del pannello a ogni visita.
+  const [aperta, setAperta] = useState(false);
   const [storico, setStorico] = useState(false);
   const [loading, setLoading] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -93,10 +96,11 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
     }
   }, []);
 
-  // Al montaggio, al cambio finestra/storico e quando arriva un nuovo giro dell'agente.
+  // Solo a card APERTA: all'apertura, al cambio finestra/storico e a ogni nuovo giro dell'agente.
   useEffect(() => {
+    if (!aperta) return;
     void carica(storico);
-  }, [carica, storico, ultimoGiroTs]);
+  }, [aperta, carica, storico, ultimoGiroTs]);
 
   const esportaExcel = useCallback(() => {
     if (!dati?.dbVersoAcea || !dati?.aceaVersoDb) return;
@@ -134,35 +138,49 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
     <Card animated={false}>
       <CardContent className="space-y-4">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-              Controllo esiti DB ↔ ACEA
-            </h2>
-            <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-              {dati?.vuoto
-                ? dati.motivo
-                : <>Dati ACEA al {dataOraIt(dati?.aggiornatoAl)} · {dati?.storico ? 'tutto lo storico' : `ultimi ${dati?.finestraGiorni ?? 60} giorni`} · solo gruppo Dunning</>}
-            </p>
-          </div>
-          <div className="flex items-center gap-2">
-            <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-              <input type="checkbox" checked={storico} onChange={(e) => setStorico(e.target.checked)} disabled={loading} />
-              Tutto lo storico
-            </label>
-            <Button variant="secondary" onClick={() => void carica(storico)} disabled={loading}>
-              {loading ? 'Calcolo…' : 'Ricalcola'}
-            </Button>
-            <Button variant="secondary" onClick={esportaExcel} disabled={loading || !dati?.dbVersoAcea}>
-              Esporta Excel
-            </Button>
-          </div>
+          <button
+            type="button"
+            onClick={() => setAperta((v) => !v)}
+            className="flex items-center gap-2 text-left"
+            aria-expanded={aperta}
+          >
+            <span aria-hidden="true" className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              {aperta ? '▾' : '▸'}
+            </span>
+            <span>
+              <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                Controllo esiti DB ↔ ACEA
+              </h2>
+              <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                {!aperta && !dati
+                  ? 'Apri per eseguire il controllo'
+                  : dati?.vuoto
+                    ? dati.motivo
+                    : <>Dati ACEA al {dataOraIt(dati?.aggiornatoAl)} · {dati?.storico ? 'tutto lo storico' : `ultimi ${dati?.finestraGiorni ?? 60} giorni`} · solo gruppo Dunning</>}
+              </p>
+            </span>
+          </button>
+          {aperta && (
+            <div className="flex items-center gap-2">
+              <label className="flex items-center gap-1.5 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                <input type="checkbox" checked={storico} onChange={(e) => setStorico(e.target.checked)} disabled={loading} />
+                Tutto lo storico
+              </label>
+              <Button variant="secondary" onClick={() => void carica(storico)} disabled={loading}>
+                {loading ? 'Calcolo…' : 'Ricalcola'}
+              </Button>
+              <Button variant="secondary" onClick={esportaExcel} disabled={loading || !dati?.dbVersoAcea}>
+                Esporta Excel
+              </Button>
+            </div>
+          )}
         </div>
 
-        {errore && (
+        {aperta && errore && (
           <p className="text-sm" style={{ color: 'var(--danger)' }}>{errore}</p>
         )}
 
-        {c && dati?.dbVersoAcea && dati?.aceaVersoDb && (
+        {aperta && c && dati?.dbVersoAcea && dati?.aceaVersoDb && (
           <>
             <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
               <StatBox label="Positivi DB (Dunning)" value={dati.dbVersoAcea.totale} />
