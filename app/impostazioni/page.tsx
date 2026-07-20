@@ -28,8 +28,14 @@ const MODULES = [
   {
     href: '/impostazioni/gruppo-attivita',
     title: 'Gruppo Attivita',
-    description: 'Gestisci elenco attivita condiviso da cronoprogramma, mappa e sopralluoghi.',
+    description: 'Gestisci elenco attivita condiviso da cronoprogramma, mappa e sopralluoghi (non e la tassonomia import).',
     icon: 'A',
+  },
+  {
+    href: '/impostazioni/attivita-tassonomia',
+    title: 'Tassonomia attività',
+    description: 'Descrizioni e gruppi attività validi per import, template e inserimenti manuali (motore tassonomia).',
+    icon: 'X',
   },
   {
     href: '/impostazioni/zone-ztl',

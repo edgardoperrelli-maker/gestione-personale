@@ -53,7 +53,12 @@ export async function GET(req: Request) {
         .eq('stato', 'completato')
         .gte('data', from)
         .lte('data', to)
-        .or('committente.eq.lim_massive,intervento_tipo.ilike.%limitaz%,intervento_tipo.ilike.%massiv%')
+        // Fase 2 (spec 2026-07-20-fase2): selezione per TASSONOMIA, non per testo. Il match
+        // ilike storico includeva per omonimia le attività DUNNING ("Limitazione flusso
+        // idrico", ...) — estranee ai master per-comune e a rischio collisione matricola.
+        // gruppo_attivita è garantito dai flussi (import validato, manuali a lista chiusa,
+        // pianificazione soft + Guard 2) e dallo storico backfillato.
+        .eq('gruppo_attivita', 'LIMITAZIONI MASSIVE')
         .order('data', { ascending: true })
         .order('id', { ascending: true })
         .range(offset, offset + PAGE - 1);
