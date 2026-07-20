@@ -7,6 +7,7 @@ vi.mock('@/lib/interventi/ensureInterventiForPiano', () => ({
   ensureInterventiForPiano: vi.fn(async () => ({ creati: 0, preservati: 0, scartati: 0 })),
 }));
 
+import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { sincronizzaRapportini, isInterventoFkError } from './sincronizzaRapportini';
 import { makeFakeDb, seedBase } from './testUtils/fakeSupabase';
 
@@ -83,6 +84,60 @@ describe('sincronizzaRapportini', () => {
       expect(res.status).toBe(409);
       expect(res.error).toMatch(/^spostamento_completato:/);
     }
+  });
+});
+
+describe('sincronizzaRapportini — ODL già positivi (invariante odlPositivi)', () => {
+  it('non genera la voce per un ODL già eseguito positivo altrove e lo riporta in odlBloccati', async () => {
+    vi.mocked(ensureInterventiForPiano).mockResolvedValueOnce({
+      creati: 0, preservati: 0, scartati: 1, odlGiaPositivi: new Set(['odl1']), odlBloccati: ['ODL1'],
+    });
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' }] }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    if (res.ok) expect(res.odlBloccati).toEqual(['ODL1']);
+    expect(tables.rapportino_voci.map((v) => v.task_id)).toEqual(['t2']);
+  });
+
+  it('stesso ODL due volte nel piano (import + template) → una sola voce', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{
+        piano_id: 'p1', staff_id: 's1', staff_name: 'Mario',
+        tasks: [{ id: 'row-35', odl: 'ODL1' }, { id: 'tpl-1-0', odl: 'ODL1' }],
+      }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    expect(tables.rapportino_voci.map((v) => v.task_id)).toEqual(['row-35']);
+  });
+
+  it('stesso ODL su DUE operatori del piano → la voce nasce solo per il primo', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [
+        { piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 'a1', odl: 'DUP' }] },
+        { piano_id: 'p1', staff_id: 's2', staff_name: 'Luigi', tasks: [{ id: 'b1', odl: 'DUP' }] },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    expect(tables.rapportino_voci.map((v) => v.task_id)).toEqual(['a1']);
+  });
+
+  it('la voce COMPILATA su ODL bloccato viene preservata in rigenerazione (mai cancellare lavoro)', async () => {
+    vi.mocked(ensureInterventiForPiano).mockResolvedValueOnce({
+      creati: 0, preservati: 0, scartati: 0, odlGiaPositivi: new Set(['odl1']), odlBloccati: [],
+    });
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: { eseguito: 'SI' }, raw_json: {} }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const voce = tables.rapportino_voci.find((v) => v.task_id === 't1');
+    expect(voce?.risposte).toEqual({ eseguito: 'SI' });
   });
 });
 

@@ -1,6 +1,7 @@
 // Pianificazione pura degli interventi di un piano (Mappa Operatori → tabella interventi).
 // Nessun I/O. L'I/O sta in ensureInterventiForPiano.ts.
 import { taskToIntervento, type InterventoDaMappa } from './taskToIntervento';
+import { normOdl } from './odlPositivi';
 import type { Task } from '@/utils/routing/types';
 
 export type PianoMeta = { data: string };
@@ -23,11 +24,19 @@ export type PianoPlanInput = {
   territorioId: string | null;
   /** odl già presenti in `interventi` su ALTRI piani della stessa data (indice unico globale). */
   odlGiaPresenti?: Set<string>;
+  /**
+   * odl (normalizzati con normOdl) che hanno GIÀ un esito positivo altrove (altra data /
+   * altro piano): un ODL positivo è definitivamente chiuso e non va mai ripianificato.
+   * Vedi lib/interventi/odlPositivi.ts.
+   */
+  odlGiaPositivi?: ReadonlySet<string>;
 };
 
 export type PianoPlan = {
   idDaEliminare: string[];
   daInserire: InterventoDaMappa[];
+  /** odl dei task scartati perché già eseguiti positivi altrove. */
+  odlBloccati: string[];
 };
 
 /**
@@ -88,8 +97,10 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
   const idDaEliminare = input.esistenti.filter((e) => !isTerminale(e.stato)).map((e) => e.id);
 
   const odlGiaPresenti = input.odlGiaPresenti ?? new Set<string>();
+  const odlGiaPositivi = input.odlGiaPositivi ?? new Set<string>();
   const visti = new Set<string>();
   const daInserire: InterventoDaMappa[] = [];
+  const odlBloccati: string[] = [];
 
   for (const op of input.operatori) {
     for (const t of op.tasks ?? []) {
@@ -104,6 +115,8 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
       const key = identitaIntervento(rec);
       if (key && keyTerminali.has(key)) continue;
       if (rec.odl) {
+        // ODL già eseguito positivo altrove: definitivamente chiuso, non si ripianifica.
+        if (odlGiaPositivi.has(normOdl(rec.odl))) { odlBloccati.push(rec.odl); continue; }
         if (odlGiaPresenti.has(rec.odl)) continue; // esiste su altro piano stessa data
         if (visti.has(rec.odl)) continue; // dedup interno al batch
         visti.add(rec.odl);
@@ -112,5 +125,5 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
     }
   }
 
-  return { idDaEliminare, daInserire };
+  return { idDaEliminare, daInserire, odlBloccati };
 }

@@ -10,6 +10,7 @@ import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
+import { normOdl, taskDaSaltare } from '@/lib/interventi/odlPositivi';
 
 export type SincronizzaOpts = {
   templateId: string;
@@ -26,7 +27,13 @@ export type SincronizzaOpts = {
 };
 
 export type SincronizzaResult =
-  | { ok: true; rapportini: { staff_id: string; staff_name: string | null; token: string; url: string }[]; interventiWarning?: string }
+  | {
+      ok: true;
+      rapportini: { staff_id: string; staff_name: string | null; token: string; url: string }[];
+      interventiWarning?: string;
+      /** odl del piano NON generati (né voce né intervento) perché già eseguiti positivi altrove. */
+      odlBloccati?: string[];
+    }
   | { ok: false; status: number; error?: string; conflicts?: unknown[] };
 
 /** Riconosce la violazione FK su rapportino_voci.intervento_id (race: interventi ricreati da una generazione concorrente). */
@@ -90,9 +97,13 @@ export async function sincronizzaRapportini(
   const expires = scadenzaIso(piano.data);
 
   let interventiWarning: string | undefined;
+  // ODL con positivo altrove (calcolati da ensureInterventiForPiano): un ODL già eseguito
+  // positivo è definitivamente chiuso → niente intervento E niente voce di rapportino.
+  let odlGiaPositivi = new Set<string>();
   try {
     const ens = await ensureInterventiForPiano(db, pianoId);
     if (ens.error) interventiWarning = ens.error;
+    if (ens.odlGiaPositivi) odlGiaPositivi = ens.odlGiaPositivi;
   } catch (e) {
     interventiWarning = (e instanceof Error ? e.message : String(e)) || 'errore ensure interventi';
   }
@@ -105,7 +116,6 @@ export async function sincronizzaRapportini(
   // Blocco: un intervento 'completato' non può cambiare operatore (riassegnazione vietata).
   // Dopo ensureInterventiForPiano i completati mantengono lo staff_id originale: se un task
   // proposto con lo stesso ODL è sotto un operatore diverso, è uno spostamento illecito.
-  const normOdl = (s: string | null | undefined) => (s ?? '').trim().toLowerCase();
   const statoByOdl = new Map<string, { staff: string; stato: string }>();
   for (const it of (intRows ?? []) as Array<{ staff_id: string | null; odl: string | null; stato: string }>) {
     const k = normOdl(it.odl);
@@ -123,6 +133,11 @@ export async function sincronizzaRapportini(
   if (violati.length > 0) {
     return { ok: false, status: 409, error: `spostamento_completato:${violati.join(',')}` };
   }
+
+  // Dedup ODL a livello di VOCI, condiviso tra gli operatori del piano: lo stesso ODL non
+  // deve produrre due voci (es. import file + template) né una voce su ODL già positivo.
+  const vistiOdlVoci = new Set<string>();
+  const odlBloccatiVoci = new Set<string>();
 
   for (const op of ops ?? []) {
     if (opts.overwrite === 'skip' && staffInConflitto.has(String(op.staff_id))) continue;
@@ -167,10 +182,27 @@ export async function sincronizzaRapportini(
       existingRows.map((v) => [v.task_id, Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo)]),
     );
     const rapPreesisteva = Boolean(existing?.id);
+    // ODL già positivi altrove o duplicati nel piano → la voce NON si genera. Una voce già
+    // compilata non si tocca mai (rigenerare un piano storico non cancella lavoro registrato).
+    const compilate = new Set(
+      existingRows.filter((v) => Object.keys(v.risposte ?? {}).length > 0).map((v) => v.task_id),
+    );
+    const { salta, odlBloccati: bloccatiOp } = taskDaSaltare({
+      tasks: (((op.tasks as Array<{ id?: unknown; odl?: string | null }>) ?? [])).map((t) => ({
+        id: String(t.id ?? ''),
+        odl: t.odl ?? null,
+      })),
+      odlGiaPositivi,
+      vistiOdl: vistiOdlVoci,
+      voceCompilata: (taskId) => compilate.has(taskId),
+    });
+    bloccatiOp.forEach((o) => odlBloccatiVoci.add(o));
     // Ordine voci = ordine del file master (task.ordine/id "row-N"), NON la posizione nella rotta
     // ottimizzata: il rapportino segue la sequenza del master. La mappa (op.tasks) resta invariata.
     const ranks = rankOrdineDaFile((op.tasks as Array<{ id: string; ordine?: number }>) ?? []);
-    const fromTasks = ((op.tasks as unknown[]) ?? []).map((t, i) => taskToVoce(t, ranks[(t as { id?: string }).id ?? ''] ?? i + 1));
+    const fromTasks = ((op.tasks as unknown[]) ?? [])
+      .filter((t) => !salta.has(String((t as { id?: unknown }).id ?? '')))
+      .map((t, i) => taskToVoce(t, ranks[(t as { id?: string }).id ?? ''] ?? i + 1));
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
     const merged = mergeVoci(fromTasks, existingAsVoci);
 
@@ -200,5 +232,10 @@ export async function sincronizzaRapportini(
     out.push({ staff_id: op.staff_id, staff_name: op.staff_name ?? null, token: token!, url: `${baseUrl}/r/${token}` });
   }
 
-  return { ok: true, rapportini: out, interventiWarning };
+  return {
+    ok: true,
+    rapportini: out,
+    interventiWarning,
+    ...(odlBloccatiVoci.size > 0 ? { odlBloccati: [...odlBloccatiVoci] } : {}),
+  };
 }

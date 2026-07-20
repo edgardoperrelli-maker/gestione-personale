@@ -94,6 +94,31 @@ describe('planInterventi', () => {
     expect(r.daInserire).toHaveLength(1);
   });
 
+  it('scarta gli ODL già eseguiti positivi altrove e li riporta in odlBloccati', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'GIAPOS' }), task({ odl: 'B2' })] }],
+      esistenti: [],
+      odlGiaPositivi: new Set(['giapos']),
+    });
+    expect(r.daInserire.map((x) => x.odl)).toEqual(['B2']);
+    expect(r.odlBloccati).toEqual(['GIAPOS']);
+  });
+
+  it('il terminale del PIANO STESSO resta preservato anche se il suo odl è tra i positivi', () => {
+    // caso rigenerazione: il positivo è di questo piano → keyTerminali lo preserva,
+    // il task non viene reinserito e non finisce tra i bloccati.
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'CHIUSO' })] }],
+      esistenti: [{ id: 'e2', odl: 'CHIUSO', stato: 'completato' }],
+      odlGiaPositivi: new Set(['chiuso']),
+    });
+    expect(r.daInserire).toHaveLength(0);
+    expect(r.idDaEliminare).toEqual([]);
+    expect(r.odlBloccati).toEqual([]);
+  });
+
   it('un intervento annullato esistente VIENE preservato (esito reale, mai cancellato da rigenera)', () => {
     const out = planInterventi({
       piano: { data: '2026-06-10' }, pianoId: 'p1', territorioId: null,

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
@@ -94,10 +95,27 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     .map(v => v.intervento_id)
     .filter((id): id is string => !!id);
   const { data: interventiMeta } = interventoIds.length > 0
-    ? await supabaseAdmin.from('interventi').select('id, committente, intervento_tipo').in('id', interventoIds)
-    : { data: [] as Array<{ id: string; committente: string; intervento_tipo: string | null }> };
+    ? await supabaseAdmin.from('interventi').select('id, committente, intervento_tipo, odl').in('id', interventoIds)
+    : { data: [] as Array<{ id: string; committente: string; intervento_tipo: string | null; odl: string | null }> };
   const committenteMap = new Map((interventiMeta ?? []).map(i => [i.id, i.committente as string]));
   const tipoMap = new Map((interventiMeta ?? []).map(i => [i.id, (i.intervento_tipo ?? '') as string]));
+  const odlMap = new Map((interventiMeta ?? []).map(i => [i.id, ((i.odl as string | null) ?? '').trim()]));
+
+  // Backstop anti doppio esito: positivi GIÀ presenti per gli stessi ODL (qualsiasi data).
+  // Un ODL con positivo altrove è definitivamente chiuso → un nuovo positivo va annullato
+  // come doppione, un negativo va marcato da_riconciliare. Vedi lib/interventi/odlPositivi.ts.
+  const odlsChiusura = [...new Set([...odlMap.values()].filter(Boolean))];
+  let positiviEsistenti = new Map<string, { id: string; data: string | null }>();
+  if (odlsChiusura.length > 0) {
+    const { data: posRows } = await supabaseAdmin
+      .from('interventi')
+      .select('id, odl, data, committente')
+      .eq('esito', 'eseguito_positivo')
+      .in('odl', odlsChiusura);
+    positiviEsistenti = indicizzaPositivi(
+      (posRows ?? []) as Array<{ id: string; odl: string | null; data: string | null; committente: string | null }>,
+    );
+  }
 
   for (const v of (voci ?? []) as Array<{
     intervento_id: string | null;
@@ -112,10 +130,37 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     if (!v.intervento_id) continue;
     const patch = esitoInterventoDaVoce(v.risposte ?? {}, campi);
     if (!patch) continue;
+
+    const odlVoce = odlMap.get(v.intervento_id) || '';
+    const decisione = decidiChiusuraConPositivi({
+      interventoId: v.intervento_id,
+      esitoPositivo: patch.esito === 'eseguito_positivo',
+      originale: odlVoce
+        ? positiviEsistenti.get(chiavePositivo(committenteMap.get(v.intervento_id), odlVoce))
+        : null,
+    });
+    if (decisione.tipo === 'annulla_doppio_positivo') {
+      // Doppio positivo: NON è un esito reale. L'intervento si annulla con motivazione e
+      // finisce nella lista di riconciliazione; l'originale resta l'unico positivo valido.
+      await supabaseAdmin
+        .from('interventi')
+        .update({
+          stato: 'annullato', esito: null, esito_motivo: decisione.motivo,
+          da_riconciliare: true, riconciliazione_rif_id: decisione.rifId, chiuso_at: v.updated_at,
+        })
+        .eq('id', v.intervento_id)
+        .neq('stato', 'annullato');
+      continue; // niente registro misuratori: il doppione non è una rimozione valida
+    }
+
     // chiuso_at = ora di compilazione della voce (updated_at), non l'ora di invio.
+    const flagRiconcilia =
+      decisione.tipo === 'chiudi_e_riconcilia'
+        ? { da_riconciliare: true, riconciliazione_rif_id: decisione.rifId }
+        : {};
     await supabaseAdmin
       .from('interventi')
-      .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at })
+      .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at, ...flagRiconcilia })
       .eq('id', v.intervento_id)
       .neq('stato', 'annullato');
 
