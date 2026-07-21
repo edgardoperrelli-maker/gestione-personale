@@ -25,7 +25,7 @@ export function FabSync({
       aria-label="Sincronizza e aggiorna"
       title={online ? 'Sincronizza e aggiorna la pagina' : 'Offline: i dati sono salvati. Apri per vedere la coda'}
       style={{ bottom }}
-      className="fixed right-4 z-20 flex h-14 w-14 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] shadow-lg transition active:scale-95"
+      className="fixed right-3 z-20 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] shadow-lg transition active:scale-95"
     >
       <svg
         viewBox="0 0 24 24"

@@ -59,7 +59,7 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           )}
           <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (
-            <span className="shrink-0 whitespace-nowrap text-xs font-medium text-[var(--brand-text-muted)]">
+            <span className="max-w-[45%] truncate text-xs font-medium text-[var(--brand-text-muted)]">
               {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
             </span>
           )}
@@ -137,19 +137,19 @@ export function RapportinoLista({
     <div className="flex h-dvh flex-col">
       <div className="shrink-0 px-3 pt-2">
         <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
-        <div className="mt-2 flex gap-1.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
+        <div className="mt-2 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
           {FILTRI.map(([k, lbl]) => (
             <button
               key={k}
               type="button"
               onClick={() => onFiltro(k)}
-              className={`flex min-h-[40px] flex-1 items-center justify-center gap-1.5 rounded-full px-2 py-1 text-sm font-semibold transition ${
+              className={`flex min-h-[40px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition min-[380px]:text-sm ${
                 filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
-              <span>{lbl}</span>
+              <span className="truncate">{lbl}</span>
               <span
-                className={`min-w-[1.25rem] rounded-full px-1 text-xs font-bold tabular-nums ${
+                className={`min-w-[1.25rem] shrink-0 rounded-full px-1 text-xs font-bold tabular-nums ${
                   filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
                 }`}
               >
@@ -165,7 +165,7 @@ export function RapportinoLista({
         )}
       </div>
 
-      <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-28 pt-2">
+      <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-36 pt-2">
         {visibili.length === 0 ? (
           <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento in questo filtro.</p>
         ) : (
