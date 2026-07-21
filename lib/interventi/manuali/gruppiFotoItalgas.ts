@@ -26,9 +26,16 @@ export type GruppoViaItalgas = {
   richiestaIds: string[];
 };
 
-/** Chiave di confronto: trim + spazi collassati + maiuscolo. Non usata per la visualizzazione. */
+/**
+ * Chiave di confronto: solo alfanumerico maiuscolo (stessa convenzione di `normalizzaAscii`
+ * in fotoNaming.ts). Non usata per la visualizzazione (quella resta il testo originale).
+ * Serve alfanumerico e non solo trim/collasso spazi: nei dati reali la stessa via viene
+ * scritta a volte con lo spazio prima del civico e a volte senza (es. "PUGLIE 21" /
+ * "PUGLIE21", "MONTALE 11" / "MONTALE11" — casi verificati sul DB di produzione), quindi un
+ * collasso spazi da solo non le riconoscerebbe come la stessa via.
+ */
 export function normalizzaViaChiave(via: string | null | undefined): string {
-  return String(via ?? '').trim().replace(/\s+/g, ' ').toUpperCase();
+  return String(via ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
 }
 
 /** Via "risolta" di una richiesta: quella del contenitore se il collegamento risolve, altrimenti la propria. */

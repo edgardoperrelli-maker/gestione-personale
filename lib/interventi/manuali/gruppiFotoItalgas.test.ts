@@ -79,6 +79,29 @@ describe('raggruppaPerVia', () => {
   it('lista vuota → nessun gruppo', () => {
     expect(raggruppaPerVia([], new Map())).toEqual([]);
   });
+
+  it('caso reale BRUNELLI 10/07: "PUGLIE 21" (2) e "PUGLIE21" (1, senza spazio) → un solo gruppo da 3', () => {
+    const richieste = [
+      r({ id: 'a', viaAnagrafica: 'PUGLIE 21' }),
+      r({ id: 'b', viaAnagrafica: 'PUGLIE 21' }),
+      r({ id: 'c', viaAnagrafica: 'PUGLIE21' }),
+      r({ id: 'd', viaAnagrafica: 'PUGLIE 4' }), // civico diverso: resta un gruppo separato
+    ];
+    const gruppi = raggruppaPerVia(richieste, new Map());
+    expect(gruppi).toHaveLength(2);
+    expect(gruppi.find((g) => g.richiestaIds.includes('c'))?.richiestaIds).toEqual(['a', 'b', 'c']);
+  });
+
+  it('caso reale COMMERSO 03/07: "MONTALE 11" (8) e "MONTALE11" (1, senza spazio) → un solo gruppo da 9', () => {
+    const richieste = [
+      ...Array.from({ length: 8 }, (_, i) => r({ id: `m${i}`, viaAnagrafica: 'MONTALE 11' })),
+      r({ id: 'senza-spazio', viaAnagrafica: 'MONTALE11' }),
+      ...Array.from({ length: 4 }, (_, i) => r({ id: `m13-${i}`, viaAnagrafica: 'MONTALE 13' })),
+    ];
+    const gruppi = raggruppaPerVia(richieste, new Map());
+    expect(gruppi).toHaveLength(2);
+    expect(gruppi.find((g) => g.richiestaIds.includes('senza-spazio'))?.richiestaIds).toHaveLength(9);
+  });
 });
 
 describe('richiesteDelGruppo', () => {
@@ -99,11 +122,17 @@ describe('richiesteDelGruppo', () => {
 });
 
 describe('normalizzaViaChiave', () => {
-  it('trim, spazi multipli collassati, maiuscolo', () => {
-    expect(normalizzaViaChiave('  via  del   pallone  4 ')).toBe('VIA DEL PALLONE 4');
+  it('solo alfanumerico maiuscolo: spazi e punteggiatura rimossi, non solo collassati', () => {
+    expect(normalizzaViaChiave('  via  del   pallone  4 ')).toBe('VIADELPALLONE4');
   });
   it('null/undefined → stringa vuota', () => {
     expect(normalizzaViaChiave(null)).toBe('');
     expect(normalizzaViaChiave(undefined)).toBe('');
+  });
+  it('caso reale BRUNELLI 10/07: "PUGLIE 21" e "PUGLIE21" → stessa chiave', () => {
+    expect(normalizzaViaChiave('PUGLIE 21')).toBe(normalizzaViaChiave('PUGLIE21'));
+  });
+  it('caso reale COMMERSO 03/07: "MONTALE 11" e "MONTALE11" → stessa chiave', () => {
+    expect(normalizzaViaChiave('MONTALE 11')).toBe(normalizzaViaChiave('MONTALE11'));
   });
 });

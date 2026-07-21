@@ -161,7 +161,8 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
     const { data: richieste } = await supabaseAdmin
       .from('interventi_manuali')
       .select('id, committente, parent_voce_id, template_id, dati_correnti')
-      .eq('rapportino_id', rapportinoId);
+      .eq('rapportino_id', rapportinoId)
+      .order('created_at', { ascending: true });
     const richiesteRows = (richieste ?? []) as RichiestaRow[];
 
     const richiesteItalgasRows = richiesteRows.filter((r) => r.committente === COMMITTENTE_ITALGAS_MOBILE);

@@ -68,7 +68,8 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
     .from('interventi_manuali')
     .select('id, parent_voce_id, dati_correnti')
     .eq('rapportino_id', rapportinoId)
-    .eq('committente', COMMITTENTE_ITALGAS_MOBILE);
+    .eq('committente', COMMITTENTE_ITALGAS_MOBILE)
+    .order('created_at', { ascending: true });
   const richiesteRows = (richieste ?? []) as Array<{
     id: string;
     parent_voce_id: string | null;
