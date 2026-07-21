@@ -158,6 +158,8 @@ export async function POST(req: Request) {
       totaliRighe: tasks.length,
       inseriti: toInsert.length,
       aggiornati: toUpdate.length,
+      // Descrizioni fuorvianti riscritte canoniche (auto-allineamento): trasparenza per il backoffice.
+      allineati: esito.allineate,
     });
   } catch (e) {
     return NextResponse.json(

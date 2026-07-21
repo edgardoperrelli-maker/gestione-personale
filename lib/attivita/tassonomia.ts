@@ -2,7 +2,7 @@
 // La chiave è la STESSA del listino (normalizzaAttivita): maiuscolo, spazi collassati,
 // senza accenti. Equivalente SQL: attivita_norm() (migration 20260720150000).
 import { normalizzaAttivita } from '@/lib/produzione/normalizzaAttivita';
-import { allineaChiaveAttivita } from '@/lib/attivita/aliasAttivita';
+import { allineaChiaveAttivita, type ModoAllineamento } from '@/lib/attivita/aliasAttivita';
 
 export type TassonomiaRiga = {
   committente: string;
@@ -38,21 +38,27 @@ export function buildTassonomiaIndex(righe: TassonomiaRiga[]): Map<string, Tasso
 /**
  * Risolve (committente, descrizione) → riga di tassonomia, o null se sconosciuta.
  * 'altro' non ha righe proprie: prova acea poi italgas (accetta qualsiasi attività nota).
- * Gli alias (`allineaChiaveAttivita`) allineano le descrizioni fuorvianti PRIMA del lookup,
- * così typo/duplicati risolvono alla forma canonica (stesso gruppo garantito).
+ *
+ * `opts.allinea` (OPT-IN) applica gli alias (`allineaChiaveAttivita`) PRIMA del lookup, così
+ * typo/duplicati risolvono alla forma canonica (stesso gruppo garantito). Due tier:
+ *  - `'lettura'` (modulo Performance): tutti gli alias, incluso il collasso codici ATLAS.
+ *  - `'scrittura'` (import, taskToIntervento, manuali): solo il tier produzione-compatibile.
+ * Senza opts: nessun alias (comportamento storico invariato).
  */
 export function risolviGruppo(
   committente: string | null | undefined,
   descrizione: string | null | undefined,
   index: Map<string, TassonomiaRiga>,
+  opts?: { allinea?: ModoAllineamento },
 ): TassonomiaRiga | null {
   const k = chiaveTassonomia(descrizione);
   if (!k) return null;
   const c = committenteEquivalente(committente);
+  const chiave = (cc: string) => (opts?.allinea ? allineaChiaveAttivita(cc, k, opts.allinea) : k);
   if (c === 'altro') {
-    return index.get(key('acea', allineaChiaveAttivita('acea', k)))
-      ?? index.get(key('italgas', allineaChiaveAttivita('italgas', k)))
+    return index.get(key('acea', chiave('acea')))
+      ?? index.get(key('italgas', chiave('italgas')))
       ?? null;
   }
-  return index.get(key(c, allineaChiaveAttivita(c, k))) ?? null;
+  return index.get(key(c, chiave(c))) ?? null;
 }

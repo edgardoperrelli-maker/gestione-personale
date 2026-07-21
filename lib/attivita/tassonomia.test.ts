@@ -3,6 +3,7 @@ import {
   chiaveTassonomia, buildTassonomiaIndex, committenteEquivalente, risolviGruppo,
   type TassonomiaRiga,
 } from './tassonomia';
+import { ALIAS_ATTIVITA } from './aliasAttivita';
 
 const riga = (over: Partial<TassonomiaRiga> = {}): TassonomiaRiga => ({
   committente: 'acea',
@@ -68,26 +69,50 @@ describe('risolviGruppo', () => {
   });
 });
 
-describe('risolviGruppo + alias attività (auto-allineamento)', () => {
-  const index = buildTassonomiaIndex([
-    riga({ committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE' }),
-    riga({ committente: 'italgas', descrizione: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', descrizioneNorm: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', gruppo: "ATTIVITA' ALLA CLIENTELA" }),
-  ]);
+describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => {
+  // Fixture = i 6 canonici del seed reale (20260720150000) coi loro gruppi.
+  const AC = "ATTIVITA' ALLA CLIENTELA";
+  const canonici: Array<{ committente: string; descrizione: string; gruppo: string }> = [
+    { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE' },
+    { committente: 'italgas', descrizione: "UT MOROSITA' PRIMO PASSAGGIO", gruppo: AC },
+    { committente: 'italgas', descrizione: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', gruppo: AC },
+    { committente: 'italgas', descrizione: "S-MR-002 - RIATTIVAZ. SERVIZIO SOSPESO PER MOROSITA'", gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA', gruppo: AC },
+  ];
+  const index = buildTassonomiaIndex(canonici.map((c) => riga({ ...c, descrizioneNorm: chiaveTassonomia(c.descrizione) })));
+  const gruppoDiCanonica = new Map(canonici.map((c) => [`${c.committente}|${chiaveTassonomia(c.descrizione)}`, c.gruppo]));
 
-  it('typo/variante acea → forma canonica, stesso gruppo', () => {
+  it('senza opts: nessun alias (comportamento write-path invariato)', () => {
+    expect(risolviGruppo('acea', 'LIMITAZIONE MASSIVA', index)).toBeNull(); // variante non è literal di tassonomia
+    expect(risolviGruppo('acea', 'LIMITAZIONI MASSIVE', index)?.gruppo).toBe('LIMITAZIONI MASSIVE'); // canonico sì
+  });
+
+  it('INVARIANTE: ogni alias risolve (allinea) alla canonica e allo STESSO gruppo', () => {
+    for (const [chiave, canonica] of Object.entries(ALIAS_ATTIVITA)) {
+      const sep = chiave.indexOf('|');
+      const committente = chiave.slice(0, sep);
+      const variante = chiave.slice(sep + 1);
+      const r = risolviGruppo(committente, variante, index, { allinea: 'lettura' });
+      expect(chiaveTassonomia(r?.descrizione)).toBe(canonica); // la canonica è un literal di tassonomia
+      expect(r?.gruppo).toBe(gruppoDiCanonica.get(`${committente}|${canonica}`)); // stesso gruppo
+    }
+  });
+
+  it('typo acea → LIMITAZIONI MASSIVE (case/spazi-insensitive)', () => {
     for (const v of ['LIMITAZIONE MASSIVA', 'LIMITAZIONI MASSICE', 'limitazioni massice']) {
-      const r = risolviGruppo('acea', v, index);
-      expect(r?.descrizione).toBe('LIMITAZIONI MASSIVE');
-      expect(r?.gruppo).toBe('LIMITAZIONI MASSIVE');
+      expect(risolviGruppo('acea', v, index, { allinea: 'lettura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
     }
   });
   it('lim_massive eredita l’alias acea', () => {
-    expect(risolviGruppo('lim_massive', 'LIMITAZIONE MASSIVA', index)?.descrizione).toBe('LIMITAZIONI MASSIVE');
-  });
-  it('codice ATLAS nudo italgas → forma con descrizione (stesso codice)', () => {
-    expect(risolviGruppo('italgas', 'DIS00N', index)?.descrizione).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
+    expect(risolviGruppo('lim_massive', 'LIMITAZIONE MASSIVA', index, { allinea: 'lettura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
   });
   it("committente 'altro' applica l’alias sul fallback", () => {
-    expect(risolviGruppo('altro', 'DIS00N', index)?.gruppo).toBe("ATTIVITA' ALLA CLIENTELA");
+    expect(risolviGruppo('altro', 'DIS00N', index, { allinea: 'lettura' })?.gruppo).toBe(AC);
+  });
+  it('scrittura: massive allineato ma codici ATLAS NON collassati (listino intatto)', () => {
+    expect(risolviGruppo('acea', 'LIMITAZIONE MASSIVA', index, { allinea: 'scrittura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
+    // ATLAS in scrittura NON collassa → cerca 'DIS00N' nudo (non nel fixture) → null; in lettura sì.
+    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'scrittura' })).toBeNull();
+    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'lettura' })?.descrizione).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
   });
 });

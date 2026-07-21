@@ -10,8 +10,11 @@ export type ErroreImport = {
   atteso?: string;     // solo gruppo_incoerente: il gruppo derivato dalla tassonomia
 };
 
+/** Un auto-allineamento avvenuto: la descrizione grezza `da` è stata riscritta canonica `a`. */
+export type AllineamentoImport = { da: string; a: string; righe: number[] };
+
 export type EsitoValidazione =
-  | { ok: true; righe: Array<{ task: Task; descrizioneCanonica: string; gruppo: string }> }
+  | { ok: true; righe: Array<{ task: Task; descrizioneCanonica: string; gruppo: string }>; allineate: AllineamentoImport[] }
   | { ok: false; errori: ErroreImport[] };
 
 export function validaImport(
@@ -23,12 +26,15 @@ export function validaImport(
   const mancanti: number[] = [];
   const sconosciute = new Map<string, number[]>();   // chiave norm → righe
   const incoerenti: ErroreImport[] = [];
+  const allineate = new Map<string, AllineamentoImport>(); // `da||a` → righe
 
   for (const t of tasks ?? []) {
     const riga = t.ordine ?? 0;
     const descr = String(t.attivita ?? '').trim();
     if (!descr) { mancanti.push(riga); continue; }
-    const ris = risolviGruppo(committente, descr, index);
+    // Auto-allineamento: una descrizione fuorviante nota viene riscritta canonica invece di
+    // essere rifiutata (le sconosciute vere restano bloccate).
+    const ris = risolviGruppo(committente, descr, index, { allinea: 'scrittura' });
     if (!ris) {
       const k = chiaveTassonomia(descr);
       if (!sconosciute.has(k)) sconosciute.set(k, []);
@@ -41,6 +47,15 @@ export function validaImport(
       continue;
     }
     righeOk.push({ task: t, descrizioneCanonica: ris.descrizione, gruppo: ris.gruppo });
+    // Testo grezzo riscritto in qualcosa di TESTUALMENTE diverso (alias, non solo case/spazi).
+    // Raggruppo per NORMA del testo grezzo → una voce per pattern (case/spazi diversi si fondono),
+    // con il primo testo visto come rappresentante.
+    if (chiaveTassonomia(descr) !== chiaveTassonomia(ris.descrizione)) {
+      const key = `${chiaveTassonomia(descr)}||${ris.descrizione}`;
+      const acc = allineate.get(key) ?? { da: descr.replace(/\s+/g, ' ').trim(), a: ris.descrizione, righe: [] };
+      acc.righe.push(riga);
+      allineate.set(key, acc);
+    }
   }
 
   const errori: ErroreImport[] = [];
@@ -48,5 +63,5 @@ export function validaImport(
   for (const [k, righe] of sconosciute) errori.push({ tipo: 'descrizione_sconosciuta', valore: k, righe });
   errori.push(...incoerenti);
 
-  return errori.length > 0 ? { ok: false, errori } : { ok: true, righe: righeOk };
+  return errori.length > 0 ? { ok: false, errori } : { ok: true, righe: righeOk, allineate: [...allineate.values()] };
 }

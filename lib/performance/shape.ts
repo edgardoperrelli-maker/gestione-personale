@@ -12,7 +12,7 @@ export interface ClientRow {
   data: string;             // ISO aaaa-mm-gg
   territorioId: string;     // id territorio ('' se assente)
   territorio: string;       // nome risolto
-  committente: string;      // valore raw ('acea' / 'lim_massive' / …), label via labelCommittente
+  committente: string;      // canonico dell'attività risolta (lowercase, lim_massive→acea), label via labelCommittente
   gruppo: string;           // gruppo attività dalla tassonomia (GRUPPO_NON_CENSITO se sconosciuta)
   attivita: string;         // descrizione attività canonica dalla tassonomia (o free-text originale)
   valvola: boolean;         // includeva sostituzione saracinesca

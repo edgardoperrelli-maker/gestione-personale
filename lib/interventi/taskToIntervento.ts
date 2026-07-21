@@ -49,8 +49,8 @@ export function taskToIntervento(
   // gruppo, così ogni voce di rapportino risolve il flusso della SUA attività
   // (Azioni operatori) invece di cadere sul fallback.
   const ris = indiceTassonomia
-    ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia)
-      ?? risolviGruppo('altro', task.attivita, indiceTassonomia)
+    ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia, { allinea: 'scrittura' })
+      ?? risolviGruppo('altro', task.attivita, indiceTassonomia, { allinea: 'scrittura' })
     : null;
   return {
     committente: ris?.committente ?? ctx.committente,

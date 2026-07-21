@@ -70,7 +70,9 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
       { status: 400 },
     );
   }
-  if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia)) {
+  // Coerente col write: stesso alias di scrittura di richiestaToIntervento (una variante nota
+  // passa il guard e verrà scritta canonica; le sconosciute vere restano rifiutate).
+  if (!risolviGruppo(committente, attivitaRaw, indiceTassonomia, { allinea: 'scrittura' })) {
     return NextResponse.json(
       { error: 'attivita_sconosciuta', attivita: attivitaRaw, messaggio: messaggioErroreManuale({ error: 'attivita_sconosciuta' }, 400) },
       { status: 400 },

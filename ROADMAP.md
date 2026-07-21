@@ -5,22 +5,31 @@
 
 ## Fatto
 
-- ✅ **Performance operatori: filtri multi-select + committenti/descrizioni allineate + auto-allineamento import** *(2026-07-21)* —
+- ✅ **Performance operatori: filtri multi-select + committenti/descrizioni allineate (lato modulo)** *(2026-07-21)* —
   tutti i filtri del modulo passano a multi-selezione (riuso di `components/ui/MultiSelect`):
   operatori, committenti, gruppi, attività, territori accettano più valori (array vuoto = tutti,
   OR interno / AND tra filtri). **Committenti** normalizzati: `lim_massive` accorpato ad Acea
-  (è un canale, non un committente — resta invariato nel DB/export), il committente mostrato è
-  quello dell'attività risolta (un codice ATLAS italgas loggato sotto acea diventa Italgas via
-  fallback `risolviGruppo('altro')`, come `taskToIntervento`); l'unica riga `altro`/PRONTO
-  INTERVENTO corretta a italgas (migration `20260721160000`). **Descrizioni** allineate con un
-  layer alias curato (`lib/attivita/aliasAttivita.ts`) applicato nell'unico chokepoint
-  `risolviGruppo`: typo/punteggiatura (`LIMITAZIONI MASSICE`→`MASSIVE`, apostrofo iniziale) e
-  stesso codice ATLAS con/senza descrizione (`DIS00N`, `S-MR-002`, `S-AI-022`) collassano alla
-  forma canonica (gruppo invariato → export lim_massive e KPI ancorati al gruppo intatti).
-  Poiché il chokepoint è condiviso, **l'import eredita l'auto-allineamento**: una descrizione
-  fuorviante nota non rifiuta più il file, viene riscritta canonica (le sconosciute vere restano
-  bloccate). Effetto sui dati reali: 8084/8308 righe risolte, «Non censita» ridotto a 2 righe
-  con tipo + 222 senza descrizione.
+  (è un canale, non un committente — invariato nel DB/export), il committente mostrato è quello
+  dell'attività risolta (un codice ATLAS italgas loggato sotto acea diventa Italgas via fallback
+  `risolviGruppo('altro')`, come `taskToIntervento`; anche la riga `altro`/PRONTO INTERVENTO si
+  mostra come Italgas senza toccare il DB). **Descrizioni** allineate con un layer alias curato
+  (`lib/attivita/aliasAttivita.ts`) applicato **solo in lettura, opt-in**
+  (`risolviGruppo(..., { allinea: true })`): typo/punteggiatura (`LIMITAZIONI MASSICE`→`MASSIVE`,
+  apostrofo iniziale) e stesso codice ATLAS con/senza descrizione (`DIS00N`, `S-MR-002`,
+  `S-AI-022`) collassano alla forma canonica (gruppo invariato). I **write-path restano grezzi**:
+  storage, dedup `identitaIntervento` e listino produzione non cambiano. Effetto sui dati reali:
+  8084/8308 righe risolte, «Non censita» = 2 righe con tipo + 222 senza descrizione.
+- ✅ **Auto-allineamento descrizioni in scrittura (import + pianificazione + manuali)** *(2026-07-21)* —
+  l'alias diventa a **due tier** (`allinea: 'lettura' | 'scrittura'`): il tier *scrittura* (typo,
+  punteggiatura, singolare→plurale massive) è produzione-compatibile (le canoniche esistono in
+  `acea_attivita_alias`) e viene applicato dai write-path (`validaImport`, `taskToIntervento`,
+  `richiestaToIntervento`); il tier *lettura* aggiunge i collassi codice ATLAS (`DIS00N`,
+  `S-MR-002`, `S-AI-022`), usati SOLO dal modulo (le forme lunghe non sono nel listino). Sull'import
+  una descrizione fuorviante nota **non rifiuta più il file**: viene riscritta canonica e riportata
+  in `allineati` nella risposta (trasparenza backoffice); le sconosciute vere restano bloccate.
+  Il dedup `identitaIntervento` è reso alias-aware (committente-agnostico) così le righe vecchie
+  grezze e le nuove allineate **convergono** — niente duplicati/risurrezione di limitazioni massive
+  a null-ODL in rigenerazione.
 - ✅ **Performance operatori su tassonomia reale + grafico esiti** *(2026-07-21)* — il modulo
   KPI "Performance operatori" abbandona l'euristica regex sul free-text (`normalizeMacroAttivita`,
   rimossa) e risolve ogni intervento con la tassonomia vera committente → gruppo attività →
