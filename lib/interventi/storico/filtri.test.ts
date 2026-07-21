@@ -5,7 +5,7 @@ import { parseFiltriStorico, risolviFinestra, puliziaQ, nessunFiltro } from './f
 describe('parseFiltriStorico', () => {
   it('default vuoto: tutti null/vuoti, page 0', () => {
     expect(parseFiltriStorico(new URLSearchParams())).toEqual({
-      q: '', data: null, dal: null, al: null, esecutore: null, comune: '',
+      q: '', data: null, dal: null, al: null, esecutori: [], gruppi: [], committenti: [], comune: '',
       eseguito: null, sostValvola: null, miniBag: null, rgStop: null, page: 0,
     });
   });
@@ -16,9 +16,19 @@ describe('parseFiltriStorico', () => {
     expect(f.q).toBe('200123');
     expect(f.dal).toBe('2026-06-01');
     expect(f.al).toBeNull();
-    expect(f.esecutore).toBe('s1');
+    expect(f.esecutori).toEqual(['s1']);
     expect(f.comune).toBe('Roma');
     expect(f.page).toBe(3);
+  });
+  it('filtri multi: parametro ripetuto, trim, senza vuoti né duplicati', () => {
+    const f = parseFiltriStorico(new URLSearchParams([
+      ['esecutore', 's1'], ['esecutore', ' s2 '], ['esecutore', 's1'], ['esecutore', '  '],
+      ['gruppo', 'DUNNING'], ['gruppo', 'LIMITAZIONI MASSIVE'],
+      ['committente', 'acea'], ['committente', 'italgas'],
+    ]));
+    expect(f.esecutori).toEqual(['s1', 's2']);
+    expect(f.gruppi).toEqual(['DUNNING', 'LIMITAZIONI MASSIVE']);
+    expect(f.committenti).toEqual(['acea', 'italgas']);
   });
   it('filtri SI/NO: solo SI o NO, altrimenti null', () => {
     const f = parseFiltriStorico(new URLSearchParams({ eseguito: 'SI', sostValvola: 'NO', miniBag: 'x', rgStop: 'SI' }));
@@ -55,6 +65,9 @@ describe('nessunFiltro', () => {
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ comune: 'Roma' })))).toBe(false);
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ eseguito: 'SI' })))).toBe(false);
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ q: 'x' })))).toBe(false);
+    expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ esecutore: 's1' })))).toBe(false);
+    expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ gruppo: 'DUNNING' })))).toBe(false);
+    expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ committente: 'acea' })))).toBe(false);
   });
 });
 

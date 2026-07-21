@@ -1,9 +1,18 @@
 // lib/interventi/storico/normalizza.test.ts
 import { describe, it, expect } from 'vitest';
-import { siNo, voceToRigaStorico, ordinaRighe, slicePagina, filtraSiNo, calcolaContatori } from './normalizza';
+import { buildTassonomiaIndex, chiaveTassonomia } from '@/lib/attivita/tassonomia';
+import {
+  siNo, voceToRigaStorico, interventoPiToRigaStorico, ordinaRighe, slicePagina,
+  filtraSiNo, filtraCommittenteGruppo, calcolaContatori, type InterventoPiRow,
+} from './normalizza';
 import type { VoceStoricoRow, RigaStorico } from './types';
 
 const staff = new Map<string, string>([['s1', 'Mario Rossi']]);
+
+const tassonomia = buildTassonomiaIndex([
+  { committente: 'acea', descrizione: 'Limitazione flusso idrico', descrizioneNorm: chiaveTassonomia('Limitazione flusso idrico'), gruppo: 'DUNNING', attivo: true },
+  { committente: 'italgas', descrizione: 'S-PR-007 A', descrizioneNorm: chiaveTassonomia('S-PR-007 A'), gruppo: "ATTIVITA' ALLA CLIENTELA", attivo: true },
+]);
 
 describe('siNo', () => {
   it('varianti SI', () => {
@@ -74,12 +83,61 @@ describe('voceToRigaStorico', () => {
     expect(r.sostValvola).toBe('—');
     expect(r.sigillo).toBeNull();
     expect(r.esecutore).toBe('OP');
+    expect(r.committente).toBeNull(); // nessun intervento collegato
+  });
+  it('committente/gruppo dall\'intervento collegato (lim_massive → acea)', () => {
+    const row = {
+      id: 'v4', odl: '1', via: 'X', comune: null, matricola: null, nominativo: null, pdr: null,
+      attivita: 'LIMITAZIONI MASSIVE', risposte: {}, manuale: false,
+      rapportini: { staff_id: 's1', staff_name: null, data: '2026-06-01' },
+      interventi: { committente: 'lim_massive', gruppo_attivita: 'LIMITAZIONI MASSIVE' },
+    } as unknown as VoceStoricoRow;
+    const r = voceToRigaStorico(row, staff, tassonomia);
+    expect(r.committente).toBe('acea');
+    expect(r.gruppo).toBe('LIMITAZIONI MASSIVE');
+  });
+  it('gruppo dal lookup tassonomia quando l\'intervento non lo ha (voce non collegata → tenta acea/italgas)', () => {
+    const row = {
+      id: 'v5', odl: '1', via: 'X', comune: null, matricola: null, nominativo: null, pdr: null,
+      attivita: 's-pr-007 a', risposte: {}, manuale: false,
+      rapportini: { staff_id: 's1', staff_name: null, data: '2026-06-01' },
+    } as unknown as VoceStoricoRow;
+    const r = voceToRigaStorico(row, staff, tassonomia);
+    expect(r.committente).toBeNull();
+    expect(r.gruppo).toBe("ATTIVITA' ALLA CLIENTELA");
+  });
+  it('descrizione fuori tassonomia e niente intervento → gruppo null', () => {
+    const row = {
+      id: 'v6', odl: '1', via: 'X', comune: null, matricola: null, nominativo: null, pdr: null,
+      attivita: 'ATTIVITA MISTERIOSA', risposte: {}, manuale: false,
+      rapportini: { staff_id: 's1', staff_name: null, data: '2026-06-01' },
+    } as unknown as VoceStoricoRow;
+    expect(voceToRigaStorico(row, staff, tassonomia).gruppo).toBeNull();
+  });
+});
+
+describe('interventoPiToRigaStorico', () => {
+  const rowPi = (p: Partial<InterventoPiRow>): InterventoPiRow => ({
+    id: 'pi1', indirizzo: 'Via Blu 2', comune: 'Roma', data: '2026-07-01', staff_id: 's1',
+    rif_esterno: 'R1', intervento_tipo: null, committente: 'italgas', gruppo_attivita: null,
+    esito: 'eseguito_positivo', esito_motivo: null, ...p,
+  });
+  it('committente dalla riga e gruppo di default P.I.', () => {
+    const r = interventoPiToRigaStorico(rowPi({}), staff, tassonomia);
+    expect(r.committente).toBe('italgas');
+    expect(r.gruppo).toBe('P.I.');
+    expect(r.eseguito).toBe('SI');
+  });
+  it('gruppo scritto sull\'intervento vince sul default', () => {
+    const r = interventoPiToRigaStorico(rowPi({ gruppo_attivita: 'P.I. SPECIALE' }), staff, tassonomia);
+    expect(r.gruppo).toBe('P.I. SPECIALE');
   });
 });
 
 describe('ordinaRighe', () => {
   const base = (p: Partial<RigaStorico>): RigaStorico => ({
     id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    committente: null, gruppo: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   it('ordina per data desc, poi via asc, poi id', () => {
@@ -95,6 +153,7 @@ describe('ordinaRighe', () => {
 describe('filtraSiNo', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
     id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    committente: null, gruppo: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   const noFilt = { eseguito: null, sostValvola: null, miniBag: null, rgStop: null } as const;
@@ -120,9 +179,36 @@ describe('filtraSiNo', () => {
   });
 });
 
+describe('filtraCommittenteGruppo', () => {
+  const r = (p: Partial<RigaStorico>): RigaStorico => ({
+    id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    committente: null, gruppo: null,
+    eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
+  });
+  const righe = [
+    r({ id: 'a', committente: 'acea', gruppo: 'DUNNING' }),
+    r({ id: 'b', committente: 'acea', gruppo: 'LIMITAZIONI MASSIVE' }),
+    r({ id: 'c', committente: 'italgas', gruppo: 'BONIFICHE' }),
+    r({ id: 'd' }), // voce legacy senza intervento collegato
+  ];
+  it('liste vuote → tutte le righe (stesso array)', () => {
+    expect(filtraCommittenteGruppo(righe, { committenti: [], gruppi: [] })).toBe(righe);
+  });
+  it('multi committente in OR; righe senza valore escluse', () => {
+    expect(filtraCommittenteGruppo(righe, { committenti: ['acea', 'italgas'], gruppi: [] }).map((x) => x.id)).toEqual(['a', 'b', 'c']);
+  });
+  it('multi gruppo in OR, case-insensitive', () => {
+    expect(filtraCommittenteGruppo(righe, { committenti: [], gruppi: ['dunning', 'BONIFICHE'] }).map((x) => x.id)).toEqual(['a', 'c']);
+  });
+  it('committente e gruppo in AND; lim_massive nel filtro equivale ad acea', () => {
+    expect(filtraCommittenteGruppo(righe, { committenti: ['lim_massive'], gruppi: ['LIMITAZIONI MASSIVE'] }).map((x) => x.id)).toEqual(['b']);
+  });
+});
+
 describe('calcolaContatori', () => {
   const r = (p: Partial<RigaStorico>): RigaStorico => ({
     id: '', odl: null, pdr: null, matricola: null, sigillo: null, data: null, esecutore: null, via: null, gruppoAttivita: null,
+    committente: null, gruppo: null,
     eseguito: '—', sostValvola: '—', miniBag: '—', rgStop: '—', note: null, ...p,
   });
   it('conta esitati/eseguiti/negativi e i SI dei campi', () => {

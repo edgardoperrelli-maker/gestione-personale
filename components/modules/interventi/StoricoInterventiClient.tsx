@@ -11,7 +11,7 @@ import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/typ
 type Staff = { id: string; display_name: string };
 
 const FILTRI_VUOTI: StatoFiltriUI = {
-  q: '', dal: '', al: '', esecutore: '', comune: '',
+  q: '', dal: '', al: '', esecutori: [], comune: '', gruppi: [], committenti: [],
   eseguito: '', sostValvola: '', miniBag: '', rgStop: '',
 };
 
@@ -28,7 +28,8 @@ const CARDS: { key: keyof ContatoriStorico; label: string; tone?: 'ok' | 'no' }[
   { key: 'rgStop', label: 'RG stop' },
 ];
 
-/** Querystring dei filtri (senza `page`), condivisa da lista ed export. */
+/** Querystring dei filtri (senza `page`), condivisa da lista ed export.
+ * I filtri multi viaggiano come parametro ripetuto (?esecutore=a&esecutore=b). */
 function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   const params = new URLSearchParams();
   if (f.q.trim()) {
@@ -37,7 +38,9 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
     if (f.dal) params.set('dal', f.dal);
     if (f.al) params.set('al', f.al);
   }
-  if (f.esecutore) params.set('esecutore', f.esecutore);
+  for (const id of f.esecutori) params.append('esecutore', id);
+  for (const g of f.gruppi) params.append('gruppo', g);
+  for (const c of f.committenti) params.append('committente', c);
   if (f.comune.trim()) params.set('comune', f.comune.trim());
   if (f.eseguito) params.set('eseguito', f.eseguito);
   if (f.sostValvola) params.set('sostValvola', f.sostValvola);
@@ -46,7 +49,7 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   return params;
 }
 
-export default function StoricoInterventiClient({ staff, isAdminPlus, puoModificare }: { staff: Staff[]; isAdminPlus: boolean; puoModificare: boolean }) {
+export default function StoricoInterventiClient({ staff, gruppi, isAdminPlus, puoModificare }: { staff: Staff[]; gruppi: string[]; isAdminPlus: boolean; puoModificare: boolean }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
@@ -205,6 +208,7 @@ export default function StoricoInterventiClient({ staff, isAdminPlus, puoModific
         filtri={filtri}
         setFiltri={setFiltri}
         staff={staff}
+        gruppi={gruppi}
         onApplica={applica}
         onPulisci={pulisci}
         onEsporta={esporta}
