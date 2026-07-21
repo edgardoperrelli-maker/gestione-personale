@@ -83,6 +83,10 @@
   --primary-text: oklch(0.82 0.12 255);
   --overlay:      oklch(0 0 0 / 0.60);
 
+  /* additivi Azioni operatori: cornice dell'anteprima-telefono */
+  --phone-bezel:  oklch(0.30 0.012 255);
+  --phone-screen: oklch(0.20 0.012 255);
+
   --status-ok:        oklch(0.74 0.15 150);
   --status-ok-soft:   oklch(0.74 0.15 150 / 0.18);
   --status-ko:        oklch(0.72 0.17 25);
@@ -210,6 +214,10 @@ html.light {
   --on-marker:    oklch(0.27 0.02 255);
   --primary-text: oklch(0.42 0.16 255);
   --overlay:      oklch(0.20 0.02 255 / 0.35);
+
+  /* additivi Azioni operatori: cornice dell'anteprima-telefono */
+  --phone-bezel:  oklch(0.22 0.012 255);
+  --phone-screen: oklch(0.985 0.003 250);
 
   --status-ok:        oklch(0.50 0.13 150);
   --status-ok-soft:   oklch(0.50 0.13 150 / 0.12);
