@@ -1,144 +1,133 @@
-# Handoff — Azioni operatori: consolle, motore per-attività, foto condizionali (2026-07-21)
+# Handoff — KPI/Produzione economica: limitazioni massive multi-comune (Labico) (2026-07-21)
 
 > Documento di ripresa per una NUOVA chat: è autosufficiente, la sessione precedente non c'è più.
-> Stato repo alla scrittura: `main` @ `1c7aa2e` (PR #131), working tree pulito, TUTTO deployato.
+> Stato repo alla scrittura: `main` @ `b0ee176` (include PR #133 mapcn, **#134 questo lavoro**,
+> #135 bonifiche extra). PR #134 **MERGIATA e deployata**, working tree pulito.
 
 ## Goal
 
-Le pianificazioni sono indipendenti dai template: ogni card intervento del rapportino ha le
-azioni della SUA attività, configurate nel modulo **Impostazioni → Azioni operatori** (unica
-fonte di verità, usabile in autonomia dal backoffice, che ha già account admin). Il redesign
-"Consolle" e le rifiniture motore sono COMPLETATI e in produzione; restano rifiniture note.
+Trattare **Labico come Zagarolo ovunque** nel modulo KPI / Produzione economica (richiesta
+**precauzionale**: nessun bug puntuale, ma togliere ogni special-case per comune), e far sì
+che il task di allineamento accodato all'agente dalla Produzione economica legga **entrambi**
+i comuni delle massive (Labico + Zagarolo), non solo Zagarolo.
 
 ## Current status
 
-Produzione Vercel = `main`. In prod oggi: consolle live, migrations applicate e verificate,
-foto condizionali disponibili ma **nessuna ancora configurata dall'utente**. Nessun bug noto
-aperto sul filone. DB "Calendario personale" (Supabase `aceztqfebringeaebvce`): 12 template
-(10 attivi, 2 archiviati), 8 attività coperte (Italgas 6, Acea 2), modelli «+» univoci,
-"Pronto Intervento" riservato al modulo P.I.
+**COMPLETATO e in produzione (PR #134).** Verificato sul DB prod (Supabase `aceztqfebringeaebvce`):
+il giro dell'agente ha girato su Labico e i conteggi tornano. Nessun bug aperto sul filone.
+`npx vitest run` = **1977 verdi, 0 rossi** (i 6 rossi preesistenti di `tools/limitazioni-sync`
+sono stati **sistemati** in questa sessione). `tsc --noEmit` pulito.
 
 ## Done
 
-- **PR #127 — Consolle + motore** (`app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx`
-  riscritto, ~1.100 righe): rail attività per committente con copertura; panoramica-registro
-  (KPI, chip azioni, slot «+», «Da sistemare», Archiviati); editor con telefono sticky sui
-  componenti REALI dell'operatore (`VoceCampi`, `VoceTitolo`, `VoceHeaderInfo`, `VoceDettagli`,
-  `RigaVoceCard`); checklist in creazione; Archivia/riattiva (il payload non forza più
-  `active=true`); pill di salvataggio mai silenziosa. Motore: titolo/dettagli PER-VOCE live
-  (`rapportino_voci.template_id` → `app/r/[token]/page.tsx`, fallback rapportino per lo storico);
-  GET `/api/admin/rapportino-template` protetta (era SENZA auth); `is_default` ritirato ovunque;
-  «+» univoco per committente (`lib/rapportini/modelloPlus.ts` + indice unico parziale
-  `rapportino_template_plus_univoco` + 409); `riservato_pi` al posto della ricerca per nome in
-  `api/admin/pi/token`; pool manuali via `lib/interventi/manuali/caricaTemplateManuali.ts`;
-  token additivi `--phone-bezel`/`--phone-screen`; rimosso `impostazioni/template-rapportini`.
-- **Migrations APPLICATE al prod** (ordine: merge → deploy READY → apply, per non aprire la
-  finestra di ambiguità del «+»): `20260721120000_modello_plus_riservato_pi` e
-  `20260721130000_archivia_flussi_obsoleti`. Verifica post-apply: 10 attivi / 2 archiviati /
-  indice presente / 0 rapportini in corso su "Ibrido acea".
-- **PR #130 — Foto obbligatorie su condizione**: campo additivo `obbligatoria_se
-  {chiave, valore}` sull'azione foto (jsonb `campi`, nessuna migration), valutato in
-  `utils/rapportini/fotoCondizionali.ts` → `slotFotoCondizionali` PRIMA delle regole legacy
-  per nome (valvola). UI: *Facoltativa / Obbligatoria / Obbligatoria se…* (trigger = crocetta
-  «spuntata» o select = valore, case-insensitive); riferimenti seguono i rename (chiave da
-  slug) e si azzerano eliminando il trigger; condizione orfana → fail-open.
-- **PR #128** — hook `.claude/hooks/sync-skills.sh` alla versione canonica git-clone.
-- **Sessioni concorrenti** (stesso giorno): #123/#124 pianificazione senza "Modello" in mappa
-  + `taskToIntervento` per-task + migration `20260721100000` (RESINE→italgas/RISANAMENTO
-  COLONNE, flusso classico "P.I.") + import solo template ufficiale; #125 foto-zip task-via;
-  #126/#129 filtri storico multi-select + territorio.
-- **Processo della sessione** (già consumato, non ripetere): grilling in 9 decisioni →
-  verifica funzionale (finding F1 GET senza auth, F2 auto-save muto su Pronto Intervento,
-  F3 hack per nome "Ibrido acea"/SIGILLO, F4 is_default orfano — tutti risolti) → 3 mockup
-  HTML → scelta utente: variante A "Consolle" + innesti B (chip/KPI) e C (checklist).
-  I mockup e il report vivevano nello scratchpad della sessione: PERSI, ma il risultato è nel codice.
+- **Generalizzazione data-driven** (`lib/produzione/attivitaCanonica.ts`): il guard "riga `acea`
+  senza testo attività → limitazione massiva" passa da hardcode `comune === 'ZAGAROLO'` a
+  `massiveComuni.has(comune)`. Nuovo helper server-only `lib/produzione/comuniMassive.ts`
+  (`caricaComuniMassive()`: `agente_file_colonne.is_master` → `comuniMaster()` → set di chiavi
+  normalizzate). `load.ts` e `loadCandele.ts` lo caricano e lo passano a OGNI chiamata di
+  `attivitaCanonica`. Qualsiasi comune con un master è ora trattato come Zagarolo; i comuni
+  senza master restano estranei (`italgas`). Set vuoto → degrado coerente.
+- **Bottone allineamento** (`components/modules/performance/PerformanceEconomica.tsx`): "Zagarolo"
+  → **"Limitazioni massive"**, accoda `target='TUTTI'` a `/api/admin/agente/acea-stato`. "Dunning"
+  resta separato. Un solo giro Playwright riversa l'export su TUTTI i master massive e ne pusha
+  lo snapshot. Zero cambi backend (`acea-stato` e l'agente supportavano già `TUTTI`).
+- **Fix cross-platform** (`tools/limitazioni-sync/lib/comuni.mjs`): `comuneDaFile` usa
+  `path.win32.basename/extname` (i path Windows dei master SharePoint su runner POSIX). Questo
+  ha **risolto i 6 test rossi preesistenti** (`comuni.test.ts` ×3, `risolviMaster.test.ts` ×3,
+  che cascavano da quest'unico bug).
+- **Commenti** `ZAGAROLO`-only → "massive (Labico/Zagarolo)" in `load.ts`, `saracinescaProdotta.ts`,
+  `acea-assegnazioni/route.ts`, `listino/scopri/route.ts`. Nessun cambio di logica.
+- **Test**: `attivitaCanonica.test.ts` aggiornato alla nuova firma + casi Labico e set-vuoto.
 
-## In progress / not yet done
+## Nessun cambio necessario (già a posto, verificato sui dati)
 
-1. **QA visivo della consolle da parte dell'utente** su dati reali (l'ambiente cloud non ha
-   service key né login: verificato solo via tsc/lint/build/1.969 test).
-2. **Prima foto condizionale reale**: l'utente voleva «se SARACINESCA spuntata → FOTO
-   SARACINESCA obbligatoria». Da configurare nel flusso interessato e verificare su un giro
-   che l'invio si blocchi SOLO a condizione attiva.
-3. **Rifiniture per-voce restanti** (ROADMAP): meccaniche task-via/ibrido per-voce e vista
-   `/hub/rapportini/eseguiti` sui campi unione.
-4. **6 test rossi PREESISTENTI** in `tools/limitazioni-sync` (`risolviMaster.test.ts` ×3,
-   `comuni.test.ts` ×3, ultima modifica `783da32`): fuori perimetro, mai toccati oggi.
+- `saracinescaProdotta` è già comune-agnostica: si "accende" per Labico appena l'agente gira sul
+  suo master (sbloccato dal bottone → `TUTTI`). `LABICO.xlsx` ha le stesse colonne di
+  `ZAGAROLO.xlsx` (`esito`/`saracinesca`/`Odl saracinesca`).
+- Audit a 3 vie: gli ODL Labico erano già coperti (il master DUNNING abbraccia tutti i comuni).
+- Performance operatori (`lib/performance/load.ts`): conta tutti i completati, Labico incluso.
+
+## Verifiche fatte in sessione (Supabase MCP, sola lettura)
+
+1. **Il giro su Labico è andato** (ore 11:50): `agente_run` mostra `acea-stato` seguito da **due**
+   `acea-master` — la firma di `target=TUTTI` (i giri precedenti a comune singolo ne avevano uno).
+   Tutte le righe master di Labico ri-raccolte, con `esito`/`saracinesca` popolati dal master
+   (il DUNNING li avrebbe lasciati vuoti → prova che ha letto `LABICO.xlsx`).
+2. **Conteggi riconciliati**: ogni limitazione positiva Labico risolve a `committente_eff='acea'`
+   (**0 scartate** su italgas — incluse le righe senza testo, prima escluse), **matricole tutte
+   distinte** (niente doppio conteggio), **0 collisioni matricola cross-comune** (dedup globale
+   sana). Decomposizione del montante massive per comune: Zagarolo dominante, **Labico seconda
+   fetta pulita**, il resto rumore (1 riga per comune estraneo).
+3. I numeri **salgono** tra una query e l'altra: è **dato vivo** (rapportini chiusi in giornata,
+   `ultima_data`=oggi), non un errore.
+
+## Contesto precedente ancora aperto (filone diverso, non toccato)
+
+Dalla sessione "Azioni operatori" (PR #127/#130/#131): configurare con l'utente la **prima foto
+condizionale reale** (es. saracinesca spuntata → foto obbligatoria) nel flusso giusto e
+verificarla su un giro. Vedi ROADMAP per le rifiniture per-voce.
 
 ## What worked
 
-- Ordine sicuro per cambi dato+codice: merge → `mcp Vercel get_deployment` fino a READY →
-  `mcp Supabase apply_migration` → SELECT di verifica.
-- Codice resiliente pre-migration: select con colonna nuova + fallback senza (pattern usato
-  per `riservato_pi` e per le colonne per-voce) — l'ordine deploy/migration diventa indifferente.
-- Estendere il collo di bottiglia unico (`slotFotoCondizionali`) invece di toccare i
-  consumatori: gate pre-invio, dettaglio mancanti e validazione manuali «+» ereditano gratis.
-- Anteprima fedele per costruzione: importare i componenti veri dell'operatore nell'editor.
-- Fake Supabase dei test: `lib/interventi/testUtils/fakeSupabase.ts` (chainable, in-memory).
+- **Grilling prima di implementare**: ha evitato di "riparare" i € (già corretti — entrambi i
+  committenti `acea`/`lim_massive` alias→acea, stessa tariffa massiva). Il gap reale era operativo (giro su
+  Labico) + la generalizzazione del guard, non i conteggi.
+- **Verifica DB via Supabase MCP** (`execute_sql`, sola lettura) prima di decidere il fix: ha
+  ribaltato l'ipotesi iniziale (Labico NON era escluso dai €) e reso le domande precise.
+- **`path.win32`** per parsing di path Windows testati su POSIX: fix di una riga, cascata risolta.
 
-## What did NOT work (and why)
+## What did NOT work / trappole
 
-- **Migrations PRIMA del deploy**: col codice vecchio online, il data-fix «Pronto
-  Intervento→italgas» crea DUE manuali attivi italgas → instradamento del «+» casuale
-  (dipende dall'ordine di ritorno query). Sempre deploy prima.
-- **`npm run build` nel cloud senza service key**: fallisce SEMPRE alla prima route admin
-  (supabaseAdmin creato a livello di modulo). Check valido:
-  `SUPABASE_SERVICE_ROLE_KEY=dummy npm run build`.
-- **curl verso `*.vercel.app` dalla shell di sessione**: il proxy blocca il CONNECT (403,
-  network policy). Stato deploy SOLO via strumenti MCP Vercel.
-- **tsc dopo aver rimosso una pagina**: `.next/types` stantio → falsi TS2307; `rm -rf .next`.
-- **Fidarsi di HEAD locale in giornate multi-sessione**: main è avanzato più volte sotto i
-  piedi; sempre `git fetch` + merge di origin/main prima della PR (conflitto tipico:
-  ROADMAP, tutti prependono in «Fatto» — tenere entrambe le voci).
-- **`.not('col','is',null)` nelle query del motore**: il fake dei test non lo implementa;
-  filtrare in JS dopo `.eq()` semplici (lezione ereditata, confermata).
+- **Ricostruire la pipeline in SQL con LEFT JOIN sull'alias**: fan-out sui duplicati di chiave
+  (committente_orig, chiave) → conteggi gonfiati. Rimedio: pre-dedup dell'alias con
+  `GROUP BY (committente_orig, chiave)` (come la Map dell'app, una entry per chiave).
+- **`origin/main` locale stantìo** in giornate multi-sessione: `git fetch origin main` prima di
+  qualsiasi ripartenza. Main è avanzato di 3 PR sotto i piedi (#133/#134/#135).
+- **Non c'è service key nell'ambiente cloud**: la pagina Produzione economica non è eseguibile
+  qui; verifica fatta ricostruendo la logica di `load.ts` in SQL contro il DB prod.
 
 ## Key decisions
 
-- Consolle (A) + innesti B/C — scelta utente sui 3 mockup; alternativa "wizard-first" scartata
-  come flusso principale (troppi click per gli esperti), sopravvive come checklist in creazione.
-- Display per-voce: decide la PRESENZA del template della voce (anche config vuota vale);
-  alternativa "vuoto = eredita dal rapportino" scartata: la voce deve seguire IL SUO flusso.
-- «+» univoco a livello DB (indice parziale) + 409 cortese in app; alternativa solo-app
-  scartata (le lotterie da ordine query erano proprio il bug).
-- `riservato_pi` flag invece del lookup per nome per il P.I.; il rename non rompe più il modulo.
-- Archivia (active=false) invece di eliminare "Ibrido acea": il suo hack legacy per nome
-  (`fotoObbligatorieSoloMassive`, regex `/ibrido\s*acea/i`) resta nel codice SOLO per i
-  rapportini storici. Le foto condizionali configurabili sono il sostituto.
-- `is_default` ritirato dai consumatori ma colonna lasciata nel DB (innocua, zero letture).
-- Foto condizionali fail-open su trigger mancante: mai bloccare un operatore per una config rotta.
+- **Data-driven (b)** invece della lista hardcoded `['ZAGAROLO','LABICO']`: aggiungere un comune
+  = aggiungere un master, zero modifiche al codice. Coerente con "il comune È il file master".
+- **`target='TUTTI'`** per il bottone (non i due comuni espliciti): include ogni comune futuro;
+  il controllo per singolo comune resta sulla pagina Agente.
+- **Saracinesca: nessun cambio di codice** — è già comune-agnostica, basta il giro su Labico.
+- La pagina mostra il **montante aggregato**, senza distinzione per master (e all'utente **non
+  serve**): la verifica per-comune si fa a DB, non in UI.
 
 ## Key files & commands
 
-- `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` — consolle intera (rail,
-  panoramica, editor, telefono, archiviazione, condizioni foto).
-- `utils/rapportini/fotoCondizionali.ts` — obblighi foto: configurati + legacy per nome.
-- `lib/rapportini/flussiGruppo.ts` — albero + `risolviFlussoPerGruppo` (stessa funzione del
-  motore, usata anche dalla consolle per mostrare il flusso che genera davvero).
-- `lib/interventi/sincronizzaRapportini.ts` — generazione: flussi per-voce + fallback modello auto.
-- `app/r/[token]/page.tsx` — display per-voce live (`tplIdByVoceId`/`displayByTplId`), pattern resiliente.
-- `npx vitest run` → attesi ~1.969 verdi + 6 rossi lim-sync preesistenti. `npx tsc --noEmit` pulito.
-- Salute modulo (SQL, progetto Supabase `aceztqfebringeaebvce`):
-  `select nome, active, solo_manuale, riservato_pi, committente, gruppo_committente, gruppi_attivita from rapportino_template order by active desc, solo_manuale, nome;`
-- Foto condizionali configurate:
-  `select nome, c->>'etichetta' foto, c->'obbligatoria_se' cond from rapportino_template, jsonb_array_elements(campi) c where c->'obbligatoria_se' is not null and c->>'obbligatoria_se' <> 'null';`
+- `lib/produzione/attivitaCanonica.ts` — guard massive data-driven (5° param `massiveComuni`).
+- `lib/produzione/comuniMassive.ts` — `caricaComuniMassive()` (fonte: `agente_file_colonne.is_master`).
+- `lib/produzione/load.ts` + `loadCandele.ts` — caricano e passano `comuniMassive`.
+- `components/modules/performance/PerformanceEconomica.tsx` — bottone "Limitazioni massive" (`TUTTI`).
+- `tools/limitazioni-sync/lib/comuni.mjs` — `comuneDaFile` con `path.win32`.
+- `app/api/admin/agente/acea-stato/route.ts` — accetta `dunning | TUTTI | <COMUNE>`.
+- `tools/limitazioni-sync/lib/acea/risolviMaster.mjs` + `eseguiGiroAcea.mjs` — target → N master.
+- `npx vitest run` → **1977 verdi** (i 6 lim-sync ora passano). `npx tsc --noEmit` pulito.
+- Verifica giro (SQL, progetto `aceztqfebringeaebvce`):
+  `select tipo, creato_il from agente_run order by creato_il desc limit 6;`
+  (un `acea-stato` + due `acea-master` ravvicinati = giro su TUTTI i comuni massive).
 
 ## Open questions
 
-- Il backoffice troverà intuitiva la consolle senza spiegazioni? (Era l'obiettivo del
-  redesign; feedback reale ancora mancante.)
-- Le rifiniture task-via/ibrido per-voce: quando? Nessuna urgenza dichiarata.
-- I 6 test lim-sync rossi: sistemarli o congelarli esplicitamente?
+- Nessuna sul filone limitazioni massive: chiuso e verificato.
+- Prima foto condizionale reale (filone Azioni operatori): quando la configura l'utente?
 
 ## Next step
 
-Configurare con l'utente la **prima foto condizionale reale** (saracinesca) nel flusso giusto
-di Azioni operatori e verificarla su un giro generato: l'invio deve bloccarsi SOLO con la
-casella spuntata (query "Foto condizionali configurate" qui sopra per conferma lato dati).
+Nessun passo obbligato su questo filone. Se serve, alla prossima esigenza sulle massive:
+aggiungere un comune = mettere il suo `<COMUNE>.xlsx` nella cartella master (l'agente lo scansiona,
+`is_master=true`) → entra da solo in conteggi, audit e allineamento `TUTTI`, zero codice.
 
 ## Warnings (invarianti da non violare)
 
-- NON disattivare la voce acea "LIMITAZIONI MASSIVE" in tassonomia (export ancorato al literal).
-- Repo PUBBLICO: mai dati di produzione (matricole/ODL/nomi) in commit o PR.
-- Azioni congelate per-voce alla generazione; titolo/dettagli LIVE anche sul già-inviato.
-- Non riattivare "Ibrido acea" se non serve davvero; non usare `is_default` via SQL.
+- **Mai re-hardcodare `comune === 'ZAGAROLO'`** in `attivitaCanonica` (o simili): i comuni massive
+  sono data-driven da `comuniMaster()`/`caricaComuniMassive()`.
+- **Non disattivare la voce tassonomia `LIMITAZIONI MASSIVE`**: l'export
+  `api/export/limitazioni-massive` è ancorato al literal `gruppo_attivita='LIMITAZIONI MASSIVE'`.
+- **Non reintrodurre un bottone per-comune** in Produzione economica: uno solo, "Limitazioni
+  massive" = `TUTTI`.
+- `comuneDaFile` in `tools/limitazioni-sync` deve restare su `path.win32` (path Windows su POSIX).
+- Repo **PUBBLICO**: mai dati di produzione (matricole/ODL/nomi) né importi in commit o PR.
