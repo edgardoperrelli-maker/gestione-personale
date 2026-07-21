@@ -68,7 +68,7 @@ export function richiestaToIntervento(
   const classificazione = ctx.taskViaParent
     ? { committente: 'italgas', intervento_tipo: 'BONIFICHE EXTRA', gruppo_attivita: 'BONIFICHE EXTRA' }
     : (() => {
-        const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice) : null;
+        const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice, { allinea: 'scrittura' }) : null;
         return {
           committente: ctx.committente as string,
           intervento_tipo: ris ? ris.descrizione : trimOrNull(a.attivita),

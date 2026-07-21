@@ -130,6 +130,25 @@ describe('planInterventi', () => {
     expect(r.idDaEliminare).toEqual([]);
   });
 
+  it('terminale massive con variante "LIMITAZIONE MASSIVA" NON duplicato dopo auto-allineamento', () => {
+    // Scenario review: la riga completata è stata scritta con la vecchia forma "LIMITAZIONE MASSIVA"
+    // (null ODL); il task fresco risolve, con l'alias di scrittura, a "LIMITAZIONI MASSIVE".
+    // identitaIntervento allinea ENTRAMBI i lati → stessa chiave → nessun duplicato/risurrezione.
+    const indice = buildTassonomiaIndex([
+      { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
+    ] as TassonomiaRiga[]);
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: '', matricola: 'M1', indirizzo: 'Via Roma 1', attivita: 'LIMITAZIONE MASSIVA' })] }],
+      esistenti: [
+        { id: 'e1', odl: null, stato: 'completato', matricola_contatore: 'M1', indirizzo: 'Via Roma 1', intervento_tipo: 'LIMITAZIONE MASSIVA' },
+      ],
+      indiceTassonomia: indice,
+    });
+    expect(r.daInserire).toHaveLength(0);
+    expect(r.idDaEliminare).toEqual([]);
+  });
+
   it('scarta gli ODL già eseguiti positivi altrove e li riporta in odlBloccati', () => {
     const r = planInterventi({
       ...base,

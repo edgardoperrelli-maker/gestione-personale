@@ -2,7 +2,7 @@
 // La chiave è la STESSA del listino (normalizzaAttivita): maiuscolo, spazi collassati,
 // senza accenti. Equivalente SQL: attivita_norm() (migration 20260720150000).
 import { normalizzaAttivita } from '@/lib/produzione/normalizzaAttivita';
-import { allineaChiaveAttivita } from '@/lib/attivita/aliasAttivita';
+import { allineaChiaveAttivita, type ModoAllineamento } from '@/lib/attivita/aliasAttivita';
 
 export type TassonomiaRiga = {
   committente: string;
@@ -40,22 +40,21 @@ export function buildTassonomiaIndex(righe: TassonomiaRiga[]): Map<string, Tasso
  * 'altro' non ha righe proprie: prova acea poi italgas (accetta qualsiasi attività nota).
  *
  * `opts.allinea` (OPT-IN) applica gli alias (`allineaChiaveAttivita`) PRIMA del lookup, così
- * typo/duplicati risolvono alla forma canonica (stesso gruppo garantito). È usato SOLO in
- * lettura dal modulo Performance (accorpa i filtri). I write-path (import, taskToIntervento,
- * manuali, storico, confronto-esiti) chiamano SENZA opts → nessun alias, comportamento
- * invariato: lo storage e i consumatori a valle (dedup identitaIntervento, listino produzione)
- * restano intatti. L'auto-allineamento in scrittura è una fase separata da progettare a parte.
+ * typo/duplicati risolvono alla forma canonica (stesso gruppo garantito). Due tier:
+ *  - `'lettura'` (modulo Performance): tutti gli alias, incluso il collasso codici ATLAS.
+ *  - `'scrittura'` (import, taskToIntervento, manuali): solo il tier produzione-compatibile.
+ * Senza opts: nessun alias (comportamento storico invariato).
  */
 export function risolviGruppo(
   committente: string | null | undefined,
   descrizione: string | null | undefined,
   index: Map<string, TassonomiaRiga>,
-  opts?: { allinea?: boolean },
+  opts?: { allinea?: ModoAllineamento },
 ): TassonomiaRiga | null {
   const k = chiaveTassonomia(descrizione);
   if (!k) return null;
   const c = committenteEquivalente(committente);
-  const chiave = (cc: string) => (opts?.allinea ? allineaChiaveAttivita(cc, k) : k);
+  const chiave = (cc: string) => (opts?.allinea ? allineaChiaveAttivita(cc, k, opts.allinea) : k);
   if (c === 'altro') {
     return index.get(key('acea', chiave('acea')))
       ?? index.get(key('italgas', chiave('italgas')))

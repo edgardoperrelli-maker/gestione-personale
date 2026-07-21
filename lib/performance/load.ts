@@ -98,11 +98,11 @@ export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
 
   const rows: ClientRow[] = raw.map((r) => {
     // Tassonomia reale (committente, descrizione) → gruppo + forma canonica della descrizione.
-    // `allinea: true` accorpa i duplicati/typo (SOLO qui in lettura; i write-path restano grezzi).
+    // `allinea: 'lettura'` accorpa i duplicati/typo (tier completo, incl. codici ATLAS solo-modulo).
     // Fallback 'altro' (prova acea poi italgas) come in taskToIntervento: un codice ATLAS
     // italgas loggato sotto 'acea' risolve comunque alla sua attività/gruppo reali.
-    const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex, { allinea: true })
-      ?? risolviGruppo('altro', r.intervento_tipo, tassIndex, { allinea: true });
+    const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex, { allinea: 'lettura' })
+      ?? risolviGruppo('altro', r.intervento_tipo, tassIndex, { allinea: 'lettura' });
     return {
       id: r.id,
       staffId: r.staff_id ?? '',

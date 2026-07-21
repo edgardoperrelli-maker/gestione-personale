@@ -19,8 +19,17 @@
   `S-AI-022`) collassano alla forma canonica (gruppo invariato). I **write-path restano grezzi**:
   storage, dedup `identitaIntervento` e listino produzione non cambiano. Effetto sui dati reali:
   8084/8308 righe risolte, «Non censita» = 2 righe con tipo + 222 senza descrizione.
-  *Rinviato (fase separata):* auto-allineamento in scrittura sull'import — va progettato
-  gestendo anche i consumatori del testo grezzo (dedup null-ODL e `acea_attivita_alias`).
+- ✅ **Auto-allineamento descrizioni in scrittura (import + pianificazione + manuali)** *(2026-07-21)* —
+  l'alias diventa a **due tier** (`allinea: 'lettura' | 'scrittura'`): il tier *scrittura* (typo,
+  punteggiatura, singolare→plurale massive) è produzione-compatibile (le canoniche esistono in
+  `acea_attivita_alias`) e viene applicato dai write-path (`validaImport`, `taskToIntervento`,
+  `richiestaToIntervento`); il tier *lettura* aggiunge i collassi codice ATLAS (`DIS00N`,
+  `S-MR-002`, `S-AI-022`), usati SOLO dal modulo (le forme lunghe non sono nel listino). Sull'import
+  una descrizione fuorviante nota **non rifiuta più il file**: viene riscritta canonica e riportata
+  in `allineati` nella risposta (trasparenza backoffice); le sconosciute vere restano bloccate.
+  Il dedup `identitaIntervento` è reso alias-aware (committente-agnostico) così le righe vecchie
+  grezze e le nuove allineate **convergono** — niente duplicati/risurrezione di limitazioni massive
+  a null-ODL in rigenerazione.
 - ✅ **Performance operatori su tassonomia reale + grafico esiti** *(2026-07-21)* — il modulo
   KPI "Performance operatori" abbandona l'euristica regex sul free-text (`normalizeMacroAttivita`,
   rimossa) e risolve ogni intervento con la tassonomia vera committente → gruppo attività →

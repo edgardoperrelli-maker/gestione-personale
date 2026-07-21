@@ -92,7 +92,7 @@ describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => 
       const sep = chiave.indexOf('|');
       const committente = chiave.slice(0, sep);
       const variante = chiave.slice(sep + 1);
-      const r = risolviGruppo(committente, variante, index, { allinea: true });
+      const r = risolviGruppo(committente, variante, index, { allinea: 'lettura' });
       expect(chiaveTassonomia(r?.descrizione)).toBe(canonica); // la canonica è un literal di tassonomia
       expect(r?.gruppo).toBe(gruppoDiCanonica.get(`${committente}|${canonica}`)); // stesso gruppo
     }
@@ -100,13 +100,19 @@ describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => 
 
   it('typo acea → LIMITAZIONI MASSIVE (case/spazi-insensitive)', () => {
     for (const v of ['LIMITAZIONE MASSIVA', 'LIMITAZIONI MASSICE', 'limitazioni massice']) {
-      expect(risolviGruppo('acea', v, index, { allinea: true })?.descrizione).toBe('LIMITAZIONI MASSIVE');
+      expect(risolviGruppo('acea', v, index, { allinea: 'lettura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
     }
   });
   it('lim_massive eredita l’alias acea', () => {
-    expect(risolviGruppo('lim_massive', 'LIMITAZIONE MASSIVA', index, { allinea: true })?.descrizione).toBe('LIMITAZIONI MASSIVE');
+    expect(risolviGruppo('lim_massive', 'LIMITAZIONE MASSIVA', index, { allinea: 'lettura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
   });
   it("committente 'altro' applica l’alias sul fallback", () => {
-    expect(risolviGruppo('altro', 'DIS00N', index, { allinea: true })?.gruppo).toBe(AC);
+    expect(risolviGruppo('altro', 'DIS00N', index, { allinea: 'lettura' })?.gruppo).toBe(AC);
+  });
+  it('scrittura: massive allineato ma codici ATLAS NON collassati (listino intatto)', () => {
+    expect(risolviGruppo('acea', 'LIMITAZIONE MASSIVA', index, { allinea: 'scrittura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
+    // ATLAS in scrittura NON collassa → cerca 'DIS00N' nudo (non nel fixture) → null; in lettura sì.
+    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'scrittura' })).toBeNull();
+    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'lettura' })?.descrizione).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
   });
 });

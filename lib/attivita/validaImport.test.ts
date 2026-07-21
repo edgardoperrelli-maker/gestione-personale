@@ -10,6 +10,7 @@ const T = (over: Partial<Task>): Task => ({
 
 const index = buildTassonomiaIndex([
   { committente: 'acea', descrizione: 'Limitazione Massiva su Impianto', descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
+  { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
   { committente: 'acea', descrizione: 'Sospensione fornitura', descrizioneNorm: 'SOSPENSIONE FORNITURA', gruppo: 'DUNNING', attivo: true },
 ] as TassonomiaRiga[]);
 
@@ -60,5 +61,25 @@ describe('validaImport', () => {
       'acea', index,
     );
     expect(esito.ok).toBe(false);
+  });
+
+  it('auto-allineamento: typo noto riscritto canonico invece di rifiutare (+ report)', () => {
+    const esito = validaImport(
+      [T({ attivita: 'LIMITAZIONI MASSICE' }), T({ ordine: 2, attivita: 'limitazioni massice' })],
+      'acea', index,
+    );
+    expect(esito.ok).toBe(true);
+    if (esito.ok) {
+      expect(esito.righe.every((r) => r.descrizioneCanonica === 'LIMITAZIONI MASSIVE')).toBe(true);
+      expect(esito.allineate).toEqual([{ da: 'LIMITAZIONI MASSICE', a: 'LIMITAZIONI MASSIVE', righe: [1, 2] }]);
+    }
+  });
+  it('variante valida (solo case/spazi) NON è segnalata come allineamento', () => {
+    const esito = validaImport([T({ attivita: ' limitazione   massiva SU impianto ' })], 'acea', index);
+    expect(esito.ok).toBe(true);
+    if (esito.ok) expect(esito.allineate).toEqual([]);
+  });
+  it('descrizione sconosciuta VERA resta bloccata (no auto-align di fantasia)', () => {
+    expect(validaImport([T({ attivita: 'ATTIVITA INVENTATA' })], 'acea', index).ok).toBe(false);
   });
 });
