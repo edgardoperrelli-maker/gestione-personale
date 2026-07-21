@@ -86,6 +86,8 @@ type Props = {
   className?: string;
   /** Padding del fitBounds in px. */
   fitPadding?: number;
+  /** Basemap trasparente senza tile (data-viz / rendering offline). */
+  blank?: boolean;
 };
 
 /** Centro iniziale sull'Italia (sovrascritto dal fitBounds). */
@@ -236,6 +238,7 @@ export default function PlanningMap({
   focus = null,
   className,
   fitPadding = 24,
+  blank = false,
 }: Props) {
   const theme = useAppTheme();
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -249,7 +252,7 @@ export default function PlanningMap({
   }, [valid, selectedId]);
 
   return (
-    <Map theme={theme} className={className ?? 'h-full w-full'} center={ITALY_CENTER} zoom={5}>
+    <Map theme={theme} blank={blank} className={className ?? 'h-full w-full'} center={ITALY_CENTER} zoom={5}>
       <MapControls position="top-right" />
       <FitController markers={valid} routes={routes} padding={fitPadding} />
       <FocusController focus={focus} markers={valid} onSelect={setSelectedId} />
