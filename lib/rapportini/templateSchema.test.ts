@@ -65,3 +65,18 @@ describe('TemplateSchema tipo', () => {
     expect(TemplateSchema.safeParse({ ...base, tipo: 'altro' }).success).toBe(false);
   });
 });
+
+describe('CampoSchema obbligatoria_se (foto condizionali)', () => {
+  const base = { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 1 };
+  it('accetta la condizione configurata', () => {
+    expect(CampoSchema.safeParse({ ...base, obbligatoria_se: { chiave: 'saracinesca', valore: 'SI' } }).success).toBe(true);
+  });
+  it('accetta null (condizione rimossa) e il campo assente', () => {
+    expect(CampoSchema.safeParse({ ...base, obbligatoria_se: null }).success).toBe(true);
+    expect(CampoSchema.safeParse(base).success).toBe(true);
+  });
+  it('rifiuta condizioni monche (chiave o valore vuoti)', () => {
+    expect(CampoSchema.safeParse({ ...base, obbligatoria_se: { chiave: '', valore: 'SI' } }).success).toBe(false);
+    expect(CampoSchema.safeParse({ ...base, obbligatoria_se: { chiave: 'saracinesca', valore: '' } }).success).toBe(false);
+  });
+});

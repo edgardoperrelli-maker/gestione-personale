@@ -61,3 +61,53 @@ describe('fotoSlotObbligatorio', () => {
     expect(fotoSlotObbligatorio(campi[3], new Set())).toBe(false);
   });
 });
+
+describe('slotFotoCondizionali — condizione CONFIGURATA (obbligatoria_se, modulo Azioni operatori)', () => {
+  const SARACINESCA_CROCETTA: TemplateCampo[] = [
+    { chiave: 'saracinesca', etichetta: 'SARACINESCA', tipo: 'crocetta', ordine: 1 },
+    { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 2, obbligatoria_se: { chiave: 'saracinesca', valore: 'SI' } },
+  ];
+
+  it('saracinesca spuntata → foto saracinesca obbligatoria; non spuntata → facoltativa', () => {
+    expect(slotFotoCondizionali(SARACINESCA_CROCETTA, { saracinesca: true }).has('foto_saracinesca')).toBe(true);
+    expect(slotFotoCondizionali(SARACINESCA_CROCETTA, { saracinesca: false }).size).toBe(0);
+    expect(slotFotoCondizionali(SARACINESCA_CROCETTA, {}).size).toBe(0);
+  });
+
+  it('trigger select: attiva solo col valore configurato (case-insensitive, trim)', () => {
+    const campiSelect: TemplateCampo[] = [
+      { chiave: 'saracinesca', etichetta: 'SARACINESCA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+      { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 2, obbligatoria_se: { chiave: 'saracinesca', valore: 'SI' } },
+    ];
+    expect(slotFotoCondizionali(campiSelect, { saracinesca: 'SI' }).has('foto_saracinesca')).toBe(true);
+    expect(slotFotoCondizionali(campiSelect, { saracinesca: ' si ' }).has('foto_saracinesca')).toBe(true);
+    expect(slotFotoCondizionali(campiSelect, { saracinesca: 'NO' }).size).toBe(0);
+  });
+
+  it('trigger sparito dal flusso → fail-open: nessun obbligo (mai bloccante)', () => {
+    const orfano: TemplateCampo[] = [
+      { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 1, obbligatoria_se: { chiave: 'non_esiste', valore: 'SI' } },
+    ];
+    expect(slotFotoCondizionali(orfano, { non_esiste: true }).size).toBe(0);
+  });
+
+  it('obbligatoria_se null/assente → comportamento invariato', () => {
+    const senza: TemplateCampo[] = [
+      { chiave: 'saracinesca', etichetta: 'SARACINESCA', tipo: 'crocetta', ordine: 1 },
+      { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 2, obbligatoria_se: null },
+    ];
+    expect(slotFotoCondizionali(senza, { saracinesca: true }).size).toBe(0);
+  });
+
+  it('convive con le regole legacy per nome (valvola) nello stesso flusso', () => {
+    const misto: TemplateCampo[] = [
+      { chiave: 'sostituzione_valvola', etichetta: 'SOSTITUZIONE VALVOLA', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 },
+      { chiave: 'sost_valvola', etichetta: 'Sost. Valvola', tipo: 'foto', ordine: 2 },
+      { chiave: 'saracinesca', etichetta: 'SARACINESCA', tipo: 'crocetta', ordine: 3 },
+      { chiave: 'foto_saracinesca', etichetta: 'FOTO SARACINESCA', tipo: 'foto', ordine: 4, obbligatoria_se: { chiave: 'saracinesca', valore: 'SI' } },
+    ];
+    const set = slotFotoCondizionali(misto, { sostituzione_valvola: 'SI', saracinesca: true });
+    expect(set.has('sost_valvola')).toBe(true);
+    expect(set.has('foto_saracinesca')).toBe(true);
+  });
+});

@@ -4,6 +4,11 @@ export interface TemplateCampo {
   opzioni?: string[];
   obbligatoria?: boolean; // campo obbligatorio: foto = slot richiesto; non-foto = blocco rigido all'invio (tutti i template)
   scope_foto?: 'misuratore' | 'fase' | 'accessoria'; // solo per tipo='foto' nei template risanamento
+  /** Obbligo su condizione (solo tipo='foto'), configurato da Azioni operatori: la foto è
+   *  richiesta quando l'azione `chiave` della stessa voce ha la risposta `valore`
+   *  (trigger crocetta: 'SI' = spuntata; trigger select: una delle sue opzioni).
+   *  Vive nel jsonb `campi` — nessuna migration; assente/null = comportamento invariato. */
+  obbligatoria_se?: { chiave: string; valore: string } | null;
   ordine: number;
 }
 

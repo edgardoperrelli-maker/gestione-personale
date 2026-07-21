@@ -220,8 +220,9 @@ function ChecklistVerifica({ campi, titoloCampi }: { campi: TemplateCampo[]; tit
   const anteprimaVoce = { ...SAMPLE_VOCE_INFO, risposte: {} };
   const titolo = titoloVoce(anteprimaVoce, titoloCampi, 0);
   const obbligatorie = campi.filter((c) => c.obbligatoria === true).length;
+  const condizionate = campi.filter((c) => c.tipo === 'foto' && c.obbligatoria_se?.chiave).length;
   const voci: { ok: boolean; testo: string }[] = [
-    { ok: campi.length > 0, testo: campi.length > 0 ? `${campi.length} azion${campi.length === 1 ? 'e' : 'i'}, ${obbligatorie} obbligatori${obbligatorie === 1 ? 'a' : 'e'}` : 'Nessuna azione: aggiungine almeno una' },
+    { ok: campi.length > 0, testo: campi.length > 0 ? `${campi.length} azion${campi.length === 1 ? 'e' : 'i'}, ${obbligatorie} obbligatori${obbligatorie === 1 ? 'a' : 'e'}${condizionate > 0 ? `, ${condizionate} su condizione` : ''}` : 'Nessuna azione: aggiungine almeno una' },
     { ok: true, testo: `Titolo della card: «${titolo}»` },
     { ok: campi.every((c) => c.etichetta.trim() !== ''), testo: campi.every((c) => c.etichetta.trim() !== '') ? 'Tutte le azioni hanno un nome' : 'C’è un’azione senza nome' },
   ];
@@ -428,7 +429,18 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       const updated = { ...next[idx], ...patch };
       if (patch.etichetta !== undefined) {
         const slug = slugify(patch.etichetta);
-        updated.chiave = slug || `campo_${idx + 1}`;
+        const nuova = slug || `campo_${idx + 1}`;
+        const vecchia = next[idx].chiave;
+        updated.chiave = nuova;
+        // Le condizioni foto puntano alla chiave: se cambia (rename dell'etichetta),
+        // i riferimenti seguono — mai condizioni rotte in silenzio.
+        if (nuova !== vecchia) {
+          for (let i = 0; i < next.length; i++) {
+            if (i !== idx && next[i].obbligatoria_se?.chiave === vecchia) {
+              next[i] = { ...next[i], obbligatoria_se: { ...next[i].obbligatoria_se!, chiave: nuova } };
+            }
+          }
+        }
       }
       next[idx] = updated;
       return next;
@@ -438,7 +450,17 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     setCampi((prev) => [...prev, newCampo(prev.length + 1)]);
   }
   function removeCampo(idx: number) {
-    setCampi((prev) => prev.filter((_, i) => i !== idx).map((c, i) => ({ ...c, ordine: i + 1 })));
+    setCampi((prev) => {
+      const rimossa = prev[idx]?.chiave;
+      // Eliminando l'azione-condizione, le foto che la usavano tornano facoltative (esplicito).
+      return prev
+        .filter((_, i) => i !== idx)
+        .map((c, i) => ({
+          ...c,
+          ordine: i + 1,
+          ...(c.obbligatoria_se?.chiave === rimossa ? { obbligatoria_se: null } : {}),
+        }));
+    });
   }
   function moveCampo(idx: number, dir: -1 | 1) {
     const next = idx + dir;
@@ -537,6 +559,11 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         ...c,
         ordine: i + 1,
         opzioni: c.tipo === 'select' ? (c.opzioni ?? []).map((s) => s.trim()).filter(Boolean) : undefined,
+        // Condizione valida solo su foto e con trigger scelto; altrimenti si pulisce.
+        obbligatoria_se:
+          c.tipo === 'foto' && c.obbligatoria_se?.chiave
+            ? { chiave: c.obbligatoria_se.chiave, valore: c.obbligatoria_se.valore?.trim() || 'SI' }
+            : null,
       })),
       info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
       titolo_campi: titoloCampi,
@@ -1064,7 +1091,34 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                     <option key={t} value={t}>{TIPO_LABELS[t]}</option>
                   ))}
                 </select>
-                {!(tipo === 'risanamento' && campo.tipo === 'foto' && (campo.scope_foto ?? 'misuratore') === 'accessoria') && (
+                {campo.tipo === 'foto' ? (
+                  !(tipo === 'risanamento' && (campo.scope_foto ?? 'misuratore') === 'accessoria') && (
+                    <select
+                      value={campo.obbligatoria ? 'sempre' : campo.obbligatoria_se ? 'se' : 'no'}
+                      onChange={(e) => {
+                        const v = e.target.value;
+                        if (v === 'sempre') updateCampo(idx, { obbligatoria: true, obbligatoria_se: null });
+                        else if (v === 'no') updateCampo(idx, { obbligatoria: false, obbligatoria_se: null });
+                        else {
+                          const trigger = campi.find((t, i) => i !== idx && (t.tipo === 'crocetta' || t.tipo === 'select'));
+                          updateCampo(idx, {
+                            obbligatoria: false,
+                            obbligatoria_se: {
+                              chiave: trigger?.chiave ?? '',
+                              valore: trigger?.tipo === 'select' ? (trigger.opzioni?.find(Boolean) ?? 'SI') : 'SI',
+                            },
+                          });
+                        }
+                      }}
+                      title="Quando è richiesta questa foto"
+                      className="w-44 shrink-0 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
+                    >
+                      <option value="no">Facoltativa</option>
+                      <option value="sempre">Obbligatoria</option>
+                      <option value="se">Obbligatoria se…</option>
+                    </select>
+                  )
+                ) : (
                   <label className="flex shrink-0 cursor-pointer items-center gap-1.5 text-xs text-[var(--brand-text-main)]">
                     <input
                       type="checkbox"
@@ -1114,6 +1168,59 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   </select>
                 </div>
               )}
+
+              {campo.tipo === 'foto' && campo.obbligatoria_se && (() => {
+                const triggers = campi.filter((t, i) => i !== idx && (t.tipo === 'crocetta' || t.tipo === 'select'));
+                if (triggers.length === 0) {
+                  return (
+                    <p className="mt-2 pl-9 text-xs font-medium text-[var(--warning)]">
+                      Per la condizione serve prima un&apos;azione «Casella da spuntare» o «Scelta da elenco» in questo flusso.
+                    </p>
+                  );
+                }
+                const trigger = triggers.find((t) => t.chiave === campo.obbligatoria_se!.chiave) ?? null;
+                return (
+                  <div className="mt-2 flex flex-wrap items-center gap-2 pl-9 text-xs text-[var(--brand-text-muted)]">
+                    <span>Richiesta solo se</span>
+                    <select
+                      value={trigger?.chiave ?? ''}
+                      onChange={(e) => {
+                        const t = triggers.find((x) => x.chiave === e.target.value);
+                        updateCampo(idx, {
+                          obbligatoria_se: {
+                            chiave: e.target.value,
+                            valore: t?.tipo === 'select' ? (t.opzioni?.find(Boolean) ?? 'SI') : 'SI',
+                          },
+                        });
+                      }}
+                      aria-label="Azione che fa da condizione"
+                      className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
+                    >
+                      {!trigger && <option value="">— scegli l&apos;azione —</option>}
+                      {triggers.map((t) => <option key={t.chiave} value={t.chiave}>{t.etichetta || t.chiave}</option>)}
+                    </select>
+                    {trigger?.tipo === 'select' ? (
+                      <>
+                        <span>=</span>
+                        <select
+                          value={campo.obbligatoria_se.valore}
+                          onChange={(e) => updateCampo(idx, { obbligatoria_se: { chiave: trigger.chiave, valore: e.target.value } })}
+                          aria-label="Valore che attiva l'obbligo"
+                          className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
+                        >
+                          {(trigger.opzioni ?? []).filter(Boolean).map((o) => <option key={o} value={o}>{o}</option>)}
+                          {(trigger.opzioni ?? []).filter(Boolean).length === 0 && <option value="SI">SI</option>}
+                        </select>
+                      </>
+                    ) : trigger ? (
+                      <span>= <b className="font-semibold text-[var(--brand-text-main)]">spuntata (SI)</b></span>
+                    ) : (
+                      <span className="font-medium text-[var(--warning)]">⚠ l&apos;azione della condizione non c&apos;è più: scegline una</span>
+                    )}
+                    <span>→ la foto diventa obbligatoria</span>
+                  </div>
+                );
+              })()}
             </div>
           ))}
 

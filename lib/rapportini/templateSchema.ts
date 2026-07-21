@@ -15,6 +15,8 @@ export const CampoSchema = z.object({
   opzioni: z.array(z.string()).optional(),
   obbligatoria: z.boolean().optional(),
   scope_foto: z.enum(['misuratore', 'fase', 'accessoria']).optional(),
+  /** Obbligo su condizione (foto): richiesta quando l'azione `chiave` risponde `valore`. */
+  obbligatoria_se: z.object({ chiave: z.string().min(1), valore: z.string().min(1) }).nullable().optional(),
   ordine: z.number().int(),
 });
 
