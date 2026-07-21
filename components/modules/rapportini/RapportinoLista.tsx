@@ -95,6 +95,7 @@ export function RapportinoLista({
   ricerca = '',
   taskVia,
   taskViaIbrido,
+  mostraSaracinesche = false,
 }: {
   staffName: string;
   dataLabel: string;
@@ -118,6 +119,8 @@ export function RapportinoLista({
   taskVia?: boolean;
   /** Template ibrido: il PDF tiene le voci classiche e scarta solo i contenitori BONIFICHE EXTRA. */
   taskViaIbrido?: boolean;
+  /** Mostra il riepilogo "Saracinesche esitate" (template con campo valvola). */
+  mostraSaracinesche?: boolean;
 }) {
   const righeCercate = righe.filter((r) => rigaMatchRicerca(r, ricerca));
   const [tentatoInvio, setTentatoInvio] = useState(false);
@@ -133,7 +136,7 @@ export function RapportinoLista({
   return (
     <div className="flex h-dvh flex-col">
       <div className="shrink-0 px-3 pt-2">
-        <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} />
+        <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
         <div className="mt-2 flex gap-1.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
           {FILTRI.map(([k, lbl]) => (
             <button

@@ -44,6 +44,24 @@ describe('riepilogoRapportino', () => {
     expect(riepilogoRapportino([{ risposte: {} }], campi).daFare).toBe(1);
     expect(riepilogoRapportino([], campi).daFare).toBe(0);
   });
+  it('conta le saracinesche sostituite (SI, tollerante a booleano/stringa/chiave)', () => {
+    const voci = [
+      { risposte: { eseguito: 'SI', sostituzione_valvola: 'SI' } },   // stringa "SI"
+      { risposte: { eseguito: 'SI', sostituzione_valvola: true } },   // booleano true → SI
+      { risposte: { eseguito: 'SI', sost_valvola: 'SI' } },           // chiave alternativa
+      { risposte: { eseguito: 'SI', sostituzione_valvola: 'NO' } },   // NO → non conta
+      { risposte: { eseguito: 'SI' } },                                // assente → non conta
+    ];
+    expect(riepilogoRapportino(voci, campi).saracinesche).toBe(3);
+  });
+  it('saracinesca: scarta i path-foto e le voci annullate, include le manuali', () => {
+    const voci = [
+      { risposte: { sost_valvola: 'rapportini/abc/x.jpg' } },         // path-foto → scartato
+      { risposte: { sostituzione_valvola: 'SI' }, annullato: true },  // annullata → non conta
+      { risposte: { sostituzione_valvola: true }, manuale: true },    // manuale → conta
+    ];
+    expect(riepilogoRapportino(voci, campi).saracinesche).toBe(1);
+  });
   it('voce manuale (creata dal +) → eseguito, mai daFare', () => {
     const r = riepilogoRapportino([{ risposte: {}, manuale: true }, { risposte: {} }], campi);
     expect(r.eseguiti).toBe(1);
