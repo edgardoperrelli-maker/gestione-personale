@@ -7,6 +7,7 @@ import { attivitaCanonica } from './attivitaCanonica';
 import { dataDaRaw } from './dataDaRaw';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
+import { caricaComuniMassive } from './comuniMassive';
 import { saracinescaProdotta } from './saracinescaProdotta';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
@@ -115,7 +116,8 @@ interface LavoroRow {
 }
 
 // Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
-// limitazioni massive ZAGAROLO (committente='lim_massive'), valorizzate con lo stesso listino.
+// limitazioni massive dei comuni con master — Labico, Zagarolo, … (committente='lim_massive' o
+// 'acea'), valorizzate con lo stesso listino.
 const COMMITTENTI = ['acea', 'lim_massive'];
 
 async function caricaInterventiAcea(): Promise<InterventoRow[]> {
@@ -196,7 +198,7 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 }
 
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
-  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows, salRows] = await Promise.all([
+  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows, salRows, comuniMassive] = await Promise.all([
     supabaseAdmin
       .from('acea_listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
@@ -208,6 +210,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     caricaAliasAttivita(),
     caricaLavoroGiornaliero(from, to),
     caricaSnapshot<SalRow>('acea_sal', 'sal_n, odl, doc_acquisti, posizione, valore, causa, attivita, data_completamento, data_registrazione'),
+    caricaComuniMassive(),
   ]);
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
@@ -246,7 +249,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const odl = (it.odl ?? '').trim();
     // attività CANONICA via alias (+ regole comune per le righe senza attività) → committente effettivo,
     // attività pulita e voce. La riclassificazione (gas→italgas, massive→acea) vive qui, non nel DB.
-    const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias);
+    const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias, comuniMassive);
     if (odl && canon) effByOdl.set(odl, canon.committenteEff);
     // Produzione economica ACEA: solo committente effettivo 'acea' e attività non scartata.
     if (!canon || !canon.attivo || canon.committenteEff !== 'acea') continue;
@@ -283,7 +286,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     }
   }
 
-  // master per ODL (voce + attività) + PRODUZIONE "Sostituzione saracinesca" (voce a sé dal master ZAGAROLO).
+  // master per ODL (voce + attività) + PRODUZIONE "Sostituzione saracinesca" (voce a sé dai master massive, Labico/Zagarolo).
   const masterAudit = new Map<string, MasterRiga>();
   const masterAttivita = new Map<string, string>();
   const saracinesca: Array<{ odlFiglio: string; data: string }> = [];
@@ -291,7 +294,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   for (const m of masterRows) {
     const odl = (m.odl ?? '').trim();
     if (!odl) continue;
-    // Le chiavi per-matricola (prefisso "MAT:") sono righe ZAGAROLO senza ODL reale (manuali dal campo,
+    // Le chiavi per-matricola (prefisso "MAT:") sono righe massive senza ODL reale (manuali dal campo,
     // "DA CHIEDERE"): valgono per la PRODUZIONE saracinesca ma NON per audit/SAL (non hanno un ODL sul
     // portale, altrimenti gonfierebbero le discrepanze come "master non nel portale").
     const odlReale = !odl.startsWith('MAT:');
@@ -299,12 +302,12 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
       // Attività CANONICA (via alias) anche per il master: la chiave GREZZA non aggancia il listino
       // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
-      const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias);
+      const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias, comuniMassive);
       if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
     }
     // saracinesca prodotta → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre.
-    // ZAGAROLO: fonte verità = colonna esito del master. DUNNING (senza quella colonna): fonte
-    // verità = il nostro DB (positivo sull'ODL) — vedi saracinescaProdotta().
+    // Massive (Labico/Zagarolo): fonte verità = colonna esito del master. DUNNING (senza quella
+    // colonna): fonte verità = il nostro DB (positivo sull'ODL) — vedi saracinescaProdotta().
     if (saracinescaProdotta(m.saracinesca, m.esito, dbAudit.get(odl)?.esitoOk)) {
       const info = dbInfo.get(odl);
       const data = info?.data ?? dataDaRaw(m.data_raw) ?? '';
@@ -399,7 +402,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     .sort((a, b) => a[0] - b[0])
     .map(([, righeSalN]) => {
       const arricchite: SalRigaArricchita[] = righeSalN.map((r) => {
-        const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias) : null;
+        const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias, comuniMassive) : null;
         const attivitaKey = canonSal?.attivitaKey ?? '';
         const dataVal = r.data_completamento ?? r.data_registrazione ?? to;
         return { ...r, valoreListino: attivitaKey ? valore(attivitaKey, dataVal) : 0 };
@@ -423,7 +426,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const data = (l.data ?? '').slice(0, 10);
     if (!staffId || !data) continue;
     const canon = COMMITTENTI.includes(l.committente ?? '')
-      ? attivitaCanonica(l.committente, l.intervento_tipo, l.comune, alias)
+      ? attivitaCanonica(l.committente, l.intervento_tipo, l.comune, alias, comuniMassive)
       : null;
     righeLavoro.push({
       staffId,

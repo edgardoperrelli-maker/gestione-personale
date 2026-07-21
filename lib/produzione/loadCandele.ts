@@ -4,6 +4,7 @@ import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
 import { caricaAliasAttivita } from './aliasAttivita';
+import { caricaComuniMassive } from './comuniMassive';
 import { deduplicaMassivePerMatricola, type RigaProduzione } from './aggregaProduzione';
 import { aggregaCandele, type CandelaOperatore, type RigaCandela } from './aggregaCandele';
 import { giorniSettimana } from './settimana';
@@ -61,11 +62,12 @@ export async function caricaCandeleSettimanali(
   from: string,
   to: string,
 ): Promise<{ from: string; to: string; operatori: CandelaOperatore[] }> {
-  const [listinoRes, interventi, staffRes, alias] = await Promise.all([
+  const [listinoRes, interventi, staffRes, alias, comuniMassive] = await Promise.all([
     supabaseAdmin.from('acea_listino').select('id, attivita, prezzo, valido_dal, valido_al, attivo').eq('committente', 'acea'),
     caricaInterventiSettimana(from, to),
     supabaseAdmin.from('staff').select('id, display_name'),
     caricaAliasAttivita(),
+    caricaComuniMassive(),
   ]);
   if (listinoRes.error) throw listinoRes.error;
   if (staffRes.error) throw staffRes.error;
@@ -106,7 +108,7 @@ export async function caricaCandeleSettimanali(
   const candelaPerTemp = new Map<RigaProduzione, RigaCandela>();
 
   for (const it of interventi) {
-    const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias);
+    const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias, comuniMassive);
     if (!canon || !canon.attivo || canon.committenteEff !== 'acea') continue;
     const staffId = it.staff_id ?? '';
     const data = (it.data ?? '').slice(0, 10);

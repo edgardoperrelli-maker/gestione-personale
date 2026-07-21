@@ -42,6 +42,10 @@ const BONIFICHE_EXTRA = 'Bonifiche extra';
 
 /**
  * Risolve l'attività canonica. `aliasByKey` è la mappa costruita con `aliasKey()`.
+ * `massiveComuni` è l'insieme delle CHIAVI normalizzate dei comuni con un master "limitazioni
+ * massive" (il comune È il file master, es. LABICO/ZAGAROLO): una riga acea SENZA testo attività
+ * è una limitazione massiva SOLO se il suo comune è tra questi (altrove è estranea → italgas).
+ * Data-driven: aggiungere un comune al programma massive NON richiede modifiche a questo codice.
  * Ritorna null solo quando non c'è testo NÉ una regola comune applicabile (riga non classificabile).
  */
 export function attivitaCanonica(
@@ -49,6 +53,7 @@ export function attivitaCanonica(
   interventoTipo: string | null | undefined,
   comune: string | null | undefined,
   aliasByKey: Map<string, AliasRiga>,
+  massiveComuni: ReadonlySet<string>,
 ): AttivitaRisolta | null {
   const co = (committenteOrig ?? '').trim().toLowerCase();
   const norm = normalizzaAttivita(interventoTipo);
@@ -82,10 +87,11 @@ export function attivitaCanonica(
   // 2) NESSUN testo (intervento_tipo vuoto) → regole per comune
   const comuneKey = normalizzaAttivita(comune)?.key ?? '';
   if (co === 'acea') {
-    if (comuneKey === 'ZAGAROLO') {
+    if (massiveComuni.has(comuneKey)) {
       return { committenteEff: 'acea', macrogruppo: 'LIMITAZIONI MASSIVE', attivitaPulita: LIM_MASSIVA, attivitaKey: keyDi(LIM_MASSIVA), voce: 10, attivo: true, fonte: 'comune' };
     }
-    // acea senza attività fuori Zagarolo (es. Umbria, mai lavorati) → estranei: italgas, non valorizzati
+    // acea senza attività in un comune SENZA master massive (es. Umbria, mai lavorati) → estranei:
+    // italgas, non valorizzati
     return { committenteEff: 'italgas', macrogruppo: 'Attività alla clientela', attivitaPulita: '(senza attività)', attivitaKey: '', voce: null, attivo: true, fonte: 'comune' };
   }
   if (co === 'lim_massive') {
