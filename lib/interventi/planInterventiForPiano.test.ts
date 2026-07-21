@@ -51,14 +51,24 @@ describe('planInterventi', () => {
     expect(r.daInserire.filter((x) => x.odl === 'DUP')).toHaveLength(1);
   });
 
-  it('scarta odl già presenti su altri piani della stessa data', () => {
+  it('scarta odl già presenti su altre righe della stessa data (chiave committente|odl)', () => {
     const r = planInterventi({
       ...base,
       operatori: [{ staff_id: 's1', tasks: [task({ odl: 'X9' })] }],
       esistenti: [],
-      odlGiaPresenti: new Set(['X9']),
+      odlGiaPresenti: new Set(['acea|X9']),
     });
     expect(r.daInserire).toHaveLength(0);
+  });
+
+  it('lo stesso odl sotto un ALTRO committente non blocca (indice unico per committente)', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'X9' })] }],
+      esistenti: [],
+      odlGiaPresenti: new Set(['italgas|X9']),
+    });
+    expect(r.daInserire).toHaveLength(1);
   });
 
   it('le righe senza odl non vengono deduplicate', () => {

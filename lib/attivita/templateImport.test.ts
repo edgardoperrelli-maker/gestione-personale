@@ -33,6 +33,28 @@ describe('buildTemplateImport', () => {
     const cell = ws.getRow(2).getCell(idxGruppo);
     expect(String((cell.value as { formula?: string })?.formula ?? '')).toContain('VLOOKUP');
   });
+  it('la colonna COMMITTENTE si popola da sola (VLOOKUP colonna 4 della Leggenda)', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
+    const ws = wb.getWorksheet('Interventi')!;
+    const idxCommittente = COLONNE_TEMPLATE.indexOf('COMMITTENTE') + 1;
+    const formula = String((ws.getRow(2).getCell(idxCommittente).value as { formula?: string })?.formula ?? '');
+    expect(formula).toContain('VLOOKUP');
+    expect(formula).toContain(',4,FALSE');
+  });
+  it('foglio protetto: GRUPPO e COMMITTENTE bloccati, il resto (COMUNE/territorio incluso) libero', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
+    const ws = wb.getWorksheet('Interventi')!;
+    // La protezione del foglio è attiva (senza password: solo anti-errore).
+    expect((ws as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
+    const riga = ws.getRow(2);
+    const locked = (nome: (typeof COLONNE_TEMPLATE)[number]) =>
+      riga.getCell(COLONNE_TEMPLATE.indexOf(nome) + 1).protection?.locked !== false;
+    expect(locked("GRUPPO ATTIVITA'")).toBe(true);
+    expect(locked('COMMITTENTE')).toBe(true);
+    for (const libera of ['CO', 'COMUNE', 'DESCRIZIONE ATTIVITÀ', 'Indirizzo', 'Esecutore'] as const) {
+      expect(locked(libera)).toBe(false);
+    }
+  });
   it('la colonna DESCRIZIONE ATTIVITÀ è solo-tendina (list dalla Leggenda, errore stop)', async () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
     const ws = wb.getWorksheet('Interventi')!;

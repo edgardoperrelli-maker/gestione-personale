@@ -13,10 +13,18 @@ import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaCon
 import { normOdl, taskDaSaltare } from '@/lib/interventi/odlPositivi';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
+import { pickTemplateId } from '@/lib/interventi/templatePiano';
+import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type SincronizzaOpts = {
-  templateId: string;
+  /**
+   * Modello esplicito (flussi con template configurato, es. agente). Se assente il motore
+   * risolve da sé il fallback del piano: modello già stabilito dai rapportini esistenti →
+   * risanamento (piano con RESINE) → default → primo attivo non-manuale. Con le Azioni
+   * operatori la mappa non chiede più la scelta del modello.
+   */
+  templateId?: string;
   overwrite?: 'replace' | 'skip';
   overwriteSubmitted?: boolean;
   /** Conferma la riapertura dei rapportini INVIATI di questo stesso piano toccati dalla variazione. */
@@ -51,9 +59,58 @@ export async function sincronizzaRapportini(
 ): Promise<SincronizzaResult> {
   const { data: piano } = await db.from('mappa_piani').select('id, data, territorio').eq('id', pianoId).single();
   if (!piano) return { ok: false, status: 404, error: 'Piano non trovato' };
-  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', opts.templateId).single();
-  if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
   const { data: ops } = await db.from('mappa_piani_operatori').select('staff_id, staff_name, tasks').eq('piano_id', pianoId);
+
+  // Template attivi: servono sia per i flussi per-voce (collegamento al gruppo attività,
+  // modulo Azioni operatori) sia per risolvere il fallback quando il modello non arriva dal
+  // chiamante. Resiliente: se le colonne di collegamento non esistono ancora (migration non
+  // applicata), si ripiega su una select senza collegamento (nessun flusso, solo fallback).
+  type TemplateAttivoRow = {
+    id: string; nome: string | null; campi: unknown; tipo: string | null;
+    is_default: boolean | null; solo_manuale: boolean | null;
+    gruppo_committente?: string | null; gruppi_attivita?: string[] | null;
+  };
+  let templatesAttivi: TemplateAttivoRow[] = [];
+  const qTpl = await db
+    .from('rapportino_template')
+    .select('id, nome, campi, tipo, is_default, solo_manuale, gruppo_committente, gruppi_attivita')
+    .eq('active', true);
+  if (!qTpl.error) {
+    templatesAttivi = (qTpl.data ?? []) as TemplateAttivoRow[];
+  } else {
+    const qBase = await db
+      .from('rapportino_template')
+      .select('id, nome, campi, tipo, is_default, solo_manuale')
+      .eq('active', true);
+    templatesAttivi = qBase.error ? [] : (((qBase.data ?? []) as unknown) as TemplateAttivoRow[]);
+  }
+
+  // Modello del rapportino (fallback per le voci senza flusso): esplicito dal chiamante,
+  // altrimenti quello già stabilito dai rapportini esistenti del piano (riaperture: stesso
+  // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il
+  // default, poi il primo attivo non-manuale (ordine nome IT, deterministico).
+  let templateId = opts.templateId ?? null;
+  if (!templateId) {
+    const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
+    templateId = pickTemplateId((rapsPiano as Array<{ template_id?: string | null }>) ?? []);
+  }
+  if (!templateId) {
+    const candidati = templatesAttivi
+      .filter((t) => !t.solo_manuale)
+      .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined, is_default: Boolean(t.is_default) }))
+      .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+    const tasksPiano = (ops ?? []).flatMap((o) => ((o.tasks as Array<{ attivita?: string | null }>) ?? []));
+    templateId =
+      (pianoHaRisanamento(tasksPiano) ? risolviTemplateRisanamento(candidati) : null)
+      ?? candidati.find((t) => t.is_default)?.id
+      ?? candidati[0]?.id
+      ?? null;
+  }
+  if (!templateId) {
+    return { ok: false, status: 422, error: 'Nessun flusso attivo in Azioni operatori: impossibile generare i rapportini.' };
+  }
+  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
+  if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
 
   const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
 
@@ -117,17 +174,9 @@ export async function sincronizzaRapportini(
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
 
   // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
-  // intervento (collegamento su rapportino_template); il template scelto in mappa resta il
-  // fallback per interventi senza gruppo o gruppi senza flusso. Resiliente: se le colonne di
-  // collegamento non esistono ancora (migration non applicata), si degrada al solo fallback.
-  type FlussoRow = { id: string; nome: string | null; campi: unknown; solo_manuale: boolean | null; gruppo_committente: string | null; gruppi_attivita: string[] | null };
-  const { data: flussiRows, error: eFlussi } = await db
-    .from('rapportino_template')
-    .select('id, nome, campi, solo_manuale, gruppo_committente, gruppi_attivita')
-    .eq('active', true);
-  const flussi = eFlussi
-    ? []
-    : ((flussiRows ?? []) as FlussoRow[]).filter((f) => Boolean(f.gruppo_committente));
+  // intervento (collegamento su rapportino_template); il modello risolto sopra resta il
+  // fallback per interventi senza gruppo o gruppi senza flusso.
+  const flussi = templatesAttivi.filter((f) => Boolean(f.gruppo_committente));
   const gruppoByIntervento = new Map(
     ((intRows ?? []) as Array<{ id: string; committente?: string | null; gruppo_attivita?: string | null }>)
       .map((i) => [i.id, { committente: i.committente ?? null, gruppo: i.gruppo_attivita ?? null }]),
@@ -180,7 +229,7 @@ export async function sincronizzaRapportini(
       token = randomBytes(24).toString('base64url');
       const { data: ins, error: eIns } = await db.from('rapportini').insert({
         piano_id: pianoId, staff_id: op.staff_id, staff_name: op.staff_name, data: piano.data,
-        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', token, stato: 'in_corso', expires_at: expires,
+        template_id: templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', token, stato: 'in_corso', expires_at: expires,
       }).select('id').single();
       if (eIns) return { ok: false, status: 500, error: eIns.message };
       rapId = ins!.id;
@@ -190,7 +239,7 @@ export async function sincronizzaRapportini(
       const { data: cur } = await db.from('rapportini').select('stato').eq('id', rapId).maybeSingle();
       const eraInviato = (cur as { stato?: string } | null)?.stato === 'inviato';
       const patch: Record<string, unknown> = {
-        template_id: opts.templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', expires_at: expires,
+        template_id: templateId, campi_snapshot: tpl.campi, info_snapshot: tpl.info_campi ?? [], tipo: tpl.tipo ?? 'standard', expires_at: expires,
       };
       if (eraInviato && opts.confermaInviati) {
         patch.stato = 'in_corso';

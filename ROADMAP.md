@@ -5,6 +5,40 @@
 
 ## Fatto
 
+- ✅ **Template import: COMMITTENTE auto e non modificabile** *(2026-07-21)* — il template
+  Excel scaricabile (`/api/interventi/template`) ha la nuova colonna COMMITTENTE popolata
+  in automatico dalla DESCRIZIONE ATTIVITÀ (VLOOKUP sulla Leggenda, come il GRUPPO) e
+  protetta: foglio Interventi con protezione senza password, bloccate SOLO le colonne
+  derivate GRUPPO ATTIVITA' + COMMITTENTE, tutto il resto libero (COMUNE/territorio,
+  esecutore, ecc.); Leggenda in sola lettura. Il parser ignora la colonna (il committente
+  vero lo deriva il server per singolo task dalla tassonomia).
+- ✅ **Copertura totale attività → azioni (fase 4 Azioni operatori)** *(2026-07-21)* — ogni
+  card intervento del rapportino risolve le azioni della SUA attività, anche nei giri misti:
+  (a) `taskToIntervento` deriva committente+gruppo del singolo task dalla tassonomia (prova il
+  committente del piano, poi 'altro' = acea→italgas, la stessa semantica della validazione
+  import) — prima i piani da file stampavano tutto 'acea' e le attività italgas restavano senza
+  gruppo (~78 interventi/30gg in fallback); il pre-check dedup di `ensureInterventiForPiano`
+  ora è per chiave `committente|odl` come l'indice unico. (b) Migration
+  `20260721100000_azioni_risanamento_italgas_pi` (APPLICATA al prod): RESINE spostata in
+  tassonomia da acea/DUNNING (associazione errata) a **italgas / RISANAMENTO COLONNE**, flusso
+  risanamento ricollegato lì (via la foglia hardcoded acqualatina/SOSTITUZIONE MISURATORI da
+  `GRUPPI_EXTRA`); nuovo flusso CLASSICO "P.I." (clone azioni di "Pronto Intervento", che è
+  solo_manuale e non concorre alla generazione) per i PICARRO pianificati. Verificato con le
+  funzioni runtime: 8/8 gruppi risolvono un flusso; giro misto base acea → ogni attività il suo
+  flusso. Restano in fallback solo gli interventi con attività non censita (descrizioni vuote o
+  typo, ~15/30gg) e i manuali dal "+" (per design).
+- ✅ **Mappa senza scelta del "Modello" (fase 3 Azioni operatori)** *(2026-07-21)* — la
+  pianificazione non chiede più la selezione del template al salvataggio/generazione (né per
+  piani nuovi né in riapertura dal riepilogo): il selettore "Modello" è rimosso e
+  `sincronizzaRapportini` risolve da sé il fallback del rapportino quando il chiamante non lo
+  passa — modello già stabilito dai rapportini esistenti del piano → risanamento (task RESINE)
+  → default → primo attivo non-manuale (ordine nome, deterministico); senza alcun flusso attivo
+  la generazione risponde 422 senza bloccare il salvataggio del piano. Fixato anche il recupero
+  in riapertura: lo stato rapportini (link + modello usato) ora si carica al mount del piano
+  riaperto, prima avveniva solo dopo un Salva (il reset di `savedDistribution` al cambio di
+  `distribution` annullava il flag dell'init, quindi `caricaRapportini` non partiva mai).
+  L'export Excel della mappa rispecchia la stessa risoluzione per le intestazioni colonne.
+  Il `templateId` esplicito resta supportato (agente/config).
 - ✅ **Rapportino per-attività (fase 2 Azioni operatori)** *(2026-07-20 sera)* — il rapportino non
   si genera più dal solo modello scelto in mappa: **ogni voce prende le azioni dal flusso del
   GRUPPO ATTIVITÀ del suo intervento** (`interventi.gruppo_attivita` → collegamento su
@@ -119,9 +153,9 @@
       emersa durante l'analisi bundle mappa) → aggiungere `requireAdmin`.
 
 ### Funzionale
-- [ ] **Azioni operatori — rifiniture per-voce**: valutare se togliere l'obbligo del "Modello"
-      in mappa quando tutti i task del piano risolvono un flusso dal gruppo; portare per-voce
-      anche le meccaniche task-via/ibrido e la vista `/hub/rapportini/eseguiti`.
+- [ ] **Azioni operatori — rifiniture per-voce**: portare per-voce anche le meccaniche
+      task-via/ibrido e la vista `/hub/rapportini/eseguiti` (l'obbligo del "Modello" in mappa
+      è stato rimosso il 2026-07-21: fallback risolto dal motore).
 - [ ] Verifica end-to-end squadre cronoprogramma sul preview (aggancio, capo ⭐,
       scioglimento) — residuo della sessione 2026-07-13.
 - [ ] Mini-card di `AnnuncioSquadre.tsx` con tinte territorio hardcoded (dark) →

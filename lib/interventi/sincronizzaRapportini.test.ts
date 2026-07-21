@@ -254,6 +254,91 @@ describe('sincronizzaRapportini — ordine voci = ordine file (master), non la r
   });
 });
 
+describe('sincronizzaRapportini — risoluzione automatica del modello (senza templateId)', () => {
+  const OP_BASE = { piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] };
+
+  it('riusa il modello già stabilito dai rapportini esistenti del piano (riapertura)', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl1', nome: 'VECCHIO', campi: [], info_campi: [], active: true },
+        { id: 'tpl2', nome: 'DEFAULT', campi: [], info_campi: [], active: true, is_default: true },
+      ],
+      mappa_piani_operatori: [OP_BASE],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl1' }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    // NON passa al default: il piano resta sul suo modello (niente churn di link/snapshot).
+    expect(tables.rapportini.find((r) => r.id === 'rap1')?.template_id).toBe('tpl1');
+  });
+
+  it('piano nuovo senza rapportini → sceglie il default attivo, ignorando i solo_manuale', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl-manuale', nome: 'AAA MANUALE', campi: [], info_campi: [], active: true, is_default: true, solo_manuale: true },
+        { id: 'tpl-a', nome: 'AAA', campi: [], info_campi: [], active: true },
+        { id: 'tpl-def', nome: 'ZZZ DEFAULT', campi: [], info_campi: [], active: true, is_default: true },
+      ],
+      mappa_piani_operatori: [OP_BASE],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-def');
+  });
+
+  it('senza default → primo template attivo non-manuale in ordine nome', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl-b', nome: 'BBB', campi: [], info_campi: [], active: true },
+        { id: 'tpl-a', nome: 'AAA', campi: [], info_campi: [], active: true },
+      ],
+      mappa_piani_operatori: [OP_BASE],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-a');
+  });
+
+  it('piano con task RESINE → preferisce il template risanamento al default', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl-def', nome: 'DEFAULT', campi: [], info_campi: [], active: true, is_default: true },
+        { id: 'tpl-ris', nome: 'RISANAMENTO', campi: [], info_campi: [], active: true, tipo: 'risanamento' },
+      ],
+      mappa_piani_operatori: [{ ...OP_BASE, tasks: [{ id: 't1', odl: 'ODL1', attivita: 'RESINE' }] }],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-ris');
+  });
+
+  it('nessun template attivo utilizzabile → 422 con errore esplicito', async () => {
+    const { db } = makeFakeDb(seedBase({
+      rapportino_template: [{ id: 'tpl-manuale', nome: 'MANUALE', campi: [], info_campi: [], active: true, solo_manuale: true }],
+      mappa_piani_operatori: [OP_BASE],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(false);
+    if (!res.ok) {
+      expect(res.status).toBe(422);
+      expect(res.error).toMatch(/Azioni operatori/);
+    }
+  });
+
+  it('il templateId esplicito vince sulla risoluzione automatica', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [
+        { id: 'tpl1', nome: 'SCELTO', campi: [], info_campi: [] },
+        { id: 'tpl-def', nome: 'DEFAULT', campi: [], info_campi: [], active: true, is_default: true },
+      ],
+      mappa_piani_operatori: [OP_BASE],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', { templateId: 'tpl1' });
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl1');
+  });
+});
+
 describe('sincronizzaRapportini — voci per-attività (flusso dal gruppo)', () => {
   const CAMPI_DUNNING = [{ chiave: 'esito_dunning', etichetta: 'ESITO DUNNING', tipo: 'select', opzioni: ['SI', 'NO'], ordine: 1 }];
   const FLUSSO_DUNNING = {

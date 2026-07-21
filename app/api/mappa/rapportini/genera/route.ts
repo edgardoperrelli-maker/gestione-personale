@@ -12,7 +12,9 @@ export async function POST(req: Request) {
     const { pianoId, templateId, overwrite, overwriteSubmitted, confermaInviati } = await req.json() as {
       pianoId?: string; templateId?: string; overwrite?: 'replace' | 'skip'; overwriteSubmitted?: boolean; confermaInviati?: boolean;
     };
-    if (!pianoId || !templateId) return NextResponse.json({ error: 'pianoId e templateId obbligatori' }, { status: 400 });
+    // templateId opzionale: senza, il motore risolve da sé il fallback del piano
+    // (rapportini esistenti → risanamento → default → primo attivo). Vedi sincronizzaRapportini.
+    if (!pianoId) return NextResponse.json({ error: 'pianoId obbligatorio' }, { status: 400 });
 
     const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId, overwrite, overwriteSubmitted, confermaInviati });
     if (!res.ok) {

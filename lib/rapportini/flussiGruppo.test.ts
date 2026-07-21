@@ -42,9 +42,16 @@ describe('buildAlberoFlussi', () => {
     expect(gruppi).not.toContain('GRUPPO DISMESSO');
   });
 
-  it('acqualatina ha la foglia extra SOSTITUZIONE MISURATORI anche senza tassonomia', () => {
+  it('acqualatina senza tassonomia né foglie extra → ramo vuoto (RESINE è italgas/RISANAMENTO COLONNE)', () => {
     const albero = buildAlberoFlussi(TASSONOMIA, []);
-    expect(nodo(albero, 'acqualatina').gruppi.map((g) => g.gruppo)).toEqual(['SOSTITUZIONE MISURATORI']);
+    expect(nodo(albero, 'acqualatina').gruppi).toEqual([]);
+  });
+
+  it('un flusso ancora collegato ad acqualatina resta visibile sotto il suo gruppo (mai orfani invisibili)', () => {
+    const legacy = tpl('legacy', { gruppo_committente: 'acqualatina', gruppi_attivita: ['SOSTITUZIONE MISURATORI'] });
+    const albero = buildAlberoFlussi(TASSONOMIA, [legacy]);
+    const gruppo = nodo(albero, 'acqualatina').gruppi.find((g) => g.gruppo === 'SOSTITUZIONE MISURATORI');
+    expect(gruppo?.flussi.map((t) => t.id)).toEqual(['legacy']);
   });
 
   it('un flusso collegato compare sotto il suo gruppo (match normalizzato)', () => {

@@ -25,8 +25,8 @@ import { taskToVoce, type TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { decideSyncRapportini } from '@/utils/rapportini/diffRapportini';
-import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
+import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
 import PhaseStrip from './PhaseStrip';
@@ -783,6 +783,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Rapportini inline (editor)
   const [rapStato, setRapStato] = useState<RapportinoStato[]>([]);
+  // Modello usato dai rapportini del piano (recuperato da caricaRapportini, MAI scelto qui):
+  // serve solo all'export Excel per le intestazioni colonne. Generazione e fallback sono
+  // competenza del server (flussi Azioni operatori per-voce + risoluzione automatica).
   const [rapTemplateId, setRapTemplateId] = useState('');
   const [rapTemplates, setRapTemplates] = useState<Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; tipo?: string; active?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }>>([]);
   const [rapGenerating, setRapGenerating] = useState(false);
@@ -1799,13 +1802,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   };
 
   // Applica la propagazione ai rapportini (riusa i token esistenti; preserva le risposte lato server).
+  // Nessun modello dal client: le azioni per-voce arrivano dai flussi delle Azioni operatori e
+  // il fallback del rapportino lo risolve il server (rapportini esistenti → risanamento → default).
   const applicaRapportini = useCallback(async (pid: string, confermaInviati: boolean) => {
-    if (!rapTemplateId) { setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.'); return; }
     try {
       const rg = await fetch('/api/mappa/rapportini/genera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pianoId: pid, templateId: rapTemplateId, confermaInviati }),
+        body: JSON.stringify({ pianoId: pid, confermaInviati }),
       });
       if (rg.ok) {
         const r2 = await fetch(`/api/mappa/rapportini?pianoId=${pid}`);
@@ -1822,7 +1826,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } catch {
       setRapError("Errore di rete nell'aggiornamento dei rapportini.");
     }
-  }, [rapTemplateId]);
+  }, []);
 
   // Salva distribuzione su Supabase
   const saveDistribution = useCallback(async () => {
@@ -1987,41 +1991,39 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
           // Auto, sempre: genera/aggiorna i rapportini riusando i token esistenti
           // (stesso link digitale + Excel; risposte già date preservate dal merge lato server).
-          // Best-effort: non blocca il salvataggio del piano.
-          if (rapTemplateId) {
-            try {
-              const ap = await fetch('/api/mappa/piani/anteprima-rapportini', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ pianoId: pid, operatori }),
-              });
-              if (ap.ok) {
-                const diff = (await ap.json()) as import('@/utils/rapportini/diffRapportini').DiffRapportini;
-                const { avvisoBloccati, richiediConfermaInviati } = decideSyncRapportini(diff);
-                // Interventi completati spostati: avvisa (non blocca la sincronizzazione del resto).
-                if (avvisoBloccati) {
-                  alert(`${avvisoBloccati}\n\nRiportali all'operatore originale se l'esito va mantenuto.`);
-                }
-                if (richiediConfermaInviati) {
-                  // Rapportini GIÀ INVIATI coinvolti: chiedi prima di riaprirli/aggiornarli.
-                  // Su Annulla NON si toccano gli inviati.
-                  const { testo } = buildRiepilogoConferma(diff);
-                  if (window.confirm(testo)) await applicaRapportini(pid, true);
-                } else {
-                  // Nessun inviato coinvolto: riconcilia SEMPRE le voci ai task correnti del piano
-                  // (rimuove le fantasma, aggiunge le mancanti, preserva le risposte per task_id).
-                  // È questo a garantire che rapportino e pianificazione restino allineati.
-                  await applicaRapportini(pid, false);
-                }
-              } else {
-                const ej = (await ap.json().catch(() => ({}))) as { error?: string };
-                setRapError(ej.error ?? 'Anteprima rapportini non riuscita.');
+          // Best-effort: non blocca il salvataggio del piano. Il modello non si sceglie più in
+          // mappa: le azioni per-voce arrivano dai flussi delle Azioni operatori e il fallback
+          // lo risolve il server.
+          try {
+            const ap = await fetch('/api/mappa/piani/anteprima-rapportini', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ pianoId: pid, operatori }),
+            });
+            if (ap.ok) {
+              const diff = (await ap.json()) as import('@/utils/rapportini/diffRapportini').DiffRapportini;
+              const { avvisoBloccati, richiediConfermaInviati } = decideSyncRapportini(diff);
+              // Interventi completati spostati: avvisa (non blocca la sincronizzazione del resto).
+              if (avvisoBloccati) {
+                alert(`${avvisoBloccati}\n\nRiportali all'operatore originale se l'esito va mantenuto.`);
               }
-            } catch {
-              setRapError("Errore di rete nell'anteprima dei rapportini.");
+              if (richiediConfermaInviati) {
+                // Rapportini GIÀ INVIATI coinvolti: chiedi prima di riaprirli/aggiornarli.
+                // Su Annulla NON si toccano gli inviati.
+                const { testo } = buildRiepilogoConferma(diff);
+                if (window.confirm(testo)) await applicaRapportini(pid, true);
+              } else {
+                // Nessun inviato coinvolto: riconcilia SEMPRE le voci ai task correnti del piano
+                // (rimuove le fantasma, aggiunge le mancanti, preserva le risposte per task_id).
+                // È questo a garantire che rapportino e pianificazione restino allineati.
+                await applicaRapportini(pid, false);
+              }
+            } else {
+              const ej = (await ap.json().catch(() => ({}))) as { error?: string };
+              setRapError(ej.error ?? 'Anteprima rapportini non riuscita.');
             }
-          } else {
-            setRapError('Nessun modello rapportino attivo: rapportini non aggiornati.');
+          } catch {
+            setRapError("Errore di rete nell'anteprima dei rapportini.");
           }
         }
       } else {
@@ -2033,7 +2035,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setSavingDistribution(false);
     }
-  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, rapTemplateId, applicaRapportini, eliminatiAnnullati, isTerritorioScope]);
+  }, [currentPianoId, distribution, planningDate, selectedOps, selectedPlanningTerritory, manualRules, operatorLocks, operatorFreeLane, sorgente, unassignedTasks, applicaRapportini, eliminatiAnnullati, isTerritorioScope]);
 
   // Resetta savedDistribution quando distribution cambia
   useEffect(() => {
@@ -2047,8 +2049,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const data = await res.json();
       const list: RapportinoStato[] = Array.isArray(data) ? data : [];
       setRapStato(list);
-      // Preserva il modello già usato dai rapportini esistenti: così la rigenerazione
-      // non cambia il template e non crea link nuovi.
+      // Ricorda il modello usato dai rapportini esistenti: serve all'export Excel per le
+      // intestazioni colonne (il server lo ri-risolve comunque da sé alla rigenerazione).
       const tpl = list.find((r) => r.template_id)?.template_id;
       if (tpl) setRapTemplateId(tpl);
     } catch {
@@ -2056,7 +2058,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
   }, []);
 
-  // Template di default (una volta)
+  // Flussi/template attivi (una volta): NON si scelgono più in mappa (Azioni operatori decide
+  // le azioni per-voce e il server risolve il fallback); servono solo all'export Excel per le
+  // intestazioni colonne del modello usato dai rapportini del piano.
   useEffect(() => {
     (async () => {
       try {
@@ -2065,24 +2069,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const arr: Array<{ id: string; nome: string; is_default?: boolean; solo_manuale?: boolean; tipo?: string; active?: boolean; campi?: TemplateCampo[]; info_campi?: TemplateInfoCampo[] }> = Array.isArray(list) ? list : [];
         const arrFiltrato = arr.filter((t) => !t.solo_manuale);
         setRapTemplates(arrFiltrato);
-        // Nessuna preselezione automatica: la scelta del modello è obbligatoria e deve
-        // precedere il salvataggio/generazione. I piani riaperti recuperano comunque il
-        // template già usato tramite caricaRapportini(); per i nuovi piani con RESINE la
-        // preselezione risanamento resta attiva (effetto dedicato più sotto).
       } catch {
         /* nessun template attivo */
       }
     })();
   }, []);
 
-  // Risanamento: se il piano ha task con attività RESINE, preseleziona il template risanamento.
+  // Piano riaperto: carica subito lo stato rapportini (link, modello usato). Prima avveniva
+  // solo dopo un Salva (savedDistribution), quindi in riapertura il modello del piano non
+  // veniva mai recuperato e la mappa richiedeva di nuovo la scelta del template.
   useEffect(() => {
-    if (rapTemplates.length === 0 || !distribution) return;
-    const tasks = distribution.flatMap((d) => d.tasks ?? []);
-    if (!pianoHaRisanamento(tasks)) return;
-    const tplId = risolviTemplateRisanamento(rapTemplates);
-    if (tplId) setRapTemplateId(tplId);
-  }, [distribution, rapTemplates]);
+    if (initialPianoId) caricaRapportini(initialPianoId);
+  }, [initialPianoId, caricaRapportini]);
 
   // Carica lo stato rapportini quando il piano è salvato (incluso edit mode)
   useEffect(() => {
@@ -2094,14 +2092,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   }, [savedDistribution, currentPianoId, caricaRapportini]);
 
   const eseguiGenerazione = useCallback(async (overwrite?: 'replace' | 'skip', overwriteSubmitted?: boolean) => {
-    if (!currentPianoId || !rapTemplateId) return;
+    if (!currentPianoId) return;
     setRapGenerating(true);
     setRapError(null);
     try {
       const res = await fetch('/api/mappa/rapportini/genera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pianoId: currentPianoId, templateId: rapTemplateId, overwrite, overwriteSubmitted }),
+        body: JSON.stringify({ pianoId: currentPianoId, overwrite, overwriteSubmitted }),
       });
       const data = await res.json();
       if (res.status === 409 && Array.isArray(data?.conflicts)) {
@@ -2125,15 +2123,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setRapGenerating(false);
     }
-  }, [currentPianoId, rapTemplateId, caricaRapportini]);
+  }, [currentPianoId, caricaRapportini]);
 
   const generaRapportini = useCallback(() => {
-    if (!rapTemplateId) {
-      setRapError('Nessun modello attivo. Crea un template in Impostazioni → Template rapportini.');
-      return;
-    }
     void eseguiGenerazione();
-  }, [eseguiGenerazione, rapTemplateId]);
+  }, [eseguiGenerazione]);
 
   const rapByStaff = useMemo(() => {
     const m = new Map<string, RapportinoStato>();
@@ -2532,7 +2526,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const dateStr = isoToDisplay(planningDate);
 
       // 2. Un foglio per operatore (clonato dal template)
-      const tplSel = rapTemplates.find((t) => t.id === rapTemplateId);
+      // Modello per le intestazioni colonne: quello dei rapportini del piano (recuperato da
+      // caricaRapportini); per un piano non ancora salvato si rispecchia la risoluzione del
+      // server (risanamento se il piano ha RESINE → default → primo attivo per nome).
+      const attivi = rapTemplates.filter((t) => t.active !== false);
+      const ordinati = [...attivi].sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
+      const risId = pianoHaRisanamento(distribution.flatMap((d) => d.tasks ?? []))
+        ? risolviTemplateRisanamento(attivi)
+        : null;
+      const tplSel = attivi.find((t) => t.id === rapTemplateId)
+        ?? (risId ? attivi.find((t) => t.id === risId) : undefined)
+        ?? ordinati.find((t) => t.is_default)
+        ?? ordinati[0];
       const infoCols = resolveInfoCampi(tplSel?.info_campi ?? null);
       const campiCols = [...(tplSel?.campi ?? [])].sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
 
@@ -3861,36 +3866,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             Conferma piano
           </span>
           <div className="flex flex-wrap items-center gap-2">
-            {/* Scelta modello rapportino PRIMA del salvataggio/generazione:
-                il salvataggio auto-genera i rapportini, quindi il template va
-                scelto a monte. Obbligatorio e bloccante quando esistono modelli.
-                In modalità "intero territorio" il template è quello GIÀ stabilito
-                per ciascun piano (il server lo recupera per piano): selettore nascosto. */}
-            {!isTerritorioScope && (
-              <label className="flex items-center gap-1.5 text-xs text-[var(--brand-text-muted)]">
-                <span className="font-medium">Modello:</span>
-                <select
-                  value={rapTemplateId}
-                  onChange={(e) => setRapTemplateId(e.target.value)}
-                  title="Modello rapportino"
-                  className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)]"
-                >
-                  {rapTemplates.length === 0
-                    ? <option value="">Nessun modello</option>
-                    : <option value="">— Seleziona modello —</option>}
-                  {rapTemplates.map((t) => (
-                    <option key={t.id} value={t.id}>
-                      {t.nome}{t.is_default ? ' (default)' : ''}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            )}
+            {/* Niente scelta del modello in mappa: le azioni per-voce arrivano dai flussi
+                delle Azioni operatori (Impostazioni) e il fallback del rapportino lo
+                risolve il server al salvataggio/generazione. */}
             <button
               type="button"
               onClick={saveDistribution}
-              disabled={savingDistribution || (!isTerritorioScope && rapTemplates.length > 0 && !rapTemplateId)}
-              title={!isTerritorioScope && rapTemplates.length > 0 && !rapTemplateId ? 'Seleziona prima un modello rapportino' : undefined}
+              disabled={savingDistribution}
               className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                 savedDistribution
                   ? 'bg-[var(--success-soft)] text-[var(--success)] border border-[var(--success)]/40'
@@ -3907,8 +3889,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <button
                 type="button"
                 onClick={generaRapportini}
-                disabled={rapGenerating || !rapTemplateId}
-                title={!rapTemplateId ? 'Nessun modello attivo' : undefined}
+                disabled={rapGenerating}
                 className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90 disabled:opacity-50"
               >
                 {rapGenerating

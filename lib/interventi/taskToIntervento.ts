@@ -43,9 +43,17 @@ export function taskToIntervento(
   // Derivazione soft: se l'indice risolve l'attività, scrive la forma canonica + il
   // gruppo; se non risolve (o l'indice non è disponibile), comportamento storico
   // invariato (task.attivita così com'è, gruppo null). Mai bloccante (spec §8).
-  const ris = indiceTassonomia ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia) : null;
+  // Il lookup prova il committente del piano e POI gli altri ('altro' = acea→italgas,
+  // la STESSA semantica della validazione import): un giro misto caricato da file con
+  // base 'acea' che contiene attività italgas produce interventi ITALGAS col loro
+  // gruppo, così ogni voce di rapportino risolve il flusso della SUA attività
+  // (Azioni operatori) invece di cadere sul fallback.
+  const ris = indiceTassonomia
+    ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia)
+      ?? risolviGruppo('altro', task.attivita, indiceTassonomia)
+    : null;
   return {
-    committente: ctx.committente,
+    committente: ris?.committente ?? ctx.committente,
     odl: (task.odl && task.odl.trim()) || null,
     pdr: task.pdr ?? null,
     nominativo: task.nominativo ?? null,

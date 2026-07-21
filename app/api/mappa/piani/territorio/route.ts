@@ -3,7 +3,6 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
-import { recuperaTemplateIdPiano } from '@/lib/interventi/templatePiano';
 
 export const runtime = 'nodejs';
 
@@ -121,12 +120,11 @@ export async function POST(req: Request) {
       }
     }
 
-    // 3. Sync voci rapportini per ciascun piano con template stabilito (inviati non toccati).
+    // 3. Sync voci rapportini per ciascun piano (inviati non toccati). Il modello lo risolve
+    // il motore: rapportini esistenti del piano → risanamento → default → primo attivo.
     const warnings: string[] = [];
     for (const id of pianiSalvati) {
-      const templateId = await recuperaTemplateIdPiano(supabaseAdmin, id);
-      if (!templateId) continue;
-      const sync = await sincronizzaRapportini(supabaseAdmin, id, { templateId, skipInviati: true });
+      const sync = await sincronizzaRapportini(supabaseAdmin, id, { skipInviati: true });
       if (!sync.ok) warnings.push(sync.error ?? `conflitto (${sync.status})`);
     }
 
