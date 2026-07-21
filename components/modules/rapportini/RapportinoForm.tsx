@@ -13,7 +13,7 @@ import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { TaskViaFocus } from './TaskViaFocus';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
-import { voceTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { voceTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
@@ -487,7 +487,9 @@ export default function RapportinoForm({
           onAggiungi={(v) => {
             setPrefillManuale({
               committenteIniziale: 'italgas',
-              anagraficaIniziale: { via: v.via ?? '' },
+              // Attività pre-selezionata a BONIFICHE EXTRA: unica opzione coerente sotto un
+              // task-via (il server la forza comunque) → la voce nasce già allineata all'intervento.
+              anagraficaIniziale: { via: v.via ?? '', attivita: ATTIVITA_TASK_VIA },
               parentVoceId: v.taskId ?? v.id,
             });
             setModaleAperta(true);
