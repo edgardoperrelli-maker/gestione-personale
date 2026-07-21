@@ -3,6 +3,8 @@
 
 import type { RigaStorico } from '@/lib/interventi/storico/types';
 
+// 'Attività' è la descrizione grezza della voce; 'Gruppo attività' il gruppo di
+// tassonomia risolto (stesso valore su cui lavora il filtro omonimo).
 const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'odl', header: 'ODL/ODS' },
   { key: 'pdr', header: 'PDR' },
@@ -11,7 +13,9 @@ const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'data', header: 'Data esecuzione' },
   { key: 'esecutore', header: 'Esecutore' },
   { key: 'via', header: 'Via' },
-  { key: 'gruppoAttivita', header: 'Gruppo attività' },
+  { key: 'gruppoAttivita', header: 'Attività' },
+  { key: 'gruppo', header: 'Gruppo attività' },
+  { key: 'committente', header: 'Committente' },
   { key: 'eseguito', header: 'Eseguito', siNo: true },
   { key: 'sostValvola', header: 'Sost. valvola', siNo: true },
   { key: 'miniBag', header: 'Mini bag', siNo: true },
@@ -27,6 +31,7 @@ function fmtData(iso: string | null): string {
 
 function cella(r: RigaStorico, key: keyof RigaStorico): string {
   if (key === 'data') return fmtData(r.data);
+  if (key === 'committente') return r.committente ? r.committente.toUpperCase() : '—';
   const v = r[key];
   return v == null || v === '' ? '—' : String(v);
 }

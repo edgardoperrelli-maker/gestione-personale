@@ -13,6 +13,8 @@ const XLSX_MIME = 'application/vnd.openxmlformats-officedocument.spreadsheetml.s
 // Cap alto: l'export "intero DB" deve prendere tutto.
 const MAX_RIGHE = 100000;
 
+// ATTIVITÀ = descrizione grezza della voce; GRUPPO ATTIVITÀ = gruppo di tassonomia
+// risolto (lo stesso valore su cui lavora il filtro omonimo della pagina).
 const HEADERS = [
   { key: 'odl', header: 'ODL/ODS', width: 16 },
   { key: 'pdr', header: 'PDR', width: 18 },
@@ -21,7 +23,9 @@ const HEADERS = [
   { key: 'data', header: 'DATA ESECUZIONE', width: 16 },
   { key: 'esecutore', header: 'ESECUTORE', width: 22 },
   { key: 'via', header: 'VIA', width: 28 },
-  { key: 'gruppoAttivita', header: 'GRUPPO ATTIVITÀ', width: 24 },
+  { key: 'gruppoAttivita', header: 'ATTIVITÀ', width: 24 },
+  { key: 'gruppo', header: 'GRUPPO ATTIVITÀ', width: 22 },
+  { key: 'committente', header: 'COMMITTENTE', width: 14 },
   { key: 'eseguito', header: 'ESEGUITO', width: 10 },
   { key: 'sostValvola', header: 'SOST. VALVOLA', width: 14 },
   { key: 'miniBag', header: 'MINI BAG', width: 10 },
@@ -76,6 +80,8 @@ export async function GET(req: Request) {
         esecutore: r.esecutore ?? '',
         via: r.via ?? '',
         gruppoAttivita: r.gruppoAttivita ?? '',
+        gruppo: r.gruppo ?? '',
+        committente: (r.committente ?? '').toUpperCase(),
         eseguito: r.eseguito === '—' ? '' : r.eseguito,
         sostValvola: r.sostValvola === '—' ? '' : r.sostValvola,
         miniBag: r.miniBag === '—' ? '' : r.miniBag,

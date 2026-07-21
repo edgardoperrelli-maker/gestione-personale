@@ -1,7 +1,8 @@
 // PURA: calcola il path di ciascuna foto dentro lo ZIP.
-// Regola (design §8): si usa file_name; su collisione di file_name si separano
-// in sottocartelle '<identificativo>/'; eventuali collisioni residue ricevono un
-// suffisso progressivo ' (n)' prima dell'estensione. storagePath è preservato per il download.
+// Regola (design §8): si usa file_name (formato `<identificativo>_<Etichetta>.<ext>`);
+// su collisione di file_name si separano in sottocartelle '<identificativo>/'; eventuali
+// collisioni residue ricevono un suffisso progressivo ' (n)' prima dell'estensione.
+// storagePath è preservato per il download.
 
 export type FotoZip = {
   richiesta_id: string;
@@ -14,11 +15,16 @@ export type ZipEntry = {
   zipPath: string;     // destinazione nell'archivio
 };
 
-/** Identificativo per la sottocartella: parte dopo l'ultimo '_' senza estensione; fallback richiesta_id. */
+/**
+ * Identificativo per la sottocartella: il nome ha formato `<identificativo>_<Etichetta>.<ext>`
+ * (vedi nomeFotoFile), quindi si prende la parte PRIMA del primo '_'. Con la regola storica
+ * (parte dopo l'ultimo '_') le cartelle su collisione uscivano intitolate all'ETICHETTA dello
+ * slot (es. "FotoContatoreVecchio/") invece che all'identificativo. Fallback: richiesta_id.
+ */
 function identificativoDa(fileName: string, fallback: string): string {
   const senzaExt = fileName.replace(/\.[^.]+$/, '');
-  const us = senzaExt.lastIndexOf('_');
-  const id = us >= 0 ? senzaExt.slice(us + 1) : '';
+  const us = senzaExt.indexOf('_');
+  const id = us > 0 ? senzaExt.slice(0, us) : '';
   return id || fallback;
 }
 

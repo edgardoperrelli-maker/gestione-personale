@@ -14,6 +14,10 @@ export type RigaStorico = {
   esecutore: string | null;
   via: string | null;
   gruppoAttivita: string | null;
+  /** Committente EFFETTIVO ('acea'|'italgas'|'altro'; lim_massive → acea) dall'intervento collegato, null se non collegato. */
+  committente: string | null;
+  /** Gruppo della tassonomia attività (es. 'DUNNING'), risolto da intervento collegato o da (committente, attivita). */
+  gruppo: string | null;
   eseguito: string; // 'SI' | 'NO' | '—'
   sostValvola: string; // 'SI' | 'NO' | '—'
   miniBag: string; // 'SI' | 'NO' | '—'
@@ -26,6 +30,12 @@ export type RapportinoEmbed = {
   staff_id: string | null;
   staff_name: string | null;
   data: string | null;
+};
+
+/** Intervento collegato embedded (rapportino_voci.intervento_id, nullable). */
+export type InterventoEmbed = {
+  committente: string | null;
+  gruppo_attivita: string | null;
 };
 
 /** Riga grezza letta da `rapportino_voci` con il rapportino padre embedded. */
@@ -42,6 +52,8 @@ export type VoceStoricoRow = {
   manuale: boolean | null;
   // PostgREST restituisce l'embed to-one come oggetto; gestiamo anche array per robustezza.
   rapportini: RapportinoEmbed | RapportinoEmbed[] | null;
+  // Embed opzionale dell'intervento collegato (voci legacy o FK azzerata dalla race → null).
+  interventi?: InterventoEmbed | InterventoEmbed[] | null;
 };
 
 /** Contatori aggregati sull'insieme filtrato (o intero DB se nessun filtro). */

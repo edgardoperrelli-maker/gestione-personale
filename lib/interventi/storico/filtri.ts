@@ -8,7 +8,12 @@ export type FiltriStorico = {
   data: string | null;
   dal: string | null;
   al: string | null;
-  esecutore: string | null;
+  /** Multi-selezione: vuoto = tutti. Parametro ripetuto (?esecutore=a&esecutore=b). */
+  esecutori: string[];
+  /** Gruppi attività della tassonomia (es. 'DUNNING'): vuoto = tutti. */
+  gruppi: string[];
+  /** Committenti ('acea'|'italgas'|'altro'; lim_massive equivale ad acea): vuoto = tutti. */
+  committenti: string[];
   comune: string;
   eseguito: SiNoFiltro;
   sostValvola: SiNoFiltro;
@@ -22,12 +27,17 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
 function iso(v: string | null): string | null {
   return v && ISO.test(v) ? v : null;
 }
-function trimOrNull(v: string | null): string | null {
-  const t = (v ?? '').trim();
-  return t === '' ? null : t;
-}
 function siNoParam(v: string | null): SiNoFiltro {
   return v === 'SI' || v === 'NO' ? v : null;
+}
+/** Parametro ripetuto → lista trimmata, senza vuoti né duplicati. */
+function listaParam(params: URLSearchParams, key: string): string[] {
+  const out: string[] = [];
+  for (const v of params.getAll(key)) {
+    const t = v.trim();
+    if (t && !out.includes(t)) out.push(t);
+  }
+  return out;
 }
 
 /** Rimuove SOLO i caratteri strutturali del filtro PostgREST .or()/.ilike()
@@ -44,7 +54,9 @@ export function parseFiltriStorico(params: URLSearchParams): FiltriStorico {
     data: iso(params.get('data')),
     dal: iso(params.get('dal')),
     al: iso(params.get('al')),
-    esecutore: trimOrNull(params.get('esecutore')),
+    esecutori: listaParam(params, 'esecutore'),
+    gruppi: listaParam(params, 'gruppo'),
+    committenti: listaParam(params, 'committente'),
     comune: (params.get('comune') ?? '').trim(),
     eseguito: siNoParam(params.get('eseguito')),
     sostValvola: siNoParam(params.get('sostValvola')),
@@ -71,7 +83,8 @@ export function risolviFinestra(
 /** True se nessun filtro è attivo (→ contatore/export sull'intero DB). */
 export function nessunFiltro(f: FiltriStorico): boolean {
   return (
-    !f.q && !f.data && !f.dal && !f.al && !f.esecutore && f.comune.trim() === '' &&
+    !f.q && !f.data && !f.dal && !f.al && f.esecutori.length === 0 &&
+    f.gruppi.length === 0 && f.committenti.length === 0 && f.comune.trim() === '' &&
     !f.eseguito && !f.sostValvola && !f.miniBag && !f.rgStop
   );
 }

@@ -28,10 +28,21 @@ export default async function InterventiPage() {
     .order('display_name', { ascending: true });
   const staff = ((staffRows ?? []) as Array<{ id: string; display_name: string }>);
 
+  // Opzioni del filtro "Gruppo attività": i gruppi della tassonomia (+ P.I., gruppo
+  // implicito degli interventi di pronto intervento anche fuori tassonomia).
+  const { data: tassRows } = await supabase
+    .from('attivita_tassonomia')
+    .select('gruppo')
+    .eq('attivo', true);
+  const gruppi = [...new Set([
+    ...((tassRows ?? []) as Array<{ gruppo: string }>).map((r) => r.gruppo.trim()).filter(Boolean),
+    'P.I.',
+  ])].sort((a, b) => a.localeCompare(b, 'it'));
+
   return (
     <main className="w-full space-y-4 px-4 py-6">
       {isAdminPlus && <RiconciliazioneBanner />}
-      <StoricoInterventiClient staff={staff} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
+      <StoricoInterventiClient staff={staff} gruppi={gruppi} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
     </main>
   );
 }
