@@ -10,6 +10,12 @@ export type ContextInterventoManuale = {
   staff_id: string;
   piano_id?: string | null;
   territorio_id?: string | null;
+  /**
+   * Il "+" è stato creato sotto un task-via (voce contenitore BONIFICHE EXTRA). Regola di
+   * business: gli interventi fatti sulla via-contenitore vanno SEMPRE associati al committente
+   * Italgas e al gruppo attività BONIFICHE EXTRA, a prescindere dall'attività digitata.
+   */
+  taskViaParent?: boolean;
 };
 
 export type InterventoManualeRecord = {
@@ -56,8 +62,21 @@ export function richiestaToIntervento(
 ): InterventoManualeRecord {
   const a = dati.anagrafica;
   const [lat, lng] = parseCoord(a.coordinate);
+  // Classificazione: sotto un task-via l'intervento è SEMPRE Italgas + BONIFICHE EXTRA (regola di
+  // business). Altrimenti: descrizione canonica + gruppo se l'attività risolve in tassonomia,
+  // sennò il testo grezzo (retro-compat coda offline) con gruppo null.
+  const classificazione = ctx.taskViaParent
+    ? { committente: 'italgas', intervento_tipo: 'BONIFICHE EXTRA', gruppo_attivita: 'BONIFICHE EXTRA' }
+    : (() => {
+        const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice) : null;
+        return {
+          committente: ctx.committente as string,
+          intervento_tipo: ris ? ris.descrizione : trimOrNull(a.attivita),
+          gruppo_attivita: ris ? ris.gruppo : null,
+        };
+      })();
   return {
-    committente: ctx.committente,
+    committente: classificazione.committente,
     odl: trimOrNull(a.odl),
     pdr: trimOrNull(a.pdr),
     nominativo: trimOrNull(a.nominativo),
@@ -68,15 +87,8 @@ export function richiestaToIntervento(
     lng,
     fascia_oraria: trimOrNull(a.fascia_oraria),
     matricola_contatore: trimOrNull(a.matricola),
-    // Descrizione canonica + gruppo se l'attività risolve in tassonomia; altrimenti il testo
-    // grezzo (retro-compat coda offline) con gruppo null.
-    ...(function classifica() {
-      const ris = indice ? risolviGruppo(ctx.committente, a.attivita, indice) : null;
-      return {
-        intervento_tipo: ris ? ris.descrizione : trimOrNull(a.attivita),
-        gruppo_attivita: ris ? ris.gruppo : null,
-      };
-    })(),
+    intervento_tipo: classificazione.intervento_tipo,
+    gruppo_attivita: classificazione.gruppo_attivita,
     data: ctx.data,
     staff_id: ctx.staff_id,
     stato: 'completato',

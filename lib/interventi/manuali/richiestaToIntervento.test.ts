@@ -83,4 +83,16 @@ describe('richiestaToIntervento', () => {
     expect(r.intervento_tipo).toBe('Sostituzione');
     expect(r.gruppo_attivita).toBeNull();
   });
+
+  it('taskViaParent → forza Italgas + BONIFICHE EXTRA (a prescindere da attività/committente)', () => {
+    const d: DatiInterventoManuale = { ...dati, anagrafica: { ...dati.anagrafica, attivita: 'Sostituzione' } };
+    const c = { ...ctx, committente: 'acea' as const, taskViaParent: true };
+    const r = richiestaToIntervento(d, c, INDICE);
+    expect(r.committente).toBe('italgas');
+    expect(r.intervento_tipo).toBe('BONIFICHE EXTRA');
+    expect(r.gruppo_attivita).toBe('BONIFICHE EXTRA');
+    // gli altri campi restano invariati (via, matricola, ecc.)
+    expect(r.matricola_contatore).toBe('M1');
+    expect(r.indirizzo).toBe('Via Roma 1');
+  });
 });

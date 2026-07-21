@@ -24,6 +24,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 import { leggiVerdettoEsecuzione, COMMITTENTI_BLOCCO_ESECUZIONE } from '@/lib/limitazione/leggiVerdettoEsecuzione';
 import { pathFotoTentativo, isViolazionePk } from '@/lib/interventi/manuali/fotoStorageHardening';
@@ -219,15 +220,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     ? rawDati.parentVoceId.trim()
     : null;
   let parentVoceId: string | null = null;
+  let parentTaskVia = false;
   if (parentRaw) {
     const colonnaParent = richiestaIdValido(parentRaw) ? 'id' : 'task_id';
     const { data: parents } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('id')
+      .select('id, attivita')
       .eq('rapportino_id', rap.id)
       .eq(colonnaParent, parentRaw)
       .limit(1);
-    parentVoceId = ((parents ?? [])[0] as { id: string } | undefined)?.id ?? null;
+    const parent = (parents ?? [])[0] as { id: string; attivita: string | null } | undefined;
+    parentVoceId = parent?.id ?? null;
+    // Regola di business: un "+" sotto un task-via (BONIFICHE EXTRA) è Italgas + BONIFICHE EXTRA.
+    parentTaskVia = Boolean(parentVoceId) && isTaskVia(parent);
   }
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
@@ -403,6 +408,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       staff_id: String(rap.staff_id ?? ''),
       piano_id: (rap.piano_id as string | null) ?? null,
       territorio_id: territorioId,
+      taskViaParent: parentTaskVia,
     }, indiceTassonomia);
     const { data: intRow, error: eInt } = await supabaseAdmin
       .from('interventi')

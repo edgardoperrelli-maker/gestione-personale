@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { colonneAnagraficaVoce } from '@/lib/interventi/manuali/buildVoceManuale';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
 import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigillo';
@@ -39,10 +40,19 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   // dati_correnti di default (servono prima del check atomico per costruire il record).
   const { data: richiesta } = await supabaseAdmin
     .from('interventi_manuali')
-    .select('id, stato, voce_id, intervento_id, piano_id, staff_id, data, committente, dati_correnti')
+    .select('id, stato, voce_id, intervento_id, piano_id, staff_id, data, committente, dati_correnti, parent_voce_id')
     .eq('id', id)
     .maybeSingle();
   if (!richiesta) return NextResponse.json({ error: 'not_found' }, { status: 404 });
+
+  // Regola di business: se la richiesta è un "+" sotto un task-via (voce contenitore BONIFICHE
+  // EXTRA), l'intervento approvato va forzato a Italgas + BONIFICHE EXTRA.
+  let parentTaskVia = false;
+  if (richiesta.parent_voce_id) {
+    const { data: pv } = await supabaseAdmin
+      .from('rapportino_voci').select('attivita').eq('id', richiesta.parent_voce_id).maybeSingle();
+    parentTaskVia = isTaskVia(pv as { attivita: string | null } | null);
+  }
 
   const dati = (body.dati_correnti ?? richiesta.dati_correnti) as DatiInterventoManuale;
   const committente = (dati.committente ?? richiesta.committente) as CommittenteManuale;
@@ -210,6 +220,7 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
     staff_id: String(richiesta.staff_id ?? ''),
     piano_id: (richiesta.piano_id as string | null) ?? null,
     territorio_id: territorioId,
+    taskViaParent: parentTaskVia,
   }, indiceTassonomia);
 
   const { data: intRow, error: eInt } = await supabaseAdmin
