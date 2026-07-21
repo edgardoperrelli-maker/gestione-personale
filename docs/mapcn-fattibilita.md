@@ -5,6 +5,14 @@ _Data: 2026-07-21 · Branch: `claude/mapcn-library-integration-5120ng`_
 > Analisi della libreria open source **mapcn**, verifica della sua integrità e valutazione
 > della fattibilità di sostituire l'attuale libreria di mappe (**Leaflet 1.9.4**) del progetto.
 
+> **Stato di avanzamento (aggiornato):** migrazione **completata**.
+> - ✅ **Fase 0** — Fondamenta shadcn/mapcn (cn(), token, `components.json`, `components/ui/map.tsx`).
+> - ✅ **Fase 1** — Mappe minori (`TorreMappa`, dashboard "Operatori di oggi") su `OperatorsMap`.
+> - ✅ **Fase 2** — Mappa operativa principale (`MappaOperatoriClient`) su `PlanningMap`; **dipendenza
+>   `leaflet` rimossa**. Verifiche: `tsc` 0 errori, `next build` OK (111 pagine).
+>
+> Lo studio sotto è il documento originale di fattibilità (mantenuto come riferimento).
+
 ---
 
 ## 1. Verdetto in sintesi

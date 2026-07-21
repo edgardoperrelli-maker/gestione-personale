@@ -1,8 +1,13 @@
 'use client';
 
-import type * as Leaflet from 'leaflet';
+import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
+import type {
+  PlanningMarker,
+  PlanningRoute,
+  PlanningFocus,
+} from '@/components/modules/mappa/PlanningMap';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
@@ -35,6 +40,18 @@ import MenuDropdown, { type MenuItem } from './MenuDropdown';
 import { ModaleErroreImport } from '@/components/modules/interventi/ModaleErroreImport';
 import { validaImport, type ErroreImport } from '@/lib/attivita/validaImport';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+
+// Mappa mapcn (MapLibre GL) caricata solo lato client: WebGL tocca `window`,
+// quindi va importata con ssr:false (questo componente è renderizzato in SSR
+// dalla server-page, a differenza delle mappe minori).
+const PlanningMap = dynamic(() => import('@/components/modules/mappa/PlanningMap'), {
+  ssr: false,
+  loading: () => (
+    <div className="flex h-[520px] w-full items-center justify-center rounded-2xl text-sm text-[var(--brand-text-muted)]">
+      Caricamento mappa…
+    </div>
+  ),
+});
 
 export type MappaStaffRow = {
   staffId: string;
@@ -112,7 +129,6 @@ type DistEntry = {
   pianoId?: string;
 };
 type OpConfig = { id: string; name: string; qty: number; base: OperatorBase | null; startAddress: string | null };
-type ExcelMarker = Leaflet.Marker | Leaflet.CircleMarker;
 type CapacityDistributionResult = { groups: Task[][]; unassigned: Task[] };
 
 // ─── Palette colori operatori ────────────────────────────────────────────────
@@ -656,17 +672,14 @@ function isoToDisplay(iso: string): string {
 // ─── Componente principale ───────────────────────────────────────────────────
 
 export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution, initialPlanningDate, initialScope = 'piano' }: Props) {
-  const mapRef = useRef<HTMLDivElement | null>(null);
-  const mapInstanceRef = useRef<Leaflet.Map | null>(null);
-  const layerRef = useRef<Leaflet.LayerGroup | null>(null);
-  const routeLayerRef = useRef<Leaflet.LayerGroup | null>(null);
-  const excelLayerRef = useRef<Leaflet.LayerGroup | null>(null);
-  const excelMarkersRef = useRef<Map<string, ExcelMarker>>(new Map());
   const excelTaskItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const geocodingActiveRef = useRef(false);
 
-  const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null);
+  // Richiesta di centraggio+popup su un marker, inviata dal pannello laterale
+  // (rimpiazza l'imperativo panTo+openPopup di Leaflet). Il nonce forza il
+  // ri-trigger anche quando si riclicca lo stesso task.
+  const [mapFocus, setMapFocus] = useState<PlanningFocus>(null);
   const [territoryFilter, setTerritoryFilter] = useState('');
   const [dayFilter, setDayFilter] = useState('');
   const [onlyRep, setOnlyRep] = useState(false);
@@ -1176,237 +1189,193 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     return () => window.cancelAnimationFrame(frame);
   }, [selectedExcelTaskId, excelMode, distribution, activeOpIdx]);
 
-  // Inizializzazione mappa
+  // ─── Mappa: cleanup del geocoding allo smontaggio / cambio disponibilità ─────
   useEffect(() => {
-    if (!mapReady) return;
-    let alive = true;
-    (async () => {
-      const L = await import('leaflet');
-      if (!alive) return;
-      setLeaflet(L);
-      if (!mapRef.current || mapInstanceRef.current) return;
-      mapInstanceRef.current = L.map(mapRef.current, { zoomControl: true }).setView([41.9, 12.5], 6);
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-        maxZoom: 19,
-      }).addTo(mapInstanceRef.current);
-      layerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-      excelLayerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-      routeLayerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-    })();
     return () => {
-      alive = false;
       geocodingActiveRef.current = false;
-      if (mapInstanceRef.current) {
-        mapInstanceRef.current.remove();
-        mapInstanceRef.current = null;
-      }
     };
   }, [mapReady]);
 
-  // Marker Supabase
-  useEffect(() => {
-    if (!leaflet || !layerRef.current || !mapInstanceRef.current) return;
-    const layer = layerRef.current;
-    const map = mapInstanceRef.current;
-    layer.clearLayers();
-    if (excelMode) return;
+  // ─── Marker della mappa (descrittori dichiarativi per PlanningMap) ───────────
+  // Rimpiazza i tre effetti Leaflet imperativi (clearLayers + ricostruzione).
+  // I colori usano var(--token): i marker DOM di mapcn li risolvono nel browser
+  // (Leaflet non risolveva var() e i colori territorio erano di fatto persi).
+  const planningMarkers = useMemo<PlanningMarker[]>(() => {
+    const out: PlanningMarker[] = [];
 
-    // Risolvi i token CSS in valori reali (Leaflet non risolve var() nel JS)
-    const css = getComputedStyle(document.documentElement);
-    const cReperibile = css.getPropertyValue('--warning').trim() || '#C9A14A';
-
-    const adjusted = applyProximityOffset(rowsWithCoords);
-    const bounds: Array<[number, number]> = [];
-    adjusted.forEach((row) => {
-      if (row.lat === null || row.lng === null) return;
-      const style = getTerritoryStyle(row.territoryName);
-      const marker = leaflet.circleMarker([row.lat, row.lng], {
-        radius: row.reperibile ? 9 : 7,
-        color: row.reperibile ? cReperibile : style.band,
-        weight: 2,
-        fillColor: style.band,
-        fillOpacity: 0.35,
-      });
-      marker.bindPopup(`
-        <div style="font-size:12px;line-height:1.4">
-          <div style="font-weight:600">${row.displayName}</div>
-          ${row.reperibile ? `<span style="color:${cReperibile};font-weight:700">REP</span>` : ''}
-          <div>Territorio: ${row.territoryName ?? '-'}</div>
-          <div>Attivita: ${row.activityName ?? '-'}</div>
-          <div>CdC: ${row.costCenter ?? '-'}</div>
-          <div>Giorno: ${row.day}</div>
-        </div>
-      `);
-      marker.addTo(layer);
-      bounds.push([row.lat, row.lng]);
-    });
-    if (bounds.length) map.fitBounds(bounds, { padding: [24, 24] });
-  }, [leaflet, rowsWithCoords, excelMode]);
-
-  // Marker Excel + route distribuzione (effetto unificato)
-  useEffect(() => {
-    if (!leaflet || !excelLayerRef.current || !routeLayerRef.current || !mapInstanceRef.current) return;
-    const exLayer = excelLayerRef.current;
-    const rLayer = routeLayerRef.current;
-    exLayer.clearLayers();
-    rLayer.clearLayers();
-    excelMarkersRef.current.clear();
-
-    // Risolvi i token CSS in valori reali (Leaflet non risolve var() nel JS)
-    const css = getComputedStyle(document.documentElement);
-    const cOnMarker = css.getPropertyValue('--on-marker').trim() || '#1c2433';
-    const cBase = css.getPropertyValue('--brand-text-subtle').trim() || '#6B7A8F';
-    const cWarning = css.getPropertyValue('--warning').trim() || '#C9A14A';
-    const cWarningStrong = css.getPropertyValue('--status-warn').trim() || '#C9A14A';
-    const cViolet = css.getPropertyValue('--brand-violet').trim() || '#8071B0';
-
-    if (distribution && excelMode) {
-      // Marker e polyline per-operatore
-      const bounds: Array<[number, number]> = [];
-      distribution.forEach(({ op, color, tasks, polyline, base, startAddress }, i) => {
-        if (base) {
-          bounds.push([base.lat, base.lng]);
-          const baseIcon = leaflet.divIcon({
-            className: '',
-            html: `<div style="background:${cBase};color:#fff;border-radius:999px;min-width:22px;height:22px;padding:0 6px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">S</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
+    if (!excelMode) {
+      // Marker Supabase (staff) con de-sovrapposizione di prossimità.
+      for (const row of applyProximityOffset(rowsWithCoords)) {
+        if (row.lat === null || row.lng === null) continue;
+        const style = getTerritoryStyle(row.territoryName);
+        out.push({
+          id: `staff-${row.staffId}`,
+          lat: row.lat,
+          lng: row.lng,
+          render: {
+            kind: 'circle',
+            color: row.reperibile ? 'var(--warning)' : style.band,
+            fillColor: style.band,
+            size: row.reperibile ? 18 : 14,
+            weight: 2,
+            fillOpacity: 0.35,
+          },
+          popup: (
+            <div>
+              <div style={{ fontWeight: 600 }}>{row.displayName}</div>
+              {row.reperibile ? (
+                <span style={{ color: 'var(--warning)', fontWeight: 700 }}>REP</span>
+              ) : null}
+              <div>Territorio: {row.territoryName ?? '-'}</div>
+              <div>Attivita: {row.activityName ?? '-'}</div>
+              <div>CdC: {row.costCenter ?? '-'}</div>
+              <div>Giorno: {row.day}</div>
+            </div>
+          ),
+        });
+      }
+      // Pin numerati del percorso singolo (senza click/popup, come in origine).
+      if (routeMode && routeResult) {
+        routeResult.orderedTasks.forEach((task, idx) => {
+          if (task.lat == null || task.lng == null) return;
+          out.push({
+            id: `route-pin-${task.id}`,
+            lat: task.lat,
+            lng: task.lng,
+            render: {
+              kind: 'pin',
+              label: String(idx + 1),
+              bg: 'var(--status-progress)',
+              fg: 'var(--on-marker)',
+              shape: 'circle',
+              size: 20,
+            },
           });
-          leaflet
-            .marker([base.lat, base.lng], { icon: baseIcon })
-            .bindPopup(`
-              <div style="font-size:12px;line-height:1.5">
-                <div style="font-weight:600;color:${color}">${op}</div>
+        });
+      }
+      return out;
+    }
+
+    // Modalità Excel.
+    if (distribution) {
+      distribution.forEach(({ op, color, tasks, base, startAddress }, i) => {
+        if (base) {
+          out.push({
+            id: `base-${i}`,
+            lat: base.lat,
+            lng: base.lng,
+            render: { kind: 'pin', label: 'S', bg: 'var(--brand-text-subtle)', fg: '#fff', shape: 'pill', size: 22 },
+            popup: (
+              <div>
+                <div style={{ fontWeight: 600, color }}>{op}</div>
                 <div>Punto di partenza</div>
-                ${startAddress ? `<div>${startAddress}</div>` : ''}
+                {startAddress ? <div>{startAddress}</div> : null}
               </div>
-            `)
-            .addTo(rLayer);
+            ),
+          });
         }
         tasks.forEach((t, idx) => {
           if (t.lat == null || t.lng == null) return;
-          bounds.push([t.lat, t.lng]);
-          const icon = leaflet.divIcon({
-            className: '',
-            html: `<div style="background:${color};color:${cOnMarker};border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
-            iconSize: [22, 22],
-            iconAnchor: [11, 11],
+          out.push({
+            id: t.id,
+            lat: t.lat,
+            lng: t.lng,
+            render: { kind: 'pin', label: String(idx + 1), bg: color, fg: 'var(--on-marker)', shape: 'circle', size: 22 },
+            onClick: () => {
+              setActiveOpIdx(i);
+              setSelectedExcelTaskId(t.id);
+            },
+            popup: (
+              <div>
+                <div style={{ fontWeight: 600, color }}>{op}</div>
+                <div>{t.indirizzo}</div>
+                <div>
+                  {t.cap} {t.citta}
+                </div>
+                {t.odl ? <div>ODL: {t.odl}</div> : null}
+                {t.fascia_oraria ? <div>Fascia: {t.fascia_oraria}</div> : null}
+              </div>
+            ),
           });
-          const marker = leaflet.marker([t.lat, t.lng], { icon });
-          excelMarkersRef.current.set(t.id, marker);
-          marker.on('click', () => {
-            setActiveOpIdx(i);
-            setSelectedExcelTaskId(t.id);
-          });
-          marker.bindPopup(`
-            <div style="font-size:12px;line-height:1.5">
-              <div style="font-weight:600;color:${color}">${op}</div>
-              <div>${t.indirizzo}</div>
-              <div>${t.cap} ${t.citta}</div>
-              ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
-              ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
-            </div>
-          `);
-          marker.addTo(exLayer);
         });
-        const coords = polyline.map((point) => [point.lat, point.lng] as [number, number]);
-        if (coords.length >= 2) {
-          leaflet.polyline(coords, { color, weight: 3, opacity: 0.75, dashArray: '6 4' }).addTo(rLayer);
-        }
       });
       unassignedTasks.forEach((t) => {
         if (t.lat == null || t.lng == null) return;
-        const marker = leaflet.circleMarker([t.lat, t.lng], {
-          radius: 7,
-          color: cWarning,
-          weight: 2,
-          fillColor: cWarning,
-          fillOpacity: 0.45,
+        out.push({
+          id: t.id,
+          lat: t.lat,
+          lng: t.lng,
+          render: { kind: 'circle', color: 'var(--warning)', fillColor: 'var(--warning)', size: 14, weight: 2, fillOpacity: 0.45 },
+          onClick: () => setSelectedExcelTaskId(t.id),
+          popup: (
+            <div>
+              <div style={{ fontWeight: 600, color: 'var(--status-warn)' }}>Non assegnata</div>
+              <div>{t.indirizzo}</div>
+              <div>
+                {t.cap} {t.citta}
+              </div>
+              {t.odl ? <div>ODL: {t.odl}</div> : null}
+              {t.fascia_oraria ? <div>Fascia: {t.fascia_oraria}</div> : null}
+            </div>
+          ),
         });
-        excelMarkersRef.current.set(t.id, marker);
-        marker.on('click', () => {
-          setSelectedExcelTaskId(t.id);
-        });
-        marker.bindPopup(`
-          <div style="font-size:12px;line-height:1.5">
-            <div style="font-weight:600;color:${cWarningStrong}">Non assegnata</div>
-            <div>${t.indirizzo}</div>
-            <div>${t.cap} ${t.citta}</div>
-            ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
-            ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
-          </div>
-        `);
-        marker.addTo(exLayer);
-        bounds.push([t.lat, t.lng]);
       });
-      if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
     } else {
-      // Marker Excel singoli (arancione) + Appuntamenti (viola) filtrati per data
-      const bounds: Array<[number, number]> = [];
-
-      // Combina task Excel con appuntamenti della data (già filtrati)
-      const tasksToShow = [...excelTasks, ...filteredAppointmentTasks];
-
-      tasksToShow.forEach((t) => {
-        if (t.lat == null || t.lng == null) return;
+      // Task Excel singoli (ambra) + appuntamenti (viola) filtrati per data.
+      for (const t of [...excelTasks, ...filteredAppointmentTasks]) {
+        if (t.lat == null || t.lng == null) continue;
         const isAppt = t.isAppointment;
-        const marker = leaflet.circleMarker([t.lat, t.lng], {
-          radius: isAppt ? 10 : 7,
-          color: isAppt ? cViolet : cWarning,
-          weight: isAppt ? 2 : 2,
-          fillColor: isAppt ? cViolet : cWarning,
-          fillOpacity: isAppt ? 0.55 : 0.45,
+        const c = isAppt ? 'var(--brand-violet)' : 'var(--warning)';
+        const opName = (t as Task & { _operatore?: string })._operatore ?? '';
+        out.push({
+          id: t.id,
+          lat: t.lat,
+          lng: t.lng,
+          render: {
+            kind: 'circle',
+            color: c,
+            fillColor: c,
+            size: isAppt ? 20 : 14,
+            weight: 2,
+            fillOpacity: isAppt ? 0.55 : 0.45,
+          },
+          onClick: () => setSelectedExcelTaskId(t.id),
+          popup: (
+            <div>
+              {opName ? <div style={{ fontWeight: 600 }}>{opName}</div> : null}
+              <div>{t.indirizzo}</div>
+              <div>
+                {t.cap} {t.citta}
+              </div>
+              {t.odl ? <div>ODL: {t.odl}</div> : null}
+              {t.fascia_oraria ? <div>Fascia: {t.fascia_oraria}</div> : null}
+            </div>
+          ),
         });
-        excelMarkersRef.current.set(t.id, marker);
-        marker.on('click', () => {
-          setSelectedExcelTaskId(t.id);
-        });
-        const op = (t as Task & { _operatore?: string })._operatore ?? '';
-      marker.bindPopup(`
-        <div style="font-size:12px;line-height:1.5">
-          ${op ? `<div style="font-weight:600">${op}</div>` : ''}
-          <div>${t.indirizzo}</div>
-          <div>${t.cap} ${t.citta}</div>
-          ${t.odl ? `<div>ODL: ${t.odl}</div>` : ''}
-          ${t.fascia_oraria ? `<div>Fascia: ${t.fascia_oraria}</div>` : ''}
-        </div>
-      `);
-      marker.addTo(exLayer);
-      bounds.push([t.lat, t.lng]);
-    });
-      if (bounds.length) mapInstanceRef.current.fitBounds(bounds, { padding: [24, 24] });
+      }
     }
-  }, [leaflet, excelTasks, excelMode, distribution, unassignedTasks, filteredAppointmentTasks]);
+    return out;
+  }, [excelMode, rowsWithCoords, routeMode, routeResult, distribution, unassignedTasks, excelTasks, filteredAppointmentTasks]);
 
-  // Polyline percorso supabase / excel singolo
-  useEffect(() => {
-    if (!leaflet || !routeLayerRef.current || !mapInstanceRef.current) return;
-    if (excelMode) return; // gestito dall'effetto unificato Excel
-    const rLayer = routeLayerRef.current;
-    rLayer.clearLayers();
-    if (!routeResult || !routeMode) return;
+  // ─── Rotte della mappa (polyline) ────────────────────────────────────────────
+  const planningRoutes = useMemo<PlanningRoute[]>(() => {
+    const out: PlanningRoute[] = [];
+    if (excelMode) {
+      if (distribution) {
+        distribution.forEach(({ color, polyline }, i) => {
+          if (polyline && polyline.length >= 2) {
+            out.push({ id: `route-${i}`, coords: polyline, color, opacity: 0.75 });
+          }
+        });
+      }
+    } else if (routeMode && routeResult && routeResult.polyline.length >= 2) {
+      out.push({ id: 'route-single', coords: routeResult.polyline, color: 'var(--status-progress)', opacity: 0.85 });
+    }
+    return out;
+  }, [excelMode, distribution, routeMode, routeResult]);
 
-    const coords = routeResult.polyline.map((p) => [p.lat, p.lng] as [number, number]);
-    if (coords.length < 2) return;
-
-    // Risolvi i token CSS in valori reali (Leaflet non risolve var() nel JS)
-    const css = getComputedStyle(document.documentElement);
-    const cRoute = css.getPropertyValue('--status-progress').trim() || '#3E7CB1';
-    const cOnMarker = css.getPropertyValue('--on-marker').trim() || '#1c2433';
-
-    leaflet.polyline(coords, { color: cRoute, weight: 3, opacity: 0.85, dashArray: '6 4' }).addTo(rLayer);
-    routeResult.orderedTasks.forEach((task, idx) => {
-      if (task.lat == null || task.lng == null) return;
-      const icon = leaflet.divIcon({
-        className: '',
-        html: `<div style="background:${cRoute};color:${cOnMarker};border-radius:50%;width:20px;height:20px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)">${idx + 1}</div>`,
-        iconSize: [20, 20],
-        iconAnchor: [10, 10],
-      });
-      leaflet.marker([task.lat, task.lng], { icon }).addTo(rLayer);
-    });
-    mapInstanceRef.current!.fitBounds(coords, { padding: [32, 32] });
-  }, [leaflet, routeResult, routeMode, excelMode]);
+  // Padding del fitBounds: 32 per il percorso singolo, 24 negli altri casi.
+  const mapFitPadding = !excelMode && routeMode && routeResult ? 32 : 24;
 
   // ─── Callbacks ──────────────────────────────────────────────────────────────
 
@@ -1696,11 +1665,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   const focusExcelTask = useCallback((taskId: string) => {
     setSelectedExcelTaskId(taskId);
-    const marker = excelMarkersRef.current.get(taskId);
-    const map = mapInstanceRef.current;
-    if (!marker || !map) return;
-    map.panTo(marker.getLatLng(), { animate: true });
-    marker.openPopup();
+    // Invia a PlanningMap la richiesta di centrare la mappa sul task e aprirne
+    // il popup (il nonce forza il ri-trigger anche riselezionando lo stesso id).
+    setMapFocus((prev) => ({ id: taskId, nonce: (prev?.nonce ?? 0) + 1 }));
   }, []);
 
   // Risultati della barra di ricerca interventi (tra tutti gli operatori)
@@ -3300,7 +3267,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       {/* Mappa + pannello laterale */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="isolate rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
-          <div ref={mapRef} className="h-[520px] w-full rounded-2xl" />
+          {mapReady ? (
+            <PlanningMap
+              markers={planningMarkers}
+              routes={planningRoutes}
+              focus={mapFocus}
+              fitPadding={mapFitPadding}
+              className="h-[520px] w-full rounded-2xl overflow-hidden"
+            />
+          ) : (
+            <div className="h-[520px] w-full rounded-2xl" />
+          )}
         </div>
 
         <div className={`rounded-2xl border bg-[var(--brand-surface)] p-4 shadow-sm overflow-y-auto max-h-[540px] ${
