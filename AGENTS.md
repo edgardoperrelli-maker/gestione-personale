@@ -362,3 +362,46 @@ dallo stato logistico** — anche `scaricato/verificato/consegnato`, non solo
 se l'insieme qualificante è vuoto non cancella nulla (anti-svuotamento di massa).
 Nota: la cascata `ON DELETE CASCADE` copre solo l'**eliminazione** dell'intervento,
 non la correzione dell'esito → per quest'ultima serve il Ricalcola.
+
+---
+
+## 14. LIMITAZIONI MASSIVE MULTI-COMUNE + PRODUZIONE ECONOMICA — REGOLE
+
+Le "limitazioni massive" sono un programma ACEA **per comune**. Regola cardine (data-driven,
+**mai hardcodare un comune**). Oggi i comuni attivi sono **Labico** e **Zagarolo**.
+
+### Il comune È il file master
+I comuni massive = i file MASTER scansionati dall'agente (`agente_file_colonne.is_master`,
+es. `LABICO.xlsx` → `LABICO`). Fonte unica: `comuniMaster()` (`lib/agente/comuni.ts`) e, lato
+Produzione economica, `caricaComuniMassive()` (`lib/produzione/comuniMassive.ts`). **Aggiungere
+un comune = aggiungere un master nella cartella**, nessuna modifica al codice.
+
+### Classificazione in Produzione economica (`lib/produzione/attivitaCanonica.ts`)
+- La riclassificazione committente (gas `acea`→`italgas`, massive→`acea`) vive **QUI**, non nel DB.
+- Firma: `attivitaCanonica(committente, testo, comune, alias, massiveComuni)`. Una riga `acea`
+  **senza testo attività** è massiva **solo se** `comune ∈ massiveComuni`; altrove (es. Umbria)
+  → `italgas`, non valorizzata. **NON re-hardcodare `=== 'ZAGAROLO'`.**
+- `lib/produzione/load.ts` e `loadCandele.ts` caricano `caricaComuniMassive()` e lo passano a
+  OGNI chiamata di `attivitaCanonica`.
+- Conteggio massive = **per MATRICOLA** (fallback ODL), non per riga: `deduplicaMassivePerMatricola`.
+- Saracinesca (`saracinescaProdotta`): **comune-agnostica**. Verità = colonna `esito` del master
+  massive (Labico/Zagarolo la hanno); il DUNNING no → fallback sul positivo del DB.
+
+### Allineamento agente dalla Produzione economica
+Il bottone **"Limitazioni massive"** accoda `target='TUTTI'` a `/api/admin/agente/acea-stato`
+(`forza_acea_stato=true`, `acea_target='TUTTI'`, flag one-shot). Un solo giro Playwright: l'export
+viene riversato su TUTTI i master massive (`risolviMaster`) e ne pusha lo snapshot (audit 3 vie).
+`acea-stato` accetta `dunning | TUTTI | <COMUNE>`. Il controllo per singolo comune resta sulla
+pagina **Agente**. **Non reintrodurre** un bottone per-comune ("Zagarolo") in Produzione economica.
+Traccia del giro: `agente_run` = un `acea-stato` + un `acea-master` **per ogni** master del target
+(con `TUTTI`, due `acea-master` ravvicinati).
+
+### tools/limitazioni-sync (agente standalone `.mjs`)
+`comuneDaFile` usa `path.win32.basename/extname`: i master vivono su SharePoint con path Windows
+(`C:\...\LABICO.xlsx`) ma test/CI girano su POSIX; con `node:path` posix il path non verrebbe
+spezzato. Vale per qualunque parsing di path Windows in questo tool.
+
+### Invariante
+Non disattivare la voce tassonomia `LIMITAZIONI MASSIVE`: l'export
+`api/export/limitazioni-massive` è ancorato al literal `gruppo_attivita='LIMITAZIONI MASSIVE'`
+(selezione per tassonomia, agnostica al comune → include tutti i comuni).
