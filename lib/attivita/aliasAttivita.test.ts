@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  ALIAS_ATTIVITA, ALIAS_ATTIVITA_SCRITTURA, allineaChiaveAttivita, allineaScritturaQualsiasi,
+  ALIAS_ATTIVITA, ALIAS_ATTIVITA_SCRITTURA, allineaChiaveAttivita, allineaAttivitaQualsiasi,
 } from './aliasAttivita';
 import { chiaveTassonomia } from './tassonomia';
 
@@ -33,19 +33,23 @@ describe('alias attività', () => {
     expect(allineaChiaveAttivita('italgas', 'DIS00N', 'scrittura')).toBe('DIS00N');       // invariato in scrittura
     expect(allineaChiaveAttivita('italgas', 'DIS00N', 'lettura')).not.toBe('DIS00N');      // collassato in lettura
   });
-  it('varianti di scrittura univoche tra committenti (dedup agnostico sicuro)', () => {
+  it('TUTTE le varianti (tier completo) univoche tra committenti (dedup agnostico sicuro)', () => {
     const perNorm = new Map<string, string>();
-    for (const [k, v] of Object.entries(ALIAS_ATTIVITA_SCRITTURA)) {
+    for (const [k, v] of Object.entries(ALIAS_ATTIVITA)) {
       const norm = k.slice(k.indexOf('|') + 1);
       const prima = perNorm.get(norm);
       if (prima !== undefined) expect(prima).toBe(v); // stessa norm ⇒ stessa canonica (no ambiguità)
       perNorm.set(norm, v);
-      expect(allineaScritturaQualsiasi(norm)).toBe(v);
+      expect(allineaAttivitaQualsiasi(norm)).toBe(v); // agnostico = tier lettura completo
     }
+  });
+  it('dedup agnostico collassa anche i codici ATLAS (bare→lungo)', () => {
+    expect(allineaAttivitaQualsiasi('DIS00N')).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
+    expect(allineaAttivitaQualsiasi('LIMITAZIONE MASSIVA')).toBe('LIMITAZIONI MASSIVE');
   });
   it('lascia invariato ciò che non è alias', () => {
     expect(allineaChiaveAttivita('acea', 'BONIFICHE')).toBe('BONIFICHE');
     expect(allineaChiaveAttivita('italgas', 'S-PR-003 A')).toBe('S-PR-003 A');
-    expect(allineaScritturaQualsiasi('S-PR-003 A')).toBe('S-PR-003 A');
+    expect(allineaAttivitaQualsiasi('S-PR-003 A')).toBe('S-PR-003 A');
   });
 });

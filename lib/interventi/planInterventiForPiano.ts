@@ -4,7 +4,7 @@ import { taskToIntervento, type InterventoDaMappa } from './taskToIntervento';
 import { normOdl } from './odlPositivi';
 import type { Task } from '@/utils/routing/types';
 import { chiaveTassonomia, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
-import { allineaScritturaQualsiasi } from '@/lib/attivita/aliasAttivita';
+import { allineaAttivitaQualsiasi } from '@/lib/attivita/aliasAttivita';
 
 export type PianoMeta = { data: string };
 export type OperatorePiano = { staff_id: string; tasks: Task[] | null };
@@ -62,12 +62,13 @@ export function identitaIntervento(r: {
   if (odl) return `odl:${odl}`;
   const matr = (r.matricola_contatore ?? '').trim().toLowerCase();
   const ind = (r.indirizzo ?? '').trim().toLowerCase();
-  // Tipo normalizzato come la tassonomia (upper, spazi collassati, senza accenti) E allineato agli
-  // alias di SCRITTURA: una riga terminale scritta con la variante grezza (giro vecchio o "LIMITAZIONE
-  // MASSIVA") deve matchare il rec fresco allineato ("LIMITAZIONI MASSIVE"), altrimenti il guard dei
-  // terminali non scatta e si duplica. Committente-agnostico perché qui il committente non c'è (le
-  // varianti di scrittura sono univoche tra committenti). Chiave solo in-memory: cambiarla è sicuro.
-  const tipo = allineaScritturaQualsiasi(chiaveTassonomia(r.intervento_tipo));
+  // Tipo normalizzato come la tassonomia (upper, spazi collassati, senza accenti) E collassato con
+  // l'alias COMPLETO (incluso ATLAS bare↔lungo): due forme dello stesso lavoro (es. "LIMITAZIONE
+  // MASSIVA" vs "LIMITAZIONI MASSIVE", o "DIS00N" vs "DIS00N - DISATTIVAZIONE…") devono dare la STESSA
+  // identità, altrimenti il guard dei terminali non scatta e si duplica/risorge in rigenerazione.
+  // Committente-agnostico (qui il committente non c'è; le varianti sono univoche tra committenti) e
+  // chiave solo in-memory (mai persistita): collassare qui è sicuro anche per gli ATLAS.
+  const tipo = allineaAttivitaQualsiasi(chiaveTassonomia(r.intervento_tipo));
   if (matr || ind) return `c:${matr}|${ind}|${tipo}`;
   return null;
 }

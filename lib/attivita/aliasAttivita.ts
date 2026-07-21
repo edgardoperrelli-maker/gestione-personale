@@ -4,19 +4,21 @@
 //
 // DUE tier, applicati da `risolviGruppo(..., { allinea })`, distinti per SICUREZZA a valle:
 //
-//  - SCRITTURA (`allinea:'scrittura'`): applicati sia in lettura sia nei write-path (import,
-//    taskToIntervento, manuali). Solo casi in cui la canonica è compatibile con TUTTI i
-//    consumatori del testo grezzo: esiste in `acea_attivita_alias` (listino produzione) e non
-//    rompe il dedup (identitaIntervento è reso alias-aware, vedi planInterventiForPiano).
-//    Copre typo/punteggiatura e il singolare→plurale della famiglia massive.
+//  - SCRITTURA (`allinea:'scrittura'`): applicati nei write-path (import, taskToIntervento,
+//    manuali), quindi cambiano il TESTO MEMORIZZATO. Solo typo/punteggiatura e il singolare→
+//    plurale massive: casi genuinamente fuorvianti da correggere allo storage. NON riscrivono
+//    i codici ATLAS (il codice bare è l'identità canonica dell'attività: lasciarlo com'è evita
+//    churn inutile sullo storage e su export/listino che mostrano intervento_tipo).
 //
 //  - LETTURA (`allinea:'lettura'`): SCRITTURA + collassi codice ATLAS con/senza descrizione
-//    (DIS00N, S-MR-002, S-AI-022). SOLO per i filtri del modulo Performance: le forme lunghe
-//    NON sono in `acea_attivita_alias`, quindi non vanno MAI scritte (romperebbero il listino).
+//    (DIS00N, S-MR-002, S-AI-022). Per i filtri del modulo Performance e per l'IDENTITÀ del dedup
+//    (`allineaAttivitaQualsiasi`, chiave in-memory) — NON tocca lo storage. Nota: le forme lunghe
+//    ATLAS ESISTONO in `acea_attivita_alias` (stesso macrogruppo del bare), quindi il collasso
+//    sarebbe produzione-safe anche in scrittura; resta in lettura solo per stabilità dello storage.
 //
 // INVARIANTE (tassonomia.test.ts): ogni canonica è un literal di tassonomia (seed 20260720150000)
-// e ha lo STESSO gruppo della variante. Nessuna variante di SCRITTURA è ambigua tra committenti
-// (aliasAttivita.test.ts), così il dedup committente-agnostico (`allineaScritturaQualsiasi`) converge.
+// e ha lo STESSO gruppo della variante. Nessuna variante è ambigua tra committenti
+// (aliasAttivita.test.ts), così il collasso committente-agnostico del dedup converge.
 
 // `${committenteEquivalente}|${normVariante}` → normCanonica
 const ALIAS_SCRITTURA: Record<string, string> = {
@@ -44,16 +46,19 @@ export function allineaChiaveAttivita(committenteEq: string, norm: string, modo:
   return mappa[`${committenteEq}|${norm}`] ?? norm;
 }
 
-// Variante norm → canonica SCRITTURA, committente-agnostica: usata dal dedup identitaIntervento
-// (che non ha il committente) per far convergere righe vecchie (grezze) e nuove (allineate).
-const ALIAS_SCRITTURA_QUALSIASI: Record<string, string> = (() => {
+// Variante norm → canonica, committente-agnostica, TIER LETTURA COMPLETO (massive + UT + ATLAS).
+// Usata dal dedup identitaIntervento (che non ha il committente e non persiste la chiave): deve
+// far convergere QUALSIASI forma memorizzata dello stesso lavoro — comprese le forme lunghe ATLAS
+// (literal validi di tassonomia, scrivibili via import della forma lunga o riscrittura da editor
+// voce) e le varianti massive. Sicura perché nessuna variante è ambigua tra committenti (test).
+const ALIAS_QUALSIASI: Record<string, string> = (() => {
   const m: Record<string, string> = {};
-  for (const [k, v] of Object.entries(ALIAS_SCRITTURA)) m[k.slice(k.indexOf('|') + 1)] = v;
+  for (const [k, v] of Object.entries(ALIAS_LETTURA)) m[k.slice(k.indexOf('|') + 1)] = v;
   return m;
 })();
 
-export function allineaScritturaQualsiasi(norm: string): string {
-  return ALIAS_SCRITTURA_QUALSIASI[norm] ?? norm;
+export function allineaAttivitaQualsiasi(norm: string): string {
+  return ALIAS_QUALSIASI[norm] ?? norm;
 }
 
 /** Mappe alias esposte per i test (invariante gruppo + no-ambiguità). */
