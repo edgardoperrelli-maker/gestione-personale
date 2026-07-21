@@ -8,6 +8,7 @@ import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
+import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
@@ -53,13 +54,8 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
   const tplDefault = tplDef[0];
   const infoCampi: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
 
-  // Campi esito per committente: solo template SOLO-MANUALE.
-  const { data: tplRows } = await supabase
-    .from('rapportino_template')
-    .select('id, committente, campi, info_campi, active, solo_manuale')
-    .eq('active', true)
-    .eq('solo_manuale', true);
-  const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; active: boolean; solo_manuale?: boolean }>;
+  // Campi esito per committente: solo template SOLO-MANUALE attivi (esclusi i riservati P.I.).
+  const tpl = await caricaTemplateManuali(supabase, { soloAttivi: true });
 
   const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
   const tplRows2 = tpl as TemplateRow[];

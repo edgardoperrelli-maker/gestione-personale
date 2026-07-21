@@ -12,6 +12,7 @@ import RapportinoForm, {
 } from '@/components/modules/rapportini/RapportinoForm';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { BrandHeader } from '@/components/brand/BrandHeader';
 import { BRAND, appBaseUrl } from '@/lib/brand';
 
@@ -278,14 +279,11 @@ export default async function RapportinoPublicPage({
   // Template attivi per committente → alimentano la modale "intervento manuale".
   // Si legge ANCHE info_campi: l'anagrafica del "+" è guidata dal template manuale scelto
   // (coerente con l'editor "Anagrafica da compilare"), non dall'anagrafica del rapportino.
-  const { data: tplManuali } = await supabaseAdmin
-    .from('rapportino_template')
-    .select('committente, campi, info_campi')
-    .eq('active', true)
-    .eq('solo_manuale', true);
+  // caricaTemplateManuali esclude i modelli riservati (P.I.): non alimentano il "+".
+  const tplManuali = await caricaTemplateManuali(supabaseAdmin, { soloAttivi: true });
   const templatesPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
   const infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>> = {};
-  for (const t of (tplManuali ?? []) as Array<{ committente: string | null; campi: unknown; info_campi: unknown }>) {
+  for (const t of tplManuali as Array<{ committente: string | null; campi: unknown; info_campi: unknown }>) {
     if (t.committente === 'acea' || t.committente === 'italgas' || t.committente === 'altro' || t.committente === 'lim_massive') {
       templatesPerCommittente[t.committente] = ((t.campi ?? []) as TemplateCampo[]);
       if (Array.isArray(t.info_campi) && t.info_campi.length > 0) {

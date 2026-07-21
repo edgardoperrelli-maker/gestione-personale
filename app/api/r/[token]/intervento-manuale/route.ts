@@ -4,6 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { richiestaIdValido } from '@/lib/offline/idRichiesta';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
+import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { buildVoceManuale } from '@/lib/interventi/manuali/buildVoceManuale';
 import type { DatiInterventoManuale, CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { anagraficaValida } from '@/lib/interventi/manuali/anagraficaValida';
@@ -229,11 +230,9 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
-  const { data: templates } = await supabaseAdmin
-    .from('rapportino_template')
-    .select('id, committente, active, campi, solo_manuale, foto_id_priority')
-    .eq('solo_manuale', true);
-  const templateId = risolviTemplateCommittente(committente, (templates ?? []) as TemplateRow[]);
+  // caricaTemplateManuali esclude i modelli riservati (P.I.): non concorrono al "+".
+  const templates = await caricaTemplateManuali(supabaseAdmin);
+  const templateId = risolviTemplateCommittente(committente, templates as TemplateRow[]);
   if (!templateId) return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
 
   // Override = campi del template solo_manuale del committente.

@@ -3,25 +3,59 @@ import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { normalizzaCollegamento } from '@/lib/rapportini/flussiGruppo';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { modelloPlusInConflitto, type ModelloPlusRow } from '@/lib/rapportini/modelloPlus';
 import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
 
 export const runtime = 'nodejs';
+
+const COLONNE_GET = 'id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at';
 
 export async function GET() {
   // supabaseAdmin bypassa la RLS: senza guard la lista dei flussi era leggibile
   // da non autenticati (le route API non passano dal matcher del middleware).
   const guard = await requireAdmin(); if (guard instanceof NextResponse) return guard;
-  const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at')
-    .order('nome');
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json(data ?? []);
+  // riservato_pi con fallback: la colonna può non esistere finché la migration non è applicata.
+  const conFlag = await supabaseAdmin.from('rapportino_template').select(`${COLONNE_GET}, riservato_pi`).order('nome');
+  const res = conFlag.error
+    ? await supabaseAdmin.from('rapportino_template').select(COLONNE_GET).order('nome')
+    : conFlag;
+  if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
+  return NextResponse.json(res.data ?? []);
+}
+
+/**
+ * Unicità del modello "+": al più un solo_manuale ATTIVO non riservato per committente
+ * (l'invariante forte vive nell'indice parziale rapportino_template_plus_univoco; qui
+ * si produce il messaggio cortese prima di sbattere sull'indice). `id` esclude se stessi
+ * negli aggiornamenti. Resiliente alla colonna riservato_pi mancante.
+ */
+async function erroreModelloPlusDuplicato(candidato: {
+  id?: string | null; committente?: string | null; active?: boolean | null;
+  solo_manuale?: boolean | null; riservato_pi?: boolean | null;
+}): Promise<string | null> {
+  if (!candidato.solo_manuale || !candidato.committente || candidato.active === false || candidato.riservato_pi) return null;
+  const conFlag = await supabaseAdmin.from('rapportino_template')
+    .select('id, nome, committente, active, solo_manuale, riservato_pi').eq('solo_manuale', true);
+  const q = conFlag.error
+    ? await supabaseAdmin.from('rapportino_template')
+        .select('id, nome, committente, active, solo_manuale').eq('solo_manuale', true)
+    : conFlag;
+  const conflitto = modelloPlusInConflitto(((q.data ?? []) as unknown) as ModelloPlusRow[], candidato);
+  return conflitto
+    ? `Il «+» di questo committente è già coperto da «${conflitto.nome ?? 'un altro modello'}»: un solo modello manuale attivo per committente.`
+    : null;
 }
 
 export async function POST(req: Request) {
   const guard = await requireAdmin(); if (guard instanceof NextResponse) return guard;
   const parsed = TemplateSchema.safeParse(await req.json());
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
+  const errPlus = await erroreModelloPlusDuplicato({
+    committente: parsed.data.committente ?? null,
+    active: parsed.data.active,
+    solo_manuale: parsed.data.solo_manuale ?? false,
+  });
+  if (errPlus) return NextResponse.json({ error: errPlus }, { status: 409 });
   const { data, error } = await supabaseAdmin.from('rapportino_template')
     .insert({ nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false, ...normalizzaCollegamento(parsed.data) }).select('id, updated_at').single();
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -41,6 +75,23 @@ export async function PATCH(req: Request) {
   if ('gruppo_committente' in parsed.data || 'gruppi_attivita' in parsed.data) {
     Object.assign(patch, normalizzaCollegamento(parsed.data));
   }
+  // Unicità del "+": il candidato è la riga corrente con la patch applicata sopra.
+  {
+    let cur = await supabaseAdmin.from('rapportino_template')
+      .select('id, committente, active, solo_manuale, riservato_pi').eq('id', body.id).maybeSingle();
+    if (cur.error) {
+      cur = await supabaseAdmin.from('rapportino_template')
+        .select('id, committente, active, solo_manuale').eq('id', body.id).maybeSingle();
+    }
+    if (cur.data) {
+      const merged = { ...(cur.data as Record<string, unknown>), ...patch } as {
+        committente?: string | null; active?: boolean | null; solo_manuale?: boolean | null; riservato_pi?: boolean | null;
+      };
+      const errPlus = await erroreModelloPlusDuplicato({ id: body.id, ...merged });
+      if (errPlus) return NextResponse.json({ error: errPlus }, { status: 409 });
+    }
+  }
+
   // DB pulito: nome ed etichette dei campi in MAIUSCOLO (chiave/tipo/opzioni intatti).
   if (typeof patch.nome === 'string') patch.nome = maiuscolo(patch.nome);
   if ('campi' in patch) patch.campi = maiuscolaEtichette(patch.campi as Array<{ etichetta?: unknown }>);
