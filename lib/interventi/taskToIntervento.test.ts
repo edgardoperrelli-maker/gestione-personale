@@ -64,22 +64,38 @@ const INDICE = buildTassonomiaIndex([
     gruppo: 'LIMITAZIONI MASSIVE',
     attivo: true,
   },
+  {
+    committente: 'italgas',
+    descrizione: 'S-PR-003 A',
+    descrizioneNorm: 'S-PR-003 A',
+    gruppo: "ATTIVITA' ALLA CLIENTELA",
+    attivo: true,
+  },
 ] as TassonomiaRiga[]);
 
 describe('taskToIntervento — tassonomia', () => {
-  it('attività riconosciuta → canonica + gruppo_attivita', () => {
+  it('attività riconosciuta → canonica + gruppo_attivita (committente del piano)', () => {
     const r = taskToIntervento({ ...task, attivita: ' limitazione massiva su impianto ' }, ctx, INDICE);
     expect(r.intervento_tipo).toBe('Limitazione Massiva su Impianto');
     expect(r.gruppo_attivita).toBe('LIMITAZIONI MASSIVE');
+    expect(r.committente).toBe('acea');
   });
-  it('attività ignota → comportamento storico, gruppo null (soft)', () => {
+  it('giro misto: attività ITALGAS in piano base acea → committente e gruppo dalla tassonomia', () => {
+    const r = taskToIntervento({ ...task, attivita: 's-pr-003 a' }, ctx, INDICE);
+    expect(r.intervento_tipo).toBe('S-PR-003 A');
+    expect(r.gruppo_attivita).toBe("ATTIVITA' ALLA CLIENTELA");
+    expect(r.committente).toBe('italgas');
+  });
+  it('attività ignota → comportamento storico, gruppo null e committente base (soft)', () => {
     const r = taskToIntervento({ ...task, attivita: 'QUALCOSA' }, ctx, INDICE);
     expect(r.intervento_tipo).toBe('QUALCOSA');
     expect(r.gruppo_attivita).toBeNull();
+    expect(r.committente).toBe('acea');
   });
   it('senza indice → gruppo null, nessun errore', () => {
     const r = taskToIntervento({ ...task, attivita: 'X' }, ctx);
     expect(r.gruppo_attivita).toBeNull();
+    expect(r.committente).toBe('acea');
   });
 });
 

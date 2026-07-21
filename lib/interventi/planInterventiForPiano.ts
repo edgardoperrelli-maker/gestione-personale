@@ -23,7 +23,10 @@ export type PianoPlanInput = {
   operatori: OperatorePiano[];
   esistenti: InterventoEsistente[];
   territorioId: string | null;
-  /** odl già presenti in `interventi` su ALTRI piani della stessa data (indice unico globale). */
+  /**
+   * Chiavi `committente|odl` già presenti in `interventi` su ALTRE righe della stessa data
+   * (rispecchia l'indice unico globale (committente, odl, data)).
+   */
   odlGiaPresenti?: Set<string>;
   /** Indice tassonomia (Task 2) per la derivazione soft di intervento_tipo canonico + gruppo_attivita. */
   indiceTassonomia?: Map<string, TassonomiaRiga>;
@@ -87,6 +90,8 @@ export function idAnnullatiDaEliminare(
 }
 
 export function planInterventi(input: PianoPlanInput): PianoPlan {
+  // Committente BASE del piano: ogni task può poi derivare il SUO committente reale
+  // dalla tassonomia (vedi taskToIntervento) — i giri misti producono interventi misti.
   const committente = input.committente ?? 'acea';
   // Preserva gli stati TERMINALI: 'completato' (esito reale) e 'annullato'. Gli annullati
   // possono essere esiti reali (es. import ACEA) oppure annullamenti d'ufficio: in entrambi i
@@ -128,7 +133,7 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
       if (rec.odl) {
         // ODL già eseguito positivo altrove: definitivamente chiuso, non si ripianifica.
         if (odlGiaPositivi.has(normOdl(rec.odl))) { odlBloccati.push(rec.odl); continue; }
-        if (odlGiaPresenti.has(rec.odl)) continue; // esiste su altro piano stessa data
+        if (odlGiaPresenti.has(`${rec.committente}|${rec.odl}`)) continue; // esiste su altra riga stessa data (stesso committente)
         if (visti.has(rec.odl)) continue; // dedup interno al batch
         visti.add(rec.odl);
       }

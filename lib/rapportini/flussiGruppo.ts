@@ -1,7 +1,8 @@
 // PURA: albero del modulo "Azioni operatori" — la gerarchia del flowchart ATLAS
 // COMMITTENTE -> GRUPPO ATTIVITA' -> FLUSSO (rapportino_template collegato).
-// I gruppi arrivano dalla tassonomia attiva (attivita_tassonomia) più le foglie extra
-// dei flussi che non importano attività (acqualatina / SOSTITUZIONE MISURATORI).
+// I gruppi arrivano dalla tassonomia attiva (attivita_tassonomia) più eventuali foglie
+// extra hardcoded per flussi che non importano attività (oggi nessuna: il risanamento
+// RESINE è censito in tassonomia sotto italgas / RISANAMENTO COLONNE dal 2026-07-21).
 import { chiaveTassonomia, committenteEquivalente } from '@/lib/attivita/tassonomia';
 
 export const COMMITTENTI_FLUSSO = ['italgas', 'acea', 'acqualatina'] as const;
@@ -17,7 +18,7 @@ export const COMMITTENTE_FLUSSO_LABEL: Record<CommittenteFlusso, string> = {
 export const GRUPPI_EXTRA: Record<CommittenteFlusso, readonly string[]> = {
   italgas: [],
   acea: [],
-  acqualatina: ['SOSTITUZIONE MISURATORI'],
+  acqualatina: [],
 };
 
 export type TassonomiaGruppoRiga = { committente: string; gruppo: string; attivo: boolean };

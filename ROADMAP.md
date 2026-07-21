@@ -5,6 +5,21 @@
 
 ## Fatto
 
+- ✅ **Copertura totale attività → azioni (fase 4 Azioni operatori)** *(2026-07-21)* — ogni
+  card intervento del rapportino risolve le azioni della SUA attività, anche nei giri misti:
+  (a) `taskToIntervento` deriva committente+gruppo del singolo task dalla tassonomia (prova il
+  committente del piano, poi 'altro' = acea→italgas, la stessa semantica della validazione
+  import) — prima i piani da file stampavano tutto 'acea' e le attività italgas restavano senza
+  gruppo (~78 interventi/30gg in fallback); il pre-check dedup di `ensureInterventiForPiano`
+  ora è per chiave `committente|odl` come l'indice unico. (b) Migration
+  `20260721100000_azioni_risanamento_italgas_pi` (APPLICATA al prod): RESINE spostata in
+  tassonomia da acea/DUNNING (associazione errata) a **italgas / RISANAMENTO COLONNE**, flusso
+  risanamento ricollegato lì (via la foglia hardcoded acqualatina/SOSTITUZIONE MISURATORI da
+  `GRUPPI_EXTRA`); nuovo flusso CLASSICO "P.I." (clone azioni di "Pronto Intervento", che è
+  solo_manuale e non concorre alla generazione) per i PICARRO pianificati. Verificato con le
+  funzioni runtime: 8/8 gruppi risolvono un flusso; giro misto base acea → ogni attività il suo
+  flusso. Restano in fallback solo gli interventi con attività non censita (descrizioni vuote o
+  typo, ~15/30gg) e i manuali dal "+" (per design).
 - ✅ **Mappa senza scelta del "Modello" (fase 3 Azioni operatori)** *(2026-07-21)* — la
   pianificazione non chiede più la selezione del template al salvataggio/generazione (né per
   piani nuovi né in riapertura dal riepilogo): il selettore "Modello" è rimosso e
