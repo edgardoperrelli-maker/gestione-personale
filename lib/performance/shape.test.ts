@@ -47,18 +47,23 @@ describe('esitoPositivo', () => {
   });
 });
 
-describe('filterRows', () => {
+describe('filterRows (multi-selezione)', () => {
   it('range date inclusivo', () => {
     expect(filterRows(rows, { ...emptyFilters('2026-06-05', '2026-06-05') }).length).toBe(2);
   });
-  it('operatore / committente / territorio / gruppo / attività / saracinesca', () => {
-    expect(filterRows(rows, { ...emptyFilters(), staffId: 's1' }).length).toBe(2);
-    expect(filterRows(rows, { ...emptyFilters(), committente: 'acea' }).length).toBe(2);
-    expect(filterRows(rows, { ...emptyFilters(), territorioId: 't2' }).length).toBe(2);
-    expect(filterRows(rows, { ...emptyFilters(), gruppo: 'LIMITAZIONI' }).length).toBe(2);
-    expect(filterRows(rows, { ...emptyFilters(), gruppo: GRUPPO_NON_CENSITO }).length).toBe(1);
-    expect(filterRows(rows, { ...emptyFilters(), attivita: 'BONIFICHE EXTRA' }).length).toBe(1);
+  it('array vuoto = tutti; array valorizzato = OR interno', () => {
+    expect(filterRows(rows, { ...emptyFilters(), staffIds: ['s1'] }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), staffIds: ['s1', 's2'] }).length).toBe(4);
+    expect(filterRows(rows, { ...emptyFilters(), committenti: ['acea'] }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), committenti: ['acea', 'lim_massive'] }).length).toBe(3);
+    expect(filterRows(rows, { ...emptyFilters(), territorioIds: ['t2'] }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), gruppi: ['LIMITAZIONI'] }).length).toBe(2);
+    expect(filterRows(rows, { ...emptyFilters(), gruppi: [GRUPPO_NON_CENSITO] }).length).toBe(1);
+    expect(filterRows(rows, { ...emptyFilters(), attivita: ['BONIFICHE EXTRA'] }).length).toBe(1);
     expect(filterRows(rows, { ...emptyFilters(), soloValvola: true }).length).toBe(1);
+  });
+  it('AND tra filtri diversi', () => {
+    expect(filterRows(rows, { ...emptyFilters(), staffIds: ['s2'], gruppi: ['LIMITAZIONI'] }).length).toBe(1);
   });
 });
 

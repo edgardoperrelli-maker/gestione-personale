@@ -2,6 +2,7 @@
 // La chiave è la STESSA del listino (normalizzaAttivita): maiuscolo, spazi collassati,
 // senza accenti. Equivalente SQL: attivita_norm() (migration 20260720150000).
 import { normalizzaAttivita } from '@/lib/produzione/normalizzaAttivita';
+import { allineaChiaveAttivita } from '@/lib/attivita/aliasAttivita';
 
 export type TassonomiaRiga = {
   committente: string;
@@ -37,6 +38,8 @@ export function buildTassonomiaIndex(righe: TassonomiaRiga[]): Map<string, Tasso
 /**
  * Risolve (committente, descrizione) → riga di tassonomia, o null se sconosciuta.
  * 'altro' non ha righe proprie: prova acea poi italgas (accetta qualsiasi attività nota).
+ * Gli alias (`allineaChiaveAttivita`) allineano le descrizioni fuorvianti PRIMA del lookup,
+ * così typo/duplicati risolvono alla forma canonica (stesso gruppo garantito).
  */
 export function risolviGruppo(
   committente: string | null | undefined,
@@ -47,7 +50,9 @@ export function risolviGruppo(
   if (!k) return null;
   const c = committenteEquivalente(committente);
   if (c === 'altro') {
-    return index.get(key('acea', k)) ?? index.get(key('italgas', k)) ?? null;
+    return index.get(key('acea', allineaChiaveAttivita('acea', k)))
+      ?? index.get(key('italgas', allineaChiaveAttivita('italgas', k)))
+      ?? null;
   }
-  return index.get(key(c, k)) ?? null;
+  return index.get(key(c, allineaChiaveAttivita(c, k))) ?? null;
 }

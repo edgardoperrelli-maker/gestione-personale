@@ -22,21 +22,23 @@ export interface ClientRow {
 /** Gruppo assegnato alle attività non presenti in tassonomia. */
 export const GRUPPO_NON_CENSITO = 'Non censita';
 
+// Filtri multi-selezione: array vuoto = "tutti"; altrimenti match per inclusione (OR interno,
+// AND tra filtri diversi). Le date restano un intervallo singolo.
 export interface PerfFilters {
   dateFrom: string;
   dateTo: string;
-  staffId: string;
-  territorioId: string;
-  committente: string;
-  gruppo: string;
-  attivita: string;
+  staffIds: string[];
+  territorioIds: string[];
+  committenti: string[];
+  gruppi: string[];
+  attivita: string[];
   soloValvola: boolean;
 }
 
 export interface SelectOption { value: string; label: string }
 
 export const emptyFilters = (dateFrom = '', dateTo = ''): PerfFilters => ({
-  dateFrom, dateTo, staffId: '', territorioId: '', committente: '', gruppo: '', attivita: '', soloValvola: false,
+  dateFrom, dateTo, staffIds: [], territorioIds: [], committenti: [], gruppi: [], attivita: [], soloValvola: false,
 });
 
 // ---- Date (formato italiano, no timezone bug) ----
@@ -88,11 +90,11 @@ export function filterRows(rows: ClientRow[], f: PerfFilters): ClientRow[] {
   return rows.filter((r) => {
     if (f.dateFrom && r.data < f.dateFrom) return false;
     if (f.dateTo && r.data > f.dateTo) return false;
-    if (f.staffId && r.staffId !== f.staffId) return false;
-    if (f.territorioId && r.territorioId !== f.territorioId) return false;
-    if (f.committente && r.committente !== f.committente) return false;
-    if (f.gruppo && r.gruppo !== f.gruppo) return false;
-    if (f.attivita && r.attivita !== f.attivita) return false;
+    if (f.staffIds.length && !f.staffIds.includes(r.staffId)) return false;
+    if (f.territorioIds.length && !f.territorioIds.includes(r.territorioId)) return false;
+    if (f.committenti.length && !f.committenti.includes(r.committente)) return false;
+    if (f.gruppi.length && !f.gruppi.includes(r.gruppo)) return false;
+    if (f.attivita.length && !f.attivita.includes(r.attivita)) return false;
     if (f.soloValvola && !r.valvola) return false;
     return true;
   });
