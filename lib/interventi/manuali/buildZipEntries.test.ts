@@ -56,4 +56,50 @@ describe('buildZipEntries', () => {
   it('lista vuota → nessuna entry', () => {
     expect(buildZipEntries([])).toEqual([]);
   });
+
+  it('caso reale PASTORELLI LUIGI (lim_massive, priorità odl→matricola): stesso ODL, 2 misuratori → suffisso matricola, non "(2)"', () => {
+    const entries = buildZipEntries([
+      f({ richiesta_id: 'A', file_name: '912231902_AntePanoramica.jpg', storage_path: 'A.jpg', matricola: '202015210425' }),
+      f({ richiesta_id: 'B', file_name: '912231902_AntePanoramica.jpg', storage_path: 'B.jpg', matricola: '202015210415' }),
+    ]);
+    expect(entries.map((e) => e.zipPath)).toEqual([
+      '912231902/912231902_AntePanoramica (202015210425).jpg',
+      '912231902/912231902_AntePanoramica (202015210415).jpg',
+    ]);
+  });
+
+  it('matricola nota solo su UNA delle due colliding → fallback al contatore per entrambe (niente stili misti)', () => {
+    const entries = buildZipEntries([
+      f({ richiesta_id: 'A', file_name: '912_Foto.jpg', storage_path: 'A.jpg', matricola: '111' }),
+      f({ richiesta_id: 'B', file_name: '912_Foto.jpg', storage_path: 'B.jpg', matricola: null }),
+    ]);
+    expect(entries.map((e) => e.zipPath)).toEqual(['912/912_Foto.jpg', '912/912_Foto (2).jpg']);
+  });
+
+  it('matricole colliding UGUALI (vero duplicato) → fallback al contatore, non due nomi identici', () => {
+    const entries = buildZipEntries([
+      f({ richiesta_id: 'A', file_name: '912_Foto.jpg', storage_path: 'A.jpg', matricola: '111' }),
+      f({ richiesta_id: 'B', file_name: '912_Foto.jpg', storage_path: 'B.jpg', matricola: '111' }),
+    ]);
+    expect(entries.map((e) => e.zipPath)).toEqual(['912/912_Foto.jpg', '912/912_Foto (2).jpg']);
+  });
+
+  it('matricola assente su tutte (comportamento storico) → contatore progressivo invariato', () => {
+    const entries = buildZipEntries([
+      f({ richiesta_id: 'A', file_name: '912_Foto.jpg', storage_path: 'A.jpg' }),
+      f({ richiesta_id: 'B', file_name: '912_Foto.jpg', storage_path: 'B.jpg' }),
+    ]);
+    expect(entries.map((e) => e.zipPath)).toEqual(['912/912_Foto.jpg', '912/912_Foto (2).jpg']);
+  });
+
+  it('tre colliding con tre matricole distinte → tutte disambiguate simmetricamente', () => {
+    const entries = buildZipEntries([
+      f({ richiesta_id: 'A', file_name: '912_Foto.jpg', storage_path: 'A.jpg', matricola: '111' }),
+      f({ richiesta_id: 'B', file_name: '912_Foto.jpg', storage_path: 'B.jpg', matricola: '222' }),
+      f({ richiesta_id: 'C', file_name: '912_Foto.jpg', storage_path: 'C.jpg', matricola: '333' }),
+    ]);
+    expect(entries.map((e) => e.zipPath)).toEqual([
+      '912/912_Foto (111).jpg', '912/912_Foto (222).jpg', '912/912_Foto (333).jpg',
+    ]);
+  });
 });

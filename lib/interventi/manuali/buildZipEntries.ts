@@ -1,13 +1,23 @@
 // PURA: calcola il path di ciascuna foto dentro lo ZIP.
 // Regola (design §8): si usa file_name (formato `<identificativo>_<Etichetta>.<ext>`);
 // su collisione di file_name si separano in sottocartelle '<identificativo>/'; eventuali
-// collisioni residue ricevono un suffisso progressivo ' (n)' prima dell'estensione.
+// collisioni residue ricevono un suffisso con la MATRICOLA (quando nota e distinta tra le
+// richieste colliding) o, in mancanza, un contatore progressivo ' (n)' prima dell'estensione.
 // storagePath è preservato per il download.
+
+import { normalizzaAscii } from './fotoNaming';
 
 export type FotoZip = {
   richiesta_id: string;
   storage_path: string;
   file_name: string;
+  /**
+   * Matricola (dati correnti), se nota. Usata SOLO per disambiguare una collisione tra
+   * richieste DIVERSE che producono lo stesso file_name — es. priorità nome-foto che non
+   * inizia per matricola (ODL/via), con due interventi sotto lo stesso ODL/via: senza questo
+   * le foto restano indistinguibili ("(2)", "(3)"...) pur essendo di misuratori diversi.
+   */
+  matricola?: string | null;
 };
 
 export type ZipEntry = {
@@ -38,17 +48,39 @@ export function buildZipEntries(foto: FotoZip[]): ZipEntry[] {
   const conta = new Map<string, number>();
   for (const f of foto) conta.set(f.file_name, (conta.get(f.file_name) ?? 0) + 1);
 
-  // 2) assegna il path, de-duplicando i path finali con suffisso progressivo
+  // 1-bis) tra i colliding, quali file_name hanno OGNI entry con una matricola nota e tutte
+  // distinte tra loro? Solo in quel caso (copertura totale, niente ambiguità residua) si usa
+  // la matricola come suffisso per TUTTE le entry di quel gruppo — simmetrico, più chiaro di
+  // un contatore muto. Copertura parziale o matricole duplicate → fallback al contatore per
+  // l'intero gruppo (evita di mescolare i due stili sullo stesso file_name).
+  const matricolePerNome = new Map<string, Set<string>>();
+  for (const f of foto) {
+    if ((conta.get(f.file_name) ?? 0) <= 1) continue;
+    const m = normalizzaAscii(f.matricola ?? '');
+    if (!m) continue;
+    let set = matricolePerNome.get(f.file_name);
+    if (!set) { set = new Set(); matricolePerNome.set(f.file_name, set); }
+    set.add(m);
+  }
+
+  // 2) assegna il path, de-duplicando i path finali
   const usati = new Set<string>();
   const entries: ZipEntry[] = [];
 
   for (const f of foto) {
     const collide = (conta.get(f.file_name) ?? 0) > 1;
     const cartella = collide ? `${identificativoDa(f.file_name, f.richiesta_id)}/` : '';
-    let candidato = `${cartella}${f.file_name}`;
+    const { base, ext } = splitExt(f.file_name);
+
+    const matricoleDistinte = matricolePerNome.get(f.file_name);
+    const tutteConMatricolaDistinta =
+      collide && !!matricoleDistinte && matricoleDistinte.size === conta.get(f.file_name);
+
+    let candidato = tutteConMatricolaDistinta
+      ? `${cartella}${base} (${normalizzaAscii(f.matricola ?? '')})${ext}`
+      : `${cartella}${f.file_name}`;
 
     if (usati.has(candidato)) {
-      const { base, ext } = splitExt(f.file_name);
       let n = 2;
       while (usati.has(`${cartella}${base} (${n})${ext}`)) n += 1;
       candidato = `${cartella}${base} (${n})${ext}`;

@@ -193,9 +193,18 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
           infoPerRichiesta,
         );
       }
+      // Matricola per richiesta (dati correnti): SOLO per disambiguare un'eventuale collisione
+      // di file_name tra richieste diverse (es. stesso ODL, priorità lim_massive odl→matricola,
+      // due misuratori sostituiti sullo stesso ordine di lavoro — caso reale verificato).
+      const matricolaPerRichiesta = new Map(richiesteRows.map((r) => [r.id, toRichiestaItalgas(r).matricola]));
       fotoManuali.push(...fotoManualiRows
         .filter((f) => richiesteAltreIds.has(f.richiesta_id))
-        .map(({ richiesta_id, storage_path, file_name }) => ({ richiesta_id, storage_path, file_name })));
+        .map(({ richiesta_id, storage_path, file_name }) => ({
+          richiesta_id,
+          storage_path,
+          file_name,
+          matricola: matricolaPerRichiesta.get(richiesta_id) ?? null,
+        })));
     }
   }
   // voceId (classico, non-italgas): nessuna foto manuale inclusa — comportamento storico.
@@ -226,7 +235,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
           let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
           if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
           // richiesta_id = voce id (usato da buildZipEntries per sottocartelle su collisione)
-          fotoVoci.push({ richiesta_id: v.id, storage_path: storagePath, file_name: fileName });
+          fotoVoci.push({ richiesta_id: v.id, storage_path: storagePath, file_name: fileName, matricola: v.matricola });
         });
       }
     }
@@ -250,7 +259,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
             const ext = storagePath.split('.').pop() ?? 'jpg';
             let fileName = nomeFotoFile(campo.etichetta, ids, ext, fotoPriority);
             if (paths.length > 1) fileName = fileName.replace(/(\.[^.]+)$/, `_${i + 1}$1`);
-            fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: fileName });
+            fotoRighe.push({ richiesta_id: r.id, storage_path: storagePath, file_name: fileName, matricola: r.matricola });
           });
         }
       }
