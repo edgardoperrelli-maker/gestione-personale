@@ -1,7 +1,10 @@
 // lib/interventi/storico/normalizza.ts
 // PURA: normalizzazione righe rapportino_voci → RigaStorico, rese SI/NO, ordinamento.
-import type { RigaStorico, VoceStoricoRow, RapportinoEmbed, ContatoriStorico } from './types';
+import { committenteEquivalente, risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import type { RigaStorico, VoceStoricoRow, RapportinoEmbed, InterventoEmbed, ContatoriStorico } from './types';
 import type { SiNoFiltro } from './filtri';
+
+export type TassonomiaIndex = Map<string, TassonomiaRiga>;
 
 const SI = new Set(['si', 'sì', 'true', 'x', '1', 'vero', 'y', 'yes', '✓']);
 const NO = new Set(['no', 'false', '0', 'falso', 'n']);
@@ -27,13 +30,43 @@ function rappOf(r: RapportinoEmbed | RapportinoEmbed[] | null | undefined): Rapp
   if (!r) return null;
   return Array.isArray(r) ? (r[0] ?? null) : r;
 }
+function intOf(i: InterventoEmbed | InterventoEmbed[] | null | undefined): InterventoEmbed | null {
+  if (!i) return null;
+  return Array.isArray(i) ? (i[0] ?? null) : i;
+}
 
-export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, string>): RigaStorico {
+/** Committente effettivo normalizzato ('acea'|'italgas'|'altro'; lim_massive → acea), null se assente. */
+function committenteRiga(raw: string | null | undefined): string | null {
+  const c = nz(raw);
+  return c ? committenteEquivalente(c) : null;
+}
+
+/** Gruppo tassonomia: prima quello scritto sull'intervento, poi il lookup (committente, descrizione).
+ * Senza committente si tenta come 'altro' (acea poi italgas): copre le voci legacy non collegate. */
+function gruppoRiga(
+  gruppoIntervento: string | null | undefined,
+  committente: string | null,
+  descrizione: string | null | undefined,
+  tassonomia: TassonomiaIndex | undefined,
+): string | null {
+  const diretto = nz(gruppoIntervento);
+  if (diretto) return diretto;
+  if (!tassonomia) return null;
+  return risolviGruppo(committente ?? 'altro', descrizione, tassonomia)?.gruppo ?? null;
+}
+
+export function voceToRigaStorico(
+  row: VoceStoricoRow,
+  staffById: Map<string, string>,
+  tassonomia?: TassonomiaIndex,
+): RigaStorico {
   const r = (row.risposte ?? {}) as Record<string, unknown>;
   const rapp = rappOf(row.rapportini);
+  const int = intOf(row.interventi);
   const staffId = rapp?.staff_id ?? null;
   const miniBag = r['mini_bag'] ?? r['minibag'];
   const noteRaw = r['note'];
+  const committente = committenteRiga(int?.committente);
   return {
     id: row.id,
     odl: nz(row.odl),
@@ -44,6 +77,8 @@ export function voceToRigaStorico(row: VoceStoricoRow, staffById: Map<string, st
     esecutore: nz(rapp?.staff_name) ?? (staffId ? staffById.get(staffId) ?? null : null),
     via: nz(row.via),
     gruppoAttivita: nz(row.attivita),
+    committente,
+    gruppo: gruppoRiga(int?.gruppo_attivita, committente, row.attivita, tassonomia),
     eseguito: siNo(r['eseguito']),
     sostValvola: siNo(r['sostituzione_valvola']),
     miniBag: siNo(miniBag),
@@ -62,12 +97,19 @@ export type InterventoPiRow = {
   staff_id: string | null;
   rif_esterno: string | null;
   intervento_tipo: string | null;
+  committente: string | null;
+  gruppo_attivita: string | null;
   esito: string | null;
   esito_motivo: string | null;
 };
 
 /** Mappa una riga `interventi` P.I. nel formato unificato dello storico. */
-export function interventoPiToRigaStorico(row: InterventoPiRow, staffById: Map<string, string>): RigaStorico {
+export function interventoPiToRigaStorico(
+  row: InterventoPiRow,
+  staffById: Map<string, string>,
+  tassonomia?: TassonomiaIndex,
+): RigaStorico {
+  const committente = committenteRiga(row.committente);
   return {
     id: row.id,
     odl: nz(row.rif_esterno),
@@ -78,6 +120,9 @@ export function interventoPiToRigaStorico(row: InterventoPiRow, staffById: Map<s
     esecutore: row.staff_id ? staffById.get(row.staff_id) ?? null : null,
     via: nz(row.indirizzo),
     gruppoAttivita: nz(row.intervento_tipo) ?? 'PRONTO INTERVENTO',
+    committente,
+    // Un P.I. senza gruppo scritto né tassonomia ricade nel gruppo 'P.I.' (è la sua natura).
+    gruppo: gruppoRiga(row.gruppo_attivita, committente, row.intervento_tipo, tassonomia) ?? 'P.I.',
     eseguito: row.esito === 'eseguito_positivo' ? 'SI' : siNo(row.esito),
     sostValvola: '—',
     miniBag: '—',
@@ -104,6 +149,23 @@ export function filtraSiNo(
       matchSiNo(r.sostValvola, f.sostValvola) &&
       matchSiNo(r.miniBag, f.miniBag) &&
       matchSiNo(r.rgStop, f.rgStop),
+  );
+}
+
+/** Filtro multi-valore su committente effettivo e gruppo attività risolto (liste vuote = tutti).
+ * Una riga senza valore (voce legacy non collegata / descrizione fuori tassonomia) non matcha
+ * un filtro attivo: comportamento coerente con gli altri filtri per-campo. */
+export function filtraCommittenteGruppo(
+  righe: RigaStorico[],
+  f: { committenti: string[]; gruppi: string[] },
+): RigaStorico[] {
+  if (f.committenti.length === 0 && f.gruppi.length === 0) return righe;
+  const setC = new Set(f.committenti.map((c) => committenteEquivalente(c)));
+  const setG = new Set(f.gruppi.map((g) => g.trim().toUpperCase()));
+  return righe.filter(
+    (r) =>
+      (setC.size === 0 || (r.committente != null && setC.has(r.committente))) &&
+      (setG.size === 0 || (r.gruppo != null && setG.has(r.gruppo.toUpperCase()))),
   );
 }
 

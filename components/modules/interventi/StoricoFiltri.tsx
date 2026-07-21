@@ -2,13 +2,16 @@
 'use client';
 
 import DatePicker from '@/components/ui/DatePicker';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 export type StatoFiltriUI = {
   q: string;
   dal: string;
   al: string;
-  esecutore: string;
+  esecutori: string[];
   comune: string;
+  gruppi: string[];
+  committenti: string[];
   eseguito: string;
   sostValvola: string;
   miniBag: string;
@@ -28,12 +31,20 @@ const SI_NO = [
   { key: 'rgStop', label: 'RG stop' },
 ] as const;
 
+const COMMITTENTI = [
+  { value: 'acea', label: 'Acea' },
+  { value: 'italgas', label: 'Italgas' },
+  { value: 'altro', label: 'Altro' },
+];
+
 export default function StoricoFiltri({
-  filtri, setFiltri, staff, onApplica, onPulisci, onEsporta, loading,
+  filtri, setFiltri, staff, gruppi, onApplica, onPulisci, onEsporta, loading,
 }: {
   filtri: StatoFiltriUI;
   setFiltri: (f: StatoFiltriUI) => void;
   staff: Staff[];
+  /** Gruppi attività della tassonomia (opzioni del filtro multi). */
+  gruppi: string[];
   onApplica: () => void;
   onPulisci: () => void;
   onEsporta: () => void;
@@ -65,15 +76,32 @@ export default function StoricoFiltri({
         <DatePicker value={filtri.dal} onChange={(iso) => set({ dal: iso })} placeholder="Dal" ariaLabel="Dal" fullWidth triggerClassName={dateTrigger} />
         <DatePicker value={filtri.al} onChange={(iso) => set({ al: iso })} placeholder="Al" ariaLabel="Al" fullWidth triggerClassName={dateTrigger} />
 
-        <select className={sel} value={filtri.esecutore} onChange={(e) => set({ esecutore: e.target.value })} aria-label="Esecutore">
-          <option value="">Esecutore: tutti</option>
-          {staff.map((s) => (<option key={s.id} value={s.id}>{s.display_name}</option>))}
-        </select>
+        <MultiSelect
+          label="Esecutore"
+          ariaLabel="Esecutore"
+          options={staff.map((s) => ({ value: s.id, label: s.display_name }))}
+          values={filtri.esecutori}
+          onChange={(esecutori) => set({ esecutori })}
+        />
 
         <input className={sel} placeholder="Comune" value={filtri.comune} onChange={(e) => set({ comune: e.target.value })} aria-label="Comune" />
       </div>
 
       <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <MultiSelect
+          label="Gruppo attività"
+          ariaLabel="Gruppo attività"
+          options={gruppi.map((g) => ({ value: g, label: g }))}
+          values={filtri.gruppi}
+          onChange={(gruppi) => set({ gruppi })}
+        />
+        <MultiSelect
+          label="Committente"
+          ariaLabel="Committente"
+          options={COMMITTENTI}
+          values={filtri.committenti}
+          onChange={(committenti) => set({ committenti })}
+        />
         {SI_NO.map((c) => (
           <select
             key={c.key}
