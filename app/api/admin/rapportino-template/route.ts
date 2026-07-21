@@ -1,30 +1,19 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
-import { createRouteHandlerClient } from '@supabase/auth-helpers-nextjs';
 import { TemplateSchema } from '@/lib/rapportini/templateSchema';
 import { normalizzaCollegamento } from '@/lib/rapportini/flussiGruppo';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { resolveUserRole } from '@/lib/moduleAccess';
+import { requireAdmin } from '@/lib/apiAuth';
 import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
 
 export const runtime = 'nodejs';
 
-async function requireAdmin(): Promise<true | NextResponse> {
-  const cookieStore = await cookies();
-  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
-  const supabase = createRouteHandlerClient({ cookies: cookieMethods });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) return NextResponse.json({ error: 'Non autenticato.' }, { status: 401 });
-  const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
-  if (resolveUserRole(profile?.role, user.app_metadata?.role) !== 'admin')
-    return NextResponse.json({ error: 'Accesso riservato agli admin.' }, { status: 403 });
-  return true;
-}
-
 export async function GET() {
+  // supabaseAdmin bypassa la RLS: senza guard la lista dei flussi era leggibile
+  // da non autenticati (le route API non passano dal matcher del middleware).
+  const guard = await requireAdmin(); if (guard instanceof NextResponse) return guard;
   const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, is_default, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at')
-    .order('is_default', { ascending: false }).order('nome');
+    .select('id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at')
+    .order('nome');
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json(data ?? []);
 }
