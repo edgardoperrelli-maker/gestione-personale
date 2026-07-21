@@ -97,10 +97,12 @@ export async function caricaRigheStorico(
     if (error) throw error;
     const rows = (batch ?? []) as unknown as VoceStoricoRow[];
     for (const row of rows) {
-      // Voce CONTENITORE task-via (attività BONIFICHE EXTRA, solo la via): NON si mostra nello
-      // storico. I lavori fatti sulla via sono i figli (+), che compaiono come una riga per
-      // matricola (già classificati Italgas + BONIFICHE EXTRA sul loro intervento).
-      if (isTaskVia(row)) continue;
+      // Voce CONTENITORE task-via VUOTA (attività BONIFICHE EXTRA con la sola via, SENZA
+      // matricola): NON si mostra nello storico. Restano invece le righe CON matricola — sia i
+      // task-via compilati direttamente (una matricola per via), sia i figli creati col "+"
+      // (classificati Italgas + BONIFICHE EXTRA sul loro intervento). Così: una riga per matricola.
+      const haMatricola = Boolean(row.matricola && String(row.matricola).trim());
+      if (isTaskVia(row) && !haMatricola) continue;
       righe.push(voceToRigaStorico(row, staffById, tassonomia, territori));
     }
     if (rows.length < PAGE_DB) break;
