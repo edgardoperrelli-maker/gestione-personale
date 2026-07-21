@@ -11,7 +11,7 @@ import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/typ
 type Staff = { id: string; display_name: string };
 
 const FILTRI_VUOTI: StatoFiltriUI = {
-  q: '', dal: '', al: '', esecutori: [], comune: '', gruppi: [], committenti: [],
+  q: '', dal: '', al: '', esecutori: [], comune: '', gruppi: [], committenti: [], territori: [],
   eseguito: '', sostValvola: '', miniBag: '', rgStop: '',
 };
 
@@ -41,6 +41,7 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   for (const id of f.esecutori) params.append('esecutore', id);
   for (const g of f.gruppi) params.append('gruppo', g);
   for (const c of f.committenti) params.append('committente', c);
+  for (const t of f.territori) params.append('territorio', t);
   if (f.comune.trim()) params.set('comune', f.comune.trim());
   if (f.eseguito) params.set('eseguito', f.eseguito);
   if (f.sostValvola) params.set('sostValvola', f.sostValvola);
@@ -49,7 +50,7 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   return params;
 }
 
-export default function StoricoInterventiClient({ staff, gruppi, isAdminPlus, puoModificare }: { staff: Staff[]; gruppi: string[]; isAdminPlus: boolean; puoModificare: boolean }) {
+export default function StoricoInterventiClient({ staff, gruppi, territori, isAdminPlus, puoModificare }: { staff: Staff[]; gruppi: string[]; territori: string[]; isAdminPlus: boolean; puoModificare: boolean }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
@@ -209,6 +210,7 @@ export default function StoricoInterventiClient({ staff, gruppi, isAdminPlus, pu
         setFiltri={setFiltri}
         staff={staff}
         gruppi={gruppi}
+        territori={territori}
         onApplica={applica}
         onPulisci={pulisci}
         onEsporta={esporta}

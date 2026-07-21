@@ -14,6 +14,8 @@ export type FiltriStorico = {
   gruppi: string[];
   /** Committenti ('acea'|'italgas'|'altro'; lim_massive equivale ad acea): vuoto = tutti. */
   committenti: string[];
+  /** Territori/contratti (nomi da `territories`, es. 'LAZIO EST'): vuoto = tutti. */
+  territori: string[];
   comune: string;
   eseguito: SiNoFiltro;
   sostValvola: SiNoFiltro;
@@ -57,6 +59,7 @@ export function parseFiltriStorico(params: URLSearchParams): FiltriStorico {
     esecutori: listaParam(params, 'esecutore'),
     gruppi: listaParam(params, 'gruppo'),
     committenti: listaParam(params, 'committente'),
+    territori: listaParam(params, 'territorio'),
     comune: (params.get('comune') ?? '').trim(),
     eseguito: siNoParam(params.get('eseguito')),
     sostValvola: siNoParam(params.get('sostValvola')),
@@ -84,7 +87,8 @@ export function risolviFinestra(
 export function nessunFiltro(f: FiltriStorico): boolean {
   return (
     !f.q && !f.data && !f.dal && !f.al && f.esecutori.length === 0 &&
-    f.gruppi.length === 0 && f.committenti.length === 0 && f.comune.trim() === '' &&
+    f.gruppi.length === 0 && f.committenti.length === 0 && f.territori.length === 0 &&
+    f.comune.trim() === '' &&
     !f.eseguito && !f.sostValvola && !f.miniBag && !f.rgStop
   );
 }

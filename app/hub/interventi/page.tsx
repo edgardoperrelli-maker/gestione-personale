@@ -39,10 +39,19 @@ export default async function InterventiPage() {
     'P.I.',
   ])].sort((a, b) => a.localeCompare(b, 'it'));
 
+  // Opzioni del filtro "Territorio": i nomi dei territori/contratti.
+  const { data: terrRows } = await supabase
+    .from('territories')
+    .select('name')
+    .order('name', { ascending: true });
+  const territori = [...new Set(
+    ((terrRows ?? []) as Array<{ name: string | null }>).map((t) => (t.name ?? '').trim()).filter(Boolean),
+  )];
+
   return (
     <main className="w-full space-y-4 px-4 py-6">
       {isAdminPlus && <RiconciliazioneBanner />}
-      <StoricoInterventiClient staff={staff} gruppi={gruppi} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
+      <StoricoInterventiClient staff={staff} gruppi={gruppi} territori={territori} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
     </main>
   );
 }

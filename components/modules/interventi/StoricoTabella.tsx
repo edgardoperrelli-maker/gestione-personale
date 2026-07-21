@@ -16,6 +16,7 @@ const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'gruppoAttivita', header: 'Attività' },
   { key: 'gruppo', header: 'Gruppo attività' },
   { key: 'committente', header: 'Committente' },
+  { key: 'territorio', header: 'Territorio' },
   { key: 'eseguito', header: 'Eseguito', siNo: true },
   { key: 'sostValvola', header: 'Sost. valvola', siNo: true },
   { key: 'miniBag', header: 'Mini bag', siNo: true },

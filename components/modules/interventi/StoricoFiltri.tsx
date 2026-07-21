@@ -12,6 +12,7 @@ export type StatoFiltriUI = {
   comune: string;
   gruppi: string[];
   committenti: string[];
+  territori: string[];
   eseguito: string;
   sostValvola: string;
   miniBag: string;
@@ -38,13 +39,15 @@ const COMMITTENTI = [
 ];
 
 export default function StoricoFiltri({
-  filtri, setFiltri, staff, gruppi, onApplica, onPulisci, onEsporta, loading,
+  filtri, setFiltri, staff, gruppi, territori, onApplica, onPulisci, onEsporta, loading,
 }: {
   filtri: StatoFiltriUI;
   setFiltri: (f: StatoFiltriUI) => void;
   staff: Staff[];
   /** Gruppi attività della tassonomia (opzioni del filtro multi). */
   gruppi: string[];
+  /** Nomi dei territori/contratti (opzioni del filtro multi). */
+  territori: string[];
   onApplica: () => void;
   onPulisci: () => void;
   onEsporta: () => void;
@@ -101,6 +104,13 @@ export default function StoricoFiltri({
           options={COMMITTENTI}
           values={filtri.committenti}
           onChange={(committenti) => set({ committenti })}
+        />
+        <MultiSelect
+          label="Territorio"
+          ariaLabel="Territorio"
+          options={territori.map((t) => ({ value: t, label: t }))}
+          values={filtri.territori}
+          onChange={(territori) => set({ territori })}
         />
         {SI_NO.map((c) => (
           <select
