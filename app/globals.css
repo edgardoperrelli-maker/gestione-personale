@@ -278,6 +278,20 @@ html.light {
   --color-info: var(--info);
   --color-info-soft: var(--info-soft);
 
+  /* Alias semantici compatibili shadcn/ui — richiesti dai componenti in
+     @/components/ui (es. mapcn map.tsx: bg-background, text-foreground,
+     bg-muted, bg-popover, border-border, ring-ring…). Mappati sui brand
+     token esistenti, quindi seguono automaticamente il tema (html.light). */
+  --color-background: var(--brand-surface);
+  --color-foreground: var(--brand-text-main);
+  --color-muted: var(--brand-surface-muted);
+  --color-muted-foreground: var(--brand-text-muted);
+  --color-popover: var(--brand-surface);
+  --color-popover-foreground: var(--brand-text-main);
+  --color-accent: var(--brand-surface-muted);
+  --color-border: var(--brand-border);
+  --color-ring: var(--brand-primary);
+
   --radius-sm: 4px;
   --radius-md: 6px;
   --radius-lg: 10px;

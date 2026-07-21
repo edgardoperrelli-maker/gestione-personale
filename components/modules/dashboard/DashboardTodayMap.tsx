@@ -3,7 +3,7 @@
 import dynamic from 'next/dynamic';
 import type { TodayOperatorMarker } from '@/lib/dashboard/todayOperators';
 
-const TodayMapLeaflet = dynamic(() => import('./TodayMapLeaflet'), {
+const TodayOperatorsMap = dynamic(() => import('./TodayOperatorsMap'), {
   ssr: false,
   loading: () => (
     <div className="flex h-full w-full items-center justify-center text-sm text-[var(--brand-text-muted)]">
@@ -23,7 +23,7 @@ export default function DashboardTodayMap({ operators }: { operators: TodayOpera
       </div>
       <div className="h-[360px] w-full overflow-hidden rounded-xl border border-[var(--brand-border)]">
         {operators.length > 0 ? (
-          <TodayMapLeaflet operators={operators} />
+          <TodayOperatorsMap operators={operators} />
         ) : (
           <div className="flex h-full w-full items-center justify-center text-center text-sm text-[var(--brand-text-muted)]">
             Nessun operatore con coordinate per oggi.
