@@ -4,6 +4,7 @@
 import 'server-only';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { buildTassonomiaIndex } from '@/lib/attivita/tassonomia';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFinestra, puliziaQ, type FiltriStorico } from './filtri';
 import {
   voceToRigaStorico, interventoPiToRigaStorico, ordinaRighe, filtraSiNo, filtraMulti,
@@ -95,7 +96,13 @@ export async function caricaRigheStorico(
     const { data: batch, error } = await q;
     if (error) throw error;
     const rows = (batch ?? []) as unknown as VoceStoricoRow[];
-    for (const row of rows) righe.push(voceToRigaStorico(row, staffById, tassonomia, territori));
+    for (const row of rows) {
+      // Voce CONTENITORE task-via (attività BONIFICHE EXTRA, solo la via): NON si mostra nello
+      // storico. I lavori fatti sulla via sono i figli (+), che compaiono come una riga per
+      // matricola (già classificati Italgas + BONIFICHE EXTRA sul loro intervento).
+      if (isTaskVia(row)) continue;
+      righe.push(voceToRigaStorico(row, staffById, tassonomia, territori));
+    }
     if (rows.length < PAGE_DB) break;
     if (offset + PAGE_DB >= maxRighe) {
       troncato = true;
