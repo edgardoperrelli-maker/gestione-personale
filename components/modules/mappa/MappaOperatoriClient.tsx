@@ -6,7 +6,7 @@ import { getTerritoryStyle } from '@/lib/territoryColors';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
-import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, buildEsecutorePins } from '@/utils/routing';
+import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, isFileTemplateUfficiale, buildEsecutorePins } from '@/utils/routing';
 import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, alignAndAppendTask } from '@/utils/mappa/appendTask';
 import { pinsFromDistribution } from '@/utils/mappa/pinsEsecutore';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
@@ -1414,6 +1414,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
+
+    // SOLO il template UFFICIALE è importabile in pianificazione: foglio «Interventi» con
+    // l'header esatto del template scaricabile («Scarica template»). I formati storici
+    // (ATTGIORN, Massiva, Export Dati) e i template vecchi (senza COMMITTENTE) sono rifiutati.
+    if (!(await isFileTemplateUfficiale(file))) {
+      setErroriImport([{ tipo: 'formato_non_ufficiale', valore: file.name, righe: [] }]);
+      return;
+    }
+
     const parsed = await parseExcelToTasks(file);
 
     // Guardrail tassonomia (spec §6 rev.): file con attività → validazione rigorosa.
@@ -1565,12 +1574,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // SOLO il template UFFICIALE è importabile (stessa regola del caricamento principale).
+    if (!(await isFileTemplateUfficiale(file))) {
+      setErroriImport([{ tipo: 'formato_non_ufficiale', valore: file.name, righe: [] }]);
+      if (fileTemplateInputRef.current) fileTemplateInputRef.current.value = '';
+      return;
+    }
+
     try {
       setTemplateGeocoding({ done: 0, total: 0 });
 
-      // Parsing unificato — stessa logica del caricamento Excel principale:
-      // supporta ATTGIORN, Massiva/Rapportini e Export Dati/Geocall.
-      // Legge anche la colonna esecutore/operatore se presente.
+      // Parsing del template ufficiale (unico formato ammesso); legge anche la
+      // colonna Esecutore se compilata.
       const parsed = await parseExcelToTasks(file);
 
       // Guardrail tassonomia (spec §6 rev.): file con attività → validazione rigorosa.

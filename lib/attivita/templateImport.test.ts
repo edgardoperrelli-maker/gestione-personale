@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
 import { buildTemplateImport, COLONNE_TEMPLATE } from './templateImport';
+import { isHeaderTemplateUfficiale } from './templateColonne';
 import type { TassonomiaRiga } from './tassonomia';
 
 const TASSONOMIA: TassonomiaRiga[] = [
@@ -25,6 +26,12 @@ describe('buildTemplateImport', () => {
     const ws = wb.getWorksheet('Interventi')!;
     const header = (ws.getRow(1).values as unknown[]).slice(1).map(String);
     expect(header).toEqual([...COLONNE_TEMPLATE]);
+  });
+  it('INVARIANTE: il file generato è riconosciuto come template ufficiale dal gate di import', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA));
+    const ws = wb.getWorksheet('Interventi')!;
+    const header = (ws.getRow(1).values as unknown[]).slice(1);
+    expect(isHeaderTemplateUfficiale(header)).toBe(true);
   });
   it('la colonna GRUPPO ha la formula di lookup sulla Leggenda', async () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));

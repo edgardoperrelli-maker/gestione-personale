@@ -9,13 +9,9 @@
 // accidentale degli esempi creerebbe task finti, i valori validi sono in Leggenda.
 import ExcelJS from 'exceljs';
 import type { TassonomiaRiga } from './tassonomia';
+import { COLONNE_TEMPLATE, FOGLIO_TEMPLATE } from './templateColonne';
 
-export const COLONNE_TEMPLATE = [
-  'CO', 'MATRICOLA', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
-  'DESCRIZIONE ATTIVITÀ', "GRUPPO ATTIVITA'", 'COMMITTENTE',
-  'Esecutore', 'Fascia Appuntamento/Blocco', 'PdR / Impianto', 'Nominativo',
-  'Tempo Esecuzione', 'Num Risorse', 'Lat', 'Long', 'Note per operatore',
-] as const;
+export { COLONNE_TEMPLATE } from './templateColonne';
 
 /** Colonne derivate dalla Leggenda: formula + cella bloccata (non compilabili a mano). */
 const COLONNE_BLOCCATE = ["GRUPPO ATTIVITA'", 'COMMITTENTE'] as const;
@@ -29,7 +25,7 @@ export async function buildTemplateImport(
   const wb = new ExcelJS.Workbook();
   const attive = (tassonomia ?? []).filter((t) => t.attivo);
 
-  const ws = wb.addWorksheet('Interventi');
+  const ws = wb.addWorksheet(FOGLIO_TEMPLATE);
   ws.addRow([...COLONNE_TEMPLATE]);
   ws.getRow(1).font = { bold: true };
   const colDescr = COLONNE_TEMPLATE.indexOf('DESCRIZIONE ATTIVITÀ') + 1;
