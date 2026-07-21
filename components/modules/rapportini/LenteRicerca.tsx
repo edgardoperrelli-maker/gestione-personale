@@ -23,8 +23,8 @@ export function LenteRicerca({ value, onChange }: { value: string; onChange: (v:
   }
 
   return (
-    <div className="fixed bottom-[calc(9rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-12 max-w-[calc(100vw-1.5rem)] items-center gap-2 rounded-full border-2 border-[var(--brand-primary)] bg-[var(--brand-surface)] py-1 pl-3 pr-1 shadow-lg">
-      <button type="button" onClick={chiudi} aria-label="Chiudi ricerca" className="shrink-0 text-[var(--brand-text-muted)]">
+    <div className="fixed bottom-[calc(9rem+env(safe-area-inset-bottom))] right-3 z-20 flex h-12 max-w-[calc(100vw-1.5rem)] items-center gap-1 rounded-full border-2 border-[var(--brand-primary)] bg-[var(--brand-surface)] py-1 pl-1 pr-1 shadow-lg">
+      <button type="button" onClick={chiudi} aria-label="Chiudi ricerca" className="flex h-10 w-10 min-h-0 shrink-0 items-center justify-center rounded-full text-[var(--brand-text-muted)]">
         <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round"><path d="M6 6l12 12M18 6L6 18" /></svg>
       </button>
       <input

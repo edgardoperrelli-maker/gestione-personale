@@ -111,7 +111,7 @@ export default function AppShell({
     <RichiesteManualiProvider enabled={isAdmin}>
     <div className="flex min-h-screen bg-[var(--brand-bg)]">
       {/* Sidebar desktop (in-flow) */}
-      <div className="sticky top-0 hidden h-screen md:block">
+      <div className="sticky top-0 hidden h-dvh md:block">
         <Sidebar
           allowedModules={allowedModules}
           collapsed={collapsed}

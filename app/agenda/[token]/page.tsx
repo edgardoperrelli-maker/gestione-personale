@@ -29,7 +29,7 @@ export function generateMetadata(): Metadata {
 
 function Avviso({ title, message }: { title: string; message: string }) {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-[var(--brand-bg)] px-4 text-[var(--brand-text-main)]">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-[var(--brand-bg)] px-4 text-[var(--brand-text-main)]">
       <div className="mb-6">
         <BrandHeader />
       </div>

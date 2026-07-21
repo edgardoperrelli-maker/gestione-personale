@@ -81,7 +81,7 @@ export default function AgendaOperatoreClient({
 
   return (
     <main
-      className="min-h-screen w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)]"
+      className="min-h-dvh w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)]"
       style={{ paddingBottom: '4rem' }}
     >
       <div className="mx-auto w-full max-w-2xl space-y-4">

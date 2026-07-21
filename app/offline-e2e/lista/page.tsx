@@ -15,12 +15,20 @@ const VOCI: Voce[] = [
   { id: 'v2', ordine: 2, nominativo: 'BIANCHI GIUSEPPE ANTONIO', via: 'VIA DELLE PANCHE LUNGHE 123', comune: 'FIRENZE', attivita: 'SOSTITUZIONE MISURATORE GAS', fascia_oraria: '21/07/2026 10:00', risposte: {}, notaUfficio: 'Citofonare interno 4' },
   { id: 'v3', ordine: 3, nominativo: 'VERDI FRANCESCA', via: 'VIA DEL PONTE ROSSO 45', comune: 'SESTO FIORENTINO', attivita: 'BONIFICHE EXTRA', risposte: {} },
   { id: 'v4', ordine: 4, nominativo: 'ESPOSITO SALVATORE', via: 'VIA DEL PONTE VECCHIO 7', comune: 'FIRENZE', attivita: 'BONIFICHE EXTRA', risposte: {}, nuovo: true },
+  // Caso peggiore per la riga badge: voce manuale con "Nuovo" + "Sospeso" + nota + attività lunga.
+  { id: 'v5', ordine: 5, nominativo: 'COLOMBO ALESSANDRO', via: 'VIA DELLE CASCINE 88', comune: 'FIRENZE', attivita: 'SOSTITUZIONE MISURATORE GAS', fascia_oraria: '21/07/2026 15:00', risposte: {}, nuovo: true, manuale: true, approvazione_stato: 'in_attesa', notaUfficio: 'Chiamare prima di passare' },
 ];
 
 /** Fixture e2e: la LISTA rapportino con dati finti, per i test di layout
- *  responsive (niente Supabase). Disponibile SOLO fuori produzione. */
-export default function ListaFixturePage() {
+ *  responsive (niente Supabase). Disponibile SOLO fuori produzione.
+ *  `?inviato=1` rende lo stato post-invio (barra con condivisione PDF). */
+export default async function ListaFixturePage({
+  searchParams,
+}: {
+  searchParams: Promise<{ inviato?: string }>;
+}) {
   if (process.env.NODE_ENV === 'production') notFound();
+  const { inviato } = await searchParams;
   return (
     <main className="min-h-dvh bg-[var(--brand-bg)] text-[var(--brand-text-main)]">
       <RapportinoForm
@@ -29,7 +37,7 @@ export default function ListaFixturePage() {
         voci={VOCI}
         campiSnapshot={CAMPI}
         infoCampi={[]}
-        readOnly={false}
+        readOnly={inviato === '1'}
       />
     </main>
   );

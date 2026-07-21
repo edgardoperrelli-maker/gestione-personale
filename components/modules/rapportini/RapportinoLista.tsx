@@ -38,7 +38,7 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
     >
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
       <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
-        <span className="flex min-w-0 items-center gap-1.5">
+        <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           {r.annullato && (
             <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
               Annullato
@@ -57,7 +57,7 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           {r.nota && (
             <span title="Nota dall'ufficio" aria-label="Nota dall'ufficio" className="shrink-0 text-[13px] leading-none">📝</span>
           )}
-          <span className={`min-w-0 flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
+          <span className={`min-w-[10ch] flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (
             <span className="max-w-[45%] truncate text-xs font-medium text-[var(--brand-text-muted)]">
               {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
@@ -143,7 +143,7 @@ export function RapportinoLista({
               key={k}
               type="button"
               onClick={() => onFiltro(k)}
-              className={`flex min-h-[40px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition min-[380px]:text-sm ${
+              className={`flex min-h-[44px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition min-[380px]:text-sm ${
                 filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
@@ -165,7 +165,7 @@ export function RapportinoLista({
         )}
       </div>
 
-      <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-36 pt-2">
+      <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-[16rem] pt-2">
         {visibili.length === 0 ? (
           <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento in questo filtro.</p>
         ) : (
@@ -173,7 +173,7 @@ export function RapportinoLista({
         )}
       </div>
 
-      <div className="fixed inset-x-0 bottom-0 z-10">
+      <div className="fixed inset-x-0 bottom-0 z-30">
         <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
           {inviato ? (
             <>
@@ -201,12 +201,12 @@ export function RapportinoLista({
                       type="button"
                       onClick={() => setTentatoInvio(false)}
                       aria-label="Chiudi avviso"
-                      className="-mr-1 flex min-h-[40px] min-w-[40px] shrink-0 items-center justify-center rounded-md text-sm font-bold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15"
+                      className="-mr-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-sm font-bold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15"
                     >
                       ✕
                     </button>
                   </div>
-                  <div className="max-h-[30vh] space-y-0.5 overflow-y-auto">
+                  <div className="max-h-[30dvh] space-y-0.5 overflow-y-auto">
                     {mancanti.map((m) => (
                       <button
                         key={m.index}
@@ -218,7 +218,7 @@ export function RapportinoLista({
                           <span className="font-bold">Intervento {m.index + 1}</span>
                           {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
                         </span>
-                        <span className="shrink-0 font-semibold text-[var(--status-ko)]">{MOTIVO_LABEL[m.motivo]}</span>
+                        <span className="max-w-[45%] shrink-0 whitespace-normal text-right font-semibold leading-tight text-[var(--status-ko)]">{MOTIVO_LABEL[m.motivo]}</span>
                       </button>
                     ))}
                   </div>
