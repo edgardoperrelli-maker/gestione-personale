@@ -53,7 +53,7 @@ export function GalleriaFoto({
                 <button
                   type="button"
                   onClick={() => onRemove(p)}
-                  className="absolute right-1 top-1 rounded-full bg-[var(--brand-surface)]/90 px-1.5 text-xs text-[var(--danger)]"
+                  className="absolute right-1 top-1 flex h-9 w-9 min-h-0 items-center justify-center rounded-full bg-[var(--brand-surface)]/90 text-sm text-[var(--danger)]"
                   aria-label={`Rimuovi foto ${i + 1}`}
                 >✕</button>
               )}

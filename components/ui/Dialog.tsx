@@ -96,7 +96,7 @@ export default function Dialog({ open, onClose, title, children, footer, variant
               type="button"
               onClick={onClose}
               aria-label="Chiudi"
-              className="rounded-[var(--radius-md)] p-1 text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              className="flex min-h-[44px] min-w-[44px] items-center justify-center rounded-[var(--radius-md)] p-1 text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M6 6l12 12M18 6L6 18" />
@@ -106,7 +106,7 @@ export default function Dialog({ open, onClose, title, children, footer, variant
         )}
         <div className="overflow-y-auto px-4 py-4">{children}</div>
         {footer != null && (
-          <div className="flex justify-end gap-2 border-t border-[var(--brand-border)] px-4 py-3">{footer}</div>
+          <div className="flex flex-wrap justify-end gap-2 border-t border-[var(--brand-border)] px-4 py-3">{footer}</div>
         )}
       </div>
     </div>

@@ -129,14 +129,14 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
         )}
 
         <div className="mt-4 flex gap-2">
-          <button type="button" onClick={onChiudi} className="flex-1 rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">
+          <button type="button" onClick={onChiudi} className="flex-1 rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 text-sm font-bold text-[var(--brand-text-main)]">
             Chiudi
           </button>
           <button
             type="button"
             onClick={() => { if (typeof window !== 'undefined') window.location.reload(); }}
             disabled={sincronizzando && online}
-            className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50"
+            className="flex-1 whitespace-nowrap rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50"
           >
             Aggiorna pagina
           </button>

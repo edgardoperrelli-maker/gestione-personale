@@ -23,7 +23,7 @@ export function generateMetadata(): Metadata {
 
 function Avviso({ title, message }: { title: string; message: string }) {
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[var(--brand-bg)] px-4 text-[var(--brand-text-main)]">
+    <main className="flex min-h-dvh items-center justify-center bg-[var(--brand-bg)] px-4 text-[var(--brand-text-main)]">
       <div className="w-full max-w-md rounded-2xl border bg-[var(--brand-surface)] p-8 text-center shadow-sm" style={{ borderColor: 'var(--brand-border)' }}>
         <h1 className="text-lg font-bold">{title}</h1>
         <p className="mt-2 text-sm" style={{ color: 'var(--brand-text-muted)' }}>{message}</p>

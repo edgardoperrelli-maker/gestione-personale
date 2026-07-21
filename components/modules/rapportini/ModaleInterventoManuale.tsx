@@ -200,11 +200,11 @@ export function ModaleInterventoManuale({
 
         {step === 2 && !(committente === 'lim_massive' && !cercaFatta) && (
           <div className="space-y-3">
-            <div className="grid grid-cols-2 gap-x-2 gap-y-2">
+            <div className="grid grid-cols-1 gap-x-2 gap-y-2 min-[380px]:grid-cols-2">
               {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
                   presente, per ogni committente, anche se l'anagrafica del template non prevede
                   `attivita` (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). */}
-              <div className="col-span-2 min-w-0">
+              <div className="col-span-full min-w-0">
                 <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
                   {etichettaAttivita}
                   <span className="text-[var(--danger)]"> *</span>

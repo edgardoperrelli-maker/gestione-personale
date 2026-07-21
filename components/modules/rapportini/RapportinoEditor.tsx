@@ -38,7 +38,7 @@ function CellaCampo({
         type="checkbox"
         checked={valore === true}
         onChange={(e) => onChange(e.target.checked)}
-        className="h-5 w-5 accent-[var(--brand-primary)]"
+        className="h-5 w-5 min-h-0 accent-[var(--brand-primary)]"
         aria-label={campo.etichetta}
       />
     );
@@ -122,7 +122,7 @@ export default function RapportinoEditor({
 
   return (
     <div className="space-y-3">
-      <div className="overflow-hidden rounded-2xl border" style={{ borderColor: 'var(--brand-border)' }}>
+      <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: 'var(--brand-border)' }}>
         <table className="w-full table-auto text-sm">
           <thead>
             <tr className="bg-[var(--brand-surface-muted)]" style={{ color: 'var(--brand-text-muted)' }}>

@@ -342,11 +342,13 @@ html { font-size: 16px; }
      Vale SOLO per i campi: sui button forzava 1rem !important annullando le
      classi text-* di Tailwind e facendo sbordare le UI compatte su iPhone. */
   input, select, textarea { font-size: 1rem !important; }
-  input, select, textarea, button { min-height: 44px; }
+  /* Touch target minimo sui controlli. Esclusi checkbox/radio: il min-height li
+     stirava in capsule verticali (restano dimensionati dalle loro classi h-/w-). */
+  input:not([type='checkbox']):not([type='radio']), select, textarea, button { min-height: 44px; }
 }
 @media (max-width: 768px) {
   html { font-size: 18px; }
-  input, select, textarea, button { min-height: 46px; }
+  input:not([type='checkbox']):not([type='radio']), select, textarea, button { min-height: 46px; }
 }
 
 /* Scrollbar a tema Aurea per i contenitori scrollabili del rapportino pubblico (/r). */

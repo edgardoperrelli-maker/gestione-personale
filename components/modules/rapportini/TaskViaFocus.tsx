@@ -57,9 +57,9 @@ export function TaskViaFocus({
         ) : (
           <ul className="divide-y divide-[var(--brand-border)] rounded-xl border border-[var(--brand-border)]">
             {interventi.map((i) => (
-              <li key={i.id} className="flex items-center justify-between px-3 py-2 text-sm">
-                <span className="font-medium text-[var(--brand-text-main)]">{i.matricola || '(senza matricola)'}</span>
-                <span className="text-xs text-[var(--brand-text-muted)]">{STATO_LABEL[i.stato] ?? i.stato}</span>
+              <li key={i.id} className="flex items-center justify-between gap-2 px-3 py-2 text-sm">
+                <span className="min-w-0 truncate font-medium text-[var(--brand-text-main)]">{i.matricola || '(senza matricola)'}</span>
+                <span className="shrink-0 text-xs text-[var(--brand-text-muted)]">{STATO_LABEL[i.stato] ?? i.stato}</span>
               </li>
             ))}
           </ul>

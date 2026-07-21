@@ -554,7 +554,7 @@ export function RisanamentoView({
                       onClick={() => { setEliminaTarget(riga); setEliminaStep2(false); }}
                       aria-label={`Elimina misuratore ${riga.matricola ?? ''}`}
                       title="Elimina misuratore"
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
                     >
                       <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
                         <path d="M18 6L6 18M6 6l12 12" />
@@ -623,7 +623,7 @@ export function RisanamentoView({
                 <button
                   type="button"
                   onClick={() => setScanner(true)}
-                  className="flex-1 rounded-xl border border-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
+                  className="flex-1 whitespace-nowrap rounded-xl border border-[var(--brand-primary)] px-2 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
                 >
                   📷 Scansiona
                 </button>

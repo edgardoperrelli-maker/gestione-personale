@@ -12,7 +12,7 @@ export type VoceCardData = VoceInfo & { risposte: Record<string, unknown> };
 
 /** Titolo della voce. */
 export function VoceTitolo({ voce, titoloCampi, indice }: { voce: VoceCardData; titoloCampi: InfoChiave[]; indice: number }) {
-  return <h1 className="text-xl font-bold text-[var(--brand-text-main)]">{titoloVoce(voce, titoloCampi, indice)}</h1>;
+  return <h1 className="min-w-0 text-xl font-bold text-[var(--brand-text-main)] [overflow-wrap:anywhere]">{titoloVoce(voce, titoloCampi, indice)}</h1>;
 }
 
 /** Header: indirizzo (link Maps) + "Punto esatto" (se abilitato) + fascia. */
@@ -23,13 +23,13 @@ export function VoceHeaderInfo({ voce, coordinataAbilitata }: { voce: VoceCardDa
   return (
     <div className="mt-2.5 space-y-1.5 text-sm text-[var(--brand-text-main)]">
       {indirizzo && (
-        <a href={mapsUrlFromAddress(valoreInfo(voce, 'via'), valoreInfo(voce, 'comune'), valoreInfo(voce, 'cap'))} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline">
+        <a href={mapsUrlFromAddress(valoreInfo(voce, 'via'), valoreInfo(voce, 'comune'), valoreInfo(voce, 'cap'))} target="_blank" rel="noopener noreferrer" className="flex min-h-[44px] items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline">
           <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 10c0 7-9 12-9 12s-9-5-9-12a9 9 0 1118 0z" /><circle cx="12" cy="10" r="3" /></svg>
           <span>{indirizzo}</span>
         </a>
       )}
       {coordinataAbilitata && coordinata && (
-        <a href={mapsUrlFromCoordinate(coordinata)} target="_blank" rel="noopener noreferrer" className="flex items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline">
+        <a href={mapsUrlFromCoordinate(coordinata)} target="_blank" rel="noopener noreferrer" className="flex min-h-[44px] items-center gap-2 text-[var(--brand-primary)] underline-offset-2 hover:underline">
           <svg className="h-[17px] w-[17px] shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="8" /><path d="M12 2v3M12 19v3M2 12h3M19 12h3" /><circle cx="12" cy="12" r="2" fill="currentColor" stroke="none" /></svg>
           <span>Punto esatto · {coordinata}</span>
         </a>
@@ -81,7 +81,7 @@ export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota }
       {crocette.length > 0 && (
         <div>
           <p className="mb-2 text-xs font-bold uppercase tracking-wide text-[var(--brand-text-muted)]">Lavorazioni</p>
-          <div className="grid grid-cols-2 gap-2.5">
+          <div className="grid grid-cols-1 gap-2.5 min-[360px]:grid-cols-2">
             {crocette.map((campo) => (
               <CampoInput key={campo.chiave} campo={campo} valore={voce.risposte[campo.chiave]} disabilitato={disabilitato} onChange={(v) => onChange(campo.chiave, v)} />
             ))}
@@ -119,7 +119,7 @@ export function VoceCard({
     <section className={`rounded-2xl border bg-[var(--brand-surface)] p-4 shadow-sm ${bordo}`}>
       <div className="flex items-start justify-between gap-3">
         <VoceTitolo voce={voce} titoloCampi={titoloCampi} indice={indice} />
-        {headerRight}
+        {headerRight && <div className="shrink-0">{headerRight}</div>}
       </div>
       {badge && (
         <div className={`mt-2 rounded-lg px-3 py-2 text-sm font-semibold ${badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]'}`}>

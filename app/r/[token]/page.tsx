@@ -59,7 +59,7 @@ type VoceRow = {
 /* ── Layout standalone (fuori dalla shell dell'app) ────────────────────────── */
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="min-h-screen w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)] sm:py-10">
+    <main className="min-h-dvh w-full bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)] sm:py-10">
       <div className="mx-auto w-full max-w-2xl">
         <div className="mb-6">
           <BrandHeader subtitle="Rapportino interventi" />
@@ -81,7 +81,7 @@ function CenteredCard({
 }) {
   return (
     <Shell>
-      <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex min-h-[60dvh] items-center justify-center">
         <div className="w-full rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center shadow-sm">
           <div
             className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"

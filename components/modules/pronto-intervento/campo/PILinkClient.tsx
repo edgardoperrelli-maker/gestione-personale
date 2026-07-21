@@ -97,7 +97,7 @@ export default function PILinkClient({ token }: { token: string }) {
   const valido = payload?.token.statoCalcolato === 'valido';
 
   return (
-    <main className="min-h-screen bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)]">
+    <main className="min-h-dvh bg-[var(--brand-bg)] px-4 py-6 text-[var(--brand-text-main)]">
       <div className="mx-auto w-full max-w-xl">
         <header className="mb-4">
           <h1 className="text-xl font-semibold">Pronto Intervento{payload?.area ? ` · ${payload.area.label}` : ''}</h1>
