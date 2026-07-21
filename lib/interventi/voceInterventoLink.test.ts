@@ -50,4 +50,58 @@ describe('buildVoceInterventoLinker', () => {
     expect(link({ staff_id: 's1' })).toBeNull();
     expect(link({ staff_id: 's1', matricola: 'NOPE' })).toBeNull();
   });
+
+  describe('task-via (bonifiche extra): aggancio per via', () => {
+    it('aggancia la voce task-via al suo intervento bonifiche-extra per (staff+via)', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iBE', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3', taskVia: true })).toBe('iBE');
+    });
+
+    it('normalizza via (spazi/maiuscole)', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iBE', indirizzo: ' via  verdi 3 ', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', via: 'VIA  VERDI 3', taskVia: true })).toBe('iBE');
+    });
+
+    it('NON aggancia per via una voce non-task-via (evita i figli sulla stessa via)', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iBE', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3', taskVia: false })).toBeNull();
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3' })).toBeNull();
+    });
+
+    it('un intervento NON bonifiche-extra sulla stessa via non entra nell\'indice per via', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iFiglio', indirizzo: 'Via Verdi 3', gruppo_attivita: "ATTIVITA' ALLA CLIENTELA", matricola_contatore: 'M9' }),
+      ]);
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3', taskVia: true })).toBeNull();
+    });
+
+    it('due bonifiche-extra sulla stessa via+operatore → ambiguo → null', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iA', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+        it_({ id: 'iB', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', via: 'Via Verdi 3', taskVia: true })).toBeNull();
+    });
+
+    it('scoping per operatore anche sulla via', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iBE', staff_id: 's1', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's2', via: 'Via Verdi 3', taskVia: true })).toBeNull();
+    });
+
+    it('ODL/matricola/PDR hanno la precedenza sulla via', () => {
+      const link = buildVoceInterventoLinker([
+        it_({ id: 'iByOdl', odl: 'K1' }),
+        it_({ id: 'iBE', indirizzo: 'Via Verdi 3', gruppo_attivita: 'BONIFICHE EXTRA' }),
+      ]);
+      expect(link({ staff_id: 's1', odl: 'K1', via: 'Via Verdi 3', taskVia: true })).toBe('iByOdl');
+    });
+  });
 });

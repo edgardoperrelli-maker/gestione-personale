@@ -23,6 +23,7 @@ import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interv
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
+import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 import { leggiVerdettoEsecuzione, COMMITTENTI_BLOCCO_ESECUZIONE } from '@/lib/limitazione/leggiVerdettoEsecuzione';
 import { pathFotoTentativo, isViolazionePk } from '@/lib/interventi/manuali/fotoStorageHardening';
@@ -392,11 +393,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Ramo liberi: crea subito l'intervento canonico (origine='manuale').
   let interventoId: string | null = null;
   if (corsia === 'liberi') {
+    // Territorio ereditato dal piano dell'operatore (override per-operatore se presente): senza,
+    // l'intervento manuale nascerebbe senza territorio e sparirebbe dai filtri per territorio dello
+    // storico. Best-effort: se non risolve resta null (mai bloccare un invio dal campo).
+    const territorioId = await risolviTerritorioIdPerPiano(supabaseAdmin, rap.piano_id as string | null, rap.staff_id ? String(rap.staff_id) : null);
     const record = richiestaToIntervento(dati, {
       committente: committente as CommittenteManuale,
       data: rap.data as string,
       staff_id: String(rap.staff_id ?? ''),
       piano_id: (rap.piano_id as string | null) ?? null,
+      territorio_id: territorioId,
     }, indiceTassonomia);
     const { data: intRow, error: eInt } = await supabaseAdmin
       .from('interventi')

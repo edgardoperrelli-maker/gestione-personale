@@ -3,6 +3,7 @@
 // fragile quando l'ODL manca o l'intervento non è ancora presente. Qui agganciamo
 // per più chiavi allineate (ODL, matricola, PDR), con scoping per operatore e
 // scartando le chiavi ambigue per non collegare l'intervento sbagliato.
+import { ATTIVITA_TASK_VIA } from './manuali/taskVia';
 
 export type InterventoLinkRow = {
   id: string;
@@ -10,6 +11,11 @@ export type InterventoLinkRow = {
   odl: string | null;
   matricola_contatore: string | null;
   pdr: string | null;
+  /** Indirizzo/via: chiave di aggancio dei soli task-via (bonifiche extra), che non hanno
+   *  ODL/matricola/PDR. Usato solo per gli interventi del gruppo BONIFICHE EXTRA. */
+  indirizzo?: string | null;
+  /** Gruppo attività dell'intervento: discrimina i task-via (BONIFICHE EXTRA) nell'indice per via. */
+  gruppo_attivita?: string | null;
 };
 
 export type VoceLinkKey = {
@@ -17,6 +23,10 @@ export type VoceLinkKey = {
   odl?: string | null;
   matricola?: string | null;
   pdr?: string | null;
+  /** Via della voce: chiave di aggancio SOLO per i task-via (bonifiche extra). Ignorata altrove. */
+  via?: string | null;
+  /** La voce è un task-via (attività BONIFICHE EXTRA)? Abilita il match per via. */
+  taskVia?: boolean;
 };
 
 const norm = (v: unknown): string => String(v ?? '').trim().toLowerCase();
@@ -33,6 +43,9 @@ export function buildVoceInterventoLinker(
   const byOdl = new Map<string, string | null>();
   const byMatr = new Map<string, string | null>();
   const byPdr = new Map<string, string | null>();
+  // Indice per via dei SOLI interventi task-via (gruppo BONIFICHE EXTRA): i figli creati sulla
+  // stessa via hanno un gruppo diverso e non entrano qui, quindi non collidono.
+  const byViaTaskVia = new Map<string, string | null>();
 
   const put = (m: Map<string, string | null>, staff: string | null, val: unknown, id: string) => {
     const v = norm(val);
@@ -42,10 +55,14 @@ export function buildVoceInterventoLinker(
     else if (m.get(k) !== id) m.set(k, null); // collisione → ambiguo
   };
 
+  const isGruppoTaskVia = (g: unknown): boolean =>
+    String(g ?? '').trim().toUpperCase() === ATTIVITA_TASK_VIA;
+
   for (const it of interventi) {
     put(byOdl, it.staff_id, it.odl, it.id);
     put(byMatr, it.staff_id, it.matricola_contatore, it.id);
     put(byPdr, it.staff_id, it.pdr, it.id);
+    if (isGruppoTaskVia(it.gruppo_attivita)) put(byViaTaskVia, it.staff_id, it.indirizzo, it.id);
   }
 
   const get = (m: Map<string, string | null>, staff: string | null, ...vals: unknown[]): string | null => {
@@ -60,11 +77,14 @@ export function buildVoceInterventoLinker(
 
   return (voce) => {
     const s = voce.staff_id ?? null;
-    return (
+    const perId =
       get(byOdl, s, voce.odl) ??
       get(byMatr, s, voce.matricola) ??
-      get(byPdr, s, voce.pdr) ??
-      null
-    );
+      get(byPdr, s, voce.pdr);
+    if (perId) return perId;
+    // Task-via (bonifiche extra): niente ODL/matricola/PDR → aggancia per via, ma SOLO per le
+    // voci task-via e SOLO tra gli interventi bonifiche-extra (l'indice per via li contiene solo).
+    if (voce.taskVia && voce.via) return get(byViaTaskVia, s, voce.via) ?? null;
+    return null;
   };
 }

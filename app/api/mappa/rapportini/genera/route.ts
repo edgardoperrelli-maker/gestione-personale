@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
+import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
 
 export const runtime = 'nodejs';
 
@@ -15,6 +16,17 @@ export async function POST(req: Request) {
     // templateId opzionale: senza, il motore risolve da sé il fallback del piano
     // (rapportini esistenti → risanamento → default → primo attivo). Vedi sincronizzaRapportini.
     if (!pianoId) return NextResponse.json({ error: 'pianoId obbligatorio' }, { status: 400 });
+
+    // Guardrail territorio (import Mappa): senza un territorio del piano che risolve a un
+    // `territories.id`, la generazione creerebbe interventi senza territorio → invisibili ai filtri
+    // per territorio dello storico. Blocca con messaggio chiaro invece di produrre righe orfane.
+    const territorioId = await risolviTerritorioIdPerPiano(supabaseAdmin, pianoId);
+    if (!territorioId) {
+      return NextResponse.json(
+        { error: 'Assegna un territorio valido al piano prima di generare i rapportini.' },
+        { status: 422 },
+      );
+    }
 
     const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId, overwrite, overwriteSubmitted, confermaInviati });
     if (!res.ok) {
