@@ -1,7 +1,10 @@
 'use client';
 import { useEffect, useState } from 'react';
 
-type VoceFoto = { voceId: string; via: string | null; odl: string | null; nFoto: number };
+// `voceId` presente → voce classica (foto nei campi del rapportino). Assente → gruppo
+// "Italgas mobile" per via (interventi manuali "+" raggruppati per indirizzo, indipendenti
+// dal collegamento al task-via padre): si scarica con `?via=`.
+type VoceFoto = { voceId?: string; via: string | null; odl: string | null; nFoto: number };
 
 export default function ModaleScaricaFoto({
   rapportinoId,
@@ -54,14 +57,14 @@ export default function ModaleScaricaFoto({
         {voci && voci.length === 0 && <p className="py-2 text-sm text-[var(--brand-text-muted)]">Nessuna foto per indirizzo.</p>}
         {voci && voci.length > 0 && (
           <ul className="divide-y divide-[var(--brand-border)]">
-            {voci.map((v) => (
-              <li key={v.voceId} className="flex items-center justify-between gap-2 py-2">
+            {voci.map((v, i) => (
+              <li key={v.voceId ?? `via-${v.via ?? 'nd'}-${i}`} className="flex items-center justify-between gap-2 py-2">
                 <span className="text-sm text-[var(--brand-text-main)]">
                   {v.via ?? 'Indirizzo n/d'}{v.odl ? ` · ODL ${v.odl}` : ''}{' '}
                   <span className="text-[var(--brand-text-muted)]">({v.nFoto})</span>
                 </span>
                 <a
-                  href={zip(`?voceId=${v.voceId}`)}
+                  href={v.voceId ? zip(`?voceId=${v.voceId}`) : zip(`?via=${encodeURIComponent(v.via ?? '')}`)}
                   title="Scarica le foto di questo indirizzo"
                   className="shrink-0 rounded-lg border border-[var(--brand-border)] px-3 py-1 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
                 >⤓</a>

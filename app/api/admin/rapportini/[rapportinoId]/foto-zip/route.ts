@@ -4,13 +4,21 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
 import { buildZipEntriesTaskVia, type FotoManualeZip, type InfoRichiestaTaskVia } from '@/lib/interventi/manuali/zipFotoTaskVia';
-import { isTaskVia, voceTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { richiesteDelGruppo, viaRisoltaRichiesta, type ViaVoce } from '@/lib/interventi/manuali/gruppiFotoItalgas';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
+
+/**
+ * Committente delle richieste manuali "Italgas mobile" (template ITALGAS PER MOBILI: foto
+ * vecchio/nuovo/minibag). Per queste lo ZIP si organizza per VIA → matricola (vedi
+ * gruppiFotoItalgas.ts): non ci si affida al collegamento al task-via padre, spesso assente
+ * (il "+" può nascere da un rapportino ITALGAS classico) o orfano (rigenerazione del piano).
+ */
+const COMMITTENTE_ITALGAS_MOBILE = 'italgas';
 
 type VoceRow = {
   id: string;
@@ -19,15 +27,15 @@ type VoceRow = {
   pdr: string | null;
   odl: string | null;
   via: string | null;
-  attivita: string | null;
-  manuale: boolean | null;
   risposte: Record<string, unknown> | null;
   campi_snapshot?: unknown;
 };
 
 type RichiestaRow = {
   id: string;
+  committente: string | null;
   parent_voce_id: string | null;
+  template_id: string | null;
   dati_correnti: { anagrafica?: Record<string, unknown> } | null;
 };
 
@@ -36,13 +44,68 @@ const testo = (x: unknown): string | null => {
   return t === '' ? null : t;
 };
 
+function toRichiestaItalgas(r: RichiestaRow) {
+  const anag = (r.dati_correnti?.anagrafica ?? {}) as Record<string, unknown>;
+  return {
+    id: r.id,
+    parentVoceId: r.parent_voce_id,
+    viaAnagrafica: testo(anag.via),
+    matricola: testo(anag.matricola),
+  };
+}
+
+/** Costruisce la mappa richiesta_id → {via, matricola, fallbackId} per il layout ZIP per-via. */
+async function buildInfoPerRichiesta(
+  richieste: RichiestaRow[],
+  vociById: Map<string, ViaVoce>,
+): Promise<Map<string, InfoRichiestaTaskVia>> {
+  // Priorità nome foto (fallback quando la matricola manca): dal template PROPRIO di ciascuna
+  // richiesta (di norma "ITALGAS PER MOBILI"), letto live — non dal template del rapportino,
+  // che qui è irrilevante (il gruppo italgas prescinde dal rapportino padre).
+  const templateIds = [...new Set(richieste.map((r) => r.template_id).filter((x): x is string => !!x))];
+  const priorityPerTemplate = new Map<string, FotoIdCampo[]>();
+  if (templateIds.length > 0) {
+    const { data: tpls } = await supabaseAdmin
+      .from('rapportino_template')
+      .select('id, foto_id_priority')
+      .in('id', templateIds);
+    for (const t of (tpls ?? []) as Array<{ id: string; foto_id_priority?: string[] | null }>) {
+      priorityPerTemplate.set(t.id, (t.foto_id_priority ?? []) as FotoIdCampo[]);
+    }
+  }
+
+  const infoPerRichiesta = new Map<string, InfoRichiestaTaskVia>();
+  for (const r of richieste) {
+    const ri = toRichiestaItalgas(r);
+    const via = viaRisoltaRichiesta(ri, vociById);
+    const ids = {
+      matricola: ri.matricola ?? undefined,
+      indirizzo: via ?? undefined,
+    };
+    const priority = r.template_id ? priorityPerTemplate.get(r.template_id) ?? [] : [];
+    infoPerRichiesta.set(r.id, {
+      via,
+      matricola: ri.matricola,
+      fallbackId: identificativoFoto(ids, priority),
+    });
+  }
+  return infoPerRichiesta;
+}
+
 export async function GET(req: Request, { params }: { params: Promise<{ rapportinoId: string }> }) {
   const auth = await requireAdmin();
   if (auth instanceof NextResponse) return auth;
   const { rapportinoId } = await params;
-  const voceId = new URL(req.url).searchParams.get('voceId');
+  const url = new URL(req.url);
+  const voceId = url.searchParams.get('voceId');
+  // `via`: download del gruppo "Italgas mobile" di quella via (vedi voci-foto). Si distingue la
+  // stringa vuota (via davvero assente) dal parametro assente (.has, non solo truthiness).
+  const haVia = url.searchParams.has('via');
+  const viaParam = haVia ? url.searchParams.get('via') : null;
 
-  // ── 1. Rapportino (serve campi_snapshot per individuare campi tipo='foto') ──────
+  // ── 1. Rapportino (serve campi_snapshot per individuare campi tipo='foto' + template per la
+  //      priorità nome-foto delle voci CLASSICHE, Fonte B/C — non del gruppo Italgas mobile,
+  //      che usa il template proprio di ciascuna richiesta, vedi buildInfoPerRichiesta) ──────
   const { data: rap, error: rapErr } = await supabaseAdmin
     .from('rapportini')
     .select('id, campi_snapshot, template_id')
@@ -56,25 +119,21 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   );
   const campiFoto = campiSnapshot.filter((c) => c.tipo === 'foto');
 
-  // Priorità nome foto + flag task-via: letti live dal template corrente.
-  // Template assente/cancellato o errore di lettura → default storico.
   let fotoPriority: FotoIdCampo[] = [];
-  let tplTaskVia = false;
   const templateId = (rap as { template_id?: string | null }).template_id;
   if (templateId) {
     const { data: tpl } = await supabaseAdmin
       .from('rapportino_template')
-      .select('foto_id_priority, task_via')
+      .select('foto_id_priority')
       .eq('id', templateId)
       .maybeSingle();
-    fotoPriority = ((tpl?.foto_id_priority ?? []) as FotoIdCampo[]);
-    tplTaskVia = Boolean((tpl as { task_via?: boolean } | null)?.task_via);
+    fotoPriority = (tpl?.foto_id_priority ?? []) as FotoIdCampo[];
   }
 
-  // ── 2. Voci del rapportino (usate sia per le foto nei campi sia per il task-via) ─
+  // ── 2. Voci del rapportino ──────────────────────────────────────────────────
   let vociQuery = supabaseAdmin
     .from('rapportino_voci')
-    .select('id, nominativo, matricola, pdr, odl, via, attivita, manuale, risposte, campi_snapshot')
+    .select('id, nominativo, matricola, pdr, odl, via, risposte, campi_snapshot')
     .eq('rapportino_id', rapportinoId);
   if (voceId) vociQuery = vociQuery.eq('id', voceId);
   const { data: vociRows, error: vociErr } = await vociQuery.order('ordine', { ascending: true });
@@ -85,72 +144,68 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   const voceForName: { via: string | null; odl: string | null } | null =
     voceId && tipizzate[0] ? { via: tipizzate[0].via, odl: tipizzate[0].odl } : null;
 
-  // Giro task-via (BONIFICHE EXTRA): template task-via puro OPPURE almeno una voce
-  // con l'attività contenitore. In questi giri le foto vivono negli interventi "+"
-  // (interventi_manuali_foto) e lo ZIP va organizzato per VIA / matricola.
-  const giroTaskVia = tplTaskVia || tipizzate.some((v) => isTaskVia(v));
-  const voceContenitore =
-    !!voceId && !!tipizzate[0] && tipizzate[0].manuale !== true && voceTaskVia(tipizzate[0], { tutto: tplTaskVia });
-
   // ── 3. Fonte A: foto da interventi manuali (tabella interventi_manuali_foto) ───
-  // Intero rapportino: tutte le richieste. Per-voce: SOLO se la voce è un task-via
-  // contenitore → le richieste agganciate a quella via (parent_voce_id).
+  // Le richieste "Italgas mobile" si raggruppano per VIA (indipendente dal collegamento al
+  // task-via, spesso assente/orfano — vedi gruppiFotoItalgas.ts); le altre (lim_massive, acea,
+  // altro) seguono il percorso storico (file_name + buildZipEntries). Un voceId classico
+  // (download per singola voce non-manuale) esclude il gruppo italgas — comportamento storico.
   const fotoManuali: FotoZip[] = [];
   let entriesTaskVia: ReturnType<typeof buildZipEntriesTaskVia> = [];
-  if (!voceId || voceContenitore) {
-    let richiesteQuery = supabaseAdmin
-      .from('interventi_manuali')
-      .select('id, parent_voce_id, dati_correnti')
+  if (!voceId) {
+    const { data: tutteLeVoci } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('id, via')
       .eq('rapportino_id', rapportinoId);
-    if (voceId) richiesteQuery = richiesteQuery.eq('parent_voce_id', voceId);
-    const { data: richieste } = await richiesteQuery;
+    const vociById = new Map<string, ViaVoce>(((tutteLeVoci ?? []) as ViaVoce[]).map((v) => [v.id, v]));
+
+    const { data: richieste } = await supabaseAdmin
+      .from('interventi_manuali')
+      .select('id, committente, parent_voce_id, template_id, dati_correnti')
+      .eq('rapportino_id', rapportinoId);
     const richiesteRows = (richieste ?? []) as RichiestaRow[];
-    const richiestaIds = richiesteRows.map((r) => r.id);
-    if (richiestaIds.length > 0) {
+
+    const richiesteItalgasRows = richiesteRows.filter((r) => r.committente === COMMITTENTE_ITALGAS_MOBILE);
+    const italgasRi = richiesteItalgasRows.map(toRichiestaItalgas);
+    const selezionateRi = haVia ? richiesteDelGruppo(italgasRi, vociById, viaParam) : italgasRi;
+    const idsSelezionati = new Set(selezionateRi.map((r) => r.id));
+    const richiesteItalgasSel = richiesteItalgasRows.filter((r) => idsSelezionati.has(r.id));
+
+    // "Scarica tutto" (né voceId né via): include anche gli altri committenti (lim_massive,
+    // acea, altro). Il download per-via è dedicato al solo gruppo italgas.
+    const richiesteAltreIds = haVia
+      ? new Set<string>()
+      : new Set(richiesteRows.filter((r) => r.committente !== COMMITTENTE_ITALGAS_MOBILE).map((r) => r.id));
+
+    const idsDaCaricare = [...richiesteItalgasSel.map((r) => r.id), ...richiesteAltreIds];
+    if (idsDaCaricare.length > 0) {
       const { data: fotoRows, error: fotoErr } = await supabaseAdmin
         .from('interventi_manuali_foto')
         .select('richiesta_id, storage_path, file_name, slot_chiave, slot_etichetta')
-        .in('richiesta_id', richiestaIds);
+        .in('richiesta_id', idsDaCaricare);
       if (fotoErr) return NextResponse.json({ error: fotoErr.message }, { status: 500 });
       const fotoManualiRows = (fotoRows ?? []) as FotoManualeZip[];
 
-      if (giroTaskVia) {
-        // Layout BONIFICHE EXTRA: cartella per via del task padre, nome per matricola
-        // (dati CORRENTI, quindi post-approvazione) + slot (vecchio/nuovo/minibag).
-        const viaPerVoce = new Map(tipizzate.map((v) => [v.id, v.via]));
-        const infoPerRichiesta = new Map<string, InfoRichiestaTaskVia>();
-        for (const r of richiesteRows) {
-          const anag = (r.dati_correnti?.anagrafica ?? {}) as Record<string, unknown>;
-          const viaAnag = testo(anag.via);
-          const ids = {
-            pdr: testo(anag.pdr) ?? undefined,
-            matricola: testo(anag.matricola) ?? undefined,
-            odl: testo(anag.odl) ?? undefined,
-            indirizzo: viaAnag ?? undefined,
-          };
-          infoPerRichiesta.set(r.id, {
-            via: (r.parent_voce_id ? viaPerVoce.get(r.parent_voce_id) ?? null : null) ?? viaAnag,
-            matricola: testo(anag.matricola),
-            fallbackId: identificativoFoto(ids, fotoPriority),
-          });
-        }
-        entriesTaskVia = buildZipEntriesTaskVia(fotoManualiRows, infoPerRichiesta);
-      } else {
-        // Flusso storico (rapportini senza task-via): file_name salvato + collisioni.
-        fotoManuali.push(...fotoManualiRows.map(({ richiesta_id, storage_path, file_name }) => ({
-          richiesta_id,
-          storage_path,
-          file_name,
-        })));
+      if (richiesteItalgasSel.length > 0) {
+        const infoPerRichiesta = await buildInfoPerRichiesta(richiesteItalgasSel, vociById);
+        entriesTaskVia = buildZipEntriesTaskVia(
+          fotoManualiRows.filter((f) => infoPerRichiesta.has(f.richiesta_id)),
+          infoPerRichiesta,
+        );
       }
+      fotoManuali.push(...fotoManualiRows
+        .filter((f) => richiesteAltreIds.has(f.richiesta_id))
+        .map(({ richiesta_id, storage_path, file_name }) => ({ richiesta_id, storage_path, file_name })));
     }
   }
+  // voceId (classico, non-italgas): nessuna foto manuale inclusa — comportamento storico.
 
   // ── 4. Fonte B: foto nei campi tipo='foto' delle voci (risposte[campo.chiave]) ─
   // Le chiavi foto sono l'UNIONE di quelle del rapportino + quelle per-voce (flusso del
   // gruppo attività della voce): un rapportino misto scarica le foto di tutti i flussi.
+  // Non si applica al download per-via (`haVia`): quel percorso è dedicato al gruppo
+  // Italgas mobile, non alle voci classiche con foto in `risposte`.
   const fotoVoci: FotoZip[] = [];
-  {
+  if (!haVia) {
     const campiFotoZip = unioneCampi(
       campiSnapshot,
       tipizzate.map((v) => (Array.isArray(v.campi_snapshot) ? (v.campi_snapshot as TemplateCampo[]) : null)),
@@ -178,7 +233,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
 
   // ── 4-bis. Fonte C: foto delle righe-misuratore (risanamento), scope='misuratore' ─
   const fotoRighe: FotoZip[] = [];
-  if (!voceId) {
+  if (!voceId && !haVia) {
     const campiMisuratore = campiFoto.filter((c) => ((c as { scope_foto?: string }).scope_foto ?? 'misuratore') === 'misuratore');
     if (campiMisuratore.length > 0) {
       const { data: righeRows } = await supabaseAdmin
@@ -234,6 +289,9 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   if (voceId) {
     const base = (voceForName?.via || voceForName?.odl || `voce-${voceId}`).replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
     fileName = `foto-${base || 'voce'}.zip`;
+  } else if (haVia) {
+    const base = (viaParam || 'indirizzo').replace(/[^a-zA-Z0-9-_]+/g, '-').replace(/^-+|-+$/g, '');
+    fileName = `foto-${base || 'indirizzo'}.zip`;
   }
   const headers: Record<string, string> = {
     'Content-Type': 'application/zip',

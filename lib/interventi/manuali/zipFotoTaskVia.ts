@@ -1,7 +1,8 @@
-// PURA: layout ZIP delle foto per i giri task-via (BONIFICHE EXTRA).
-// Struttura richiesta dall'ufficio: una cartella per VIA (quella del task-via padre)
-// e, al suo interno, foto rinominate per MATRICOLA + slot (vecchio / nuovo / minibag):
-//   <Via del task>/<matricola>_<slot>.<ext>
+// PURA: layout ZIP delle foto delle richieste manuali "Italgas mobile" (BONIFICHE EXTRA
+// e ad-hoc: vedi gruppiFotoItalgas.ts per come si risolve la via, con o senza contenitore
+// task-via). Struttura richiesta dall'ufficio: una cartella per VIA e, al suo interno, foto
+// rinominate per MATRICOLA + slot (vecchio / nuovo / minibag):
+//   <Via>/<matricola>_<slot>.<ext>
 // I nomi si ricalcolano QUI dai dati correnti (post-approvazione), non dal file_name
 // salvato all'upload: se il backoffice corregge la matricola, lo ZIP la riflette.
 
