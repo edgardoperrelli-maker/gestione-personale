@@ -5,6 +5,13 @@
 
 ## Fatto
 
+- ✅ **Template import: COMMITTENTE auto e non modificabile** *(2026-07-21)* — il template
+  Excel scaricabile (`/api/interventi/template`) ha la nuova colonna COMMITTENTE popolata
+  in automatico dalla DESCRIZIONE ATTIVITÀ (VLOOKUP sulla Leggenda, come il GRUPPO) e
+  protetta: foglio Interventi con protezione senza password, bloccate SOLO le colonne
+  derivate GRUPPO ATTIVITA' + COMMITTENTE, tutto il resto libero (COMUNE/territorio,
+  esecutore, ecc.); Leggenda in sola lettura. Il parser ignora la colonna (il committente
+  vero lo deriva il server per singolo task dalla tassonomia).
 - ✅ **Copertura totale attività → azioni (fase 4 Azioni operatori)** *(2026-07-21)* — ogni
   card intervento del rapportino risolve le azioni della SUA attività, anche nei giri misti:
   (a) `taskToIntervento` deriva committente+gruppo del singolo task dalla tassonomia (prova il
