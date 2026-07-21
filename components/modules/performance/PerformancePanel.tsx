@@ -23,7 +23,7 @@ export default function PerformancePanel({
   minDate: string | null;
 }) {
   const options: FilterOptions = { operatori, territori, committenti, gruppi, attivita, minDate };
-  // Default = mese corrente (così i grafici mostrano subito dati senza impostare filtri).
+  // Default = ultimi 30 giorni (così i grafici mostrano subito dati senza impostare filtri).
   const initial = useMemo<PerfFilters>(() => {
     const d = new Date();
     const today = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -38,7 +38,7 @@ export default function PerformancePanel({
     <div className="space-y-4">
       <div className="flex items-center gap-2">
         <Badge variant="warning">Admin Plus</Badge>
-        <span className="text-xs text-[var(--brand-text-muted)]">Ogni grafico ha i suoi filtri indipendenti · default: mese corrente</span>
+        <span className="text-xs text-[var(--brand-text-muted)]">Ogni grafico ha i suoi filtri indipendenti · default: ultimi 30 giorni</span>
       </div>
       <PerformanceEsiti allRows={rows} options={options} initial={initial} />
       <PerformanceGiornaliera allRows={rows} options={options} initial={initial} />

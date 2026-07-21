@@ -2,14 +2,15 @@
 // canonica presente in tassonomia. Chiave e valore sono FORME NORMALIZZATE
 // (come `chiaveTassonomia`: maiuscolo, senza accenti, spazi collassati).
 //
-// Un solo chokepoint (`risolviGruppo`) li applica, quindi DUE consumatori li ereditano:
-//  - modulo Performance (lettura): accorpa i duplicati nei filtri → una voce per attività reale;
-//  - import/scrittura: AUTO-ALLINEAMENTO — una descrizione fuorviante non rifiuta più il file,
-//    viene riscritta nella forma canonica.
+// Applicati SOLO in lettura, opt-in, da `risolviGruppo(..., { allinea: true })`, usato dal
+// modulo Performance per accorpare i duplicati/typo nei filtri (una voce per attività reale).
+// I write-path NON li applicano: lo storage resta grezzo, così dedup (identitaIntervento) e
+// listino produzione (`acea_attivita_alias`) non cambiano. L'auto-allineamento in scrittura è
+// una fase separata (va gestita anche sui consumatori del testo grezzo, non solo qui).
 //
-// INVARIANTE (verificata in test): ogni valore canonico esiste in tassonomia e appartiene
-// allo STESSO gruppo della variante. Così i consumatori che usano solo il gruppo (export
-// lim_massive `gruppo_attivita='LIMITAZIONI MASSIVE'`, KPI, storico) NON cambiano comportamento.
+// INVARIANTE (coperta da tassonomia.test.ts): ogni valore canonico è un literal della
+// tassonomia (seed 20260720150000) e appartiene allo STESSO gruppo della variante — così anche
+// se un domani fossero usati altrove, i consumatori che leggono solo il gruppo non cambiano.
 //
 // Copre solo casi "Sicuri": typo, punteggiatura, stesso codice ATLAS con/senza descrizione,
 // singolare/plurale della stessa attività. NON accorpa varianti realmente distinte
