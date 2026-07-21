@@ -5,6 +5,21 @@
 
 ## Fatto
 
+- ✅ **Consolle Azioni operatori + rifiniture motore (fase 5)** *(2026-07-21)* — redesign del
+  modulo su architettura per-attività: rail con stato di copertura, panoramica-registro (KPI,
+  chip delle azioni per attività, slot espliciti del modello «+», «Da sistemare», Archiviati),
+  editor con anteprima-telefono costruita sui componenti REALI dell'operatore e checklist di
+  verifica in creazione; Archivia/riattiva accanto a Elimina (il payload ordinario non forza
+  più `active=true`, che resuscitava gli archiviati); pill di salvataggio mai silenziosa (il
+  blocco di validazione dichiara sempre il motivo). Motore: titolo/dettagli della card risolti
+  PER-VOCE live dal flusso della sua attività (`rapportino_voci.template_id`, fallback
+  rapportino per lo storico); GET admin dei template protetta da `requireAdmin` (era pubblica);
+  `is_default` ritirato da tutti i consumatori; modello del «+» reso UNIVOCO per committente
+  (indice unico parziale + 409 cortese) e "Pronto Intervento" riservato al modulo P.I. via
+  flag `riservato_pi` (via l'aggancio per nome in `api/admin/pi/token`). Migrations **DA
+  APPLICARE al deploy**: `20260721120000_modello_plus_riservato_pi` (colonna + data-fix +
+  indice) e `20260721130000_archivia_flussi_obsoleti` (Ibrido acea, IBRIDO ITALGAS/ACEA).
+  Rimosso il modulo orfano `impostazioni/template-rapportini`.
 - ✅ **Template import: COMMITTENTE auto e non modificabile** *(2026-07-21)* — il template
   Excel scaricabile (`/api/interventi/template`) ha la nuova colonna COMMITTENTE popolata
   in automatico dalla DESCRIZIONE ATTIVITÀ (VLOOKUP sulla Leggenda, come il GRUPPO) e
