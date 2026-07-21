@@ -95,3 +95,15 @@ describe('campiObbligatoriMancantiVoci', () => {
     ]);
   });
 });
+
+describe('campiObbligatoriMancantiVoci — titolo per-voce (flusso della voce)', () => {
+  it('usa titolo_campi della voce quando presente, fallback al rapportino altrimenti', () => {
+    const campi = [campo('firma', { obbligatoria: true, etichetta: 'Firma' })];
+    const voci = [
+      { nominativo: 'Mario', pdr: 'PDR-1', risposte: {}, titolo_campi: ['pdr' as const] },
+      { nominativo: 'Luisa', pdr: 'PDR-2', risposte: {} },
+    ];
+    const out = campiObbligatoriMancantiVoci(voci, campi, ['nominativo']);
+    expect(out.map((o) => o.titolo)).toEqual(['PDR-1', 'Luisa']);
+  });
+});

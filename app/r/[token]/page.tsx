@@ -148,18 +148,41 @@ export default async function RapportinoPublicPage({
     .order('ordine');
 
   // Campi per-voce (flusso del gruppo attività dell'intervento): query separata e resiliente —
-  // se la colonna non esiste ancora (migration non applicata) si resta sui campi del rapportino.
+  // se le colonne non esistono ancora (migration non applicata) si resta sui campi del rapportino.
   const campiVoceById = new Map<string, TemplateCampo[]>();
+  const tplIdByVoceId = new Map<string, string>();
   {
     const { data: snapRows, error: eSnap } = await supabaseAdmin
       .from('rapportino_voci')
-      .select('id, campi_snapshot')
+      .select('id, campi_snapshot, template_id')
       .eq('rapportino_id', rap.id);
     if (!eSnap) {
-      for (const r of (snapRows ?? []) as Array<{ id: string; campi_snapshot: unknown }>) {
+      for (const r of (snapRows ?? []) as Array<{ id: string; campi_snapshot: unknown; template_id: string | null }>) {
         if (Array.isArray(r.campi_snapshot) && r.campi_snapshot.length > 0) {
           campiVoceById.set(r.id, (r.campi_snapshot as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine));
         }
+        if (r.template_id) tplIdByVoceId.set(r.id, r.template_id);
+      }
+    }
+  }
+
+  // Titolo e dettagli PER-VOCE, letti LIVE dal flusso della voce (voce.template_id): nei
+  // rapportini misti ogni card segue la config del SUO flusso, e modificarla in Azioni
+  // operatori si riflette subito. Template cancellato o voce storica senza template_id →
+  // si resta sulla config del rapportino (comportamento precedente, nessuna regressione).
+  const displayByTplId = new Map<string, { titolo: InfoChiave[]; info: TemplateInfoCampo[] }>();
+  {
+    const ids = [...new Set(tplIdByVoceId.values())];
+    if (ids.length > 0) {
+      const { data: tplVoceRows } = await supabaseAdmin
+        .from('rapportino_template')
+        .select('id, titolo_campi, info_campi')
+        .in('id', ids);
+      for (const t of (tplVoceRows ?? []) as Array<{ id: string; titolo_campi: unknown; info_campi: unknown }>) {
+        displayByTplId.set(t.id, {
+          titolo: (Array.isArray(t.titolo_campi) ? t.titolo_campi : []) as InfoChiave[],
+          info: (Array.isArray(t.info_campi) ? t.info_campi : []) as TemplateInfoCampo[],
+        });
       }
     }
   }
@@ -219,6 +242,8 @@ export default async function RapportinoPublicPage({
     approvazione_stato: v.approvazione_stato ?? null,
     motivo_rifiuto: v.richiesta_id ? (motivoByRichiesta[v.richiesta_id] ?? null) : null,
     campi: campiVoceById.get(v.id),
+    titolo_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.titolo,
+    info_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.info,
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])
