@@ -48,11 +48,19 @@ export async function buildTemplateImport(
     const row = ws.getRow(r);
     row.getCell(colDescr).dataValidation = validazioneDescr;
     // UPPER+TRIM avvicina la chiave della Leggenda (che è l'upper della canonica).
+    // INDIRECT("<col>"&ROW()) invece di un riferimento relativo (es. G2): la formula
+    // punta SEMPRE alla DESCRIZIONE della propria riga fisica, indipendentemente da
+    // taglia/incolla, inserimento/cancellazione di righe o riordino in Excel. Un
+    // riferimento relativo, se l'utente riusa il file svuotandolo e re-incollando i
+    // dati, si sfasa (il riferimento resta a una riga sbagliata e GRUPPO/COMMITTENTE
+    // non si autocompilano più); INDIRECT+ROW() è immune perché si ricostruisce a ogni
+    // ricalcolo dalla posizione della cella. Sempre avvolto in IFERROR (best-effort).
+    const descrCorrente = `INDIRECT("${letteraDescr}"&ROW())`;
     row.getCell(colGruppo).value = {
-      formula: `IFERROR(VLOOKUP(UPPER(TRIM(${letteraDescr}${r})),Leggenda!$A:$D,3,FALSE),"")`,
+      formula: `IFERROR(VLOOKUP(UPPER(TRIM(${descrCorrente})),Leggenda!$A:$D,3,FALSE),"")`,
     } as ExcelJS.CellFormulaValue;
     row.getCell(colCommittente).value = {
-      formula: `IFERROR(VLOOKUP(UPPER(TRIM(${letteraDescr}${r})),Leggenda!$A:$D,4,FALSE),"")`,
+      formula: `IFERROR(VLOOKUP(UPPER(TRIM(${descrCorrente})),Leggenda!$A:$D,4,FALSE),"")`,
     } as ExcelJS.CellFormulaValue;
     // Protezione foglio: di default le celle sono "locked" → sblocca tutte le colonne
     // compilabili (COMUNE/territorio, esecutore, ecc.); restano bloccate SOLO le derivate.
