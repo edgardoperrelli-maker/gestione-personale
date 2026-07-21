@@ -32,12 +32,30 @@ const nomeCampo = (c: TemplateCampo): string => `${c.chiave} ${c.etichetta}`;
  * di questa voce. Le foto già `obbligatoria === true` non passano da qui: restano
  * obbligatorie a prescindere.
  */
+/** True se la risposta del trigger attiva la condizione (crocetta: spuntata; select: valore uguale). */
+function condizioneAttiva(trigger: TemplateCampo, risposta: unknown, valore: string): boolean {
+  if (trigger.tipo === 'crocetta') return risposta === true;
+  return typeof risposta === 'string' && risposta.trim().toLowerCase() === valore.trim().toLowerCase();
+}
+
 export function slotFotoCondizionali(
   campi: TemplateCampo[],
   risposte: Record<string, unknown>,
 ): Set<string> {
   const out = new Set<string>();
   const lista = campi ?? [];
+
+  // 1) Condizioni CONFIGURATE dal modulo Azioni operatori (obbligatoria_se sul campo foto):
+  //    «se SARACINESCA = SI → foto saracinesca obbligatoria». Trigger sparito dal flusso
+  //    (rinominato/eliminato altrove) → fail-open: la foto resta facoltativa, mai bloccante.
+  for (const c of lista) {
+    if (c.tipo !== 'foto' || !c.obbligatoria_se?.chiave) continue;
+    const trigger = lista.find((t) => t.chiave === c.obbligatoria_se!.chiave && (t.tipo === 'crocetta' || t.tipo === 'select'));
+    if (!trigger) continue;
+    if (condizioneAttiva(trigger, risposte?.[trigger.chiave], c.obbligatoria_se.valore ?? '')) out.add(c.chiave);
+  }
+
+  // 2) Regole LEGACY riconosciute per nome (retro-compat coi template storici, es. valvola).
   for (const regola of REGOLE) {
     const attiva = lista.some((c) => {
       if (c.tipo !== 'select' && c.tipo !== 'crocetta') return false;
