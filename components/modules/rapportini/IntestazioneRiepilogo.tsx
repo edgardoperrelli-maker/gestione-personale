@@ -28,15 +28,11 @@ export function IntestazioneRiepilogo({
         <span className="inline-flex items-center rounded-full bg-[var(--status-ok-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--status-ok)]">✓ {eseguiti}</span>
         <span className="inline-flex items-center rounded-full bg-[var(--status-ko-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--status-ko)]">✗ {nonEseguiti}</span>
         <span className="inline-flex items-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-0.5 text-[11px] font-bold text-[var(--brand-text-subtle)]">{daFare} da fare</span>
+        {(mostraSaracinesche || saracinesche > 0) && (
+          <span title="Saracinesche esitate" className="inline-flex items-center gap-1 rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[11px] font-bold text-[var(--primary-text)]">Saracinesche {saracinesche}</span>
+        )}
         <span className="ml-auto text-[11px] font-semibold tabular-nums text-[var(--brand-text-subtle)]">{completati}/{totali}</span>
       </div>
-
-      {(mostraSaracinesche || saracinesche > 0) && (
-        <div className="mt-1.5 flex items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5">
-          <span className="text-xs font-semibold text-[var(--brand-text-muted)]">Saracinesche esitate</span>
-          <span className="inline-flex min-w-[1.75rem] items-center justify-center rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-sm font-bold tabular-nums text-[var(--primary-text)]">{saracinesche}</span>
-        </div>
-      )}
 
       {lavorazioni.length > 0 && (
         <div className="mt-1.5 flex flex-wrap gap-1.5">
