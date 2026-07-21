@@ -569,10 +569,10 @@ export default function RapportinoForm({
           inAttesa={inAttesa}
           online={online}
           onApri={() => setModaleSyncAperta(true)}
-          // Sopra la lente (9.5rem) quando c'è; nel risanamento (niente lente) sopra il "+" (5.5rem).
+          // Sopra la lente (9rem) quando c'è; nel risanamento (niente lente) sopra il "+" (5.5rem).
           bottom={tipo !== 'risanamento'
-            ? 'calc(13.5rem + env(safe-area-inset-bottom))'
-            : 'calc(9.5rem + env(safe-area-inset-bottom))'}
+            ? 'calc(12.5rem + env(safe-area-inset-bottom))'
+            : 'calc(9rem + env(safe-area-inset-bottom))'}
         />
       )}
       {modaleSyncAperta && (

@@ -338,7 +338,11 @@ button { background-color: transparent; color: inherit; border: none; }
 html { font-size: 16px; }
 @media (max-width: 1024px) {
   html { font-size: 17px; }
-  input, select, textarea, button { font-size: 1rem !important; min-height: 44px; }
+  /* ≥16px sui campi form: evita lo zoom automatico di iOS Safari al focus.
+     Vale SOLO per i campi: sui button forzava 1rem !important annullando le
+     classi text-* di Tailwind e facendo sbordare le UI compatte su iPhone. */
+  input, select, textarea { font-size: 1rem !important; }
+  input, select, textarea, button { min-height: 44px; }
 }
 @media (max-width: 768px) {
   html { font-size: 18px; }
