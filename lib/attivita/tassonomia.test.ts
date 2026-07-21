@@ -67,3 +67,27 @@ describe('risolviGruppo', () => {
     expect(risolviGruppo('acea', 'RESINE', index)).toBeNull();
   });
 });
+
+describe('risolviGruppo + alias attività (auto-allineamento)', () => {
+  const index = buildTassonomiaIndex([
+    riga({ committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE' }),
+    riga({ committente: 'italgas', descrizione: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', descrizioneNorm: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', gruppo: "ATTIVITA' ALLA CLIENTELA" }),
+  ]);
+
+  it('typo/variante acea → forma canonica, stesso gruppo', () => {
+    for (const v of ['LIMITAZIONE MASSIVA', 'LIMITAZIONI MASSICE', 'limitazioni massice']) {
+      const r = risolviGruppo('acea', v, index);
+      expect(r?.descrizione).toBe('LIMITAZIONI MASSIVE');
+      expect(r?.gruppo).toBe('LIMITAZIONI MASSIVE');
+    }
+  });
+  it('lim_massive eredita l’alias acea', () => {
+    expect(risolviGruppo('lim_massive', 'LIMITAZIONE MASSIVA', index)?.descrizione).toBe('LIMITAZIONI MASSIVE');
+  });
+  it('codice ATLAS nudo italgas → forma con descrizione (stesso codice)', () => {
+    expect(risolviGruppo('italgas', 'DIS00N', index)?.descrizione).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
+  });
+  it("committente 'altro' applica l’alias sul fallback", () => {
+    expect(risolviGruppo('altro', 'DIS00N', index)?.gruppo).toBe("ATTIVITA' ALLA CLIENTELA");
+  });
+});

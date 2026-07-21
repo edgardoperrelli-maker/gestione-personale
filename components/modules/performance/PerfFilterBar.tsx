@@ -1,6 +1,7 @@
 'use client';
 import { type PerfFilters, type SelectOption, formatItDate } from '@/lib/performance/shape';
 import Button from '@/components/Button';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -15,7 +16,9 @@ export interface FilterOptions {
   minDate: string | null;
 }
 
-/** Barra filtri compatta e indipendente, usata da ogni grafico KPI. */
+const trigger = 'border border-[var(--brand-border)] bg-[var(--brand-surface)]';
+
+/** Barra filtri compatta e indipendente (multi-selezione), usata da ogni grafico KPI. */
 export default function PerfFilterBar({
   value, onChange, options, showOperatore = true,
 }: {
@@ -61,30 +64,30 @@ export default function PerfFilterBar({
       {/* Divider */}
       <div className="hidden h-5 w-px bg-[var(--brand-border)] sm:block" aria-hidden />
 
-      {/* Cluster Segmentazione */}
+      {/* Cluster Segmentazione (multi-selezione: nessuna selezione = tutti) */}
       <div className="flex flex-wrap items-center gap-1.5">
         {showOperatore && (
-          <select value={value.staffId} onChange={(e) => set({ staffId: e.target.value })} className={field} aria-label="Operatore">
-            <option value="">Tutti gli operatori</option>
-            {options.operatori.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
-          </select>
+          <div className="min-w-[9rem]">
+            <MultiSelect label="Operatori" ariaLabel="Operatori" triggerClassName={trigger}
+              options={options.operatori} values={value.staffIds} onChange={(staffIds) => set({ staffIds })} />
+          </div>
         )}
-        <select value={value.committente} onChange={(e) => set({ committente: e.target.value })} className={field} aria-label="Committente">
-          <option value="">Tutti i committenti</option>
-          {options.committenti.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
-        </select>
-        <select value={value.gruppo} onChange={(e) => set({ gruppo: e.target.value })} className={field} aria-label="Gruppo attività">
-          <option value="">Tutti i gruppi</option>
-          {options.gruppi.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
-        </select>
-        <select value={value.attivita} onChange={(e) => set({ attivita: e.target.value })} className={field} aria-label="Attività">
-          <option value="">Tutte le attività</option>
-          {options.attivita.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
-        </select>
-        <select value={value.territorioId} onChange={(e) => set({ territorioId: e.target.value })} className={field} aria-label="Territorio">
-          <option value="">Tutti i territori</option>
-          {options.territori.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}
-        </select>
+        <div className="min-w-[9rem]">
+          <MultiSelect label="Committenti" ariaLabel="Committenti" triggerClassName={trigger}
+            options={options.committenti} values={value.committenti} onChange={(committenti) => set({ committenti })} />
+        </div>
+        <div className="min-w-[9rem]">
+          <MultiSelect label="Gruppi" ariaLabel="Gruppi attività" triggerClassName={trigger}
+            options={options.gruppi} values={value.gruppi} onChange={(gruppi) => set({ gruppi })} />
+        </div>
+        <div className="min-w-[9rem]">
+          <MultiSelect label="Attività" ariaLabel="Attività" triggerClassName={trigger}
+            options={options.attivita} values={value.attivita} onChange={(attivita) => set({ attivita })} />
+        </div>
+        <div className="min-w-[9rem]">
+          <MultiSelect label="Territori" ariaLabel="Territori" triggerClassName={trigger}
+            options={options.territori} values={value.territorioIds} onChange={(territorioIds) => set({ territorioIds })} />
+        </div>
         <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-[var(--brand-text-muted)]">
           <input type="checkbox" checked={value.soloValvola} onChange={(e) => set({ soloValvola: e.target.checked })} className="accent-[var(--brand-primary)]" />
           Solo saracinesca

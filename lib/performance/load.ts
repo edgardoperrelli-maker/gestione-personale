@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { GRUPPO_NON_CENSITO, labelCommittente, type ClientRow, type SelectOption } from '@/lib/performance/shape';
 import { valoreSaracinesca } from '@/lib/limitazione/exportLimMassive';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, committenteEquivalente, risolviGruppo } from '@/lib/attivita/tassonomia';
 
 const STATO_CONTEGGIABILE = 'completato';
 const PAGE = 1000;
@@ -98,7 +98,10 @@ export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
 
   const rows: ClientRow[] = raw.map((r) => {
     // Tassonomia reale (committente, descrizione) → gruppo + forma canonica della descrizione.
-    const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex);
+    // Fallback 'altro' (prova acea poi italgas) come in taskToIntervento: un codice ATLAS
+    // italgas loggato sotto 'acea' risolve comunque alla sua attività/gruppo reali.
+    const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex)
+      ?? risolviGruppo('altro', r.intervento_tipo, tassIndex);
     return {
       id: r.id,
       staffId: r.staff_id ?? '',
@@ -106,7 +109,9 @@ export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
       data: r.data.slice(0, 10),
       territorioId: r.territorio_id ?? '',
       territorio: (r.territorio_id && maps.territoryName.get(r.territorio_id)) || 'Senza territorio',
-      committente: (r.committente ?? '').trim(),
+      // Committente canonico = quello dell'attività risolta (lim_massive→acea, codice italgas
+      // sotto acea→italgas). Se non risolta, l'equivalente del valore grezzo (Q1).
+      committente: committenteEquivalente(riga?.committente ?? r.committente) || (r.committente ?? '').trim(),
       gruppo: riga?.gruppo ?? GRUPPO_NON_CENSITO,
       attivita: riga?.descrizione ?? (r.intervento_tipo ?? '').trim(),
       valvola: valvolaSet.has(r.id),
