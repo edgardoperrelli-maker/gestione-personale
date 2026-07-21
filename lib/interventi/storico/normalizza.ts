@@ -5,6 +5,8 @@ import type { RigaStorico, VoceStoricoRow, RapportinoEmbed, InterventoEmbed, Con
 import type { SiNoFiltro } from './filtri';
 
 export type TassonomiaIndex = Map<string, TassonomiaRiga>;
+/** Mappa territories.id → name (es. 'LAZIO EST'). */
+export type TerritoriById = Map<string, string>;
 
 const SI = new Set(['si', 'sì', 'true', 'x', '1', 'vero', 'y', 'yes', '✓']);
 const NO = new Set(['no', 'false', '0', 'falso', 'n']);
@@ -55,10 +57,18 @@ function gruppoRiga(
   return risolviGruppo(committente ?? 'altro', descrizione, tassonomia)?.gruppo ?? null;
 }
 
+/** Nome del territorio dall'id dell'intervento collegato, null se non risolvibile. */
+function territorioRiga(territorioId: string | null | undefined, territori: TerritoriById | undefined): string | null {
+  const id = nz(territorioId);
+  if (!id || !territori) return null;
+  return nz(territori.get(id));
+}
+
 export function voceToRigaStorico(
   row: VoceStoricoRow,
   staffById: Map<string, string>,
   tassonomia?: TassonomiaIndex,
+  territori?: TerritoriById,
 ): RigaStorico {
   const r = (row.risposte ?? {}) as Record<string, unknown>;
   const rapp = rappOf(row.rapportini);
@@ -79,6 +89,7 @@ export function voceToRigaStorico(
     gruppoAttivita: nz(row.attivita),
     committente,
     gruppo: gruppoRiga(int?.gruppo_attivita, committente, row.attivita, tassonomia),
+    territorio: territorioRiga(int?.territorio_id, territori),
     eseguito: siNo(r['eseguito']),
     sostValvola: siNo(r['sostituzione_valvola']),
     miniBag: siNo(miniBag),
@@ -99,6 +110,7 @@ export type InterventoPiRow = {
   intervento_tipo: string | null;
   committente: string | null;
   gruppo_attivita: string | null;
+  territorio_id: string | null;
   esito: string | null;
   esito_motivo: string | null;
 };
@@ -108,6 +120,7 @@ export function interventoPiToRigaStorico(
   row: InterventoPiRow,
   staffById: Map<string, string>,
   tassonomia?: TassonomiaIndex,
+  territori?: TerritoriById,
 ): RigaStorico {
   const committente = committenteRiga(row.committente);
   return {
@@ -123,6 +136,7 @@ export function interventoPiToRigaStorico(
     committente,
     // Un P.I. senza gruppo scritto né tassonomia ricade nel gruppo 'P.I.' (è la sua natura).
     gruppo: gruppoRiga(row.gruppo_attivita, committente, row.intervento_tipo, tassonomia) ?? 'P.I.',
+    territorio: territorioRiga(row.territorio_id, territori),
     eseguito: row.esito === 'eseguito_positivo' ? 'SI' : siNo(row.esito),
     sostValvola: '—',
     miniBag: '—',
@@ -152,20 +166,23 @@ export function filtraSiNo(
   );
 }
 
-/** Filtro multi-valore su committente effettivo e gruppo attività risolto (liste vuote = tutti).
+/** Filtro multi-valore su committente effettivo, gruppo attività risolto e territorio
+ * (liste vuote = tutti; più valori dello stesso filtro in OR, filtri diversi in AND).
  * Una riga senza valore (voce legacy non collegata / descrizione fuori tassonomia) non matcha
  * un filtro attivo: comportamento coerente con gli altri filtri per-campo. */
-export function filtraCommittenteGruppo(
+export function filtraMulti(
   righe: RigaStorico[],
-  f: { committenti: string[]; gruppi: string[] },
+  f: { committenti: string[]; gruppi: string[]; territori: string[] },
 ): RigaStorico[] {
-  if (f.committenti.length === 0 && f.gruppi.length === 0) return righe;
+  if (f.committenti.length === 0 && f.gruppi.length === 0 && f.territori.length === 0) return righe;
   const setC = new Set(f.committenti.map((c) => committenteEquivalente(c)));
   const setG = new Set(f.gruppi.map((g) => g.trim().toUpperCase()));
+  const setT = new Set(f.territori.map((t) => t.trim().toUpperCase()));
   return righe.filter(
     (r) =>
       (setC.size === 0 || (r.committente != null && setC.has(r.committente))) &&
-      (setG.size === 0 || (r.gruppo != null && setG.has(r.gruppo.toUpperCase()))),
+      (setG.size === 0 || (r.gruppo != null && setG.has(r.gruppo.toUpperCase()))) &&
+      (setT.size === 0 || (r.territorio != null && setT.has(r.territorio.toUpperCase()))),
   );
 }
 

@@ -5,7 +5,7 @@ import { parseFiltriStorico, risolviFinestra, puliziaQ, nessunFiltro } from './f
 describe('parseFiltriStorico', () => {
   it('default vuoto: tutti null/vuoti, page 0', () => {
     expect(parseFiltriStorico(new URLSearchParams())).toEqual({
-      q: '', data: null, dal: null, al: null, esecutori: [], gruppi: [], committenti: [], comune: '',
+      q: '', data: null, dal: null, al: null, esecutori: [], gruppi: [], committenti: [], territori: [], comune: '',
       eseguito: null, sostValvola: null, miniBag: null, rgStop: null, page: 0,
     });
   });
@@ -25,10 +25,12 @@ describe('parseFiltriStorico', () => {
       ['esecutore', 's1'], ['esecutore', ' s2 '], ['esecutore', 's1'], ['esecutore', '  '],
       ['gruppo', 'DUNNING'], ['gruppo', 'LIMITAZIONI MASSIVE'],
       ['committente', 'acea'], ['committente', 'italgas'],
+      ['territorio', 'LAZIO EST'], ['territorio', ' FIRENZE '],
     ]));
     expect(f.esecutori).toEqual(['s1', 's2']);
     expect(f.gruppi).toEqual(['DUNNING', 'LIMITAZIONI MASSIVE']);
     expect(f.committenti).toEqual(['acea', 'italgas']);
+    expect(f.territori).toEqual(['LAZIO EST', 'FIRENZE']);
   });
   it('filtri SI/NO: solo SI o NO, altrimenti null', () => {
     const f = parseFiltriStorico(new URLSearchParams({ eseguito: 'SI', sostValvola: 'NO', miniBag: 'x', rgStop: 'SI' }));
@@ -68,6 +70,7 @@ describe('nessunFiltro', () => {
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ esecutore: 's1' })))).toBe(false);
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ gruppo: 'DUNNING' })))).toBe(false);
     expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ committente: 'acea' })))).toBe(false);
+    expect(nessunFiltro(parseFiltriStorico(new URLSearchParams({ territorio: 'FIRENZE' })))).toBe(false);
   });
 });
 

@@ -18,6 +18,8 @@ export type RigaStorico = {
   committente: string | null;
   /** Gruppo della tassonomia attività (es. 'DUNNING'), risolto da intervento collegato o da (committente, attivita). */
   gruppo: string | null;
+  /** Territorio/contratto (nome da `territories`) dell'intervento collegato, null se non collegato. */
+  territorio: string | null;
   eseguito: string; // 'SI' | 'NO' | '—'
   sostValvola: string; // 'SI' | 'NO' | '—'
   miniBag: string; // 'SI' | 'NO' | '—'
@@ -36,6 +38,7 @@ export type RapportinoEmbed = {
 export type InterventoEmbed = {
   committente: string | null;
   gruppo_attivita: string | null;
+  territorio_id: string | null;
 };
 
 /** Riga grezza letta da `rapportino_voci` con il rapportino padre embedded. */
