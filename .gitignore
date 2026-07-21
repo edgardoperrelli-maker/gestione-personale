@@ -21,3 +21,6 @@ public/swe-worker-*.js
 /test-results
 /playwright-report
 /e2e/.cache
+
+# Playwright: config locale per ambienti con Chromium pre-installato (path macchina-specifici)
+playwright.local.config.ts
