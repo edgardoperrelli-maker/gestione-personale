@@ -20,7 +20,8 @@ import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { accodaManuale } from '@/lib/offline/persistManuale';
 import { sincronizzaToken } from '@/lib/offline/sync';
 import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
-import { committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { opzioniAttivitaManuale } from '@/lib/interventi/manuali/opzioniAttivitaManuale';
 
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
@@ -82,15 +83,16 @@ export function ModaleInterventoManuale({
   // Etichetta del campo attività: quella del template se lo dichiara, altrimenti il default
   // (la select si renderizza comunque: il campo è di tassonomia, non di template).
   const etichettaAttivita = campiAnag.find((c) => c.chiave === 'attivita')?.etichetta ?? 'DESCRIZIONE ATTIVITÀ';
+  // `parentVoceId` valorizzato ⟺ "+" aperto sotto un task-via (voce contenitore BONIFICHE EXTRA):
+  // lì la classificazione lato server è SEMPRE Italgas + BONIFICHE EXTRA, quindi la select offre
+  // la SOLA "BONIFICHE EXTRA" (niente lista completa Italgas, che sarebbe fuorviante).
+  const soloBonificheExtra = Boolean(parentVoceId);
   // Descrizione attività: lista chiusa dalla tassonomia (spec §7), filtrata per committente
   // equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive, nessuna riga propria).
-  const opzioniAttivita = useMemo(() => {
-    const ce = committente ? committenteEquivalente(committente) : null;
-    const attive = (tassonomia ?? []).filter((t) => t.attivo);
-    if (!ce) return [];
-    if (ce === 'altro') return attive;
-    return attive.filter((t) => t.committente === ce);
-  }, [tassonomia, committente]);
+  const opzioniAttivita = useMemo(
+    () => opzioniAttivitaManuale(tassonomia, committente, { soloBonificheExtra }),
+    [tassonomia, committente, soloBonificheExtra],
+  );
   // Lo STANDARD (template del rapportino) comanda; il template manuale del committente fa
   // override SOLO se valorizzato. Vuoto ⇒ eredita lo standard → "modifico lo standard, segue il +".
   const override = committente ? campiPerCommittente[committente] : undefined;

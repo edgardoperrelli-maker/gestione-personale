@@ -4,7 +4,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { buildZipEntries, type FotoZip } from '@/lib/interventi/manuali/buildZipEntries';
 import { buildZipEntriesTaskVia, type FotoManualeZip, type InfoRichiestaTaskVia } from '@/lib/interventi/manuali/zipFotoTaskVia';
-import { isTaskVia, voceTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { isTaskVia, contenitoreTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
@@ -90,7 +90,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ rapporti
   // (interventi_manuali_foto) e lo ZIP va organizzato per VIA / matricola.
   const giroTaskVia = tplTaskVia || tipizzate.some((v) => isTaskVia(v));
   const voceContenitore =
-    !!voceId && !!tipizzate[0] && tipizzate[0].manuale !== true && voceTaskVia(tipizzate[0], { tutto: tplTaskVia });
+    !!voceId && !!tipizzate[0] && contenitoreTaskVia(tipizzate[0], { tutto: tplTaskVia });
 
   // ── 3. Fonte A: foto da interventi manuali (tabella interventi_manuali_foto) ───
   // Intero rapportino: tutte le richieste. Per-voce: SOLO se la voce è un task-via

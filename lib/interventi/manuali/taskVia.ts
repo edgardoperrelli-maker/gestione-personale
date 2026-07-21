@@ -26,3 +26,23 @@ export function voceTaskVia(
   if (modalita.tutto) return true;
   return isTaskVia(voce);
 }
+
+/**
+ * PURA: la voce è un CONTENITORE task-via (via-only: apre TaskViaFocus, è esclusa da esito,
+ * completezza/invio e corpo del PDF)?
+ *
+ * Un intervento "+" (`manuale = true`) è SEMPRE un intervento VERO, MAI un contenitore — anche
+ * quando la sua attività è BONIFICHE EXTRA (il "+" sotto un task-via nasce proprio con
+ * quell'attività) e anche nei template task-via puri. È la stessa regola già applicata in
+ * `datiRiepilogoPdf` (scarta i contenitori con `isTaskVia(v) && v.manuale !== true`) e nelle route
+ * foto (`voci-foto`, `foto-zip`): qui la centralizziamo così i chiamanti non possono più
+ * dimenticare la guardia `manuale` (era il caso di RapportinoForm → i "+" BONIFICHE EXTRA
+ * finivano trattati come contenitori e sparivano da lista/PDF).
+ */
+export function contenitoreTaskVia(
+  voce: { attivita?: string | null; manuale?: boolean | null } | null | undefined,
+  modalita: { tutto?: boolean; ibrido?: boolean },
+): boolean {
+  if (voce?.manuale) return false;
+  return voceTaskVia(voce, modalita);
+}

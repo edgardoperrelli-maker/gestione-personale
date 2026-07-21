@@ -24,6 +24,9 @@ export type RigaRichiesta = {
   id: string;
   rapportino_id: string | null;
   voce_id: string | null;
+  /** Voce contenitore (task-via BONIFICHE EXTRA) sotto cui è stato creato il "+", se presente.
+   *  Valorizzata ⟺ richiesta di gruppo BONIFICHE EXTRA → attività vincolata a BONIFICHE EXTRA. */
+  parent_voce_id?: string | null;
   intervento_id: string | null;
   staff_id: string | null;
   staff_name: string | null;

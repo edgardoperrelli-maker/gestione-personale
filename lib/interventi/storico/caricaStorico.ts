@@ -97,12 +97,13 @@ export async function caricaRigheStorico(
     if (error) throw error;
     const rows = (batch ?? []) as unknown as VoceStoricoRow[];
     for (const row of rows) {
-      // Voce CONTENITORE task-via VUOTA (attività BONIFICHE EXTRA con la sola via, SENZA
-      // matricola): NON si mostra nello storico. Restano invece le righe CON matricola — sia i
-      // task-via compilati direttamente (una matricola per via), sia i figli creati col "+"
-      // (classificati Italgas + BONIFICHE EXTRA sul loro intervento). Così: una riga per matricola.
+      // Voce CONTENITORE task-via VUOTA (attività BONIFICHE EXTRA con la sola via, SENZA matricola):
+      // NON si mostra nello storico. Un contenitore è una voce PIANIFICATA (manuale=false): i "+"
+      // (manuale=true) sono interventi VERI e restano SEMPRE, anche senza matricola e anche ora che
+      // nascono con attività BONIFICHE EXTRA (il loro gruppo arriva comunque dall'intervento collegato).
+      // Senza la guardia `manuale` un "+" bonifica senza matricola sparirebbe dallo storico.
       const haMatricola = Boolean(row.matricola && String(row.matricola).trim());
-      if (isTaskVia(row) && !haMatricola) continue;
+      if (isTaskVia(row) && row.manuale !== true && !haMatricola) continue;
       righe.push(voceToRigaStorico(row, staffById, tassonomia, territori));
     }
     if (rows.length < PAGE_DB) break;

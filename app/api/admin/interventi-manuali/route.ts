@@ -13,7 +13,7 @@ export async function GET(req: Request) {
   const filtro = parseFiltroLista(new URL(req.url).searchParams);
   let q = supabaseAdmin
     .from('interventi_manuali')
-    .select('id, rapportino_id, voce_id, intervento_id, staff_id, staff_name, committente, data, stato, corsia, dati_operatore, dati_correnti, note, motivo_rifiuto, created_at, preso_in_carico_da, preso_in_carico_at, deciso_da, deciso_at')
+    .select('id, rapportino_id, voce_id, parent_voce_id, intervento_id, staff_id, staff_name, committente, data, stato, corsia, dati_operatore, dati_correnti, note, motivo_rifiuto, created_at, preso_in_carico_da, preso_in_carico_at, deciso_da, deciso_at')
     // Le richieste di Pronto Intervento (fonte='pronto_intervento') vivono SOLO nel
     // modulo P.I., non nella Lista attesa dei rapportini.
     .neq('fonte', 'pronto_intervento')
