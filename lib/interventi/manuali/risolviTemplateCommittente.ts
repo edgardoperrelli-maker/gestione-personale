@@ -1,11 +1,12 @@
 // PURA: dato il committente e la lista template, ritorna l'id del template da usare.
-// Priorità: template attivo con committente esatto → template attivo is_default → null.
+// Solo il match ESATTO di committente: il fallback su is_default è stato ritirato con
+// le Azioni operatori (nessun template è più "default"). Senza match il chiamante
+// eredita i campi standard del rapportino, che è il comportamento voluto.
 import type { CommittenteManuale } from './types';
 
 export type TemplateRow = {
   id: string;
   committente: string | null;
-  is_default: boolean;
   active: boolean;
   solo_manuale?: boolean | null;
   foto_id_priority?: string[] | null;
@@ -17,7 +18,5 @@ export function risolviTemplateCommittente(
 ): string | null {
   const attivi = templates.filter((t) => t.active);
   const esatto = attivi.find((t) => t.committente === committente);
-  if (esatto) return esatto.id;
-  const def = attivi.find((t) => t.is_default);
-  return def ? def.id : null;
+  return esatto ? esatto.id : null;
 }
