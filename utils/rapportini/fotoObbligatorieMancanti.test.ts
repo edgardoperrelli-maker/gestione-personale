@@ -94,3 +94,17 @@ describe('fotoObbligatorieMancantiDettaglio', () => {
     ]);
   });
 });
+
+describe('fotoObbligatorieMancantiDettaglio — titolo per-voce (flusso della voce)', () => {
+  it('usa titolo_campi della voce quando presente, fallback al rapportino altrimenti', () => {
+    const out = fotoObbligatorieMancantiDettaglio(
+      [
+        { nominativo: 'Mario', pdr: 'PDR-1', risposte: {}, titolo_campi: ['pdr'] },
+        { nominativo: 'Luisa', pdr: 'PDR-2', risposte: {} },
+      ] as never,
+      campi as never,
+      ['nominativo'],
+    );
+    expect(out.map((o) => o.titolo)).toEqual(['PDR-1', 'Luisa']);
+  });
+});

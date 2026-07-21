@@ -71,6 +71,7 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 - `--chart-1 … --chart-8`: scala categorica sobria (blu, verde, ambra, rosso, viola, teal, ardesia, grigio). **recharts non risolve `var()` negli attributi SVG** → leggili a runtime con l'hook `useChartColors()` ([`components/modules/performance/palette.ts`](components/modules/performance/palette.ts)).
 - `--overlay`: fondo semitrasparente di modali/drawer.
 - `--on-marker`: testo scuro leggibile sui marker Leaflet colorati.
+- `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
 
 ## 4. Tipografia

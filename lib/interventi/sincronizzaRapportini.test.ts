@@ -272,7 +272,7 @@ describe('sincronizzaRapportini — risoluzione automatica del modello (senza te
     expect(tables.rapportini.find((r) => r.id === 'rap1')?.template_id).toBe('tpl1');
   });
 
-  it('piano nuovo senza rapportini → sceglie il default attivo, ignorando i solo_manuale', async () => {
+  it('piano nuovo senza rapportini → primo attivo non-manuale per nome (is_default ritirato e ignorato)', async () => {
     const { db, tables } = makeFakeDb(seedBase({
       rapportino_template: [
         { id: 'tpl-manuale', nome: 'AAA MANUALE', campi: [], info_campi: [], active: true, is_default: true, solo_manuale: true },
@@ -283,10 +283,11 @@ describe('sincronizzaRapportini — risoluzione automatica del modello (senza te
     }));
     const res = await sincronizzaRapportini(db, 'p1', {});
     expect(res.ok).toBe(true);
-    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-def');
+    // is_default (anche se ancora presente nel DB) non conta più: vince AAA per nome.
+    expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-a');
   });
 
-  it('senza default → primo template attivo non-manuale in ordine nome', async () => {
+  it('primo template attivo non-manuale in ordine nome', async () => {
     const { db, tables } = makeFakeDb(seedBase({
       rapportino_template: [
         { id: 'tpl-b', nome: 'BBB', campi: [], info_campi: [], active: true },
@@ -299,7 +300,7 @@ describe('sincronizzaRapportini — risoluzione automatica del modello (senza te
     expect(tables.rapportini.find((r) => r.staff_id === 's1')?.template_id).toBe('tpl-a');
   });
 
-  it('piano con task RESINE → preferisce il template risanamento al default', async () => {
+  it('piano con task RESINE → preferisce il template risanamento al primo per nome', async () => {
     const { db, tables } = makeFakeDb(seedBase({
       rapportino_template: [
         { id: 'tpl-def', nome: 'DEFAULT', campi: [], info_campi: [], active: true, is_default: true },

@@ -8,6 +8,7 @@ import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { resolveInfoCampi, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { risolviTemplateCommittente, type TemplateRow } from '@/lib/interventi/manuali/risolviTemplateCommittente';
+import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
@@ -40,22 +41,21 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
   const allowedModules = getAllowedModulesForUser(user.app_metadata, role);
   if (!allowedModules.includes('lista-attesa')) redirect('/hub');
 
-  // Header info per la revisione: template default PIANIFICATO.
+  // Header info per la revisione: is_default è ritirato (Azioni operatori) → si usa il
+  // primo template attivo NON manuale in ordine nome (deterministico); senza template
+  // resolveInfoCampi(null) ripiega sugli 11 campi storici.
   const { data: tplDefRows } = await supabase
     .from('rapportino_template')
-    .select('info_campi, is_default')
+    .select('nome, info_campi, solo_manuale')
     .eq('active', true);
-  const tplDef = (tplDefRows ?? []) as Array<{ info_campi: unknown; is_default: boolean }>;
-  const tplDefault = tplDef.find((t) => t.is_default) ?? tplDef[0];
+  const tplDef = ((tplDefRows ?? []) as Array<{ nome: string | null; info_campi: unknown; solo_manuale: boolean | null }>)
+    .filter((t) => !t.solo_manuale)
+    .sort((a, b) => (a.nome ?? '').localeCompare(b.nome ?? '', 'it'));
+  const tplDefault = tplDef[0];
   const infoCampi: TemplateInfoCampo[] = resolveInfoCampi((tplDefault?.info_campi ?? null) as TemplateInfoCampo[] | null);
 
-  // Campi esito per committente: solo template SOLO-MANUALE.
-  const { data: tplRows } = await supabase
-    .from('rapportino_template')
-    .select('id, committente, campi, info_campi, is_default, active, solo_manuale')
-    .eq('active', true)
-    .eq('solo_manuale', true);
-  const tpl = (tplRows ?? []) as Array<{ id: string; committente: string | null; campi: unknown; info_campi: unknown; is_default: boolean; active: boolean; solo_manuale?: boolean }>;
+  // Campi esito per committente: solo template SOLO-MANUALE attivi (esclusi i riservati P.I.).
+  const tpl = await caricaTemplateManuali(supabase, { soloAttivi: true });
 
   const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
   const tplRows2 = tpl as TemplateRow[];

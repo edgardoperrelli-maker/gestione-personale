@@ -21,8 +21,8 @@ export type SincronizzaOpts = {
   /**
    * Modello esplicito (flussi con template configurato, es. agente). Se assente il motore
    * risolve da sé il fallback del piano: modello già stabilito dai rapportini esistenti →
-   * risanamento (piano con RESINE) → default → primo attivo non-manuale. Con le Azioni
-   * operatori la mappa non chiede più la scelta del modello.
+   * risanamento (piano con RESINE) → primo attivo non-manuale (ordine nome). Con le Azioni
+   * operatori la mappa non chiede più la scelta del modello; is_default è ritirato.
    */
   templateId?: string;
   overwrite?: 'replace' | 'skip';
@@ -67,20 +67,20 @@ export async function sincronizzaRapportini(
   // applicata), si ripiega su una select senza collegamento (nessun flusso, solo fallback).
   type TemplateAttivoRow = {
     id: string; nome: string | null; campi: unknown; tipo: string | null;
-    is_default: boolean | null; solo_manuale: boolean | null;
+    solo_manuale: boolean | null;
     gruppo_committente?: string | null; gruppi_attivita?: string[] | null;
   };
   let templatesAttivi: TemplateAttivoRow[] = [];
   const qTpl = await db
     .from('rapportino_template')
-    .select('id, nome, campi, tipo, is_default, solo_manuale, gruppo_committente, gruppi_attivita')
+    .select('id, nome, campi, tipo, solo_manuale, gruppo_committente, gruppi_attivita')
     .eq('active', true);
   if (!qTpl.error) {
     templatesAttivi = (qTpl.data ?? []) as TemplateAttivoRow[];
   } else {
     const qBase = await db
       .from('rapportino_template')
-      .select('id, nome, campi, tipo, is_default, solo_manuale')
+      .select('id, nome, campi, tipo, solo_manuale')
       .eq('active', true);
     templatesAttivi = qBase.error ? [] : (((qBase.data ?? []) as unknown) as TemplateAttivoRow[]);
   }
@@ -88,7 +88,7 @@ export async function sincronizzaRapportini(
   // Modello del rapportino (fallback per le voci senza flusso): esplicito dal chiamante,
   // altrimenti quello già stabilito dai rapportini esistenti del piano (riaperture: stesso
   // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il
-  // default, poi il primo attivo non-manuale (ordine nome IT, deterministico).
+  // primo attivo non-manuale (ordine nome IT, deterministico). is_default è ritirato.
   let templateId = opts.templateId ?? null;
   if (!templateId) {
     const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
@@ -97,12 +97,11 @@ export async function sincronizzaRapportini(
   if (!templateId) {
     const candidati = templatesAttivi
       .filter((t) => !t.solo_manuale)
-      .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined, is_default: Boolean(t.is_default) }))
+      .map((t) => ({ id: t.id, nome: t.nome ?? '', tipo: t.tipo ?? undefined }))
       .sort((a, b) => a.nome.localeCompare(b.nome, 'it'));
     const tasksPiano = (ops ?? []).flatMap((o) => ((o.tasks as Array<{ attivita?: string | null }>) ?? []));
     templateId =
       (pianoHaRisanamento(tasksPiano) ? risolviTemplateRisanamento(candidati) : null)
-      ?? candidati.find((t) => t.is_default)?.id
       ?? candidati[0]?.id
       ?? null;
   }

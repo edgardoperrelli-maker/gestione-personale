@@ -60,7 +60,7 @@ export interface FotoMancanteVoce {
  * mancano, per mostrarlo all'operatore.
  */
 export function fotoObbligatorieMancantiDettaglio(
-  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean; campi?: TemplateCampo[] | null }>,
+  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean; campi?: TemplateCampo[] | null; titolo_campi?: InfoChiave[] | null }>,
   campi: TemplateCampo[],
   titoloCampi: InfoChiave[] = [],
   fotoSoloMassive = false,
@@ -79,7 +79,8 @@ export function fotoObbligatorieMancantiDettaglio(
     const tipi = campiFotoTpl
       .filter((c) => fotoSlotObbligatorio(c, condizionali) && fotoVuota(risposte[c.chiave]))
       .map((c) => c.etichetta);
-    if (tipi.length > 0) out.push({ index, titolo: titoloVoce(v, titoloCampi, index), tipi });
+    // Il titolo mostrato segue il flusso della voce (per-voce), come nella lista e nel focus.
+    if (tipi.length > 0) out.push({ index, titolo: titoloVoce(v, v.titolo_campi ?? titoloCampi, index), tipi });
   });
   return out;
 }

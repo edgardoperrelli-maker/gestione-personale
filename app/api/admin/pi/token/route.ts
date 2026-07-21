@@ -61,11 +61,21 @@ export async function POST(req: Request) {
     .maybeSingle();
   if (gia) return NextResponse.json({ id: gia.id, token: gia.token, riusato: true });
 
-  // Template: esplicito o default "Pronto Intervento".
+  // Template: esplicito, altrimenti il modello RISERVATO al P.I. (flag riservato_pi,
+  // niente più aggancio per nome: rinominare il template non rompe il modulo).
+  // Fallback legacy per nome finché la migration del flag non è applicata.
   let templateId = body.template_id ?? null;
   let campiSnapshot: unknown[] = [];
   if (!templateId) {
-    const { data: tpl } = await supabaseAdmin.from('rapportino_template').select('id, campi').eq('nome', 'Pronto Intervento').maybeSingle();
+    let tpl: { id: string; campi: unknown } | null = null;
+    const qFlag = await supabaseAdmin.from('rapportino_template')
+      .select('id, campi').eq('riservato_pi', true).eq('solo_manuale', true).limit(1).maybeSingle();
+    if (!qFlag.error && qFlag.data) tpl = qFlag.data as { id: string; campi: unknown };
+    if (!tpl) {
+      const { data } = await supabaseAdmin.from('rapportino_template')
+        .select('id, campi').eq('nome', 'Pronto Intervento').maybeSingle();
+      tpl = (data as { id: string; campi: unknown } | null) ?? null;
+    }
     templateId = tpl?.id ?? null;
     campiSnapshot = (tpl?.campi ?? []) as unknown[];
   } else {

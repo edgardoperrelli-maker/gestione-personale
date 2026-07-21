@@ -67,6 +67,10 @@ export type Voce = {
   motivo_rifiuto?: string | null;
   /** Azioni della voce dal flusso del SUO gruppo attività; assenti = campi del rapportino. */
   campi?: TemplateCampo[];
+  /** Titolo/dettagli dal flusso della voce, letti LIVE (presenti solo se il suo template
+   *  esiste ancora); assenti = config del rapportino (storico e fallback). */
+  titolo_campi?: InfoChiave[];
+  info_campi?: TemplateInfoCampo[];
 };
 
 type Props = {
@@ -153,7 +157,6 @@ export default function RapportinoForm({
     [campiStandardManuale, campiSnapshot],
   );
   const vociOrdinate = useMemo(() => vociIniziali.slice().sort((a, b) => a.ordine - b.ordine), [vociIniziali]);
-  const { dettaglio } = useMemo(() => partitionInfoCampi(infoCampi), [infoCampi]);
 
   const [voci, setVoci] = useState<Voce[]>(vociOrdinate);
   const [readOnly, setReadOnly] = useState(readOnlyIniziale);
@@ -341,7 +344,7 @@ export default function RapportinoForm({
   const righe: RigaVoce[] = useMemo(
     () =>
       voci.map((v, idx) => {
-        const titolo = titoloVoce(v, titoloCampi, idx);
+        const titolo = titoloVoce(v, v.titolo_campi ?? titoloCampi, idx);
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
@@ -355,7 +358,7 @@ export default function RapportinoForm({
       voci
         .map((v, idx) => ({ index: idx, v }))
         .filter(({ v }) => !v.annullato && !isVoceTaskVia(v))
-        .map(({ index, v }) => ({ index, titolo: titoloVoce(v, titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campiDiVoce(v, campi)) }))
+        .map(({ index, v }) => ({ index, titolo: titoloVoce(v, v.titolo_campi ?? titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campiDiVoce(v, campi)) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
     [voci, campi, titoloCampi, isVoceTaskVia],
   );
@@ -489,8 +492,8 @@ export default function RapportinoForm({
           indice={indiceCorrente}
           totale={voci.length}
           campi={campiPerVoce(campi, voci[indiceCorrente], fotoSoloMassive)}
-          dettaglio={dettaglio}
-          titoloCampi={titoloCampi}
+          dettaglio={partitionInfoCampi(voci[indiceCorrente].info_campi ?? infoCampi).dettaglio}
+          titoloCampi={voci[indiceCorrente].titolo_campi ?? titoloCampi}
           disabilitato={disabilitato || (badgeVoceManuale(voci[indiceCorrente].approvazione_stato ?? null)?.bloccata ?? false)}
           stato={statoVoce(voci[indiceCorrente].risposte, campiDiVoce(voci[indiceCorrente], campi))}
           saveState={statoBadgeDaOutbox(outboxPerVoce[voci[indiceCorrente].id]) as SaveState}

@@ -22,7 +22,7 @@ export interface CampoMancanteVoce {
  * Gli altri obbligatori (es. ESEGUITO) restano richiesti su tutte le voci.
  */
 export function campiObbligatoriMancantiVoci(
-  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean; campi?: TemplateCampo[] | null }>,
+  voci: Array<VoceInfo & { risposte: Record<string, unknown> | null; manuale?: boolean; campi?: TemplateCampo[] | null; titolo_campi?: InfoChiave[] | null }>,
   campi: TemplateCampo[],
   titoloCampi: InfoChiave[] = [],
   fotoSoloMassive = false,
@@ -39,7 +39,8 @@ export function campiObbligatoriMancantiVoci(
       ? base.map((c) => (campoObbligatorioSoloMassive(c) && c.obbligatoria ? { ...c, obbligatoria: false } : c))
       : base;
     const mancanti = campiObbligatoriMancanti(campiVoce, v.risposte ?? {});
-    if (mancanti.length > 0) out.push({ index, titolo: titoloVoce(v, titoloCampi, index), campi: mancanti });
+    // Il titolo mostrato segue il flusso della voce (per-voce), come nella lista e nel focus.
+    if (mancanti.length > 0) out.push({ index, titolo: titoloVoce(v, v.titolo_campi ?? titoloCampi, index), campi: mancanti });
   });
   return out;
 }
