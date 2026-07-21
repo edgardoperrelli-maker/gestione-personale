@@ -1,5 +1,5 @@
 'use client';
-import { MACRO_ATTIVITA, type PerfFilters, type SelectOption, formatItDate } from '@/lib/performance/shape';
+import { type PerfFilters, type SelectOption, formatItDate } from '@/lib/performance/shape';
 import Button from '@/components/Button';
 
 function toISO(d: Date): string {
@@ -10,6 +10,8 @@ export interface FilterOptions {
   operatori: SelectOption[];
   territori: SelectOption[];
   committenti: SelectOption[];
+  gruppi: SelectOption[];
+  attivita: SelectOption[];
   minDate: string | null;
 }
 
@@ -67,13 +69,17 @@ export default function PerfFilterBar({
             {options.operatori.map((o) => <option key={o.value} value={o.value}>{o.label}</option>)}
           </select>
         )}
-        <select value={value.macro} onChange={(e) => set({ macro: e.target.value })} className={field} aria-label="Attività">
-          <option value="">Tutte le attività</option>
-          {MACRO_ATTIVITA.map((m) => <option key={m} value={m}>{m}</option>)}
-        </select>
         <select value={value.committente} onChange={(e) => set({ committente: e.target.value })} className={field} aria-label="Committente">
           <option value="">Tutti i committenti</option>
           {options.committenti.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}
+        </select>
+        <select value={value.gruppo} onChange={(e) => set({ gruppo: e.target.value })} className={field} aria-label="Gruppo attività">
+          <option value="">Tutti i gruppi</option>
+          {options.gruppi.map((g) => <option key={g.value} value={g.value}>{g.label}</option>)}
+        </select>
+        <select value={value.attivita} onChange={(e) => set({ attivita: e.target.value })} className={field} aria-label="Attività">
+          <option value="">Tutte le attività</option>
+          {options.attivita.map((a) => <option key={a.value} value={a.value}>{a.label}</option>)}
         </select>
         <select value={value.territorioId} onChange={(e) => set({ territorioId: e.target.value })} className={field} aria-label="Territorio">
           <option value="">Tutti i territori</option>

@@ -3,16 +3,17 @@ import { useMemo, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Legend } from 'recharts';
 import { buildGiornaliera, filterRows, totali, type ClientRow, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
-import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_TICK_FILL } from './palette';
+import { useChartColors, makeColorForGruppo, chartTooltipContent, chartItemStyle, chartLabelStyle, CHART_TICK_FILL } from './palette';
 
 export default function PerformanceGiornaliera({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
   const [f, setF] = useState<PerfFilters>(initial);
   const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
-  const { data, macros } = useMemo(() => buildGiornaliera(rows), [rows]);
+  const { data, gruppi } = useMemo(() => buildGiornaliera(rows), [rows]);
   const t = totali(rows);
 
   // Resolved concrete color strings for recharts SVG props (var() not resolved in SVG attrs).
   const cc = useChartColors();
+  const colorForGruppo = useMemo(() => makeColorForGruppo(options.gruppi, cc.palette), [options.gruppi, cc.palette]);
 
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
@@ -22,7 +23,7 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
           {t.totale.toLocaleString('it-IT')} interventi{t.valvole > 0 && <> · {t.valvole} con saracinesca</>}
         </span>
       </div>
-      <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Interventi completati per giorno, colonne divise per attività</p>
+      <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Interventi completati per giorno, colonne divise per gruppo attività</p>
       <PerfFilterBar value={f} onChange={setF} options={options} />
       {data.length === 0 ? (
         <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento per i filtri selezionati.</p>
@@ -54,8 +55,8 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
                 cursor={{ fill: cc.brandBorder, opacity: 0.4 }}
               />
               <Legend wrapperStyle={{ fontSize: 11, color: CHART_TICK_FILL }} />
-              {macros.map((m) => (
-                <Bar key={m} dataKey={m} name={m} stackId="g" fill={cc.colorForMacro(m)} radius={m === macros[macros.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
+              {gruppi.map((m) => (
+                <Bar key={m} dataKey={m} name={m} stackId="g" fill={colorForGruppo(m)} radius={m === gruppi[gruppi.length - 1] ? [3, 3, 0, 0] : [0, 0, 0, 0]} />
               ))}
             </BarChart>
           </ResponsiveContainer>

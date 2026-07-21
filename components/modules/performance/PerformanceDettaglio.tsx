@@ -35,8 +35,8 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
               <thead>
                 <tr className="sticky top-0 border-b border-[var(--brand-border-strong)] bg-[var(--brand-surface-muted)] text-left">
                   <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Data</th>
+                  <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Gruppo</th>
                   <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Attività</th>
-                  <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Tipo (origine)</th>
                   <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Committente</th>
                   <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Territorio</th>
                   <th className="py-2 pr-3 font-medium text-[var(--brand-text-muted)]">Saracinesca</th>
@@ -47,8 +47,8 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
                 {slice.map((r) => (
                   <tr key={r.id} className="border-t border-[var(--brand-border)]/50 hover:bg-[var(--brand-surface-muted)]">
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{formatItDate(r.giorno)}</td>
-                    <td className="py-1.5 pr-3 text-[var(--brand-text-main)]">{r.macro}</td>
-                    <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.intervento_tipo}</td>
+                    <td className="py-1.5 pr-3 text-[var(--brand-text-main)]">{r.gruppo}</td>
+                    <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.attivita}</td>
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.committente}</td>
                     <td className="py-1.5 pr-3 text-[var(--brand-text-muted)]">{r.territorio}</td>
                     <td className="py-1.5 pr-3">
@@ -56,7 +56,9 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
                         ? <span className="font-medium text-[var(--warning)]">Sì</span>
                         : <span className="text-[var(--brand-text-subtle)]">—</span>}
                     </td>
-                    <td className="py-1.5 text-[var(--brand-text-muted)]">{r.esito}</td>
+                    <td className="py-1.5">
+                      <span className={r.positivo ? 'font-medium text-[var(--success)]' : 'font-medium text-[var(--danger)]'}>{r.esito}</span>
+                    </td>
                   </tr>
                 ))}
               </tbody>

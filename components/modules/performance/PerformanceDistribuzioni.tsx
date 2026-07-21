@@ -3,18 +3,18 @@ import { useMemo, useState } from 'react';
 import { PieChart, Pie, Cell, Tooltip, ResponsiveContainer } from 'recharts';
 import { buildDistribuzioni, filterRows, type ClientRow, type DistribuzioneSlice, type PerfFilters } from '@/lib/performance/shape';
 import PerfFilterBar, { type FilterOptions } from './PerfFilterBar';
-import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
+import { useChartColors, makeColorForGruppo, chartTooltipContent, chartItemStyle, chartLabelStyle } from './palette';
 
-function Donut({ title, data, colorBy, palette, colorForMacro, brandSurface }: {
+function Donut({ title, data, colorBy, palette, colorForGruppo, brandSurface }: {
   title: string;
   data: DistribuzioneSlice[];
-  colorBy: 'macro' | 'index';
+  colorBy: 'gruppo' | 'index';
   palette: string[];
-  colorForMacro: (name: string) => string;
+  colorForGruppo: (name: string) => string;
   brandSurface: string;
 }) {
   const total = data.reduce((s, d) => s + d.n, 0);
-  const color = (chiave: string, i: number) => (colorBy === 'macro' ? colorForMacro(chiave) : palette[i % palette.length]);
+  const color = (chiave: string, i: number) => (colorBy === 'gruppo' ? colorForGruppo(chiave) : palette[i % palette.length]);
   return (
     <div>
       <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">{title}</h3>
@@ -72,19 +72,20 @@ function Donut({ title, data, colorBy, palette, colorForMacro, brandSurface }: {
 export default function PerformanceDistribuzioni({ allRows, options, initial }: { allRows: ClientRow[]; options: FilterOptions; initial: PerfFilters }) {
   const [f, setF] = useState<PerfFilters>(initial);
   const rows = useMemo(() => filterRows(allRows, f), [allRows, f]);
-  const { perMacro, perCommittente, perTerritorio } = useMemo(() => buildDistribuzioni(rows), [rows]);
+  const { perGruppo, perCommittente, perTerritorio } = useMemo(() => buildDistribuzioni(rows), [rows]);
 
   // Resolved concrete color strings for recharts SVG props (var() not resolved in SVG attrs).
   const cc = useChartColors();
+  const colorForGruppo = useMemo(() => makeColorForGruppo(options.gruppi, cc.palette), [options.gruppi, cc.palette]);
 
   return (
     <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
       <h2 className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Distribuzioni</h2>
       <PerfFilterBar value={f} onChange={setF} options={options} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-        <Donut title="Per attività"    data={perMacro}        colorBy="macro"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
-        <Donut title="Per committente" data={perCommittente}  colorBy="index"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
-        <Donut title="Per territorio"  data={perTerritorio}   colorBy="index"  palette={cc.palette} colorForMacro={cc.colorForMacro} brandSurface={cc.brandSurface} />
+        <Donut title="Per gruppo attività" data={perGruppo}       colorBy="gruppo" palette={cc.palette} colorForGruppo={colorForGruppo} brandSurface={cc.brandSurface} />
+        <Donut title="Per committente"     data={perCommittente}  colorBy="index"  palette={cc.palette} colorForGruppo={colorForGruppo} brandSurface={cc.brandSurface} />
+        <Donut title="Per territorio"      data={perTerritorio}   colorBy="index"  palette={cc.palette} colorForGruppo={colorForGruppo} brandSurface={cc.brandSurface} />
       </div>
     </section>
   );
