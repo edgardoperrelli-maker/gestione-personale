@@ -48,6 +48,26 @@ describe('buildTemplateImport', () => {
     expect(formula).toContain('VLOOKUP');
     expect(formula).toContain(',4,FALSE');
   });
+  it('ROBUSTEZZA: GRUPPO/COMMITTENTE si auto-localizzano (INDIRECT+ROW), formula IDENTICA su ogni riga', async () => {
+    // Regressione: un riferimento relativo (es. G2) si sfasa se l'utente riusa il file
+    // svuotandolo e re-incollando i dati in Excel → l'autocompilazione si rompe. Con
+    // INDIRECT("G"&ROW()) la formula è identica su tutte le righe e punta sempre alla
+    // DESCRIZIONE della propria riga fisica.
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 10));
+    const ws = wb.getWorksheet('Interventi')!;
+    const formula = (r: number, col: string) =>
+      String((ws.getRow(r).getCell(COLONNE_TEMPLATE.indexOf(col as (typeof COLONNE_TEMPLATE)[number]) + 1).value as { formula?: string })?.formula ?? '');
+    for (const col of ["GRUPPO ATTIVITA'", 'COMMITTENTE'] as const) {
+      const f2 = formula(2, col);
+      // Self-locating: usa INDIRECT + ROW(), niente riferimento di riga hardcoded.
+      expect(f2).toContain('INDIRECT(');
+      expect(f2).toContain('ROW()');
+      expect(f2).not.toMatch(/TRIM\(G\d+\)/); // niente G2/G3/... cablato
+      // Identica su righe lontane → immune alla posizione.
+      expect(formula(6, col)).toBe(f2);
+      expect(formula(11, col)).toBe(f2);
+    }
+  });
   it('foglio protetto: GRUPPO e COMMITTENTE bloccati, il resto (COMUNE/territorio incluso) libero', async () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
     const ws = wb.getWorksheet('Interventi')!;
