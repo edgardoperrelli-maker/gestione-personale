@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { isTaskVia, voceTaskVia, ATTIVITA_TASK_VIA } from './taskVia';
+import { isTaskVia, voceTaskVia, contenitoreTaskVia, ATTIVITA_TASK_VIA } from './taskVia';
 
 describe('isTaskVia', () => {
   it('riconosce una voce con attività BONIFICHE EXTRA (case/spazi tolleranti)', () => {
@@ -47,5 +47,31 @@ describe('voceTaskVia', () => {
     expect(voceTaskVia(classica, {})).toBe(false);
     expect(voceTaskVia({}, {})).toBe(false);
     expect(voceTaskVia(null, {})).toBe(false);
+  });
+});
+
+describe('contenitoreTaskVia', () => {
+  const contenitore = { attivita: 'BONIFICHE EXTRA', manuale: false };
+  // Un "+" sotto un task-via nasce con attività BONIFICHE EXTRA ma è un intervento vero.
+  const ordineBonifica = { attivita: 'BONIFICHE EXTRA', manuale: true };
+
+  it('la voce pianificata BONIFICHE EXTRA (manuale=false) è un contenitore', () => {
+    expect(contenitoreTaskVia(contenitore, { ibrido: true })).toBe(true);
+    expect(contenitoreTaskVia(contenitore, {})).toBe(true);
+    expect(contenitoreTaskVia({ attivita: 'Sostituzione', manuale: false }, { tutto: true })).toBe(true);
+  });
+
+  it('un "+" (manuale=true) NON è mai un contenitore, neanche con attività BONIFICHE EXTRA', () => {
+    expect(contenitoreTaskVia(ordineBonifica, { ibrido: true })).toBe(false);
+    expect(contenitoreTaskVia(ordineBonifica, {})).toBe(false);
+    // …e nemmeno in un template task-via puro (dove ogni voce pianificata è contenitore).
+    expect(contenitoreTaskVia(ordineBonifica, { tutto: true })).toBe(false);
+    expect(contenitoreTaskVia({ attivita: 'Sostituzione', manuale: true }, { tutto: true })).toBe(false);
+  });
+
+  it('coerente con voceTaskVia quando manuale è assente/false', () => {
+    expect(contenitoreTaskVia({ attivita: 'BONIFICHE EXTRA' }, { ibrido: true })).toBe(true);
+    expect(contenitoreTaskVia({ attivita: 'Sostituzione' }, { ibrido: true })).toBe(false);
+    expect(contenitoreTaskVia(null, { tutto: true })).toBe(true);
   });
 });

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { contaFotoScaricabili } from '@/utils/rapportini/contaFotoScaricabili';
-import { isTaskVia, voceTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { isTaskVia, contenitoreTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -96,7 +96,7 @@ export async function GET(_req: Request, { params }: { params: Promise<{ rapport
 
   const out = tipizzate
     .map((v) => {
-      const contenitore = v.manuale !== true && voceTaskVia(v, { tutto: tplTaskVia });
+      const contenitore = contenitoreTaskVia(v, { tutto: tplTaskVia });
       return {
         voceId: v.id,
         via: v.via,

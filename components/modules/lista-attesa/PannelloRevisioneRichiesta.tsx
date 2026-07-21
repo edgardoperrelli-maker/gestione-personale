@@ -11,7 +11,8 @@ import { datiFormRevisione } from '@/lib/interventi/manuali/datiFormRevisione';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
 import type { RigaRichiesta, DatiInterventoManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
-import { committenteEquivalente, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { opzioniAttivitaManuale } from '@/lib/interventi/manuali/opzioniAttivitaManuale';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
@@ -60,13 +61,13 @@ export function PannelloRevisioneRichiesta({
   // Etichetta del campo attività: quella del template se lo dichiara, altrimenti il default
   // (la select si renderizza comunque: il campo è di tassonomia, non di template).
   const etichettaAttivita = campiAnag.find((c) => c.chiave === 'attivita')?.etichetta ?? 'DESCRIZIONE ATTIVITÀ';
-  // Descrizione attività: lista chiusa dalla tassonomia (spec §7), come nel "+" — stesso filtro
-  // per committente equivalente ('lim_massive' → 'acea'; 'altro' → tutte le attive).
-  const opzioniAttivita = useMemo(() => {
-    const ce = committenteEquivalente(riga.committente);
-    const attive = (tassonomia ?? []).filter((t) => t.attivo);
-    return ce === 'altro' ? attive : attive.filter((t) => t.committente === ce);
-  }, [tassonomia, riga.committente]);
+  // Descrizione attività: lista chiusa dalla tassonomia (spec §7), come nel "+". Sotto un task-via
+  // (parent_voce_id valorizzato ⟺ gruppo BONIFICHE EXTRA) la sola opzione è "BONIFICHE EXTRA":
+  // l'approvazione la forza comunque, quindi mostrare l'intera lista Italgas sarebbe fuorviante.
+  const opzioniAttivita = useMemo(
+    () => opzioniAttivitaManuale(tassonomia, riga.committente, { soloBonificheExtra: Boolean(riga.parent_voce_id) }),
+    [tassonomia, riga.committente, riga.parent_voce_id],
+  );
   const [foto, setFoto] = useState<Array<{ id: string; etichetta: string; url: string | null; fileMancante: boolean }>>([]);
   const caricaFoto = useCallback(async () => {
     try {

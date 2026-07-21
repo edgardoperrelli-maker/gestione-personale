@@ -24,7 +24,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
-import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { isTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 import { leggiVerdettoEsecuzione, COMMITTENTI_BLOCCO_ESECUZIONE } from '@/lib/limitazione/leggiVerdettoEsecuzione';
 import { pathFotoTentativo, isViolazionePk } from '@/lib/interventi/manuali/fotoStorageHardening';
@@ -236,6 +236,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     // Regola di business: un "+" sotto un task-via (BONIFICHE EXTRA) è Italgas + BONIFICHE EXTRA.
     parentTaskVia = Boolean(parentVoceId) && isTaskVia(parent);
   }
+  // Sotto un task-via l'attività È SEMPRE BONIFICHE EXTRA (server autorevole): la forziamo qui così
+  // la voce (buildVoceManuale) nasce allineata all'intervento anche se il payload portava un'altra
+  // attività Italgas (es. una coda offline creata prima del fix della select). `dati.anagrafica`
+  // è lo stesso oggetto `anagrafica`, quindi il valore si propaga a voce, intervento e dati salvati.
+  if (parentTaskVia) anagrafica.attivita = ATTIVITA_TASK_VIA;
 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   // caricaTemplateManuali esclude i modelli riservati (P.I.): non concorrono al "+".

@@ -3,7 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
-import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
+import { isTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import { colonneAnagraficaVoce } from '@/lib/interventi/manuali/buildVoceManuale';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
 import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigillo';
@@ -78,7 +78,10 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
       { status: 400 },
     );
   }
-  dati.anagrafica.attivita = attivitaRaw;
+  // Sotto un task-via l'attività È SEMPRE BONIFICHE EXTRA (server autorevole): la forziamo qui così
+  // la voce riportata dall'approvazione (colonneAnagraficaVoce) resta allineata all'intervento
+  // creato — a prescindere da cosa aveva scelto l'operatore o il revisore nella lista Italgas.
+  dati.anagrafica.attivita = parentTaskVia ? ATTIVITA_TASK_VIA : attivitaRaw;
 
   // ── CONTROLLO SIGILLO DUPLICATO (BLOCCANTE, NON forzabile) ───────────────────
   // Un sigillo è un identificativo fisico unico: lo stesso sigillo su due interventi è

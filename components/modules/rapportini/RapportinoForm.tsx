@@ -13,7 +13,7 @@ import { LenteRicerca } from './LenteRicerca';
 import { ModaleInterventoManuale } from './ModaleInterventoManuale';
 import { TaskViaFocus } from './TaskViaFocus';
 import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
-import { voceTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
+import { contenitoreTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
@@ -328,8 +328,10 @@ export default function RapportinoForm({
 
   // Una voce è un "contenitore" task-via (niente esito proprio: apre TaskViaFocus, esclusa dalla
   // completezza/invio)? Task-via puro → tutte; ibrido → solo le BONIFICHE EXTRA; normale → nessuna.
+  // I "+" (manuale=true) sono interventi VERI, mai contenitori — anche con attività BONIFICHE EXTRA
+  // (guardia centralizzata in contenitoreTaskVia, coerente con PDF e route foto).
   const isVoceTaskVia = useCallback(
-    (v: Voce) => voceTaskVia(v, { tutto: taskVia, ibrido: taskViaIbrido }),
+    (v: Voce) => contenitoreTaskVia(v, { tutto: taskVia, ibrido: taskViaIbrido }),
     [taskVia, taskViaIbrido],
   );
 
