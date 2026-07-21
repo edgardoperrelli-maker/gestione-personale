@@ -341,6 +341,13 @@ export default function RapportinoForm({
   // Colonne per il PDF condiviso: unione dei campi del rapportino + quelli per-voce (voci miste).
   const campiUnione = useMemo(() => unioneCampi(campi, voci.map((v) => v.campi)), [campi, voci]);
 
+  // Il riepilogo "Saracinesche esitate" compare solo sui template con il campo valvola
+  // (ACEA/limitazioni): stesse due chiavi lette da `valoreSaracinesca` nel conteggio.
+  const mostraSaracinesche = useMemo(
+    () => campiUnione.some((c) => c.chiave === 'sostituzione_valvola' || c.chiave === 'sost_valvola'),
+    [campiUnione],
+  );
+
   const righe: RigaVoce[] = useMemo(
     () =>
       voci.map((v, idx) => {
@@ -515,6 +522,7 @@ export default function RapportinoForm({
           infoCampi={infoCampi}
           taskVia={taskVia}
           taskViaIbrido={taskViaIbrido}
+          mostraSaracinesche={mostraSaracinesche}
           riepilogo={riepilogo}
           righe={righe}
           mancanti={mancanti}

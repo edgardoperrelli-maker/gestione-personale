@@ -1,6 +1,7 @@
 import { voceEsitoColore } from './voceColore';
 import type { TemplateCampo } from './buildVoci';
 import { campiDiVoce, unioneCampi } from './campiDiVoce';
+import { valoreSaracinesca } from '@/lib/limitazione/exportLimMassive';
 
 export type StatoVoce = 'eseguito' | 'non_eseguito' | 'da_fare';
 
@@ -16,6 +17,9 @@ export interface RiepilogoRapportino {
   daFare: number;
   annullati: number;
   totali: number;
+  /** Saracinesche (valvole) sostituite: voci attive con `sostituzione_valvola`/`sost_valvola` = SI.
+   *  Stessa fonte di verità dell'export ACEA (`valoreSaracinesca`, tollerante a booleano/stringa). */
+  saracinesche: number;
   lavorazioni: LavorazioneConteggio[];
 }
 
@@ -42,9 +46,15 @@ export function riepilogoRapportino(
   let nonEseguiti = 0;
   let daFare = 0;
   let annullati = 0;
+  let saracinesche = 0;
   for (const v of attive) {
     // Le voci annullate non contribuiscono a daFare: il rapportino rimane inviabile
     if (v.annullato) { annullati += 1; continue; }
+    // Saracinesca sostituita (SI): conta su tutte le voci attive non annullate (task e manuali),
+    // stessa `valoreSaracinesca` dell'export ACEA (tollerante a booleano `true` e stringa "SI").
+    if (valoreSaracinesca(v.risposte['sostituzione_valvola'], v.risposte['sost_valvola']).toUpperCase() === 'SI') {
+      saracinesche += 1;
+    }
     // Voci create dal "+" (manuali): già complete con esito e foto → contano come eseguite, mai "da fare".
     if (v.manuale) { eseguiti += 1; continue; }
     // L'esito si valuta sui campi DELLA voce (flusso del suo gruppo attività, fallback rapportino).
@@ -62,5 +72,5 @@ export function riepilogoRapportino(
       count: attive.filter((v) => v.risposte[c.chiave] === true).length,
     }))
     .filter((l) => l.count > 0);
-  return { eseguiti, nonEseguiti, daFare, annullati, totali: attive.length, lavorazioni };
+  return { eseguiti, nonEseguiti, daFare, annullati, totali: attive.length, saracinesche, lavorazioni };
 }
