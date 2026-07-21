@@ -1,149 +1,169 @@
-# Handoff — 2026-07-20 (notte): Azioni operatori COMPLETO — modulo, per-attività, anteprime
+# Handoff — 2026-07-21: Consolle Azioni operatori, pianificazione senza template, foto condizionali
 
-**Generated**: 2026-07-20 ~20:00 · **Branch**: `main` = produzione Vercel (ultimo merge `3960d6e`, PR #122) · **Status**: TUTTO MERGIATO E DEPLOYATO. Migrations applicate al prod. Un solo controllo rimandato: il primo giro generato per-attività (vedi Resume 1).
+**Generated**: 2026-07-21 ~pomeriggio · **Branch**: `main` = produzione Vercel (ultimo merge `aac4987`, PR #130) · **Status**: TUTTO MERGIATO, DEPLOYATO E VERIFICATO. Migrations applicate al prod (nell'ordine giusto: prima il deploy, poi le migrations). Nessun controllo in sospeso obbligatorio.
 
 ## Goal
 
-Giornata in 4 tappe sullo stesso filone (2 task ATLAS + 3 iterazioni su feedback dal vivo):
-sostituire i Template rapportini con **Azioni operatori** (Committente → Gruppo attività → flusso),
-generare il rapportino **per-attività** (ogni voce = azioni del flusso del SUO gruppo), e rendere
-il modulo usabile da tutto il backoffice (editor semplice, anteprime dinamiche). In coda: commit
-dell'hardening lim-sync "commessa rinominata" rimasto in sospeso dalla sessione concorrente.
+Giornata su due binari conversi: (A) questa sessione — processo completo /grilling → verifica
+funzionale → 3 mockup HTML → **redesign "Consolle" di Azioni operatori** + rifiniture motore
+(PR #127), migrations al prod, **foto obbligatorie su condizione** (PR #130), hook sync-skills
+(PR #128); (B) sessioni concorrenti — **pianificazione senza template** (PR #123, #124),
+foto-zip task-via (PR #125), filtri storico multi-select + territorio (PR #126, #129).
+Obiettivo di fondo confermato dall'utente: *le pianificazioni sono indipendenti dai template;
+ogni card intervento ha le azioni della SUA attività, configurate in Azioni operatori*.
 
 ## Completed (tutto in produzione)
 
-- [x] **PR #116** (task ATLAS `4c616de3…` + `e81c9fd4…`): modulo `/impostazioni/azioni-operatori`
-  (gerarchia flowchart, gruppi data-driven dalla tassonomia, foglia extra acqualatina/SOSTITUZIONE
-  MISURATORI), collegamento `rapportino_template.gruppo_committente`+`gruppi_attivita[]` con seed
-  (migration `20260720190000` APPLICATA: 7 collegati / 3 non collegati verificati), modulo
-  Template rapportini rimosso (route in redirect). ROADMAP/HANDOFF nella stessa PR.
-- [x] **PR #119**: (a) editor semplice per il backoffice; (b) **rapportino per-attività**:
-  `rapportino_voci.template_id`+`campi_snapshot` (migration `20260720210000` APPLICATA),
-  generazione risolve il flusso dal gruppo dell'intervento (`risolviFlussoPerGruppo`: dedicato
-  batte ibrido, manuali esclusi, lim_massive≡acea; fallback = "Modello" scelto in mappa), catena
-  per-voce completa (operatore, validazioni, esiti, export con `unioneCampi`); (c) template
-  import Excel: DESCRIZIONE ATTIVITÀ **solo-tendina** (data validation stop sulla Leggenda).
-- [x] **PR #121**: sezione di primo livello "Anteprima del task nel rapportino" (titolo card +
-  dettagli anagrafici + anteprima unica; per i manuali "Anagrafica da compilare (+)"); ELIMINATI
-  i 3 blocchi avanzati duplicati e la select committente dei flussi CLASSICI (funzione morta:
-  `risolviTemplateCommittente` gira solo sui `solo_manuale`; nei manuali resta "Committente del +").
-- [x] **PR #122**: anteprima DINAMICA — box live «L'operatore leggerà: …», valore d'esempio su
-  ogni riga del titolo con evidenza "← fa da titolo", resa `vedrà: ETICHETTA: valore` sui dettagli.
-- [x] **`24f2efa` su main**: hardening lim-sync "commessa rinominata" (filone della sessione
-  concorrente, committato su richiesta): `risolviPathConfig` (risoluzione path in memoria SOLO con
-  UNA gemella valida) + `scriviLog` con fallback locale (mai ricreare alberi fantasma su OneDrive).
-  227 test lim-sync verdi + `node --check` prima del commit; l'agente serale gira col fix.
-- [x] Verifica post-deploy #119 in prod: pagina operatore `/r/<token>` di un rapportino
-  pre-merge renderizza perfettamente in fallback (lista, focus, azioni ESEGUITO/NOTE/lavorazioni).
+- [x] **PR #127 — Consolle Azioni operatori + rifiniture motore** (questa sessione):
+  - UI: rail attività per committente con stato copertura; panoramica-registro (KPI, chip
+    azioni, slot espliciti del modello «+», «Da sistemare», Archiviati); editor con
+    **telefono sticky sui componenti REALI** dell'operatore (fedeltà strutturale, non
+    simulata); checklist di verifica in creazione; avvio guidato attività scoperte;
+    **Archivia/riattiva** (il payload non forza più `active=true`); pill di salvataggio
+    **mai silenziosa** (dichiara il motivo del blocco).
+  - Motore: **titolo/dettagli per-voce** LIVE dal flusso della voce
+    (`rapportino_voci.template_id`, fallback rapportino per lo storico); **GET admin dei
+    template protetta** (era SENZA autenticazione — supabaseAdmin bypassa la RLS e le API
+    non passano dal middleware); **is_default ritirato** da tutti i consumatori; **modello
+    «+» univoco per committente** (indice unico parziale + 409 cortese) e **Pronto
+    Intervento riservato al modulo P.I.** via flag `riservato_pi` (via l'aggancio PER NOME
+    in `api/admin/pi/token`). Token additivi `--phone-bezel`/`--phone-screen` + DESIGN.md.
+  - Pulizia: rimosso il modulo orfano `impostazioni/template-rapportini`.
+- [x] **Migrations APPLICATE al prod** (dopo deploy READY di #127, per non aprire la
+  finestra di ambiguità del «+» col codice vecchio): `20260721120000_modello_plus_riservato_pi`
+  (colonna + data-fix Pronto Intervento→italgas/riservato/scollegato + indice unico) e
+  `20260721130000_archivia_flussi_obsoleti` (Ibrido acea, IBRIDO ITALGAS/ACEA → archiviati).
+  Verifica post-apply: 10 flussi attivi, 2 archiviati, 2 modelli «+» univoci, indice presente,
+  0 rapportini in corso su Ibrido acea.
+- [x] **PR #130 — Foto obbligatorie SU CONDIZIONE**: campo additivo `obbligatoria_se
+  {chiave, valore}` sull'azione foto (jsonb `campi`: **nessuna migration**). Editor: su ogni
+  foto il controllo è *Facoltativa / Obbligatoria / Obbligatoria se…* (trigger = crocetta o
+  select del flusso; es. «SARACINESCA spuntata → FOTO SARACINESCA obbligatoria»); i
+  riferimenti seguono i rename (chiave da slug) e si azzerano eliminando il trigger.
+  Motore: `slotFotoCondizionali` valuta prima le condizioni configurate, poi le regole
+  legacy per nome (valvola, retro-compat); trigger sparito → **fail-open**.
+- [x] **PR #123/#124 (concorrente) — pianificazione senza template**: la mappa non chiede
+  più il "Modello" (fallback risolto dal motore: rapportini esistenti → risanamento → primo
+  per nome); `taskToIntervento` deriva committente+gruppo per singolo task dalla tassonomia
+  (giri misti ok, prima ~78 interventi/30gg in fallback); migration `20260721100000`
+  (APPLICATA): RESINE → italgas/RISANAMENTO COLONNE, flusso classico "P.I."; import
+  ristretto al SOLO template ufficiale (gate header); colonna COMMITTENTE auto e protetta.
+- [x] **PR #125 + follow-up (concorrente) — foto-zip task-via**: ZIP per via/matricola
+  (vecchio/nuovo/minibag) per BONIFICHE EXTRA; disambigua per matricola anche fuori italgas.
+- [x] **PR #126/#129 (concorrente) — storico**: filtri multi-select (esecutore, gruppo,
+  committente, territorio) + colonne gruppo/committente/territorio anche in export.
+- [x] **PR #128 — hook sync-skills** alla versione canonica git-clone (solo `.claude/`).
 
 ## Not Yet Done
 
-- [ ] **Controllare il PRIMO GIRO generato per-attività** (Resume 1): i 14 rapportini del 21/07
-  sono stati generati alle 17:16, PRIMA del merge #119 → viaggiano in fallback (comportamento
-  identico al vecchio, corretto). Le voci per-attività compaiono alla prossima
-  generazione/risalvataggio di un piano dalla mappa.
-- [ ] Follow-up in ROADMAP ("Azioni operatori — rifiniture per-voce"): valutare "Modello" mappa
-  non più obbligatorio quando tutti i task risolvono; task-via/ibrido e `tipo` risanamento
-  per-voce; `/hub/rapportini/eseguiti` sui campi unione.
-- [ ] Se "tutti nel backoffice" dovrà includere NON-admin: `/impostazioni` è solo admin (layout
-  con redirect) — scelta di permessi da confermare con l'utente.
-- [ ] Gruppo italgas BONIFICHE seedato sul flusso ITALGAS (ibrido) e AGENDA AEREA senza flusso
-  (ha già un flusso creato a mano dall'utente il 20/07 sera, "AGENDA AEREA — 1 azione ESITO"):
-  verificare che l'ufficio confermi i collegamenti.
+- [ ] **Rifiniture per-voce restanti** (ROADMAP): meccaniche task-via/ibrido per-voce e vista
+  `/hub/rapportini/eseguiti` sui campi unione. Il display (titolo/dettagli) per-voce è FATTO.
+- [ ] **6 test rossi PREESISTENTI** in `tools/limitazioni-sync` (`risolviMaster` ×3,
+  `comuni` ×3; ultima modifica `783da32`): fuori perimetro di oggi, da sistemare a parte.
+  Il resto della suite: ~1.970 verdi.
+- [ ] **QA visivo della consolle** su dati reali da parte dell'utente (l'ambiente cloud non
+  ha service key né login: verificato via tsc/lint/build/test, non a schermo).
+- [ ] Prima foto condizionale REALE da configurare (l'utente voleva saracinesca): al primo
+  giro utile verificare il blocco d'invio solo a condizione attiva.
 
 ## Failed Approaches (Don't Repeat These)
 
-- **`apply_migration`/`execute_sql` per mutazioni prod**: il classifier li può bloccare anche
-  sulla "via sanzionata"; NON aggirare — chiedere l'ok esplicito in chat e rilanciare (così è
-  passato due volte oggi).
-- **`.not('col','is',null)` nelle query del motore rapportini**: il fake Supabase dei test
-  (`lib/interventi/testUtils/fakeSupabase.ts`) non lo implementa → 17 test rossi. Filtrare in JS
-  dopo una select semplice (`.eq()` sola) — più robusto anche per il fake.
-- **Select `campi_snapshot` per-voce dentro la select principale del render `/r/[token]`**:
-  se la colonna non esiste ancora, TUTTA la select fallisce (rapportino "vuoto"). Pattern giusto
-  (usato nel file per task_via ecc.): query separata e resiliente, merge per id.
-- **Riusare `committente`/tassonomia per la gerarchia del flowchart**: no — `committente` instrada
-  il runtime e non ha 'acqualatina' nei check; la gerarchia è una dimensione NUOVA
-  (`gruppo_committente`), acqualatina esiste solo lì (foglia extra hardcoded, non in tassonomia).
-- **Chips/valori "coordinate" nel titolo card**: escluse dalla scelta titolo (sarebbe un titolo
-  insensato); la coordinata resta solo come link "Punto esatto".
+- **Applicare le migrations PRIMA del deploy del codice nuovo**: col codice vecchio online,
+  il data-fix del «+» (committente=italgas su Pronto Intervento) rende AMBIGUO
+  l'instradamento della modale «+» di Italgas (due manuali attivi stesso committente,
+  ordine query casuale). Ordine giusto: merge → deploy READY (Vercel MCP) → migrations.
+  Il codice nuovo è resiliente pre-migration (select con fallback, lookup P.I. per nome).
+- **`npm run build` nell'ambiente cloud senza service key**: fallisce SEMPRE alla prima
+  route admin (supabaseAdmin è creato a livello di modulo) — non è un errore del branch.
+  Check di compilazione valido: `SUPABASE_SERVICE_ROLE_KEY=dummy npm run build`.
+- **Sonda HTTP su vercel.app dalla shell**: il proxy della sessione blocca il CONNECT (403,
+  network policy). Per lo stato dei deploy usare gli strumenti MCP Vercel (`get_deployment`).
+- **tsc dopo aver rimosso una pagina**: gli artefatti in `.next/types` puntano ancora alla
+  route eliminata → falsi errori TS2307. `rm -rf .next` e rilanciare.
+- **Fidarsi di HEAD locale nelle giornate multi-sessione**: main è avanzato 3 volte durante
+  il lavoro (#124-#126, #129). Sempre `git fetch` + merge di origin/main PRIMA della PR
+  (conflitto tipico: ROADMAP, tutti prependono in «Fatto»).
 
 ## Key Decisions
 
 | Decision | Rationale |
 |---|---|
-| Collegamento = 2 colonne su `rapportino_template` (`gruppo_committente` + `gruppi_attivita text[]`) | N:M leggero senza tabella ponte; un ibrido copre più gruppi |
-| Per-voce = snapshot sulla voce (`template_id`+`campi_snapshot`), NULL = fallback rapportino | Retro-compat totale; rapportini storici intatti; zero blocchi alla pianificazione |
-| `risolviFlussoPerGruppo`: dedicato batte ibrido (meno gruppi coperti), poi nome | Determinismo quando due flussi coprono lo stesso gruppo |
-| "Modello" in mappa resta obbligatorio come fallback | Interventi senza gruppo o gruppi scoperti non bloccano mai il giro |
-| Export/PDF/foto: unione colonne (`utils/rapportini/campiDiVoce.ts`) | Voci miste nello stesso rapportino: ogni risposta trova la sua colonna |
-| UI backoffice: essenziale in primo piano, tecnicismi in "Impostazioni avanzate" chiusa | Feedback esplicito utente (memoria `ui-config-semplice-backoffice`) |
-| Select committente SOLO sui manuali | Verificato: `risolviTemplateCommittente` è chiamato solo su `solo_manuale=true` (modale "+", lista attesa) |
+| Redesign = variante «Consolle» (A) + innesti Registro (chip/KPI) e Guidata (checklist) | Scelta utente sui 3 mockup HTML con token reali e dati di produzione |
+| Anteprima = componenti condivisi con l'operatore (`VoceCampi`, `VoceTitolo`, …) | Fedeltà per costruzione: stesso codice, mai una copia disegnata |
+| Display per-voce: presenza del template della voce decide (anche config vuota) | La voce segue IL SUO flusso; storico senza `template_id` → config rapportino |
+| «+» univoco: indice unico parziale + `riservato_pi` per il P.I. | Basta lotterie da ordine query; basta agganci per nome (`nome='Pronto Intervento'`) |
+| `is_default` ritirato ovunque (colonna resta, innocua) | Nessun default in prod; Lista attesa ora deterministica (primo per nome) |
+| Archivia (active=false) invece di elimina; editor non forza più active | Retirement sicuro (Ibrido acea) senza toccare i rapportini storici |
+| `obbligatoria_se` nel jsonb `campi`, valutata in `slotFotoCondizionali` | Zero migration; unico collo di bottiglia → gate invio, dettaglio mancanti e manuali «+» gratis |
+| Condizione orfana → fail-open (foto facoltativa) | Mai un blocco fantasma per l'operatore sul campo |
 
 ## Current State
 
-**Working**: tutto il filone in produzione (`3960d6e`); migrations applicate; repo principale
-allineato su `main` (l'agente lim-sync gira da lì col fix `24f2efa`). L'utente ha già usato il
-modulo (creato flusso "AGENDA AEREA", provato l'editor). Worktree
-`.claude/worktrees/azioni-operatori` su `feat/anteprima-dinamica` (mergiato: può essere rimosso;
-contiene `.env.local` copiato a mano, gitignorato).
+**Working**: tutto in produzione (`aac4987`). Consolle live su Impostazioni → Azioni
+operatori: 8 attività coperte (Italgas 6, Acea 2), 10 flussi attivi, 2 archiviati
+riattivabili, modelli «+» univoci (Italgas per mobili, Template manuali lim. massive),
+Pronto Intervento riservato P.I. Pianificazione senza scelta modello. Foto condizionali
+pronte da configurare.
 
-**Broken**: nulla di noto.
+**Broken**: nulla di noto. (I 6 rossi lim-sync sono preesistenti e fuori dal filone.)
 
 ## Files to Know
 
 | File | Perché |
 |---|---|
-| `lib/rapportini/flussiGruppo.ts` | Albero flowchart + `risolviFlussoPerGruppo` + `normalizzaCollegamento` (PURO, testato) |
-| `utils/rapportini/campiDiVoce.ts` | `campiDiVoce` (per-voce con fallback) + `unioneCampi` (export/PDF) |
-| `lib/interventi/sincronizzaRapportini.ts` | Generazione: `flussoPerVoce` via intervento→gruppo→flusso; retry resilienti |
-| `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` | UI completa: navigazione, azioni, anteprima dinamica, avanzate |
-| `app/r/[token]/page.tsx` + `api/r/[token]/{voce,invia}` | Catena operatore per-voce (query snapshot separata e resiliente) |
-| `supabase/migrations/20260720{190000,210000}_*.sql` | Collegamenti + colonne voci (GIÀ applicate al prod) |
-| `tools/limitazioni-sync/lib/risolviPathConfig.mjs` | Risoluzione path commessa rinominata (agente) |
+| `app/impostazioni/azioni-operatori/AzioniOperatoriClient.tsx` | Consolle completa: rail, panoramica, editor, telefono, archiviazione, condizioni foto |
+| `utils/rapportini/fotoCondizionali.ts` | Obblighi foto condizionali: configurati (`obbligatoria_se`) + legacy per nome |
+| `lib/rapportini/modelloPlus.ts` + `lib/interventi/manuali/caricaTemplateManuali.ts` | Unicità «+» e pool manuali senza riservati |
+| `app/r/[token]/page.tsx` | Display per-voce live (`tplIdByVoceId` → `displayByTplId`), pattern resiliente |
+| `lib/interventi/sincronizzaRapportini.ts` | Fallback modello auto (senza is_default) + flussi per-voce |
+| `supabase/migrations/202607211{2,3}0000_*.sql` | riservato_pi/indice/data-fix + archiviazioni (APPLICATE) |
+| `docs/` ← report Fase 1 in scratchpad sessione | Contratto comportamenti verificati (F1-F6) — non committato |
 
 ## Code Context
 
 ```ts
-// Generazione per-voce (sincronizzaRapportini): la voce salva il flusso del SUO gruppo
-flussoPerVoce(interventoId) // → { template_id, campi_snapshot } | null (null = fallback rapportino)
-risolviFlussoPerGruppo(committenteEq, gruppo, templates) // dedicato < ibrido, no manuali, 'altro' = qualsiasi
+// Obbligo foto su condizione (configurato dal modulo, jsonb campi):
+campo.obbligatoria_se = { chiave: 'saracinesca', valore: 'SI' }
+slotFotoCondizionali(campi, risposte)  // Set<chiave foto obbligatorie ORA> (config + legacy nome)
+fotoSlotObbligatorio(campo, set)       // statica || condizionale
 
-// Ovunque si valuta una voce:
-campiDiVoce(voce, campiRapportino)   // i SUOI campi o il fallback
-unioneCampi(base, vociCampi[])       // colonne export/PDF, dedup per chiave, ordine rinumerato
+// Display per-voce su /r/[token]: la card segue il SUO flusso, live
+voce.titolo_campi ?? titoloCampiRapportino   // stesso pattern per info_campi
 ```
 
 ```sql
--- Salute collegamenti (attesi oggi: 8 collegati con AGENDA AEREA, 2-3 non collegati):
-select nome, gruppo_committente, gruppi_attivita from rapportino_template order by 2 nulls last, 1;
--- Voci per-attività generate (0 finché non si rigenera un piano post-deploy):
-select count(*) from rapportino_voci where campi_snapshot is not null;
+-- Salute modulo (attesi: 10 attivi, 2 archiviati, riservato P.I. = Pronto Intervento):
+select nome, active, solo_manuale, riservato_pi, committente, gruppo_committente, gruppi_attivita
+from rapportino_template order by active desc, solo_manuale, nome;
+-- Prima foto condizionale configurata (quando l'utente la crea):
+select nome, c->>'etichetta' as foto, c->'obbligatoria_se' as condizione
+from rapportino_template, jsonb_array_elements(campi) c
+where c->'obbligatoria_se' is not null and c->>'obbligatoria_se' <> 'null';
 ```
 
 ## Resume Instructions
 
-1. **Primo giro per-attività**: dopo che l'ufficio risalva/genera un piano dalla mappa (o su
-   richiesta: risalvare il piano del 21/07 — tutte le voci sono a 0 compilati, operazione sicura):
-   - `select count(*) from rapportino_voci where campi_snapshot is not null;` → atteso > 0.
-   - Campione di correttezza: join voce→intervento e verificare che `voce.template_id` sia il
-     flusso del `gruppo_attivita` dell'intervento (es. DUNNING → LIMITAZIONI/SOSPENSIONI,
-     massive → RAPPORTINO LIMITAZIONI MASSIVE); interventi con gruppo NULL → voce con snapshot NULL.
-   - Aprire `/r/<token>` di quel giro: voci di gruppi diversi mostrano azioni diverse.
-   - Se snapshot tutti NULL con gruppi valorizzati: controllare che i flussi siano `active` e
-     collegati (query salute sopra), e che il deploy sia ≥ `14552c0`.
-2. **Guard motore tassonomia** (runbook invariato): dopo ogni import ACEA le 3 guard di
-   `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` (attese G1=0 / G2=11 note / G3=0).
-3. Giro agente serale 20/07: verificare in `/hub/agente` nessuna anomalia; il fix commessa
-   rinominata emette `avvisoPercorso` nel report se i path cambiano ancora.
+1. **Primo giro con la consolle**: aprire Impostazioni → Azioni operatori, controllare KPI
+   copertura (Italgas 6/6, Acea 2/2), aprire Dunning e verificare telefono + salvataggio
+   («Salvato ✓»). Provare Archiviati → riattiva/archivia su un flusso di test se serve.
+2. **Configurare la prima foto condizionale** (richiesta utente: saracinesca): nel flusso
+   interessato aggiungere azione «SARACINESCA» (casella) + azione foto con *Obbligatoria
+   se SARACINESCA = spuntata*; al giro successivo verificare che l'invio si blocchi SOLO
+   con la casella spuntata (query "prima foto condizionale" sopra per conferma dati).
+3. **Guard motore tassonomia** (runbook invariato): dopo ogni import ACEA le 3 guard di
+   `tools/limitazioni-sync/guard-limitazioni-non-esportate.sql` (G1=0 / G2=11 note / G3=0).
+4. Se compare un 409 sul salvataggio di un modello manuale: è l'unicità del «+» (voluta) —
+   il messaggio dice quale modello copre già quel committente.
 
 ## Warnings
 
 - **NON disattivare** la voce acea "LIMITAZIONI MASSIVE" in tassonomia (l'export si àncora al literal).
 - Repo PUBBLICO: mai dati prod (matricole/ODL/nomi operatori) in commit/PR.
-- I rapportini del 21/07 in fallback sono CORRETTI così: non rigenerarli per forza — il per-voce
-  arriva naturalmente col prossimo salvataggio.
-- L'auto-save dell'editor propaga anche il collegamento gruppi: l'albero a sinistra si aggiorna
-  ~1s dopo la modifica (voluto).
-- Sessioni concorrenti attive oggi su questo repo (#114→#122): SEMPRE `git fetch` + rebase prima
-  di push; verificare che un merge prenda tutti i commit del ramo.
+- «Ibrido acea» resta ARCHIVIATO apposta: il suo hack per nome (`fotoObbligatorieSoloMassive`)
+  vive solo per i rapportini storici. Non riattivarlo se non serve davvero; le foto
+  condizionali configurabili sono il sostituto.
+- La colonna `is_default` esiste ancora nel DB ma NESSUN codice la legge: non usarla via SQL.
+- Le azioni sono congelate per-voce alla generazione; titolo/dettagli sono LIVE (anche sui
+  rapportini già in mano agli operatori) — l'header dell'editor lo dichiara.
+- Giornate multi-sessione: `git fetch` + merge origin/main prima di ogni PR; il conflitto
+  ROADMAP si risolve tenendo entrambe le voci in cima a «Fatto».

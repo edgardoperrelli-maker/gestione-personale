@@ -5,6 +5,15 @@
 
 ## Fatto
 
+- ✅ **Foto obbligatorie SU CONDIZIONE (Azioni operatori)** *(2026-07-21)* — su ogni azione
+  foto il controllo è *Facoltativa / Obbligatoria / Obbligatoria se…*: la condizione punta a
+  un'altra azione del flusso (casella o scelta da elenco) e al valore che fa scattare
+  l'obbligo (es. «SARACINESCA spuntata → FOTO SARACINESCA obbligatoria»). Campo additivo
+  `obbligatoria_se {chiave, valore}` nel jsonb `campi` (**nessuna migration**), valutato in
+  `slotFotoCondizionali` PRIMA delle regole legacy per nome (valvola, retro-compat): gate
+  pre-invio, dettaglio «foto mancanti» e validazione manuali «+» lo ereditano dall'unico
+  collo di bottiglia. Trigger sparito → fail-open (mai blocchi fantasma); i riferimenti
+  seguono i rename delle etichette e si azzerano eliminando l'azione-condizione.
 - ✅ **Consolle Azioni operatori + rifiniture motore (fase 5)** *(2026-07-21)* — redesign del
   modulo su architettura per-attività: rail con stato di copertura, panoramica-registro (KPI,
   chip delle azioni per attività, slot espliciti del modello «+», «Da sistemare», Archiviati),
@@ -16,9 +25,12 @@
   rapportino per lo storico); GET admin dei template protetta da `requireAdmin` (era pubblica);
   `is_default` ritirato da tutti i consumatori; modello del «+» reso UNIVOCO per committente
   (indice unico parziale + 409 cortese) e "Pronto Intervento" riservato al modulo P.I. via
-  flag `riservato_pi` (via l'aggancio per nome in `api/admin/pi/token`). Migrations **DA
-  APPLICARE al deploy**: `20260721120000_modello_plus_riservato_pi` (colonna + data-fix +
-  indice) e `20260721130000_archivia_flussi_obsoleti` (Ibrido acea, IBRIDO ITALGAS/ACEA).
+  flag `riservato_pi` (via l'aggancio per nome in `api/admin/pi/token`). Migrations
+  **APPLICATE al prod il 21/07** (dopo il deploy READY della PR, per non aprire la finestra
+  di ambiguità del «+» col codice vecchio): `20260721120000_modello_plus_riservato_pi`
+  (colonna + data-fix + indice) e `20260721130000_archivia_flussi_obsoleti` (Ibrido acea,
+  IBRIDO ITALGAS/ACEA archiviati, riattivabili dal modulo). Verifica post-apply: 10 flussi
+  attivi, 2 archiviati, modelli «+» univoci, 0 rapportini in corso sull'ombrello.
   Rimosso il modulo orfano `impostazioni/template-rapportini`.
 - ✅ **Pianificazione: importabile SOLO il template ufficiale** *(2026-07-21)* — i due
   caricamenti file della mappa (Excel principale e template aggiuntivo) accettano
