@@ -1,6 +1,25 @@
 import * as XLSX from 'xlsx';
 import type { Task } from './types';
 import { parseLatLng } from './parseCoordinate';
+import { FOGLIO_TEMPLATE, isHeaderTemplateUfficiale } from '@/lib/attivita/templateColonne';
+
+/**
+ * True se il file è il template import UFFICIALE: foglio 'Interventi' con l'header
+ * esatto del template scaricabile (/api/interventi/template). La PIANIFICAZIONE accetta
+ * solo questo formato; i formati storici (ATTGIORN, Massiva, Export Dati) restano
+ * supportati da parseExcelToTasks solo per gli altri flussi (es. import torre).
+ */
+export async function isFileTemplateUfficiale(file: File): Promise<boolean> {
+  try {
+    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
+    const ws = wb.Sheets[FOGLIO_TEMPLATE];
+    if (!ws) return false;
+    const rows = XLSX.utils.sheet_to_json<unknown[]>(ws, { header: 1, defval: '' });
+    return isHeaderTemplateUfficiale((rows[0] as unknown[]) ?? []);
+  } catch {
+    return false;
+  }
+}
 
 // ─── Normalizzazione header ──────────────────────────────────────────────────
 

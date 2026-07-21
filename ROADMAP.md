@@ -5,6 +5,15 @@
 
 ## Fatto
 
+- ✅ **Pianificazione: importabile SOLO il template ufficiale** *(2026-07-21)* — i due
+  caricamenti file della mappa (Excel principale e template aggiuntivo) accettano
+  esclusivamente il template UFFICIALE scaricabile: foglio «Interventi» con l'header
+  esatto di `COLONNE_TEMPLATE` (gate `isFileTemplateUfficiale`, checker puro
+  `isHeaderTemplateUfficiale` in `lib/attivita/templateColonne.ts`). Rifiutati con la
+  modale di import (nuovo tipo `formato_non_ufficiale`) i formati storici (ATTGIORN,
+  Massiva/Rapportini, Export Dati/Geocall) E i template vecchi senza colonna COMMITTENTE.
+  L'import torre (`/api/interventi/import`, ATTGIORN italgas) resta invariato. Test:
+  invariante builder↔gate (il file generato passa il riconoscimento) + casi negativi.
 - ✅ **Template import: COMMITTENTE auto e non modificabile** *(2026-07-21)* — il template
   Excel scaricabile (`/api/interventi/template`) ha la nuova colonna COMMITTENTE popolata
   in automatico dalla DESCRIZIONE ATTIVITÀ (VLOOKUP sulla Leggenda, come il GRUPPO) e
