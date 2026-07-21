@@ -23,6 +23,7 @@ import type { RigaRisanamento } from './risanamento/types';
 import { reidrataVoci, persistiVoce } from '@/lib/offline/persistVoce';
 import { risolviFotoPlaceholder, vociDaRiparare } from '@/lib/offline/rehydrate';
 import { accodaFoto } from '@/lib/offline/persistFoto';
+import { caricaFotoDiretta, salvaVoceDiretta } from '@/lib/offline/uploadFotoDiretto';
 import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
@@ -309,17 +310,34 @@ export default function RapportinoForm({
       const voceId = voceIdUploadRef.current;
       if (!voceId || !mountedRef.current) return null;
       const now = Date.now();
-      // Accoda la foto (blob in IndexedDB + elemento outbox). Ritorna il placeholder.
+      // Percorso normale (offline-first): accoda il blob in IndexedDB + elemento outbox.
       const placeholder = await accodaFoto(token, voceId, chiave, file, now);
-      if (!placeholder || !mountedRef.current) return placeholder;
-      // Scrivi il placeholder nella risposta e PERSISTI subito (no debounce) per evitare
-      // che un salvataggio successivo sovrascriva il path reale riscritto dal sync.
-      const risposteCorrenti = { ...(latestRisposteRef.current[voceId] ?? {}), [chiave]: placeholder };
-      latestRisposteRef.current[voceId] = risposteCorrenti;
-      setVoci((prev) => prev.map((v) => (v.id === voceId ? { ...v, risposte: risposteCorrenti } : v)));
-      await persistiVoce(token, voceId, risposteCorrenti, now, taskIdPerVoceRef.current[voceId]);
-      void sincronizzaToken(token);
-      return placeholder;
+      if (placeholder) {
+        if (!mountedRef.current) return placeholder;
+        // Scrivi il placeholder nella risposta e PERSISTI subito (no debounce) per evitare
+        // che un salvataggio successivo sovrascriva il path reale riscritto dal sync.
+        const risposteCorrenti = { ...(latestRisposteRef.current[voceId] ?? {}), [chiave]: placeholder };
+        latestRisposteRef.current[voceId] = risposteCorrenti;
+        setVoci((prev) => prev.map((v) => (v.id === voceId ? { ...v, risposte: risposteCorrenti } : v)));
+        await persistiVoce(token, voceId, risposteCorrenti, now, taskIdPerVoceRef.current[voceId]);
+        void sincronizzaToken(token);
+        return placeholder;
+      }
+      // Fallback: la coda offline NON è utilizzabile (IndexedDB pieno/rotto — es. memoria
+      // del telefono satura: le risposte di testo passano, il blob foto no → accodaFoto=null).
+      // Se c'è rete, carica la foto DIRETTAMENTE sul server così non va persa, e registra il
+      // path sulla voce con un POST diretto (durevole anche senza IndexedDB), PRIMA di toccare
+      // lo stato React così la foto resta agganciata anche se il componente si smonta.
+      const path = await caricaFotoDiretta(token, file);
+      if (!path) return null;
+      const risposteCorrenti = { ...(latestRisposteRef.current[voceId] ?? {}), [chiave]: path };
+      await salvaVoceDiretta(token, voceId, risposteCorrenti, taskIdPerVoceRef.current[voceId]);
+      void persistiVoce(token, voceId, risposteCorrenti, now, taskIdPerVoceRef.current[voceId]); // mirror locale best-effort
+      if (mountedRef.current) {
+        latestRisposteRef.current[voceId] = risposteCorrenti;
+        setVoci((prev) => prev.map((v) => (v.id === voceId ? { ...v, risposte: risposteCorrenti } : v)));
+      }
+      return path;
     },
     [token],
   );
