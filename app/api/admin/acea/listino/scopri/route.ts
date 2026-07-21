@@ -39,7 +39,7 @@ export async function POST() {
     }
 
     // normalizza + dedup per chiave (prima etichetta vista vince). "Sostituzione saracinesca" è una
-    // voce a sé (dal master ZAGAROLO) e va sempre a listino.
+    // voce a sé (dai master massive, Labico/Zagarolo) e va sempre a listino.
     const daInserire = new Map<string, string>();
     for (const testo of [...canoniche, 'Sostituzione saracinesca']) {
       const norm = normalizzaAttivita(testo);

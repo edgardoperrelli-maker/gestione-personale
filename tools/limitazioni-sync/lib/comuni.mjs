@@ -7,10 +7,13 @@ import path from 'node:path';
 export const TUTTI = 'TUTTI';
 
 /** Comune di un file master: nome del file senza estensione, normalizzato.
- *  `C:\...\LABICO.xlsx` → `LABICO`. Tollerante a estensione maiuscola e spazi. */
+ *  `C:\...\LABICO.xlsx` → `LABICO`. Tollerante a estensione maiuscola e spazi.
+ *  Usa `path.win32` (che tratta sia `\` sia `/` come separatori) così i path Windows dei
+ *  master SharePoint danno il basename corretto anche quando gira su un runner POSIX (CI):
+ *  con `path.posix` un `C:\...\LABICO.xlsx` non verrebbe spezzato e ritornerebbe l'intero path. */
 export function comuneDaFile(file) {
   const s = String(file ?? '');
-  return path.basename(s, path.extname(s)).trim().toUpperCase();
+  return path.win32.basename(s, path.win32.extname(s)).trim().toUpperCase();
 }
 
 /** Normalizza un comune scelto dall'app ('' / null / 'tutti' → TUTTI). */
