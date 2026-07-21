@@ -92,6 +92,34 @@ export async function applicaSpostamentoTerritorio(
   return { ok: true };
 }
 
+/**
+ * Territorio_id "preassegnato" per un intervento agganciato a un piano: override per-operatore
+ * del rapportino se presente, altrimenti il territorio del piano. Null se non risolvibile
+ * (nessun blocco: il chiamante decide se creare comunque o rifiutare).
+ * Usato da: creazione/approvazione manuale (eredita il territorio) e guardrail di generazione.
+ */
+export async function risolviTerritorioIdPerPiano(
+  db: SupabaseClient,
+  pianoId: string | null | undefined,
+  staffId?: string | null,
+): Promise<string | null> {
+  if (!pianoId) return null;
+  const { data: piano } = await db
+    .from('mappa_piani').select('territorio').eq('id', pianoId).maybeSingle();
+  const territorioPiano = (piano as { territorio: string | null } | null)?.territorio ?? null;
+  let override: string | null = null;
+  if (staffId) {
+    const { data: rap } = await db
+      .from('rapportini').select('territorio_override')
+      .eq('piano_id', pianoId).eq('staff_id', staffId).maybeSingle();
+    override = (rap as { territorio_override: string | null } | null)?.territorio_override ?? null;
+  }
+  const nome = ((override ?? '').trim() || (territorioPiano ?? '').trim());
+  if (!nome) return null;
+  const { data: terr } = await db.from('territories').select('id, name');
+  return buildIdByName((terr ?? []) as Array<{ id: string; name: string }>).get(nome.toLowerCase()) ?? null;
+}
+
 /** Ri-applica a interventi gli override dei rapportini del piano (dopo rigenerazione). */
 export async function reapplyOverridesInterventi(db: SupabaseClient, pianoId: string): Promise<void> {
   const { data: raps } = await db

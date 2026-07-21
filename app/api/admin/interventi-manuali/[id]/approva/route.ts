@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
+import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
 import { colonneAnagraficaVoce } from '@/lib/interventi/manuali/buildVoceManuale';
 import { estraiMatricola } from '@/lib/interventi/manuali/estraiMatricola';
 import { estraiSigillo, normSigillo } from '@/lib/interventi/manuali/estraiSigillo';
@@ -199,11 +200,16 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
   if (!locked) return NextResponse.json({ error: 'gia_gestita' }, { status: 409 });
 
   // ── Crea l'intervento ────────────────────────────────────────────────────────
+  // Territorio ereditato dal piano dell'operatore (override per-operatore se presente): senza,
+  // l'intervento manuale nascerebbe senza territorio e sparirebbe dai filtri per territorio dello
+  // storico. Best-effort: se non risolve resta null (l'approvazione non si blocca).
+  const territorioId = await risolviTerritorioIdPerPiano(supabaseAdmin, richiesta.piano_id as string | null, richiesta.staff_id ? String(richiesta.staff_id) : null);
   const record = richiestaToIntervento(dati, {
     committente,
     data: (richiesta.data as string),
     staff_id: String(richiesta.staff_id ?? ''),
     piano_id: (richiesta.piano_id as string | null) ?? null,
+    territorio_id: territorioId,
   }, indiceTassonomia);
 
   const { data: intRow, error: eInt } = await supabaseAdmin

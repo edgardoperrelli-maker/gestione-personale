@@ -11,6 +11,7 @@ import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPi
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 import { normOdl, taskDaSaltare } from '@/lib/interventi/odlPositivi';
+import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
 import { pickTemplateId } from '@/lib/interventi/templatePiano';
@@ -169,7 +170,7 @@ export async function sincronizzaRapportini(
   if (interventiWarning) console.error('sincronizza: ensureInterventiForPiano:', interventiWarning);
 
   const { data: intRows } = await db
-    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita').eq('piano_id', pianoId);
+    .from('interventi').select('id, staff_id, odl, matricola_contatore, pdr, stato, committente, gruppo_attivita, indirizzo').eq('piano_id', pianoId);
   const resolveIntervento = buildVoceInterventoLinker((intRows ?? []) as InterventoLinkRow[]);
 
   // Rapportino per-attività: ogni voce prende le azioni dal flusso del GRUPPO ATTIVITA' del suo
@@ -291,6 +292,9 @@ export async function sincronizzaRapportini(
           odl: (raw.odl as string | null | undefined) ?? (raw.odsin as string | null | undefined) ?? v.odl,
           matricola: (raw.matricola as string | null | undefined) ?? v.matricola,
           pdr: (raw.pdr as string | null | undefined) ?? v.pdr,
+          // Task-via (bonifiche extra): niente ODL/matricola/PDR → aggancio per via al suo intervento.
+          via: v.via,
+          taskVia: isTaskVia(v),
         });
         const nuovo = existingTaskIds.has(v.task_id) ? (prevNuovoByTask.get(v.task_id) ?? false) : rapPreesisteva;
         const raw_json = { ...(v.raw_json && typeof v.raw_json === 'object' ? v.raw_json : {}), _nuovo: nuovo, _annullato: Boolean(annullato) };
