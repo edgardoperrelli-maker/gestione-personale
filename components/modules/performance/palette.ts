@@ -7,20 +7,7 @@
 import type React from 'react';
 import { useState, useEffect } from 'react';
 
-export const MACRO_COLORS: Record<string, string> = {
-  Limitazioni:             'var(--chart-1)',
-  'Morosità / forniture':  'var(--chart-3)',
-  Sospensioni:             'var(--chart-4)',
-  Bonifiche:               'var(--chart-2)',
-  Picarro:                 'var(--chart-5)',
-  'Flusso idrico':         'var(--chart-6)',
-  'Sostituzioni / sonde':  'var(--chart-4)',
-  Altro:                   'var(--chart-7)',
-  'Non specificato':       'var(--chart-8)',
-};
-export function colorForMacro(name: string): string {
-  return MACRO_COLORS[name] ?? 'var(--chart-7)';
-}
+import { GRUPPO_NON_CENSITO } from '@/lib/performance/shape';
 
 /** Palette generica posizionale per donut committente/territorio. */
 export const PALETTE = [
@@ -69,24 +56,24 @@ const CHART_TOKENS = [
   '--chart-8',
 ] as const;
 
-/** Mapping MACRO_COLORS chiave → indice 0-based in CHART_TOKENS (chart-N → N-1). */
-const MACRO_TO_INDEX: Record<string, number> = {
-  Limitazioni:             0, // --chart-1
-  'Morosità / forniture':  2, // --chart-3
-  Sospensioni:             3, // --chart-4
-  Bonifiche:               1, // --chart-2
-  Picarro:                 4, // --chart-5
-  'Flusso idrico':         5, // --chart-6
-  'Sostituzioni / sonde':  3, // --chart-4 (stessa collision dell'originale)
-  Altro:                   6, // --chart-7
-  'Non specificato':       7, // --chart-8
-};
+/**
+ * Colore stabile per gruppo attività: posizione del gruppo nella lista GLOBALE
+ * dei gruppi (opzioni filtro, uguale per tutti i grafici) → stesso colore ovunque
+ * a prescindere dai filtri. "Non censita" è sempre grigio (--chart-8).
+ */
+export function makeColorForGruppo(gruppiGlobali: Array<{ value: string }>, palette: string[]): (gruppo: string) => string {
+  const idx = new Map(gruppiGlobali.filter((g) => g.value !== GRUPPO_NON_CENSITO).map((g, i) => [g.value, i]));
+  return (gruppo: string) => {
+    if (gruppo === GRUPPO_NON_CENSITO) return palette[7];
+    const i = idx.get(gruppo);
+    // I gruppi "veri" ruotano su chart-1..7, lasciando chart-8 al residuo.
+    return i === undefined ? palette[6] : palette[i % 7];
+  };
+}
 
 interface ResolvedChartColors {
   /** chart-1..8 come array di stringhe concrete. */
   palette: string[];
-  /** Risolve il colore per una macro-chiave (come colorForMacro ma concreto). */
-  colorForMacro: (name: string) => string;
   /** Colore risolto per il token --brand-surface (stroke slice donut). */
   brandSurface: string;
   /** Colore risolto per il token --brand-border (CartesianGrid stroke). */
@@ -109,10 +96,6 @@ function readTokens(): ResolvedChartColors {
   const palette = CHART_TOKENS.map((t) => resolve(t));
   return {
     palette,
-    colorForMacro: (name: string) => {
-      const idx = MACRO_TO_INDEX[name] ?? 6; // fallback = --chart-7
-      return palette[idx];
-    },
     brandSurface:    resolve('--brand-surface'),
     brandBorder:     resolve('--brand-border'),
     brandTextMuted:  resolve('--brand-text-muted'),
@@ -125,7 +108,6 @@ function readTokens(): ResolvedChartColors {
 
 const FALLBACK: ResolvedChartColors = {
   palette:       Array(8).fill('#888888'),
-  colorForMacro: () => '#888888',
   brandSurface:  '#1e293b',
   brandBorder:   '#334155',
   brandTextMuted:'#94a3b8',

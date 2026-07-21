@@ -5,6 +5,17 @@
 
 ## Fatto
 
+- ✅ **Performance operatori su tassonomia reale + grafico esiti** *(2026-07-21)* — il modulo
+  KPI "Performance operatori" abbandona l'euristica regex sul free-text (`normalizeMacroAttivita`,
+  rimossa) e risolve ogni intervento con la tassonomia vera committente → gruppo attività →
+  descrizione attività (`attivita_tassonomia` via `risolviGruppo`; residuo = «Non censita»).
+  Filtri per-grafico ora: committente (etichettato, lim_massive = «Acea · lim. massive»),
+  gruppo attività e attività canonica. NUOVO grafico principale **Esiti operatori**: colonne
+  giornaliere impilate positivi/negativi (positivo = `eseguito_positivo`, tutto il resto
+  negativo, coerente con torreView) con KPI di periodo (positivi, negativi, % riuscita) e
+  riepilogo «riuscita per operatore» con barre verde/rosso e percentuale. Colori dei gruppi
+  stabili tra i grafici (posizione nella lista globale), dettaglio con esito etichettato e
+  colorato.
 - ✅ **Foto obbligatorie SU CONDIZIONE (Azioni operatori)** *(2026-07-21)* — su ogni azione
   foto il controllo è *Facoltativa / Obbligatoria / Obbligatoria se…*: la condizione punta a
   un'altra azione del flusso (casella o scelta da elenco) e al valore che fa scattare

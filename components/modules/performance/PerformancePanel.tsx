@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { emptyFilters, type ClientRow, type PerfFilters, type SelectOption } from '@/lib/performance/shape';
 import type { FilterOptions } from './PerfFilterBar';
 import Badge from '@/components/Badge';
+import PerformanceEsiti from './PerformanceEsiti';
 import PerformanceGiornaliera from './PerformanceGiornaliera';
 import PerformanceConfronto from './PerformanceConfronto';
 import PerformanceDistribuzioni from './PerformanceDistribuzioni';
@@ -11,15 +12,17 @@ import PerformanceDettaglio from './PerformanceDettaglio';
 function pad(n: number) { return String(n).padStart(2, '0'); }
 
 export default function PerformancePanel({
-  rows, operatori, territori, committenti, minDate,
+  rows, operatori, territori, committenti, gruppi, attivita, minDate,
 }: {
   rows: ClientRow[];
   operatori: SelectOption[];
   territori: SelectOption[];
   committenti: SelectOption[];
+  gruppi: SelectOption[];
+  attivita: SelectOption[];
   minDate: string | null;
 }) {
-  const options: FilterOptions = { operatori, territori, committenti, minDate };
+  const options: FilterOptions = { operatori, territori, committenti, gruppi, attivita, minDate };
   // Default = mese corrente (così i grafici mostrano subito dati senza impostare filtri).
   const initial = useMemo<PerfFilters>(() => {
     const d = new Date();
@@ -37,6 +40,7 @@ export default function PerformancePanel({
         <Badge variant="warning">Admin Plus</Badge>
         <span className="text-xs text-[var(--brand-text-muted)]">Ogni grafico ha i suoi filtri indipendenti · default: mese corrente</span>
       </div>
+      <PerformanceEsiti allRows={rows} options={options} initial={initial} />
       <PerformanceGiornaliera allRows={rows} options={options} initial={initial} />
       <PerformanceConfronto allRows={rows} options={options} initial={initial} />
       <PerformanceDistribuzioni allRows={rows} options={options} initial={initial} />

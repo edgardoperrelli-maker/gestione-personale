@@ -1,7 +1,9 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import type { ClientRow, SelectOption } from '@/lib/performance/shape';
+import { GRUPPO_NON_CENSITO, labelCommittente, type ClientRow, type SelectOption } from '@/lib/performance/shape';
 import { valoreSaracinesca } from '@/lib/limitazione/exportLimMassive';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
+import { buildTassonomiaIndex, risolviGruppo } from '@/lib/attivita/tassonomia';
 
 const STATO_CONTEGGIABILE = 'completato';
 const PAGE = 1000;
@@ -82,40 +84,59 @@ export interface PerformanceBundle {
   operatori: SelectOption[];
   territori: SelectOption[];
   committenti: SelectOption[];
+  gruppi: SelectOption[];
+  attivita: SelectOption[];
   minDate: string | null;
 }
 
-/** Carica tutti gli interventi completati (nomi risolti + flag saracinesca) e le opzioni filtro. */
+/** Carica tutti gli interventi completati (nomi + tassonomia reale + flag saracinesca) e le opzioni filtro. */
 export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
-  const [raw, maps, valvolaSet] = await Promise.all([fetchInterventi(), loadMaps(), fetchValvolaSet()]);
+  const [raw, maps, valvolaSet, tassonomia] = await Promise.all([
+    fetchInterventi(), loadMaps(), fetchValvolaSet(), caricaTassonomia(),
+  ]);
+  const tassIndex = buildTassonomiaIndex(tassonomia);
 
-  const rows: ClientRow[] = raw.map((r) => ({
-    id: r.id,
-    staffId: r.staff_id ?? '',
-    operatore: (r.staff_id && maps.staffName.get(r.staff_id)) || 'Sconosciuto',
-    data: r.data.slice(0, 10),
-    territorioId: r.territorio_id ?? '',
-    territorio: (r.territorio_id && maps.territoryName.get(r.territorio_id)) || 'Senza territorio',
-    committente: (r.committente ?? '').trim(),
-    intervento_tipo: r.intervento_tipo ?? '',
-    valvola: valvolaSet.has(r.id),
-    esito: r.esito ?? '',
-  }));
+  const rows: ClientRow[] = raw.map((r) => {
+    // Tassonomia reale (committente, descrizione) → gruppo + forma canonica della descrizione.
+    const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex);
+    return {
+      id: r.id,
+      staffId: r.staff_id ?? '',
+      operatore: (r.staff_id && maps.staffName.get(r.staff_id)) || 'Sconosciuto',
+      data: r.data.slice(0, 10),
+      territorioId: r.territorio_id ?? '',
+      territorio: (r.territorio_id && maps.territoryName.get(r.territorio_id)) || 'Senza territorio',
+      committente: (r.committente ?? '').trim(),
+      gruppo: riga?.gruppo ?? GRUPPO_NON_CENSITO,
+      attivita: riga?.descrizione ?? (r.intervento_tipo ?? '').trim(),
+      valvola: valvolaSet.has(r.id),
+      esito: r.esito ?? '',
+    };
+  });
 
   // Opzioni derivate dai dati (solo ciò che è effettivamente filtrabile).
   const opMap = new Map<string, string>();
   const terrMap = new Map<string, string>();
   const commSet = new Set<string>();
+  const gruppoSet = new Set<string>();
+  const attSet = new Set<string>();
   let minDate: string | null = null;
   for (const r of rows) {
     if (r.staffId) opMap.set(r.staffId, r.operatore);
     if (r.territorioId) terrMap.set(r.territorioId, r.territorio);
     if (r.committente) commSet.add(r.committente);
+    gruppoSet.add(r.gruppo);
+    if (r.attivita) attSet.add(r.attivita);
     if (!minDate || r.data < minDate) minDate = r.data;
   }
-  const operatori = Array.from(opMap, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-  const territori = Array.from(terrMap, ([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-  const committenti = Array.from(commSet).sort().map((v) => ({ value: v, label: v }));
+  const byLabel = (a: SelectOption, b: SelectOption) => a.label.localeCompare(b.label, 'it', { sensitivity: 'base' });
+  const operatori = Array.from(opMap, ([value, label]) => ({ value, label })).sort(byLabel);
+  const territori = Array.from(terrMap, ([value, label]) => ({ value, label })).sort(byLabel);
+  const committenti = Array.from(commSet, (v) => ({ value: v, label: labelCommittente(v) })).sort(byLabel);
+  // "Non censita" in coda: è il residuo, non un gruppo reale.
+  const gruppi = Array.from(gruppoSet, (v) => ({ value: v, label: v }))
+    .sort((a, b) => Number(a.value === GRUPPO_NON_CENSITO) - Number(b.value === GRUPPO_NON_CENSITO) || byLabel(a, b));
+  const attivita = Array.from(attSet, (v) => ({ value: v, label: v })).sort(byLabel);
 
-  return { rows, operatori, territori, committenti, minDate };
+  return { rows, operatori, territori, committenti, gruppi, attivita, minDate };
 }

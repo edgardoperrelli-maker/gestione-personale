@@ -14,13 +14,15 @@ export default async function PerformanceOperatoriPage() {
       <div>
         <Link href="/hub/performance" className="text-xs text-[var(--brand-text-muted)] hover:underline">← KPI</Link>
         <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Performance operatori</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Cosa hanno fatto gli operatori: interventi completati, con produzione giornaliera e filtri indipendenti per ogni grafico.</p>
+        <p className="text-sm text-[var(--brand-text-muted)]">Cosa hanno fatto gli operatori: esiti positivi/negativi, produzione giornaliera per gruppo attività reale e filtri indipendenti per ogni grafico.</p>
       </div>
       <PerformancePanel
         rows={bundle.rows}
         operatori={bundle.operatori}
         territori={bundle.territori}
         committenti={bundle.committenti}
+        gruppi={bundle.gruppi}
+        attivita={bundle.attivita}
         minDate={bundle.minDate}
       />
     </div>
