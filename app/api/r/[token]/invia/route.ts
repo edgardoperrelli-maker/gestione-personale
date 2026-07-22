@@ -7,6 +7,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
 import { righeIncomplete } from '@/utils/rapportini/righeIncomplete';
+import { indiciVociIncomplete } from '@/utils/rapportini/vociIncompleteInvio';
 import { ymdLocal } from '@/utils/date-it';
 export const runtime = 'nodejs';
 
@@ -14,7 +15,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const { token } = await params;
   const { data: rap } = await supabaseAdmin
     .from('rapportini')
-    .select('id, stato, data, staff_name, campi_snapshot, riaperto_at, tipo')
+    .select('id, stato, data, staff_name, campi_snapshot, riaperto_at, tipo, template_id')
     .eq('token', token)
     .maybeSingle();
   if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
@@ -30,6 +31,39 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   );
   if (!gate.inviabile)
     return NextResponse.json({ error: 'voci_in_sospeso', inSospeso: gate.inSospeso }, { status: 409 });
+
+  // Blocco ESITI MANCANTI: il rapportino non è inviabile finché ogni voce (esclusi i "+" e i
+  // contenitori task-via) non ha un esito valido — nessun esito ('senza_esito') o un "NO" senza la
+  // nota col motivo ('nota_mancante') bloccano ("NESSUN PASSAGGIO" è auto-esplicativo). Il client già
+  // lo impedisce (inviabile = daFare===0); qui è la GARANZIA lato server, così un ordine senza esito
+  // non resta mai aperto (né via coda offline né via richieste dirette).
+  {
+    // Flag task-via del template (contenitori senza esito proprio): letti in modo resiliente, come
+    // fa il loader operatore (colonne prod-only). Assenti → false (nessun contenitore extra).
+    const templateId = (rap as { template_id?: string | null }).template_id ?? null;
+    let taskViaTutto = false;
+    let taskViaIbrido = false;
+    if (templateId) {
+      const t1 = await supabaseAdmin.from('rapportino_template').select('task_via').eq('id', templateId).maybeSingle();
+      taskViaTutto = Boolean((t1.data as { task_via?: boolean } | null)?.task_via);
+      const t2 = await supabaseAdmin.from('rapportino_template').select('task_via_ibrido').eq('id', templateId).maybeSingle();
+      taskViaIbrido = Boolean((t2.data as { task_via_ibrido?: boolean } | null)?.task_via_ibrido);
+    }
+    const { data: vociGate } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('risposte, campi_snapshot, attivita, manuale')
+      .eq('rapportino_id', rap.id);
+    const campiRap = ((rap as { campi_snapshot?: unknown }).campi_snapshot ?? []) as TemplateCampo[];
+    const incomplete = indiciVociIncomplete((vociGate ?? []) as never, campiRap, { tutto: taskViaTutto, ibrido: taskViaIbrido });
+    if (incomplete.length > 0) {
+      const senzaEsito = incomplete.filter((m) => m.motivo === 'senza_esito').length;
+      const notaMancante = incomplete.filter((m) => m.motivo === 'nota_mancante').length;
+      return NextResponse.json(
+        { error: 'esiti_mancanti', voci: incomplete.length, senza_esito: senzaEsito, nota_mancante: notaMancante },
+        { status: 409 },
+      );
+    }
+  }
 
   // Risanamento: gate foto obbligatorie (righe misuratore + fasi civico).
   if ((rap as { tipo?: string }).tipo === 'risanamento') {

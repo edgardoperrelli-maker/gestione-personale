@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { caricaFlussi, risolviCampiFlusso } from '@/lib/consuntivazione/flusso';
+import { OPEN_STATES, APERTI_COLS, parseFiltriAperti, haFiltro, applicaFiltriAperti, type QueryFiltrabile } from '@/lib/consuntivazione/apertiFiltri';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
-
-/** Stati "aperti": interventi non ancora esitati (né completati né annullati). */
-const OPEN_STATES = ['da_assegnare', 'assegnato', 'in_viaggio', 'sul_posto', 'in_esecuzione'];
 
 type InterventoAperto = {
   id: string;
@@ -27,14 +25,11 @@ type InterventoAperto = {
   fascia_oraria: string | null;
 };
 
-const LIKE = (v: string) => `%${v.replace(/[%_]/g, (m) => `\\${m}`)}%`;
-
 /**
  * GET /api/admin/consuntivazione/aperti
  *  - con `id`: dettaglio del singolo ordine (azioni + eventuale voce esistente).
  *  - senza `id`: ricerca degli interventi aperti SOLO su richiesta esplicita — richiede almeno un
- *    filtro (nessun elenco di default). Filtri: committente, gruppo (gruppo_attivita),
- *    attivita (intervento_tipo), operatore (staff_id), dal/al (data), odl, pdr, via (indirizzo).
+ *    filtro (nessun elenco di default). Filtri e esclusione contenitori in lib/consuntivazione/apertiFiltri.
  */
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -44,39 +39,13 @@ export async function GET(req: Request) {
   const id = url.searchParams.get('id');
   if (id) return dettaglio(id);
 
-  const p = url.searchParams;
-  const f = {
-    committente: (p.get('committente') ?? '').trim(),
-    gruppo: (p.get('gruppo') ?? '').trim(),
-    attivita: (p.get('attivita') ?? '').trim(),
-    operatore: (p.get('operatore') ?? '').trim(),
-    dal: (p.get('dal') ?? '').trim(),
-    al: (p.get('al') ?? '').trim(),
-    odl: (p.get('odl') ?? '').trim(),
-    pdr: (p.get('pdr') ?? '').trim(),
-    via: (p.get('via') ?? '').trim(),
-  };
+  const f = parseFiltriAperti(url.searchParams);
   // Nessun filtro → nessun risultato (l'elenco compare solo su ricerca esplicita).
-  if (!Object.values(f).some(Boolean)) return NextResponse.json({ interventi: [], searched: false });
+  if (!haFiltro(f)) return NextResponse.json({ interventi: [], searched: false });
 
-  let query = supabaseAdmin
-    .from('interventi')
-    .select('id, committente, odl, pdr, nominativo, indirizzo, comune, cap, matricola_contatore, intervento_tipo, gruppo_attivita, data, staff_id, territorio_id, fascia_oraria')
-    .in('stato', OPEN_STATES)
-    .order('data', { ascending: false })
-    .limit(200);
-
-  if (f.committente) query = query.eq('committente', f.committente);
-  if (f.gruppo) query = query.eq('gruppo_attivita', f.gruppo);
-  if (f.attivita) query = query.ilike('intervento_tipo', f.attivita); // ilike senza wildcard = uguaglianza case-insensitive
-  if (f.operatore) query = query.eq('staff_id', f.operatore);
-  if (f.dal) query = query.gte('data', f.dal);
-  if (f.al) query = query.lte('data', f.al);
-  if (f.odl) query = query.ilike('odl', LIKE(f.odl));
-  if (f.pdr) query = query.ilike('pdr', LIKE(f.pdr));
-  if (f.via) query = query.ilike('indirizzo', LIKE(f.via));
-
-  const { data, error } = await query;
+  const base = supabaseAdmin.from('interventi').select(APERTI_COLS);
+  const filtrata = applicaFiltriAperti(base as unknown as QueryFiltrabile, f) as unknown as typeof base;
+  const { data, error } = await filtrata.order('data', { ascending: false }).limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ interventi: (data ?? []) as InterventoAperto[], searched: true });
 }
@@ -91,6 +60,9 @@ async function dettaglio(id: string): Promise<NextResponse> {
   const int = intRow as InterventoAperto & { stato: string };
   if (!OPEN_STATES.includes(int.stato))
     return NextResponse.json({ error: 'gia_esitato' }, { status: 409 });
+  // Contenitore task-via (BONIFICHE EXTRA): non ha esito proprio, non è esitabile qui.
+  if ((int.gruppo_attivita ?? '').trim().toUpperCase() === 'BONIFICHE EXTRA')
+    return NextResponse.json({ error: 'contenitore_taskvia' }, { status: 409 });
 
   // Voce già collegata (rapportino operatore): ne riusiamo campi_snapshot + risposte + rapId.
   const { data: voceRow } = await supabaseAdmin

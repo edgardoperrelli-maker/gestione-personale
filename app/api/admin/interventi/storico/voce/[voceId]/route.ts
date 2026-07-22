@@ -10,6 +10,8 @@ import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
 } from '@/lib/interventi/storico/modifica';
+import { risolviGruppo, buildTassonomiaIndex } from '@/lib/attivita/tassonomia';
+import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
@@ -104,6 +106,17 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
   if (v.intervento_id) {
     try {
       const intAnag = anagraficaPatchIntervento(anag);
+      // Coerenza tassonomia: se è stata modificata la descrizione attività, riscrivila
+      // canonica e riallinea gruppo_attivita (stesso motore dell'import; evita tipo↔gruppo
+      // incoerenti). Descrizione sconosciuta → lasciata grezza (edit admin, non bloccante).
+      if ('attivita' in anag && anag.attivita) {
+        try {
+          const ris = risolviGruppo('altro', anag.attivita, buildTassonomiaIndex(await caricaTassonomia()), { allinea: 'scrittura' });
+          if (ris) { intAnag.intervento_tipo = ris.descrizione; intAnag.gruppo_attivita = ris.gruppo; }
+        } catch (e) {
+          console.error('[storico/voce] risoluzione tassonomia fallita:', e instanceof Error ? e.message : String(e));
+        }
+      }
       if (Object.keys(intAnag).length > 0) {
         await supabaseAdmin.from('interventi').update(intAnag).eq('id', v.intervento_id).neq('stato', 'annullato');
       }

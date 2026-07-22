@@ -2,6 +2,8 @@
 
 > Documento di ripresa per una NUOVA chat: autosufficiente, la sessione precedente non c'è più.
 > Lavoro sul branch `claude/modulo-assistenza-live` (produzione = `main`).
+> Sostituisce l'handoff dello studio di fattibilità (PR #157, mergiata): quel contenuto vive in
+> `docs/connessione-remota-fattibilita.md` e nella voce ROADMAP dedicata.
 
 ## Goal
 
@@ -16,8 +18,9 @@ richiesta **bidirezionale** (operatore→BO e BO→operatore sul rapportino del 
 preview Vercel): l'utente ha confermato che il replay live si popola. `tsc` 0, `eslint` 0,
 `npx vitest run lib/assistenza/` = 6 verdi. `next build` compila (il fail successivo in cloud è la
 service key assente su una route ACEA preesistente — limite d'ambiente noto). **Migration
-`20260722140000_assistenza_sessioni.sql` da applicare al prod PRIMA del merge** (audit best-effort:
-senza, l'assistenza funziona ma non traccia). PR non ancora aperta.
+`20260722140000_assistenza_sessioni.sql` APPLICATA al prod il 22/07** (verificata: tabella presente,
+RLS attiva, 0 policy). **PR #162 aperta** verso `main`; conflitto ROADMAP/HANDOFF con la #157 risolto
+nel merge di `origin/main` nel branch (tenute entrambe le voci ROADMAP, HANDOFF = sessione più recente).
 
 ## Architettura (com'è fatta)
 
@@ -71,7 +74,6 @@ era il percorso di rete) + 6 test vitest sul transport reale + conferma utente s
 
 ## Warnings (invarianti da non violare)
 
-- **Applicare la migration `20260722140000_assistenza_sessioni.sql` al prod prima del merge.**
 - **Mai far uscire il token grezzo** dal server verso l'admin: solo il **sid** HMAC. Non cambiare la
   derivazione senza ruotare anche il canale.
 - **Niente scritture di dati rapportino** dal canale assistenza: il broadcast è effimero by design.
@@ -79,8 +81,6 @@ era il percorso di rete) + 6 test vitest sul transport reale + conferma utente s
 - `startLive` va **ancorato al timestamp del primo evento** (clock sorgente), mai a `Date.now()` admin.
 - rrweb è **on-demand**: non importarlo staticamente nelle pagine operatore (peso bundle mobile).
 - Repo **PUBBLICO**: mai token/segreti in commit; `ASSIST_CHANNEL_SECRET` opzionale via env.
-- ROADMAP/HANDOFF: possibile **conflitto banale** al merge con la PR #157 (entrambe toccano la testa
-  di ROADMAP "Fatto" e riscrivono HANDOFF) — risolvere tenendo entrambe le voci in ROADMAP.
 
 ## Open questions / possibili follow-up
 
