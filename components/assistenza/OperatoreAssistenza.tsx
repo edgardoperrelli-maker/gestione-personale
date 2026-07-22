@@ -161,21 +161,39 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
         type="button"
         onClick={() => setAperto((v) => !v)}
         aria-label="Assistenza remota"
-        className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-lg"
-        style={stato === 'attiva' ? { borderColor: 'var(--brand-magenta)' } : undefined}
+        className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--primary-text)] shadow-[var(--shadow-lg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+        style={stato === 'attiva' ? { borderColor: 'var(--status-ko)' } : undefined}
       >
-        <span className="text-xl" aria-hidden>{stato === 'attiva' ? '🔴' : '🛟'}</span>
+        {stato === 'attiva' ? (
+          <span className="relative flex h-3 w-3" aria-hidden>
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full opacity-60 motion-reduce:animate-none" style={{ background: 'var(--status-ko)' }} />
+            <span className="relative inline-flex h-3 w-3 rounded-full" style={{ background: 'var(--status-ko)' }} />
+          </span>
+        ) : (
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+            <circle cx="12" cy="12" r="9" />
+            <circle cx="12" cy="12" r="4" />
+            <path d="M6.3 6.3l2.9 2.9M14.8 14.8l2.9 2.9M6.3 17.7l2.9-2.9M14.8 9.2l2.9-2.9" />
+          </svg>
+        )}
       </button>
 
       {aperto && (
-        <div className="fixed bottom-20 left-4 z-40 w-[min(88vw,320px)] rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-xl">
+        <div className="fixed bottom-20 left-4 z-40 w-[min(88vw,320px)] rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-lg)]">
           <div className="flex items-center justify-between">
-            <div className="text-sm font-semibold">Assistenza remota</div>
-            <button type="button" onClick={() => setAperto(false)} className="text-[var(--brand-text-muted)]">✕</button>
+            <div className="text-sm font-semibold text-[var(--brand-text-main)]">Assistenza remota</div>
+            <button
+              type="button"
+              onClick={() => setAperto(false)}
+              aria-label="Chiudi"
+              className="rounded-[var(--radius-sm)] px-1 text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              ✕
+            </button>
           </div>
 
           {!env && (
-            <p className="mt-2 text-xs text-[var(--brand-magenta)]">Servizio non disponibile su questo ambiente.</p>
+            <p className="mt-2 text-xs text-[var(--status-ko)]">Servizio non disponibile su questo ambiente.</p>
           )}
 
           {stato === 'idle' && !richiestaAdmin && (
@@ -191,7 +209,7 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
                 type="button"
                 onClick={chiedi}
                 disabled={!env || !connesso}
-                className="mt-3 w-full rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-40"
+                className="mt-3 w-full rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-40"
               >
                 Chiedi assistenza
               </button>
@@ -199,15 +217,24 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
           )}
 
           {stato !== 'idle' && (
-            <div className="mt-3 rounded-lg border border-[var(--brand-magenta)]/50 bg-[var(--brand-magenta)]/10 p-3">
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-semibold">
-                  {stato === 'attiva' ? (adminPresente ? '🔴 Assistenza in corso' : '🔴 In condivisione — attendo il back office') : '⏳ Richiesta inviata…'}
+            <div className="mt-3 rounded-[var(--radius-md)] border border-[var(--status-ko)]/50 bg-[var(--status-ko-soft)] p-3">
+              <div className="flex items-center justify-between gap-2">
+                <span className="flex items-center gap-1.5 text-sm font-semibold text-[var(--brand-text-main)]">
+                  {stato === 'attiva' && (
+                    <span className="h-2 w-2 shrink-0 animate-pulse rounded-full motion-reduce:animate-none" style={{ background: 'var(--status-ko)' }} aria-hidden />
+                  )}
+                  {stato === 'attiva' ? (adminPresente ? 'Assistenza in corso' : 'In condivisione — attendo il back office') : 'Richiesta inviata…'}
                 </span>
-                <button type="button" onClick={termina} className="text-xs font-semibold text-[var(--brand-magenta)]">Interrompi</button>
+                <button
+                  type="button"
+                  onClick={termina}
+                  className="rounded-[var(--radius-sm)] text-xs font-semibold text-[var(--status-ko)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                >
+                  Interrompi
+                </button>
               </div>
               {instabile && (
-                <div className="mt-1 text-[11px] text-[var(--brand-gold)]">⚠ Connessione instabile: alcuni aggiornamenti potrebbero non arrivare al back office.</div>
+                <div className="mt-1 text-[11px] text-[var(--status-warn)]">Connessione instabile: alcuni aggiornamenti potrebbero non arrivare al back office.</div>
               )}
             </div>
           )}
@@ -216,24 +243,30 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
 
       {/* toast hint dal back office */}
       {hint && (
-        <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--brand-gold)]/60 bg-[var(--brand-surface)] px-4 py-2 text-sm shadow-lg">
-          💡 {hint}
+        <div role="status" className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-2 text-sm text-[var(--brand-text-main)] shadow-[var(--shadow-lg)]">
+          {hint}
         </div>
       )}
 
       {/* MODALE: richiesta dal back office — compare da sola, non silenziosa */}
       {richiestaAdmin && stato !== 'attiva' && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
-          <div className="w-[min(92vw,360px)] rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
-            <div className="text-base font-semibold">Richiesta di assistenza</div>
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center p-4"
+          style={{ background: 'var(--overlay)' }}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="assistenza-richiesta-title"
+        >
+          <div className="w-[min(92vw,360px)] rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-[var(--shadow-lg)]">
+            <div id="assistenza-richiesta-title" className="text-base font-semibold text-[var(--brand-text-main)]">Richiesta di assistenza</div>
             <div className="mt-1 text-sm text-[var(--brand-text-muted)]">
               Il back office chiede di vedere questo rapportino per aiutarti. Vedrà solo questa schermata, in sola lettura.
             </div>
             <div className="mt-4 flex gap-2">
               <button type="button" onClick={() => { setAperto(true); void attiva(); }}
-                className="flex-1 rounded-lg bg-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[oklch(0.16_0.06_245)]">Accetto</button>
+                className="flex-1 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">Accetto</button>
               <button type="button" onClick={() => setRichiestaAdmin(false)}
-                className="rounded-lg border border-[var(--brand-border)] px-3 py-2.5 text-sm font-semibold">Rifiuto</button>
+                className="rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] px-3 py-2.5 text-sm font-semibold text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">Rifiuto</button>
             </div>
           </div>
         </div>

@@ -4,6 +4,8 @@ import 'rrweb/dist/style.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+import Button from '@/components/Button';
+import Input from '@/components/Input';
 import { canaleSessione, creaRicevitore, realtimeClient, type Chunk } from '@/lib/assistenza/transport';
 
 type Props = { sid: string; staff: string; data: string; onClose: () => void };
@@ -145,19 +147,26 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
   }, []);
 
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3 py-2">
-        <div className="text-sm">
-          <b>{staff}</b> <span className="text-[var(--brand-text-muted)]">· {data}</span>
+        <div className="text-sm text-[var(--brand-text-main)]">
+          <b>{staff}</b> <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {data}</span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="flex items-center gap-1" style={{ color: operatorePresente ? 'var(--brand-green)' : 'var(--brand-text-muted)' }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: operatorePresente ? 'var(--brand-green)' : 'var(--brand-text-muted)' }} />
+          <span className="flex items-center gap-1" style={{ color: operatorePresente ? 'var(--status-ok)' : 'var(--brand-text-muted)' }}>
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: operatorePresente ? 'var(--status-ok)' : 'var(--brand-text-muted)' }} />
             {operatorePresente ? 'operatore in linea' : 'operatore offline'}
           </span>
-          <span className="text-[var(--brand-text-muted)]">· eventi {ricevuti}</span>
-          {errori > 0 && <span className="text-[var(--brand-magenta)]">· errori {errori}</span>}
-          <button type="button" onClick={onClose} className="text-[var(--brand-text-muted)]">✕</button>
+          <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· eventi {ricevuti}</span>
+          {errori > 0 && <span className="font-mono text-[var(--status-ko)] tabular-nums">· errori {errori}</span>}
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Chiudi sessione"
+            className="rounded-[var(--radius-sm)] px-1 text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            ✕
+          </button>
         </div>
       </div>
 
@@ -177,8 +186,7 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
                 : 'Operatore non in linea. Aprirà l\'assistenza dal suo rapportino.'}
             </div>
             {operatorePresente && (
-              <button type="button" onClick={richiediDiNuovo}
-                className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-semibold">Richiedi di nuovo</button>
+              <Button size="sm" onClick={richiediDiNuovo}>Richiedi di nuovo</Button>
             )}
           </div>
         )}
@@ -186,15 +194,15 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
 
       {/* guida */}
       <div className="flex items-center gap-2 border-t border-[var(--brand-border)] px-3 py-2">
-        <input
+        <Input
           value={hint}
           onChange={(e) => setHint(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') inviaHint(); }}
           placeholder="Manda un suggerimento all'operatore…"
-          className="flex-1 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 py-1.5 text-sm outline-none"
+          aria-label="Suggerimento per l'operatore"
+          className="flex-1"
         />
-        <button type="button" onClick={inviaHint}
-          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)]">Invia</button>
+        <Button size="sm" variant="primary" onClick={inviaHint}>Invia</Button>
       </div>
     </div>
   );
