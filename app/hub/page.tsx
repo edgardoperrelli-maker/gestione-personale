@@ -5,6 +5,7 @@ import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
 import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
 import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
 import FogliettaCard from '@/components/ui/FogliettaCard';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { canViewPremialita, resolveAssignableRole, getAllowedModulesForUser } from '@/lib/moduleAccess';
 import { MODULE_ICONS } from '@/components/layout/moduleIcons';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
@@ -141,12 +142,10 @@ export default async function DashboardPage() {
     <main className="mx-auto max-w-6xl space-y-6">
       <TrasfertaAlert />
 
-      <header className="space-y-1">
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">Dashboard</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">
-          Stato dei rapportini e operatori sul territorio per oggi.
-        </p>
-      </header>
+      <ObjectHeader
+        title="Dashboard"
+        sub="Stato dei rapportini e operatori sul territorio per oggi."
+      />
 
       {showLivePromo && (
         <FogliettaCard

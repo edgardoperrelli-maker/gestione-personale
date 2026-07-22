@@ -110,14 +110,15 @@ export default function RapportiniKpi() {
             {tiles.map((t) => (
               <div
                 key={t.label}
-                className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-3"
+                className="relative overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3.5 py-3"
               >
+                <span
+                  className="absolute inset-y-0 left-0 w-1"
+                  style={{ backgroundColor: `var(${t.dotVar})` }}
+                  aria-hidden
+                />
                 <p className="font-mono text-2xl font-semibold tabular-nums text-[var(--brand-text-main)]">{t.value}</p>
-                <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text-muted)]">
-                  <span
-                    className="inline-block h-2 w-2 flex-shrink-0 rounded-full"
-                    style={{ backgroundColor: `var(${t.dotVar})` }}
-                  />
+                <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">
                   {t.label}
                 </p>
               </div>
