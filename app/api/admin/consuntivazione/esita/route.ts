@@ -8,6 +8,7 @@ import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { risolviEsecutori } from '@/lib/consuntivazione/esecutori';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
+import { haEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -79,6 +80,10 @@ export async function POST(req: Request) {
 
   const risposteIn = maiuscolaRisposteTesto(body.risposte ?? {}, campi);
   const risposteFinali = mergeRisposte(voce?.risposte ?? {}, risposteIn, { soloCompletamentoFoto: false });
+
+  // Serve un esito selezionato (positivo o negativo, anche "nessun passaggio"); solo l'assenza = 422.
+  if (!haEsitoConsuntivo(risposteFinali, campi))
+    return NextResponse.json({ error: 'esito_mancante' }, { status: 422 });
 
   const negativo = haEsitoNegativo(risposteFinali, campi);
   if (!negativo) {

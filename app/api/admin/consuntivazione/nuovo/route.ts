@@ -9,6 +9,7 @@ import { buildInterventoConsuntivoBase, buildVoceConsuntivo } from '@/lib/consun
 import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
+import { haEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -62,7 +63,12 @@ export async function POST(req: Request) {
 
   const risposte = maiuscolaRisposteTesto(body.risposte ?? {}, campi);
 
-  // Esito calcolato dalle azioni: neutro = ordine non esitabile.
+  // Serve un esito SELEZIONATO (positivo o negativo, anche "nessun passaggio"). Solo l'assenza di
+  // esito = "da esitare" → 422. Un negativo senza nota è comunque un esito (a differenza del flusso operatore).
+  if (!haEsitoConsuntivo(risposte, campi))
+    return NextResponse.json({ error: 'esito_mancante' }, { status: 422 });
+
+  // Esito negativo → foto esonerate (come l'operatore).
   const negativo = haEsitoNegativo(risposte, campi);
 
   // Foto obbligatorie (esonerate su esito negativo, come l'operatore).

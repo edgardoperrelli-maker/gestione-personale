@@ -8,7 +8,7 @@ import SquadraPicker from './SquadraPicker';
 import AzioniForm from './AzioniForm';
 import { risolviFlussoPerGruppo, templateCollegato } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
-import { voceEsitoColore } from '@/utils/rapportini/voceColore';
+import { haEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { Bootstrap } from './ConsuntivazioneClient';
 
@@ -57,8 +57,8 @@ export default function NuovoOrdineForm({ boot, onDone }: { boot: Bootstrap; onD
     return (c ?? []) as TemplateCampo[];
   }, [committente, attivita, attivitaDelCommittente, boot.flussi, boot.fallbackCampi]);
 
-  const esito = campi.length ? voceEsitoColore(risposte, campi) : 'neutro';
-  const pronto = Boolean(committente && attivita && esecutori.length > 0 && dataEsecuzione && esito !== 'neutro');
+  const haEsito = campi.length > 0 && haEsitoConsuntivo(risposte, campi);
+  const pronto = Boolean(committente && attivita && esecutori.length > 0 && dataEsecuzione && haEsito);
 
   const resetAll = () => {
     setCommittente(''); setAttivita(''); setAnag(ANAG_VUOTA); setDataEsecuzione(oggi());
@@ -166,6 +166,7 @@ function messaggioErrore(code: string | undefined): string | null {
     case 'esecutori_mancanti': return 'Seleziona almeno un operatore.';
     case 'foto_mancanti': return 'Mancano delle foto obbligatorie.';
     case 'nessun_flusso': return 'Nessun flusso attivo per il gruppo attività.';
+    case 'esito_mancante': return 'Seleziona un esito (positivo o negativo) per esitare.';
     case 'data_non_valida': return 'Data esecuzione non valida.';
     case 'committente_non_valido': return 'Committente non valido.';
     default: return null;

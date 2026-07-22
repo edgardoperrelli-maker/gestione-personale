@@ -3,14 +3,15 @@
 import { useCallback, useMemo } from 'react';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { RapportinoFotoCtx } from '@/components/modules/rapportini/RapportinoFotoCtx';
-import { voceEsitoColore, haEsitoNegativo } from '@/utils/rapportini/voceColore';
+import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { slotFotoCondizionali, fotoSlotObbligatorio } from '@/utils/rapportini/fotoCondizionali';
+import { statoEsitoConsuntivo, type StatoEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
-const ESITO_META: Record<'verde' | 'rossa' | 'neutro', { label: string; token: string }> = {
-  verde: { label: 'Positivo', token: 'ok' },
-  rossa: { label: 'Negativo', token: 'ko' },
-  neutro: { label: 'Da esitare', token: 'idle' },
+const ESITO_META: Record<StatoEsitoConsuntivo, { label: string; token: string }> = {
+  positivo: { label: 'Positivo', token: 'ok' },
+  negativo: { label: 'Negativo', token: 'ko' },
+  da_esitare: { label: 'Da esitare', token: 'idle' },
 };
 
 /** Renderizza le azioni del flusso (motore Azioni operatori) e mostra l'esito calcolato live. */
@@ -48,9 +49,9 @@ export default function AzioniForm({
     [rapId],
   );
 
-  const colore = voceEsitoColore(risposte, campi);
+  const stato = statoEsitoConsuntivo(risposte, campi);
   const negativo = haEsitoNegativo(risposte, campi);
-  const meta = ESITO_META[colore];
+  const meta = ESITO_META[stato];
 
   // Foto obbligatorie mancanti (feedback pre-invio; il server resta autorevole).
   const condizionali = slotFotoCondizionali(campi, risposte);
