@@ -603,7 +603,7 @@ async function main() {
   // Salute sync OneDrive (processo spento, copie orfane, esche in Download, motore fermo):
   // l'incidente del 22/07 (copia congelata guardata per un mese) è rimasto invisibile perché
   // nessuno la controllava. Best-effort a ogni tick; gli avvisi viaggiano nei report dei giri.
-  const avvisiSync = controllaSaluteSync({ cartella: cfg.cartella });
+  const avvisiSync = controllaSaluteSync({ cartella: cfg.cartella, acea: cfg.acea });
   for (const a of avvisiSync) console.error(`[lim-sync] ⚠ SYNC: ${a}`);
   const baseUrl = baseUrlDaEndpoint(cfg.endpointUrl);
   const oggi = new Date().toISOString().slice(0, 10);

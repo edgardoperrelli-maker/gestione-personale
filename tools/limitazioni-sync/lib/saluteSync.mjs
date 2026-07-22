@@ -42,6 +42,11 @@ export function parseRegQuery(testo) {
 
 const normPath = (p) => String(p ?? '').replace(/[\\/]+$/, '').toLowerCase();
 const normNs = (u) => String(u ?? '').replace(/\/+$/, '').toLowerCase();
+// prefix separator-aware: "…\Documenti FINTA" NON è sotto "…\Documenti"
+const sottoRadice = (percorsoNorm, radiceNorm) =>
+  percorsoNorm === radiceNorm
+  || percorsoNorm.startsWith(`${radiceNorm}\\`)
+  || percorsoNorm.startsWith(`${radiceNorm}/`);
 
 /** Pura: dai fatti raccolti produce gli avvisi. Ogni avviso è una frase auto-contenuta
  *  pensata per il pannello agente (e per la console del PC-agente). */
@@ -50,8 +55,9 @@ export function analizzaSaluteSync({
   providers = [],             // sync root registrati in Explorer: { chiave, mountPoint, urlNamespace }
   mountAttivi = [],           // path DAVVERO sincronizzati dall'account (UserFolder + Tenants)
   esisteSuDisco = () => false,
-  masters = [],               // nomi file .xlsx nella cartella di lavoro dell'agente
+  masters = [],               // nomi file .xlsx che l'agente tocca (cartella limitazioni + master DUNNING)
   downloads = [],             // nomi file nella cartella Download dell'utente
+  percorsiAgente = [],        // cartelle/file configurati che l'agente legge o scrive
   oreSenzaLogEngine = null,   // età (ore) dell'ultimo log del motore di sync, null = ignota
   sogliaLogOre = 48,
 } = {}) {
@@ -62,6 +68,30 @@ export function analizzaSaluteSync({
       "OneDrive non è in esecuzione su questo PC: le scritture dell'agente restano solo locali "
       + 'e i file non ricevono gli aggiornamenti dal server. Riavviare OneDrive.',
     );
+  }
+
+  // Percorsi di lavoro dell'agente: devono ESISTERE e stare DENTRO una cartella davvero
+  // sincronizzata. Un percorso sparito = commessa rinominata/spostata (config da sistemare);
+  // un percorso fuori dai mount attivi = l'agente lavora su una copia che non viaggia
+  // (variante peggiore dell'incidente 22/07: scritture in un binario morto).
+  const attiviPercorsi = new Set(mountAttivi.map(normPath));
+  for (const p of percorsiAgente) {
+    let esiste = null; // null = sonda rotta → nessun falso allarme
+    try { esiste = esisteSuDisco(p) === true; } catch { esiste = null; }
+    if (esiste === null) continue;
+    if (!esiste) {
+      avvisi.push(
+        `Percorso dell'agente non trovato su disco: "${p}". Possibile rinomina o spostamento `
+        + 'su SharePoint: controllare la configurazione.',
+      );
+      continue;
+    }
+    if (attiviPercorsi.size > 0 && ![...attiviPercorsi].some((r) => sottoRadice(normPath(p), r))) {
+      avvisi.push(
+        `"${p}" è FUORI da ogni cartella sincronizzata attiva di OneDrive: l'agente ci lavora `
+        + 'ma le modifiche NON viaggiano col server. Spostare il lavoro nella cartella sincronizzata.',
+      );
+    }
   }
 
   // Copie orfane: mount registrato in Explorer ma NON tra quelli attivi dell'account, ancora
@@ -120,6 +150,7 @@ export function analizzaSaluteSync({
  *  l'intera funzione non lancia mai: la salute è osservabilità, non deve MAI rompere il tick. */
 export function controllaSaluteSync({
   cartella,
+  acea,                       // opzionale: { masterPath, salPath } dalla config (giri DUNNING/SAL)
   execFn = execPredefinita,
   fsApi = fs,
   env = process.env,
@@ -154,12 +185,22 @@ export function controllaSaluteSync({
       }
     } catch { mountAttivi = []; }
 
+    // Tutti i percorsi che l'agente tocca: limitazioni massive + master DUNNING + cartella SAL.
+    const percorsiAgente = [cartella, acea?.masterPath, acea?.salPath]
+      .filter((p) => typeof p === 'string' && p.trim() !== '');
+
     let masters = [];
     try {
       if (cartella && fsApi.existsSync(cartella)) {
         masters = fsApi.readdirSync(cartella).filter((f) => /\.xlsx$/i.test(f) && !String(f).startsWith('~$'));
       }
     } catch { masters = []; }
+    // Il master DUNNING vive in un'altra cartella: il suo NOME entra comunque nel
+    // check delle esche in Download (l'incidente 22/07 era proprio una sua copia).
+    try {
+      const nomeDunning = typeof acea?.masterPath === 'string' ? path.win32.basename(acea.masterPath) : '';
+      if (/\.xlsx$/i.test(nomeDunning) && !masters.includes(nomeDunning)) masters.push(nomeDunning);
+    } catch { /* nome non ricavabile: ignora */ }
 
     let downloads = [];
     try {
@@ -188,9 +229,11 @@ export function controllaSaluteSync({
       processoAttivo,
       providers,
       mountAttivi,
-      esisteSuDisco: (p) => { try { return fsApi.existsSync(p); } catch { return false; } },
+      // niente catch qui: chi consuma distingue "sonda rotta" (throw) da "percorso assente"
+      esisteSuDisco: (p) => fsApi.existsSync(p),
       masters,
       downloads,
+      percorsiAgente,
       oreSenzaLogEngine,
       sogliaLogOre,
     });

@@ -139,6 +139,37 @@ describe('analizzaSaluteSync', () => {
     expect(analizzaSaluteSync({ ...argomentiSani(), oreSenzaLogEngine: 12 })).toEqual([]);
     expect(analizzaSaluteSync({ ...argomentiSani(), oreSenzaLogEngine: null })).toEqual([]);
   });
+
+  it('percorso agente sparito dal disco → avviso; sonda rotta (throw) → silenzio', () => {
+    const dentro = LIBRERIA + '\\LIMITAZIONI';
+    const sparito = LIBRERIA + '\\COMMESSA SPARITA';
+    const conEsiste = { ...argomentiSani(), percorsiAgente: [dentro, sparito], esisteSuDisco: (p: string) => p === dentro };
+    const avvisi = analizzaSaluteSync(conEsiste);
+    expect(avvisi).toHaveLength(1);
+    expect(avvisi[0]).toContain(sparito);
+    expect(avvisi[0]).toMatch(/non trovato su disco/);
+
+    const sondaRotta = { ...argomentiSani(), percorsiAgente: [sparito], esisteSuDisco: () => { throw new Error('fs rotto'); } };
+    expect(analizzaSaluteSync(sondaRotta)).toEqual([]);
+  });
+
+  it('percorso FUORI dai mount attivi → avviso; dentro → nulla; mount ignoti → check spento', () => {
+    const fuori = 'C:\\Users\\Mario\\Desktop\\COPIA LOCALE';
+    const base = { ...argomentiSani(), percorsiAgente: [LIBRERIA + '\\LIMITAZIONI', fuori], esisteSuDisco: () => true };
+    const avvisi = analizzaSaluteSync(base);
+    expect(avvisi).toHaveLength(1);
+    expect(avvisi[0]).toContain(fuori);
+    expect(avvisi[0]).toMatch(/FUORI/);
+
+    expect(analizzaSaluteSync({ ...base, percorsiAgente: [fuori], mountAttivi: [] })).toEqual([]);
+  });
+
+  it('trappola del prefisso: "…\\Documenti FINTA" NON è dentro il mount "…\\Documenti"', () => {
+    const finta = LIBRERIA + ' FINTA\\LIMITAZIONI';
+    const avvisi = analizzaSaluteSync({ ...argomentiSani(), percorsiAgente: [finta], esisteSuDisco: () => true });
+    expect(avvisi).toHaveLength(1);
+    expect(avvisi[0]).toContain(finta);
+  });
 });
 
 describe('controllaSaluteSync (raccolta best-effort)', () => {
@@ -202,5 +233,43 @@ describe('controllaSaluteSync (raccolta best-effort)', () => {
     expect(avvisi[0]).toMatch(/OneDrive non è in esecuzione/);
     expect(avvisi[1]).toContain(ORFANO);
     expect(avvisi[2]).toContain('CANTIERE NORD (2).xlsx');
+  });
+
+  it('guardrail esteso ai master ACEA: esca del DUNNING in Download + salPath sparito → avvisi', () => {
+    const cartella = 'C:\\Users\\Mario\\Rossi SRL\\Cantieri - Documenti\\LIMITAZIONI';
+    const masterDunning = 'C:\\Users\\Mario\\Rossi SRL\\Cantieri - Documenti\\ORDINI\\ELENCO ORDINI.xlsx';
+    const salPath = 'C:\\Users\\Mario\\Rossi SRL\\Cantieri - Documenti\\CONTABILITA';
+    const dirDownload = path.join('C:\\Users\\Mario', 'Downloads');
+    const esistenti = new Set([cartella, masterDunning, dirDownload]); // salPath NON esiste
+    const regAccounts = [
+      'HKEY_CURRENT_USER\\Software\\Microsoft\\OneDrive\\Accounts\\Business1',
+      '    UserFolder    REG_SZ    ' + DRIVE_UTENTE,
+      'HKEY_CURRENT_USER\\Software\\Microsoft\\OneDrive\\Accounts\\Business1\\Tenants\\Rossi SRL',
+      '    ' + LIBRERIA + '    REG_DWORD    0x9024',
+    ].join('\r\n');
+
+    const avvisi = controllaSaluteSync({
+      cartella,
+      acea: { masterPath: masterDunning, salPath },
+      execFn: (cmd: string) => {
+        if (cmd.startsWith('tasklist')) return 'OneDrive.exe    1234 Console';
+        if (cmd.includes('OneDrive\\Accounts')) return regAccounts;
+        return '';
+      },
+      fsApi: {
+        existsSync: (p: string) => esistenti.has(p),
+        readdirSync: (p: string) =>
+          p === cartella ? ['CANTIERE NORD.xlsx']
+            : p === dirDownload ? ['ELENCO ORDINI (3).xlsx', 'altro.pdf'] : [],
+        statSync: () => ({ mtimeMs: 0 }),
+      },
+      env: { USERPROFILE: 'C:\\Users\\Mario' },
+      adessoMs: 1_800_000_000_000,
+    });
+
+    expect(avvisi).toHaveLength(2);
+    expect(avvisi[0]).toContain(salPath);
+    expect(avvisi[0]).toMatch(/non trovato su disco/);
+    expect(avvisi[1]).toContain('ELENCO ORDINI (3).xlsx');
   });
 });
