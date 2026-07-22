@@ -5,6 +5,26 @@
 
 ## Fatto
 
+- ✅ **Modulo Consuntivazione (back office esita interventi come da rapportino)** *(2026-07-22, task ATLAS)* —
+  nuovo modulo admin `/hub/consuntivazione` (gruppo Operatività, `adminOnly`) con **due fogliette**:
+  **Nuovo ordine** (crea un ordine da zero e lo chiude) e **Ordine presente** (esita un intervento
+  rimasto aperto dai rapportini). L'esitazione riusa le **funzioni pure** del flusso operatore
+  (`esitoInterventoDaVoce`/`voceEsitoColore`, `decidiChiusuraConPositivi` backstop doppio-positivo +
+  riconciliazione, `isRimozioneTipo` → `misuratori_rimossi`, `slotFotoCondizionali`/`validaFotoObbligatorie`,
+  `risolviFlussoPerGruppo` per le **azioni** del motore Azioni operatori) e scrive SEMPRE
+  `interventi` **+** `rapportino_voci` collegata (rapportino contenitore con `piano_id` NULL,
+  invisibile alla pianificazione), così l'ordine confluisce identico in Storico, Misuratori,
+  Produzione economica, Performance e premialità. Foto nel bucket `interventi-foto` sotto
+  `rapportini/<rapId>/…` (stessa convenzione dell'operatore → i visualizzatori/ZIP le ritrovano),
+  endpoint admin `POST /api/admin/consuntivazione/foto`. **Squadra**: l'esitazione assegna
+  l'esecuzione a uno o più operatori (`interventi.esecutori` jsonb); il **primario** (`staff_id`)
+  porta il valore € UNA volta, l'intera squadra risulta in **Performance operatori** (fan-out per
+  esecutore). **Premialità**: `voce` (voceDaAttivita) + `assegnato_at` valorizzati. **Tracciabilità**:
+  `consuntivato_da`/`consuntivato_at`, `origine='consuntivo'` per il "Nuovo ordine". Migrations
+  `20260722100000_consuntivazione.sql` (esecutori/consuntivato_da/at + CHECK origine) e
+  `20260722100001_rapportini_piano_nullable.sql` — **⚠️ da applicare al prod PRIMA del merge** (il
+  codice legge/scrive le colonne nuove; shim resiliente su `interventi.esecutori` in Performance).
+  Logica pura testata (`lib/consuntivazione/*.test.ts`). Vedi HANDOFF.md.
 - ✅ **Performance operatori: filtri multi-select + committenti/descrizioni allineate (lato modulo)** *(2026-07-21)* —
   tutti i filtri del modulo passano a multi-selezione (riuso di `components/ui/MultiSelect`):
   operatori, committenti, gruppi, attività, territori accettano più valori (array vuoto = tutti,

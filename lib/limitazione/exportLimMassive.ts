@@ -133,6 +133,6 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     saracinesca: saracinescaPulita(r.saracinesca),
     // nota solo sui negativi (esitoOk === false): prima la nota del rapportino, poi il motivo
     note: esitoOk === false ? (t(r.note) || t(r.esito_motivo)) : '',
-    manuale: r.committente === 'lim_massive' || r.origine === 'manuale',
+    manuale: r.committente === 'lim_massive' || r.origine === 'manuale' || r.origine === 'consuntivo',
   };
 }

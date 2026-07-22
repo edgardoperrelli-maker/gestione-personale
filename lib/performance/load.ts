@@ -16,20 +16,33 @@ interface RawRow {
   committente: string | null;
   intervento_tipo: string | null;
   esito: string | null;
+  /** Squadra esecutrice (consuntivazione): [{staff_id, staff_name}]; [] per gli ordini normali. */
+  esecutori?: Array<{ staff_id?: string | null; staff_name?: string | null }> | null;
 }
 
 async function fetchInterventi(): Promise<RawRow[]> {
   const rows: RawRow[] = [];
+  // `esecutori` è additiva (modulo Consuntivazione): se la colonna non esiste ancora (migration
+  // non applicata) si ripiega sulla select senza — comportamento invariato.
+  let cols = 'id, staff_id, data, territorio_id, committente, intervento_tipo, esito, esecutori';
   for (let from = 0; ; from += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('id, staff_id, data, territorio_id, committente, intervento_tipo, esito')
+      .select(cols)
       .eq('stato', STATO_CONTEGGIABILE)
       .order('data', { ascending: true })
       .order('id', { ascending: true })
       .range(from, from + PAGE - 1);
-    if (error) { console.error('[performance] fetchInterventi', error); break; }
-    const batch = (data ?? []) as RawRow[];
+    if (error) {
+      if (/esecutori/i.test(error.message) && cols.includes('esecutori')) {
+        cols = 'id, staff_id, data, territorio_id, committente, intervento_tipo, esito';
+        from -= PAGE; // riprova la stessa pagina senza la colonna
+        continue;
+      }
+      console.error('[performance] fetchInterventi', error);
+      break;
+    }
+    const batch = ((data ?? []) as unknown) as RawRow[];
     rows.push(...batch);
     if (batch.length < PAGE) break;
   }
@@ -96,17 +109,14 @@ export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
   ]);
   const tassIndex = buildTassonomiaIndex(tassonomia);
 
-  const rows: ClientRow[] = raw.map((r) => {
+  const rows: ClientRow[] = raw.flatMap((r) => {
     // Tassonomia reale (committente, descrizione) → gruppo + forma canonica della descrizione.
     // `allinea: 'lettura'` accorpa i duplicati/typo (tier completo, incl. codici ATLAS solo-modulo).
     // Fallback 'altro' (prova acea poi italgas) come in taskToIntervento: un codice ATLAS
     // italgas loggato sotto 'acea' risolve comunque alla sua attività/gruppo reali.
     const riga = risolviGruppo(r.committente, r.intervento_tipo, tassIndex, { allinea: 'lettura' })
       ?? risolviGruppo('altro', r.intervento_tipo, tassIndex, { allinea: 'lettura' });
-    return {
-      id: r.id,
-      staffId: r.staff_id ?? '',
-      operatore: (r.staff_id && maps.staffName.get(r.staff_id)) || 'Sconosciuto',
+    const comune = { // parte condivisa da tutti gli esecutori dello stesso intervento
       data: r.data.slice(0, 10),
       territorioId: r.territorio_id ?? '',
       territorio: (r.territorio_id && maps.territoryName.get(r.territorio_id)) || 'Senza territorio',
@@ -118,6 +128,23 @@ export async function loadPerformanceBundle(): Promise<PerformanceBundle> {
       valvola: valvolaSet.has(r.id),
       esito: r.esito ?? '',
     };
+    const rigaPer = (staffId: string, idSuffix: string): ClientRow => ({
+      id: idSuffix ? `${r.id}:${idSuffix}` : r.id,
+      staffId,
+      operatore: (staffId && maps.staffName.get(staffId)) || 'Sconosciuto',
+      ...comune,
+    });
+    // Riga base: operatore primario (interventi.staff_id) — porta il valore economico UNA volta.
+    const base = rigaPer(r.staff_id ?? '', '');
+    // Consuntivazione con squadra: accredita la PARTECIPAZIONE anche agli esecutori oltre il
+    // primario (interventi.esecutori). Gli ordini normali (esecutori vuoto) restano invariati.
+    const squadra = Array.isArray(r.esecutori) ? r.esecutori : [];
+    const extra = squadra
+      .map((e) => String(e?.staff_id ?? '').trim())
+      .filter((id) => id && id !== (r.staff_id ?? ''))
+      .filter((id, i, arr) => arr.indexOf(id) === i)
+      .map((id) => rigaPer(id, id));
+    return [base, ...extra];
   });
 
   // Opzioni derivate dai dati (solo ciò che è effettivamente filtrabile).

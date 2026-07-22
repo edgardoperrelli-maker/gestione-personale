@@ -15,6 +15,7 @@ export type AppModuleKey =
   | 'hotel-calendar'
   | 'mappa'
   | 'interventi'
+  | 'consuntivazione'
   | 'pronto-intervento'
   | 'live'
   | 'lista-attesa'
@@ -87,6 +88,16 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/interventi'],
+  },
+  {
+    key: 'consuntivazione',
+    href: '/hub/consuntivazione',
+    label: 'Consuntivazione',
+    description: 'Carica ed esita interventi da back office',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/consuntivazione'],
+    adminOnly: true,
   },
   {
     key: 'pronto-intervento',
