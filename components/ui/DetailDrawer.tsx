@@ -27,6 +27,7 @@ export function DetailDrawer({
   onClose,
   footer,
   children,
+  className = 'xl:sticky xl:top-4',
 }: {
   /** Riga sopra il titolo, es. «ODL 8801-4421 · ACEA» */
   eyebrow?: React.ReactNode;
@@ -36,9 +37,11 @@ export function DetailDrawer({
   onClose: () => void;
   footer?: React.ReactNode;
   children: React.ReactNode;
+  /** Posizionamento nel layout ospite (default: sticky per pagine a scroll). */
+  className?: string;
 }) {
   return (
-    <aside className="flex flex-col rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-md)] xl:sticky xl:top-4">
+    <aside className={`flex flex-col rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-md)] ${className}`}>
       <div className="border-b border-[var(--brand-border)] px-4 py-3.5">
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">

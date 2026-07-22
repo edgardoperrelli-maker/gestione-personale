@@ -47,7 +47,7 @@ function toneClass(v: string): string {
 }
 
 export default function StoricoTabella({
-  righe, isAdminPlus, puoModificare, onFoto, onModifica, onCancella,
+  righe, isAdminPlus, puoModificare, onFoto, onModifica, onCancella, onRiga, rigaSelezionata,
 }: {
   righe: RigaStorico[];
   isAdminPlus: boolean;
@@ -55,6 +55,9 @@ export default function StoricoTabella({
   onFoto: (voceId: string) => void;
   onModifica: (voceId: string) => void;
   onCancella: (voceId: string) => void;
+  /** Click sulla riga → apre il drawer di dettaglio (sistema Cockpit). */
+  onRiga?: (r: RigaStorico) => void;
+  rigaSelezionata?: string | null;
 }) {
   if (righe.length === 0) {
     return (
@@ -75,7 +78,15 @@ export default function StoricoTabella({
         </thead>
         <tbody>
           {righe.map((r) => (
-            <tr key={r.id} className="border-t border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]">
+            <tr
+              key={r.id}
+              onClick={onRiga ? () => onRiga(r) : undefined}
+              className={`border-t border-[var(--brand-border)] ${
+                rigaSelezionata === r.id
+                  ? 'bg-[var(--brand-primary-soft)] shadow-[inset_3px_0_0_var(--brand-primary)]'
+                  : 'hover:bg-[var(--brand-surface-muted)]'
+              } ${onRiga ? 'cursor-pointer' : ''}`}
+            >
               {COLS.map((c) => {
                 const testo = cella(r, c.key);
                 return (
@@ -87,7 +98,8 @@ export default function StoricoTabella({
                   </td>
                 );
               })}
-              <td className="whitespace-nowrap px-3 py-2 text-right">
+              {/* stopPropagation: i bottoni riga non devono aprire/chiudere il drawer */}
+              <td className="whitespace-nowrap px-3 py-2 text-right" onClick={(e) => e.stopPropagation()}>
                 <div className="inline-flex items-center gap-1">
                   <button
                     type="button"

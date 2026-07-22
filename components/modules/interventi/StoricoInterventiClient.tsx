@@ -4,6 +4,8 @@
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import Link from 'next/link';
 import Breadcrumb from '@/components/ui/Breadcrumb';
+import Button from '@/components/Button';
+import { DetailDrawer, DrawerKv, DrawerSection } from '@/components/ui/DetailDrawer';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import StoricoFiltri, { type StatoFiltriUI } from './StoricoFiltri';
 import StoricoTabella from './StoricoTabella';
@@ -20,6 +22,12 @@ const FILTRI_VUOTI: StatoFiltriUI = {
 
 const CONTATORI_ZERO: ContatoriStorico = {
   totale: 0, esitati: 0, eseguiti: 0, negativi: 0, sostValvola: 0, miniBag: 0, rgStop: 0,
+};
+
+/** Colore della barra cockpit a sinistra di ogni card-filtro. */
+const CARD_BAR: Record<string, string> = {
+  esitati: 'var(--brand-primary)', eseguiti: 'var(--status-ok)', negativi: 'var(--status-ko)',
+  sostValvola: 'var(--brand-primary)', miniBag: 'var(--brand-primary)', rgStop: 'var(--brand-primary)',
 };
 
 const CARDS: { key: keyof ContatoriStorico; label: string; tone?: 'ok' | 'no' }[] = [
@@ -57,6 +65,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
+  const [dettaglio, setDettaglio] = useState<RigaStorico | null>(null);
   const [righe, setRighe] = useState<RigaStorico[]>([]);
   const [total, setTotal] = useState(0);
   const [troncato, setTroncato] = useState(false);
@@ -199,15 +208,16 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
               onClick={() => onCardClick(c.key)}
               aria-pressed={active}
               title={`Filtra: ${c.label}`}
-              className={`flex flex-col items-start rounded-xl border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+              className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors ${
                 active
                   ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]'
                   : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
               }`}
             >
-              <span className="text-xs text-[var(--brand-text-muted)]">{c.label}</span>
+              <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: CARD_BAR[c.key] }} aria-hidden />
+              <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">{c.label}</span>
               <span
-                className={`text-2xl font-semibold ${
+                className={`font-mono text-2xl font-semibold tabular-nums ${
                   c.tone === 'ok' ? 'text-[var(--status-ok)]' : c.tone === 'no' ? 'text-[var(--status-ko)]' : 'text-[var(--brand-text-main)]'
                 }`}
               >
@@ -242,21 +252,81 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
         </div>
       )}
 
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
-        {loading && (
-          <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
-            Caricamento…
-          </div>
+      {/* Split cockpit: tabella + drawer di dettaglio (drawer solo da xl in su) */}
+      <div className="flex min-h-0 flex-1 gap-4">
+        <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+          {loading && (
+            <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
+              <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
+              Caricamento…
+            </div>
+          )}
+          <StoricoTabella
+            righe={righe}
+            isAdminPlus={isAdminPlus}
+            puoModificare={puoModificare}
+            onFoto={(id) => setFotoVoceId(id)}
+            onModifica={(id) => setModificaVoceId(id)}
+            onCancella={cancella}
+            onRiga={(r) => setDettaglio((cur) => (cur?.id === r.id ? null : r))}
+            rigaSelezionata={dettaglio?.id ?? null}
+          />
+        </div>
+
+        {dettaglio && (
+          <DetailDrawer
+            className="hidden w-[360px] shrink-0 xl:flex"
+            eyebrow={`ODL ${dettaglio.odl ?? '—'}${dettaglio.committente ? ` · ${dettaglio.committente.toUpperCase()}` : ''}`}
+            title={dettaglio.via ?? 'Senza indirizzo'}
+            meta={
+              <span className="flex flex-wrap items-center gap-1.5">
+                {([['Eseguito', dettaglio.eseguito], ['Sost. valvola', dettaglio.sostValvola], ['Mini bag', dettaglio.miniBag], ['RG stop', dettaglio.rgStop]] as const)
+                  .filter(([, v]) => v === 'SI' || v === 'NO')
+                  .map(([lbl, v]) => (
+                    <span
+                      key={lbl}
+                      className="rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                      style={{
+                        color: v === 'SI' ? 'var(--status-ok)' : 'var(--status-ko)',
+                        backgroundColor: v === 'SI' ? 'var(--status-ok-soft)' : 'var(--status-ko-soft)',
+                      }}
+                    >
+                      {lbl}: {v}
+                    </span>
+                  ))}
+              </span>
+            }
+            onClose={() => setDettaglio(null)}
+            footer={
+              <>
+                <Button size="sm" className="flex-1" onClick={() => setFotoVoceId(dettaglio.id)}>Vedi foto</Button>
+                {puoModificare && (
+                  <Button size="sm" variant="primary" className="flex-1" onClick={() => setModificaVoceId(dettaglio.id)}>Modifica</Button>
+                )}
+              </>
+            }
+          >
+            <DrawerSection title="Anagrafica">
+              <DrawerKv
+                rows={[
+                  { k: 'Data', v: dettaglio.data ? dettaglio.data.split('-').reverse().join('/') : '—', mono: true },
+                  { k: 'Esecutore', v: dettaglio.esecutore ?? '—' },
+                  { k: 'PDR', v: dettaglio.pdr ?? '—', mono: true },
+                  { k: 'Matricola', v: dettaglio.matricola ?? '—', mono: true },
+                  { k: 'Sigillo', v: dettaglio.sigillo ?? '—', mono: true },
+                  { k: 'Attività', v: dettaglio.gruppoAttivita ?? '—' },
+                  { k: 'Gruppo', v: dettaglio.gruppo ?? '—' },
+                  { k: 'Territorio', v: dettaglio.territorio ?? '—' },
+                ]}
+              />
+            </DrawerSection>
+            {dettaglio.note && (
+              <DrawerSection title="Note">
+                <p className="whitespace-pre-wrap text-[12.5px] text-[var(--brand-text-muted)]">{dettaglio.note}</p>
+              </DrawerSection>
+            )}
+          </DetailDrawer>
         )}
-        <StoricoTabella
-          righe={righe}
-          isAdminPlus={isAdminPlus}
-          puoModificare={puoModificare}
-          onFoto={(id) => setFotoVoceId(id)}
-          onModifica={(id) => setModificaVoceId(id)}
-          onCancella={cancella}
-        />
       </div>
 
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 text-sm text-[var(--brand-text-muted)]">
