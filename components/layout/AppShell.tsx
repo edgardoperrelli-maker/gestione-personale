@@ -8,6 +8,7 @@ import TopBar from './TopBar';
 import { RichiesteManualiProvider } from './RichiesteManualiProvider';
 import SegnalaButton from '@/components/segnalazione/SegnalaButton';
 import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
+import { Toaster } from '@/components/ui/Toast';
 
 type Props = {
   children: ReactNode;
@@ -153,6 +154,7 @@ export default function AppShell({
       </div>
       <SegnalaButton />
       <AnnuncioSegnalazione open={annuncioOpen} onClose={handleCloseAnnuncio} />
+      <Toaster />
     </div>
     </RichiesteManualiProvider>
   );
