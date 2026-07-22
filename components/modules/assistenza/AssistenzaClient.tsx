@@ -9,6 +9,7 @@ import MultiSelect from '@/components/ui/MultiSelect';
 import Skeleton from '@/components/ui/Skeleton';
 import { LOBBY, realtimeClient, type Richiesta } from '@/lib/assistenza/transport';
 import SessionePanel from './SessionePanel';
+import AnnuncioAssistenza, { ANNUNCIO_ASSISTENZA_KEY } from './AnnuncioAssistenza';
 
 type RapportinoOggi = { sid: string; staff: string; data: string; stato: string };
 type Sessione = { sid: string; staff: string; data: string };
@@ -24,7 +25,33 @@ export default function AssistenzaClient() {
   const [sessioni, setSessioni] = useState<Sessione[]>([]);
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
+  const [annuncioOpen, setAnnuncioOpen] = useState(false);
   const lobbyRef = useRef<RealtimeChannel | null>(null);
+
+  // Avviso "novità" auto-mostrato al primo accesso al modulo (per-utente, via /api/annunci).
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/annunci?key=${ANNUNCIO_ASSISTENZA_KEY}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const j = (await res.json()) as { seen?: boolean };
+        if (vivo && !j.seen) setAnnuncioOpen(true);
+      } catch {
+        /* niente avviso se l'endpoint non risponde */
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  const chiudiAnnuncio = () => {
+    setAnnuncioOpen(false);
+    fetch('/api/annunci', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: ANNUNCIO_ASSISTENZA_KEY }),
+    }).catch(() => { /* best-effort */ });
+  };
 
   const carica = useCallback(async () => {
     setCaricamento(true);
@@ -114,10 +141,17 @@ export default function AssistenzaClient() {
             Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo.
           </p>
         </div>
-        <Button size="sm" onClick={carica} loading={caricamento}>
-          Aggiorna
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant="soft" onClick={() => setAnnuncioOpen(true)}>
+            ✨ Novità
+          </Button>
+          <Button size="sm" onClick={carica} loading={caricamento}>
+            Aggiorna
+          </Button>
+        </div>
       </div>
+
+      <AnnuncioAssistenza open={annuncioOpen} onClose={chiudiAnnuncio} />
 
       {!env && (
         <div className="rounded-[var(--radius-lg)] border border-[var(--status-warn)]/40 bg-[var(--status-warn-soft)] p-3 text-sm text-[var(--brand-text-main)]">
