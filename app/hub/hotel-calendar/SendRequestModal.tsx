@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from '@/components/ui/Toast';
 import { useState } from 'react';
 import type { Hotel } from '@/types';
 
@@ -36,11 +37,11 @@ function updateRoom(idx: number, type: string) {
 async function onSubmit(e: React.FormEvent) {
   e.preventDefault();
   if (!periodStart || !periodEnd) {
-    alert('Inserisci periodo di inizio e fine.');
+    toast.error('Inserisci periodo di inizio e fine.');
     return;
   }
   if (selectedHotels.length === 0) {
-    alert('Seleziona almeno un hotel destinatario.');
+    toast.error('Seleziona almeno un hotel destinatario.');
     return;
   }
 
@@ -65,7 +66,7 @@ body: JSON.stringify({
       throw new Error(j?.error || 'Invio fallito');
     }
 
-    alert('Richiesta inviata.');
+    toast.success('Richiesta inviata.');
     setOpen(false);
     // reset campi se serve
 setSelectedHotels([]);
@@ -75,7 +76,7 @@ setRooms([{ type: 'Singola' }]);
 setNote('');
 
   } catch (err) {
-    alert(err instanceof Error ? err.message : 'Errore invio email');
+    toast.error(err instanceof Error ? err.message : 'Errore invio email');
   } finally {
     setSending(false);
   }

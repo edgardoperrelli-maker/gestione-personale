@@ -1,4 +1,5 @@
 'use client';
+import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
@@ -94,7 +95,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           // Rollback: ricarica dati + mostra il motivo (es. 403 regressione vietata)
           const msg = (await res.json().catch(() => ({})) as { error?: string }).error;
           await fetchData(filters);
-          if (msg) alert(msg);
+          if (msg) toast.info(msg);
         }
       } catch {
         await fetchData(filters);
@@ -118,12 +119,12 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           if (inseriti > 0)   parti.push(`${inseriti} aggiunti`);
           if (rimossi > 0)    parti.push(`${rimossi} rimossi (non più validi)`);
           if (aggiornati > 0) parti.push(`${aggiornati} date corrette`);
-          alert(`Ricalcolo completato: ${parti.join(', ')}.`);
+          toast.success(`Ricalcolo completato: ${parti.join(', ')}.`);
         } else {
-          alert('Nessuna modifica: registro già allineato.');
+          toast.info('Nessuna modifica: registro già allineato.');
         }
       } else {
-        alert(`Errore sync: ${json.error}`);
+        toast.error(`Errore sync: ${json.error}`);
       }
     } finally {
       setSyncing(false);

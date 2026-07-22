@@ -103,6 +103,8 @@ export default function CronoprogrammaWorkspace() {
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
   const refreshTaskCounts = () => setTaskCountRefresh((v) => v + 1);
 
+  // ponytail: doppia conferma sequenziale SINCRONA dentro i flussi drag&drop —
+  // resta window.confirm (renderla async propagherebbe nei handler DnD; rischio > beneficio).
   const confirmTwice = (firstMessage: string, secondMessage: string) => {
     if (typeof window === 'undefined') return true;
     if (!window.confirm(firstMessage)) return false;

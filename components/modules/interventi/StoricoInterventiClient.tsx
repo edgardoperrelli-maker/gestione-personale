@@ -1,6 +1,7 @@
 // components/modules/interventi/StoricoInterventiClient.tsx
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import Link from 'next/link';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -129,7 +130,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
     window.location.href = `/api/interventi/storico/export?${filtriToParams(filtri).toString()}`;
   };
   const cancella = async (voceId: string) => {
-    if (!window.confirm('Eliminare definitivamente questa riga (intervento, eventuali foto e richiesta collegata)? Operazione non reversibile.')) return;
+    if (!(await chiediConferma({ title: 'Eliminare definitivamente questa riga?', message: 'Intervento, eventuali foto e richiesta collegata verranno rimossi. Operazione non reversibile.', confirmLabel: 'Elimina', danger: true }))) return;
     setError(null);
     try {
       const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}`, { method: 'DELETE' });

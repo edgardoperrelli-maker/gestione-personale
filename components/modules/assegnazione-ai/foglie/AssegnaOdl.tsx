@@ -1,5 +1,6 @@
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useState, useCallback, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import type { NavState } from '@/lib/agente/aceaNav';
@@ -213,7 +214,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
   }
 
   async function scarta(o: GruppoOperatore) {
-    if (!window.confirm(`Rimuovere ${o.nome} dall'anteprima? Le sue ${o.righe.length} righe NON verranno pianificate (potrai ricaricarle con "Sincronizza file").`)) return;
+    if (!(await chiediConferma({ title: `Rimuovere ${o.nome} dall'anteprima?`, message: `Le sue ${o.righe.length} righe NON verranno pianificate (potrai ricaricarle con "Sincronizza file").`, confirmLabel: 'Rimuovi' }))) return;
     try {
       const res = await fetch('/api/admin/agente/scarta', {
         method: 'POST', headers: { 'Content-Type': 'application/json' },
