@@ -20,7 +20,7 @@ export const viewport: Viewport = {
   viewportFit: 'cover',
   // Colore barra browser/PWA per tema (valori dai token --app-bg).
   themeColor: [
-    { media: '(prefers-color-scheme: light)', color: '#f9fafc' },
+    { media: '(prefers-color-scheme: light)', color: '#f0f4f7' },
     { media: '(prefers-color-scheme: dark)', color: '#12161c' },
   ],
 };
