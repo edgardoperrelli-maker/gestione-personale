@@ -1,5 +1,6 @@
 'use client';
 
+import { toast } from '@/components/ui/Toast';
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
@@ -1509,12 +1510,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       );
       const json = (await res.json().catch(() => ({}))) as { interventi?: Task[]; error?: string };
       if (!res.ok) {
-        alert(`Caricamento interventi non riuscito — ${json.error ?? res.status}.`);
+        toast.error(`Caricamento interventi non riuscito — ${json.error ?? res.status}.`);
         return;
       }
       const interventi = json.interventi ?? [];
       if (interventi.length === 0) {
-        alert(`Nessun intervento da pianificare per il ${planningDate}.`);
+        toast.info(`Nessun intervento da pianificare per il ${planningDate}.`);
         return;
       }
       setExcelTasks(interventi);
@@ -1535,7 +1536,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       setShowOpPicker(false);
       setZtlConflicts([]);
     } catch {
-      alert('Errore di rete nel caricamento degli interventi.');
+      toast.error('Errore di rete nel caricamento degli interventi.');
     }
   }, [planningDate]);
 
@@ -1830,11 +1831,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           error?: string;
         };
         if (!res.ok) {
-          alert(`Distribuzione non riuscita — ${json.error ?? res.status}.`);
+          toast.error(`Distribuzione non riuscita — ${json.error ?? res.status}.`);
         } else {
           setSavedDistribution(true);
           const nScartati = json.scartati?.length ?? 0;
-          alert(`${json.assegnati ?? 0} interventi assegnati${nScartati ? `, ${nScartati} scartati` : ''}.`);
+          toast.success(`${json.assegnati ?? 0} interventi assegnati${nScartati ? `, ${nScartati} scartati` : ''}.`);
         }
       } finally {
         setSavingDistribution(false);
@@ -1875,7 +1876,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         }
         const piani = Object.entries(perPiano).map(([id, operatori]) => ({ id, operatori }));
         if (piani.length === 0) {
-          alert('Nessuna pianificazione da salvare.');
+          toast.info('Nessuna pianificazione da salvare.');
           return;
         }
         const res = await fetch('/api/mappa/piani/territorio', {
@@ -1887,11 +1888,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           ok?: boolean; creati?: number; preservati?: number; rapportiniWarning?: string; error?: string;
         };
         if (!res.ok || !json.ok) {
-          alert(`Salvataggio territorio non riuscito — ${json.error ?? res.status}.`);
+          toast.error(`Salvataggio territorio non riuscito — ${json.error ?? res.status}.`);
         } else {
           setSavedDistribution(true);
           const avviso = json.rapportiniWarning ? `\n\n⚠️ Rapportini: ${json.rapportiniWarning}` : '';
-          alert(`Territorio salvato: ${json.creati ?? 0} interventi aggiornati per la torre di controllo (${json.preservati ?? 0} già chiusi preservati).${avviso}`);
+          toast.success(`Territorio salvato: ${json.creati ?? 0} interventi aggiornati per la torre di controllo (${json.preservati ?? 0} già chiusi preservati).${avviso}`);
         }
         return;
       }
@@ -1939,7 +1940,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         const json = await res.json();
         setSavedDistribution(true);
         if (json.eliminatiOk === false) {
-          alert('Attenzione: alcuni interventi eliminati non sono stati rimossi del tutto dal database. Riprova il salvataggio.');
+          toast.error('Attenzione: alcuni interventi eliminati non sono stati rimossi del tutto dal database. Riprova il salvataggio.');
         } else {
           setEliminatiAnnullati([]);
         }
@@ -1958,17 +1959,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             });
             const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; odlBloccati?: string[]; error?: string };
             if (!ri.ok) {
-              alert(`Torre: creazione interventi NON riuscita — ${rj.error ?? ri.status}.\nHai applicato la migration 20260603030000?`);
+              toast.error(`Torre: creazione interventi NON riuscita — ${rj.error ?? ri.status}.\nHai applicato la migration 20260603030000?`);
             } else {
               const bloccati = rj.odlBloccati ?? [];
               const rigaBloccati = bloccati.length
                 ? `\n\n⛔ ${bloccati.length === 1 ? 'ODL ESCLUSO perché già eseguito positivo' : `${bloccati.length} ODL ESCLUSI perché già eseguiti positivi`}: ${bloccati.join(', ')}.\nNon compariranno né in torre né nei rapportini.`
                 : '';
-              alert(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).${rigaBloccati}`);
+              toast.success(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).${rigaBloccati}`);
               setOdlGiaPositivi(bloccati);
             }
           } catch {
-            alert('Torre: errore di rete nella creazione interventi.');
+            toast.error('Torre: errore di rete nella creazione interventi.');
           }
 
           // Auto, sempre: genera/aggiorna i rapportini riusando i token esistenti
@@ -1987,7 +1988,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               const { avvisoBloccati, richiediConfermaInviati } = decideSyncRapportini(diff);
               // Interventi completati spostati: avvisa (non blocca la sincronizzazione del resto).
               if (avvisoBloccati) {
-                alert(`${avvisoBloccati}\n\nRiportali all'operatore originale se l'esito va mantenuto.`);
+                toast.error(`${avvisoBloccati}\n\nRiportali all'operatore originale se l'esito va mantenuto.`);
               }
               if (richiediConfermaInviati) {
                 // Rapportini GIÀ INVIATI coinvolti: chiedi prima di riaprirli/aggiornarli.
@@ -2012,7 +2013,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
         // Il PUT/POST del piano è fallito: NON restare in silenzio (altrimenti il task
         // sembra salvato nella UI ma sparisce al ricaricamento).
         const ej = (await res.json().catch(() => ({}))) as { error?: string };
-        alert(`Salvataggio piano non riuscito — ${ej.error ?? res.status}.`);
+        toast.error(`Salvataggio piano non riuscito — ${ej.error ?? res.status}.`);
       }
     } finally {
       setSavingDistribution(false);
@@ -2096,7 +2097,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       setOverwriteInviati(false);
       const bloccati = (data?.odlBloccati as string[] | undefined) ?? [];
       if (bloccati.length > 0) {
-        alert(`⛔ ODL esclusi dai rapportini perché già eseguiti positivi: ${bloccati.join(', ')}.`);
+        toast.error(`⛔ ODL esclusi dai rapportini perché già eseguiti positivi: ${bloccati.join(', ')}.`);
         setOdlGiaPositivi(bloccati);
       }
       await caricaRapportini(currentPianoId);
@@ -2677,9 +2678,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       const errNote = allegato10Errors.length
         ? ` (⚠️ ${allegato10Errors.length} Allegato 10 non generati)`
         : '';
-      alert(`ZIP generato: ${zipName}${errNote}`);
+      toast.success(`ZIP generato: ${zipName}${errNote}`);
     } catch (err: any) {
-      alert(err?.message || 'Errore durante la generazione del rapportino.');
+      toast.error(err?.message || 'Errore durante la generazione del rapportino.');
     }
   }, [distribution, rapTemplates, rapTemplateId]);
 
