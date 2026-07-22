@@ -6,10 +6,16 @@ import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/se
 import AnnuncioOdlPositivi, { ANNUNCIO_ODL_POSITIVI_KEY } from '@/components/modules/interventi/AnnuncioOdlPositivi';
 import AnnuncioConfrontoEsiti, { ANNUNCIO_CONFRONTO_ESITI_KEY } from '@/components/modules/assegnazione-ai/AnnuncioConfrontoEsiti';
 import AnnuncioGruppoAttivita, { ANNUNCIO_GRUPPO_ATTIVITA_KEY } from '@/components/modules/interventi/AnnuncioGruppoAttivita';
+import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from '@/components/modules/consuntivazione/AnnuncioConsuntivazione';
 
 /** Registro delle "novità" del progetto: un annuncio = una voce (chiave versionata + testo), le più recenti in cima. */
 type Annuncio = { key: string; title: string; subtitle: string };
 const ANNUNCI: Annuncio[] = [
+  {
+    key: ANNUNCIO_CONSUNTIVAZIONE_KEY,
+    title: 'Consuntivazione: esita gli ordini dal back office',
+    subtitle: 'Chiudi un intervento dall’ufficio come da rapportino — azioni, foto ed esito — e assegnalo a uno o più operatori.',
+  },
   {
     key: ANNUNCIO_ODL_POSITIVI_KEY,
     title: 'Stop ai doppi esiti: un ODL positivo si chiude per sempre',
@@ -154,6 +160,7 @@ export default function NovitaCenter() {
         )}
       </div>
 
+      <AnnuncioConsuntivazione open={openKey === ANNUNCIO_CONSUNTIVAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioOdlPositivi open={openKey === ANNUNCIO_ODL_POSITIVI_KEY} onClose={chiudiModal} />
       <AnnuncioConfrontoEsiti open={openKey === ANNUNCIO_CONFRONTO_ESITI_KEY} onClose={chiudiModal} />
       <AnnuncioGruppoAttivita open={openKey === ANNUNCIO_GRUPPO_ATTIVITA_KEY} onClose={chiudiModal} />
