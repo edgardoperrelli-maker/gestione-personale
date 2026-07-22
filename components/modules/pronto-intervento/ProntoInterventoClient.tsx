@@ -1,6 +1,7 @@
 'use client';
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import PannelloContabilita from './PannelloContabilita';
@@ -221,10 +222,7 @@ export default function ProntoInterventoClient() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Pronto Intervento</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Chiamate P.I. sul campo, approvazione e contabilità.</p>
-      </div>
+      <ObjectHeader title="Pronto Intervento" sub="Chiamate P.I. sul campo, approvazione e contabilità." />
 
       {!area || !areaCorrente?.attiva ? (
         <CardsSottomoduli aree={aree} onApri={(c) => setArea(c)} />

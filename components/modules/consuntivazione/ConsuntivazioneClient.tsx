@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import NuovoOrdineForm from './NuovoOrdineForm';
 import OrdinePresenteForm from './OrdinePresenteForm';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from './AnnuncioConsuntivazione';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import Skeleton from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/Toast';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -93,11 +94,10 @@ export default function ConsuntivazioneClient() {
   return (
     <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Consuntivazione</h1>
-        <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-          Carica ed esita interventi dal back office, come se fossero chiusi dal rapportino di un operatore,
-          e assegna l&apos;esecuzione a uno o più operatori.
-        </p>
+        <ObjectHeader
+          title="Consuntivazione"
+          sub="Carica ed esita interventi dal back office, come se fossero chiusi dal rapportino di un operatore, e assegna l'esecuzione a uno o più operatori."
+        />
       </header>
 
       {erroreBoot ? (
