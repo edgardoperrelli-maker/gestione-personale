@@ -8,6 +8,7 @@ import { caricaFlussi, risolviCampiFlusso } from '@/lib/consuntivazione/flusso';
 import { buildInterventoConsuntivoBase, buildVoceConsuntivo } from '@/lib/consuntivazione/nuovoOrdine';
 import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { esitabileConsuntivo, notaNegativoMancante } from '@/lib/consuntivazione/statoEsito';
 import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
@@ -180,6 +181,16 @@ export async function POST(req: Request) {
   // 4) registro misuratori (idempotente).
   if (misuratore) {
     await supabaseAdmin.from('misuratori_rimossi').upsert([misuratore], { onConflict: 'intervento_id', ignoreDuplicates: true });
+  }
+
+  // 5) positivo registrato dal backoffice → sweep: revoca voci/interventi aperti con lo
+  // stesso ODL negli altri rapportini (anche di piani futuri). Best-effort.
+  if (patch.esito === 'eseguito_positivo' && patch.stato === 'completato') {
+    try {
+      await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+    } catch (e) {
+      console.error('[consuntivazione/nuovo] sweep positivo fallito:', e instanceof Error ? e.message : String(e));
+    }
   }
 
   return NextResponse.json({

@@ -6,8 +6,8 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
-import { caricaOdlGiaPositivi } from '@/lib/interventi/caricaOdlPositivi';
-import { normOdl } from '@/lib/interventi/odlPositivi';
+import { caricaPositiviInfo } from '@/lib/interventi/caricaOdlPositivi';
+import { normOdl, type OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
 
 export const runtime = 'nodejs';
 
@@ -25,17 +25,20 @@ export async function POST(req: Request) {
     const pianoId = typeof body.pianoId === 'string' && body.pianoId ? body.pianoId : undefined;
     if (odls.length === 0) return NextResponse.json({ bloccati: [] });
 
-    const positivi = await caricaOdlGiaPositivi(supabaseAdmin, odls, { escludiPianoId: pianoId });
+    const positivi = await caricaPositiviInfo(supabaseAdmin, odls, { escludiPianoId: pianoId });
     const visti = new Set<string>();
     const bloccati: string[] = [];
+    const dettagli: OdlBloccatoDettaglio[] = [];
     for (const o of odls) {
       const k = normOdl(o);
       if (k && positivi.has(k) && !visti.has(k)) {
         visti.add(k);
         bloccati.push(o.trim());
+        const pos = positivi.get(k)!;
+        dettagli.push({ odl: o.trim(), data: pos.data, esecutore: pos.esecutore });
       }
     }
-    return NextResponse.json({ bloccati });
+    return NextResponse.json({ bloccati, dettagli });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Errore verifica ODL.' },

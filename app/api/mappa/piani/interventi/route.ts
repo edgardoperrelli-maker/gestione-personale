@@ -28,6 +28,7 @@ export async function POST(req: Request) {
     preservati: res.preservati,
     scartati: res.scartati,
     odlBloccati: res.odlBloccati,
+    odlBloccatiDettagli: res.odlBloccatiDettagli,
     rapportiniSync: res.rapportiniSync,
     rapportiniWarning: res.rapportiniWarning,
   });

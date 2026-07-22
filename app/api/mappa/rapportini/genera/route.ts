@@ -35,7 +35,7 @@ export async function POST(req: Request) {
       if (res.conflicts) body.conflicts = res.conflicts;
       return NextResponse.json(body, { status: res.status });
     }
-    return NextResponse.json({ ok: true, rapportini: res.rapportini, interventiWarning: res.interventiWarning, odlBloccati: res.odlBloccati });
+    return NextResponse.json({ ok: true, rapportini: res.rapportini, interventiWarning: res.interventiWarning, odlBloccati: res.odlBloccati, odlBloccatiDettagli: res.odlBloccatiDettagli });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Errore generazione rapportini.' }, { status: 500 });
   }

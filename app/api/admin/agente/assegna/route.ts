@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { risolviEsecutore } from '@/lib/agente/risolviEsecutore';
 import { raggruppaPerPiano, type RigaRisolta } from '@/lib/agente/raggruppaPerPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
+import { labelOdlBloccato } from '@/lib/interventi/odlPositivi';
 import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
 import { costruisciLogRows } from '@/lib/agente/costruisciLogRows';
 import { caricaRapportiniEsistenti } from '@/lib/agente/caricaRapportiniEsistenti';
@@ -136,8 +137,11 @@ export async function POST(req: Request) {
         rapportiniCreati += res.rapportini.length;
         if (res.interventiWarning) avvisi.push(`Interventi ${p.territorio} ${p.data}: ${res.interventiWarning}`);
         if (res.odlBloccati?.length) {
+          const etichette = res.odlBloccatiDettagli?.length
+            ? res.odlBloccatiDettagli.map(labelOdlBloccato)
+            : res.odlBloccati;
           avvisi.push(
-            `ODL già eseguiti positivi esclusi da ${p.territorio} ${p.data}: ${res.odlBloccati.join(', ')}.`,
+            `ODL già eseguiti positivi esclusi da ${p.territorio} ${p.data}: ${etichette.join('; ')}.`,
           );
         }
 

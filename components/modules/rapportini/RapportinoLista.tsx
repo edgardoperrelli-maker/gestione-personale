@@ -10,7 +10,7 @@ import { CondividiPdfButton } from './CondividiPdfButton';
 import { rigaMatchRicerca } from '@/utils/rapportini/rigaMatchRicerca';
 import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -28,20 +28,27 @@ const MOTIVO_LABEL: Record<MotivoIncompleto, string> = {
 
 export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (index: number) => void }) {
   const chip = CHIP[r.stato];
-  const bordo = r.annullato ? 'border-l-[3px] border-l-[var(--status-ko)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--status-ko)]' : '';
-  const num = r.annullato ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : r.stato === 'eseguito' ? 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]';
+  // Voce bloccata (ODL già positivo altrove): stessa resa "spenta" dell'annullato, non apribile.
+  const spenta = r.annullato || Boolean(r.bloccoPositivo);
+  const bordo = spenta ? 'border-l-[3px] border-l-[var(--status-ko)]' : r.stato === 'eseguito' ? 'border-l-[3px] border-l-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'border-l-[3px] border-l-[var(--status-ko)]' : '';
+  const num = spenta ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : r.stato === 'eseguito' ? 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]' : r.stato === 'non_eseguito' ? 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' : 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]';
   return (
     <button
       type="button"
-      onClick={r.annullato ? undefined : () => onApri(r.index)}
-      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${r.annullato ? 'cursor-not-allowed border-[var(--status-ko)] bg-[var(--status-ko-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
+      onClick={spenta ? undefined : () => onApri(r.index)}
+      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${spenta ? 'cursor-not-allowed border-[var(--status-ko)] bg-[var(--status-ko-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
     >
       <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
-      <span className={`min-w-0 flex-1 ${r.annullato ? 'opacity-70' : ''}`}>
+      <span className={`min-w-0 flex-1 ${spenta ? 'opacity-70' : ''}`}>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           {r.annullato && (
             <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
               Annullato
+            </span>
+          )}
+          {!r.annullato && r.bloccoPositivo && (
+            <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
+              Già positivo
             </span>
           )}
           {r.nuovo && (
@@ -60,7 +67,7 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           {r.notaCollega && (
             <span title="Nota da un collega (intervento precedente)" aria-label="Nota da un collega" className="shrink-0 text-[13px] leading-none">🕒</span>
           )}
-          <span className={`min-w-[10ch] flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
+          <span className={`min-w-[10ch] flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${spenta ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (
             <span className="max-w-[45%] truncate text-xs font-medium text-[var(--brand-text-muted)]">
               {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
@@ -69,8 +76,14 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
         </span>
         <span className="mt-0.5 flex items-center gap-2">
           <span className="min-w-0 flex-1 truncate text-xs text-[var(--brand-text-muted)]">{r.sub}</span>
-          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
+          {/* La voce bloccata non è "Da fare": il chip di stato lascerebbe intendere il contrario. */}
+          {!r.bloccoPositivo && (
+            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
+          )}
         </span>
+        {r.bloccoPositivo && (
+          <span className="mt-1 block text-xs font-semibold text-[var(--status-ko)]">⛔ {r.bloccoPositivo}</span>
+        )}
       </span>
       <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
     </button>

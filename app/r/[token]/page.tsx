@@ -8,6 +8,8 @@ import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
 import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
+import { caricaPositiviInfo, type PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
+import { normOdl } from '@/lib/interventi/odlPositivi';
 import { fotoObbligatorieSoloMassive } from '@/utils/rapportini/attivitaMassiva';
 import RapportinoForm, {
   type Voce as FormVoce,
@@ -173,6 +175,29 @@ export default async function RapportinoPublicPage({
     // best-effort: nessuna nota tramandata
   }
 
+  // Blocco "ODL già positivo": rete di sicurezza per i positivi arrivati DOPO la generazione
+  // (lo sweep server-side rimuove le voci non compilate, ma un rapportino già aperto/in cache
+  // può ancora contenerle). La voce resta visibile ma bloccata, con data ed esecutore del
+  // positivo originale. Le voci COMPILATE non si bloccano mai (le gestisce il backstop
+  // all'invio). Best-effort: se la query fallisce, nessun blocco (restano sweep + backstop).
+  const bloccoByVoce = new Map<string, PositivoDettaglio>();
+  if (stato !== 'inviato') {
+    try {
+      const daControllare = ((vociRows ?? []) as VoceRow[]).filter(
+        (v) => !v.manuale && (v.odl ?? '').trim() && Object.keys(v.risposte ?? {}).length === 0,
+      );
+      if (daControllare.length > 0) {
+        const positivi = await caricaPositiviInfo(supabaseAdmin, daControllare.map((v) => v.odl));
+        for (const v of daControllare) {
+          const pos = positivi.get(normOdl(v.odl));
+          if (pos && pos.id !== (v.intervento_id ?? null)) bloccoByVoce.set(v.id, pos);
+        }
+      }
+    } catch {
+      // best-effort: nessun blocco
+    }
+  }
+
   // Campi per-voce (flusso del gruppo attività dell'intervento): query separata e resiliente —
   // se le colonne non esistono ancora (migration non applicata) si resta sui campi del rapportino.
   const campiVoceById = new Map<string, TemplateCampo[]>();
@@ -265,6 +290,9 @@ export default async function RapportinoPublicPage({
     notePrecedenti: notePrecedentiByVoce.get(v.id),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
     annullato: Boolean((v.raw_json as { _annullato?: unknown } | null)?._annullato),
+    bloccoPositivo: bloccoByVoce.has(v.id)
+      ? { data: bloccoByVoce.get(v.id)!.data, esecutore: bloccoByVoce.get(v.id)!.esecutore }
+      : undefined,
     manuale: Boolean(v.manuale),
     approvazione_stato: v.approvazione_stato ?? null,
     motivo_rifiuto: v.richiesta_id ? (motivoByRichiesta[v.richiesta_id] ?? null) : null,

@@ -10,7 +10,8 @@ import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import { rilevaConflitti, type RapEsistente } from '@/utils/rapportini/rilevaConflitti';
-import { normOdl, taskDaSaltare } from '@/lib/interventi/odlPositivi';
+import { dettagliOdlBloccati, normOdl, taskDaSaltare, type OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
+import type { PositivoDettaglio } from '@/lib/interventi/caricaOdlPositivi';
 import { isTaskVia } from '@/lib/interventi/manuali/taskVia';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
@@ -45,6 +46,8 @@ export type SincronizzaResult =
       interventiWarning?: string;
       /** odl del piano NON generati (né voce né intervento) perché già eseguiti positivi altrove. */
       odlBloccati?: string[];
+      /** dettagli (data/esecutore del positivo originale) per i messaggi "già positivo il …". */
+      odlBloccatiDettagli?: OdlBloccatoDettaglio[];
     }
   | { ok: false; status: number; error?: string; conflicts?: unknown[] };
 
@@ -160,10 +163,12 @@ export async function sincronizzaRapportini(
   // ODL con positivo altrove (calcolati da ensureInterventiForPiano): un ODL già eseguito
   // positivo è definitivamente chiuso → niente intervento E niente voce di rapportino.
   let odlGiaPositivi = new Set<string>();
+  let positiviInfo = new Map<string, PositivoDettaglio>();
   try {
     const ens = await ensureInterventiForPiano(db, pianoId);
     if (ens.error) interventiWarning = ens.error;
     if (ens.odlGiaPositivi) odlGiaPositivi = ens.odlGiaPositivi;
+    if (ens.positiviInfo) positiviInfo = ens.positiviInfo;
   } catch (e) {
     interventiWarning = (e instanceof Error ? e.message : String(e)) || 'errore ensure interventi';
   }
@@ -333,6 +338,11 @@ export async function sincronizzaRapportini(
     ok: true,
     rapportini: out,
     interventiWarning,
-    ...(odlBloccatiVoci.size > 0 ? { odlBloccati: [...odlBloccatiVoci] } : {}),
+    ...(odlBloccatiVoci.size > 0
+      ? {
+          odlBloccati: [...odlBloccatiVoci],
+          odlBloccatiDettagli: dettagliOdlBloccati([...odlBloccatiVoci], positiviInfo),
+        }
+      : {}),
   };
 }
