@@ -13,76 +13,78 @@ type LiveReplayer = {
   startLive: (baseTime?: number) => void;
   destroy?: () => void;
 };
-type RREvent = { type: number; timestamp: number };
 
 /**
  * Una sessione di assistenza (una card). Riceve gli eventi rrweb dell'operatore via broadcast
- * e li rigioca in DIRETTA con il Replayer rrweb (liveMode) — ricostruzione fedele del rapportino,
- * inclusi errori/validazioni. In sola lettura; l'unico canale di ritorno è un "suggerimento" testuale.
+ * e li rigioca in DIRETTA con il Replayer rrweb in liveMode (pattern canonico: Replayer vuoto +
+ * startLive() + addEvent per ogni evento). Ricostruzione fedele del rapportino, inclusi errori.
+ * Sola lettura; unico canale di ritorno: un "suggerimento" testuale.
  */
 export default function SessionePanel({ sid, staff, data, onClose }: Props) {
   const [operatorePresente, setOperatorePresente] = useState(false);
   const [condivisione, setCondivisione] = useState(false);
+  const [ricevuti, setRicevuti] = useState(0);
   const [hint, setHint] = useState('');
+
   const rootRef = useRef<HTMLDivElement | null>(null);
   const chRef = useRef<RealtimeChannel | null>(null);
   const replayerRef = useRef<LiveReplayer | null>(null);
-  const initBuf = useRef<RREvent[]>([]);
+  const pending = useRef<unknown[]>([]);
   const rrwebMod = useRef<typeof import('rrweb') | null>(null);
+  const initing = useRef(false);
 
-  const onEvent = useCallback(async (raw: unknown) => {
-    const event = raw as RREvent;
-    if (replayerRef.current) {
-      try { replayerRef.current.addEvent(event); } catch { /* no-op */ }
-      return;
-    }
-    // in attesa del primo FullSnapshot (type 2) preceduto da un Meta (type 4)
-    initBuf.current.push(event);
-    if (event.type !== 2) return;
-    const buf = initBuf.current;
-    let metaIdx = -1;
-    for (let i = buf.length - 1; i >= 0; i -= 1) { if (buf[i].type === 4) { metaIdx = i; break; } }
-    if (metaIdx < 0) return; // manca il Meta, aspetta il prossimo full-snapshot
-    const evs = buf.slice(metaIdx);
-    initBuf.current = [];
-    if (!rrwebMod.current) rrwebMod.current = await import('rrweb');
-    const root = rootRef.current;
-    if (!root) return;
-    root.innerHTML = '';
+  const initReplayer = useCallback(async () => {
+    if (replayerRef.current || initing.current || !rootRef.current) return;
+    initing.current = true;
     try {
-      const replayer = new rrwebMod.current.Replayer(evs as unknown as [], {
+      if (!rrwebMod.current) rrwebMod.current = await import('rrweb');
+      if (!rootRef.current) return;
+      rootRef.current.innerHTML = '';
+      const replayer = new rrwebMod.current.Replayer([], {
         liveMode: true,
-        root,
+        root: rootRef.current,
         mouseTail: false,
       });
       const live = replayer as unknown as LiveReplayer;
-      live.startLive(evs[0]?.timestamp);
+      live.startLive();
       replayerRef.current = live;
-    } catch {
-      /* init fallita: verrà ritentata al prossimo full-snapshot */
-      initBuf.current = [];
+      // svuota gli eventi arrivati prima che il player fosse pronto
+      for (const e of pending.current) { try { live.addEvent(e); } catch { /* no-op */ } }
+      pending.current = [];
+    } finally {
+      initing.current = false;
     }
   }, []);
+
+  const onEvent = useCallback((raw: unknown) => {
+    setRicevuti((n) => n + 1);
+    setCondivisione(true);
+    if (replayerRef.current) {
+      try { replayerRef.current.addEvent(raw); } catch { /* no-op */ }
+    } else {
+      pending.current.push(raw);
+      void initReplayer();
+    }
+  }, [initReplayer]);
 
   useEffect(() => {
     const cli = realtimeClient();
     if (!cli) return;
+    void initReplayer();
     const ricevi = creaRicevitore(onEvent);
     const ch = cli.channel(canaleSessione(sid), {
       config: { broadcast: { self: false }, presence: { key: 'admin' } },
     });
     chRef.current = ch;
 
-    ch.on('broadcast', { event: 'rr' }, ({ payload }) => {
-      setCondivisione(true); // ricevere eventi = l'operatore sta condividendo (toglie l'overlay)
-      ricevi(payload as { eid: string; i: number; n: number; s: string });
-    });
+    ch.on('broadcast', { event: 'rr' }, ({ payload }) => ricevi(payload as { eid: string; i: number; n: number; s: string }));
     ch.on('broadcast', { event: 'start' }, () => setCondivisione(true));
     ch.on('broadcast', { event: 'stop' }, () => {
       setCondivisione(false);
       replayerRef.current?.destroy?.();
       replayerRef.current = null;
-      initBuf.current = [];
+      pending.current = [];
+      setRicevuti(0);
       if (rootRef.current) rootRef.current.innerHTML = '';
     });
     ch.on('presence', { event: 'sync' }, () => {
@@ -93,7 +95,6 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
     ch.subscribe((status) => {
       if (status === 'SUBSCRIBED') {
         ch.track({ role: 'admin' });
-        // invita l'operatore ad accettare (se non sta già condividendo)
         ch.send({ type: 'broadcast', event: 'richiesta_admin', payload: {} });
       }
     });
@@ -104,7 +105,7 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
       cli.removeChannel(ch);
       chRef.current = null;
     };
-  }, [sid, onEvent]);
+  }, [sid, onEvent, initReplayer]);
 
   const inviaHint = useCallback(() => {
     const t = hint.trim();
@@ -128,6 +129,7 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
             <span className="h-1.5 w-1.5 rounded-full" style={{ background: operatorePresente ? 'var(--brand-green)' : 'var(--brand-text-muted)' }} />
             {operatorePresente ? 'operatore in linea' : 'operatore offline'}
           </span>
+          <span className="text-[var(--brand-text-muted)]">· eventi {ricevuti}</span>
           <button type="button" onClick={onClose} className="text-[var(--brand-text-muted)]">✕</button>
         </div>
       </div>

@@ -194,17 +194,6 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
             </>
           )}
 
-          {richiestaAdmin && stato !== 'attiva' && (
-            <div className="mt-3 rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)]/40 p-3">
-              <div className="text-sm font-semibold">Il back office chiede di assisterti</div>
-              <div className="mt-0.5 text-xs text-[var(--brand-text-muted)]">Vedrà solo questa schermata, in sola lettura.</div>
-              <div className="mt-2 flex gap-2">
-                <button type="button" onClick={attiva} className="flex-1 rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)]">Accetto</button>
-                <button type="button" onClick={() => setRichiestaAdmin(false)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm">No</button>
-              </div>
-            </div>
-          )}
-
           {stato !== 'idle' && (
             <div className="mt-3 rounded-lg border border-[var(--brand-magenta)]/50 bg-[var(--brand-magenta)]/10 p-3">
               <div className="flex items-center justify-between">
@@ -222,6 +211,24 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
       {hint && (
         <div className="fixed bottom-4 left-1/2 z-50 -translate-x-1/2 rounded-full border border-[var(--brand-gold)]/60 bg-[var(--brand-surface)] px-4 py-2 text-sm shadow-lg">
           💡 {hint}
+        </div>
+      )}
+
+      {/* MODALE: richiesta dal back office — compare da sola, non silenziosa */}
+      {richiestaAdmin && stato !== 'attiva' && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 p-4">
+          <div className="w-[min(92vw,360px)] rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
+            <div className="text-base font-semibold">Richiesta di assistenza</div>
+            <div className="mt-1 text-sm text-[var(--brand-text-muted)]">
+              Il back office chiede di vedere questo rapportino per aiutarti. Vedrà solo questa schermata, in sola lettura.
+            </div>
+            <div className="mt-4 flex gap-2">
+              <button type="button" onClick={() => { setAperto(true); void attiva(); }}
+                className="flex-1 rounded-lg bg-[var(--brand-primary)] px-3 py-2.5 text-sm font-semibold text-[oklch(0.16_0.06_245)]">Accetto</button>
+              <button type="button" onClick={() => setRichiestaAdmin(false)}
+                className="rounded-lg border border-[var(--brand-border)] px-3 py-2.5 text-sm font-semibold">Rifiuto</button>
+            </div>
+          </div>
         </div>
       )}
     </>
