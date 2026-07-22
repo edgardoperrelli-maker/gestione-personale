@@ -46,6 +46,10 @@ export type RigaLimMassive = {
   data_esecuzione: string; // 'YYYY-MM-DD'
   esito: 'eseguito' | 'No' | null;
   esitoOk: boolean | null; // true=positivo, false=lavorato-negativo, null=non lavorato
+  /** Testo ESATTO da scrivere nella cella esito quando differisce dal default config
+   *  dell'agente (oggi solo "nessun passaggio": il "No" secco travisava — sembrava un
+   *  rifiuto sul posto, era un giro mai passato). null → l'agente usa i testi config. */
+  esitoTesto: string | null;
   esito_motivo: string | null;
   sigillo: string;
   pdr: string;
@@ -74,6 +78,10 @@ export type RigaDb = {
   nominativo: string | null;
   saracinesca: string | null;
   note: string | null; // rapportino_voci.risposte->>'note' (fonte primaria della nota)
+  /** rapportino_voci.risposte->>'eseguito': categoria dell'esito della voce
+   *  ("SI" | "NO" | "NESSUN PASSAGGIO"): l'unico posto dove le due negatività si distinguono
+   *  (interventi.esito è null per entrambe). Assente sulle voci vecchie. */
+  eseguito_voce?: string | null;
 };
 
 const t = (v: string | null | undefined): string => String(v ?? '').trim();
@@ -114,6 +122,11 @@ export function valoreSaracinesca(sostituzioneValvola: unknown, sostValvola: unk
   return norm(sostituzioneValvola) || norm(sostValvola);
 }
 
+/** True se la categoria della voce è "NESSUN PASSAGGIO" (spazi/maiuscole indifferenti). */
+export function isNessunPassaggio(eseguitoVoce: string | null | undefined): boolean {
+  return t(eseguitoVoce).replace(/\s+/g, ' ').toUpperCase() === 'NESSUN PASSAGGIO';
+}
+
 export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
   const esitoOk = esitoOkDaIntervento(r.stato, r.esito);
   return {
@@ -126,6 +139,8 @@ export function buildRigaLimMassive(r: RigaDb): RigaLimMassive {
     data_esecuzione: t(r.data),
     esito: esitoFileDaIntervento(r.stato, r.esito),
     esitoOk,
+    // solo sui negativi: il testo specifico batte il "No" generico della config agente
+    esitoTesto: esitoOk === false && isNessunPassaggio(r.eseguito_voce) ? 'nessun passaggio' : null,
     esito_motivo: t(r.esito_motivo) || null,
     sigillo: t(r.sigillo),
     pdr: t(r.pdr),

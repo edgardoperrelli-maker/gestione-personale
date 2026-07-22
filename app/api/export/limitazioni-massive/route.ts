@@ -81,6 +81,7 @@ export async function GET(req: Request) {
     const sigilloById = new Map<string, string>();
     const saracinescaById = new Map<string, string>();
     const noteById = new Map<string, string>();
+    const eseguitoById = new Map<string, string>();
     for (let i = 0; i < ids.length; i += IN_CHUNK) {
       const chunk = ids.slice(i, i + IN_CHUNK);
       const { data: voci } = await supabaseAdmin
@@ -108,6 +109,13 @@ export async function GET(req: Request) {
         const nota =
           v.risposte && typeof v.risposte['note'] === 'string' ? (v.risposte['note'] as string) : '';
         if (nota.trim() && !noteById.has(v.intervento_id)) noteById.set(v.intervento_id, nota);
+        // eseguito: categoria dell'esito della voce ("SI"/"NO"/"NESSUN PASSAGGIO") — l'unico
+        // posto dove un "nessun passaggio" si distingue dal "NO" (interventi.esito è null per entrambi)
+        const eseguitoVoce =
+          v.risposte && typeof v.risposte['eseguito'] === 'string' ? (v.risposte['eseguito'] as string) : '';
+        if (eseguitoVoce.trim() && !eseguitoById.has(v.intervento_id)) {
+          eseguitoById.set(v.intervento_id, eseguitoVoce);
+        }
       }
     }
 
@@ -131,6 +139,7 @@ export async function GET(req: Request) {
         nominativo: i.nominativo,
         saracinesca: saracinescaById.get(i.id) ?? null,
         note: noteById.get(i.id) ?? null,
+        eseguito_voce: eseguitoById.get(i.id) ?? null,
       } satisfies RigaDb),
     );
 
