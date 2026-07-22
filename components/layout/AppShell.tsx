@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
+import { AnimatePresence, motion } from 'framer-motion';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import Sidebar from './Sidebar';
 import TopBar from './TopBar';
@@ -68,14 +69,39 @@ export default function AppShell({
     };
   }, []);
 
-  // Chiudi il drawer con Escape
+  // Drawer mobile: Escape + focus-trap + scroll-lock del body
+  const drawerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!mobileOpen) return;
+    const prevOverflow = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    const panel = drawerRef.current;
+    panel?.querySelector<HTMLElement>('a[href],button:not([disabled])')?.focus();
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setMobileOpen(false);
+      if (e.key === 'Escape') {
+        setMobileOpen(false);
+        return;
+      }
+      if (e.key !== 'Tab' || !panel) return;
+      const items = Array.from(
+        panel.querySelectorAll<HTMLElement>('a[href],button:not([disabled])'),
+      ).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
     };
     document.addEventListener('keydown', onKey);
-    return () => document.removeEventListener('keydown', onKey);
+    return () => {
+      document.body.style.overflow = prevOverflow;
+      document.removeEventListener('keydown', onKey);
+    };
   }, [mobileOpen]);
 
   const toggleCollapsed = () => {
@@ -120,24 +146,40 @@ export default function AppShell({
         />
       </div>
 
-      {/* Sidebar mobile (drawer overlay) */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 md:hidden">
-          <div
-            className="absolute inset-0"
-            style={{ background: 'var(--overlay)' }}
-            onClick={() => setMobileOpen(false)}
-            aria-hidden="true"
-          />
-          <div className="absolute inset-y-0 left-0 h-full shadow-[var(--shadow-lg)]">
-            <Sidebar
-              allowedModules={allowedModules}
-              collapsed={false}
-              onNavigate={() => setMobileOpen(false)}
+      {/* Sidebar mobile (drawer overlay, slide-in animato) */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <div className="fixed inset-0 z-50 md:hidden">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0, transition: { duration: 0.12 } }}
+              transition={{ duration: 0.15, ease: 'easeOut' }}
+              className="absolute inset-0"
+              style={{ background: 'var(--overlay)' }}
+              onClick={() => setMobileOpen(false)}
+              aria-hidden="true"
             />
+            <motion.div
+              ref={drawerRef}
+              role="dialog"
+              aria-modal="true"
+              aria-label="Menu di navigazione"
+              initial={{ x: '-100%' }}
+              animate={{ x: 0 }}
+              exit={{ x: '-100%', transition: { duration: 0.15 } }}
+              transition={{ duration: 0.2, ease: 'easeOut' }}
+              className="absolute inset-y-0 left-0 h-full shadow-[var(--shadow-lg)]"
+            >
+              <Sidebar
+                allowedModules={allowedModules}
+                collapsed={false}
+                onNavigate={() => setMobileOpen(false)}
+              />
+            </motion.div>
           </div>
-        </div>
-      )}
+        )}
+      </AnimatePresence>
 
       {/* Colonna principale */}
       <div className="flex min-w-0 flex-1 flex-col">

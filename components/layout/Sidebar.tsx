@@ -14,13 +14,6 @@ const RIEPILOGO_ICON = (
   </svg>
 );
 
-const ACCOUNT_ICON = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-    <circle cx="12" cy="8" r="4" />
-    <path d="M4 21a8 8 0 0 1 16 0" />
-  </svg>
-);
-
 type SidebarProps = {
   allowedModules?: AppModuleKey[];
   collapsed?: boolean;
@@ -62,7 +55,6 @@ export default function Sidebar({
   });
 
   const homeActive = pathname === '/hub';
-  const accountActive = pathname.startsWith('/account/');
 
   const renderLink = (
     href: string,
@@ -119,7 +111,7 @@ export default function Sidebar({
 
   return (
     <div
-      className={`flex h-full flex-col border-r bg-[var(--brand-surface)] ${collapsed ? 'w-16' : 'w-60'}`}
+      className={`flex h-full flex-col border-r bg-[var(--brand-surface)] transition-[width] duration-200 motion-reduce:transition-none ${collapsed ? 'w-16' : 'w-60'}`}
       style={{ borderColor: 'var(--brand-border)' }}
     >
       {/* Brand / Dashboard home */}
@@ -162,8 +154,9 @@ export default function Sidebar({
                   {groupLabels[group]}
                 </p>
               )}
+              {/* Voce "Account" rimossa: il middleware blocca /account/* da sempre
+                  (redirect a /hub) — era un link cieco. */}
               {links}
-              {isSistema && renderLink('/account/password', 'Account', ACCOUNT_ICON, accountActive)}
             </div>
           );
         })}
@@ -190,7 +183,7 @@ export default function Sidebar({
             strokeWidth="2"
             strokeLinecap="round"
             strokeLinejoin="round"
-            className={collapsed ? 'rotate-180' : ''}
+            className={`transition-transform duration-200 motion-reduce:transition-none ${collapsed ? 'rotate-180' : ''}`}
             aria-hidden="true"
           >
             <path d="M15 18 9 12l6-6" />
