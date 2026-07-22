@@ -50,6 +50,14 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
       <path d="M12.6 8.4 9.8 12.6h3.2L11.4 16" />
     </svg>
   ),
+  assistenza: (
+    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
+      <path d="M4 14a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2Z" />
+      <path d="M20 14a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2 2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2Z" />
+      <path d="M20 18v1a3 3 0 0 1-3 3h-3" />
+    </svg>
+  ),
   live: (
     <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
       <path d="M3 8.5h18" />

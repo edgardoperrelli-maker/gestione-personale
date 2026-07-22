@@ -17,6 +17,8 @@ import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { BrandHeader } from '@/components/brand/BrandHeader';
 import { BRAND, appBaseUrl } from '@/lib/brand';
+import { sessionId as assistSessionId } from '@/lib/assistenza/canale';
+import OperatoreAssistenza from '@/components/assistenza/OperatoreAssistenza';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -369,6 +371,7 @@ export default async function RapportinoPublicPage({
         righe={righe}
         tassonomia={tassonomia}
       />
+      <OperatoreAssistenza sessionId={assistSessionId(token)} staff={rap.staff_name} data={rap.data} />
     </main>
   );
 }

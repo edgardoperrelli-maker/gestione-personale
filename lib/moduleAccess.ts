@@ -16,6 +16,7 @@ export type AppModuleKey =
   | 'mappa'
   | 'interventi'
   | 'consuntivazione'
+  | 'assistenza'
   | 'pronto-intervento'
   | 'live'
   | 'lista-attesa'
@@ -98,6 +99,17 @@ export const APP_MODULES: AppModuleDefinition[] = [
     group: 'operativita',
     matchPrefixes: ['/hub/consuntivazione'],
     adminOnly: true,
+  },
+  {
+    key: 'assistenza',
+    href: '/hub/assistenza',
+    label: 'Assistenza',
+    description: 'Assisti gli operatori sul rapportino in diretta',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/assistenza'],
+    adminOnly: true,
+    requiresAdminRole: true,
   },
   {
     key: 'pronto-intervento',
