@@ -237,6 +237,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
         onApplica={applica}
         onPulisci={pulisci}
         onEsporta={esporta}
+        onPatch={applicaPatch}
         loading={loading}
       />
 
