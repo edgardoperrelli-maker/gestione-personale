@@ -102,7 +102,7 @@ export default function AssenzaDialog({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
-      <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
+      <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
         <div className="text-lg font-semibold text-[var(--brand-text-main)]">
           {isEdit ? 'Modifica assenza / disponibilità' : 'Assenza / Disponibilità'}
         </div>
@@ -113,7 +113,7 @@ export default function AssenzaDialog({
           value={staffId}
           disabled={isEdit}
           onChange={(e) => setStaffId(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm disabled:opacity-60"
+          className="mt-1 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm disabled:opacity-60"
         >
           <option value="">— seleziona —</option>
           {staffList.map((s) => (
@@ -138,7 +138,7 @@ export default function AssenzaDialog({
                 key={t}
                 type="button"
                 onClick={() => setTipo(t)}
-                className="rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
+                className="rounded-[var(--radius-md)] border px-3 py-1.5 text-xs font-semibold transition"
                 style={{
                   backgroundColor: active ? meta.bg : 'transparent',
                   borderColor: active ? meta.border : 'var(--brand-border)',
@@ -164,7 +164,7 @@ export default function AssenzaDialog({
               key={val}
               type="button"
               onClick={() => setModo(val)}
-              className={`rounded-lg border px-3 py-2 text-left transition ${
+              className={`rounded-[var(--radius-md)] border px-3 py-2 text-left transition ${
                 modo === val
                   ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-text-main)]'
                   : 'border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]'
@@ -180,21 +180,21 @@ export default function AssenzaDialog({
           <div className="mt-2">
             <label className="block text-xs text-[var(--brand-text-muted)]">Dalle</label>
             <input type="time" value={oraDa} onChange={(e) => setOraDa(e.target.value)}
-              className="mt-1 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+              className="mt-1 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
           </div>
         )}
         {(modo === 'fino' || modo === 'finestra') && (
           <div className="mt-2">
             <label className="block text-xs text-[var(--brand-text-muted)]">Fino alle</label>
             <input type="time" value={oraA} onChange={(e) => setOraA(e.target.value)}
-              className="mt-1 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+              className="mt-1 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
           </div>
         )}
 
         {/* Note */}
         <label className="mt-3 block text-xs font-semibold text-[var(--brand-text-muted)]">Note (opzionale)</label>
         <input value={note} onChange={(e) => setNote(e.target.value)}
-          className="mt-1 w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+          className="mt-1 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
 
         {error && <div className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>}
 

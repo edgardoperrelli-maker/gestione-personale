@@ -52,7 +52,7 @@ export default function SquadraCard({
 
   return (
     <div
-      className="group relative cursor-grab rounded-lg border px-2 pb-2 pt-1.5 text-[11px] leading-snug shadow-sm transition active:cursor-grabbing"
+      className="group relative cursor-grab rounded-[var(--radius-md)] border px-2 pb-2 pt-1.5 text-[11px] leading-snug shadow-[var(--shadow-sm)] transition active:cursor-grabbing"
       style={{ backgroundColor: s.bg, borderColor: s.border, color: s.text, outline: over ? '2px solid var(--brand-primary)' : '1px solid var(--brand-primary-border)', outlineOffset: over ? '1px' : '0' }}
       title="Squadra — trascina la card su un altro giorno per spostarla/copiarla · trascina una card qui per aggiungere un membro"
       draggable
