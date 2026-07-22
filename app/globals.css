@@ -65,12 +65,14 @@
   --hol-bg:     oklch(0.72 0.17 25 / 0.12);
   --today-ring: oklch(0.70 0.15 255);
 
-  --shadow-sm:    0 1px 2px rgba(0,0,0,0.30);
-  --shadow-md:    0 2px 8px rgba(0,0,0,0.35);
-  --shadow-lg:    0 10px 28px rgba(0,0,0,0.42);
-  --shadow-hover: 0 2px 8px rgba(0,0,0,0.35);
-  --btn-primary-glow:       0 1px 2px rgba(0,0,0,0.30);
-  --btn-primary-glow-hover: 0 2px 8px rgba(0,0,0,0.35);
+  /* Elevazione premium a doppio strato (ambient + key): sm=superfici in flusso,
+     md=sovrapposti (popover/dropdown), lg=modali/drawer. Mai glow. */
+  --shadow-sm:    0 1px 2px rgba(0,0,0,0.32), 0 1px 3px rgba(0,0,0,0.22);
+  --shadow-md:    0 2px 4px rgba(0,0,0,0.32), 0 6px 16px rgba(0,0,0,0.28);
+  --shadow-lg:    0 4px 8px rgba(0,0,0,0.34), 0 14px 36px rgba(0,0,0,0.40);
+  --shadow-hover: 0 2px 4px rgba(0,0,0,0.32), 0 6px 16px rgba(0,0,0,0.28);
+  --btn-primary-glow:       0 1px 2px rgba(0,0,0,0.32);
+  --btn-primary-glow-hover: 0 2px 4px rgba(0,0,0,0.32), 0 4px 12px rgba(0,0,0,0.26);
 
   --text-gold-soft: oklch(0.70 0.012 255);
   --border-light:   oklch(0.32 0.012 255);
@@ -197,12 +199,13 @@ html.light {
   --hol-bg:     oklch(0.52 0.20 25 / 0.07);
   --today-ring: oklch(0.55 0.17 255);
 
-  --shadow-sm:    0 1px 2px rgba(16,24,40,0.05);
-  --shadow-md:    0 1px 3px rgba(16,24,40,0.08);
-  --shadow-lg:    0 8px 24px rgba(16,24,40,0.10);
-  --shadow-hover: 0 1px 3px rgba(16,24,40,0.08);
+  /* Elevazione premium a doppio strato (ambient + key) — vedi blocco dark. */
+  --shadow-sm:    0 1px 2px rgba(16,24,40,0.05), 0 1px 3px rgba(16,24,40,0.04);
+  --shadow-md:    0 2px 4px rgba(16,24,40,0.05), 0 6px 16px rgba(16,24,40,0.07);
+  --shadow-lg:    0 4px 8px rgba(16,24,40,0.06), 0 14px 36px rgba(16,24,40,0.11);
+  --shadow-hover: 0 2px 4px rgba(16,24,40,0.05), 0 6px 16px rgba(16,24,40,0.07);
   --btn-primary-glow:       0 1px 2px rgba(16,24,40,0.05);
-  --btn-primary-glow-hover: 0 1px 3px rgba(16,24,40,0.08);
+  --btn-primary-glow-hover: 0 2px 4px rgba(16,24,40,0.05), 0 4px 12px rgba(16,24,40,0.07);
 
   --text-gold-soft: oklch(0.50 0.02 255);
   --border-light:   oklch(0.92 0.006 250);
@@ -296,6 +299,10 @@ html.light {
   --radius-md: 6px;
   --radius-lg: 10px;
   --radius-xl: 14px;
+
+  /* Additivo premium: Geist Mono per dati numerici (KPI, importi, matricole).
+     Uso: classi Tailwind `font-mono tabular-nums`. Variabile da next/font in layout.tsx. */
+  --font-mono: var(--font-geist-mono), ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 body {
