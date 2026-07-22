@@ -4,6 +4,8 @@ import { useEffect, useState } from 'react';
 import NuovoOrdineForm from './NuovoOrdineForm';
 import OrdinePresenteForm from './OrdinePresenteForm';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from './AnnuncioConsuntivazione';
+import Skeleton from '@/components/ui/Skeleton';
+import { toast } from '@/components/ui/Toast';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { Operatore } from './SquadraPicker';
 
@@ -47,7 +49,6 @@ export default function ConsuntivazioneClient() {
   const [boot, setBoot] = useState<Bootstrap | null>(null);
   const [erroreBoot, setErroreBoot] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('home');
-  const [flash, setFlash] = useState<string | null>(null);
   const [annuncioOpen, setAnnuncioOpen] = useState(false);
 
   useEffect(() => {
@@ -85,7 +86,7 @@ export default function ConsuntivazioneClient() {
     }).catch(() => {});
   };
 
-  const onDone = (msg: string) => { setFlash(msg); setVista('home'); };
+  const onDone = (msg: string) => { toast.success(msg); setVista('home'); };
 
   const titoloCorrente = vista === 'nuovo' ? 'Nuovo ordine' : vista === 'presente' ? 'Ordine presente' : null;
 
@@ -99,19 +100,11 @@ export default function ConsuntivazioneClient() {
         </p>
       </header>
 
-      {flash && (
-        <div className="mb-5 flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--status-ok)]/40 bg-[var(--status-ok-soft)] px-3 py-2 text-sm text-[var(--status-ok)]">
-          <span aria-hidden>✓</span>
-          <span>{flash}</span>
-          <button type="button" onClick={() => setFlash(null)} className="ml-auto text-[var(--brand-text-subtle)] hover:text-[var(--brand-text-main)]" aria-label="Chiudi">×</button>
-        </div>
-      )}
-
       {erroreBoot ? (
         <p className="rounded-[var(--radius-lg)] border border-[var(--status-ko)]/40 bg-[var(--status-ko-soft)] p-4 text-sm text-[var(--status-ko)]">{erroreBoot}</p>
       ) : !boot ? (
         <div className="grid gap-4 sm:grid-cols-2">
-          {[0, 1].map((i) => <div key={i} className="h-36 animate-pulse rounded-[var(--radius-xl)] bg-[var(--brand-surface-muted)]" />)}
+          {[0, 1].map((i) => <Skeleton key={i} className="h-36 rounded-[var(--radius-xl)]" />)}
         </div>
       ) : vista === 'home' ? (
         <div className="grid gap-4 sm:grid-cols-2">
@@ -139,6 +132,7 @@ export default function ConsuntivazioneClient() {
             <button
               type="button"
               onClick={() => setVista('home')}
+              aria-label="Torna alla scelta della vista"
               className="rounded-[var(--radius-md)] px-2 py-1 text-sm text-[var(--primary-text)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               ←
