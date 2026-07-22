@@ -1,6 +1,7 @@
 # Redesign "Sobrio → Premium" — spec di design
 
-> Data: 2026-07-22 · Stato: **in attesa di approvazione** · Verbo: hallmark redesign multi-page
+> Data: 2026-07-22 · Stato: **ATTUATA** (stesso giorno, 26 commit su `claude/attiva-skills-grilling-hallmark-0aas3s`) · Verbo: hallmark redesign multi-page
+> Vedi § 8 per lo stato di attuazione e le decisioni di chiusura.
 > Predecessore: `2026-06-22-redesign-design-system-sobrio-design.md` (sistema "sobrio enterprise", in produzione)
 > Studio preliminare: 7 analisi parallele su token, primitivi, shell, moduli, motori, rendering speciale, docs.
 
@@ -129,10 +130,23 @@ Ogni onda: PR separata, gate `npm run lint && npm test && npm run e2e` + verific
 
 ## 6. Fuori scope
 
+- **Sweep `style={{}}` → classi (Assegnazione AI, Agente): rimandato a ROADMAP.** Quei moduli consumano già i token via `var()` inline negli style object — la resa visiva è identica al sistema; la conversione a classi è churn di forma su ~200 occorrenze senza beneficio utente. Decisione di chiusura 2026-07-22.
+
 - Qualsiasi modifica a `lib/**` (salvo `lib/brand.ts` colori export e `lib/animations.ts` preset), `utils/**`, `app/api/**`, middleware, DB.
 - Refactor dei monoliti (`MappaOperatoriClient` 3963 r., `AzioniOperatoriClient` 1581 r.): il redesign li ritocca in superficie; lo split è a ROADMAP (bundle), non qui.
 - Template binari xlsx/docx in `public/templates/`.
 - Rebrand (logo, rosso Plenzich): il rosso resta solo nel logo — confligge con `--danger`.
+
+## 7bis. Stato di attuazione (chiusura 2026-07-22)
+
+Eseguito nello stesso giorno della spec, 26 commit (da `4fea324` a `fc46f29`):
+
+- **Onda 1 completa** — token (ombre a 3 livelli, Geist Mono/--font-mono), primitivi 8-stati, Toast/ConfirmDialog/Skeleton/FogliettaCard/Breadcrumb, Dialog animato+busy, MotionProvider reduced-motion, shell (user menu, ⌘K CommandPalette, sidebar animata, drawer focus-trap), DESIGN.md aggiornato.
+- **Onda 2 completa** — Hub (skeleton, KPI mono, FogliettaCard), Cronoprogramma (terr-* a token, sweep), Live e Mappa (17 alert→toast, 4 confirm→ConfirmDialog), portali (Avviso unificato).
+- **Onda 3 completa** — Interventi palette raw→token, Misuratori hex→token, fogliette Lista attesa + Interventi, Hotel calendar (confirm→dialog, sweep 31 raggi/ombre), Rapportini backoffice (tabella a norma).
+- **Onda 4 completa** — login premium, Impostazioni con icone vere, helper `chiediConferma()` + conversione di TUTTI i dialoghi nativi convertibili (35 → 7 residui **by design**: 5 nel DnD sincrono del cronoprogramma, 2 nell'offline cache-reset).
+- **Onda 5 completa** — ⌘K, PWA (manifest+icone+theme-color), BRAND_EXPORT (palette unica PDF/Excel), bonifica AGENTS.md.
+- **Verifica finale**: vitest 259 file / 2062 test verdi a ogni commit; e2e 24/25 (i 15 responsive 320-412px tutti verdi; l'unico fail — offline intervento manuale — riprodotto identico sul commit pre-redesign: preesistente, non regressione).
 
 ## 7. Criteri di accettazione
 
