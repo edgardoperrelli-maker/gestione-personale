@@ -10,10 +10,16 @@ type CardProps = React.HTMLAttributes<HTMLDivElement> & {
 };
 
 export function Card({ className = '', interactive = false, animated = true, ...props }: CardProps) {
-  const classes = `rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] transition hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)] ${className}`;
+  const classes = `rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] transition hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-hover)] ${
+    interactive
+      ? 'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] '
+      : ''
+  }${className}`;
+  // Le card interactive devono essere raggiungibili anche da tastiera.
+  const interactiveProps = interactive ? { tabIndex: 0, ...props } : props;
 
   if (!animated) {
-    return <div className={classes} {...props} />;
+    return <div className={classes} {...interactiveProps} />;
   }
 
   if (interactive) {
@@ -23,7 +29,7 @@ export function Card({ className = '', interactive = false, animated = true, ...
         whileHover={cardHover.whileHover}
         whileTap={cardHover.whileTap}
         transition={cardHover.transition}
-        {...(props as React.ComponentProps<typeof motion.div>)}
+        {...(interactiveProps as React.ComponentProps<typeof motion.div>)}
       />
     );
   }
