@@ -1,5 +1,6 @@
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type Committente = 'acea' | 'italgas' | 'altro';
@@ -239,7 +240,7 @@ export default function AttivitaTassonomiaClient() {
 
   const handleDelete = async (row: RigaTassonomia) => {
     if (deletingId || row.utilizzo > 0) return;
-    if (!window.confirm(`Confermi l'eliminazione di "${row.descrizione}"?`)) return;
+    if (!(await chiediConferma({ title: `Eliminare "${row.descrizione}"?`, confirmLabel: 'Elimina', danger: true }))) return;
 
     setDeletingId(row.id);
     try {

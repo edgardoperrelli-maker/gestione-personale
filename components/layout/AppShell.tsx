@@ -10,6 +10,7 @@ import { RichiesteManualiProvider } from './RichiesteManualiProvider';
 import SegnalaButton from '@/components/segnalazione/SegnalaButton';
 import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 import { Toaster } from '@/components/ui/Toast';
+import { ConfirmHost } from '@/components/ui/chiediConferma';
 import CommandPalette from './CommandPalette';
 
 type Props = {
@@ -200,6 +201,7 @@ export default function AppShell({
       <SegnalaButton />
       <AnnuncioSegnalazione open={annuncioOpen} onClose={handleCloseAnnuncio} />
       <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} allowedModules={allowedModules} />
+      <ConfirmHost />
       <Toaster />
     </div>
     </RichiesteManualiProvider>
