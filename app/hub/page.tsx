@@ -4,7 +4,7 @@ import TrasfertaAlert from '@/components/trasferta/TrasfertaAlert';
 import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
 import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
 import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
-import Link from 'next/link';
+import FogliettaCard from '@/components/ui/FogliettaCard';
 import { canViewPremialita, resolveAssignableRole, getAllowedModulesForUser } from '@/lib/moduleAccess';
 import { MODULE_ICONS } from '@/components/layout/moduleIcons';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
@@ -149,35 +149,12 @@ export default async function DashboardPage() {
       </header>
 
       {showLivePromo && (
-        <Link
+        <FogliettaCard
           href="/hub/live"
-          className="flex items-center justify-between gap-3 border px-5 py-4 transition hover:bg-[var(--brand-primary-soft)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          style={{
-            borderRadius: 'var(--radius-xl)',
-            borderColor: 'var(--brand-border)',
-            backgroundColor: 'var(--brand-surface)',
-          }}
-        >
-          <div className="flex items-center gap-3">
-            <span
-              className="flex h-10 w-10 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)]"
-              style={{ color: 'var(--brand-primary)' }}
-            >
-              {MODULE_ICONS.live}
-            </span>
-            <div>
-              <div className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                Live
-              </div>
-              <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-                Interventi del giorno in tempo reale · mappa e board per operatore
-              </div>
-            </div>
-          </div>
-          <span className="text-sm font-medium focus-visible:underline" style={{ color: 'var(--primary-text)' }}>
-            Apri →
-          </span>
-        </Link>
+          title="Live"
+          description="Interventi del giorno in tempo reale · mappa e board per operatore"
+          icon={MODULE_ICONS.live}
+        />
       )}
 
       <div className="grid gap-6 lg:grid-cols-2">
