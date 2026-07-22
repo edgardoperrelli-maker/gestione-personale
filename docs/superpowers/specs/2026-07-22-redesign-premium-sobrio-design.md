@@ -14,7 +14,7 @@ Approccio identico a giugno, che ha funzionato: **reskin per rivalorizzazione de
 
 | Decisione | Scelta |
 |---|---|
-| Direzione visiva | **A · Sobrio → Premium**: evoluzione dell'identità attuale. Stessi hue (blu 255, grigi freddi), light-first. Premium = craft, non nuova identità. |
+| Direzione visiva | **A · Sobrio → Premium**: evoluzione dell'identità attuale. Stessi hue (blu 255, grigi freddi), light-first. Premium = craft, non nuova identità. Confermata su mockup reali (A vs B Cobalt vs C Executive navy) — riferimento visivo: `docs/superpowers/mockups/2026-07-22-redesign-premium-direzione-A.html` (i suoi token OKLCH sono la bozza di partenza per la ritaratura di `globals.css` in onda 1; nel mockup Geist è reso con Inter). |
 | Genre (hallmark) | modern-minimal |
 | Tipografia | **Geist + Geist Mono per i dati**: Geist UI/titoli (600, tracking -0.02em sui display), Geist Mono con cifre tabulari (`font-variant-numeric: tabular-nums`) per KPI, importi €, matricole, celle numeriche. Pacchetto `geist` già installato — zero dipendenze nuove. |
 | Scope | **App completa a onde** (vedi §5) |
