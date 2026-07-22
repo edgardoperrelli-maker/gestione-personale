@@ -2,6 +2,7 @@
 
 import { useAceaNav } from './useAceaNav';
 import { AvvisiSyncBanner } from '@/components/modules/agente/AvvisiSyncBanner';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { Breadcrumb } from './Breadcrumb';
 import { CommessaGrid } from './CommessaGrid';
 import { AttivitaGrid } from './AttivitaGrid';
@@ -26,17 +27,7 @@ export default function AssegnazioniAiClient(props: {
 
   return (
     <main className="mx-auto max-w-6xl space-y-5 px-6 py-6">
-      <header className="space-y-1">
-        <h1
-          className="text-2xl font-semibold tracking-tight"
-          style={{ color: 'var(--brand-text-main)' }}
-        >
-          Assegnazioni AI
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Operazioni ACEA per commessa e attività.
-        </p>
-      </header>
+      <ObjectHeader title="Assegnazioni AI" sub="Operazioni ACEA per commessa e attività." />
 
       <AvvisiSyncBanner avvisi={props.avvisiSync} rilevatoIl={props.avvisiSyncIl} />
 

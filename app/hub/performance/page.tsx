@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { assertKpiAccess } from '@/lib/performance/kpiGate';
 
 export const dynamic = 'force-dynamic';
@@ -11,10 +12,7 @@ export default async function KpiLandingPage() {
 
   return (
     <div className="mx-auto max-w-4xl space-y-4 p-4">
-      <div>
-        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">KPI</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Scegli la vista.</p>
-      </div>
+      <ObjectHeader title="KPI" sub="Scegli la vista." />
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         <Link href="/hub/performance/operatori" className={cardClass}>
           <h2 className="text-lg font-semibold text-[var(--brand-text-main)] group-hover:text-[var(--brand-primary)]">Performance operatori</h2>
