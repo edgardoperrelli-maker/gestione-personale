@@ -24,11 +24,11 @@ const FILTERS_EMPTY: Filters = {
 
 /** Accento colore per ogni stato (card-contatore + valore). */
 const STATO_ACCENT: Record<StatoMisuratore, string> = {
-  da_consegnare_deposito:  '#94a3b8', // slate
-  scaricato_deposito:      '#fb923c', // arancione neon
-  verificato_deposito:     '#a78bfa', // violetto neon
-  in_consegna_committente: '#38bdf8', // blu neon (sky)
-  consegnato_committente:  '#22c55e', // verde neon
+  da_consegnare_deposito:  'var(--status-idle)',
+  scaricato_deposito:      'var(--warning)',
+  verificato_deposito:     'var(--viola)',
+  in_consegna_committente: 'var(--status-progress)',
+  consegnato_committente:  'var(--status-ok)'
 };
 
 export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean }) {
@@ -159,14 +159,14 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           <button
             onClick={handleSync}
             disabled={syncing}
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] transition-colors disabled:opacity-50"
+            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] transition-colors disabled:opacity-50"
           >
             {syncing ? 'Sincronizzando…' : 'Ricalcola'}
           </button>
           <button
             onClick={handleExportPdf}
             disabled={visibleRows.length === 0}
-            className="rounded-lg bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-40"
+            className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-40"
           >
             Esporta PDF
           </button>
@@ -180,7 +180,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           type="button"
           onClick={() => toggleStato('')}
           aria-pressed={statoFiltro === ''}
-          className={`flex flex-col items-start rounded-xl border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+          className={`flex flex-col items-start rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
             statoFiltro === ''
               ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]'
               : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
@@ -203,13 +203,13 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
               onClick={() => toggleStato(s)}
               aria-pressed={active}
               title={`Filtra: ${STATO_LABEL[s]}`}
-              className={`flex flex-col items-start rounded-xl border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+              className={`flex flex-col items-start rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
                 active ? 'ring-1' : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
               }`}
               style={active ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : undefined}
             >
               <span className="truncate text-xs text-[var(--brand-text-muted)]">{STATO_LABEL[s]}</span>
-              <span className="text-2xl font-semibold" style={{ color: accent }}>
+              <span className="font-mono text-2xl font-semibold tabular-nums" style={{ color: accent }}>
                 {counts.byStato[s].toLocaleString('it-IT')}
               </span>
             </button>
@@ -218,7 +218,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
       </div>
 
       {/* Filtri (fissi) */}
-      <div className="flex flex-wrap gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
+      <div className="flex flex-wrap gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
         <div className="flex flex-col gap-1">
           <label className="text-xs text-[var(--brand-text-muted)]">Dal</label>
           <input
@@ -263,7 +263,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
 
       {/* Errore (fisso) */}
       {error && (
-        <p className="shrink-0 rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <p className="shrink-0 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
           {error}
         </p>
       )}
@@ -276,7 +276,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
       </p>
 
       {/* Area tabella: UNICA parte che scorre */}
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)]">
+      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)]">
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
             <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
