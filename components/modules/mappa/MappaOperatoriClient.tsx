@@ -1399,13 +1399,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     if (haAttivita) {
       try {
         const r = await fetch('/api/attivita-tassonomia');
-        if (r.ok) {
-          const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
-          const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
-          if (!esito.ok) { setErroriImport(esito.errori); return; } // file RIFIUTATO: niente task nel piano
-        }
-        // tassonomia non raggiungibile → non bloccare la pianificazione (guard copre a valle)
-      } catch { /* offline/errore rete: passa, copre la guard */ }
+        if (!r.ok) throw new Error(`tassonomia HTTP ${r.status}`);
+        const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+        const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+        if (!esito.ok) { setErroriImport(esito.errori); return; } // file RIFIUTATO: niente task nel piano
+      } catch {
+        // Tassonomia non validabile → NON importare: senza validazione non si può garantire
+        // l'allineamento delle descrizioni (rifiuto esplicito e ricaricabile, non fail-open).
+        setErroriImport([{ tipo: 'tassonomia_non_disponibile', valore: '', righe: [] }]);
+        return;
+      }
     }
 
     // Filtra i record con codice S-AI-051
@@ -1562,13 +1565,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       if (haAttivita) {
         try {
           const r = await fetch('/api/attivita-tassonomia');
-          if (r.ok) {
-            const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
-            const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
-            if (!esito.ok) { setErroriImport(esito.errori); setTemplateGeocoding(null); return; } // file RIFIUTATO: niente task nel piano
-          }
-          // tassonomia non raggiungibile → non bloccare la pianificazione (guard copre a valle)
-        } catch { /* offline/errore rete: passa, copre la guard */ }
+          if (!r.ok) throw new Error(`tassonomia HTTP ${r.status}`);
+          const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+          const esito = validaImport(parsed, 'altro', buildTassonomiaIndex(righe));
+          if (!esito.ok) { setErroriImport(esito.errori); setTemplateGeocoding(null); return; } // file RIFIUTATO: niente task nel piano
+        } catch {
+          // Tassonomia non validabile → NON importare (come il caricamento principale).
+          setErroriImport([{ tipo: 'tassonomia_non_disponibile', valore: '', righe: [] }]);
+          setTemplateGeocoding(null);
+          return;
+        }
       }
 
       if (parsed.length === 0) {
