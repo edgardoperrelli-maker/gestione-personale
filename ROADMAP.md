@@ -5,6 +5,24 @@
 
 ## Fatto
 
+- ✅ **Studio di fattibilità — connessione remota back office → dispositivo operatore** *(2026-07-22, task ATLAS)* —
+  studio (solo documentazione, nessun codice) su come far accedere il back office al dispositivo dell'operatore
+  **tramite il link e previa accettazione**, per risolvere problemi sull'app. Deliverable:
+  `docs/connessione-remota-fattibilita.md` (stesso formato di `docs/mapcn-fattibilita.md`). **Verdetto:** un
+  "TeamViewer nel browser" (vedere/controllare lo schermo del telefono da una PWA) **non è realizzabile** sul
+  target mobile — `getDisplayMedia` (cattura schermo web) **non esiste** su iOS Safari/WebKit né su Android
+  Chrome, e nessuna Web API inietta input in un altro dispositivo (verificato in modo adversariale con fonti
+  MDN/caniuse/Chromium/W3C). L'**unica via web-only** è il **co-browsing / mirroring del DOM** della sola app
+  gp (vista assistita + guida, **non** controllo), che aggira il blocco perché trasmette la *struttura* e non i
+  *pixel*. **Percorso consigliato:** partire da una **diagnostica remota leggera** (session-replay `rrweb` +
+  log, evoluzione del widget "invia segnalazione" → ATLAS; 100% sullo stack Supabase, dati in EU), poi
+  eventuale **co-browsing live** (rrweb `liveMode` su Supabase Realtime broadcast, oppure SaaS Cobrowse.io con
+  PoC). **Escludere** screen-share WebRTC (bloccato su mobile) e tool nativi (TeamViewer/AnyDesk/RustDesk: fuori
+  perimetro PWA, iOS non controllabile, privacy peggiore) salvo tampone d'emergenza. **Prerequisito
+  trasversale critico:** ogni sessione è un nuovo trattamento di **PII di terzi** (anagrafica/indirizzo/PDR/
+  matricola/GPS/note) → serve **redazione fail-closed**, **consenso per-sessione ancorato al token**, **audit**,
+  **admin autenticato**; repo **PUBBLICO** → nessun segreto/licenza in commit. Aggancio previsto: token-link
+  (`/r|/pi|/agenda/[token]`) + Supabase Realtime broadcast (disponibile, mai usato). Vedi HANDOFF.md.
 - ✅ **Modulo Consuntivazione (back office esita interventi come da rapportino)** *(2026-07-22, task ATLAS)* —
   nuovo modulo admin `/hub/consuntivazione` (gruppo Operatività, `adminOnly`) con **due fogliette**:
   **Nuovo ordine** (crea un ordine da zero e lo chiude) e **Ordine presente** (esita un intervento
