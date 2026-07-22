@@ -29,4 +29,18 @@ describe('unioneCampi', () => {
   it('nessun per-voce → base ordinata', () => {
     expect(unioneCampi([c('b', 2), c('a', 1)], []).map((x) => x.chiave)).toEqual(['a', 'b']);
   });
+  it('TUTTE le voci con flusso proprio → la base (mai ereditata) NON produce colonne fantasma', () => {
+    // Regressione DUNNING 22/07: modello di fallback "AGENDA AEREA" (campo esito) su rapportino
+    // le cui voci usano tutte il flusso LIMITAZIONI/SOSPENSIONI → colonna ESITO vuota nel PDF.
+    const unione = unioneCampi(
+      [c('esito', 1)],
+      [[c('eseguito', 1), c('sigillo', 2)], [c('eseguito', 1), c('sigillo', 2)]],
+    );
+    expect(unione.map((x) => x.chiave)).toEqual(['eseguito', 'sigillo']);
+    expect(unione.map((x) => x.ordine)).toEqual([1, 2]);
+  });
+  it('basta UNA voce che eredita la base (campi vuoti) perché la base rientri nell\'unione', () => {
+    const unione = unioneCampi([c('esito', 1)], [[c('eseguito', 1)], []]);
+    expect(unione.map((x) => x.chiave)).toEqual(['esito', 'eseguito']);
+  });
 });

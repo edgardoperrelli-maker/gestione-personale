@@ -368,6 +368,50 @@ describe('sincronizzaRapportini — voci per-attività (flusso dal gruppo)', () 
     expect(v2?.campi_snapshot ?? null).toBeNull();
   });
 
+  it('piano nuovo senza modello pinnato → il modello del rapportino è il flusso più rappresentato, non il primo per nome', async () => {
+    // Regressione DUNNING 22/07: il fallback alfabetico pescava "AGENDA AEREA" (italgas, campo
+    // ESITO, anagrafica senza COMUNE/CAP) su piani ACEA → colonna ESITO fantasma nel PDF.
+    const AGENDA = {
+      id: 'tpl-agenda', nome: 'AGENDA AEREA', active: true, solo_manuale: false,
+      campi: [{ chiave: 'esito', etichetta: 'ESITO', tipo: 'select', opzioni: ['eseguito', 'NO'], ordine: 1 }],
+      info_campi: [{ chiave: 'nominativo', etichetta: 'NOMINATIVO', ordine: 1 }],
+      gruppo_committente: 'italgas', gruppi_attivita: ['AGENDA AEREA'],
+    };
+    const INFO_DUNNING = [{ chiave: 'comune', etichetta: 'COMUNE', ordine: 1 }];
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [AGENDA, { ...FLUSSO_DUNNING, info_campi: INFO_DUNNING }],
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      interventi: [
+        { id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato', committente: 'acea', gruppo_attivita: 'DUNNING' },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    const rap = tables.rapportini.find((r) => r.staff_id === 's1');
+    expect(rap?.template_id).toBe('fl-dunning');
+    expect(rap?.campi_snapshot).toEqual(CAMPI_DUNNING);
+    expect(rap?.info_snapshot).toEqual(INFO_DUNNING);
+  });
+
+  it('modello già stabilito dai rapportini del piano → la maggioranza dei flussi NON lo sovrascrive', async () => {
+    const AGENDA = {
+      id: 'tpl-agenda', nome: 'AGENDA AEREA', active: true, solo_manuale: false,
+      campi: [{ chiave: 'esito', etichetta: 'ESITO', tipo: 'select', ordine: 1 }], info_campi: [],
+      gruppo_committente: 'italgas', gruppi_attivita: ['AGENDA AEREA'],
+    };
+    const { db, tables } = makeFakeDb(seedBase({
+      rapportino_template: [AGENDA, FLUSSO_DUNNING],
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl-agenda' }],
+      interventi: [
+        { id: 'i1', piano_id: 'p1', staff_id: 's1', odl: 'ODL1', stato: 'assegnato', committente: 'acea', gruppo_attivita: 'DUNNING' },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', {});
+    expect(res.ok).toBe(true);
+    expect(tables.rapportini.find((r) => r.id === 'rap1')?.template_id).toBe('tpl-agenda');
+  });
+
   it("committente lim_massive equivale ad acea nel lookup; flusso inattivo o manuale non concorre", async () => {
     const { db, tables } = makeFakeDb(seedBase({
       rapportino_template: [

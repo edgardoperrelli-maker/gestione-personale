@@ -18,12 +18,19 @@ export function campiDiVoce(
  * Unione ordinata dei campi per export/PDF di un rapportino con voci eterogenee:
  * prima i campi del rapportino (ordine loro), poi i campi extra per-voce in ordine di
  * apparizione; dedup per chiave; `ordine` rinumerato sequenziale (stabile per i sort a valle).
+ *
+ * Il fallback del rapportino entra nell'unione SOLO se almeno una voce lo eredita davvero
+ * (campi propri assenti/vuoti) o se di voci non ce ne sono: quando TUTTE le voci sono
+ * agganciate a un flusso, i campi del modello base non descrivono nessuna riga e
+ * produrrebbero solo colonne fantasma (regressione DUNNING 22/07: colonna ESITO vuota nel
+ * PDF, ereditata da un modello di fallback mai usato dalle voci).
  */
 export function unioneCampi(
   base: TemplateCampo[],
   perVoce: Array<TemplateCampo[] | null | undefined>,
 ): TemplateCampo[] {
-  const out: TemplateCampo[] = [...base].sort((a, b) => a.ordine - b.ordine);
+  const baseEreditata = perVoce.length === 0 || perVoce.some((c) => !Array.isArray(c) || c.length === 0);
+  const out: TemplateCampo[] = baseEreditata ? [...base].sort((a, b) => a.ordine - b.ordine) : [];
   const viste = new Set(out.map((c) => c.chiave));
   for (const campi of perVoce) {
     for (const c of [...(campi ?? [])].sort((a, b) => a.ordine - b.ordine)) {

@@ -67,21 +67,21 @@ export async function sincronizzaRapportini(
   // chiamante. Resiliente: se le colonne di collegamento non esistono ancora (migration non
   // applicata), si ripiega su una select senza collegamento (nessun flusso, solo fallback).
   type TemplateAttivoRow = {
-    id: string; nome: string | null; campi: unknown; tipo: string | null;
+    id: string; nome: string | null; campi: unknown; info_campi?: unknown; tipo: string | null;
     solo_manuale: boolean | null;
     gruppo_committente?: string | null; gruppi_attivita?: string[] | null;
   };
   let templatesAttivi: TemplateAttivoRow[] = [];
   const qTpl = await db
     .from('rapportino_template')
-    .select('id, nome, campi, tipo, solo_manuale, gruppo_committente, gruppi_attivita')
+    .select('id, nome, campi, info_campi, tipo, solo_manuale, gruppo_committente, gruppi_attivita')
     .eq('active', true);
   if (!qTpl.error) {
     templatesAttivi = (qTpl.data ?? []) as TemplateAttivoRow[];
   } else {
     const qBase = await db
       .from('rapportino_template')
-      .select('id, nome, campi, tipo, solo_manuale')
+      .select('id, nome, campi, info_campi, tipo, solo_manuale')
       .eq('active', true);
     templatesAttivi = qBase.error ? [] : (((qBase.data ?? []) as unknown) as TemplateAttivoRow[]);
   }
@@ -90,11 +90,16 @@ export async function sincronizzaRapportini(
   // altrimenti quello già stabilito dai rapportini esistenti del piano (riaperture: stesso
   // modello, niente churn di link), poi risanamento se il piano ha task RESINE, poi il
   // primo attivo non-manuale (ordine nome IT, deterministico). is_default è ritirato.
+  // NB: se non pinnato, più sotto (a interventi caricati) il modello si riallinea al flusso
+  // più rappresentato del piano — il fallback per nome resta solo per piani senza flussi.
   let templateId = opts.templateId ?? null;
   if (!templateId) {
     const { data: rapsPiano } = await db.from('rapportini').select('template_id').eq('piano_id', pianoId);
     templateId = pickTemplateId((rapsPiano as Array<{ template_id?: string | null }>) ?? []);
   }
+  // "Pinnato" = scelto dal chiamante o già stabilito dai rapportini del piano: in quel caso la
+  // maggioranza dei flussi (più sotto) NON lo sovrascrive — stabilità delle riaperture.
+  const templatePinnato = Boolean(templateId);
   if (!templateId) {
     const candidati = templatesAttivi
       .filter((t) => !t.solo_manuale)
@@ -109,8 +114,9 @@ export async function sincronizzaRapportini(
   if (!templateId) {
     return { ok: false, status: 422, error: 'Nessun flusso attivo in Azioni operatori: impossibile generare i rapportini.' };
   }
-  const { data: tpl } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
-  if (!tpl) return { ok: false, status: 404, error: 'Template non trovato' };
+  const { data: tplRow } = await db.from('rapportino_template').select('id, campi, info_campi, tipo').eq('id', templateId).single();
+  if (!tplRow) return { ok: false, status: 404, error: 'Template non trovato' };
+  let tpl = tplRow as { id: string; campi: unknown; info_campi?: unknown; tipo?: string | null };
 
   const operatoriPiano = (ops ?? []).map((o) => ({ staff_id: String(o.staff_id), staff_name: (o.staff_name as string | null) ?? null }));
 
@@ -189,6 +195,28 @@ export async function sincronizzaRapportini(
     if (!flusso || !Array.isArray(flusso.campi) || flusso.campi.length === 0) return null;
     return { template_id: flusso.id, campi_snapshot: flusso.campi as TemplateCampo[] };
   };
+
+  // Modello di fallback allineato ai flussi del piano: se nessuno l'ha pinnato, il fallback per
+  // nome può pescare il flusso di un ALTRO committente (regressione DUNNING 22/07: base "AGENDA
+  // AEREA" — campo ESITO, anagrafica senza COMUNE/CAP — su piani ACEA, con colonna ESITO fantasma
+  // nel PDF). Con gli interventi del piano alla mano, il modello diventa il flusso PIÙ
+  // RAPPRESENTATO tra le voci (a pari merito il nome, per determinismo); se nessun intervento
+  // risolve un flusso resta il fallback già calcolato.
+  if (!templatePinnato && flussi.length > 0) {
+    const perFlusso = new Map<string, { row: TemplateAttivoRow; n: number }>();
+    for (const int of gruppoByIntervento.values()) {
+      const f = risolviFlussoPerGruppo(committenteEquivalente(int.committente), int.gruppo, flussi);
+      if (!f || !Array.isArray(f.campi) || f.campi.length === 0) continue;
+      perFlusso.set(f.id, { row: f, n: (perFlusso.get(f.id)?.n ?? 0) + 1 });
+    }
+    const top = [...perFlusso.values()].sort(
+      (a, b) => (b.n - a.n) || String(a.row.nome ?? '').localeCompare(String(b.row.nome ?? ''), 'it'),
+    )[0];
+    if (top) {
+      templateId = top.row.id;
+      tpl = { id: top.row.id, campi: top.row.campi, info_campi: top.row.info_campi ?? [], tipo: top.row.tipo ?? null };
+    }
+  }
 
   // Blocco: un intervento 'completato' non può cambiare operatore (riassegnazione vietata).
   // Dopo ensureInterventiForPiano i completati mantengono lo staff_id originale: se un task
