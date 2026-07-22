@@ -118,11 +118,11 @@ describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => 
   it("committente 'altro' applica l’alias sul fallback", () => {
     expect(risolviGruppo('altro', 'DIS00N', index, { allinea: 'lettura' })?.gruppo).toBe(AC);
   });
-  it('scrittura: massive e codici ATLAS collassano alla canonica nuda', () => {
+  it('scrittura: massive collassa; ATLAS collassa SOLO in lettura (storage = dettaglio)', () => {
     expect(risolviGruppo('acea', 'LIMITAZIONE MASSIVA', index, { allinea: 'scrittura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
-    // Le varianti ATLAS (A/B/C, forma lunga) collassano al codice nudo anche in scrittura.
-    expect(risolviGruppo('italgas', 'S-PR-003 A', index, { allinea: 'scrittura' })?.descrizione).toBe('S-PR-003');
-    expect(risolviGruppo('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', index, { allinea: 'scrittura' })?.descrizione).toBe('DIS00N');
-    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'scrittura' })?.descrizione).toBe('DIS00N'); // il nudo è già canonico
+    // Le varianti ATLAS collassano al codice nudo in LETTURA (display/dedup); lo storage
+    // conserva il dettaglio, quindi in scrittura NON collassano.
+    expect(risolviGruppo('italgas', 'S-PR-003 A', index, { allinea: 'lettura' })?.descrizione).toBe('S-PR-003');
+    expect(risolviGruppo('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', index, { allinea: 'lettura' })?.descrizione).toBe('DIS00N');
   });
 });

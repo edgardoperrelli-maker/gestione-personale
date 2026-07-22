@@ -2,6 +2,7 @@
 'use client';
 
 import type { RigaStorico } from '@/lib/interventi/storico/types';
+import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 
 // 'Attività' è la descrizione grezza della voce; 'Gruppo attività' il gruppo di
 // tassonomia risolto (stesso valore su cui lavora il filtro omonimo).
@@ -33,6 +34,8 @@ function fmtData(iso: string | null): string {
 function cella(r: RigaStorico, key: keyof RigaStorico): string {
   if (key === 'data') return fmtData(r.data);
   if (key === 'committente') return r.committente ? r.committente.toUpperCase() : '—';
+  // Colonna "Attività": codice unificato a display (lo storage/export conserva il dettaglio).
+  if (key === 'gruppoAttivita') return attivitaUnificataDisplay(r.gruppoAttivita) || '—';
   const v = r[key];
   return v == null || v === '' ? '—' : String(v);
 }

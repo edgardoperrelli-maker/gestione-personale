@@ -2,18 +2,18 @@
 // presente in tassonomia. Chiave e valore sono FORME NORMALIZZATE (come `chiaveTassonomia`:
 // maiuscolo, senza accenti, spazi collassati).
 //
-// DUE tier, applicati da `risolviGruppo(..., { allinea })`:
+// DUE tier, applicati da `risolviGruppo(..., { allinea })`, distinti per SICUREZZA a valle:
 //
 //  - SCRITTURA (`allinea:'scrittura'`): applicati nei write-path (import, taskToIntervento,
-//    manuali), quindi cambiano il TESTO MEMORIZZATO. Coprono: typo/punteggiatura, il
-//    singolare→plurale/“su impianto” delle massive, e il collasso delle famiglie di codici
-//    italgas al SOLO codice nudo (forma lunga, A/B/C, Sonda, GN → codice base). Questi codici
-//    devono comparire come UNA sola voce in tutti gli elenchi (migration 20260722190000);
-//    il collasso è sicuro perché italgas non è valorizzato (nessun listino/voce) e i flussi
-//    operatori dipendono dal gruppo, non dal codice.
+//    manuali), quindi cambiano il TESTO MEMORIZZATO. Solo casi genuinamente da correggere
+//    allo storage: typo/punteggiatura e la famiglia massive (canonica unica).
 //
-//  - LETTURA (`allinea:'lettura'`): oggi coincide con SCRITTURA (nessun alias di sola lettura).
-//    Resta come punto di estensione per collassi che non devono toccare lo storage.
+//  - LETTURA (`allinea:'lettura'`): SCRITTURA + collasso delle famiglie di codici italgas al
+//    codice nudo (DIS00N, S-AI-022, S-MR-002/003, S-PR-001/003/004/007/009/019/077 con le loro
+//    varianti A/B/C, Sonda, GN, forma lunga). NON tocca lo storage: il dettaglio va conservato
+//    per l'import dal file del committente e per l'export/riconciliazione; la UI lo mostra
+//    unificato via `attivitaUnificataDisplay` + questo tier (Performance/dedup). Sicuro perché
+//    italgas non è valorizzato e i flussi dipendono dal gruppo, non dal codice.
 //
 // INVARIANTE (tassonomia.test.ts): ogni canonica è un literal di tassonomia attivo e ha lo
 // STESSO gruppo della variante. Nessuna variante è ambigua tra committenti
@@ -27,8 +27,12 @@ const ALIAS_SCRITTURA: Record<string, string> = {
   'acea|LIMITAZIONI MASSICE': 'LIMITAZIONI MASSIVE', // typo
   // Italgas — apostrofo iniziale
   "italgas|'UT MOROSITA' PRIMO PASSAGGIO": "UT MOROSITA' PRIMO PASSAGGIO",
+};
 
-  // Italgas — famiglie di codici ATLAS collassate al codice nudo (migration 20260722190000).
+// Solo lettura: le famiglie di codici italgas collassano al codice nudo per dedup/Performance/
+// display, MA lo storage conserva il dettaglio (import committente + export). Migration
+// 20260723090000 (re-divisione dello storage).
+const ALIAS_SOLO_LETTURA: Record<string, string> = {
   'italgas|DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO': 'DIS00N',
 
   'italgas|S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA': 'S-AI-022',
@@ -67,9 +71,6 @@ const ALIAS_SCRITTURA: Record<string, string> = {
   'italgas|S-PR-077 A': 'S-PR-077',
 };
 
-// Alias di sola lettura (oggi vuoto): estensione per collassi che non toccano lo storage.
-const ALIAS_SOLO_LETTURA: Record<string, string> = {};
-
 const ALIAS_LETTURA: Record<string, string> = { ...ALIAS_SCRITTURA, ...ALIAS_SOLO_LETTURA };
 
 export type ModoAllineamento = 'lettura' | 'scrittura';
@@ -80,7 +81,7 @@ export function allineaChiaveAttivita(committenteEq: string, norm: string, modo:
   return mappa[`${committenteEq}|${norm}`] ?? norm;
 }
 
-// Variante norm → canonica, committente-agnostica, TIER LETTURA COMPLETO.
+// Variante norm → canonica, committente-agnostica, TIER LETTURA COMPLETO (massive + UT + ATLAS).
 // Usata dal dedup identitaIntervento (che non ha il committente e non persiste la chiave): deve
 // far convergere QUALSIASI forma memorizzata dello stesso lavoro. Sicura perché nessuna variante
 // è ambigua tra committenti (test).
