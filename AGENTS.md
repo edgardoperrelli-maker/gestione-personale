@@ -255,7 +255,7 @@ app/hub/mappa/
 Non richiede nuovo AppModuleKey — è una sotto-sezione di `mappa`.
 Aggiungere link interno nella UI di `/hub/mappa`.
 
-**Dipendenze già disponibili:** Leaflet, xlsx, exceljs — nessuna installazione necessaria.
+**Dipendenze già disponibili:** maplibre-gl (via `components/ui/map.tsx`), xlsx, exceljs — nessuna installazione necessaria.
 
 ---
 
