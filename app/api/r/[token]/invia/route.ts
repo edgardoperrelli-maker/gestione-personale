@@ -7,6 +7,7 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
 import { righeIncomplete } from '@/utils/rapportini/righeIncomplete';
+import { indiciNegativoSenzaNota } from '@/utils/rapportini/vociNegativoSenzaNota';
 import { ymdLocal } from '@/utils/date-it';
 export const runtime = 'nodejs';
 
@@ -30,6 +31,21 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   );
   if (!gate.inviabile)
     return NextResponse.json({ error: 'voci_in_sospeso', inSospeso: gate.inSospeso }, { status: 409 });
+
+  // Blocco NO-senza-motivo: una voce con esito negativo ma SENZA la nota obbligatoria non è una
+  // chiusura valida (il "NO" richiede il motivo; "NESSUN PASSAGGIO" è auto-esplicativo, no). Il
+  // client già lo impedisce (inviabile = daFare===0); qui è la GARANZIA lato server, così un
+  // ordine "NO" senza motivo non resta mai aperto (né via coda offline né via richieste dirette).
+  {
+    const { data: vociGate } = await supabaseAdmin
+      .from('rapportino_voci')
+      .select('risposte, campi_snapshot, attivita, manuale')
+      .eq('rapportino_id', rap.id);
+    const campiRap = ((rap as { campi_snapshot?: unknown }).campi_snapshot ?? []) as TemplateCampo[];
+    const negNoNota = indiciNegativoSenzaNota((vociGate ?? []) as never, campiRap);
+    if (negNoNota.length > 0)
+      return NextResponse.json({ error: 'nota_negativo_mancante', voci: negNoNota.length }, { status: 409 });
+  }
 
   // Risanamento: gate foto obbligatorie (righe misuratore + fasi civico).
   if ((rap as { tipo?: string }).tipo === 'risanamento') {
