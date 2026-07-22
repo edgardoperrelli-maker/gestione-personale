@@ -1,16 +1,17 @@
 // utils/rapportini/rapportinoPdf.ts
+import { BRAND_EXPORT } from '@/lib/brand';
 import type { DatiRiepilogoPdf, RigaPdf } from './datiRiepilogoPdf';
 
 type RGB = [number, number, number];
 type ColStyle = { cellWidth?: number; halign?: 'left' | 'center' | 'right'; fontStyle?: 'bold' | 'normal'; textColor?: RGB };
 
-const INK: RGB = [26, 35, 48];
-const MUTED: RGB = [91, 103, 117];
-const CYAN: RGB = [10, 143, 176];
+const INK: RGB = BRAND_EXPORT.inkRgb;
+const MUTED: RGB = BRAND_EXPORT.mutedRgb;
+const CYAN: RGB = BRAND_EXPORT.accentRgb;
 const GREEN: RGB = [21, 128, 61];
 const RED: RGB = [194, 38, 31];
 const AMBER: RGB = [180, 132, 36];
-const LINE: RGB = [227, 232, 238];
+const LINE: RGB = BRAND_EXPORT.lineRgb;
 const ML = 12;
 const MR = 12;
 

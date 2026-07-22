@@ -103,6 +103,8 @@ export default function CronoprogrammaWorkspace() {
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
   const refreshTaskCounts = () => setTaskCountRefresh((v) => v + 1);
 
+  // ponytail: doppia conferma sequenziale SINCRONA dentro i flussi drag&drop —
+  // resta window.confirm (renderla async propagherebbe nei handler DnD; rischio > beneficio).
   const confirmTwice = (firstMessage: string, secondMessage: string) => {
     if (typeof window === 'undefined') return true;
     if (!window.confirm(firstMessage)) return false;
@@ -1121,7 +1123,7 @@ export default function CronoprogrammaWorkspace() {
 
         {actionFeedback && (
           <div
-            className="rounded-2xl border px-4 py-3 text-sm shadow-sm"
+            className="rounded-[var(--radius-xl)] border px-4 py-3 text-sm shadow-[var(--shadow-sm)]"
             style={
               actionFeedback.type === 'success'
                 ? { borderColor: 'var(--success)', backgroundColor: 'var(--success-soft)', color: 'var(--success)' }
@@ -1302,7 +1304,7 @@ export default function CronoprogrammaWorkspace() {
 
       {dropChoiceDialog && (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
-          <div className="w-full max-w-md rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
+          <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
             <div className="text-lg font-semibold text-[var(--brand-text-main)]">Operazione sulla card</div>
             <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
               Scegli se vuoi spostare o copiare la card trascinata.

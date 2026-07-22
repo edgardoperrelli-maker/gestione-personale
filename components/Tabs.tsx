@@ -3,6 +3,7 @@ import * as React from 'react';
 type TabItem = {
   value: string;
   label: string;
+  disabled?: boolean;
 };
 
 type TabsProps = {
@@ -21,9 +22,10 @@ export default function Tabs({ value, onValueChange, items, className = '' }: Ta
           <button
             key={item.value}
             type="button"
+            disabled={item.disabled}
             onClick={() => onValueChange(item.value)}
             aria-current={active ? 'page' : undefined}
-            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+            className={`-mb-px border-b-2 px-3 py-2 text-sm font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:pointer-events-none disabled:opacity-50 ${
               active
                 ? 'border-[var(--brand-primary)] text-[var(--primary-text)]'
                 : 'border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]'

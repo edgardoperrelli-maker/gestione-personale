@@ -1,5 +1,7 @@
 'use client';
 
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import { toast } from '@/components/ui/Toast';
 import { createClient } from '@supabase/supabase-js';
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
@@ -208,10 +210,10 @@ function Modal({
     <div className="fixed inset-0 z-50">
       <div className="absolute inset-0 bg-[oklch(0_0_0/0.6)]" aria-hidden="true" onClick={onClose} />
       <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-lg">
+        <div className="w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]">
           <div className="flex items-center justify-between border-b p-3">
             <div className="text-sm font-semibold">{title}</div>
-            <button type="button" className="rounded-lg border px-2 py-1 text-xs" onClick={onClose}>Chiudi</button>
+            <button type="button" className="rounded-[var(--radius-md)] border px-2 py-1 text-xs" onClick={onClose}>Chiudi</button>
           </div>
           <div className="p-4">{children}</div>
         </div>
@@ -318,7 +320,7 @@ function BookingForm({
           <div className="mb-1">Dal</div>
           <input
             type="date"
-            className="w-full rounded-lg border px-2 py-1 text-sm"
+            className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
             value={value.date}
             onChange={(event) => onChange({ ...value, date: event.target.value })}
           />
@@ -327,7 +329,7 @@ function BookingForm({
           <div className="mb-1">Al</div>
           <input
             type="date"
-            className="w-full rounded-lg border px-2 py-1 text-sm"
+            className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
             value={rangeEnd ?? value.date}
             min={value.date}
             onChange={(event) => onRangeEndChange(event.target.value)}
@@ -338,7 +340,7 @@ function BookingForm({
       <label className="block text-xs">
         <div className="mb-1">Hotel</div>
         <select
-          className="w-full rounded-lg border px-2 py-1 text-sm"
+          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
           value={value.hotel_id ?? ''}
           onChange={(event) => {
             const hotel = hotels.find((item) => item.id === event.target.value) ?? null;
@@ -372,7 +374,7 @@ function BookingForm({
       <label className="block text-xs">
         <div className="mb-1">Tipologia camera</div>
         <select
-          className="w-full rounded-lg border px-2 py-1 text-sm"
+          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
           value={selectedRoomId}
           disabled={!selectedHotel}
           onChange={(event) => {
@@ -400,7 +402,7 @@ function BookingForm({
         )}
       </label>
 
-      <div className="grid grid-cols-2 gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs">
+      <div className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs">
         <div>
           <div className="text-[var(--brand-text-muted)]">Prezzo camera</div>
           <div className="font-semibold">{money(value.roomPrice)}</div>
@@ -414,7 +416,7 @@ function BookingForm({
       <label className="block text-xs">
         <div className="mb-1">Note</div>
         <textarea
-          className="w-full rounded-lg border px-2 py-1 text-sm"
+          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
           rows={3}
           value={value.notes ?? ''}
           onChange={(event) => onChange({ ...value, notes: event.target.value })}
@@ -424,7 +426,7 @@ function BookingForm({
       {autoTerritoryId && (
         <button
           type="button"
-          className="rounded-lg border border-[var(--brand-border)] px-3 py-2 text-xs font-semibold"
+          className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 py-2 text-xs font-semibold"
           onClick={() => void populateFromCronoprogramma()}
         >
           Aggiorna da cronoprogramma
@@ -435,7 +437,7 @@ function BookingForm({
         <div className="mb-1">Ospiti</div>
         <select
           multiple
-          className="h-28 w-full rounded-lg border px-2 py-1 text-sm"
+          className="h-28 w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
           value={value.guests.map((guest) => guest.id)}
           onChange={(event) => {
             const selectedIds = Array.from(event.currentTarget.selectedOptions).map((option) => option.value);
@@ -471,6 +473,7 @@ export default function Page() {
   const [loaded, setLoaded] = useState(false);
   const [rangeEnd, setRangeEnd] = useState<string | null>(null);
   const [draft, setDraft] = useState<HotelBooking | null>(null);
+  const [daEliminare, setDaEliminare] = useState<string | null>(null);
   const [hotels, setHotels] = useState<Hotel[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
 
@@ -537,12 +540,19 @@ export default function Page() {
     return () => window.removeEventListener('hotel-edit', handler);
   }, []);
 
-  async function deleteBooking(id: string) {
-    if (!window.confirm('Eliminare questa prenotazione?')) return;
+  function deleteBooking(id: string) {
+    setDaEliminare(id);
+  }
+
+  async function deleteBookingConfermata(id: string) {
+    setDaEliminare(null);
     const previous = bookings;
     setBookings(previous.filter((booking) => booking.id !== id));
     const { error } = await supabase.from('hotel_bookings').delete().eq('id', id);
-    if (error) setBookings(previous);
+    if (error) {
+      setBookings(previous);
+      toast.error('Eliminazione non riuscita, prenotazione ripristinata.');
+    }
   }
 
   function openNew(dateStr: string) {
@@ -684,23 +694,23 @@ export default function Page() {
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
-          <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goPrev}>Prev</button>
+          <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={goPrev}>Prev</button>
           {isMonth ? (
             <div className="text-lg font-semibold">{pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</div>
           ) : (
             <div className="text-lg font-semibold">{rangeLabel}</div>
           )}
-          <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
+          <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
 
           <div className="ml-2 flex items-center gap-1">
-            <button type="button" onClick={() => setMode('week')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
-            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
-            <button type="button" onClick={() => setMode('month')} className={`rounded-xl border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
-            <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
-            <button type="button" className="rounded-xl border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
+            <button type="button" onClick={() => setMode('week')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
+            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
+            <button type="button" onClick={() => setMode('month')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
+            <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
+            <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
             <button
               type="button"
-              className="rounded-xl border px-3 py-2 text-sm shadow"
+              className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow"
               onClick={() => setExportModal({
                 open: true,
                 from: yyyyMmDd(startOfWeekMonday(pivot)),
@@ -713,7 +723,7 @@ export default function Page() {
           </div>
         </div>
 
-        <Link href="/hub" className="rounded-xl border px-3 py-2 text-sm shadow">Hub</Link>
+        <Link href="/hub" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow">Hub</Link>
       </div>
 
       <div className="grid grid-cols-7 gap-2">
@@ -734,7 +744,7 @@ export default function Page() {
               return (
                 <div
                   key={`${weekIndex}-${dayIndex}`}
-                  className={`flex min-h-[220px] flex-col gap-2 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-[var(--brand-primary)]' : ''}`}
+                  className={`flex min-h-[220px] flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-[var(--brand-primary)]' : ''}`}
                 >
                   <div className="flex items-center justify-between">
                     <div className="text-sm font-semibold">{day.getDate()}</div>
@@ -764,8 +774,8 @@ export default function Page() {
               onRangeEndChange={setRangeEnd}
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border px-3 py-2" onClick={closeModals}>Annulla</button>
-              <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void saveDraft()}>Salva</button>
+              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={closeModals}>Annulla</button>
+              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void saveDraft()}>Salva</button>
             </div>
           </>
         )}
@@ -783,8 +793,8 @@ export default function Page() {
               onRangeEndChange={() => undefined}
             />
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-lg border px-3 py-2" onClick={closeModals}>Annulla</button>
-              <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void saveDraft()}>Salva</button>
+              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={closeModals}>Annulla</button>
+              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void saveDraft()}>Salva</button>
             </div>
           </>
         )}
@@ -795,26 +805,35 @@ export default function Page() {
           <div className="grid grid-cols-2 gap-3">
             <label className="text-xs">
               <div className="mb-1">Dal</div>
-              <input type="date" className="w-full rounded-lg border px-2 py-1 text-sm" value={exportModal.from} onChange={(event) => setExportModal((modal) => ({ ...modal, from: event.target.value }))} />
+              <input type="date" className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm" value={exportModal.from} onChange={(event) => setExportModal((modal) => ({ ...modal, from: event.target.value }))} />
             </label>
             <label className="text-xs">
               <div className="mb-1">Al</div>
-              <input type="date" className="w-full rounded-lg border px-2 py-1 text-sm" min={exportModal.from} value={exportModal.to} onChange={(event) => setExportModal((modal) => ({ ...modal, to: event.target.value }))} />
+              <input type="date" className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm" min={exportModal.from} value={exportModal.to} onChange={(event) => setExportModal((modal) => ({ ...modal, to: event.target.value }))} />
             </label>
           </div>
           <div className="flex justify-end gap-2">
-            <button type="button" className="rounded-lg border px-3 py-2" onClick={() => setExportModal((modal) => ({ ...modal, open: false }))}>Annulla</button>
-            <button type="button" className="rounded-lg border px-3 py-2 shadow" onClick={() => void exportXlsx()}>Esporta</button>
+            <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={() => setExportModal((modal) => ({ ...modal, open: false }))}>Annulla</button>
+            <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void exportXlsx()}>Esporta</button>
           </div>
         </div>
       </Modal>
+      <ConfirmDialog
+        open={daEliminare !== null}
+        title="Eliminare questa prenotazione?"
+        message="La prenotazione viene rimossa dal calendario hotel."
+        confirmLabel="Elimina"
+        danger
+        onConfirm={() => daEliminare && void deleteBookingConfermata(daEliminare)}
+        onClose={() => setDaEliminare(null)}
+      />
     </div>
   );
 }
 
 function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () => void }) {
   return (
-    <div className={`rounded-xl border p-2 shadow-sm ${territoryCardClasses(booking.territory)}`}>
+    <div className={`rounded-[var(--radius-lg)] border p-2 shadow-[var(--shadow-sm)] ${territoryCardClasses(booking.territory)}`}>
       <div className="flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <div className="text-sm font-semibold">{booking.hotelName}</div>
@@ -845,7 +864,7 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
         <div className="mt-2 flex gap-2">
           <button
             type="button"
-            className="rounded-lg border px-2 py-1 text-xs shadow"
+            className="rounded-[var(--radius-md)] border px-2 py-1 text-xs shadow"
             onClick={() => window.dispatchEvent(new CustomEvent('hotel-edit', { detail: booking }))}
             aria-label={`Modifica prenotazione ${booking.id}`}
           >
@@ -853,7 +872,7 @@ function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () 
           </button>
           <button
             type="button"
-            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--danger)] shadow"
+            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--danger)] shadow"
             onClick={onDelete}
             aria-label={`Elimina prenotazione ${booking.id}`}
           >

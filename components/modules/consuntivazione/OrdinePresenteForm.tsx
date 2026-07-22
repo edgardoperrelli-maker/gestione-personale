@@ -171,7 +171,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
 
         <div className="flex items-center justify-end gap-3 border-t border-[var(--brand-border)] pt-4">
           <Button variant="ghost" onClick={() => setSel(null)} disabled={salvando}>Annulla</Button>
-          <Button variant="primary" onClick={submit} disabled={!pronto || salvando}>
+          <Button variant="primary" onClick={submit} loading={salvando} disabled={!pronto}>
             {salvando ? 'Esitazione…' : 'Esita ordine'}
           </Button>
         </div>
@@ -243,7 +243,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
           </p>
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={azzera} disabled={caricando}>Azzera filtri</Button>
-            <Button type="submit" variant="primary" disabled={caricando || !hasFiltro}>
+            <Button type="submit" variant="primary" loading={caricando} disabled={!hasFiltro}>
               {caricando ? 'Ricerca…' : 'Cerca'}
             </Button>
           </div>
@@ -290,7 +290,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
                       {it.matricola_contatore ? ` · matr. ${it.matricola_contatore}` : ''}
                     </span>
                   </span>
-                  <span className="shrink-0 text-xs text-[var(--brand-text-subtle)]">{it.data}</span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--brand-text-subtle)]">{it.data}</span>
                 </button>
               </li>
             ))}

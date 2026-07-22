@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import { aggregateRapportiniKpi, type RapportiniKpi, type RapportinoKpiRow } from '@/lib/dashboard/rapportiniKpi';
 import { addDaysIso } from '@/lib/dashboard/addDaysIso';
+import Skeleton from '@/components/ui/Skeleton';
 
 function todayRomeIso(): string {
   return new Date().toLocaleString('sv-SE', { timeZone: 'Europe/Rome' }).slice(0, 10);
@@ -54,7 +55,7 @@ export default function RapportiniKpi() {
   const isOggi = giorno === todayRomeIso();
 
   return (
-    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm" style={{ borderRadius: 'var(--radius-xl)' }}>
+    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]" style={{ borderRadius: 'var(--radius-xl)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Stato rapportini</h2>
         <Link
@@ -70,7 +71,7 @@ export default function RapportiniKpi() {
         <button
           type="button"
           onClick={() => setGiorno((g) => addDaysIso(g, -1))}
-          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           aria-label="Giorno precedente"
         >
           ◀
@@ -90,7 +91,7 @@ export default function RapportiniKpi() {
         <button
           type="button"
           onClick={() => setGiorno((g) => addDaysIso(g, 1))}
-          className="rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           aria-label="Giorno successivo"
         >
           ▶
@@ -98,7 +99,11 @@ export default function RapportiniKpi() {
       </div>
 
       {loading ? (
-        <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Caricamento…</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4" aria-busy="true">
+          {[0, 1, 2, 3].map((i) => (
+            <Skeleton key={i} className="h-[74px] rounded-[var(--radius-lg)]" />
+          ))}
+        </div>
       ) : (
         <>
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
@@ -107,7 +112,7 @@ export default function RapportiniKpi() {
                 key={t.label}
                 className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-3"
               >
-                <p className="text-2xl font-semibold tabular-nums text-[var(--brand-text-main)]">{t.value}</p>
+                <p className="font-mono text-2xl font-semibold tabular-nums text-[var(--brand-text-main)]">{t.value}</p>
                 <p className="mt-0.5 flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text-muted)]">
                   <span
                     className="inline-block h-2 w-2 flex-shrink-0 rounded-full"

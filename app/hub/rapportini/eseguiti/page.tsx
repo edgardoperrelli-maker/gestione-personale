@@ -3,6 +3,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import Link from 'next/link';
 import { resolveUserRole } from '@/lib/moduleAccess';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 import { resolveInfoCampi, valoreInfo, type TemplateInfoCampo, type VoceInfo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -67,19 +68,19 @@ export default async function EseguitiPage({ searchParams }: { searchParams: Pro
   return (
     <main className="mx-auto max-w-6xl space-y-5 px-6 py-8">
       <div>
-        <Link href="/hub/mappa?vista=riepilogo" className="text-sm" style={{ color: 'var(--brand-primary)' }}>
-          ← Riepilogo rapportini
-        </Link>
+        <Breadcrumb
+          items={[{ label: 'Riepilogo rapportini', href: '/hub/mappa?vista=riepilogo' }, { label: 'Interventi eseguiti' }]}
+        />
         <h1 className="mt-1 text-2xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
           Interventi eseguiti
         </h1>
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          {giorno} · {rapportini.length} rapportini · {totVoci} interventi · tutto a video, senza aprirli uno a uno.
+          <span className="font-mono tabular-nums">{giorno}</span> · <span className="font-mono tabular-nums">{rapportini.length}</span> rapportini · <span className="font-mono tabular-nums">{totVoci}</span> interventi · tutto a video, senza aprirli uno a uno.
         </p>
       </div>
 
       {rapportini.length === 0 ? (
-        <div className="rounded-2xl border border-dashed px-4 py-10 text-center text-sm" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}>
+        <div className="rounded-[var(--radius-xl)] border border-dashed px-4 py-10 text-center text-sm" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-muted)' }}>
           Nessun rapportino per questo giorno.
         </div>
       ) : (
@@ -102,9 +103,9 @@ export default async function EseguitiPage({ searchParams }: { searchParams: Pro
               {vs.length === 0 ? (
                 <p className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>Nessun intervento.</p>
               ) : (
-                <div className="overflow-x-auto rounded-2xl border" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="overflow-x-auto rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]" style={{ borderColor: 'var(--brand-border)' }}>
                   <table className="min-w-full text-sm">
-                    <thead>
+                    <thead className="bg-[var(--brand-surface-muted)]">
                       <tr style={{ color: 'var(--brand-text-muted)' }}>
                         <th className={TD}>#</th>
                         {info.map((c) => <th key={`i-${c.chiave}`} className={TH}>{c.etichetta}</th>)}
@@ -113,12 +114,21 @@ export default async function EseguitiPage({ searchParams }: { searchParams: Pro
                     </thead>
                     <tbody>
                       {vs.map((v, i) => (
-                        <tr key={v.id} className="border-t" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
-                          <td className={TD} style={{ color: 'var(--brand-text-muted)' }}>{i + 1}</td>
+                        <tr key={v.id} className="border-t transition-colors hover:bg-[var(--brand-surface-muted)]" style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}>
+                          <td className={`${TD} font-mono tabular-nums`} style={{ color: 'var(--brand-text-muted)' }}>{i + 1}</td>
                           {info.map((c) => <td key={`i-${c.chiave}`} className={TD}>{valoreInfo(v, c.chiave) || '—'}</td>)}
-                          {campi.map((c) => (
-                            <td key={`c-${c.chiave}`} className={`${TD} text-center`}>{fmtRisposta(c.tipo, (v.risposte ?? {})[c.chiave])}</td>
-                          ))}
+                          {campi.map((c) => {
+                            const val = (v.risposte ?? {})[c.chiave];
+                            const croce = c.tipo === 'crocetta';
+                            return (
+                              <td
+                                key={`c-${c.chiave}`}
+                                className={`${TD} text-center ${croce ? (val === true ? 'font-semibold text-[var(--status-ok)]' : 'text-[var(--brand-text-subtle)]') : ''}`}
+                              >
+                                {fmtRisposta(c.tipo, val)}
+                              </td>
+                            );
+                          })}
                         </tr>
                       ))}
                     </tbody>

@@ -70,13 +70,14 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 - `--chart-1 … --chart-8`: scala categorica sobria (blu, verde, ambra, rosso, viola, teal, ardesia, grigio). **recharts non risolve `var()` negli attributi SVG** → leggili a runtime con l'hook `useChartColors()` ([`components/modules/performance/palette.ts`](components/modules/performance/palette.ts)).
 - `--overlay`: fondo semitrasparente di modali/drawer.
-- `--on-marker`: testo scuro leggibile sui marker Leaflet colorati.
+- `--on-marker`: testo leggibile sui marker mappa colorati (MapLibre, marker DOM).
 - `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
 
 ## 4. Tipografia
 
 - Font: **Geist** (`--font-geist`, da `next/font`).
+- **Dati numerici in Geist Mono** (`--font-geist-mono`, esposto come `--font-mono` in `@theme`): KPI, importi €, matricole, celle numeriche di tabella usano `font-mono tabular-nums` — le colonne si allineano otticamente.
 - **Sentence case** sempre. Niente Title Case né ALL CAPS gridato (label maiuscole solo piccole, con tracking ridotto).
 - Pesi: **titoli 600**, **corpo 400**, **label/bottoni 500**. (Niente 700/bold "urlato".)
 - Scala (convenzione, via classi Tailwind — non ci sono token `--text-*`): `text-xs`(12) caption · `text-sm`(13) dati densi · `text-sm/base`(14) corpo · `text-base/lg`(16) sottotitoli · `text-xl`(20) titoli sezione · `text-2xl`(26) titoli pagina. **Niente dimensioni a mezzo pixel** (`text-[14.5px]` ecc.).
@@ -84,9 +85,9 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 ## 5. Raggi, ombre, densità, motion
 
 - **Raggi** (token in `@theme`): `--radius-sm` 4 · `--radius-md` 6 · `--radius-lg` 10 · `--radius-xl` 14. Card a `lg`/`xl`, input/bottoni a `md`, pill/badge pieni (`rounded-full`). Usa `rounded-[var(--radius-md)]` ecc.
-- **Ombre**: `--shadow-sm` / `--shadow-md` / `--shadow-lg` — tenui. **Mai glow.** Profondità = bordo 1px + `--shadow-sm`.
+- **Ombre — elevazione a 3 livelli** (valori a doppio strato ambient+key, redesign premium 2026-07-22): livello 1 superfici in flusso (card, tabelle) = bordo 1px + `--shadow-sm`; livello 2 sovrapposti (popover, dropdown, datepicker) = `--shadow-md`; livello 3 modali/drawer = `--shadow-lg` + `--overlay`. **Mai glow.**
 - **Densità bilanciata**: tabelle/liste **compatte** (righe ~32–36px, padding ridotto, header sticky su `--brand-surface-muted`); form/dettaglio/modali **ariosi**.
-- **Motion**: framer-motion già presente (`lib/animations.ts`, `PageTransitionWrapper`). Sobrio: hover lift ~1px, durate 150–200ms, rispetta `prefers-reduced-motion`. Non aggiungere animazioni dove non ci sono.
+- **Motion**: framer-motion (`lib/animations.ts`, `PageTransitionWrapper`). Sobrio: hover lift ~1px, durate 150–200ms; overlay (Dialog, drawer, dropdown, palette) con enter/exit via `AnimatePresence` (enter 150–200ms, exit più rapido). `prefers-reduced-motion` è garantito globalmente da `components/layout/MotionProvider.tsx` (`MotionConfig reducedMotion="user"` nel root layout) — i transform collassano, resta l'opacità. Non aggiungere animazioni dove non ci sono.
 
 ## 6. Accessibilità
 
@@ -100,23 +101,38 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 
 | Componente | Import | Note |
 |---|---|---|
-| **Button** | `@/components/Button` (default) | `variant`: `primary` \| `secondary` \| `outline` \| `ghost` \| `soft` \| `danger` \| `gold`; `size`: `sm`\|`md`\|`lg`; `animated`. Primary usa `--on-primary`. |
-| **Card** | `{ Card, CardHeader, CardContent, CardFooter }` da `@/components/Card` | superficie bianca, bordo 1px, ombra `sm`, raggio `xl`; `interactive`/`animated`. |
-| **Input** | `@/components/Input` (default) | prop `error?`; focus ring blu 2px. |
-| **Select** | `@/components/ui/Select` (default) | prop `error?`. |
-| **Textarea** | `@/components/ui/Textarea` (default) | prop `error?`. |
+| **Button** | `@/components/Button` (default) | `variant`: `primary` \| `secondary` \| `outline` \| `ghost` \| `soft` \| `danger` \| `gold`; `size`: `sm`\|`md`\|`lg`; `animated`; **`loading`** (spinner + `aria-busy` + disabilitato). Primary usa `--on-primary`. |
+| **Card** | `{ Card, CardHeader, CardContent, CardFooter }` da `@/components/Card` | superficie bianca, bordo 1px, ombra `sm`, raggio `xl`; `interactive` (focusabile da tastiera)/`animated`. |
+| **Input** | `@/components/Input` (default) | prop `error?`; focus ring blu 2px; stili `disabled` e hover bordo. |
+| **Select** | `@/components/ui/Select` (default) | prop `error?`; stili `disabled` e hover. |
+| **Textarea** | `@/components/ui/Textarea` (default) | prop `error?`; stili `disabled` e hover. |
 | **Badge** | `@/components/Badge` (default) | `variant`: `primary`\|`muted`\|`success`\|`warning`\|`danger`\|`gold` + **stati** `ok`\|`ko`\|`warn`\|`idle`\|`progress`. |
-| **Tabs** | `@/components/Tabs` (default) | stile **underline**; props `{ value, onValueChange, items }`. |
-| **Dialog** | `@/components/ui/Dialog` (default) | `{ open, onClose, title, children, footer, variant }`; `variant="sheet"` = bottom-sheet mobile. Focus-trap + ESC + `aria-modal`. |
-| **DatePicker** | `@/components/ui/DatePicker` | calendario popover a tema. |
+| **Tabs** | `@/components/Tabs` (default) | stile **underline**; props `{ value, onValueChange, items }`; `items[].disabled?`. **Solo filtri di dato in pagina** — le viste di modulo usano le fogliette (§7bis). |
+| **Dialog** | `@/components/ui/Dialog` (default) | `{ open, onClose, title, children, footer, variant, busy }`; `variant="sheet"` = bottom-sheet mobile; animato (enter/exit); `busy` blocca Escape/overlay/Chiudi. Focus-trap + ESC + `aria-modal`. |
+| **ConfirmDialog** | `@/components/ui/ConfirmDialog` (default) | conferme brand (`danger?`, `loading?`) — **sostituisce `confirm()` nativo**. |
+| **Toast** | `{ toast, Toaster }` da `@/components/ui/Toast` | `toast.success/error/info('…')` — **sostituisce `alert()` nativo**. `Toaster` montato in AppShell (i portali token lo montano nel proprio layout). |
+| **Skeleton** | `@/components/ui/Skeleton` (default) | shimmer sobrio per caricamenti con forma nota; dimensioni via className. |
+| **DatePicker** | `@/components/ui/DatePicker` | calendario popover a tema; prop `error?`. |
+| **MultiSelect** | `@/components/ui/MultiSelect` (default) | checkbox in popover; prop `error?`. |
+| **FogliettaCard** | `@/components/ui/FogliettaCard` (default) | card di landing modulo: `{ href, title, description?, icon?, count? }`. |
+| **Breadcrumb** | `@/components/ui/Breadcrumb` (default) | `{ items: { label, href? }[] }`; ultima voce = pagina corrente (`aria-current`). |
 
 Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/layout/moduleIcons.tsx) (`stroke="currentColor"`, `strokeWidth` ~1.6, linecap/linejoin round). Nessuna libreria icone esterna.
+
+## 7bis. IA dei moduli — fogliette, non tab
+
+Regola ibrida (spec premium 2026-07-22):
+- **Vista di modulo** (contesti diversi nello stesso modulo, es. Storico/Riconsegna, Coda/Registro) → **foglietta**: landing con `FogliettaCard` + route dedicata + `Breadcrumb` di rientro.
+- **Filtro di dato** (stessa pagina, stesso dataset, es. "Tutti / Da fare / Completati") → resta in pagina con `Tabs` (segmented). Trasformare i filtri in pagine rallenta gli operatori.
 
 ## 8. Navigazione (shell)
 
 - Sidebar raggruppata in **4 sezioni**: **Pianificazione · Operatività · Analisi · Sistema**, via il campo additivo `group` su `AppModuleDefinition` in [`lib/moduleAccess.ts`](lib/moduleAccess.ts) (+ `groupLabels`/`GROUP_ORDER` in [`lib/appNavigation.ts`](lib/appNavigation.ts)). `section` resta separato (gating/middleware): **non** riusarlo per i gruppi.
-- Voce attiva: `bg-[var(--brand-primary-soft)]` + testo `--primary-text` + **barra 3px a sinistra** + focus ring. Hover = `--brand-surface-muted`.
-- Per aggiungere un modulo: aggiungi la voce in `APP_MODULES` (con `group`) e l'icona in `moduleIcons.tsx`.
+- Voce attiva: `bg-[var(--brand-primary-soft)]` + testo `--primary-text` + **barra 3px a sinistra** + focus ring. Hover = `--brand-surface-muted`. Collapse con `transition-[width]` 200ms.
+- **TopBar**: pill di ricerca centrale (⌘K) + NovitaCenter + campanella admin + **user menu** (avatar a iniziali → nome, ruolo, toggle tema, Esci). Wordmark in topbar solo su mobile (il brand vive nella sidebar).
+- **Command palette** (`components/layout/CommandPalette.tsx`): Ctrl/⌘-K, entries derivate da `appNavigation` (mai duplicare la lista), filtro su `allowedModules`.
+- **Drawer mobile**: slide-in animato, focus-trap, scroll-lock del body, `role=dialog`.
+- Per aggiungere un modulo: aggiungi la voce in `APP_MODULES` (con `group`) e l'icona in `moduleIcons.tsx` — sidebar e ⌘K la vedono da soli.
 
 ## 9. Do / Don't
 
@@ -130,7 +146,8 @@ Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/la
 ❌ **Don't**
 - Niente hex/oklch hardcoded nel markup (`text-[oklch(...)]`, `bg-emerald-500`, `#22c55e`, `text-white` su fill). Tokenizza.
 - Niente glow, gradienti neon, oro/magenta come accenti.
-- Niente `var()` passato a recharts (SVG) o a Leaflet (JS) → risolvi con `getComputedStyle`/`useChartColors`.
+- Niente `alert()`/`confirm()` nativi → usa `toast.*` e `ConfirmDialog`.
+- Niente `var()` passato a recharts (SVG) o al paint WebGL di MapLibre → risolvi con `getComputedStyle`/`useChartColors` (i marker DOM di MapLibre invece accettano `var()` direttamente).
 - Non rinominare/rimuovere token esistenti; aggiungi additivi.
 - Niente ALL CAPS / dimensioni a mezzo pixel / `rounded-2xl` fuori scala.
 
@@ -140,4 +157,4 @@ Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/la
 - Spec completa (con contrasti WCAG e razionale): `docs/superpowers/specs/2026-06-22-redesign-design-system-sobrio-design.md`.
 - Piani di implementazione: `docs/superpowers/plans/2026-06-22-redesign-*.md`.
 
-*Stato: redesign "sobrio enterprise" in produzione (2026-06-22). Aggiorna questo file quando cambi token, primitivi o convenzioni.*
+*Stato: redesign "sobrio enterprise" in produzione (2026-06-22); evoluzione **"Sobrio → Premium"** in corso (2026-07-22 — onda 1 fondazione completa: elevazione 3 livelli, Geist Mono dati, primitivi 8-stati, Toast/ConfirmDialog/Skeleton, fogliette, Dialog animato, shell con user menu + ⌘K, reduced-motion globale). Spec: `docs/superpowers/specs/2026-07-22-redesign-premium-sobrio-design.md`. Aggiorna questo file quando cambi token, primitivi o convenzioni.*

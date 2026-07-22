@@ -1,12 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Geist } from 'next/font/google';
+import { Geist, Geist_Mono } from 'next/font/google';
+import MotionProvider from '@/components/layout/MotionProvider';
 import './globals.css';
 
 const geist = Geist({ variable: '--font-geist', subsets: ['latin'] });
+const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin'] });
 
 export const metadata: Metadata = {
   title: 'Gestione Personale',
   description: 'Pianificazione operatori e rapportini.',
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 /* viewport-fit=cover: senza, su iPhone env(safe-area-inset-*) vale sempre 0 e la
@@ -15,12 +18,17 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // Colore barra browser/PWA per tema (valori dai token --app-bg).
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f9fafc' },
+    { media: '(prefers-color-scheme: dark)', color: '#12161c' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="it" suppressHydrationWarning>
-      <body className={`${geist.variable} antialiased bg-[var(--brand-bg)] text-[var(--brand-text-main)]`}>
+      <body className={`${geist.variable} ${geistMono.variable} antialiased bg-[var(--brand-bg)] text-[var(--brand-text-main)]`}>
         <script
           dangerouslySetInnerHTML={{
             __html: `(function(){try{if(localStorage.getItem('theme')!=='dark')document.documentElement.classList.add('light');}catch(e){document.documentElement.classList.add('light');}})();`,
@@ -30,7 +38,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             ogni navigazione smontava e rimontava AppShell (sidebar, topbar, provider
             realtime, fetch annunci). La transizione vive nei layout hub/dashboard,
             dove avvolge solo il contenuto della pagina. */}
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );

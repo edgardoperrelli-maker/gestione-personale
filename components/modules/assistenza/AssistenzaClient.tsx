@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+import Button from '@/components/Button';
+import Input from '@/components/Input';
 import MultiSelect from '@/components/ui/MultiSelect';
+import Skeleton from '@/components/ui/Skeleton';
 import { LOBBY, realtimeClient, type Richiesta } from '@/lib/assistenza/transport';
 import SessionePanel from './SessionePanel';
 import AnnuncioAssistenza, { ANNUNCIO_ASSISTENZA_KEY } from './AnnuncioAssistenza';
@@ -133,41 +136,40 @@ export default function AssistenzaClient() {
     <div className="flex flex-col gap-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold">Assistenza</h1>
+          <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Assistenza</h1>
           <p className="text-sm text-[var(--brand-text-muted)]">
             Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo.
           </p>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" onClick={() => setAnnuncioOpen(true)}
-            className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)]/40 px-3 py-2 text-sm font-semibold text-[var(--brand-primary)]">
+          <Button size="sm" variant="soft" onClick={() => setAnnuncioOpen(true)}>
             ✨ Novità
-          </button>
-          <button type="button" onClick={carica}
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold">
+          </Button>
+          <Button size="sm" onClick={carica} loading={caricamento}>
             Aggiorna
-          </button>
+          </Button>
         </div>
       </div>
 
       <AnnuncioAssistenza open={annuncioOpen} onClose={chiudiAnnuncio} />
 
       {!env && (
-        <div className="rounded-xl border border-[var(--brand-magenta)]/50 bg-[var(--brand-magenta)]/10 p-3 text-sm">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--status-warn)]/40 bg-[var(--status-warn-soft)] p-3 text-sm text-[var(--brand-text-main)]">
           Servizio realtime non disponibile su questo ambiente (variabili Supabase mancanti).
         </div>
       )}
 
       {/* richieste in arrivo */}
       {richiesteList.length > 0 && (
-        <section className="rounded-2xl border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)]/30 p-4">
+        <section className="rounded-[var(--radius-xl)] border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)]/30 p-4 shadow-[var(--shadow-sm)]">
           <div className="mb-2 text-sm font-semibold">Richieste in arrivo</div>
           <div className="flex flex-col gap-2">
             {richiesteList.map((r) => (
-              <div key={r.sid} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
-                <div className="text-sm"><b>{r.staff}</b> <span className="text-[var(--brand-text-muted)]">· {r.data}</span></div>
-                <button type="button" onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data }, 'operatore')}
-                  className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)]">Apri</button>
+              <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
+                <div className="text-sm"><b>{r.staff}</b> <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {r.data}</span></div>
+                <Button size="sm" variant="primary" onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data }, 'operatore')}>
+                  Apri
+                </Button>
               </div>
             ))}
           </div>
@@ -184,10 +186,10 @@ export default function AssistenzaClient() {
       )}
 
       {/* rapportini del giorno — con filtri, niente lista intera per default */}
-      <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+      <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
         <div className="mb-3 flex flex-wrap items-center gap-3">
-          <div className="text-sm font-semibold">Rapportini di oggi</div>
-          <span className="text-xs text-[var(--brand-text-muted)]">{rapportini.length} totali</span>
+          <div className="text-sm font-semibold text-[var(--brand-text-main)]">Rapportini di oggi</div>
+          <span className="font-mono text-xs text-[var(--brand-text-muted)] tabular-nums">{rapportini.length} totali</span>
           <div className="ml-auto flex flex-wrap items-center gap-2">
             <MultiSelect
               label="Operatori"
@@ -197,23 +199,27 @@ export default function AssistenzaClient() {
               onChange={setFiltroOp}
               disabled={caricamento || rapportini.length === 0}
             />
-            <input
-              value={q}
-              onChange={(e) => setQ(e.target.value)}
-              placeholder="Cerca operatore…"
-              className="rounded-lg border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-1.5 text-sm outline-none"
-            />
+            <div className="w-48">
+              <Input
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+                placeholder="Cerca operatore…"
+                aria-label="Cerca operatore"
+              />
+            </div>
             {filtroAttivo && (
               <button type="button" onClick={() => { setFiltroOp([]); setQ(''); }}
-                className="text-xs text-[var(--brand-text-muted)] underline">azzera</button>
+                className="rounded-[var(--radius-sm)] text-xs text-[var(--brand-text-muted)] underline hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">azzera</button>
             )}
           </div>
         </div>
 
         {caricamento ? (
-          <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Caricamento…</div>
+          <div className="flex flex-col gap-2 py-2">
+            {[0, 1, 2].map((i) => <Skeleton key={i} className="h-10" />)}
+          </div>
         ) : errore ? (
-          <div className="py-4 text-sm text-[var(--brand-magenta)]">{errore}</div>
+          <div className="py-4 text-sm text-[var(--status-ko)]">{errore}</div>
         ) : rapportini.length === 0 ? (
           <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun rapportino per oggi.</div>
         ) : !filtroAttivo ? (
@@ -227,16 +233,15 @@ export default function AssistenzaClient() {
             {rapportiniFiltrati.map((r) => {
               const aperta = sessioni.some((x) => x.sid === r.sid);
               return (
-                <div key={r.sid} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 py-2">
+                <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 py-2">
                   <div className="text-sm">
                     <b>{r.staff}</b>
                     <span className="ml-2 rounded-full border border-[var(--brand-border)] px-2 py-0.5 text-[11px] text-[var(--brand-text-muted)]">{r.stato}</span>
                   </div>
-                  <button type="button" disabled={aperta || !env}
-                    onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data })}
-                    className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[oklch(0.16_0.06_245)] disabled:opacity-40">
+                  <Button size="sm" variant="primary" disabled={aperta || !env}
+                    onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data })}>
                     {aperta ? 'Aperta' : 'Assisti'}
-                  </button>
+                  </Button>
                 </div>
               );
             })}

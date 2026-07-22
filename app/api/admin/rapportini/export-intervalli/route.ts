@@ -1,3 +1,4 @@
+import { BRAND_EXPORT } from '@/lib/brand';
 import 'server-only';
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
@@ -195,7 +196,7 @@ export async function GET(req: Request) {
     const headerFill: ExcelJS.Fill = {
       type: 'pattern',
       pattern: 'solid',
-      fgColor: { argb: 'FF0F2749' }, // navy
+      fgColor: { argb: BRAND_EXPORT.navyArgb }, // navy
     };
     const hRow = ws.getRow(1);
     hRow.eachCell((cell) => {
