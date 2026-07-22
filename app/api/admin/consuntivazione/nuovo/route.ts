@@ -9,7 +9,7 @@ import { buildInterventoConsuntivoBase, buildVoceConsuntivo } from '@/lib/consun
 import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
-import { haEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
+import { esitabileConsuntivo, notaNegativoMancante } from '@/lib/consuntivazione/statoEsito';
 import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { maiuscolaStringhe, maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -63,10 +63,13 @@ export async function POST(req: Request) {
 
   const risposte = maiuscolaRisposteTesto(body.risposte ?? {}, campi);
 
-  // Serve un esito SELEZIONATO (positivo o negativo, anche "nessun passaggio"). Solo l'assenza di
-  // esito = "da esitare" → 422. Un negativo senza nota è comunque un esito (a differenza del flusso operatore).
-  if (!haEsitoConsuntivo(risposte, campi))
-    return NextResponse.json({ error: 'esito_mancante' }, { status: 422 });
+  // Serve un esito ESITABILE: positivo, oppure negativo COMPLETO. Un "NO" richiede la nota col
+  // motivo (come l'operatore); "NESSUN PASSAGGIO" no. Assenza di esito = "da esitare".
+  if (!esitabileConsuntivo(risposte, campi))
+    return NextResponse.json(
+      { error: notaNegativoMancante(risposte, campi) ? 'nota_negativo' : 'esito_mancante' },
+      { status: 422 },
+    );
 
   // Esito negativo → foto esonerate (come l'operatore).
   const negativo = haEsitoNegativo(risposte, campi);

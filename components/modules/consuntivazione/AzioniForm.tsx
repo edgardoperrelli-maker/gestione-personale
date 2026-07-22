@@ -5,7 +5,7 @@ import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { RapportinoFotoCtx } from '@/components/modules/rapportini/RapportinoFotoCtx';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { slotFotoCondizionali, fotoSlotObbligatorio } from '@/utils/rapportini/fotoCondizionali';
-import { statoEsitoConsuntivo, type StatoEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
+import { statoEsitoConsuntivo, notaNegativoMancante, type StatoEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 const ESITO_META: Record<StatoEsitoConsuntivo, { label: string; token: string }> = {
@@ -100,6 +100,12 @@ export default function AzioniForm({
         {fotoMancanti.length > 0 && (
           <p className="text-xs text-[var(--status-warn)]">
             Foto obbligatorie mancanti: {fotoMancanti.join(', ')}.
+          </p>
+        )}
+
+        {notaNegativoMancante(risposte, campi) && (
+          <p className="text-xs text-[var(--status-warn)]">
+            Per l&apos;esito negativo inserisci la nota col motivo.
           </p>
         )}
       </div>
