@@ -1,6 +1,7 @@
 'use client';
 
 import { useAceaNav } from './useAceaNav';
+import { AvvisiSyncBanner } from '@/components/modules/agente/AvvisiSyncBanner';
 import { Breadcrumb } from './Breadcrumb';
 import { CommessaGrid } from './CommessaGrid';
 import { AttivitaGrid } from './AttivitaGrid';
@@ -17,6 +18,8 @@ export default function AssegnazioniAiClient(props: {
   runs: AgenteRunRow[];
   filesMaster: FileMaster[];
   online: { minutiDaContatto: number | null; ultimoContatto: string | null };
+  avvisiSync: string[];
+  avvisiSyncIl: string | null;
 }) {
   const { nav, vai, risali } = useAceaNav();
   const { commessa, attivita, azione } = nav;
@@ -34,6 +37,8 @@ export default function AssegnazioniAiClient(props: {
           Operazioni ACEA per commessa e attività.
         </p>
       </header>
+
+      <AvvisiSyncBanner avvisi={props.avvisiSync} rilevatoIl={props.avvisiSyncIl} />
 
       {commessa && <Breadcrumb nav={nav} onNavigate={risali} />}
 

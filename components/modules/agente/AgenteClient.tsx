@@ -3,7 +3,8 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { RegolaMappa } from '@/lib/agente/decisione';
-import { GIORNI_LABEL, formattaContatto, formattaIstante, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
+import { GIORNI_LABEL, formattaContatto, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
+import { AvvisiSyncBanner } from './AvvisiSyncBanner';
 import { opzioniAceaTarget, opzioniComuneGiro, TARGET_DUNNING, TARGET_TUTTI } from '@/lib/agente/comuni';
 import { StoricoCard } from './StoricoCard';
 import { ColonneCard } from './ColonneCard';
@@ -315,21 +316,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             ⚠ {stato.allerta}
           </div>
         )}
-        {avvisiSync.length > 0 && (
-          <div
-            className="rounded-xl border px-3 py-2 text-sm space-y-1"
-            style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
-            role="alert"
-          >
-            <p className="font-semibold">
-              ⚠ Sincronizzazione OneDrive da controllare sul PC dell&apos;agente
-              {avvisiSyncIl ? ` (rilevato ${formattaIstante(avvisiSyncIl)})` : ''}:
-            </p>
-            {avvisiSync.map((a) => (
-              <p key={a}>{a}</p>
-            ))}
-          </div>
-        )}
+        <AvvisiSyncBanner avvisi={avvisiSync} rilevatoIl={avvisiSyncIl} />
         <div className="mt-3 flex items-center gap-3">
           <button
             type="button"

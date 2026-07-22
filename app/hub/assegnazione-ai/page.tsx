@@ -3,6 +3,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
+import { normalizzaAvvisiSync } from '@/lib/agente/decisione';
 import AssegnazioniAiClient from '@/components/modules/assegnazione-ai/AssegnazioniAiClient';
 import type { RigaPianificabile, FileConfig } from '@/components/modules/assegnazione-ai/tipi';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
@@ -22,7 +23,7 @@ export default async function AssegnazioneAiPage() {
   if (role !== 'admin' || !allowedModules.includes('assegnazione-ai')) redirect('/hub');
 
   const [{ data: cfg }, { data: righe }, { data: fileCfg }, { data: runRows }, { data: fileColonne }] = await Promise.all([
-    supabaseAdmin.from('agente_config').select('pianifica_data, ultimo_contatto_il').eq('id', 1).maybeSingle(),
+    supabaseAdmin.from('agente_config').select('pianifica_data, ultimo_contatto_il, avvisi_sync, avvisi_sync_il').eq('id', 1).maybeSingle(),
     supabaseAdmin.from('agente_pianificabili').select('*').order('comune', { ascending: true }).order('riga', { ascending: true }),
     supabaseAdmin.from('agente_file_config').select('*'),
     // Niente `dettaglio` (JSONB ~27KB/riga): la lista storico ne mostra solo i
@@ -41,6 +42,11 @@ export default async function AssegnazioneAiPage() {
   const minutiDaContatto = ultimoContatto
     ? Math.max(0, Math.floor((Date.now() - new Date(ultimoContatto).getTime()) / 60000))
     : null;
+  // Avvisi salute OneDrive dal tick: mostrati anche QUI perché è il modulo usato ogni
+  // giorno per lanciare i tick manuali — il polling delle foglie (router.refresh) li
+  // fa comparire da soli appena l'agente li consegna.
+  const avvisiSync = normalizzaAvvisiSync((cfg as { avvisi_sync?: unknown } | null)?.avvisi_sync);
+  const avvisiSyncIl = (cfg as { avvisi_sync_il?: string | null } | null)?.avvisi_sync_il ?? null;
 
   return (
     <AssegnazioniAiClient
@@ -50,6 +56,8 @@ export default async function AssegnazioneAiPage() {
       runs={(runRows ?? []) as AgenteRunRow[]}
       filesMaster={(fileColonne ?? []) as FileMaster[]}
       online={{ minutiDaContatto, ultimoContatto }}
+      avvisiSync={avvisiSync}
+      avvisiSyncIl={avvisiSyncIl}
     />
   );
 }
