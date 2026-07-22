@@ -75,9 +75,18 @@ describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => 
   const canonici: Array<{ committente: string; descrizione: string; gruppo: string }> = [
     { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE' },
     { committente: 'italgas', descrizione: "UT MOROSITA' PRIMO PASSAGGIO", gruppo: AC },
-    { committente: 'italgas', descrizione: 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', gruppo: AC },
-    { committente: 'italgas', descrizione: "S-MR-002 - RIATTIVAZ. SERVIZIO SOSPESO PER MOROSITA'", gruppo: AC },
-    { committente: 'italgas', descrizione: 'S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA', gruppo: AC },
+    // Codici italgas: la canonica è il codice NUDO (migration 20260722190000).
+    { committente: 'italgas', descrizione: 'DIS00N', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-AI-022', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-MR-002', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-MR-003', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-001', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-003', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-004', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-007', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-009', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-019', gruppo: AC },
+    { committente: 'italgas', descrizione: 'S-PR-077', gruppo: AC },
   ];
   const index = buildTassonomiaIndex(canonici.map((c) => riga({ ...c, descrizioneNorm: chiaveTassonomia(c.descrizione) })));
   const gruppoDiCanonica = new Map(canonici.map((c) => [`${c.committente}|${chiaveTassonomia(c.descrizione)}`, c.gruppo]));
@@ -109,10 +118,11 @@ describe('risolviGruppo + alias attività (opt-in, solo lettura modulo)', () => 
   it("committente 'altro' applica l’alias sul fallback", () => {
     expect(risolviGruppo('altro', 'DIS00N', index, { allinea: 'lettura' })?.gruppo).toBe(AC);
   });
-  it('scrittura: massive allineato ma codici ATLAS NON collassati (listino intatto)', () => {
+  it('scrittura: massive e codici ATLAS collassano alla canonica nuda', () => {
     expect(risolviGruppo('acea', 'LIMITAZIONE MASSIVA', index, { allinea: 'scrittura' })?.descrizione).toBe('LIMITAZIONI MASSIVE');
-    // ATLAS in scrittura NON collassa → cerca 'DIS00N' nudo (non nel fixture) → null; in lettura sì.
-    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'scrittura' })).toBeNull();
-    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'lettura' })?.descrizione).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
+    // Le varianti ATLAS (A/B/C, forma lunga) collassano al codice nudo anche in scrittura.
+    expect(risolviGruppo('italgas', 'S-PR-003 A', index, { allinea: 'scrittura' })?.descrizione).toBe('S-PR-003');
+    expect(risolviGruppo('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', index, { allinea: 'scrittura' })?.descrizione).toBe('DIS00N');
+    expect(risolviGruppo('italgas', 'DIS00N', index, { allinea: 'scrittura' })?.descrizione).toBe('DIS00N'); // il nudo è già canonico
   });
 });
