@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/Button';
+import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 import SquadraPicker from './SquadraPicker';
 import AzioniForm from './AzioniForm';
 import { esitabileConsuntivo } from '@/lib/consuntivazione/statoEsito';
@@ -147,7 +148,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
 
         <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4 text-sm sm:grid-cols-3">
           <Info label="ODL / ODS" value={i.odl} />
-          <Info label="Attività" value={i.intervento_tipo} />
+          <Info label="Attività" value={attivitaUnificataDisplay(i.intervento_tipo)} />
           <Info label="Matricola" value={i.matricola_contatore} />
           <Info label="PDR" value={i.pdr} />
           <Info label="Nominativo" value={i.nominativo} />
@@ -283,7 +284,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-[var(--brand-text-main)]">
-                      {it.intervento_tipo || 'Intervento'} · {it.odl || 's/ODL'}
+                      {attivitaUnificataDisplay(it.intervento_tipo) || 'Intervento'} · {it.odl || 's/ODL'}
                     </span>
                     <span className="block truncate text-xs text-[var(--brand-text-muted)]">
                       {[it.indirizzo, it.comune].filter(Boolean).join(', ') || it.nominativo || '—'}

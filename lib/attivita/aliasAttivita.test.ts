@@ -29,10 +29,12 @@ describe('alias attività', () => {
       expect(ALIAS_ATTIVITA[k]).toBe(v);
     }
   });
-  it('scrittura collassa le varianti ATLAS al codice nudo canonico', () => {
-    expect(allineaChiaveAttivita('italgas', 'S-PR-003 A', 'scrittura')).toBe('S-PR-003');
-    expect(allineaChiaveAttivita('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', 'scrittura')).toBe('DIS00N');
-    expect(allineaChiaveAttivita('italgas', 'DIS00N', 'scrittura')).toBe('DIS00N'); // il nudo è già canonico
+  it('scrittura conserva il dettaglio ATLAS; lettura collassa al codice nudo', () => {
+    // Storage: il dettaglio resta (import committente + export/riconciliazione).
+    expect(allineaChiaveAttivita('italgas', 'S-PR-003 A', 'scrittura')).toBe('S-PR-003 A');
+    // Lettura (display/dedup): collasso al codice nudo.
+    expect(allineaChiaveAttivita('italgas', 'S-PR-003 A', 'lettura')).toBe('S-PR-003');
+    expect(allineaChiaveAttivita('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', 'lettura')).toBe('DIS00N');
   });
   it('TUTTE le varianti (tier completo) univoche tra committenti (dedup agnostico sicuro)', () => {
     const perNorm = new Map<string, string>();

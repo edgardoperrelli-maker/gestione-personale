@@ -1,5 +1,6 @@
 // Logica pura per la torre di controllo: colore per stato e raggruppamento
 // degli interventi per operatore con conteggi. Nessun accesso al DB.
+import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 
 export type TonoTorre = 'ok' | 'ko' | 'attesa' | 'corso' | 'annullato' | 'da_assegnare';
 
@@ -137,7 +138,7 @@ export function rigaDettaglio(it: {
     odl && primario !== odl ? `ODL ${odl}` : null,
     pdr && primario !== `PDR ${pdr}` ? `PDR ${pdr}` : null,
     matr && primario !== `matr. ${matr}` ? `matr. ${matr}` : null,
-    t(it.intervento_tipo) || null,
+    attivitaUnificataDisplay(it.intervento_tipo) || null, // display unificato (storage tiene il dettaglio)
     t(it.fascia_oraria) || null,
   ].filter(Boolean);
   return { primario, secondario: parti.join(' · ') };

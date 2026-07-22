@@ -73,11 +73,12 @@ const INDICE = buildTassonomiaIndex([
     gruppo: 'LIMITAZIONI MASSIVE',
     attivo: false,
   },
-  // Codice italgas: canonica = codice nudo; le varianti A/B/C collassano (migration 20260722190000).
+  // Codice italgas: lo storage conserva il DETTAGLIO (variante attiva a catalogo); la UI lo
+  // mostra unificato via attivitaUnificataDisplay (migration 20260723090000).
   {
     committente: 'italgas',
-    descrizione: 'S-PR-003',
-    descrizioneNorm: 'S-PR-003',
+    descrizione: 'S-PR-003 A',
+    descrizioneNorm: 'S-PR-003 A',
     gruppo: "ATTIVITA' ALLA CLIENTELA",
     attivo: true,
   },
@@ -92,7 +93,7 @@ describe('taskToIntervento — tassonomia', () => {
   });
   it('giro misto: attività ITALGAS in piano base acea → committente e gruppo dalla tassonomia', () => {
     const r = taskToIntervento({ ...task, attivita: 's-pr-003 a' }, ctx, INDICE);
-    expect(r.intervento_tipo).toBe('S-PR-003'); // la variante A collassa al codice nudo
+    expect(r.intervento_tipo).toBe('S-PR-003 A'); // storage: dettaglio conservato
     expect(r.gruppo_attivita).toBe("ATTIVITA' ALLA CLIENTELA");
     expect(r.committente).toBe('italgas');
   });

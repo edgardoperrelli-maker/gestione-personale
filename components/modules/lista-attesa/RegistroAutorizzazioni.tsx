@@ -4,6 +4,7 @@ import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentProp
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
+import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 import { formatDataIt, formatDataOraIt } from '@/lib/interventi/manuali/formatDataIt';
 import { campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
 import { datiAnagraficaCoda } from '@/lib/interventi/manuali/filtraCoda';
@@ -276,7 +277,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                       <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                       <td className="max-w-[200px] truncate px-3 py-2" title={a.via || undefined}>{a.via || '—'}</td>
                       <td className="px-3 py-2">{a.matricola || '—'}</td>
-                      <td className="max-w-[160px] truncate px-3 py-2" title={a.attivita || undefined}>{a.attivita || '—'}</td>
+                      <td className="max-w-[160px] truncate px-3 py-2" title={a.attivita || undefined}>{attivitaUnificataDisplay(a.attivita) || '—'}</td>
                       <td className="px-3 py-2"><StatoBadge stato={r.stato} /></td>
                       <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
                       <td className="whitespace-nowrap px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
