@@ -22,6 +22,8 @@ type DatePickerProps = {
   triggerClassName?: string;
   ariaLabel?: string;
   fullWidth?: boolean;
+  /** Stato errore: bordo danger + aria-invalid (allineato a Input/Select/Textarea). */
+  error?: boolean;
 };
 
 export default function DatePicker({
@@ -35,6 +37,7 @@ export default function DatePicker({
   triggerClassName = '',
   ariaLabel = 'Seleziona data',
   fullWidth = false,
+  error = false,
 }: DatePickerProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -103,12 +106,23 @@ export default function DatePicker({
         aria-haspopup="dialog"
         aria-expanded={open}
         disabled={disabled}
+        data-error={error || undefined}
         onClick={() => !disabled && setOpen((o) => !o)}
-        className={`inline-flex items-center justify-between gap-2 rounded-lg ${
-          triggerClassName || 'border border-[var(--brand-border)] bg-[var(--brand-surface)]'
-        } px-3 py-2 text-sm text-[var(--brand-text-main)] transition focus:outline-none focus:border-[var(--brand-primary)] focus:shadow-[0_0_0_1px_var(--brand-primary)] ${
-          fullWidth ? 'w-full' : ''
-        } ${disabled ? 'opacity-50 cursor-not-allowed' : 'hover:border-[var(--brand-primary-border)]'}`}
+        className={`inline-flex items-center justify-between gap-2 rounded-[var(--radius-md)] ${
+          error
+            ? 'border border-[var(--danger)] bg-[var(--brand-surface)]'
+            : triggerClassName || 'border border-[var(--brand-border)] bg-[var(--brand-surface)]'
+        } px-3 py-2 text-sm text-[var(--brand-text-main)] transition focus:outline-none ${
+          error
+            ? 'focus:border-[var(--danger)] focus:shadow-[0_0_0_1px_var(--danger)]'
+            : 'focus:border-[var(--brand-primary)] focus:shadow-[0_0_0_1px_var(--brand-primary)]'
+        } ${fullWidth ? 'w-full' : ''} ${
+          disabled
+            ? 'opacity-50 cursor-not-allowed'
+            : error
+              ? ''
+              : 'hover:border-[var(--brand-primary-border)]'
+        }`}
       >
         <span className={value ? '' : 'text-[var(--brand-text-subtle)]'}>
           {value ? formatDisplay(value) : placeholder}
@@ -129,8 +143,8 @@ export default function DatePicker({
         <div
           role="dialog"
           aria-label="Calendario"
-          className="absolute left-0 top-full z-[60] mt-2 w-72 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
-          style={{ boxShadow: 'var(--shadow-lg), 0 0 18px oklch(0.80 0.16 215 / 0.25)' }}
+          className="absolute left-0 top-full z-[60] mt-2 w-72 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3"
+          style={{ boxShadow: 'var(--shadow-md)' }}
         >
           {/* Header mese */}
           <div className="mb-2 flex items-center justify-between">
@@ -138,7 +152,7 @@ export default function DatePicker({
               type="button"
               onClick={prevMonth}
               aria-label="Mese precedente"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--brand-border)] text-[var(--brand-text-main)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
+              className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] text-[var(--brand-text-main)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
             >
               ‹
             </button>
@@ -149,7 +163,7 @@ export default function DatePicker({
               type="button"
               onClick={nextMonth}
               aria-label="Mese successivo"
-              className="flex h-7 w-7 items-center justify-center rounded-lg border border-[var(--brand-border)] text-[var(--brand-text-main)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
+              className="flex h-7 w-7 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] text-[var(--brand-text-main)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
             >
               ›
             </button>
@@ -188,7 +202,7 @@ export default function DatePicker({
                   type="button"
                   disabled={!cell.inMonth || dis}
                   onClick={() => cell.inMonth && pick(cell.iso)}
-                  className={`flex h-9 items-center justify-center rounded-lg text-sm transition ${cls}`}
+                  className={`flex h-9 items-center justify-center rounded-[var(--radius-md)] text-sm transition ${cls}`}
                 >
                   {cell.d}
                 </button>
@@ -202,14 +216,14 @@ export default function DatePicker({
               type="button"
               onClick={() => pick(todayIso)}
               disabled={isDisabledDay(todayIso)}
-              className="rounded-lg px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)] disabled:opacity-40 disabled:cursor-not-allowed"
+              className="rounded-[var(--radius-md)] px-2 py-1 text-xs font-semibold text-[var(--brand-primary)] hover:bg-[var(--brand-primary-soft)] disabled:opacity-40 disabled:cursor-not-allowed"
             >
               Oggi
             </button>
             <button
               type="button"
               onClick={() => setOpen(false)}
-              className="rounded-lg px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
+              className="rounded-[var(--radius-md)] px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
             >
               Chiudi
             </button>
