@@ -5,6 +5,27 @@
 
 ## Fatto
 
+- ✅ **Modulo Assistenza — co-browsing live back office ↔ operatore** *(2026-07-22)* — dall'esito dello
+  studio di fattibilità sulla connessione remota (vedi `docs/connessione-remota-fattibilita.md`, PR #157):
+  nuovo modulo admin **`/hub/assistenza`** (gruppo Operatività, `adminOnly` + `requiresAdminRole`) per
+  **vedere in diretta il rapportino dell'operatore** e guidarlo, **previa accettazione**. **Operatore**:
+  FAB 🛟 sulla pagina rapportino `/r/[token]` — chiede assistenza al back office o **accetta via modale**
+  una richiesta partita dal back office. **Back office**: **multi-sessione** (più assistenze in parallelo),
+  avvio da richiesta in arrivo (lobby realtime) o scegliendo un **rapportino del giorno** (filtro
+  operatori MultiSelect + ricerca, niente lista intera di default); replay **fedele al 100%** (rrweb:
+  dati E errori/validazioni), suggerimenti testuali verso l'operatore. **Trasporto**: Supabase Realtime
+  **broadcast+presence** (effimero, zero scritture di dati rapportino su DB); eventi rrweb
+  **gzip→base64→chunk ≤120KB** (lo snapshot di un rapportino reale supera il MB e sforava il limite
+  ~256KB del broadcast: veniva scartato in silenzio → replay vuoto, risolto); replayer ancorato al clock
+  della sorgente (`startLive(ts-1000)`, anti clock-skew); mittente con coda sequenziale + retry + avviso
+  "connessione instabile"; contatore eventi/errori lato admin. **Sicurezza**: canale `assist:<sid>` con
+  sid = **HMAC del token calcolato solo server-side** (`lib/assistenza/canale.ts`); il token grezzo non
+  lascia il server; API admin `requireAdmin`; i moduli `requiresAdminRole` ora sono **sempre visibili
+  agli admin** in sidebar (fix `normalizeAllowedModules`). **Audit**: tabella `assistenza_sessioni`
+  (migration `20260722140000` — **⚠️ da applicare al prod PRIMA del merge**; il log è best-effort e non
+  blocca se assente). Transport testato (`lib/assistenza/transport.test.ts`, 6 verdi). Nuova dipendenza:
+  `rrweb` (caricata on-demand solo durante l'assistenza). Validato end-to-end su iPhone reale + back
+  office (preview Vercel). Vedi HANDOFF.md.
 - ✅ **Modulo Consuntivazione (back office esita interventi come da rapportino)** *(2026-07-22, task ATLAS)* —
   nuovo modulo admin `/hub/consuntivazione` (gruppo Operatività, `adminOnly`) con **due fogliette**:
   **Nuovo ordine** (crea un ordine da zero e lo chiude) e **Ordine presente** (esita un intervento
