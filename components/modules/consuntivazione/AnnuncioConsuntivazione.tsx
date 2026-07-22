@@ -61,7 +61,7 @@ export default function AnnuncioConsuntivazione({ open, onClose }: { open: boole
         <div className="min-h-0 flex-1 space-y-6 overflow-y-auto px-5 py-5">
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
             <Principio label="Come si entra" title="Due fogliette">
-              {'“Nuovo ordine” crea un ordine da zero e lo chiude; “Ordine presente” esita un intervento rimasto aperto dai rapportini.'}
+              {'“Nuovo ordine” crea un ordine da zero e lo chiude; “Ordine presente” trova ed esita un intervento rimasto aperto dai rapportini.'}
             </Principio>
             <Principio label="Come l’operatore" title="Stesse azioni e foto">
               {'Compili le azioni del flusso del gruppo attività e carichi le foto obbligatorie; l’esito (positivo/negativo) si calcola come dal rapportino.'}
@@ -70,6 +70,19 @@ export default function AnnuncioConsuntivazione({ open, onClose }: { open: boole
               {'L’ordine confluisce in Storico, Misuratori, Produzione economica, Performance e premialità, identico a uno chiuso sul campo.'}
             </Principio>
           </div>
+
+          <section>
+            <SezioneTitolo>Ordine presente: prima cerchi, poi esiti</SezioneTitolo>
+            <p className="mb-2 text-[13px] text-[var(--brand-text-muted)]">
+              {'La foglietta non mostra nulla in automatico: gli ordini da esitare compaiono solo dopo una ricerca, che puoi affinare con uno o più filtri.'}
+            </p>
+            <ul className="space-y-1.5 text-[13px] text-[var(--brand-text-muted)]">
+              <Voce t="Committente · Gruppo attività · Descrizione attività">{'a cascata, per restringere alla lavorazione giusta.'}</Voce>
+              <Voce t="Operatore">{'chi aveva in carico l’ordine.'}</Voce>
+              <Voce t="Range temporale (Dal – Al)">{'la finestra del giorno lavori.'}</Voce>
+              <Voce t="ODL/ODS · PDR/impianto · Via">{'per arrivare dritto all’ordine.'}</Voce>
+            </ul>
+          </section>
 
           <section>
             <SezioneTitolo>La squadra</SezioneTitolo>

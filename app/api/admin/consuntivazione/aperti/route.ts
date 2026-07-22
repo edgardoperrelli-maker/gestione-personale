@@ -27,12 +27,14 @@ type InterventoAperto = {
   fascia_oraria: string | null;
 };
 
+const LIKE = (v: string) => `%${v.replace(/[%_]/g, (m) => `\\${m}`)}%`;
+
 /**
  * GET /api/admin/consuntivazione/aperti
- *  - senza `id`: elenco degli interventi aperti (rimasti da esitare), filtrabili per `q`
- *    (odl/matricola/indirizzo/nominativo/pdr), finestra ultimi `giorni` (default 60), limite 200.
- *  - con `id`: dettaglio del singolo ordine — azioni del suo flusso + eventuale voce esistente
- *    (rapId + risposte già compilate).
+ *  - con `id`: dettaglio del singolo ordine (azioni + eventuale voce esistente).
+ *  - senza `id`: ricerca degli interventi aperti SOLO su richiesta esplicita — richiede almeno un
+ *    filtro (nessun elenco di default). Filtri: committente, gruppo (gruppo_attivita),
+ *    attivita (intervento_tipo), operatore (staff_id), dal/al (data), odl, pdr, via (indirizzo).
  */
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -42,26 +44,41 @@ export async function GET(req: Request) {
   const id = url.searchParams.get('id');
   if (id) return dettaglio(id);
 
-  const q = (url.searchParams.get('q') ?? '').trim();
-  const giorni = Math.min(365, Math.max(1, Number(url.searchParams.get('giorni') ?? 60) || 60));
-  const dal = new Date(Date.now() - giorni * 86_400_000).toISOString().slice(0, 10);
+  const p = url.searchParams;
+  const f = {
+    committente: (p.get('committente') ?? '').trim(),
+    gruppo: (p.get('gruppo') ?? '').trim(),
+    attivita: (p.get('attivita') ?? '').trim(),
+    operatore: (p.get('operatore') ?? '').trim(),
+    dal: (p.get('dal') ?? '').trim(),
+    al: (p.get('al') ?? '').trim(),
+    odl: (p.get('odl') ?? '').trim(),
+    pdr: (p.get('pdr') ?? '').trim(),
+    via: (p.get('via') ?? '').trim(),
+  };
+  // Nessun filtro → nessun risultato (l'elenco compare solo su ricerca esplicita).
+  if (!Object.values(f).some(Boolean)) return NextResponse.json({ interventi: [], searched: false });
 
   let query = supabaseAdmin
     .from('interventi')
     .select('id, committente, odl, pdr, nominativo, indirizzo, comune, cap, matricola_contatore, intervento_tipo, gruppo_attivita, data, staff_id, territorio_id, fascia_oraria')
     .in('stato', OPEN_STATES)
-    .gte('data', dal)
     .order('data', { ascending: false })
     .limit(200);
-  if (q) {
-    const like = `%${q}%`;
-    query = query.or(
-      `odl.ilike.${like},matricola_contatore.ilike.${like},indirizzo.ilike.${like},nominativo.ilike.${like},pdr.ilike.${like}`,
-    );
-  }
+
+  if (f.committente) query = query.eq('committente', f.committente);
+  if (f.gruppo) query = query.eq('gruppo_attivita', f.gruppo);
+  if (f.attivita) query = query.ilike('intervento_tipo', f.attivita); // ilike senza wildcard = uguaglianza case-insensitive
+  if (f.operatore) query = query.eq('staff_id', f.operatore);
+  if (f.dal) query = query.gte('data', f.dal);
+  if (f.al) query = query.lte('data', f.al);
+  if (f.odl) query = query.ilike('odl', LIKE(f.odl));
+  if (f.pdr) query = query.ilike('pdr', LIKE(f.pdr));
+  if (f.via) query = query.ilike('indirizzo', LIKE(f.via));
+
   const { data, error } = await query;
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ interventi: (data ?? []) as InterventoAperto[] });
+  return NextResponse.json({ interventi: (data ?? []) as InterventoAperto[], searched: true });
 }
 
 async function dettaglio(id: string): Promise<NextResponse> {
