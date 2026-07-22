@@ -4,7 +4,9 @@ import type { Task } from '@/utils/routing/types';
 import { chiaveTassonomia, risolviGruppo, type TassonomiaRiga } from './tassonomia';
 
 export type ErroreImport = {
-  tipo: 'descrizione_mancante' | 'descrizione_sconosciuta' | 'gruppo_incoerente' | 'formato_non_ufficiale';
+  // 'tassonomia_non_disponibile': la validazione non ha potuto girare (catalogo
+  // irraggiungibile) → l'import è rifiutato per non accettare descrizioni non validate.
+  tipo: 'descrizione_mancante' | 'descrizione_sconosciuta' | 'gruppo_incoerente' | 'formato_non_ufficiale' | 'tassonomia_non_disponibile';
   valore: string;      // il testo incriminato ('' per descrizione_mancante; nome file per formato_non_ufficiale)
   righe: number[];     // numeri riga dal campo Task.ordine (ordine nel file; vuoto per formato_non_ufficiale)
   atteso?: string;     // solo gruppo_incoerente: il gruppo derivato dalla tassonomia
