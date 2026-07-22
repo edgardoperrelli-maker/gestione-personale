@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { chiaveValida } from '@/lib/apiExportKey';
 import { partiRoma } from '@/lib/agente/orarioRoma';
-import { decideEsecuzione, diffColonne, type RegolaMappa } from '@/lib/agente/decisione';
+import { decideEsecuzione, diffColonne, normalizzaAvvisiSync, type RegolaMappa } from '@/lib/agente/decisione';
 
 export const runtime = 'nodejs';
 
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Chiave non valida.' }, { status: 401 });
   }
 
-  let body: { files?: FileColonne[] } = {};
+  let body: { files?: FileColonne[]; avvisiSync?: unknown } = {};
   try {
-    body = (await req.json()) as { files?: FileColonne[] };
+    body = (await req.json()) as { files?: FileColonne[]; avvisiSync?: unknown };
   } catch {
     body = {};
   }
@@ -63,6 +63,16 @@ export async function POST(req: Request) {
       .from('agente_config')
       .update({ ultimo_contatto_il: now.toISOString() })
       .eq('id', 1);
+
+    // 2b) Avvisi salute OneDrive dal PC-agente: consegnati a OGNI tick (il banner in
+    // /hub/agente resta fresco senza aspettare un giro; [] spegne). Update SEPARATO dal
+    // heartbeat e best-effort: un agente vecchio che non manda il campo non azzera nulla.
+    if (Array.isArray(body.avvisiSync)) {
+      await supabaseAdmin
+        .from('agente_config')
+        .update({ avvisi_sync: normalizzaAvvisiSync(body.avvisiSync), avvisi_sync_il: now.toISOString() })
+        .eq('id', 1);
+    }
 
     // 3) snapshot colonne per file (best-effort, non blocca la decisione)
     const files = Array.isArray(body.files) ? body.files : [];

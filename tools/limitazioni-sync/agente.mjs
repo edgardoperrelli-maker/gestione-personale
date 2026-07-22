@@ -625,7 +625,7 @@ async function main() {
 
   // 2) Heartbeat + invio colonne (vuote se non e' un giorno nuovo): l'app decide se girare.
   //    La DECISIONE (eseguiOra) viene SOLO da questo tick: il forza_giro e' gia' consumato qui.
-  const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files });
+  const ris = await tick({ baseUrl, exportKey: cfg.exportKey, files, avvisiSync });
 
   // 2b) "Aggiorna tabella": l'app chiede un re-scan e non abbiamo gia' scansionato oggi.
   //     Un SECONDO tick consegna SOLO le colonne fresche (l'app azzera forza_scan); NON deve
@@ -634,7 +634,7 @@ async function main() {
     try {
       const colonne = await scanColonne(cfg.cartella);
       aggiornaStampScan(cfgPath, oggi);
-      await tick({ baseUrl, exportKey: cfg.exportKey, files: colonne });
+      await tick({ baseUrl, exportKey: cfg.exportKey, files: colonne, avvisiSync });
       console.log(`[lim-sync] re-scan colonne forzato: ${colonne.length} file.`);
     } catch (e) {
       console.error(`[lim-sync] re-scan forzato fallito: ${e instanceof Error ? e.message : e}`);

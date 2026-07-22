@@ -31,6 +31,19 @@ describe('tick', () => {
     expect(out.eseguiOra).toBe(true);
   });
 
+  it('avvisiSync array (anche vuoto) → incluso nel body; assente → body invariato', async () => {
+    const fetchImpl = vi.fn(async () => ({ ok: true, json: async () => ({}) }));
+    await tick(
+      { baseUrl: 'https://x', exportKey: 'K', files: [], avvisiSync: ['OneDrive non è in esecuzione'] },
+      fetchImpl as unknown as typeof fetch,
+    );
+    expect(JSON.parse(fetchImpl.mock.calls[0][1].body)).toEqual({ files: [], avvisiSync: ['OneDrive non è in esecuzione'] });
+
+    await tick({ baseUrl: 'https://x', exportKey: 'K', files: [], avvisiSync: [] }, fetchImpl as unknown as typeof fetch);
+    // [] viaggia comunque: è il segnale "tutto sano" che spegne il banner lato app
+    expect(JSON.parse(fetchImpl.mock.calls[1][1].body)).toEqual({ files: [], avvisiSync: [] });
+  });
+
   it('risposta non ok → throw con status', async () => {
     const fetchImpl = vi.fn(async () => ({ ok: false, status: 401, text: async () => 'no' }));
     await expect(tick({ baseUrl: 'https://x', exportKey: 'K', files: [] }, fetchImpl as unknown as typeof fetch))

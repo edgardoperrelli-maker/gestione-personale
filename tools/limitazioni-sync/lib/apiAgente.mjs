@@ -34,9 +34,11 @@ async function postJson(url, exportKey, body, fetchImpl, { tentativi = 4, attesa
   throw ultimoErr;
 }
 
-/** POST /api/agente/tick con le colonne rilevate -> { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo }. */
-export function tick({ baseUrl, exportKey, files }, fetchImpl = fetch) {
-  return postJson(`${baseUrl}/api/agente/tick`, exportKey, { files }, fetchImpl);
+/** POST /api/agente/tick con le colonne rilevate -> { eseguiOra, dryRun, finestraGiorni, mappatura, esitoPositivo, esitoNegativo }.
+ *  `avvisiSync` (se array, anche vuoto) porta gli avvisi salute OneDrive: [] spegne il banner. */
+export function tick({ baseUrl, exportKey, files, avvisiSync }, fetchImpl = fetch) {
+  const body = Array.isArray(avvisiSync) ? { files, avvisiSync } : { files };
+  return postJson(`${baseUrl}/api/agente/tick`, exportKey, body, fetchImpl);
 }
 
 /** POST /api/agente/report con il report del giro -> { ok: true }. */

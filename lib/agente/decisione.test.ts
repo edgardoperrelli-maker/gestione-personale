@@ -6,6 +6,7 @@ import {
   validaMappatura,
   validaConfig,
   diffColonne,
+  normalizzaAvvisiSync,
   CAMPI_MAPPABILI,
   type ReportAgente,
   type RegolaMappa,
@@ -337,5 +338,25 @@ describe('diffColonne', () => {
     diffColonne(prec, nuove);
     expect(prec).toEqual(['A', 'B']);
     expect(nuove).toEqual(['A', 'B', 'C']);
+  });
+});
+
+describe('normalizzaAvvisiSync (avvisi salute OneDrive dal tick)', () => {
+  it('input non-array o vuoto -> []', () => {
+    expect(normalizzaAvvisiSync(undefined)).toEqual([]);
+    expect(normalizzaAvvisiSync('avviso')).toEqual([]);
+    expect(normalizzaAvvisiSync([])).toEqual([]);
+  });
+  it('tiene solo stringhe non vuote, con trim', () => {
+    expect(normalizzaAvvisiSync(['  OneDrive spento  ', '', 42, null, 'copia orfana']))
+      .toEqual(['OneDrive spento', 'copia orfana']);
+  });
+  it('taglia a maxAvvisi e tronca le stringhe oltre maxLunghezza con ellissi', () => {
+    const tanti = Array.from({ length: 15 }, (_, i) => `avviso ${i}`);
+    expect(normalizzaAvvisiSync(tanti)).toHaveLength(10);
+    const lungo = 'x'.repeat(600);
+    const [out] = normalizzaAvvisiSync([lungo], { maxLunghezza: 100 });
+    expect(out).toHaveLength(100);
+    expect(out.endsWith('…')).toBe(true);
   });
 });

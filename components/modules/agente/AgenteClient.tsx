@@ -3,7 +3,7 @@
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import type { RegolaMappa } from '@/lib/agente/decisione';
-import { GIORNI_LABEL, formattaContatto, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
+import { GIORNI_LABEL, formattaContatto, formattaIstante, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
 import { opzioniAceaTarget, opzioniComuneGiro, TARGET_DUNNING, TARGET_TUTTI } from '@/lib/agente/comuni';
 import { StoricoCard } from './StoricoCard';
 import { ColonneCard } from './ColonneCard';
@@ -18,8 +18,10 @@ export type AgenteClientProps = {
   forzaScan: boolean;
   forzaAcea: boolean;
   forzaAceaSal: boolean;
-  /** Avvisi salute OneDrive dell'ultimo giro (copie orfane, OneDrive spento, esche in Download). */
+  /** Avvisi salute OneDrive dall'ultimo tick (copie orfane, OneDrive spento, esche in Download). */
   avvisiSync: string[];
+  /** Istante dell'ultima consegna degli avvisi (tick). */
+  avvisiSyncIl: string | null;
 };
 
 /** Forma modificabile della config nel form (sottoinsieme salvabile). */
@@ -39,7 +41,7 @@ const cardStyle = {
   backgroundColor: 'var(--brand-surface)',
 } as const;
 
-export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal, avvisiSync }: AgenteClientProps) {
+export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal, avvisiSync, avvisiSyncIl }: AgenteClientProps) {
   const router = useRouter();
   const [form, setForm] = useState<ConfigForm>({
     enabled: config.enabled,
@@ -319,7 +321,10 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
             role="alert"
           >
-            <p className="font-semibold">⚠ Sincronizzazione OneDrive da controllare sul PC dell&apos;agente:</p>
+            <p className="font-semibold">
+              ⚠ Sincronizzazione OneDrive da controllare sul PC dell&apos;agente
+              {avvisiSyncIl ? ` (rilevato ${formattaIstante(avvisiSyncIl)})` : ''}:
+            </p>
             {avvisiSync.map((a) => (
               <p key={a}>{a}</p>
             ))}

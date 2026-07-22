@@ -3,7 +3,7 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { statoAgente } from '@/lib/agente/decisione';
+import { normalizzaAvvisiSync, statoAgente } from '@/lib/agente/decisione';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import AgenteClient from '@/components/modules/agente/AgenteClient';
 import type {
@@ -58,7 +58,7 @@ export default async function AgentePage() {
   // Gate forte: il modulo controlla un'automazione che scrive su SharePoint.
   if (role !== 'admin' || !allowedModules.includes('agente')) redirect('/hub');
 
-  const [{ data: configRow }, { data: runRows }, { data: fileRows }, { data: ultimoAvvisi }] = await Promise.all([
+  const [{ data: configRow }, { data: runRows }, { data: fileRows }] = await Promise.all([
     supabaseAdmin.from('agente_config').select('*').eq('id', 1).maybeSingle(),
     // Niente `dettaglio` (JSONB ~27KB/riga): la lista storico ne mostra solo i
     // conteggi; il dettaglio si carica on-demand all'espansione (StoricoCard).
@@ -68,23 +68,14 @@ export default async function AgentePage() {
       .order('creato_il', { ascending: false })
       .limit(30),
     supabaseAdmin.from('agente_file_colonne').select('*').order('file', { ascending: true }),
-    // Solo il campo avvisiSync dell'ULTIMO giro (banner salute OneDrive): il banner si
-    // accende col primo report che porta avvisi e si spegne col primo report pulito.
-    supabaseAdmin
-      .from('agente_run')
-      .select('avvisi:dettaglio->avvisiSync')
-      .order('creato_il', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
   ]);
 
   const config = (configRow ?? CONFIG_DEFAULT) as AgenteConfigRow;
   const runs = (runRows ?? []) as AgenteRunRow[];
   const files = (fileRows ?? []) as AgenteFileColonneRow[];
-  const avvisiRaw = (ultimoAvvisi as { avvisi?: unknown } | null)?.avvisi;
-  const avvisiSync = Array.isArray(avvisiRaw)
-    ? avvisiRaw.filter((a): a is string => typeof a === 'string')
-    : [];
+  // Avvisi salute OneDrive: arrivano con il TICK orario (agente_config), non coi soli
+  // giri — il banner è fresco entro ~1h e si spegne al primo tick pulito.
+  const avvisiSync = normalizzaAvvisiSync(config.avvisi_sync);
   // flag one-shot (non nel tipo config): mostrati come "in attesa" finché l'agente non ticka
   const forzaGiro = (configRow as { forza_giro?: boolean } | null)?.forza_giro === true;
   const forzaScan = (configRow as { forza_scan?: boolean } | null)?.forza_scan === true;
@@ -115,6 +106,7 @@ export default async function AgentePage() {
       forzaAcea={forzaAcea}
       forzaAceaSal={forzaAceaSal}
       avvisiSync={avvisiSync}
+      avvisiSyncIl={config.avvisi_sync_il ?? null}
     />
   );
 }

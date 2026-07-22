@@ -39,6 +39,22 @@ export type ReportAgente = {
   avvisiSync?: string[];
 };
 
+/** Sanifica gli avvisi salute sync arrivati dal tick dell'agente: solo stringhe non
+ *  vuote, con tagli prudenti su numero e lunghezza (il campo finisce in una colonna
+ *  jsonb e in un banner: input rotto o abnorme non deve sfigurare la UI). */
+export function normalizzaAvvisiSync(
+  input: unknown,
+  { maxAvvisi = 10, maxLunghezza = 500 }: { maxAvvisi?: number; maxLunghezza?: number } = {},
+): string[] {
+  if (!Array.isArray(input)) return [];
+  return input
+    .filter((a): a is string => typeof a === 'string')
+    .map((a) => a.trim())
+    .filter((a) => a.length > 0)
+    .slice(0, maxAvvisi)
+    .map((a) => (a.length > maxLunghezza ? `${a.slice(0, maxLunghezza - 1)}…` : a));
+}
+
 export type RiassuntoReport = {
   lavori: number;
   aggiornate: number;

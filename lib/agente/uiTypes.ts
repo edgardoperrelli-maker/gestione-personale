@@ -15,6 +15,9 @@ export type AgenteConfigRow = {
   ultimo_contatto_il: string | null;
   ultima_rivendicazione_giorno: string | null;
   updated_at: string;
+  /** Avvisi salute OneDrive consegnati dal tick (jsonb: sanificare con normalizzaAvvisiSync). */
+  avvisi_sync?: unknown;
+  avvisi_sync_il?: string | null;
 };
 
 /** Riga storico agente_run letta dalla pagina server. */
