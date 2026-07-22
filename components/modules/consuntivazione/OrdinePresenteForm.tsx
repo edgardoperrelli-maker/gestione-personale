@@ -6,7 +6,7 @@ import Select from '@/components/ui/Select';
 import Button from '@/components/Button';
 import SquadraPicker from './SquadraPicker';
 import AzioniForm from './AzioniForm';
-import { voceEsitoColore } from '@/utils/rapportini/voceColore';
+import { esitabileConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { Bootstrap } from './ConsuntivazioneClient';
 
@@ -93,8 +93,8 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
     setDataEsecuzione(d.intervento.data || oggi());
   }
 
-  const esito = sel && sel.campi.length ? voceEsitoColore(risposte, sel.campi) : 'neutro';
-  const pronto = Boolean(sel && esecutori.length > 0 && dataEsecuzione && esito !== 'neutro');
+  const esitabile = Boolean(sel && sel.campi.length > 0 && esitabileConsuntivo(risposte, sel.campi));
+  const pronto = Boolean(sel && esecutori.length > 0 && dataEsecuzione && esitabile);
 
   async function submit() {
     if (!sel) return;
@@ -305,6 +305,8 @@ function messaggioErrore(code: string | undefined): string | null {
     case 'foto_mancanti': return 'Mancano delle foto obbligatorie.';
     case 'gia_esitato': return 'Ordine già esitato.';
     case 'nessun_flusso': return 'Nessun flusso attivo per il gruppo attività.';
+    case 'esito_mancante': return 'Seleziona un esito (positivo o negativo) per esitare.';
+    case 'nota_negativo': return "Per l'esito negativo inserisci la nota col motivo.";
     default: return null;
   }
 }
