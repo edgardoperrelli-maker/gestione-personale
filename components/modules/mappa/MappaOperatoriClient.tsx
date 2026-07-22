@@ -1,6 +1,7 @@
 'use client';
 
 import { toast } from '@/components/ui/Toast';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import dynamic from 'next/dynamic';
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { getTerritoryStyle } from '@/lib/territoryColors';
@@ -1812,7 +1813,16 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   }, []);
 
   // Salva distribuzione su Supabase
-  const saveDistribution = useCallback(async () => {
+  // Conferma brand riusabile (sostituisce i window.confirm del client mappa).
+  const [confermaAzione, setConfermaAzione] = useState<null | {
+    title: string;
+    message: string;
+    confirmLabel?: string;
+    danger?: boolean;
+    action: () => void | Promise<void>;
+  }>(null);
+
+  const saveDistribution = useCallback(async (ignoraNonAssegnati = false) => {
     if (!distribution || !selectedOps.length) return;
 
     if (sorgente === 'interventi') {
@@ -1844,11 +1854,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     }
 
     // Avviso: i task non assegnati non finiscono in alcun operatore del piano.
-    if (unassignedTasks.length > 0) {
-      const ok = window.confirm(
-        `Ci sono ${unassignedTasks.length} interventi non assegnati: resteranno fuori dal piano finché non li assegni a un operatore. Salvare comunque?`,
-      );
-      if (!ok) return;
+    if (unassignedTasks.length > 0 && !ignoraNonAssegnati) {
+      setConfermaAzione({
+        title: 'Interventi non assegnati',
+        message: `Ci sono ${unassignedTasks.length} interventi non assegnati: resteranno fuori dal piano finché non li assegni a un operatore. Salvare comunque?`,
+        confirmLabel: 'Salva comunque',
+        action: () => saveDistribution(true),
+      });
+      return;
     }
 
     setSavingDistribution(true);
@@ -1994,7 +2007,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 // Rapportini GIÀ INVIATI coinvolti: chiedi prima di riaprirli/aggiornarli.
                 // Su Annulla NON si toccano gli inviati.
                 const { testo } = buildRiepilogoConferma(diff);
-                if (window.confirm(testo)) await applicaRapportini(pid, true);
+                setConfermaAzione({
+                  title: 'Rapportini già inviati coinvolti',
+                  message: testo,
+                  confirmLabel: 'Aggiorna rapportini',
+                  action: () => applicaRapportini(pid, true),
+                });
               } else {
                 // Nessun inviato coinvolto: riconcilia SEMPRE le voci ai task correnti del piano
                 // (rimuove le fantasma, aggiunge le mancanti, preserva le risposte per task_id).
@@ -2453,7 +2471,19 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const t = distribution[opIdx]?.tasks.find((x) => x.id === taskId);
     if (!t) return;
     if (t.stato === 'completato') return;
-    if (!window.confirm("Eliminare definitivamente questo intervento?\nSparirà dal rapportino dell'operatore e non sarà recuperabile.\nL'effetto si applica al Salva.")) return;
+    setConfermaAzione({
+      title: 'Eliminare questo intervento?',
+      message: "Sparirà dal rapportino dell'operatore e non sarà recuperabile. L'effetto si applica al Salva.",
+      confirmLabel: 'Elimina',
+      danger: true,
+      action: () => eliminaTaskConfermato(taskId, opIdx),
+    });
+  }, [distribution]);
+
+  const eliminaTaskConfermato = useCallback((taskId: string, opIdx: number) => {
+    if (!distribution) return;
+    const t = distribution[opIdx]?.tasks.find((x) => x.id === taskId);
+    if (!t) return;
     if (t.annullato) {
       const chiave = identitaIntervento({
         odl: t.odl || null,
@@ -3864,7 +3894,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 risolve il server al salvataggio/generazione. */}
             <button
               type="button"
-              onClick={saveDistribution}
+              onClick={() => saveDistribution()}
               disabled={savingDistribution}
               className={`rounded-lg px-3 py-1 text-xs font-semibold transition ${
                 savedDistribution
@@ -3958,6 +3988,21 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       )}
       {erroriImport && (
         <ModaleErroreImport errori={erroriImport} onClose={() => setErroriImport(null)} />
+      )}
+      {confermaAzione && (
+        <ConfirmDialog
+          open
+          title={confermaAzione.title}
+          message={confermaAzione.message}
+          confirmLabel={confermaAzione.confirmLabel ?? 'Conferma'}
+          danger={confermaAzione.danger}
+          onConfirm={() => {
+            const azione = confermaAzione.action;
+            setConfermaAzione(null);
+            void azione();
+          }}
+          onClose={() => setConfermaAzione(null)}
+        />
       )}
     </div>
   );
