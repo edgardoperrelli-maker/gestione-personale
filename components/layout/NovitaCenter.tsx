@@ -7,10 +7,16 @@ import AnnuncioOdlPositivi, { ANNUNCIO_ODL_POSITIVI_KEY } from '@/components/mod
 import AnnuncioConfrontoEsiti, { ANNUNCIO_CONFRONTO_ESITI_KEY } from '@/components/modules/assegnazione-ai/AnnuncioConfrontoEsiti';
 import AnnuncioGruppoAttivita, { ANNUNCIO_GRUPPO_ATTIVITA_KEY } from '@/components/modules/interventi/AnnuncioGruppoAttivita';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from '@/components/modules/consuntivazione/AnnuncioConsuntivazione';
+import AnnuncioAssistenza, { ANNUNCIO_ASSISTENZA_KEY } from '@/components/modules/assistenza/AnnuncioAssistenza';
 
 /** Registro delle "novità" del progetto: un annuncio = una voce (chiave versionata + testo), le più recenti in cima. */
 type Annuncio = { key: string; title: string; subtitle: string };
 const ANNUNCI: Annuncio[] = [
+  {
+    key: ANNUNCIO_ASSISTENZA_KEY,
+    title: 'Assistenza: vedi il rapportino dell’operatore in diretta',
+    subtitle: 'Previa accettazione, guardi la schermata dell’operatore in sola lettura e lo guidi con suggerimenti. Più sessioni in parallelo.',
+  },
   {
     key: ANNUNCIO_CONSUNTIVAZIONE_KEY,
     title: 'Consuntivazione: esita gli ordini dal back office',
@@ -160,6 +166,7 @@ export default function NovitaCenter() {
         )}
       </div>
 
+      <AnnuncioAssistenza open={openKey === ANNUNCIO_ASSISTENZA_KEY} onClose={chiudiModal} />
       <AnnuncioConsuntivazione open={openKey === ANNUNCIO_CONSUNTIVAZIONE_KEY} onClose={chiudiModal} />
       <AnnuncioOdlPositivi open={openKey === ANNUNCIO_ODL_POSITIVI_KEY} onClose={chiudiModal} />
       <AnnuncioConfrontoEsiti open={openKey === ANNUNCIO_CONFRONTO_ESITI_KEY} onClose={chiudiModal} />

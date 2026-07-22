@@ -6,6 +6,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { LOBBY, realtimeClient, type Richiesta } from '@/lib/assistenza/transport';
 import SessionePanel from './SessionePanel';
+import AnnuncioAssistenza, { ANNUNCIO_ASSISTENZA_KEY } from './AnnuncioAssistenza';
 
 type RapportinoOggi = { sid: string; staff: string; data: string; stato: string };
 type Sessione = { sid: string; staff: string; data: string };
@@ -21,7 +22,33 @@ export default function AssistenzaClient() {
   const [sessioni, setSessioni] = useState<Sessione[]>([]);
   const [caricamento, setCaricamento] = useState(true);
   const [errore, setErrore] = useState<string | null>(null);
+  const [annuncioOpen, setAnnuncioOpen] = useState(false);
   const lobbyRef = useRef<RealtimeChannel | null>(null);
+
+  // Avviso "novità" auto-mostrato al primo accesso al modulo (per-utente, via /api/annunci).
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/annunci?key=${ANNUNCIO_ASSISTENZA_KEY}`, { cache: 'no-store' });
+        if (!res.ok) return;
+        const j = (await res.json()) as { seen?: boolean };
+        if (vivo && !j.seen) setAnnuncioOpen(true);
+      } catch {
+        /* niente avviso se l'endpoint non risponde */
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  const chiudiAnnuncio = () => {
+    setAnnuncioOpen(false);
+    fetch('/api/annunci', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: ANNUNCIO_ASSISTENZA_KEY }),
+    }).catch(() => { /* best-effort */ });
+  };
 
   const carica = useCallback(async () => {
     setCaricamento(true);
@@ -111,11 +138,19 @@ export default function AssistenzaClient() {
             Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo.
           </p>
         </div>
-        <button type="button" onClick={carica}
-          className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold">
-          Aggiorna
-        </button>
+        <div className="flex items-center gap-2">
+          <button type="button" onClick={() => setAnnuncioOpen(true)}
+            className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)]/40 px-3 py-2 text-sm font-semibold text-[var(--brand-primary)]">
+            ✨ Novità
+          </button>
+          <button type="button" onClick={carica}
+            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold">
+            Aggiorna
+          </button>
+        </div>
       </div>
+
+      <AnnuncioAssistenza open={annuncioOpen} onClose={chiudiAnnuncio} />
 
       {!env && (
         <div className="rounded-xl border border-[var(--brand-magenta)]/50 bg-[var(--brand-magenta)]/10 p-3 text-sm">

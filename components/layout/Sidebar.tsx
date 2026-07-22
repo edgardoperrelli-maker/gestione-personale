@@ -36,9 +36,11 @@ function matchesPath(pathname: string, href: string, matchPrefixes?: string[]): 
 /**
  * Badge "Novità" temporaneo accanto a un modulo: chiave modulo → ultimo giorno (incluso, Europe/Rome)
  * in cui mostrarlo. Dopo quella data sparisce da solo. Consuntivazione: visibile fino a venerdì 24/07.
+ * Assistenza: visibile fino a venerdì 31/07.
  */
 const MODULI_NOVITA: Partial<Record<AppModuleKey, string>> = {
   consuntivazione: '2026-07-24',
+  assistenza: '2026-07-31',
 };
 
 export default function Sidebar({
