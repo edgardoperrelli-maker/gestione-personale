@@ -80,6 +80,13 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
     setFiltri(FILTRI_VUOTI); setRisultati(null); setAvviso(null);
   }
 
+  function esporta() {
+    const params = new URLSearchParams();
+    (Object.entries(filtri) as [keyof Filtri, string][]).forEach(([k, v]) => { if (v) params.set(k, v); });
+    // Navigazione diretta: il GET (cookie di sessione) risponde con l'Excel (Content-Disposition).
+    window.location.href = `/api/admin/consuntivazione/aperti/export?${params.toString()}`;
+  }
+
   async function apri(id: string) {
     setErrore(null);
     const res = await fetch(`/api/admin/consuntivazione/aperti?id=${id}`);
@@ -260,7 +267,12 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
         </p>
       ) : (
         <>
-          <p className="text-xs text-[var(--brand-text-subtle)]">{risultati.length} ordini aperti trovati{risultati.length === 200 ? ' (primi 200)' : ''}.</p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-[var(--brand-text-subtle)]">
+              {risultati.length} ordini aperti trovati{risultati.length === 200 ? ' (mostrati i primi 200; l’export li include tutti)' : ''}.
+            </p>
+            <Button type="button" variant="outline" onClick={esporta}>Esporta Excel</Button>
+          </div>
           <ul className="divide-y divide-[var(--brand-border)] overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)]">
             {risultati.map((it) => (
               <li key={it.id}>

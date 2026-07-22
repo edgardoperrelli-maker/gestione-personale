@@ -444,9 +444,9 @@ export default function RapportinoForm({
         const body = (await res.json().catch(() => ({}))) as { error?: string; inSospeso?: number };
         if (body.error === 'voci_in_sospeso') {
           setBloccoSospese(body.inSospeso ?? 1); // banner soft, ritentabile dopo approvazione
-        } else if (body.error === 'nota_negativo_mancante') {
-          // Un intervento negativo (NO) è senza motivo: azione dell'operatore, non un blocco terminale.
-          window.alert('Un intervento con esito NO è senza la nota col motivo. Aprilo, scrivi la nota e reinvia.');
+        } else if (body.error === 'esiti_mancanti') {
+          // Esiti mancanti (nessun esito o un NO senza motivo): azione dell'operatore, non terminale.
+          window.alert('Alcuni interventi non hanno l’esito (o hanno un NO senza la nota col motivo). Completa gli esiti e reinvia.');
         } else {
           setBloccatoInvia(true); // terminale: link scaduto / già inviato
         }
