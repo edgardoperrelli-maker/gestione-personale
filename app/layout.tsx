@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { Geist, Geist_Mono } from 'next/font/google';
+import MotionProvider from '@/components/layout/MotionProvider';
 import './globals.css';
 
 const geist = Geist({ variable: '--font-geist', subsets: ['latin'] });
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
             ogni navigazione smontava e rimontava AppShell (sidebar, topbar, provider
             realtime, fetch annunci). La transizione vive nei layout hub/dashboard,
             dove avvolge solo il contenuto della pagina. */}
-        {children}
+        <MotionProvider>{children}</MotionProvider>
       </body>
     </html>
   );
