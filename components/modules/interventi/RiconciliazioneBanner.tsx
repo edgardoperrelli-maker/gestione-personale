@@ -34,11 +34,11 @@ export default function RiconciliazioneBanner() {
   if (righe.length === 0) return null;
 
   return (
-    <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm">
+    <div className="rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-sm">
       <button
         type="button"
         onClick={() => setAperto((v) => !v)}
-        className="flex w-full items-center justify-between font-medium text-amber-900"
+        className="flex w-full items-center justify-between font-medium text-[var(--brand-text-main)]"
       >
         <span>⚠️ {righe.length} intervent{righe.length === 1 ? 'o' : 'i'} da riconciliare (doppio esito positivo)</span>
         <span>{aperto ? '▲' : '▼'}</span>
@@ -46,7 +46,7 @@ export default function RiconciliazioneBanner() {
       {aperto && (
         <table className="mt-3 w-full text-left text-xs">
           <thead>
-            <tr className="text-amber-800">
+            <tr className="text-[var(--brand-text-muted)]">
               <th className="pb-1 pr-3">ODL</th>
               <th className="pb-1 pr-3">Comune</th>
               <th className="pb-1 pr-3">Nuova chiusura</th>
@@ -56,7 +56,7 @@ export default function RiconciliazioneBanner() {
           </thead>
           <tbody>
             {righe.map((r) => (
-              <tr key={r.id} className="border-t border-amber-200">
+              <tr key={r.id} className="border-t border-[var(--brand-border)]">
                 <td className="py-1 pr-3">{r.odl ?? '—'}</td>
                 <td className="py-1 pr-3">{r.comune ?? '—'}</td>
                 <td className="py-1 pr-3">{r.data ?? '—'} ({r.esecutore ?? '—'})</td>
@@ -68,7 +68,7 @@ export default function RiconciliazioneBanner() {
                     type="button"
                     onClick={() => risolvi(r.id)}
                     disabled={risolvendo === r.id}
-                    className="rounded border border-amber-400 px-2 py-0.5 text-amber-900 hover:bg-amber-100 disabled:opacity-50"
+                    className="rounded-[var(--radius-sm)] border border-[var(--warning)] px-2 py-0.5 text-[var(--brand-text-main)] transition-colors hover:bg-[var(--warning-soft)] disabled:opacity-50"
                   >
                     Risolto
                   </button>
