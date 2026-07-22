@@ -10,6 +10,7 @@ import { RichiesteManualiProvider } from './RichiesteManualiProvider';
 import SegnalaButton from '@/components/segnalazione/SegnalaButton';
 import AnnuncioSegnalazione, { ANNUNCIO_SEGNALAZIONE_KEY } from '@/components/segnalazione/AnnuncioSegnalazione';
 import { Toaster } from '@/components/ui/Toast';
+import CommandPalette from './CommandPalette';
 
 type Props = {
   children: ReactNode;
@@ -36,6 +37,7 @@ export default function AppShell({
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [annuncioOpen, setAnnuncioOpen] = useState(false);
+  const [paletteOpen, setPaletteOpen] = useState(false);
 
   // Ripristina la preferenza di collasso (stesso pattern del theme toggle)
   useEffect(() => {
@@ -189,6 +191,7 @@ export default function AppShell({
           isAdmin={isAdmin}
           onLogout={handleLogout}
           onOpenMobile={() => setMobileOpen(true)}
+          onOpenPalette={() => setPaletteOpen(true)}
         />
         <main className="mx-auto w-full max-w-[1920px] px-3 py-6 sm:px-4 md:px-6 lg:px-8">
           {children}
@@ -196,6 +199,7 @@ export default function AppShell({
       </div>
       <SegnalaButton />
       <AnnuncioSegnalazione open={annuncioOpen} onClose={handleCloseAnnuncio} />
+      <CommandPalette open={paletteOpen} onOpenChange={setPaletteOpen} allowedModules={allowedModules} />
       <Toaster />
     </div>
     </RichiesteManualiProvider>

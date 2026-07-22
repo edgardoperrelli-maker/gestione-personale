@@ -12,6 +12,8 @@ type TopBarProps = {
   onLogout: () => void | Promise<void>;
   /** Apre il drawer della sidebar su mobile. */
   onOpenMobile: () => void;
+  /** Apre la command palette (⌘K). */
+  onOpenPalette?: () => void;
 };
 
 function iniziali(nome: string): string {
@@ -21,7 +23,7 @@ function iniziali(nome: string): string {
   return (parti[0][0] + parti[parti.length - 1][0]).toUpperCase();
 }
 
-export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = false, onLogout, onOpenMobile }: TopBarProps) {
+export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = false, onLogout, onOpenMobile, onOpenPalette }: TopBarProps) {
   const [isLight, setIsLight] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -87,6 +89,23 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
             PLENZICH
           </p>
         </div>
+
+        {onOpenPalette && (
+          <button
+            type="button"
+            onClick={onOpenPalette}
+            className="hidden max-w-sm flex-1 items-center gap-2.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3.5 py-1.5 text-sm text-[var(--brand-text-subtle)] transition hover:border-[var(--brand-primary-border)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] sm:flex"
+          >
+            <svg viewBox="0 0 24 24" className="h-3.5 w-3.5 shrink-0" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true">
+              <circle cx="11" cy="11" r="7" />
+              <path d="m21 21-4.3-4.3" />
+            </svg>
+            <span className="min-w-0 flex-1 truncate text-left">Cerca moduli e viste</span>
+            <kbd className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--brand-text-muted)]">
+              ⌘K
+            </kbd>
+          </button>
+        )}
 
         <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
           <NovitaCenter />
