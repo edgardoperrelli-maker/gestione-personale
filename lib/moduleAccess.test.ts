@@ -54,7 +54,7 @@ describe('prefillModulesForRole / fallbackModulesForRole', () => {
   });
 });
 
-describe('normalizeAllowedModules (nessuna forzatura, unico invariante su impostazioni)', () => {
+describe('normalizeAllowedModules (moduli requiresAdminRole forzati per gli admin)', () => {
   it('operatore: nessun modulo non richiesto forzato; live mantenuto se richiesto', () => {
     const out = normalizeAllowedModules(['mappa', 'live'], 'operatore');
     expect(out).toContain('mappa');
@@ -70,7 +70,8 @@ describe('normalizeAllowedModules (nessuna forzatura, unico invariante su impost
   });
   it('input non-array → vuoto (poi invariante)', () => {
     expect(normalizeAllowedModules(undefined, 'operatore')).toEqual([]);
-    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['impostazioni']);
+    // per gli admin TUTTI i moduli requiresAdminRole sono forzati (46663960)
+    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['assistenza', 'impostazioni']);
   });
 });
 
