@@ -63,6 +63,10 @@ export async function GET(req: Request) {
     .from('interventi')
     .select('id, committente, odl, pdr, nominativo, indirizzo, comune, cap, matricola_contatore, intervento_tipo, gruppo_attivita, data, staff_id, territorio_id, fascia_oraria')
     .in('stato', OPEN_STATES)
+    // Escludi i CONTENITORI task-via (BONIFICHE EXTRA): sono la "via" sotto cui l'operatore crea i
+    // "+" (le bonifiche vere), non hanno un esito proprio → non sono ordini esitabili. (gruppo null
+    // mantenuto: `neq` da solo escluderebbe anche i null.)
+    .or('gruppo_attivita.is.null,gruppo_attivita.neq."BONIFICHE EXTRA"')
     .order('data', { ascending: false })
     .limit(200);
 
@@ -91,6 +95,9 @@ async function dettaglio(id: string): Promise<NextResponse> {
   const int = intRow as InterventoAperto & { stato: string };
   if (!OPEN_STATES.includes(int.stato))
     return NextResponse.json({ error: 'gia_esitato' }, { status: 409 });
+  // Contenitore task-via (BONIFICHE EXTRA): non ha esito proprio, non è esitabile qui.
+  if ((int.gruppo_attivita ?? '').trim().toUpperCase() === 'BONIFICHE EXTRA')
+    return NextResponse.json({ error: 'contenitore_taskvia' }, { status: 409 });
 
   // Voce già collegata (rapportino operatore): ne riusiamo campi_snapshot + risposte + rapId.
   const { data: voceRow } = await supabaseAdmin
