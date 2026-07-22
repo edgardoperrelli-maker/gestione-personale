@@ -9,6 +9,7 @@ const geistMono = Geist_Mono({ variable: '--font-geist-mono', subsets: ['latin']
 export const metadata: Metadata = {
   title: 'Gestione Personale',
   description: 'Pianificazione operatori e rapportini.',
+  icons: { apple: '/icons/apple-touch-icon.png' },
 };
 
 /* viewport-fit=cover: senza, su iPhone env(safe-area-inset-*) vale sempre 0 e la
@@ -17,6 +18,11 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
+  // Colore barra browser/PWA per tema (valori dai token --app-bg).
+  themeColor: [
+    { media: '(prefers-color-scheme: light)', color: '#f9fafc' },
+    { media: '(prefers-color-scheme: dark)', color: '#12161c' },
+  ],
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
