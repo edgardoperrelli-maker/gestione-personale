@@ -2,39 +2,73 @@
 // presente in tassonomia. Chiave e valore sono FORME NORMALIZZATE (come `chiaveTassonomia`:
 // maiuscolo, senza accenti, spazi collassati).
 //
-// DUE tier, applicati da `risolviGruppo(..., { allinea })`, distinti per SICUREZZA a valle:
+// DUE tier, applicati da `risolviGruppo(..., { allinea })`:
 //
 //  - SCRITTURA (`allinea:'scrittura'`): applicati nei write-path (import, taskToIntervento,
-//    manuali), quindi cambiano il TESTO MEMORIZZATO. Solo typo/punteggiatura e il singolare→
-//    plurale massive: casi genuinamente fuorvianti da correggere allo storage. NON riscrivono
-//    i codici ATLAS (il codice bare è l'identità canonica dell'attività: lasciarlo com'è evita
-//    churn inutile sullo storage e su export/listino che mostrano intervento_tipo).
+//    manuali), quindi cambiano il TESTO MEMORIZZATO. Coprono: typo/punteggiatura, il
+//    singolare→plurale/“su impianto” delle massive, e il collasso delle famiglie di codici
+//    italgas al SOLO codice nudo (forma lunga, A/B/C, Sonda, GN → codice base). Questi codici
+//    devono comparire come UNA sola voce in tutti gli elenchi (migration 20260722190000);
+//    il collasso è sicuro perché italgas non è valorizzato (nessun listino/voce) e i flussi
+//    operatori dipendono dal gruppo, non dal codice.
 //
-//  - LETTURA (`allinea:'lettura'`): SCRITTURA + collassi codice ATLAS con/senza descrizione
-//    (DIS00N, S-MR-002, S-AI-022). Per i filtri del modulo Performance e per l'IDENTITÀ del dedup
-//    (`allineaAttivitaQualsiasi`, chiave in-memory) — NON tocca lo storage. Nota: le forme lunghe
-//    ATLAS ESISTONO in `acea_attivita_alias` (stesso macrogruppo del bare), quindi il collasso
-//    sarebbe produzione-safe anche in scrittura; resta in lettura solo per stabilità dello storage.
+//  - LETTURA (`allinea:'lettura'`): oggi coincide con SCRITTURA (nessun alias di sola lettura).
+//    Resta come punto di estensione per collassi che non devono toccare lo storage.
 //
-// INVARIANTE (tassonomia.test.ts): ogni canonica è un literal di tassonomia (seed 20260720150000)
-// e ha lo STESSO gruppo della variante. Nessuna variante è ambigua tra committenti
+// INVARIANTE (tassonomia.test.ts): ogni canonica è un literal di tassonomia attivo e ha lo
+// STESSO gruppo della variante. Nessuna variante è ambigua tra committenti
 // (aliasAttivita.test.ts), così il collasso committente-agnostico del dedup converge.
 
 // `${committenteEquivalente}|${normVariante}` → normCanonica
 const ALIAS_SCRITTURA: Record<string, string> = {
-  // Acea — famiglia Limitazioni Massive (canonico = literal ancorato dall'export; in acea_attivita_alias)
+  // Acea — famiglia Limitazioni Massive → unica canonica (migration 20260722140000).
   'acea|LIMITAZIONE MASSIVA': 'LIMITAZIONI MASSIVE',
+  'acea|LIMITAZIONE MASSIVA SU IMPIANTO': 'LIMITAZIONI MASSIVE',
   'acea|LIMITAZIONI MASSICE': 'LIMITAZIONI MASSIVE', // typo
-  // Italgas — apostrofo iniziale (la canonica è in acea_attivita_alias)
+  // Italgas — apostrofo iniziale
   "italgas|'UT MOROSITA' PRIMO PASSAGGIO": "UT MOROSITA' PRIMO PASSAGGIO",
+
+  // Italgas — famiglie di codici ATLAS collassate al codice nudo (migration 20260722190000).
+  'italgas|DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO': 'DIS00N',
+
+  'italgas|S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA': 'S-AI-022',
+  'italgas|S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA GN B': 'S-AI-022',
+  'italgas|S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA GN C': 'S-AI-022',
+
+  "italgas|S-MR-002 - RIATTIVAZ. SERVIZIO SOSPESO PER MOROSITA'": 'S-MR-002',
+  'italgas|S-MR-002 A': 'S-MR-002',
+  'italgas|S-MR-002 A SONDA': 'S-MR-002',
+  'italgas|S-MR-002 B': 'S-MR-002',
+  'italgas|S-MR-002 C': 'S-MR-002',
+
+  'italgas|S-MR-003 A': 'S-MR-003',
+  'italgas|S-MR-003 A SONDA': 'S-MR-003',
+
+  'italgas|S-PR-001 A': 'S-PR-001',
+
+  'italgas|S-PR-003 A': 'S-PR-003',
+  'italgas|S-PR-003 A SONDA': 'S-PR-003',
+  'italgas|S-PR-003 B': 'S-PR-003',
+
+  'italgas|S-PR-004 A': 'S-PR-004',
+  'italgas|S-PR-004 B': 'S-PR-004',
+  'italgas|S-PR-004 C': 'S-PR-004',
+
+  'italgas|S-PR-007 A': 'S-PR-007',
+  'italgas|S-PR-007 B': 'S-PR-007',
+
+  'italgas|S-PR-009 A': 'S-PR-009',
+  'italgas|S-PR-009 B': 'S-PR-009',
+  'italgas|S-PR-009 C': 'S-PR-009',
+
+  'italgas|S-PR-019 A': 'S-PR-019',
+  'italgas|S-PR-019 B': 'S-PR-019',
+
+  'italgas|S-PR-077 A': 'S-PR-077',
 };
 
-// Solo lettura: stesso codice ATLAS con/senza descrizione. Le forme lunghe non sono nel listino.
-const ALIAS_SOLO_LETTURA: Record<string, string> = {
-  'italgas|DIS00N': 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO',
-  "italgas|S-MR-002": "S-MR-002 - RIATTIVAZ. SERVIZIO SOSPESO PER MOROSITA'",
-  'italgas|S-AI-022': 'S-AI-022 - SOST PROG CONT ATTIVO < G6 PER TELELETTURA',
-};
+// Alias di sola lettura (oggi vuoto): estensione per collassi che non toccano lo storage.
+const ALIAS_SOLO_LETTURA: Record<string, string> = {};
 
 const ALIAS_LETTURA: Record<string, string> = { ...ALIAS_SCRITTURA, ...ALIAS_SOLO_LETTURA };
 
@@ -46,11 +80,10 @@ export function allineaChiaveAttivita(committenteEq: string, norm: string, modo:
   return mappa[`${committenteEq}|${norm}`] ?? norm;
 }
 
-// Variante norm → canonica, committente-agnostica, TIER LETTURA COMPLETO (massive + UT + ATLAS).
+// Variante norm → canonica, committente-agnostica, TIER LETTURA COMPLETO.
 // Usata dal dedup identitaIntervento (che non ha il committente e non persiste la chiave): deve
-// far convergere QUALSIASI forma memorizzata dello stesso lavoro — comprese le forme lunghe ATLAS
-// (literal validi di tassonomia, scrivibili via import della forma lunga o riscrittura da editor
-// voce) e le varianti massive. Sicura perché nessuna variante è ambigua tra committenti (test).
+// far convergere QUALSIASI forma memorizzata dello stesso lavoro. Sicura perché nessuna variante
+// è ambigua tra committenti (test).
 const ALIAS_QUALSIASI: Record<string, string> = (() => {
   const m: Record<string, string> = {};
   for (const [k, v] of Object.entries(ALIAS_LETTURA)) m[k.slice(k.indexOf('|') + 1)] = v;

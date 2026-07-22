@@ -2,12 +2,10 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { caricaFlussi, risolviCampiFlusso } from '@/lib/consuntivazione/flusso';
+import { OPEN_STATES, APERTI_COLS, parseFiltriAperti, haFiltro, applicaFiltriAperti, type QueryFiltrabile } from '@/lib/consuntivazione/apertiFiltri';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export const runtime = 'nodejs';
-
-/** Stati "aperti": interventi non ancora esitati (né completati né annullati). */
-const OPEN_STATES = ['da_assegnare', 'assegnato', 'in_viaggio', 'sul_posto', 'in_esecuzione'];
 
 type InterventoAperto = {
   id: string;
@@ -29,10 +27,9 @@ type InterventoAperto = {
 
 /**
  * GET /api/admin/consuntivazione/aperti
- *  - senza `id`: elenco degli interventi aperti (rimasti da esitare), filtrabili per `q`
- *    (odl/matricola/indirizzo/nominativo/pdr), finestra ultimi `giorni` (default 60), limite 200.
- *  - con `id`: dettaglio del singolo ordine — azioni del suo flusso + eventuale voce esistente
- *    (rapId + risposte già compilate).
+ *  - con `id`: dettaglio del singolo ordine (azioni + eventuale voce esistente).
+ *  - senza `id`: ricerca degli interventi aperti SOLO su richiesta esplicita — richiede almeno un
+ *    filtro (nessun elenco di default). Filtri e esclusione contenitori in lib/consuntivazione/apertiFiltri.
  */
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -42,26 +39,15 @@ export async function GET(req: Request) {
   const id = url.searchParams.get('id');
   if (id) return dettaglio(id);
 
-  const q = (url.searchParams.get('q') ?? '').trim();
-  const giorni = Math.min(365, Math.max(1, Number(url.searchParams.get('giorni') ?? 60) || 60));
-  const dal = new Date(Date.now() - giorni * 86_400_000).toISOString().slice(0, 10);
+  const f = parseFiltriAperti(url.searchParams);
+  // Nessun filtro → nessun risultato (l'elenco compare solo su ricerca esplicita).
+  if (!haFiltro(f)) return NextResponse.json({ interventi: [], searched: false });
 
-  let query = supabaseAdmin
-    .from('interventi')
-    .select('id, committente, odl, pdr, nominativo, indirizzo, comune, cap, matricola_contatore, intervento_tipo, gruppo_attivita, data, staff_id, territorio_id, fascia_oraria')
-    .in('stato', OPEN_STATES)
-    .gte('data', dal)
-    .order('data', { ascending: false })
-    .limit(200);
-  if (q) {
-    const like = `%${q}%`;
-    query = query.or(
-      `odl.ilike.${like},matricola_contatore.ilike.${like},indirizzo.ilike.${like},nominativo.ilike.${like},pdr.ilike.${like}`,
-    );
-  }
-  const { data, error } = await query;
+  const base = supabaseAdmin.from('interventi').select(APERTI_COLS);
+  const filtrata = applicaFiltriAperti(base as unknown as QueryFiltrabile, f) as unknown as typeof base;
+  const { data, error } = await filtrata.order('data', { ascending: false }).limit(200);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ interventi: (data ?? []) as InterventoAperto[] });
+  return NextResponse.json({ interventi: (data ?? []) as InterventoAperto[], searched: true });
 }
 
 async function dettaglio(id: string): Promise<NextResponse> {
@@ -74,6 +60,9 @@ async function dettaglio(id: string): Promise<NextResponse> {
   const int = intRow as InterventoAperto & { stato: string };
   if (!OPEN_STATES.includes(int.stato))
     return NextResponse.json({ error: 'gia_esitato' }, { status: 409 });
+  // Contenitore task-via (BONIFICHE EXTRA): non ha esito proprio, non è esitabile qui.
+  if ((int.gruppo_attivita ?? '').trim().toUpperCase() === 'BONIFICHE EXTRA')
+    return NextResponse.json({ error: 'contenitore_taskvia' }, { status: 409 });
 
   // Voce già collegata (rapportino operatore): ne riusiamo campi_snapshot + risposte + rapId.
   const { data: voceRow } = await supabaseAdmin

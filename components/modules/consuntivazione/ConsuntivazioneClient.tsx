@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react';
 import NuovoOrdineForm from './NuovoOrdineForm';
 import OrdinePresenteForm from './OrdinePresenteForm';
+import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from './AnnuncioConsuntivazione';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { Operatore } from './SquadraPicker';
 
@@ -47,6 +48,7 @@ export default function ConsuntivazioneClient() {
   const [erroreBoot, setErroreBoot] = useState<string | null>(null);
   const [vista, setVista] = useState<Vista>('home');
   const [flash, setFlash] = useState<string | null>(null);
+  const [annuncioOpen, setAnnuncioOpen] = useState(false);
 
   useEffect(() => {
     let vivo = true;
@@ -56,6 +58,32 @@ export default function ConsuntivazioneClient() {
       .catch(() => { if (vivo) setErroreBoot('Impossibile caricare i dati del modulo.'); });
     return () => { vivo = false; };
   }, []);
+
+  // Avviso "novità" (once-per-utente via DB): al primo accesso al modulo mostra la stessa
+  // modale delle Novità, così chi ha saltato la notifica ne legge comunque la spiegazione.
+  useEffect(() => {
+    let vivo = true;
+    (async () => {
+      try {
+        const res = await fetch(`/api/annunci?key=${ANNUNCIO_CONSUNTIVAZIONE_KEY}`, { cache: 'no-store' });
+        if (!res.ok || !vivo) return;
+        const j = await res.json();
+        if (vivo && !j.seen) setAnnuncioOpen(true);
+      } catch {
+        // best-effort: se non riesco a verificare, non mostro l'avviso
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  const chiudiAnnuncio = () => {
+    setAnnuncioOpen(false);
+    fetch('/api/annunci', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key: ANNUNCIO_CONSUNTIVAZIONE_KEY }),
+    }).catch(() => {});
+  };
 
   const onDone = (msg: string) => { setFlash(msg); setVista('home'); };
 
@@ -122,6 +150,8 @@ export default function ConsuntivazioneClient() {
             : <OrdinePresenteForm boot={boot} onDone={onDone} />}
         </section>
       )}
+
+      <AnnuncioConsuntivazione open={annuncioOpen} onClose={chiudiAnnuncio} />
     </div>
   );
 }

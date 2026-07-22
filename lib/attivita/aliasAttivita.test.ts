@@ -29,9 +29,10 @@ describe('alias attività', () => {
       expect(ALIAS_ATTIVITA[k]).toBe(v);
     }
   });
-  it('scrittura NON tocca i codici ATLAS (solo modulo, mai storage)', () => {
-    expect(allineaChiaveAttivita('italgas', 'DIS00N', 'scrittura')).toBe('DIS00N');       // invariato in scrittura
-    expect(allineaChiaveAttivita('italgas', 'DIS00N', 'lettura')).not.toBe('DIS00N');      // collassato in lettura
+  it('scrittura collassa le varianti ATLAS al codice nudo canonico', () => {
+    expect(allineaChiaveAttivita('italgas', 'S-PR-003 A', 'scrittura')).toBe('S-PR-003');
+    expect(allineaChiaveAttivita('italgas', 'DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO', 'scrittura')).toBe('DIS00N');
+    expect(allineaChiaveAttivita('italgas', 'DIS00N', 'scrittura')).toBe('DIS00N'); // il nudo è già canonico
   });
   it('TUTTE le varianti (tier completo) univoche tra committenti (dedup agnostico sicuro)', () => {
     const perNorm = new Map<string, string>();
@@ -43,13 +44,14 @@ describe('alias attività', () => {
       expect(allineaAttivitaQualsiasi(norm)).toBe(v); // agnostico = tier lettura completo
     }
   });
-  it('dedup agnostico collassa anche i codici ATLAS (bare→lungo)', () => {
-    expect(allineaAttivitaQualsiasi('DIS00N')).toBe('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO');
+  it('dedup agnostico collassa le varianti ATLAS al codice nudo', () => {
+    expect(allineaAttivitaQualsiasi('DIS00N - DISATTIVAZIONE SUCCESSIVO PASSAGGIO')).toBe('DIS00N');
+    expect(allineaAttivitaQualsiasi('S-PR-003 A')).toBe('S-PR-003');
     expect(allineaAttivitaQualsiasi('LIMITAZIONE MASSIVA')).toBe('LIMITAZIONI MASSIVE');
   });
   it('lascia invariato ciò che non è alias', () => {
     expect(allineaChiaveAttivita('acea', 'BONIFICHE')).toBe('BONIFICHE');
-    expect(allineaChiaveAttivita('italgas', 'S-PR-003 A')).toBe('S-PR-003 A');
-    expect(allineaAttivitaQualsiasi('S-PR-003 A')).toBe('S-PR-003 A');
+    expect(allineaChiaveAttivita('italgas', 'S-PR-003')).toBe('S-PR-003'); // il codice nudo è la canonica
+    expect(allineaAttivitaQualsiasi('PICARRO')).toBe('PICARRO');
   });
 });

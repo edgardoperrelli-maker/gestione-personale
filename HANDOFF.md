@@ -1,105 +1,90 @@
-# Handoff — Modulo Consuntivazione (back office esita interventi come da rapportino) (2026-07-22)
+# Handoff — Studio di fattibilità: connessione remota back office → dispositivo (2026-07-22)
 
 > Documento di ripresa per una NUOVA chat: autosufficiente, la sessione precedente non c'è più.
-> Lavoro sul branch `claude/modulo-consuntivazione-wiw30w` (produzione = `main`). Task ATLAS.
+> Lavoro sul branch `claude/remote-connection-feasibility-fb4kkc` (produzione = `main`). Task ATLAS.
+> ⚠️ Questa è una sessione di **SOLO DOCUMENTAZIONE**: nessuna riga di codice applicativo, nessuna
+> migration, nessuna dipendenza installata.
 
 ## Goal
 
-Dare al back office un modulo per **caricare ed esitare interventi come se fossero chiusi dal
-rapportino di un operatore**, assegnando l'esecuzione a **uno o più operatori** (squadra binaria/
-multipla). Il modulo si aggancia a **tutte le tabelle del flusso rapportini** e carica le **foto**
-rispettando le **azioni** del nuovo motore (Azioni operatori) al posto dei template.
+Valutare la fattibilità di far accedere il **back office** al dispositivo dell'operatore **in remoto**,
+**tramite il link** e **previa accettazione dell'operatore**, per **risolvere problemi sull'app**.
+Deliverable = uno studio di fattibilità nel formato di `docs/mapcn-fattibilita.md`.
 
 ## Current status
 
-**COMPLETATO nel codice, in attesa di apply migration al prod + merge.** `npx tsc --noEmit` pulito,
-`npx vitest run` = **2046 verdi** (14 nuovi test in `lib/consuntivazione/`), `eslint` pulito. Il
-`next build` **compila** ma non completa in ambiente cloud (page-data collection) perché **manca la
-service key** (`SUPABASE_SERVICE_ROLE_KEY` assente): errore su una route ACEA preesistente, non sul
-nuovo codice — limite d'ambiente noto, non un bug.
+**COMPLETATO.** Prodotto `docs/connessione-remota-fattibilita.md`; ROADMAP.md aggiornato (voce in "Fatto").
+Nessun test/build da eseguire (solo `.md`). Pronto per PR con riga `ATLAS-Item`.
 
-## Decisioni chiave (grilling con l'utente)
+## Verdetto in una riga
 
-1. **Un intervento per ODL** (invariante "un positivo per ODL"): `interventi.staff_id` = operatore
-   **primario** (porta il valore € UNA volta); la **lista completa** degli esecutori vive in
-   `interventi.esecutori` (jsonb `[{staff_id, staff_name}]`) per le squadre.
-2. **KPI**: primario per €/Produzione/premialità; **tutta la squadra** accreditata in **Performance
-   operatori** (fan-out per esecutore in `lib/performance/load.ts`, gated sulla colonna).
-3. **Due fogliette** (non tab): **Nuovo ordine** (crea+esita) e **Ordine presente** (esita interventi
-   rimasti aperti dai rapportini, stato ∈ da_assegnare/assegnato/in_viaggio/sul_posto/in_esecuzione).
-4. **Tracciabilità**: `consuntivato_da`/`consuntivato_at` + `origine='consuntivo'` (solo "Nuovo
-   ordine"); a valle è equivalente a un'esitazione da operatore.
-5. **Premialità**: sì → `voce` (voceDaAttivita) + `assegnato_at` valorizzati.
-6. **Migration**: creati i file, **le applica l'utente al prod PRIMA del merge**.
-7. **Nuovo modulo** `/hub/consuntivazione`, adminOnly, gruppo Operatività.
+Un "TeamViewer nel browser" (vedere/**controllare** lo schermo del telefono da una PWA) **NON è
+realizzabile** sul target mobile. La via web realistica è il **co-browsing / mirroring del DOM** della sola
+app gp: **vista assistita + guida, non controllo**.
+
+## Decisioni chiave (fatti verificati in modo adversariale — MDN/caniuse/Chromium/W3C/Supabase)
+
+1. **`getDisplayMedia` (cattura schermo web) NON esiste sui browser mobili.** iOS = tutti i browser sono
+   WebKit, mai supportato; Android Chrome = API deliberatamente **nascosta** da Chrome 88 (il `typeof` check
+   dà **falsi positivi** → serve verifica funzionale/di piattaforma). → **Screen-share WebRTC = non fattibile
+   su mobile.**
+2. **Controllo remoto (iniezione input) IMPOSSIBILE con sole Web API.** Serve un agente nativo lato-OS. La
+   nuova API sperimentale *Captured Surface Control* inoltra solo scroll/zoom su surface **locali** desktop —
+   non abilita nulla di remoto.
+3. **Unica via web-only su mobile = co-browsing / mirroring del DOM** (rrweb self-host **oppure** SaaS tipo
+   Cobrowse.io): trasmette la **struttura** (DOM), non i pixel → aggira il blocco. Copre **solo l'app gp**;
+   **punti ciechi**: canvas/mappe (Leaflet/maplibre), anteprima **fotocamera live** (`getUserMedia` dello
+   scanner), UI di sistema/altre app/tastiera nativa.
+4. **Supabase Realtime broadcast** può fare da trasporto/signaling **senza nuovo server** (già nell'infra, ma
+   finora usato **solo** `postgres_changes`; broadcast/presence mai adottati). Per lo screen-share WebRTC
+   servirebbe anche un **TURN** (reti mobili con CGNAT), ma quell'approccio è comunque bloccato a monte.
+5. **Percorso consigliato (a fasi):** Fase 0 fondamenta (consenso per-sessione da token, audit, autorizzazione
+   canale, marcatura PII) → **Fase 1 diagnostica remota async** (session-replay rrweb + log, evoluzione di
+   "invia segnalazione", 100% stack, dati EU) → **Fase 2 co-browsing near-live** (rrweb `liveMode` su Supabase
+   broadcast, o buy Cobrowse.io con PoC). **Escludere** screen-share WebRTC e tool nativi (fuori perimetro
+   PWA, iOS non controllabile, privacy peggiore) salvo tampone d'emergenza.
 
 ## Done
 
-- **Migrations** (`supabase/migrations/`, ⚠️ da applicare al prod):
-  - `20260722100000_consuntivazione.sql`: `interventi.esecutori jsonb`, `consuntivato_da uuid`,
-    `consuntivato_at timestamptz`; CHECK `origine` esteso con `'consuntivo'`; indice parziale.
-  - `20260722100001_rapportini_piano_nullable.sql`: `rapportini.piano_id` reso **NULLABILE** (i
-    rapportini contenitore del backoffice sono autonomi e **invisibili** alle viste della
-    pianificazione, che filtrano sempre per `piano_id` non nullo).
-- **Logica pura** `lib/consuntivazione/`:
-  - `esita.ts` — `valutaEsito` + `calcolaEsitazione` (esito da azioni, backstop doppio-positivo,
-    riga misuratori, patch intervento con esecutori/voce KPI/consuntivato). Testata.
-  - `nuovoOrdine.ts` — `buildInterventoConsuntivoBase` (origine='consuntivo', classificazione
-    tassonomia) + `buildVoceConsuntivo` (voce contenitore `manuale=true` approvata). Testata.
-  - `flusso.ts` (server) — `caricaFlussi` + `risolviCampiFlusso` (azioni dal gruppo attività,
-    fallback primo flusso attivo).
-  - `esecutori.ts` (server) — `risolviEsecutori` (dedup + nomi autorevoli dallo staff, primo = primario).
-  - `types.ts` — tipi condivisi.
-- **API** `app/api/admin/consuntivazione/` (tutte `requireAdmin`):
-  - `route.ts` GET bootstrap (operatori, committenti, territori, attività tassonomia, flussi, fallbackCampi).
-  - `nuovo/route.ts` POST — crea rapportino contenitore (piano_id null) + intervento (origine
-    consuntivo) + voce, esita, upsert misuratori.
-  - `aperti/route.ts` GET — lista interventi aperti (search `q`, finestra `giorni`) + dettaglio `?id=`.
-  - `esita/route.ts` POST — esita un intervento esistente (aggiorna voce o ne crea una contenitore).
-  - `foto/route.ts` POST/GET — upload/vista foto su `interventi-foto` sotto `rapportini/<rapId>/…`.
-- **UI** `app/hub/consuntivazione/page.tsx` + `components/modules/consuntivazione/`:
-  `ConsuntivazioneClient` (due fogliette), `NuovoOrdineForm`, `OrdinePresenteForm`, `AzioniForm`
-  (riusa `CampoInput` + `RapportinoFotoCtx` con upload admin), `SquadraPicker` (MultiSelect + chip
-  con "primario"). Design system sobrio (primitivi + token).
-- **Integrazione a valle**:
-  - `lib/performance/load.ts` — fan-out partecipazione per esecutore (id composito `id:staffId`),
-    resiliente se la colonna `esecutori` non esiste ancora.
-  - `lib/limitazione/exportLimMassive.ts` — `origine==='consuntivo'` → flag `manuale=true`.
-  - `lib/moduleAccess.ts` + `components/layout/moduleIcons.tsx` — registrazione modulo + icona.
+- `docs/connessione-remota-fattibilita.md` — studio completo: §1 verdetto sintesi, §2 vincolo `getDisplayMedia`,
+  §3 cosa si può/non si può via Web API, §4 punti d'aggancio nel repo, §5 cinque approcci con verdetti, §6
+  rischi/mitigazioni, §7 privacy/GDPR, §8 piano a fasi, + fonti.
+- `ROADMAP.md` — nuova voce ✅ in cima a "Fatto".
+- `HANDOFF.md` — questo documento.
 
-## Architettura (come l'ordine confluisce a valle)
+## Punti d'aggancio nel codice (per una futura implementazione)
 
-Un ordine consuntivato scrive **sia `interventi` sia `rapportino_voci`** (con `intervento_id`), come
-la route `approva` degli interventi manuali. Motivo: Storico è voce-driven, e il registro
-`misuratori_rimossi` si aggancia su `rapportino_voci.matricola`. La voce ha un `rapportini` padre
-(`piano_id` NULL). L'esito è calcolato dalle **azioni del flusso** del gruppo attività
-(`risolviFlussoPerGruppo`), non da un template fisso.
-
-## Key files & commands
-
-- `lib/consuntivazione/esita.ts` — cuore dell'esitazione (pura). Test: `lib/consuntivazione/esita.test.ts`.
-- `app/api/admin/consuntivazione/nuovo/route.ts` / `esita/route.ts` — i due write-path.
-- `lib/performance/load.ts` — fan-out squadra (unica modifica a un consumer KPI esistente).
-- `npx vitest run lib/consuntivazione/` · `npx tsc --noEmit` · `npx eslint …/consuntivazione`.
+- **Il "link" = token** non autenticato: `app/r/[token]`, `app/agenda/[token]`, `app/pi/[token]` (+ API
+  `app/api/r|pi|agenda/[token]/*`). Token con validità/revoca (`pi_token`, `rapportini`), generati da admin.
+  L'operatore **non ha identità Supabase** → il consenso va ancorato al **token**, per-sessione, revocabile.
+- **Realtime**: pattern `.channel(...)` già in `lib/pi/useProntoInterventoCount.ts`,
+  `lib/interventi/useInterventiFeed.ts`, `app/hub/hotel-calendar/page.tsx` (quest'ultimo usa `createClient` con
+  **sola anon key**, senza sessione — modello per il client operatore net-new). Broadcast/presence: da introdurre.
+- **Supporto esistente da evolvere**: `app/api/segnala/route.ts` → hub ATLAS (titolo+testo+1 screenshot, async,
+  login-gated). Pattern **proxy-con-segreto-server-side** (`ATLAS_REPORT_SECRET`) riusabile per TURN/licenze.
+- **Storage/foto** riusabile per i pacchetti diagnostici: `app/api/r/[token]/foto-campo/route.ts` (route token +
+  Supabase Storage + signed URL) è il modello quasi 1:1.
+- **Media**: `getUserMedia` in `components/modules/rapportini/risanamento/ScannerMisuratore.tsx`;
+  `getDisplayMedia` mai usato. SW **Serwist** solo caching; **nessun manifest PWA** → app in-browser.
 
 ## Warnings (invarianti da non violare)
 
-- **Applicare le 2 migration al prod PRIMA del merge**: il codice legge/scrive `interventi.esecutori`,
-  `consuntivato_da/at`, `origine='consuntivo'` e crea rapportini con `piano_id` NULL.
-- **Mai creare un secondo `interventi` positivo sullo stesso ODL**: il backstop
-  `decidiChiusuraConPositivi` annulla il doppio positivo (→ riconciliazione); l'indice unico a DB lo
-  imporrebbe comunque.
-- **Foto**: bucket `interventi-foto`, path `rapportini/<rapId>/<slot>.jpg`. Il `rapId` è generato dal
-  client e usato ANCHE come PK del `rapportini` contenitore. Non cambiare la convenzione o i
-  visualizzatori/ZIP non ritrovano le foto.
-- **`rapportini.piano_id` NULL = rapportino backoffice**: non deve mai comparire nelle viste della
-  pianificazione (che filtrano per piano). Non rimuovere quel filtro altrove.
-- Repo **PUBBLICO**: mai dati di produzione (matricole/ODL/nomi) né importi in commit o PR.
+- **⚠️ Privacy prima di tutto.** La schermata operatore (`RapportinoForm`, servita via `supabaseAdmin` che
+  **bypassa la RLS** — `lib/rls.ts` è vuoto) espone **PII di terzi**: nominativo, indirizzo, recapito, PDR,
+  matricola, ODL, GPS, note libere. Ogni mirroring/replay è un **nuovo trattamento**: redazione **fail-closed**
+  (allowlist), consenso per-sessione, retention breve, audit, `requireAdmin`. Il consenso dell'operatore **non**
+  basta a coprire i dati dei clienti mostrati → la **minimizzazione (redazione)** è la vera mitigazione.
+- Repo **PUBBLICO**: mai token di sessione, credenziali TURN o license key SaaS in commit — solo env
+  server-side o chiavi anon già esposte con RLS.
+- `skipWaiting`+`clientsClaim` del SW: un deploy con nuovo SW può **troncare** una sessione live.
+- Se si userà Realtime broadcast per l'operatore anon: **autorizzare il canale** (RLS su `realtime.messages` o
+  `sessionId`/segreto effimero derivato dal token), mai canale pubblico con id indovinabile.
 
 ## Open questions / possibili follow-up
 
-- Territorio del "Nuovo ordine" è opzionale (Select in UI); se lasciato vuoto l'ordine finisce in
-  "Senza territorio" nei filtri. Valutare se renderlo obbligatorio per certi committenti.
-- Premialità di squadra: oggi il **primario** porta la premialità (coerente con "primario per €");
-  se in futuro serve accreditarla a tutta la squadra va esteso il consumer premialità.
-- La finestra di "Ordine presente" è 60 giorni (parametro `giorni`): valutare un filtro data in UI.
+- Buy vs build per il live: **rrweb self-host** (controllo dati, dati EU, più effort) vs **Cobrowse.io**
+  (time-to-value, compliance pronta, costo per-agente, PoC obbligatorio su iOS/Android + SW/token/PWA).
+- **Surfly** (reverse-proxy) escluso in prima battuta per possibili conflitti con SW Serwist/token/PWA: valutare
+  solo dopo PoC.
+- Le **mappe** (Leaflet/maplibre) e la **camera live** non si replicano fedelmente: per problemi lì, il
+  co-browsing non aiuta → affiancare log/screenshot.

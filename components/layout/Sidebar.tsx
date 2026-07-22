@@ -26,6 +26,14 @@ function matchesPath(pathname: string, href: string, matchPrefixes?: string[]): 
   return prefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 }
 
+/**
+ * Badge "Novità" temporaneo accanto a un modulo: chiave modulo → ultimo giorno (incluso, Europe/Rome)
+ * in cui mostrarlo. Dopo quella data sparisce da solo. Consuntivazione: visibile fino a venerdì 24/07.
+ */
+const MODULI_NOVITA: Partial<Record<AppModuleKey, string>> = {
+  consuntivazione: '2026-07-24',
+};
+
 export default function Sidebar({
   allowedModules,
   collapsed = false,
@@ -48,6 +56,28 @@ export default function Sidebar({
     ) : null;
   const badgeAttesa = badge(nAttesa, 'in attesa');
   const badgePI = badge(piCount, 'da approvare');
+
+  // Badge "Novità" temporaneo (verde). Data in fuso Europe/Rome così la scadenza è coerente
+  // lato server (layout force-dynamic) e client, a prescindere dal fuso della macchina.
+  const oggiRoma = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+  const mostraNovita = (key: AppModuleKey): boolean => {
+    const fino = MODULI_NOVITA[key];
+    return !!fino && oggiRoma <= fino;
+  };
+  const badgeNovita = collapsed ? (
+    <span
+      aria-label="Novità"
+      className="absolute right-1 top-1 h-2 w-2 rounded-full"
+      style={{ backgroundColor: 'var(--status-ok)' }}
+    />
+  ) : (
+    <span
+      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+      style={{ backgroundColor: 'var(--status-ok-soft)', color: 'var(--status-ok)' }}
+    >
+      Novità
+    </span>
+  );
 
   const visibleItems = appNavigation.filter((item) => {
     if (item.key === 'hub') return false;
@@ -104,7 +134,13 @@ export default function Sidebar({
             item.label,
             MODULE_ICONS[item.key as AppModuleKey],
             matchesPath(pathname, item.href, item.matchPrefixes),
-            item.key === 'lista-attesa' ? badgeAttesa : item.key === 'pronto-intervento' ? badgePI : undefined,
+            item.key === 'lista-attesa'
+              ? badgeAttesa
+              : item.key === 'pronto-intervento'
+                ? badgePI
+                : mostraNovita(item.key as AppModuleKey)
+                  ? badgeNovita
+                  : undefined,
           ),
         ];
       });
