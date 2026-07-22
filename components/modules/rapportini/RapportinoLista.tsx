@@ -10,7 +10,7 @@ import { CondividiPdfButton } from './CondividiPdfButton';
 import { rigaMatchRicerca } from '@/utils/rapportini/rigaMatchRicerca';
 import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
+export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
@@ -56,6 +56,9 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           )}
           {r.nota && (
             <span title="Nota dall'ufficio" aria-label="Nota dall'ufficio" className="shrink-0 text-[13px] leading-none">📝</span>
+          )}
+          {r.notaCollega && (
+            <span title="Nota da un collega (intervento precedente)" aria-label="Nota da un collega" className="shrink-0 text-[13px] leading-none">🕒</span>
           )}
           <span className={`min-w-[10ch] flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${r.annullato ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (

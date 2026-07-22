@@ -7,6 +7,8 @@ import { CampoInput } from './CampoInput';
 import { mapsUrlFromAddress, mapsUrlFromCoordinate } from '@/utils/rapportini/mapsLink';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { motivoVoceIncompleta, isCampoNota } from '@/utils/rapportini/voceMancante';
+import { BannerNotaCollega } from './NotaCollega';
+import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 
 export type VoceCardData = VoceInfo & { risposte: Record<string, unknown> };
 
@@ -95,7 +97,7 @@ export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota }
 /** Card di una voce, condivisa da VoceFocus (operatore) e dall'anteprima del template. */
 export function VoceCard({
   voce, indice, campi, dettaglio, titoloCampi, stato, disabilitato, onChange,
-  headerRight, approvazioneStato, motivoRifiuto, notaUfficio,
+  headerRight, approvazioneStato, motivoRifiuto, notaUfficio, notePrecedenti,
 }: {
   voce: VoceCardData;
   indice: number;
@@ -109,6 +111,7 @@ export function VoceCard({
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
   notaUfficio?: string | null;
+  notePrecedenti?: NotaPrecedente[] | null;
 }) {
   const badge = badgeVoceManuale(approvazioneStato ?? null);
   const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
@@ -138,6 +141,7 @@ export function VoceCard({
           </div>
         </div>
       )}
+      {notePrecedenti && notePrecedenti.length > 0 && <BannerNotaCollega note={notePrecedenti} />}
       {notaMancante && (
         <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3.5 py-2.5">
           <span aria-hidden className="text-base leading-none">⚠️</span>

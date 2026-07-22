@@ -38,6 +38,8 @@ import { attivitaMassiva, campoObbligatorioSoloMassive } from '@/utils/rapportin
 import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
 import { ModaleCampiMancanti } from './ModaleCampiMancanti';
+import { ModaleNotaCollega } from './NotaCollega';
+import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 import { campiDiVoce, unioneCampi } from '@/utils/rapportini/campiDiVoce';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
@@ -60,6 +62,8 @@ export type Voce = {
   fascia_oraria?: string;
   coordinate?: string;
   notaUfficio?: string;
+  /** Note "tramandate" dai precedenti interventi positivi sullo stesso impianto (sola lettura). */
+  notePrecedenti?: NotaPrecedente[];
   risposte: Record<string, unknown>;
   nuovo?: boolean;
   annullato?: boolean;
@@ -176,6 +180,9 @@ export default function RapportinoForm({
   const [fotoMancanti, setFotoMancanti] = useState<FotoMancanteVoce[] | null>(null); // avviso pre-invio
   const [avvisoManuale, setAvvisoManuale] = useState<string | null>(null);
   const [campiMancanti, setCampiMancanti] = useState<CampoMancanteVoce[] | null>(null); // blocco pre-invio
+  const [notaCollega, setNotaCollega] = useState<NotaPrecedente[] | null>(null); // avviso "nota dal collega"
+  /** Voci per cui l'avviso "nota dal collega" è già comparso in questa sessione (una volta a card). */
+  const notaCollegaVistaRef = useRef<Set<string>>(new Set());
 
   const { perVoce: outboxPerVoce, bloccati, bloccatiItems, inAttesa, online, sincronizzaOra } = useStatoSync(token);
   const bloccato = bloccati > 0 || bloccatoInvia;
@@ -267,6 +274,17 @@ export default function RapportinoForm({
     }
     prevInAttesaRef.current = inAttesa;
   }, [inAttesa, token]);
+
+  // Avviso "nota dal collega": alla prima apertura (in questa sessione) di una card con note
+  // tramandate, mostra il modale interno. La nota resta comunque sempre nel banner della card.
+  useEffect(() => {
+    if (vista !== 'focus') return;
+    const v = voci[indiceCorrente];
+    if (!v || !v.notePrecedenti?.length) return;
+    if (notaCollegaVistaRef.current.has(v.id)) return;
+    notaCollegaVistaRef.current.add(v.id);
+    setNotaCollega(v.notePrecedenti);
+  }, [vista, indiceCorrente, voci]);
 
   const setRisposta = useCallback(
     (voceId: string, chiave: string, valore: unknown) => {
@@ -375,7 +393,7 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
     [voci, campi, titoloCampi],
   );
@@ -533,6 +551,7 @@ export default function RapportinoForm({
           approvazioneStato={voci[indiceCorrente].approvazione_stato ?? null}
           motivoRifiuto={voci[indiceCorrente].motivo_rifiuto ?? null}
           notaUfficio={voci[indiceCorrente].notaUfficio ?? null}
+          notePrecedenti={voci[indiceCorrente].notePrecedenti ?? null}
         />
       ) : (
         <RapportinoLista
@@ -614,6 +633,9 @@ export default function RapportinoForm({
             }
           }}
         />
+      )}
+      {notaCollega && notaCollega.length > 0 && (
+        <ModaleNotaCollega note={notaCollega} onChiudi={() => setNotaCollega(null)} />
       )}
       {campiMancanti && campiMancanti.length > 0 && (
         <ModaleCampiMancanti
