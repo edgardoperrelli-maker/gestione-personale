@@ -5,7 +5,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import {
   canaleSessione,
-  inviaEvento,
+  creaMittente,
   LOBBY,
   realtimeClient,
   type Richiesta,
@@ -35,9 +35,10 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
   const [hint, setHint] = useState<string | null>(null);
   const [connesso, setConnesso] = useState(false);
 
+  const [instabile, setInstabile] = useState(false);
   const chRef = useRef<RealtimeChannel | null>(null);
   const recRef = useRef<RecordApi | null>(null);
-  const seq = useRef({ n: 0 });
+  const mittenteRef = useRef<ReturnType<typeof creaMittente> | null>(null);
   const statoRef = useRef<Stato>('idle');
   statoRef.current = stato;
 
@@ -45,9 +46,11 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
   const avviaRegistrazione = useCallback(async () => {
     if (recRef.current || !chRef.current) return;
     const ch = chRef.current;
+    if (!mittenteRef.current) mittenteRef.current = creaMittente(ch, () => setInstabile(true));
+    const mittente = mittenteRef.current;
     const rrweb = await import('rrweb');
     const stop = rrweb.record({
-      emit: (event) => inviaEvento(ch, event, seq.current),
+      emit: (event) => mittente.invia(event),
       inlineStylesheet: true,
       collectFonts: false,
       recordCanvas: false,
@@ -131,6 +134,7 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
       fermaRegistrazione();
       cli.removeChannel(ch);
       chRef.current = null;
+      mittenteRef.current = null;
     };
   }, [sessionId, staff, data, fermaRegistrazione]);
 
@@ -202,6 +206,9 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
                 </span>
                 <button type="button" onClick={termina} className="text-xs font-semibold text-[var(--brand-magenta)]">Interrompi</button>
               </div>
+              {instabile && (
+                <div className="mt-1 text-[11px] text-[var(--brand-gold)]">⚠ Connessione instabile: alcuni aggiornamenti potrebbero non arrivare al back office.</div>
+              )}
             </div>
           )}
         </div>

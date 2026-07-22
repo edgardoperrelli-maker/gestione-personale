@@ -1,9 +1,10 @@
 'use client';
 
+import 'rrweb/dist/style.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
-import { canaleSessione, creaRicevitore, realtimeClient } from '@/lib/assistenza/transport';
+import { canaleSessione, creaRicevitore, realtimeClient, type Chunk } from '@/lib/assistenza/transport';
 
 type Props = { sid: string; staff: string; data: string; onClose: () => void };
 
@@ -13,43 +14,55 @@ type LiveReplayer = {
   startLive: (baseTime?: number) => void;
   destroy?: () => void;
 };
+type RREvent = { type: number; timestamp: number; data?: { width?: number; height?: number } };
 
 /**
  * Una sessione di assistenza (una card). Riceve gli eventi rrweb dell'operatore via broadcast
- * e li rigioca in DIRETTA con il Replayer rrweb in liveMode (pattern canonico: Replayer vuoto +
- * startLive() + addEvent per ogni evento). Ricostruzione fedele del rapportino, inclusi errori.
- * Sola lettura; unico canale di ritorno: un "suggerimento" testuale.
+ * e li rigioca in DIRETTA (Replayer liveMode). Il replayer viene creato al PRIMO evento con
+ * `startLive(ts - 1000)` ancorato al clock della SORGENTE: con `startLive()` senza argomento
+ * un telefono col clock avanti rispetto al desktop schedula tutto "nel futuro" → schermo
+ * bianco. Il viewport dell'operatore (es. 390×844) viene scalato alla larghezza del pannello.
  */
 export default function SessionePanel({ sid, staff, data, onClose }: Props) {
   const [operatorePresente, setOperatorePresente] = useState(false);
   const [condivisione, setCondivisione] = useState(false);
   const [ricevuti, setRicevuti] = useState(0);
+  const [errori, setErrori] = useState(0);
+  const [vp, setVp] = useState<{ w: number; h: number } | null>(null);
+  const [scala, setScala] = useState(1);
   const [hint, setHint] = useState('');
 
+  const hostRef = useRef<HTMLDivElement | null>(null);
   const rootRef = useRef<HTMLDivElement | null>(null);
   const chRef = useRef<RealtimeChannel | null>(null);
   const replayerRef = useRef<LiveReplayer | null>(null);
-  const pending = useRef<unknown[]>([]);
-  const rrwebMod = useRef<typeof import('rrweb') | null>(null);
+  const pending = useRef<RREvent[]>([]);
   const initing = useRef(false);
 
-  const initReplayer = useCallback(async () => {
+  const aggiornaScala = useCallback((w: number) => {
+    const host = hostRef.current;
+    if (!host || w <= 0) return;
+    setScala(Math.min(1, (host.clientWidth - 16) / w));
+  }, []);
+
+  const initReplayer = useCallback(async (primoTs: number) => {
     if (replayerRef.current || initing.current || !rootRef.current) return;
     initing.current = true;
     try {
-      if (!rrwebMod.current) rrwebMod.current = await import('rrweb');
+      const rrweb = await import('rrweb');
       if (!rootRef.current) return;
       rootRef.current.innerHTML = '';
-      const replayer = new rrwebMod.current.Replayer([], {
+      const replayer = new rrweb.Replayer([], {
         liveMode: true,
         root: rootRef.current,
         mouseTail: false,
       });
       const live = replayer as unknown as LiveReplayer;
-      live.startLive();
+      live.startLive(primoTs - 1000); // ancorato al clock della sorgente, con buffer di rete
       replayerRef.current = live;
-      // svuota gli eventi arrivati prima che il player fosse pronto
-      for (const e of pending.current) { try { live.addEvent(e); } catch { /* no-op */ } }
+      for (const e of pending.current) {
+        try { live.addEvent(e); } catch { setErrori((n) => n + 1); }
+      }
       pending.current = [];
     } finally {
       initing.current = false;
@@ -57,27 +70,32 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
   }, []);
 
   const onEvent = useCallback((raw: unknown) => {
+    const ev = raw as RREvent;
     setRicevuti((n) => n + 1);
     setCondivisione(true);
-    if (replayerRef.current) {
-      try { replayerRef.current.addEvent(raw); } catch { /* no-op */ }
-    } else {
-      pending.current.push(raw);
-      void initReplayer();
+    // Meta event (type 4): porta il viewport della sorgente → scala il replay al pannello
+    if (ev.type === 4 && ev.data?.width) {
+      setVp({ w: ev.data.width, h: ev.data.height ?? 0 });
+      aggiornaScala(ev.data.width);
     }
-  }, [initReplayer]);
+    if (replayerRef.current) {
+      try { replayerRef.current.addEvent(ev); } catch { setErrori((n) => n + 1); }
+    } else {
+      pending.current.push(ev);
+      void initReplayer(pending.current[0].timestamp);
+    }
+  }, [initReplayer, aggiornaScala]);
 
   useEffect(() => {
     const cli = realtimeClient();
     if (!cli) return;
-    void initReplayer();
     const ricevi = creaRicevitore(onEvent);
     const ch = cli.channel(canaleSessione(sid), {
       config: { broadcast: { self: false }, presence: { key: 'admin' } },
     });
     chRef.current = ch;
 
-    ch.on('broadcast', { event: 'rr' }, ({ payload }) => ricevi(payload as { eid: string; i: number; n: number; s: string }));
+    ch.on('broadcast', { event: 'rr' }, ({ payload }) => ricevi(payload as Chunk));
     ch.on('broadcast', { event: 'start' }, () => setCondivisione(true));
     ch.on('broadcast', { event: 'stop' }, () => {
       setCondivisione(false);
@@ -85,6 +103,7 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
       replayerRef.current = null;
       pending.current = [];
       setRicevuti(0);
+      setErrori(0);
       if (rootRef.current) rootRef.current.innerHTML = '';
     });
     ch.on('presence', { event: 'sync' }, () => {
@@ -99,13 +118,20 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
       }
     });
 
+    const onResize = () => { if (vpRef.current) aggiornaScala(vpRef.current.w); };
+    window.addEventListener('resize', onResize);
     return () => {
+      window.removeEventListener('resize', onResize);
       replayerRef.current?.destroy?.();
       replayerRef.current = null;
       cli.removeChannel(ch);
       chRef.current = null;
     };
-  }, [sid, onEvent, initReplayer]);
+  }, [sid, onEvent, aggiornaScala]);
+
+  // ref-shadow del viewport per l'handler di resize (evita di riagganciare l'effect)
+  const vpRef = useRef<{ w: number; h: number } | null>(null);
+  vpRef.current = vp;
 
   const inviaHint = useCallback(() => {
     const t = hint.trim();
@@ -130,13 +156,19 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
             {operatorePresente ? 'operatore in linea' : 'operatore offline'}
           </span>
           <span className="text-[var(--brand-text-muted)]">· eventi {ricevuti}</span>
+          {errori > 0 && <span className="text-[var(--brand-magenta)]">· errori {errori}</span>}
           <button type="button" onClick={onClose} className="text-[var(--brand-text-muted)]">✕</button>
         </div>
       </div>
 
-      {/* area replay */}
-      <div className="relative flex max-h-[70vh] min-h-[320px] justify-center overflow-auto bg-[var(--brand-bg)]">
-        <div ref={rootRef} className="assist-replay" />
+      {/* area replay: il viewport sorgente viene scalato alla larghezza del pannello */}
+      <div ref={hostRef} className="relative max-h-[70vh] min-h-[320px] overflow-auto bg-[var(--brand-bg)] p-2">
+        <div style={vp ? { height: Math.round(vp.h * scala), width: Math.round(vp.w * scala), margin: '0 auto' } : undefined}>
+          <div
+            ref={rootRef}
+            style={vp ? { transform: `scale(${scala})`, transformOrigin: 'top left', width: vp.w, height: vp.h } : undefined}
+          />
+        </div>
         {!condivisione && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 p-6 text-center">
             <div className="text-sm text-[var(--brand-text-muted)]">
