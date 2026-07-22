@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
 
+import MultiSelect from '@/components/ui/MultiSelect';
 import { LOBBY, realtimeClient, type Richiesta } from '@/lib/assistenza/transport';
 import SessionePanel from './SessionePanel';
 
@@ -83,6 +84,24 @@ export default function AssistenzaClient() {
   const richiesteList = Object.values(richieste).sort((a, b) => b.at - a.at);
   const env = realtimeClient() !== null;
 
+  // filtri (niente lista intera per default): operatori (multiselect a esclusione) + ricerca
+  const [filtroOp, setFiltroOp] = useState<string[]>([]);
+  const [q, setQ] = useState('');
+  const operatoriOptions = useMemo(() => {
+    const nomi = Array.from(new Set(rapportini.map((r) => r.staff))).sort((a, b) => a.localeCompare(b));
+    return nomi.map((n) => ({ value: n, label: n }));
+  }, [rapportini]);
+  const filtroAttivo = filtroOp.length > 0 || q.trim() !== '';
+  const rapportiniFiltrati = useMemo(() => {
+    if (!filtroAttivo) return [];
+    const needle = q.trim().toLowerCase();
+    return rapportini.filter((r) => {
+      if (filtroOp.length > 0 && !filtroOp.includes(r.staff)) return false;
+      if (needle && !r.staff.toLowerCase().includes(needle)) return false;
+      return true;
+    });
+  }, [rapportini, filtroOp, q, filtroAttivo]);
+
   return (
     <div className="flex flex-col gap-5 p-4 sm:p-6">
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -129,18 +148,48 @@ export default function AssistenzaClient() {
         </section>
       )}
 
-      {/* rapportini del giorno */}
+      {/* rapportini del giorno — con filtri, niente lista intera per default */}
       <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-        <div className="mb-2 text-sm font-semibold">Rapportini di oggi</div>
+        <div className="mb-3 flex flex-wrap items-center gap-3">
+          <div className="text-sm font-semibold">Rapportini di oggi</div>
+          <span className="text-xs text-[var(--brand-text-muted)]">{rapportini.length} totali</span>
+          <div className="ml-auto flex flex-wrap items-center gap-2">
+            <MultiSelect
+              label="Operatori"
+              ariaLabel="Filtra per operatore"
+              options={operatoriOptions}
+              values={filtroOp}
+              onChange={setFiltroOp}
+              disabled={caricamento || rapportini.length === 0}
+            />
+            <input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Cerca operatore…"
+              className="rounded-lg border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-1.5 text-sm outline-none"
+            />
+            {filtroAttivo && (
+              <button type="button" onClick={() => { setFiltroOp([]); setQ(''); }}
+                className="text-xs text-[var(--brand-text-muted)] underline">azzera</button>
+            )}
+          </div>
+        </div>
+
         {caricamento ? (
           <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Caricamento…</div>
         ) : errore ? (
           <div className="py-4 text-sm text-[var(--brand-magenta)]">{errore}</div>
         ) : rapportini.length === 0 ? (
           <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun rapportino per oggi.</div>
+        ) : !filtroAttivo ? (
+          <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">
+            Scegli un operatore dal filtro o cerca per nome per avviare l&apos;assistenza.
+          </div>
+        ) : rapportiniFiltrati.length === 0 ? (
+          <div className="py-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun operatore corrisponde al filtro.</div>
         ) : (
           <div className="flex flex-col gap-2">
-            {rapportini.map((r) => {
+            {rapportiniFiltrati.map((r) => {
               const aperta = sessioni.some((x) => x.sid === r.sid);
               return (
                 <div key={r.sid} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 py-2">
