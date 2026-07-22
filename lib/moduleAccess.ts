@@ -16,6 +16,7 @@ export type AppModuleKey =
   | 'mappa'
   | 'interventi'
   | 'consuntivazione'
+  | 'assistenza'
   | 'pronto-intervento'
   | 'live'
   | 'lista-attesa'
@@ -98,6 +99,17 @@ export const APP_MODULES: AppModuleDefinition[] = [
     group: 'operativita',
     matchPrefixes: ['/hub/consuntivazione'],
     adminOnly: true,
+  },
+  {
+    key: 'assistenza',
+    href: '/hub/assistenza',
+    label: 'Assistenza',
+    description: 'Assisti gli operatori sul rapportino in diretta',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/assistenza'],
+    adminOnly: true,
+    requiresAdminRole: true,
   },
   {
     key: 'pronto-intervento',
@@ -284,8 +296,15 @@ export function normalizeAllowedModules(
 ): AppModuleKey[] {
   const raw = Array.isArray(input) ? input : [];
   const set = new Set<AppModuleKey>(ALL_MODULE_KEYS.filter((key) => raw.includes(key)));
-  if (isAdminAssignableRole(role)) set.add('impostazioni');
-  else set.delete('impostazioni');
+  // I moduli riservati agli admin (requiresAdminRole, es. impostazioni e assistenza) sono
+  // SEMPRE visibili agli admin — anche se non presenti nella lista salvata (moduli nuovi) —
+  // e MAI agli operatori. canAccessPath applica comunque il gate forte di ruolo.
+  const adminOnly = isAdminAssignableRole(role);
+  for (const m of APP_MODULES) {
+    if (!m.requiresAdminRole) continue;
+    if (adminOnly) set.add(m.key);
+    else set.delete(m.key);
+  }
   return ALL_MODULE_KEYS.filter((key) => set.has(key)); // ordine stabile
 }
 

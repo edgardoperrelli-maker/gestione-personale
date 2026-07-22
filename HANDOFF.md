@@ -1,90 +1,92 @@
-# Handoff — Studio di fattibilità: connessione remota back office → dispositivo (2026-07-22)
+# Handoff — Modulo Assistenza: co-browsing live back office ↔ operatore (2026-07-22)
 
 > Documento di ripresa per una NUOVA chat: autosufficiente, la sessione precedente non c'è più.
-> Lavoro sul branch `claude/remote-connection-feasibility-fb4kkc` (produzione = `main`). Task ATLAS.
-> ⚠️ Questa è una sessione di **SOLO DOCUMENTAZIONE**: nessuna riga di codice applicativo, nessuna
-> migration, nessuna dipendenza installata.
+> Lavoro sul branch `claude/modulo-assistenza-live` (produzione = `main`).
+> Sostituisce l'handoff dello studio di fattibilità (PR #157, mergiata): quel contenuto vive in
+> `docs/connessione-remota-fattibilita.md` e nella voce ROADMAP dedicata.
 
 ## Goal
 
-Valutare la fattibilità di far accedere il **back office** al dispositivo dell'operatore **in remoto**,
-**tramite il link** e **previa accettazione dell'operatore**, per **risolvere problemi sull'app**.
-Deliverable = uno studio di fattibilità nel formato di `docs/mapcn-fattibilita.md`.
+Integrare come funzionalità reale l'esito dello studio di fattibilità sulla connessione remota
+(`docs/connessione-remota-fattibilita.md`, PR #157): il back office **vede in diretta il rapportino
+dell'operatore** (fedele al 100%: dati **ed** errori) e lo guida, **previa accettazione**, con
+richiesta **bidirezionale** (operatore→BO e BO→operatore sul rapportino del giorno) e **multi-sessione**.
 
 ## Current status
 
-**COMPLETATO.** Prodotto `docs/connessione-remota-fattibilita.md`; ROADMAP.md aggiornato (voce in "Fatto").
-Nessun test/build da eseguire (solo `.md`). Pronto per PR con riga `ATLAS-Item`.
+**COMPLETATO e VALIDATO end-to-end** su dispositivi reali (iPhone operatore + desktop back office,
+preview Vercel): l'utente ha confermato che il replay live si popola. `tsc` 0, `eslint` 0,
+`npx vitest run lib/assistenza/` = 6 verdi. `next build` compila (il fail successivo in cloud è la
+service key assente su una route ACEA preesistente — limite d'ambiente noto). **Migration
+`20260722140000_assistenza_sessioni.sql` APPLICATA al prod il 22/07** (verificata: tabella presente,
+RLS attiva, 0 policy). **PR #162 aperta** verso `main`; conflitto ROADMAP/HANDOFF con la #157 risolto
+nel merge di `origin/main` nel branch (tenute entrambe le voci ROADMAP, HANDOFF = sessione più recente).
 
-## Verdetto in una riga
+## Architettura (com'è fatta)
 
-Un "TeamViewer nel browser" (vedere/**controllare** lo schermo del telefono da una PWA) **NON è
-realizzabile** sul target mobile. La via web realistica è il **co-browsing / mirroring del DOM** della sola
-app gp: **vista assistita + guida, non controllo**.
+- **Trasporto** (`lib/assistenza/transport.ts`): Supabase Realtime **broadcast + presence**, EFFIMERO —
+  zero scritture di dati rapportino su DB. Eventi rrweb: JSON → **gzip** (CompressionStream, ~10×) →
+  **base64** (niente inflazione da escape JSON) → **chunk ≤120KB** (il broadcast Supabase scarta i
+  messaggi oltre ~256KB **in silenzio**: era la causa n.1 del replay vuoto — lo snapshot di un
+  rapportino reale con 100+ voci e CSS Tailwind inlinato supera il MB). Mittente con **coda
+  sequenziale** (ordine garantito) + **retry** sui drop + callback `onDrop`; ricevitore con coda async
+  e fallback `z=0` non compresso. Canale lobby `assist-richieste` per le richieste operatore→BO.
+- **Sicurezza canale** (`lib/assistenza/canale.ts`, `server-only`): canale `assist:<sid>` con
+  **sid = HMAC-SHA256 del token** (`ASSIST_CHANNEL_SECRET` o service key come chiave). Il token grezzo
+  non lascia mai il server: l'operatore riceve il sid nella pagina server-rendered, l'admin dalla API
+  `requireAdmin`. Chi ha la sola anon key non può derivare il canale.
+- **Operatore** (`components/assistenza/OperatoreAssistenza.tsx`, montato in `app/r/[token]/page.tsx`):
+  FAB 🛟 → "Chiedi assistenza" (pubblica in lobby e inizia a condividere) oppure **modale a schermo**
+  Accetto/Rifiuto quando la richiesta arriva dal BO. rrweb `record()` **on-demand** (import dinamico),
+  `maskAllInputs` opzionale ("Oscura i campi"), re-invio di `start`+full-snapshot quando un admin
+  (ri)entra (presence) o richiede. Avviso "connessione instabile" sui drop.
+- **Back office** (`app/hub/assistenza` + `components/modules/assistenza/`): `AssistenzaClient` =
+  richieste in arrivo (lobby) + sessioni aperte (**multi-sessione**, una card per operatore) +
+  rapportini di oggi con **filtro MultiSelect operatori + ricerca** (niente lista intera di default;
+  API `GET /api/admin/assistenza/rapportini-oggi`, ritorna **solo sid**, mai il token).
+  `SessionePanel` = Replayer rrweb **liveMode** creato al PRIMO evento con **`startLive(ts_sorgente
+  - 1000)`** (ancorato al clock della sorgente: con `startLive()` nudo un telefono col clock avanti
+  schedula tutto "nel futuro" → schermo bianco — causa n.2), CSS `rrweb/dist/style.css`, **scala del
+  viewport** sorgente alla larghezza del pannello, contatore "eventi N / errori M", suggerimenti
+  testuali → toast sull'operatore.
+- **Registrazione modulo**: `lib/moduleAccess.ts` (`assistenza`, adminOnly + `requiresAdminRole`) +
+  icona in `components/layout/moduleIcons.tsx`. Fix trasversale: i moduli `requiresAdminRole`
+  (impostazioni, assistenza) sono **sempre** nella lista degli admin anche se assenti dalla
+  `allowedModules` salvata (prima un modulo nuovo non compariva in sidebar).
+- **Audit**: `assistenza_sessioni` (sid, staff, data, admin_id, origine, avviata_at) via
+  `POST /api/admin/assistenza/log` — best-effort, RLS senza policy (solo service role).
 
-## Decisioni chiave (fatti verificati in modo adversariale — MDN/caniuse/Chromium/W3C/Supabase)
+## La diagnosi del "replay vuoto" (per non ricascarci)
 
-1. **`getDisplayMedia` (cattura schermo web) NON esiste sui browser mobili.** iOS = tutti i browser sono
-   WebKit, mai supportato; Android Chrome = API deliberatamente **nascosta** da Chrome 88 (il `typeof` check
-   dà **falsi positivi** → serve verifica funzionale/di piattaforma). → **Screen-share WebRTC = non fattibile
-   su mobile.**
-2. **Controllo remoto (iniezione input) IMPOSSIBILE con sole Web API.** Serve un agente nativo lato-OS. La
-   nuova API sperimentale *Captured Surface Control* inoltra solo scroll/zoom su surface **locali** desktop —
-   non abilita nulla di remoto.
-3. **Unica via web-only su mobile = co-browsing / mirroring del DOM** (rrweb self-host **oppure** SaaS tipo
-   Cobrowse.io): trasmette la **struttura** (DOM), non i pixel → aggira il blocco. Copre **solo l'app gp**;
-   **punti ciechi**: canvas/mappe (Leaflet/maplibre), anteprima **fotocamera live** (`getUserMedia` dello
-   scanner), UI di sistema/altre app/tastiera nativa.
-4. **Supabase Realtime broadcast** può fare da trasporto/signaling **senza nuovo server** (già nell'infra, ma
-   finora usato **solo** `postgres_changes`; broadcast/presence mai adottati). Per lo screen-share WebRTC
-   servirebbe anche un **TURN** (reti mobili con CGNAT), ma quell'approccio è comunque bloccato a monte.
-5. **Percorso consigliato (a fasi):** Fase 0 fondamenta (consenso per-sessione da token, audit, autorizzazione
-   canale, marcatura PII) → **Fase 1 diagnostica remota async** (session-replay rrweb + log, evoluzione di
-   "invia segnalazione", 100% stack, dati EU) → **Fase 2 co-browsing near-live** (rrweb `liveMode` su Supabase
-   broadcast, o buy Cobrowse.io con PoC). **Escludere** screen-share WebRTC e tool nativi (fuori perimetro
-   PWA, iOS non controllabile, privacy peggiore) salvo tampone d'emergenza.
+1. **Payload oltre il limite broadcast** → snapshot mai assemblato (drop silenziosi). Fix: gzip+base64+
+   chunk piccoli. 2. **Clock skew** con `startLive()` non ancorato. Fix: `startLive(primoTs-1000)`.
+3. **Diagnostica cieca** (errori `addEvent` inghiottiti, esito `send` ignorato). Fix: contatori + retry.
+Verificato con harness Playwright locale (rrweb UMD reale: il pattern del player renderizza; il collo
+era il percorso di rete) + 6 test vitest sul transport reale + conferma utente sul campo.
 
-## Done
+## Key files & commands
 
-- `docs/connessione-remota-fattibilita.md` — studio completo: §1 verdetto sintesi, §2 vincolo `getDisplayMedia`,
-  §3 cosa si può/non si può via Web API, §4 punti d'aggancio nel repo, §5 cinque approcci con verdetti, §6
-  rischi/mitigazioni, §7 privacy/GDPR, §8 piano a fasi, + fonti.
-- `ROADMAP.md` — nuova voce ✅ in cima a "Fatto".
-- `HANDOFF.md` — questo documento.
-
-## Punti d'aggancio nel codice (per una futura implementazione)
-
-- **Il "link" = token** non autenticato: `app/r/[token]`, `app/agenda/[token]`, `app/pi/[token]` (+ API
-  `app/api/r|pi|agenda/[token]/*`). Token con validità/revoca (`pi_token`, `rapportini`), generati da admin.
-  L'operatore **non ha identità Supabase** → il consenso va ancorato al **token**, per-sessione, revocabile.
-- **Realtime**: pattern `.channel(...)` già in `lib/pi/useProntoInterventoCount.ts`,
-  `lib/interventi/useInterventiFeed.ts`, `app/hub/hotel-calendar/page.tsx` (quest'ultimo usa `createClient` con
-  **sola anon key**, senza sessione — modello per il client operatore net-new). Broadcast/presence: da introdurre.
-- **Supporto esistente da evolvere**: `app/api/segnala/route.ts` → hub ATLAS (titolo+testo+1 screenshot, async,
-  login-gated). Pattern **proxy-con-segreto-server-side** (`ATLAS_REPORT_SECRET`) riusabile per TURN/licenze.
-- **Storage/foto** riusabile per i pacchetti diagnostici: `app/api/r/[token]/foto-campo/route.ts` (route token +
-  Supabase Storage + signed URL) è il modello quasi 1:1.
-- **Media**: `getUserMedia` in `components/modules/rapportini/risanamento/ScannerMisuratore.tsx`;
-  `getDisplayMedia` mai usato. SW **Serwist** solo caching; **nessun manifest PWA** → app in-browser.
+- `lib/assistenza/transport.ts` — cuore del trasporto (test: `lib/assistenza/transport.test.ts`).
+- `lib/assistenza/canale.ts` — HMAC sid (server-only).
+- `components/assistenza/OperatoreAssistenza.tsx` · `components/modules/assistenza/{AssistenzaClient,SessionePanel}.tsx`
+- `app/api/admin/assistenza/{rapportini-oggi,log}/route.ts` · `app/hub/assistenza/page.tsx`
+- `npx vitest run lib/assistenza/` · `npx tsc --noEmit` · `npx eslint lib/assistenza components/assistenza components/modules/assistenza`
 
 ## Warnings (invarianti da non violare)
 
-- **⚠️ Privacy prima di tutto.** La schermata operatore (`RapportinoForm`, servita via `supabaseAdmin` che
-  **bypassa la RLS** — `lib/rls.ts` è vuoto) espone **PII di terzi**: nominativo, indirizzo, recapito, PDR,
-  matricola, ODL, GPS, note libere. Ogni mirroring/replay è un **nuovo trattamento**: redazione **fail-closed**
-  (allowlist), consenso per-sessione, retention breve, audit, `requireAdmin`. Il consenso dell'operatore **non**
-  basta a coprire i dati dei clienti mostrati → la **minimizzazione (redazione)** è la vera mitigazione.
-- Repo **PUBBLICO**: mai token di sessione, credenziali TURN o license key SaaS in commit — solo env
-  server-side o chiavi anon già esposte con RLS.
-- `skipWaiting`+`clientsClaim` del SW: un deploy con nuovo SW può **troncare** una sessione live.
-- Se si userà Realtime broadcast per l'operatore anon: **autorizzare il canale** (RLS su `realtime.messages` o
-  `sessionId`/segreto effimero derivato dal token), mai canale pubblico con id indovinabile.
+- **Mai far uscire il token grezzo** dal server verso l'admin: solo il **sid** HMAC. Non cambiare la
+  derivazione senza ruotare anche il canale.
+- **Niente scritture di dati rapportino** dal canale assistenza: il broadcast è effimero by design.
+- Il **chunk ≤120KB post-base64** è calibrato sul limite ~256KB del broadcast: non alzarlo.
+- `startLive` va **ancorato al timestamp del primo evento** (clock sorgente), mai a `Date.now()` admin.
+- rrweb è **on-demand**: non importarlo staticamente nelle pagine operatore (peso bundle mobile).
+- Repo **PUBBLICO**: mai token/segreti in commit; `ASSIST_CHANNEL_SECRET` opzionale via env.
 
 ## Open questions / possibili follow-up
 
-- Buy vs build per il live: **rrweb self-host** (controllo dati, dati EU, più effort) vs **Cobrowse.io**
-  (time-to-value, compliance pronta, costo per-agente, PoC obbligatorio su iOS/Android + SW/token/PWA).
-- **Surfly** (reverse-proxy) escluso in prima battuta per possibili conflitti con SW Serwist/token/PWA: valutare
-  solo dopo PoC.
-- Le **mappe** (Leaflet/maplibre) e la **camera live** non si replicano fedelmente: per problemi lì, il
-  co-browsing non aiuta → affiancare log/screenshot.
+- **Autorizzazione canale più forte**: oggi il sid HMAC è non-indovinabile ma chi lo conosce può
+  iscriversi con l'anon key; valutare Realtime Authorization (RLS su `realtime.messages`).
+- **Redazione PII di default** lato operatore (oggi opzionale col toggle "Oscura i campi"): valutare
+  mask-by-default sui campi anagrafici, come raccomandato dallo studio (§7).
+- Punti ciechi noti del mirroring DOM: mappe/canvas e anteprima camera live non si replicano.
+- `terminata_at` in `assistenza_sessioni` non è ancora valorizzato (serve un beacon di fine sessione).

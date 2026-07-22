@@ -34,6 +34,7 @@
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "recharts": "^3.8.1",
+    "rrweb": "^2.1.1",
     "serwist": "^9.5.11",
     "tailwind-merge": "^3.6.0",
     "xlsx": "^0.18.5",
