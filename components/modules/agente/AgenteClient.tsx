@@ -18,6 +18,8 @@ export type AgenteClientProps = {
   forzaScan: boolean;
   forzaAcea: boolean;
   forzaAceaSal: boolean;
+  /** Avvisi salute OneDrive dell'ultimo giro (copie orfane, OneDrive spento, esche in Download). */
+  avvisiSync: string[];
 };
 
 /** Forma modificabile della config nel form (sottoinsieme salvabile). */
@@ -37,7 +39,7 @@ const cardStyle = {
   backgroundColor: 'var(--brand-surface)',
 } as const;
 
-export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal }: AgenteClientProps) {
+export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal, avvisiSync }: AgenteClientProps) {
   const router = useRouter();
   const [form, setForm] = useState<ConfigForm>({
     enabled: config.enabled,
@@ -309,6 +311,18 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             role="alert"
           >
             ⚠ {stato.allerta}
+          </div>
+        )}
+        {avvisiSync.length > 0 && (
+          <div
+            className="rounded-xl border px-3 py-2 text-sm space-y-1"
+            style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
+            role="alert"
+          >
+            <p className="font-semibold">⚠ Sincronizzazione OneDrive da controllare sul PC dell&apos;agente:</p>
+            {avvisiSync.map((a) => (
+              <p key={a}>{a}</p>
+            ))}
           </div>
         )}
         <div className="mt-3 flex items-center gap-3">
