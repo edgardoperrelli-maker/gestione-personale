@@ -97,7 +97,13 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
     chRef.current = ch;
 
     ch.on('broadcast', { event: 'richiesta_admin' }, () => {
-      if (statoRef.current !== 'attiva') setRichiestaAdmin(true);
+      if (statoRef.current === 'attiva') {
+        // già in condivisione: un admin (ri)entrato ha bisogno di start + snapshot fresco
+        ch.send({ type: 'broadcast', event: 'start', payload: { staff, data } });
+        recRef.current?.takeFullSnapshot();
+      } else {
+        setRichiestaAdmin(true);
+      }
     });
     ch.on('broadcast', { event: 'hint' }, ({ payload }) => {
       setHint((payload as { text?: string }).text ?? '');
@@ -107,8 +113,11 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
       const st = ch.presenceState();
       const admin = Object.values(st).flat().some((m) => (m as { role?: string })?.role === 'admin');
       setAdminPresente(admin);
-      // admin appena entrato mentre condividiamo → nuovo full-snapshot per allinearlo
-      if (admin && statoRef.current === 'attiva') recRef.current?.takeFullSnapshot();
+      // admin appena entrato mentre condividiamo → ripeti start + full-snapshot per allinearlo
+      if (admin && statoRef.current === 'attiva') {
+        ch.send({ type: 'broadcast', event: 'start', payload: { staff, data } });
+        recRef.current?.takeFullSnapshot();
+      }
     });
 
     ch.subscribe((status) => {

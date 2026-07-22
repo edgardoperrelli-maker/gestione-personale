@@ -73,7 +73,10 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
     });
     chRef.current = ch;
 
-    ch.on('broadcast', { event: 'rr' }, ({ payload }) => ricevi(payload as { eid: string; i: number; n: number; s: string }));
+    ch.on('broadcast', { event: 'rr' }, ({ payload }) => {
+      setCondivisione(true); // ricevere eventi = l'operatore sta condividendo (toglie l'overlay)
+      ricevi(payload as { eid: string; i: number; n: number; s: string });
+    });
     ch.on('broadcast', { event: 'start' }, () => setCondivisione(true));
     ch.on('broadcast', { event: 'stop' }, () => {
       setCondivisione(false);
