@@ -35,6 +35,8 @@ export type ReportAgente = {
   extraNonCollocate?: unknown[];
   erroreGlobale?: string;
   tipo?: string;
+  /** Avvisi di salute della sincronizzazione OneDrive sul PC-agente (saluteSync.mjs). */
+  avvisiSync?: string[];
 };
 
 export type RiassuntoReport = {

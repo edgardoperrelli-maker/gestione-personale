@@ -17,6 +17,7 @@ import { finestra } from './lib/finestra.mjs';
 import { scanColonne } from './lib/scanColonne.mjs';
 import { tick, inviaReport, inviaPianificabili, baseUrlDaEndpoint } from './lib/apiAgente.mjs';
 import { risolviPathConfig } from './lib/risolviPathConfig.mjs';
+import { controllaSaluteSync } from './lib/saluteSync.mjs';
 import { estraiPianificabili } from './lib/pianificabili.mjs';
 import { mappaRigheMaster, trovaIntestazioneAcea } from './lib/acea/leggiMasterAcea.mjs';
 import { mappaMasterSnapshot } from './lib/acea/masterSnapshot.mjs';
@@ -599,6 +600,11 @@ async function main() {
   // (una sola gemella valida) invece di girare a vuoto su un percorso morto.
   const { cfg, avviso: avvisoPercorso } = risolviPathConfig(JSON.parse(fs.readFileSync(cfgPath, 'utf8')));
   if (avvisoPercorso) console.error(`[lim-sync] ⚠ ${avvisoPercorso}`);
+  // Salute sync OneDrive (processo spento, copie orfane, esche in Download, motore fermo):
+  // l'incidente del 22/07 (copia congelata guardata per un mese) è rimasto invisibile perché
+  // nessuno la controllava. Best-effort a ogni tick; gli avvisi viaggiano nei report dei giri.
+  const avvisiSync = controllaSaluteSync({ cartella: cfg.cartella });
+  for (const a of avvisiSync) console.error(`[lim-sync] ⚠ SYNC: ${a}`);
   const baseUrl = baseUrlDaEndpoint(cfg.endpointUrl);
   const oggi = new Date().toISOString().slice(0, 10);
 
@@ -652,6 +658,7 @@ async function main() {
     try {
       const { eseguiGiroAcea } = await import('./lib/acea/eseguiGiroAcea.mjs');
       const report = await eseguiGiroAcea({ cfg, stamp, target: aceaTarget, baseUrl, exportKey: cfg.exportKey });
+      if (avvisiSync.length) report.avvisiSync = avvisiSync;
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
       // Il target può valere PIÙ master (es. 'TUTTI'): i conteggi si sommano su tutti i file scritti.
@@ -679,6 +686,7 @@ async function main() {
         cfg, stamp, data: ris.aceaAssegnaData, dryRun,
         baseUrl, exportKey: cfg.exportKey,
       });
+      if (avvisiSync.length) report.avvisiSync = avvisiSync;
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
       const nProc = report.righe?.length ?? 0;
@@ -698,6 +706,7 @@ async function main() {
       const { leggiSal } = await import('./lib/acea/leggiSal.mjs');
       const salFiles = await leggiSal(cfg.acea?.salPath ?? '');
       const report = { tipo: 'acea-sal', dryRun: false, lavori: 0, file: [], extraNonCollocate: [], salFiles };
+      if (avvisiSync.length) report.avvisiSync = avvisiSync;
       try { scriviLog(cfg.cartella, stamp, report); } catch { /* best effort */ }
       await inviaReport({ baseUrl, exportKey: cfg.exportKey, report });
       const righeTot = salFiles.reduce((s, f) => s + f.righe.length, 0);
@@ -727,6 +736,7 @@ async function main() {
   });
   // la risoluzione del percorso deve restare visibile anche nel feedback dell'app
   if (avvisoPercorso) report.avvisoPercorso = avvisoPercorso;
+  if (avvisiSync.length) report.avvisiSync = avvisiSync;
 
   try {
     scriviLog(cfg.cartella, stamp, report);

@@ -52,6 +52,12 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
           const fonte = run.dettaglio !== undefined ? run.dettaglio : dettagli[run.id];
           const inCaricamento = open && fonte === 'loading';
           const righe = open && fonte !== 'loading' ? righeModificate(fonte) : [];
+          const avvisiGrezzi = open && fonte !== 'loading' && fonte && typeof fonte === 'object'
+            ? (fonte as { avvisiSync?: unknown }).avvisiSync
+            : undefined;
+          const avvisiSync = Array.isArray(avvisiGrezzi)
+            ? avvisiGrezzi.filter((a): a is string => typeof a === 'string')
+            : [];
           return (
             <li key={run.id} className="py-3">
               <button
@@ -99,6 +105,16 @@ export function StoricoCard({ runs }: { runs: AgenteRunRow[] }) {
                   style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface-muted)' }}>
                   {run.errore && (
                     <p className="mb-2 font-medium" style={{ color: 'var(--danger)' }}>{run.errore}</p>
+                  )}
+                  {avvisiSync.length > 0 && (
+                    <div
+                      className="mb-2 space-y-1 rounded-lg border px-2 py-1.5"
+                      style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)' }}
+                    >
+                      {avvisiSync.map((a) => (
+                        <p key={a} style={{ color: 'var(--brand-text-main)' }}>⚠ {a}</p>
+                      ))}
+                    </div>
                   )}
                   <div className="mb-2 flex items-center justify-between gap-2">
                     <span className="font-medium" style={{ color: 'var(--brand-text-main)' }}>

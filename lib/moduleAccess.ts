@@ -287,8 +287,9 @@ export function fallbackModulesForRole(role?: AssignableRole | null): AppModuleK
 }
 
 /**
- * Valida la lista moduli contro le chiavi note. UNICO invariante: `impostazioni`
- * è presente se e solo se il ruolo è admin/admin_plus. Nessun'altra forzatura.
+ * Valida la lista moduli contro le chiavi note. Invariante: i moduli riservati
+ * (`requiresAdminRole`, es. impostazioni e assistenza) sono presenti se e solo
+ * se il ruolo è admin/admin_plus. Nessun'altra forzatura.
  */
 export function normalizeAllowedModules(
   input: unknown,
