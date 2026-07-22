@@ -60,4 +60,10 @@ Regola ponytail: nessun KPI inventato — solo numeri che i motori già espongon
 
 ## 7. Stato attuazione
 
-- [ ] Onda 1 · [ ] Onda 2 · [ ] Onda 3 · [ ] Onda 4 · [ ] Onda 5
+- [x] Onda 1 — token zaffiro + canvas, PWA, 5 primitive (`7835cee`)
+- [x] Onda 2 — Interventi: card cockpit, drawer, filtri a pill (`dd6d4bf`, `4d34113`)
+- [x] Onda 3 — hub: ObjectHeader + tiles a barra (`8b43017`)
+- [x] Onda 4 — Assistenza, Consuntivazione, PI, Misuratori, Performance ×3, Impostazioni, Assegnazioni AI (`90ddfaa`, `6b56227`)
+- [x] Onda 5 — DESIGN.md riscritta, gates finali (questo commit)
+
+Nota di scope (ponytail): il drawer è attivo dove esiste un dettaglio-riga (Storico interventi); le pagine-foglietta con breadcrumb restano sul pattern slim; i KPI usano solo contatori già esposti dai motori.
