@@ -22,8 +22,11 @@
 
 // `${committenteEquivalente}|${normVariante}` → normCanonica
 const ALIAS_SCRITTURA: Record<string, string> = {
-  // Acea — famiglia Limitazioni Massive (canonico = literal ancorato dall'export; in acea_attivita_alias)
+  // Acea — famiglia Limitazioni Massive (canonico = literal ancorato dall'export; in acea_attivita_alias).
+  // Tutte le varianti sono la stessa attività (voce 10 in acea_attivita_alias); la canonica
+  // 'LIMITAZIONI MASSIVE' è l'unica riga di catalogo attiva (migration 20260722140000).
   'acea|LIMITAZIONE MASSIVA': 'LIMITAZIONI MASSIVE',
+  'acea|LIMITAZIONE MASSIVA SU IMPIANTO': 'LIMITAZIONI MASSIVE',
   'acea|LIMITAZIONI MASSICE': 'LIMITAZIONI MASSIVE', // typo
   // Italgas — apostrofo iniziale (la canonica è in acea_attivita_alias)
   "italgas|'UT MOROSITA' PRIMO PASSAGGIO": "UT MOROSITA' PRIMO PASSAGGIO",

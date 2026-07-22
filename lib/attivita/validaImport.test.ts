@@ -9,17 +9,19 @@ const T = (over: Partial<Task>): Task => ({
 } as Task);
 
 const index = buildTassonomiaIndex([
-  { committente: 'acea', descrizione: 'Limitazione Massiva su Impianto', descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
+  // 'Limitazione Massiva su Impianto' è ora una VARIANTE (alias → LIMITAZIONI MASSIVE),
+  // la sua riga di catalogo è disattivata (migration 20260722140000).
+  { committente: 'acea', descrizione: 'Limitazione Massiva su Impianto', descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO', gruppo: 'LIMITAZIONI MASSIVE', attivo: false },
   { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
   { committente: 'acea', descrizione: 'Sospensione fornitura', descrizioneNorm: 'SOSPENSIONE FORNITURA', gruppo: 'DUNNING', attivo: true },
 ] as TassonomiaRiga[]);
 
 describe('validaImport', () => {
-  it('file valido: righe arricchite con canonica e gruppo', () => {
+  it('file valido: la variante "su impianto" è allineata alla canonica unificata', () => {
     const esito = validaImport([T({ attivita: ' limitazione massiva su impianto ' })], 'acea', index);
     expect(esito.ok).toBe(true);
     if (esito.ok) {
-      expect(esito.righe[0].descrizioneCanonica).toBe('Limitazione Massiva su Impianto');
+      expect(esito.righe[0].descrizioneCanonica).toBe('LIMITAZIONI MASSIVE');
       expect(esito.righe[0].gruppo).toBe('LIMITAZIONI MASSIVE');
     }
   });
@@ -75,7 +77,8 @@ describe('validaImport', () => {
     }
   });
   it('variante valida (solo case/spazi) NON è segnalata come allineamento', () => {
-    const esito = validaImport([T({ attivita: ' limitazione   massiva SU impianto ' })], 'acea', index);
+    // Differenza solo di case/spazi rispetto alla canonica → nessun alias testuale.
+    const esito = validaImport([T({ attivita: ' limitazioni   MASSIVE ' })], 'acea', index);
     expect(esito.ok).toBe(true);
     if (esito.ok) expect(esito.allineate).toEqual([]);
   });

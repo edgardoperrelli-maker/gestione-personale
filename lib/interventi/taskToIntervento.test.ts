@@ -57,12 +57,21 @@ describe('taskToIntervento', () => {
 });
 
 const INDICE = buildTassonomiaIndex([
+  // Canonica unificata della famiglia massive (migration 20260722140000).
+  {
+    committente: 'acea',
+    descrizione: 'LIMITAZIONI MASSIVE',
+    descrizioneNorm: 'LIMITAZIONI MASSIVE',
+    gruppo: 'LIMITAZIONI MASSIVE',
+    attivo: true,
+  },
+  // Variante disattivata: risolta via alias di scrittura → LIMITAZIONI MASSIVE.
   {
     committente: 'acea',
     descrizione: 'Limitazione Massiva su Impianto',
     descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO',
     gruppo: 'LIMITAZIONI MASSIVE',
-    attivo: true,
+    attivo: false,
   },
   {
     committente: 'italgas',
@@ -74,9 +83,9 @@ const INDICE = buildTassonomiaIndex([
 ] as TassonomiaRiga[]);
 
 describe('taskToIntervento — tassonomia', () => {
-  it('attività riconosciuta → canonica + gruppo_attivita (committente del piano)', () => {
+  it('attività riconosciuta (variante) → canonica unificata + gruppo (committente del piano)', () => {
     const r = taskToIntervento({ ...task, attivita: ' limitazione massiva su impianto ' }, ctx, INDICE);
-    expect(r.intervento_tipo).toBe('Limitazione Massiva su Impianto');
+    expect(r.intervento_tipo).toBe('LIMITAZIONI MASSIVE');
     expect(r.gruppo_attivita).toBe('LIMITAZIONI MASSIVE');
     expect(r.committente).toBe('acea');
   });
