@@ -1,3 +1,4 @@
+import { BRAND_EXPORT } from '@/lib/brand';
 import { NextResponse } from 'next/server';
 import ExcelJS from 'exceljs';
 import { requireAdmin } from '@/lib/apiAuth';
@@ -93,7 +94,7 @@ export async function GET(req: Request) {
   const hRow = ws.getRow(1);
   hRow.eachCell((cell) => {
     cell.font = { bold: true, color: { argb: 'FFFFFFFF' }, size: 10 };
-    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FF0F2749' } };
+    cell.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: BRAND_EXPORT.navyArgb } };
     cell.alignment = { vertical: 'middle', horizontal: 'center', wrapText: true };
   });
   hRow.height = 30;

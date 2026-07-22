@@ -1,3 +1,4 @@
+import { BRAND_EXPORT } from '@/lib/brand';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
@@ -56,7 +57,7 @@ export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilte
       r.note ?? '',
     ]),
     styles:     { fontSize: 7, cellPadding: 1.5 },
-    headStyles: { fillColor: [30, 64, 175], textColor: 255, fontStyle: 'bold' },
+    headStyles: { fillColor: [...BRAND_EXPORT.accentRgb], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 247, 250] },
     columnStyles: {
       0: { cellWidth: 22 },
