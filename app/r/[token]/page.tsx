@@ -6,6 +6,8 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
+import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
+import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 import { fotoObbligatorieSoloMassive } from '@/utils/rapportini/attivitaMassiva';
 import RapportinoForm, {
   type Voce as FormVoce,
@@ -54,6 +56,7 @@ type VoceRow = {
   manuale?: boolean | null;
   approvazione_stato?: string | null;
   richiesta_id?: string | null;
+  intervento_id?: string | null;
 };
 
 /* ── Layout standalone (fuori dalla shell dell'app) ────────────────────────── */
@@ -143,9 +146,30 @@ export default async function RapportinoPublicPage({
 
   const { data: vociRows } = await supabaseAdmin
     .from('rapportino_voci')
-    .select('id, task_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id')
+    .select('id, task_id, ordine, nominativo, matricola, pdr, odl, via, comune, cap, recapito, attivita, accessibilita, fascia_oraria, risposte, raw_json, manuale, approvazione_stato, richiesta_id, intervento_id')
     .eq('rapportino_id', rap.id)
     .order('ordine');
+
+  // Note "tramandate": per ogni voce, le note dei precedenti interventi POSITIVI sullo stesso
+  // impianto (match matricola/PDR, stesso committente) — sola lettura. Non fatale: se la query
+  // fallisce (colonna intervento_id non ancora presente su installazioni vecchie, ecc.) si resta
+  // senza note, il rapportino funziona comunque.
+  const notePrecedentiByVoce = new Map<string, NotaPrecedente[]>();
+  try {
+    const mappa = await caricaNotePrecedenti(
+      supabaseAdmin,
+      ((vociRows ?? []) as VoceRow[]).map((v) => ({
+        id: v.id,
+        matricola: v.matricola,
+        pdr: v.pdr,
+        interventoId: v.intervento_id ?? null,
+      })),
+      { dataMax: rap.data },
+    );
+    for (const [voceId, note] of mappa) notePrecedentiByVoce.set(voceId, note);
+  } catch {
+    // best-effort: nessuna nota tramandata
+  }
 
   // Campi per-voce (flusso del gruppo attività dell'intervento): query separata e resiliente —
   // se le colonne non esistono ancora (migration non applicata) si resta sui campi del rapportino.
@@ -236,6 +260,7 @@ export default async function RapportinoPublicPage({
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
     coordinate: coordinateFromRaw(v.raw_json),
     notaUfficio: notaUfficioFromRaw(v.raw_json),
+    notePrecedenti: notePrecedentiByVoce.get(v.id),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),
     annullato: Boolean((v.raw_json as { _annullato?: unknown } | null)?._annullato),
     manuale: Boolean(v.manuale),

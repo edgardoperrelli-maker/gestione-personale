@@ -5,12 +5,13 @@ import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { StatoVoce } from '@/utils/rapportini/riepilogo';
 import { SaveBadge, type SaveState } from './SaveBadge';
 import { VoceCard, type VoceCardData } from './VoceCard';
+import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 
 export type VoceFocusData = VoceCardData;
 
 export function VoceFocus({
   voce, indice, totale, campi, dettaglio, titoloCampi, disabilitato, stato, saveState,
-  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto, notaUfficio,
+  onChange, onPrev, onNext, onClose, approvazioneStato, motivoRifiuto, notaUfficio, notePrecedenti,
 }: {
   voce: VoceFocusData;
   indice: number;
@@ -28,6 +29,7 @@ export function VoceFocus({
   approvazioneStato?: string | null;
   motivoRifiuto?: string | null;
   notaUfficio?: string | null;
+  notePrecedenti?: NotaPrecedente[] | null;
 }) {
   const isFirst = indice === 0;
   const isLast = indice === totale - 1;
@@ -56,6 +58,7 @@ export function VoceFocus({
           approvazioneStato={approvazioneStato}
           motivoRifiuto={motivoRifiuto}
           notaUfficio={notaUfficio}
+          notePrecedenti={notePrecedenti}
         />
       </div>
 
