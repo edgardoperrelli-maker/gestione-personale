@@ -41,6 +41,22 @@ const COMMITTENTI = [
 ];
 
 const fmtGiorno = (iso: string) => iso.split('-').reverse().join('/');
+
+/** Range rapidi (innesto SupplyHub): Oggi / Questa settimana / Questo mese, fuso Europe/Rome. */
+function rangeRapidi(): { label: string; dal: string; al: string }[] {
+  const oggi = new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' });
+  const [y, m, d] = oggi.split('-').map(Number);
+  const base = new Date(Date.UTC(y, m - 1, d));
+  const iso = (dt: Date) => dt.toISOString().slice(0, 10);
+  const dow = (base.getUTCDay() + 6) % 7; // lunedì = 0
+  const lunedi = new Date(base);
+  lunedi.setUTCDate(base.getUTCDate() - dow);
+  return [
+    { label: 'Oggi', dal: oggi, al: oggi },
+    { label: 'Settimana', dal: iso(lunedi), al: oggi },
+    { label: 'Mese', dal: `${oggi.slice(0, 8)}01`, al: oggi },
+  ];
+}
 /** Etichetta compatta per le pill multi-valore: primo valore + eventuale «+N». */
 const compatta = (labels: string[]) =>
   labels.length <= 1 ? labels[0] ?? '' : `${labels[0]} +${labels.length - 1}`;
@@ -101,6 +117,26 @@ export default function StoricoFiltri({
           onChange={(e) => set({ q: e.target.value })}
           aria-label="Ricerca interventi"
         />
+        <div className="flex gap-1.5" role="group" aria-label="Range rapidi">
+          {rangeRapidi().map((r) => {
+            const attivo = filtri.dal === r.dal && filtri.al === r.al;
+            return (
+              <button
+                key={r.label}
+                type="button"
+                aria-pressed={attivo}
+                onClick={() => onPatch(attivo ? { dal: '', al: '' } : { dal: r.dal, al: r.al })}
+                className={`rounded-full border px-3 py-1 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                  attivo
+                    ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
+                    : 'border-[var(--brand-border-strong)] text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)]'
+                }`}
+              >
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
         {pills.map((p) => (
           <FilterPill key={p.label} onRemove={() => onPatch(p.patch)} removeLabel={`Rimuovi filtro ${p.label}`}>
             {p.label}
