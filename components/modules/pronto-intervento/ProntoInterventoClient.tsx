@@ -243,9 +243,9 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
           type="button"
           disabled={!a.attiva}
           onClick={() => a.attiva && onApri(a.codice)}
-          className={`rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-sm transition ${
+          className={`rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-[var(--shadow-sm)] transition ${
             a.attiva
-              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]'
+              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0'
               : 'cursor-not-allowed opacity-60'
           }`}
         >
