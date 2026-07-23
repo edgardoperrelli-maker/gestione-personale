@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 import { recuperaTemplateIdPiano } from '@/lib/interventi/templatePiano';
+import type { OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
 
 export type RigeneraResult =
   | {
@@ -18,6 +19,8 @@ export type RigeneraResult =
       scartati: number;
       /** odl esclusi perché già eseguiti positivi altrove (invariante odlPositivi). */
       odlBloccati?: string[];
+      /** dettagli (data/esecutore del positivo originale) per i messaggi "già positivo il …". */
+      odlBloccatiDettagli?: OdlBloccatoDettaglio[];
       rapportiniSync?: number;
       rapportiniWarning?: string;
     }
@@ -34,7 +37,9 @@ export async function rigeneraPiano(db: SupabaseClient, pianoId: string): Promis
     creati: ens.creati,
     preservati: ens.preservati,
     scartati: ens.scartati,
-    ...(ens.odlBloccati?.length ? { odlBloccati: ens.odlBloccati } : {}),
+    ...(ens.odlBloccati?.length
+      ? { odlBloccati: ens.odlBloccati, odlBloccatiDettagli: ens.odlBloccatiDettagli }
+      : {}),
   };
 
   // Solo i piani che hanno GIÀ dei rapportini hanno un template "stabilito": la prima

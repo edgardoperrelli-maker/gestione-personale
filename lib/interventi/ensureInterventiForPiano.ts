@@ -6,7 +6,8 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
 import { reapplyOverridesInterventi } from './territorioOverride';
-import { caricaOdlGiaPositivi } from './caricaOdlPositivi';
+import { caricaPositiviInfo, type PositivoDettaglio } from './caricaOdlPositivi';
+import { dettagliOdlBloccati, type OdlBloccatoDettaglio } from './odlPositivi';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 export type EnsureResult = {
@@ -15,8 +16,12 @@ export type EnsureResult = {
   scartati: number;
   /** odl dei task NON pianificati perché già eseguiti positivi altrove. */
   odlBloccati?: string[];
+  /** dettagli (data/esecutore del positivo originale) per i messaggi "già positivo il …". */
+  odlBloccatiDettagli?: OdlBloccatoDettaglio[];
   /** set normalizzato degli odl con positivo altrove (riusato da sincronizzaRapportini per le voci). */
   odlGiaPositivi?: Set<string>;
+  /** mappa normOdl → dettaglio del positivo (riusata da sincronizzaRapportini per i dettagli voci). */
+  positiviInfo?: Map<string, PositivoDettaglio>;
   error?: string;
 };
 
@@ -86,12 +91,15 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
 
   // ODL del piano con positivo ALTROVE (interventi o voce SI di altro piano): un ODL
   // positivo è definitivamente chiuso, non va mai ripianificato (lib/interventi/odlPositivi.ts).
+  // I dettagli (data/esecutore) alimentano gli avvisi "già positivo il …" dell'ufficio.
   const odlTasks = operatori.flatMap((o) => (o.tasks ?? []).map((t) => t.odl ?? ''));
-  const odlGiaPositivi = await caricaOdlGiaPositivi(db, odlTasks, { escludiPianoId: pianoId });
+  const positiviInfo = await caricaPositiviInfo(db, odlTasks, { escludiPianoId: pianoId });
+  const odlGiaPositivi = new Set(positiviInfo.keys());
 
   const { idDaEliminare, daInserire, odlBloccati } = planInterventi({
     piano, pianoId, operatori, esistenti, territorioId, odlGiaPresenti, odlGiaPositivi, indiceTassonomia,
   });
+  const odlBloccatiDettagli = dettagliOdlBloccati(odlBloccati, positiviInfo);
 
   const preservati = esistenti.length - idDaEliminare.length;
   const totTask = operatori.reduce((s, o) => s + (o.tasks ?? []).length, 0);
@@ -99,16 +107,16 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
 
   if (idDaEliminare.length) {
     const { error } = await db.from('interventi').delete().in('id', idDaEliminare);
-    if (error) return { creati: 0, preservati, scartati, odlBloccati, odlGiaPositivi, error: error.message };
+    if (error) return { creati: 0, preservati, scartati, odlBloccati, odlBloccatiDettagli, odlGiaPositivi, positiviInfo, error: error.message };
   }
   if (daInserire.length) {
     const { error } = await db.from('interventi').insert(daInserire);
-    if (error) return { creati: 0, preservati, scartati, odlBloccati, odlGiaPositivi, error: error.message };
+    if (error) return { creati: 0, preservati, scartati, odlBloccati, odlBloccatiDettagli, odlGiaPositivi, positiviInfo, error: error.message };
   }
 
   // Ri-applica gli override per-operatore: la rigenerazione ha appena rimesso il
   // territorio del piano su tutte le righe; per gli operatori spostati va ripristinato.
   await reapplyOverridesInterventi(db, pianoId);
 
-  return { creati: daInserire.length, preservati, scartati, odlBloccati, odlGiaPositivi };
+  return { creati: daInserire.length, preservati, scartati, odlBloccati, odlBloccatiDettagli, odlGiaPositivi, positiviInfo };
 }

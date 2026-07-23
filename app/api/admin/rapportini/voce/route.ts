@@ -5,6 +5,7 @@ import { z } from 'zod';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveUserRole } from '@/lib/moduleAccess';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -94,6 +95,10 @@ export async function POST(req: Request) {
           ? query.neq('stato', 'annullato')
           : query.eq('stato', 'completato'));
         if (errInt) console.error('[admin/voce] propagazione intervento fallita:', errInt.message);
+        // Positivo appena registrato → sweep delle voci/interventi aperti con lo stesso ODL altrove.
+        if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
+          await sweepDopoPositivi(supabaseAdmin, [v.intervento_id]);
+        }
       } catch (e) {
         console.error('[admin/voce] propagazione fallita:', e instanceof Error ? e.message : String(e));
       }

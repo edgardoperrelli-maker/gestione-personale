@@ -27,9 +27,14 @@ type InterventoRow = {
   comune: string | null;
   indirizzo: string | null;
   data: string | null;
+  stato: string | null;
   staff_id: string | null;
   riconciliazione_rif_id: string | null;
 };
+
+/** Cosa è successo davvero sulla riga: un secondo "Fatto" (annullato come doppione) oppure
+ *  un negativo arrivato dopo il positivo (chiusura registrata ma visita non dovuta). */
+export type TipoRiconciliazione = 'doppio_positivo' | 'negativo_dopo_positivo';
 
 export type RigaRiconciliazione = {
   id: string;
@@ -39,6 +44,7 @@ export type RigaRiconciliazione = {
   indirizzo: string | null;
   data: string | null;
   esecutore: string | null;
+  tipo: TipoRiconciliazione;
   originale: { id: string; data: string | null; esecutore: string | null } | null;
 };
 
@@ -48,7 +54,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from('interventi')
-    .select('id, odl, matricola_contatore, comune, indirizzo, data, staff_id, riconciliazione_rif_id')
+    .select('id, odl, matricola_contatore, comune, indirizzo, data, stato, staff_id, riconciliazione_rif_id')
     .eq('da_riconciliare', true)
     .order('data', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -87,6 +93,8 @@ export async function GET() {
       indirizzo: r.indirizzo,
       data: r.data,
       esecutore: r.staff_id ? (staffById.get(r.staff_id) ?? null) : null,
+      // 'annullato' = secondo Fatto (doppio positivo); 'completato' = negativo dopo positivo.
+      tipo: (r.stato === 'annullato' ? 'doppio_positivo' : 'negativo_dopo_positivo') as TipoRiconciliazione,
       originale:
         orig && r.riconciliazione_rif_id
           ? {

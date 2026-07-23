@@ -1,10 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import type { RigaRiconciliazione } from '@/app/api/interventi/riconciliazione/route';
+import type { RigaRiconciliazione, TipoRiconciliazione } from '@/app/api/interventi/riconciliazione/route';
 
-/** Banner "da riconciliare": interventi chiusi Fatto il cui ODL era già completato positivo
- *  altrove (tipicamente il master non risultava ancora aggiornato in pianificazione). Solo admin_plus. */
+const TIPO_LABEL: Record<TipoRiconciliazione, { label: string; title: string }> = {
+  doppio_positivo: { label: 'Doppio positivo (annullato)', title: 'Secondo "Fatto" sullo stesso ODL: intervento annullato, vale solo l’originale.' },
+  negativo_dopo_positivo: { label: 'Negativo dopo positivo', title: 'Esito negativo su un ODL già chiuso positivo: visita non dovuta.' },
+};
+
+/** Banner "da riconciliare": interventi esitati su un ODL che era GIÀ completato positivo
+ *  altrove (tipicamente positivo arrivato dopo la generazione del rapportino). Solo admin_plus. */
 export default function RiconciliazioneBanner() {
   const [righe, setRighe] = useState<RigaRiconciliazione[]>([]);
   const [aperto, setAperto] = useState(false);
@@ -40,7 +45,7 @@ export default function RiconciliazioneBanner() {
         onClick={() => setAperto((v) => !v)}
         className="flex w-full items-center justify-between font-medium text-[var(--brand-text-main)]"
       >
-        <span>⚠️ {righe.length} intervent{righe.length === 1 ? 'o' : 'i'} da riconciliare (doppio esito positivo)</span>
+        <span>⚠️ {righe.length} intervent{righe.length === 1 ? 'o' : 'i'} da riconciliare (ODL già positivo)</span>
         <span>{aperto ? '▲' : '▼'}</span>
       </button>
       {aperto && (
@@ -49,6 +54,7 @@ export default function RiconciliazioneBanner() {
             <tr className="text-[var(--brand-text-muted)]">
               <th className="pb-1 pr-3">ODL</th>
               <th className="pb-1 pr-3">Comune</th>
+              <th className="pb-1 pr-3">Tipo</th>
               <th className="pb-1 pr-3">Nuova chiusura</th>
               <th className="pb-1 pr-3">Già positivo il</th>
               <th className="pb-1 pr-3" />
@@ -59,6 +65,9 @@ export default function RiconciliazioneBanner() {
               <tr key={r.id} className="border-t border-[var(--brand-border)]">
                 <td className="py-1 pr-3">{r.odl ?? '—'}</td>
                 <td className="py-1 pr-3">{r.comune ?? '—'}</td>
+                <td className="py-1 pr-3" title={TIPO_LABEL[r.tipo]?.title}>
+                  {TIPO_LABEL[r.tipo]?.label ?? '—'}
+                </td>
                 <td className="py-1 pr-3">{r.data ?? '—'} ({r.esecutore ?? '—'})</td>
                 <td className="py-1 pr-3">
                   {r.originale ? `${r.originale.data ?? '—'} (${r.originale.esecutore ?? '—'})` : '—'}
