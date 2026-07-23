@@ -94,6 +94,21 @@ export default function StoricoTabella({
             >
               {cols.map((c) => {
                 const testo = cella(r, c.key);
+                // Colonna-stato "Eseguito" (innesto SupplyHub): icona cerchiata + etichetta.
+                if (c.key === 'eseguito' && (testo === 'SI' || testo === 'NO')) {
+                  const ok = testo === 'SI';
+                  return (
+                    <td key={c.header} className={`whitespace-nowrap px-3 py-2 ${toneClass(testo)}`}>
+                      <span className="inline-flex items-center gap-1.5">
+                        <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <circle cx="12" cy="12" r="9" />
+                          {ok ? <path d="m8.5 12.2 2.4 2.4 4.6-4.8" /> : <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />}
+                        </svg>
+                        {testo}
+                      </span>
+                    </td>
+                  );
+                }
                 return (
                   <td
                     key={c.header}
