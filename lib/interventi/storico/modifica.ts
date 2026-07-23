@@ -2,6 +2,7 @@
 // PURE: helper per la modifica voce (admin_plus) e l'estrazione foto della consultazione storico.
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { comeArrayFoto } from '@/utils/rapportini/comeArrayFoto';
+import { isEsitoSelect } from '@/utils/rapportini/voceColore';
 
 /** Colonne anagrafiche editabili di `rapportino_voci` (whitelist). */
 export const ANAGRAFICA_COLONNE = [
@@ -36,12 +37,28 @@ export const ANAGRAFICA_LABEL: Record<AnagraficaColonna, string> = {
   fascia_oraria: 'Fascia oraria',
 };
 
+/**
+ * Opzioni dell'esito con "SI" e "NO" sempre selezionabili: alcuni snapshot storici hanno
+ * l'esito (Eseguito) con le sole opzioni positive, così la modale non permetteva di segnare
+ * "NO" (esito negativo). Preserva le opzioni esistenti (es. "NESSUN PASSAGGIO") e aggiunge solo
+ * quelle mancanti, senza toccare il casing di quelle presenti.
+ */
+function opzioniEsitoConSiNo(opzioni: string[] | undefined): string[] {
+  const base = (Array.isArray(opzioni) ? opzioni : []).filter((o) => typeof o === 'string' && o.trim() !== '');
+  const presente = (t: string) => base.some((o) => o.trim().toUpperCase() === t);
+  const out = base.slice();
+  if (!presente('SI')) out.unshift('SI');
+  if (!presente('NO')) out.push('NO');
+  return out;
+}
+
 /** Campi editabili (non-foto) per la modale; garantisce un campo 'note' (testo) in coda. */
 export function buildCampiEditor(campiSnapshot: TemplateCampo[] | null | undefined): TemplateCampo[] {
   const base = (Array.isArray(campiSnapshot) ? campiSnapshot : [])
     .filter((c): c is TemplateCampo => Boolean(c) && c.tipo !== 'foto')
     .slice()
-    .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0));
+    .sort((a, b) => (a.ordine ?? 0) - (b.ordine ?? 0))
+    .map((c) => (c.tipo === 'select' && isEsitoSelect(c) ? { ...c, opzioni: opzioniEsitoConSiNo(c.opzioni) } : c));
   if (!base.some((c) => c.chiave === 'sigillo')) {
     base.push({ chiave: 'sigillo', etichetta: 'Sigillo', tipo: 'testo', ordine: 998 });
   }

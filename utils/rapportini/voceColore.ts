@@ -27,7 +27,8 @@ function nomeNegativo(c: TemplateCampo): boolean {
   return NEG_NAME.test(`${c.chiave} ${c.etichetta}`);
 }
 
-function isEsitoSelect(c: TemplateCampo): boolean {
+/** True se il SELECT rappresenta l'ESITO della voce (Eseguito / Esito): l'unico su cui "NO" è un esito negativo. */
+export function isEsitoSelect(c: TemplateCampo): boolean {
   return ESITO_SELECT_NAME.test(`${c.chiave} ${c.etichetta}`);
 }
 

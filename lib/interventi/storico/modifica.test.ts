@@ -29,6 +29,23 @@ describe('buildCampiEditor', () => {
   it('snapshot vuoto/null → sigillo + note', () => {
     expect(buildCampiEditor(null).map((x) => x.chiave)).toEqual(['sigillo', 'note']);
   });
+
+  it('esito select con sole opzioni positive → aggiunge "NO"', () => {
+    const campi = buildCampiEditor([c({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI'], ordine: 1 })]);
+    expect(campi.find((x) => x.chiave === 'eseguito')?.opzioni).toEqual(['SI', 'NO']);
+  });
+  it('esito select senza opzioni → SI + NO', () => {
+    const campi = buildCampiEditor([c({ chiave: 'esito', etichetta: 'Esito', tipo: 'select', ordine: 1 })]);
+    expect(campi.find((x) => x.chiave === 'esito')?.opzioni).toEqual(['SI', 'NO']);
+  });
+  it('esito select ACEA → preserva le opzioni esistenti (SI + NO già presenti)', () => {
+    const campi = buildCampiEditor([c({ chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NESSUN PASSAGGIO', 'NO'], ordine: 1 })]);
+    expect(campi.find((x) => x.chiave === 'eseguito')?.opzioni).toEqual(['SI', 'NESSUN PASSAGGIO', 'NO']);
+  });
+  it('select secondario (non esito) → opzioni intatte', () => {
+    const campi = buildCampiEditor([c({ chiave: 'sostituzione_valvola', etichetta: 'Sostituzione valvola', tipo: 'select', opzioni: ['SI'], ordine: 1 })]);
+    expect(campi.find((x) => x.chiave === 'sostituzione_valvola')?.opzioni).toEqual(['SI']);
+  });
 });
 
 describe('estraiFotoPaths', () => {
