@@ -173,7 +173,7 @@ export default function RiepilogoRapportini() {
             title="Scarica Excel con tutti gli interventi del periodo selezionato"
             className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
           >
-            📥 Excel interventi
+            Excel interventi
           </button>
           <a href="/hub/rapportini/eseguiti" className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90">📋 Tutti gli interventi eseguiti</a>
         </div>
