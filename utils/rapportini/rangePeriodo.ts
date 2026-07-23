@@ -5,11 +5,15 @@ export type PeriodoPreset = { k: string; label: string; giorni: number };
 // di rapportini (oltre 340 righe) prima di mostrare qualsiasi cosa, mentre chi
 // entra guarda quasi sempre ieri, oggi e domani. Gli altri preset restano a un
 // clic per chi deve andare indietro.
+//
+// L'etichetta dice «+ pianificato» perché ogni preset guarda indietro di N
+// giorni MA in avanti sempre di GIORNI_FUTURO: «Ultimi 3 giorni» da solo era una
+// promessa falsa — la finestra è di 18 giorni e a schermo se ne vedevano 5.
 export const PERIODI: PeriodoPreset[] = [
-  { k: '3', label: 'Ultimi 3 giorni', giorni: 3 },
-  { k: '7', label: 'Ultimi 7 giorni', giorni: 7 },
-  { k: '30', label: 'Ultimi 30 giorni', giorni: 30 },
-  { k: '90', label: 'Ultimi 90 giorni', giorni: 90 },
+  { k: '3', label: 'Ultimi 3 giorni + pianificato', giorni: 3 },
+  { k: '7', label: 'Ultimi 7 giorni + pianificato', giorni: 7 },
+  { k: '30', label: 'Ultimi 30 giorni + pianificato', giorni: 30 },
+  { k: '90', label: 'Ultimi 90 giorni + pianificato', giorni: 90 },
 ];
 
 export const GIORNI_FUTURO = 14; // i preset includono i rapportini pianificati nei prossimi giorni

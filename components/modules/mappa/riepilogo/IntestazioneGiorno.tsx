@@ -21,7 +21,7 @@ const BADGE: Record<'oggi' | 'domani' | 'ieri', { label: string; variant: 'progr
  * conti di quel giorno in mono tabulare, così le righe di giorni diversi si
  * leggono in colonna.
  */
-export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoTerritori; oggi: string }) {
+export default function IntestazioneGiorno({ giorno, oggi, titoloId }: { giorno: GiornoTerritori; oggi: string; titoloId?: string }) {
   const rel = etichettaRelativaGiorno(giorno.data, oggi);
   const nPiani = giorno.territori.reduce((s, t) => s + t.piani.length, 0);
   const nOperatori = giorno.territori.reduce((s, t) => s + t.nOperatori, 0);
@@ -30,7 +30,7 @@ export default function IntestazioneGiorno({ giorno, oggi }: { giorno: GiornoTer
   return (
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-[var(--brand-border)] pb-1.5">
       {rel && <Badge variant={BADGE[rel].variant}>{BADGE[rel].label}</Badge>}
-      <h3 className="text-base font-semibold capitalize text-[var(--brand-text-main)]">{fmtData(giorno.data)}</h3>
+      <h3 id={titoloId} className="text-base font-semibold capitalize text-[var(--brand-text-main)]">{fmtData(giorno.data)}</h3>
       <span className="text-xs text-[var(--brand-text-muted)]">
         <N>{nPiani}</N> piani · <N>{nOperatori}</N> operatori · <N>{nInterventi}</N> interventi
       </span>

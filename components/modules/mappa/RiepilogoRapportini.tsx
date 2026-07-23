@@ -29,7 +29,7 @@ import { filtraRapportini, type FiltriRiepilogo as Filtri } from '@/utils/rappor
 import FiltriRiepilogo from './riepilogo/FiltriRiepilogo';
 import CardTerritorio from './riepilogo/CardTerritorio';
 import IntestazioneGiorno from './riepilogo/IntestazioneGiorno';
-import { PERIODI, calcolaRange } from '@/utils/rapportini/rangePeriodo';
+import { PERIODI, GIORNI_FUTURO, calcolaRange } from '@/utils/rapportini/rangePeriodo';
 
 function fmtData(iso: string): string {
   const d = new Date(`${iso}T00:00:00`);
@@ -188,10 +188,10 @@ export default function RiepilogoRapportini() {
           barre prima ancora del primo giorno. */}
       <ObjectHeader
         title="Riepilogo rapportini"
-        sub="Stato dei rapportini per giorno, territorio e operatore."
+        sub={`Stato dei rapportini per giorno, territorio e operatore. Ogni periodo guarda indietro dei giorni indicati e in avanti sempre fino a ${GIORNI_FUTURO} giorni, per non perdere di vista il pianificato.`}
         actions={
           <>
-            <div className="min-w-[150px] sm:w-[170px]">
+            <div className="min-w-[150px] sm:w-[230px]">
               <Select
                 aria-label="Periodo"
                 className="py-1.5 text-xs"
@@ -248,9 +248,12 @@ export default function RiepilogoRapportini() {
         </div>
       ) : (
         <div className="space-y-6">
+          {/* Ogni giorno è una `section` con un nome: con centinaia di comandi
+              in pagina, la navigazione per regione è l'unico modo di saltare
+              avanti da tastiera senza attraversarli tutti a colpi di Tab. */}
           {giorni.map((g) => (
-            <div key={g.data} className="space-y-3">
-              <IntestazioneGiorno giorno={g} oggi={oggi} />
+            <section key={g.data} aria-labelledby={`giorno-${g.data}`} className="space-y-3">
+              <IntestazioneGiorno giorno={g} oggi={oggi} titoloId={`giorno-${g.data}`} />
               {/* Da `xl` in su tutti i territori del giorno stanno su una riga
                   sola e se la spartiscono; sotto, vanno a capo. */}
               <div className="flex flex-wrap items-start gap-3 xl:flex-nowrap">
@@ -279,7 +282,7 @@ export default function RiepilogoRapportini() {
                   />
                 ))}
               </div>
-            </div>
+            </section>
           ))}
         </div>
       )}

@@ -60,7 +60,9 @@ export default function FiltriRiepilogo({
               type="button"
               onClick={() => toggleStato(s.k)}
               aria-pressed={attivo}
-              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+              // `whitespace-nowrap`: a 320px «In corso» andava a capo dentro la
+              // pillola, e il testo cliccabile su due righe è fuori regola.
+              className={`whitespace-nowrap rounded-full border px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                 attivo
                   ? 'border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
                   : 'border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:border-[var(--brand-border-strong)] hover:text-[var(--brand-text-main)]'
