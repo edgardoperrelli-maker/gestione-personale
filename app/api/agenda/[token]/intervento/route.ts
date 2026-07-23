@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { pianificaChiusuraOperatore, type AzioneOperatore } from '@/lib/interventi/chiusuraOperatore';
 import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import type { EsitoIntervento, StatoIntervento } from '@/lib/interventi/statoInterventi';
 
 export const runtime = 'nodejs';
@@ -108,6 +109,16 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       .update({ ...patch, chiuso_at: new Date().toISOString() })
       .eq('id', interventoId);
     if (ue) return NextResponse.json({ error: ue.message }, { status: 500 });
+
+    // Positivo appena registrato → sweep: revoca voci/interventi aperti con lo stesso ODL
+    // negli altri rapportini (anche di piani futuri). Best-effort.
+    if (patch.esito === 'eseguito_positivo') {
+      try {
+        await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+      } catch (e) {
+        console.error('[agenda/intervento] sweep positivo fallito:', e instanceof Error ? e.message : String(e));
+      }
+    }
 
     return NextResponse.json({ ok: true, stato: patch.stato, esito: patch.esito });
   } catch (e) {

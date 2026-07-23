@@ -7,6 +7,7 @@ import { buildVoceConsuntivo } from '@/lib/consuntivazione/nuovoOrdine';
 import { calcolaEsitazione } from '@/lib/consuntivazione/esita';
 import { risolviEsecutori } from '@/lib/consuntivazione/esecutori';
 import { indicizzaPositivi, chiavePositivo, normOdl } from '@/lib/interventi/odlPositivi';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { esitabileConsuntivo, notaNegativoMancante } from '@/lib/consuntivazione/statoEsito';
 import { validaFotoObbligatorie, campiFoto } from '@/lib/interventi/manuali/validaFotoObbligatorie';
@@ -187,6 +188,16 @@ export async function POST(req: Request) {
 
   if (misuratore) {
     await supabaseAdmin.from('misuratori_rimossi').upsert([{ ...misuratore, rapportino_id: rapIdEff }], { onConflict: 'intervento_id', ignoreDuplicates: true });
+  }
+
+  // Positivo registrato dal backoffice → sweep: revoca voci/interventi aperti con lo stesso
+  // ODL negli altri rapportini (anche di piani futuri). Best-effort.
+  if (patch.esito === 'eseguito_positivo' && patch.stato === 'completato') {
+    try {
+      await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+    } catch (e) {
+      console.error('[consuntivazione/esita] sweep positivo fallito:', e instanceof Error ? e.message : String(e));
+    }
   }
 
   return NextResponse.json({ ok: true, interventoId, esito: patch.esito, annullato: patch.stato === 'annullato' });

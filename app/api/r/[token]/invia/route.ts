@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { esitoInterventoDaVoce } from '@/lib/interventi/esitoDaVoce';
 import { chiavePositivo, decidiChiusuraConPositivi, indicizzaPositivi } from '@/lib/interventi/odlPositivi';
+import { rimuoviVociBloccate, sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { rapportinoInviabile } from '@/lib/interventi/manuali/rapportinoInviabile';
 import { isRimozioneTipo } from '@/lib/interventi/rimozioneMisuratore';
@@ -31,6 +32,15 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   );
   if (!gate.inviabile)
     return NextResponse.json({ error: 'voci_in_sospeso', inSospeso: gate.inSospeso }, { status: 409 });
+
+  // Sweep verso se stesso: le voci NON compilate il cui ODL è già positivo altrove (bloccate
+  // lato operatore) vengono rimosse ORA, prima del gate esiti — altrimenti renderebbero il
+  // rapportino ininviabile. Best-effort: se fallisce, il gate sotto resta la garanzia.
+  try {
+    await rimuoviVociBloccate(supabaseAdmin, rap.id);
+  } catch (e) {
+    console.error('[invia] rimozione voci bloccate fallita:', e instanceof Error ? e.message : String(e));
+  }
 
   // Blocco ESITI MANCANTI: il rapportino non è inviabile finché ogni voce (esclusi i "+" e i
   // contenitori task-via) non ha un esito valido — nessun esito ('senza_esito') o un "NO" senza la
@@ -151,6 +161,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     );
   }
 
+  const chiusiPositivi: string[] = []; // interventi chiusi POSITIVI in questo invio → sweep finale
   for (const v of (voci ?? []) as Array<{
     intervento_id: string | null;
     risposte: Record<string, unknown> | null;
@@ -202,6 +213,7 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .update({ stato: 'completato', esito: patch.esito, esito_motivo: patch.esito_motivo, chiuso_at: v.updated_at, ...flagRiconcilia })
       .eq('id', v.intervento_id)
       .neq('stato', 'annullato');
+    if (patch.esito === 'eseguito_positivo') chiusiPositivi.push(v.intervento_id);
 
     // Raccolta misuratori rimossi (esito positivo + matricola presente)
     if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && isRimozioneTipo(tipoMap.get(v.intervento_id))) {
@@ -226,6 +238,16 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     await supabaseAdmin
       .from('misuratori_rimossi')
       .upsert(misuratoriFermi, { onConflict: 'intervento_id', ignoreDuplicates: true });
+  }
+
+  // Sweep: i positivi appena registrati revocano le voci non compilate con lo stesso ODL
+  // negli altri rapportini aperti (anche di piani futuri già generati). Best-effort.
+  if (chiusiPositivi.length > 0) {
+    try {
+      await sweepDopoPositivi(supabaseAdmin, chiusiPositivi);
+    } catch (e) {
+      console.error('[invia] sweep positivi fallito:', e instanceof Error ? e.message : String(e));
+    }
   }
 
   return NextResponse.json({ ok: true });

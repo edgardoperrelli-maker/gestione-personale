@@ -59,6 +59,33 @@ export function dataIt(iso: string | null | undefined): string {
   return `${m[3]}/${m[2]}/${m[1]}`;
 }
 
+/** Dettaglio di un ODL escluso perché già positivo altrove, per i messaggi all'ufficio. */
+export type OdlBloccatoDettaglio = { odl: string; data: string | null; esecutore: string | null };
+
+/** "912350341 → già positivo il 21/07/2026 (CIARALLO SIMONE)" (data/esecutore se noti). */
+export function labelOdlBloccato(d: OdlBloccatoDettaglio): string {
+  const quando = d.data ? ` il ${dataIt(d.data)}` : '';
+  const chi = d.esecutore ? ` (${d.esecutore})` : '';
+  return `${d.odl} → già positivo${quando}${chi}`;
+}
+
+/** Dettagli dei soli odl bloccati (dedup per normOdl), nell'ordine dei bloccati. */
+export function dettagliOdlBloccati(
+  odlBloccati: string[],
+  positiviInfo: ReadonlyMap<string, { data: string | null; esecutore: string | null }>,
+): OdlBloccatoDettaglio[] {
+  const visti = new Set<string>();
+  const out: OdlBloccatoDettaglio[] = [];
+  for (const odl of odlBloccati) {
+    const k = normOdl(odl);
+    if (!k || visti.has(k)) continue;
+    visti.add(k);
+    const pos = positiviInfo.get(k);
+    out.push({ odl: odl.trim(), data: pos?.data ?? null, esecutore: pos?.esecutore ?? null });
+  }
+  return out;
+}
+
 export type DecisioneChiusura =
   | { tipo: 'normale' }
   | { tipo: 'annulla_doppio_positivo'; rifId: string; motivo: string }

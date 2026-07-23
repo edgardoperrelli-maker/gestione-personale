@@ -7,6 +7,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { resolveAssignableRole, canManageUsers, canEditStorico } from '@/lib/moduleAccess';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import {
   buildCampiEditor, anagraficaPatchValida, anagraficaPatchIntervento, ANAGRAFICA_COLONNE, estraiFotoPaths,
 } from '@/lib/interventi/storico/modifica';
@@ -130,6 +131,10 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ voceId
           ? query.neq('stato', 'annullato')
           : query.eq('stato', 'completato'));
         if (errInt) console.error('[storico/voce] propagazione esito fallita:', errInt.message);
+        // Positivo appena registrato → sweep delle voci/interventi aperti con lo stesso ODL altrove.
+        if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
+          await sweepDopoPositivi(supabaseAdmin, [v.intervento_id]);
+        }
       }
     } catch (e) {
       console.error('[storico/voce] propagazione fallita:', e instanceof Error ? e.message : String(e));

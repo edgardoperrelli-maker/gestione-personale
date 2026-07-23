@@ -36,7 +36,7 @@ export function statoVoce(
 
 /** Riepilogo dell'intero rapportino: esiti + conteggio lavorazioni (crocette). */
 export function riepilogoRapportino(
-  voci: { risposte: Record<string, unknown>; annullato?: boolean; manuale?: boolean; approvazione_stato?: string | null; campi?: TemplateCampo[] | null }[],
+  voci: { risposte: Record<string, unknown>; annullato?: boolean; bloccoPositivo?: unknown; manuale?: boolean; approvazione_stato?: string | null; campi?: TemplateCampo[] | null }[],
   campi: TemplateCampo[],
 ): RiepilogoRapportino {
   // Le voci RIFIUTATE dall'ufficio sono SCARTATE: non sono interventi validi e non entrano in
@@ -48,8 +48,9 @@ export function riepilogoRapportino(
   let annullati = 0;
   let saracinesche = 0;
   for (const v of attive) {
-    // Le voci annullate non contribuiscono a daFare: il rapportino rimane inviabile
-    if (v.annullato) { annullati += 1; continue; }
+    // Le voci annullate — e quelle BLOCCATE perché l'ODL è già positivo altrove — non
+    // contribuiscono a daFare: il rapportino rimane inviabile (all'invio il server le rimuove).
+    if (v.annullato || v.bloccoPositivo) { annullati += 1; continue; }
     // Saracinesca sostituita (SI): conta su tutte le voci attive non annullate (task e manuali),
     // stessa `valoreSaracinesca` dell'export ACEA (tollerante a booleano `true` e stringa "SI").
     if (valoreSaracinesca(v.risposte['sostituzione_valvola'], v.risposte['sost_valvola']).toUpperCase() === 'SI') {

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { mergeRisposte } from '@/utils/rapportini/mergeRisposte';
 import { patchInterventoLiveDaVoce } from '@/lib/interventi/esitoDaVoce';
+import { sweepDopoPositivi } from '@/lib/interventi/sweepOdlPositivo';
 import { buildVoceInterventoLinker, type InterventoLinkRow } from '@/lib/interventi/voceInterventoLink';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { maiuscolaRisposteTesto } from '@/lib/testo/maiuscolo';
@@ -106,6 +107,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
         ? query.neq('stato', 'annullato')
         : query.eq('stato', 'completato'));
       if (errInt) console.error('[r/voce] propagazione intervento fallita:', errInt.message);
+      // Positivo appena registrato → sweep: revoca voci/interventi aperti con lo stesso ODL
+      // negli altri rapportini (anche di piani futuri già generati). Best-effort.
+      if (!errInt && patch.azione === 'completa' && patch.esito === 'eseguito_positivo') {
+        await sweepDopoPositivi(supabaseAdmin, [interventoId]);
+      }
     }
   } catch (e) {
     console.error('[r/voce] propagazione/aggancio fallito:', e instanceof Error ? e.message : String(e));

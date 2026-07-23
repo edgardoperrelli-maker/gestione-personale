@@ -41,6 +41,7 @@ import { ModaleCampiMancanti } from './ModaleCampiMancanti';
 import { ModaleNotaCollega } from './NotaCollega';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 import { campiDiVoce, unioneCampi } from '@/utils/rapportini/campiDiVoce';
+import { dataIt } from '@/lib/interventi/odlPositivi';
 
 /* ── Tipi ──────────────────────────────────────────────────────────────────── */
 
@@ -67,6 +68,8 @@ export type Voce = {
   risposte: Record<string, unknown>;
   nuovo?: boolean;
   annullato?: boolean;
+  /** ODL già eseguito positivo altrove: voce bloccata (non compilabile, esclusa dai "da fare"). */
+  bloccoPositivo?: { data: string | null; esecutore: string | null };
   manuale?: boolean;
   approvazione_stato?: string | null;
   motivo_rifiuto?: string | null;
@@ -393,7 +396,10 @@ export default function RapportinoForm({
         const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
         const attivita = valoreInfo(v, 'attivita');
         const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
-        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        const bloccoPositivo = v.bloccoPositivo
+          ? `Già positivo il ${dataIt(v.bloccoPositivo.data)}${v.bloccoPositivo.esecutore ? ` (${v.bloccoPositivo.esecutore})` : ''} — ordine non da lavorare`
+          : undefined;
+        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
     [voci, campi, titoloCampi],
   );
@@ -402,7 +408,7 @@ export default function RapportinoForm({
     () =>
       voci
         .map((v, idx) => ({ index: idx, v }))
-        .filter(({ v }) => !v.annullato && !isVoceTaskVia(v))
+        .filter(({ v }) => !v.annullato && !v.bloccoPositivo && !isVoceTaskVia(v))
         .map(({ index, v }) => ({ index, titolo: titoloVoce(v, v.titolo_campi ?? titoloCampi, index), motivo: motivoVoceIncompleta(v.risposte, campiDiVoce(v, campi)) }))
         .filter((m): m is { index: number; titolo: string; motivo: MotivoIncompleto } => m.motivo !== null),
     [voci, campi, titoloCampi, isVoceTaskVia],
@@ -411,18 +417,28 @@ export default function RapportinoForm({
   /* ── Navigazione ──────────────────────────────────────────────────────────── */
 
   const onApri = useCallback((index: number) => {
+    if (voci[index]?.bloccoPositivo) return; // voce bloccata: non si apre
     setIndiceCorrente(index);
     setVista('focus');
-  }, []);
+  }, [voci]);
 
   const onClose = useCallback(() => setVista('lista'), []);
-  const onPrev = useCallback(() => setIndiceCorrente((i) => Math.max(0, i - 1)), []);
+  // Le voci bloccate (ODL già positivo altrove) non sono compilabili: la navigazione le salta.
+  const onPrev = useCallback(() => {
+    setIndiceCorrente((i) => {
+      let j = i - 1;
+      while (j >= 0 && voci[j]?.bloccoPositivo) j -= 1;
+      return j >= 0 ? j : i;
+    });
+  }, [voci]);
 
   const onNext = useCallback(() => {
     const corrente = voci[indiceCorrente];
     if (corrente && !disabilitato) flushVoce(corrente.id);
-    if (indiceCorrente >= voci.length - 1) setVista('lista');
-    else setIndiceCorrente((i) => i + 1);
+    let j = indiceCorrente + 1;
+    while (j < voci.length && voci[j]?.bloccoPositivo) j += 1;
+    if (j >= voci.length) setVista('lista');
+    else setIndiceCorrente(j);
   }, [voci, indiceCorrente, disabilitato, flushVoce]);
 
   /** Esegue l'invio vero e proprio (online o coda offline). Il controllo foto è a monte. */
@@ -470,11 +486,11 @@ export default function RapportinoForm({
     // Si passa l'array COMPLETO e si scartano i risultati per `index` (così l'`index` resta
     // allineato a `voci` per la navigazione "Controlla" dei modali, anche in modalità ibrida).
     // Campi obbligatori (non-foto) vuoti → blocco rigido con elenco, PRIMA del check foto.
-    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]));
+    const campiObbl = campiObbligatoriMancantiVoci(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]) && !voci[m.index].bloccoPositivo);
     if (campiObbl.length > 0) { setCampiMancanti(campiObbl); return; }
     // Foto obbligatorie mai scattate → mostra QUALI task e QUALI tipologie, poi l'operatore
     // decide: andare a scattarle o inviare comunque. Niente foto mancanti → invio diretto.
-    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]));
+    const mancanti = fotoObbligatorieMancantiDettaglio(voci, campi, titoloCampi, fotoSoloMassive).filter((m) => !isVoceTaskVia(voci[m.index]) && !voci[m.index].bloccoPositivo);
     if (mancanti.length > 0) { setFotoMancanti(mancanti); return; }
     void eseguiInvio();
   }, [disabilitato, inviando, inviabile, voci, campi, titoloCampi, fotoSoloMassive, isVoceTaskVia, eseguiInvio]);

@@ -17,6 +17,7 @@ import { geocodeTask, optimizeRoute, optimizeRouteByFascia, parseExcelToTasks, i
 import { appendTaskToOperator, removeTaskFromOperator, moveAllTasksToOperator, moveTaskToOperator, ensureOperatorInDistribution, alignAndAppendTask } from '@/utils/mappa/appendTask';
 import { pinsFromDistribution } from '@/utils/mappa/pinsEsecutore';
 import { identitaIntervento } from '@/lib/interventi/planInterventiForPiano';
+import { labelOdlBloccato, type OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
 import { cercaInterventi } from '@/utils/mappa/cercaInterventi';
 import type { OperatorBase, RouteResult, Task } from '@/utils/routing';
 import { buildDistribuzionePayload } from '@/lib/interventi/mappaInterventi';
@@ -767,8 +768,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // ODL dei task caricati GIÀ eseguiti positivi altrove: non affidabili (il salvataggio li
   // esclude da rapportini e torre). Check proattivo così l'ufficio lo vede PRIMA di salvare.
+  // Le voci sono etichette già formattate "ODL → già positivo il … (…)" (labelOdlBloccato).
   const [odlGiaPositivi, setOdlGiaPositivi] = useState<string[]>([]);
   const odlCheckKeyRef = useRef('');
+  // Etichette per gli avvisi: dettagli (data/esecutore) quando il server li fornisce, altrimenti i soli ODL.
+  const etichetteOdlBloccati = (dettagli?: OdlBloccatoDettaglio[] | null, fallback?: string[] | null): string[] =>
+    dettagli?.length ? dettagli.map(labelOdlBloccato) : (fallback ?? []);
 
   useEffect(() => {
     const odls = [...new Set(excelTasks.map((t) => (t.odl ?? '').trim()).filter(Boolean))];
@@ -788,8 +793,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           body: JSON.stringify({ odls, pianoId: currentPianoId }),
         });
         if (!res.ok) return; // best-effort: il salvataggio esclude comunque
-        const j = (await res.json().catch(() => ({}))) as { bloccati?: string[] };
-        if (odlCheckKeyRef.current === key) setOdlGiaPositivi(j.bloccati ?? []);
+        const j = (await res.json().catch(() => ({}))) as { bloccati?: string[]; dettagli?: OdlBloccatoDettaglio[] };
+        if (odlCheckKeyRef.current === key) setOdlGiaPositivi(etichetteOdlBloccati(j.dettagli, j.bloccati));
       } catch {
         /* best-effort */
       }
@@ -1976,13 +1981,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ pianoId: pid }),
             });
-            const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; odlBloccati?: string[]; error?: string };
+            const rj = (await ri.json().catch(() => ({}))) as { creati?: number; preservati?: number; odlBloccati?: string[]; odlBloccatiDettagli?: OdlBloccatoDettaglio[]; error?: string };
             if (!ri.ok) {
               toast.error(`Torre: creazione interventi NON riuscita — ${rj.error ?? ri.status}.\nHai applicato la migration 20260603030000?`);
             } else {
-              const bloccati = rj.odlBloccati ?? [];
+              const bloccati = etichetteOdlBloccati(rj.odlBloccatiDettagli, rj.odlBloccati);
               const rigaBloccati = bloccati.length
-                ? `\n\n⛔ ${bloccati.length === 1 ? 'ODL ESCLUSO perché già eseguito positivo' : `${bloccati.length} ODL ESCLUSI perché già eseguiti positivi`}: ${bloccati.join(', ')}.\nNon compariranno né in torre né nei rapportini.`
+                ? `\n\n⛔ ${bloccati.length === 1 ? 'ODL ESCLUSO perché già eseguito positivo' : `${bloccati.length} ODL ESCLUSI perché già eseguiti positivi`}:\n${bloccati.join('\n')}\nNon compariranno né in torre né nei rapportini.`
                 : '';
               toast.success(`Torre: ${rj.creati ?? 0} interventi generati per la torre di controllo (${rj.preservati ?? 0} già chiusi preservati).${rigaBloccati}`);
               setOdlGiaPositivi(bloccati);
@@ -2119,9 +2124,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       }
       setRapConflicts(null);
       setOverwriteInviati(false);
-      const bloccati = (data?.odlBloccati as string[] | undefined) ?? [];
+      const bloccati = etichetteOdlBloccati(
+        data?.odlBloccatiDettagli as OdlBloccatoDettaglio[] | undefined,
+        data?.odlBloccati as string[] | undefined,
+      );
       if (bloccati.length > 0) {
-        toast.error(`⛔ ODL esclusi dai rapportini perché già eseguiti positivi: ${bloccati.join(', ')}.`);
+        toast.error(`⛔ ODL esclusi dai rapportini perché già eseguiti positivi: ${bloccati.join('; ')}.`);
         setOdlGiaPositivi(bloccati);
       }
       await caricaRapportini(currentPianoId);
@@ -3044,7 +3052,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
                 {odlGiaPositivi.length > 0 && (
                   <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
-                    ⛔ {odlGiaPositivi.length === 1 ? 'ODL già eseguito positivo — non affidabile, al salvataggio verrà escluso' : `${odlGiaPositivi.length} ODL già eseguiti positivi — non affidabili, al salvataggio verranno esclusi`} da rapportini e torre: {odlGiaPositivi.join(', ')}
+                    ⛔ {odlGiaPositivi.length === 1 ? 'ODL già eseguito positivo — non affidabile, al salvataggio verrà escluso' : `${odlGiaPositivi.length} ODL già eseguiti positivi — non affidabili, al salvataggio verranno esclusi`} da rapportini e torre:
+                    <ul className="mt-1 space-y-0.5">
+                      {odlGiaPositivi.map((etichetta) => (
+                        <li key={etichetta}>{etichetta}</li>
+                      ))}
+                    </ul>
                   </div>
                 )}
 
