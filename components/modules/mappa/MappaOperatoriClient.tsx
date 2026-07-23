@@ -46,7 +46,7 @@ import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import Button from '@/components/Button';
-import { ChevronDown, Download, Plus, RotateCcw } from 'lucide-react';
+import { ChevronDown, ChevronRight, Download, Plus, RotateCcw } from 'lucide-react';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 import MenuDropdown, { type MenuItem } from './MenuDropdown';
@@ -720,6 +720,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   // Distribuzione operatori
   const [showOpPicker, setShowOpPicker] = useState(false);
+  // Gli operatori fuori dal cronoprogramma del territorio nascono CHIUSI: sono
+  // una ventina contro gli otto del territorio, e aperti si prendevano il
+  // pannello intero spingendo giù mappa e interventi. Il conteggio (e quanti ne
+  // hai già scelti) resta a vista, quindi non si nasconde nulla.
+  const [altriOperatoriAperti, setAltriOperatoriAperti] = useState(false);
   const [selectedOps, setSelectedOps] = useState<OpConfig[]>([]);
   const [manualRules, setManualRules] = useState<ManualRule[]>([]);
   const [operatorLocks, setOperatorLocks] = useState<Record<string, boolean>>({});
@@ -3140,12 +3145,30 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         {' '}per il {planningDate}.
                       </p>
                     )}
-                    {territoryFilter && altriOperatori.length > 0 && (
+                    {territoryFilter && altriOperatori.length > 0 && (() => {
+                      const scelti = altriOperatori.filter((o) => selectedOps.some((s) => s.id === o.id)).length;
+                      return (
                       <div className="mt-2 border-t pt-2" style={{ borderColor: 'var(--brand-border)' }}>
-                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
-                          Altri operatori (fuori dal cronoprogramma del territorio)
-                        </p>
-                        <div className="grid grid-cols-2 gap-x-3 gap-y-1">
+                        <button
+                          type="button"
+                          onClick={() => setAltriOperatoriAperti((v) => !v)}
+                          aria-expanded={altriOperatoriAperti}
+                          className="flex w-full items-center gap-1.5 rounded px-1 py-1 text-left transition hover:bg-[var(--brand-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                        >
+                          {altriOperatoriAperti ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}
+                          <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">
+                            Altri operatori, fuori dal cronoprogramma del territorio
+                          </span>
+                          <span className="font-mono text-[11px] tabular-nums text-[var(--brand-text-subtle)]">
+                            {altriOperatori.length}
+                          </span>
+                          {scelti > 0 && (
+                            <span className="ml-auto rounded-full bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--primary-text)]">
+                              <span className="font-mono tabular-nums">{scelti}</span> selezionat{scelti === 1 ? 'o' : 'i'}
+                            </span>
+                          )}
+                        </button>
+                        <div className={`mt-1 grid-cols-2 gap-x-3 gap-y-1 ${altriOperatoriAperti ? 'grid' : 'hidden'}`}>
                           {altriOperatori.map((operator) => {
                             const selIdx = selectedOps.findIndex((o) => o.id === operator.id);
                             const checked = selIdx !== -1;
@@ -3160,7 +3183,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           })}
                         </div>
                       </div>
-                    )}
+                      );
+                    })()}
                   </div>
                 )}
 
