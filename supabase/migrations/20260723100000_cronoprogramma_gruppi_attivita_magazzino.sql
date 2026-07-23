@@ -9,11 +9,13 @@
 --    Resta UNA riga per operatore/giorno (il vincolo unico uq_assignments_day_staff non cambia).
 --    activity_id resta l'attività PRIMARIA (compat Mappa/Export/Produzione), sincronizzata dal trigger.
 
--- ── 1a) Gruppi tassonomia mancanti → attività attive (idempotente su name) ──────────────────────
+-- ── 1a) Gruppi tassonomia come attività attive (idempotente su name) ────────────────────────────
+-- NB: il trigger trg_activities_normalize → rename_activity_label() canonicalizza in questo progetto
+--   'ATTIVITA'' ALLA CLIENTELA' → 'CLIENTELA'  e  'CAMBIO CONTATORI' → 'CONTATORI'
+-- quindi il gruppo tassonomia "ATTIVITA' ALLA CLIENTELA" nel cronoprogramma vive come CLIENTELA.
 -- BONIFICHE e MAGAZZINO esistono già e restano attive.
 insert into public.activities (name, active) values
   ('AGENDA AEREA', true),
-  ('ATTIVITA'' ALLA CLIENTELA', true),
   ('BONIFICHE EXTRA', true),
   ('DUNNING', true),
   ('LIMITAZIONI MASSIVE', true),
@@ -21,11 +23,15 @@ insert into public.activities (name, active) values
   ('RISANAMENTO COLONNE', true)
 on conflict (name) do update set active = true;
 
--- ── 1b) Attività legacy di campo → disattivate (righe conservate per lo storico) ────────────────
+-- CLIENTELA = label canonica del gruppo ATTIVITA' ALLA CLIENTELA → attiva.
+update public.activities set active = true where name = 'CLIENTELA';
+
+-- ── 1b) Attività legacy NON riconducibili a un gruppo tassonomia → disattivate ──────────────────
+-- Righe conservate (lo storico referenzia activity_id e resta valido); riattivabili da Impostazioni.
 update public.activities
    set active = false
  where name in (
-   'CLIENTELA', 'CONTATORI', 'MOROSITA''', 'MOROSITA'' COMPLESSE', 'PICARRO', 'RESINE', 'SOST. VALV.'
+   'CONTATORI', 'MOROSITA''', 'MOROSITA'' COMPLESSE', 'PICARRO', 'RESINE', 'SOST. VALV.'
  );
 
 -- ── 2a) Più attività per assegnazione ──────────────────────────────────────────────────────────
