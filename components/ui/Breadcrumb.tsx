@@ -11,8 +11,9 @@ type BreadcrumbProps = {
 };
 
 export default function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
+  // Stile "a catena" (innesto SupplyHub): uppercase piccolo con tracking, separatore ›.
   return (
-    <nav aria-label="Percorso" className={`text-sm ${className}`}>
+    <nav aria-label="Percorso" className={`text-[11px] font-semibold uppercase tracking-[0.08em] ${className}`}>
       <ol className="flex flex-wrap items-center gap-1.5">
         {items.map((item, i) => {
           const last = i === items.length - 1;
@@ -20,13 +21,13 @@ export default function Breadcrumb({ items, className = '' }: BreadcrumbProps) {
             <li key={`${item.label}-${i}`} className="flex items-center gap-1.5">
               {i > 0 && (
                 <span aria-hidden="true" className="text-[var(--brand-text-subtle)]">
-                  /
+                  ›
                 </span>
               )}
               {last || !item.href ? (
                 <span
                   aria-current={last ? 'page' : undefined}
-                  className={last ? 'font-semibold text-[var(--brand-text-main)]' : 'text-[var(--brand-text-muted)]'}
+                  className={last ? 'text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'}
                 >
                   {item.label}
                 </span>

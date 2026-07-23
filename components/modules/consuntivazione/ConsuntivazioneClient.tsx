@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import NuovoOrdineForm from './NuovoOrdineForm';
 import OrdinePresenteForm from './OrdinePresenteForm';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from './AnnuncioConsuntivazione';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import Skeleton from '@/components/ui/Skeleton';
 import { toast } from '@/components/ui/Toast';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -91,36 +92,35 @@ export default function ConsuntivazioneClient() {
   const titoloCorrente = vista === 'nuovo' ? 'Nuovo ordine' : vista === 'presente' ? 'Ordine presente' : null;
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-6 sm:px-6">
+    <div className="mx-auto max-w-6xl px-4 py-6 sm:px-6">
       <header className="mb-6">
-        <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Consuntivazione</h1>
-        <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-          Carica ed esita interventi dal back office, come se fossero chiusi dal rapportino di un operatore,
-          e assegna l&apos;esecuzione a uno o più operatori.
-        </p>
+        <ObjectHeader
+          title="Consuntivazione"
+          sub="Carica ed esita interventi dal back office, come se fossero chiusi dal rapportino di un operatore, e assegna l'esecuzione a uno o più operatori."
+        />
       </header>
 
       {erroreBoot ? (
         <p className="rounded-[var(--radius-lg)] border border-[var(--status-ko)]/40 bg-[var(--status-ko-soft)] p-4 text-sm text-[var(--status-ko)]">{erroreBoot}</p>
       ) : !boot ? (
-        <div className="grid gap-4 sm:grid-cols-2">
-          {[0, 1].map((i) => <Skeleton key={i} className="h-36 rounded-[var(--radius-xl)]" />)}
+        <div className="grid gap-5 md:grid-cols-2">
+          {[0, 1].map((i) => <Skeleton key={i} className="h-56 rounded-[var(--radius-xl)]" />)}
         </div>
       ) : vista === 'home' ? (
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid gap-5 md:grid-cols-2">
           {FOGLIETTE.map((f) => (
             <button
               key={f.id}
               type="button"
               onClick={() => setVista(f.id)}
-              className="group flex flex-col gap-3 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0"
+              className="group flex min-h-56 flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-7 text-left shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0 sm:p-8"
             >
-              <span className="flex h-11 w-11 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]">
+              <span className="flex h-14 w-14 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)] [&>svg]:h-7 [&>svg]:w-7">
                 {f.icona}
               </span>
-              <span className="text-base font-semibold text-[var(--brand-text-main)]">{f.titolo}</span>
-              <span className="text-sm text-[var(--brand-text-muted)]">{f.desc}</span>
-              <span className="mt-1 text-sm font-medium text-[var(--primary-text)] transition group-hover:translate-x-0.5 motion-reduce:transition-none">
+              <span className="text-lg font-semibold text-[var(--brand-text-main)]">{f.titolo}</span>
+              <span className="max-w-[52ch] text-sm leading-relaxed text-[var(--brand-text-muted)]">{f.desc}</span>
+              <span className="mt-auto text-sm font-semibold text-[var(--primary-text)] transition group-hover:translate-x-0.5 motion-reduce:transition-none">
                 Apri →
               </span>
             </button>

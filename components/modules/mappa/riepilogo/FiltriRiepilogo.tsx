@@ -48,7 +48,7 @@ export default function FiltriRiepilogo({
       ))}
       <input
         className={`${sel} flex-1 min-w-[140px]`}
-        placeholder="🔍 cerca operatore / territorio…"
+        placeholder="cerca operatore / territorio…"
         value={filtri.q}
         onChange={(e) => setFiltri({ ...filtri, q: e.target.value })}
       />

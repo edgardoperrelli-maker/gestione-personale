@@ -100,9 +100,10 @@ export default function ManualAssignmentsModal(p: Props) {
                       title="Interventi manuali liberi: saltano l'approvazione della torre"
                       className="rounded-full px-3 py-1.5 text-[12px] font-semibold"
                       style={liberi
-                        ? { background: 'oklch(0.74 0.21 145/.16)', color: 'oklch(0.52 0.21 145)' }
-                        : { background: 'oklch(0.62 0.02 250/.16)', color: 'var(--brand-text-muted)' }}>
-                      {liberi ? '🟢 Liberi' : '⚪ Approva'}
+                        ? { background: 'var(--status-ok-soft)', color: 'var(--status-ok)' }
+                        : { background: 'var(--brand-surface-muted)', color: 'var(--brand-text-muted)' }}>
+                      <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: liberi ? 'var(--status-ok)' : 'var(--status-idle)' }} aria-hidden />
+                      {liberi ? 'Liberi' : 'Approva'}
                     </button>
                     {pinned && (
                       <button onClick={() => p.onChangeLocks({ ...p.locks, [o.id]: !aperto })}

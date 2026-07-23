@@ -1915,7 +1915,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           toast.error(`Salvataggio territorio non riuscito — ${json.error ?? res.status}.`);
         } else {
           setSavedDistribution(true);
-          const avviso = json.rapportiniWarning ? `\n\n⚠️ Rapportini: ${json.rapportiniWarning}` : '';
+          const avviso = json.rapportiniWarning ? `\n\nRapportini: ${json.rapportiniWarning}` : '';
           toast.success(`Territorio salvato: ${json.creati ?? 0} interventi aggiornati per la torre di controllo (${json.preservati ?? 0} già chiusi preservati).${avviso}`);
         }
         return;
@@ -2720,7 +2720,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       a.remove();
 
       const errNote = allegato10Errors.length
-        ? ` (⚠️ ${allegato10Errors.length} Allegato 10 non generati)`
+        ? ` (${allegato10Errors.length} Allegato 10 non generati)`
         : '';
       toast.success(`ZIP generato: ${zipName}${errNote}`);
     } catch (err: any) {
@@ -2961,7 +2961,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
           return (
             <div className="flex items-center gap-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
-              <span>⚠️</span>
+              <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" /><path d="M12 9v4M12 17h.01" /></svg>
               <span>
                 {filteredAppointmentTasks.length} appuntament
                 {filteredAppointmentTasks.length === 1 ? 'o' : 'i'} per domani

@@ -1,6 +1,7 @@
 'use client';
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import PannelloContabilita from './PannelloContabilita';
@@ -221,10 +222,7 @@ export default function ProntoInterventoClient() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-2xl font-semibold">Pronto Intervento</h1>
-        <p className="text-sm text-[var(--brand-text-muted)]">Chiamate P.I. sul campo, approvazione e contabilità.</p>
-      </div>
+      <ObjectHeader title="Pronto Intervento" sub="Chiamate P.I. sul campo, approvazione e contabilità." />
 
       {!area || !areaCorrente?.attiva ? (
         <CardsSottomoduli aree={aree} onApri={(c) => setArea(c)} />
@@ -245,9 +243,9 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
           type="button"
           disabled={!a.attiva}
           onClick={() => a.attiva && onApri(a.codice)}
-          className={`rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-sm transition ${
+          className={`rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-[var(--shadow-sm)] transition ${
             a.attiva
-              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-md focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]'
+              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0'
               : 'cursor-not-allowed opacity-60'
           }`}
         >

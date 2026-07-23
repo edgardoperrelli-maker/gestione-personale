@@ -1,6 +1,7 @@
 import { cookies } from 'next/headers';
 import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import Link from 'next/link';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import type { ReactNode } from 'react';
 import { canManageUsers, resolveAssignableRole } from '@/lib/moduleAccess';
 
@@ -91,12 +92,7 @@ export default async function ImpostazioniPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">Impostazioni</h1>
-        <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-          Gestisci la configurazione dell&apos;app e gli accessi degli utenti.
-        </p>
-      </div>
+      <ObjectHeader title="Impostazioni" sub="Gestisci la configurazione dell'app e gli accessi degli utenti." />
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
         {modules.map((module) => (

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import type { RegolaMappa } from '@/lib/agente/decisione';
 import { GIORNI_LABEL, formattaContatto, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
 import { AvvisiSyncBanner } from './AvvisiSyncBanner';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { opzioniAceaTarget, opzioniComuneGiro, TARGET_DUNNING, TARGET_TUTTI } from '@/lib/agente/comuni';
 import { StoricoCard } from './StoricoCard';
 import { ColonneCard } from './ColonneCard';
@@ -156,15 +157,8 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   }
 
   return (
-    <main className="mx-auto max-w-5xl space-y-5 px-6 py-6">
-      <header className="space-y-1">
-        <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
-          Agente
-        </h1>
-        <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Pianificazione e feedback del sync limitazioni massive.
-        </p>
-      </header>
+    <main className="mx-auto max-w-6xl space-y-5 px-6 py-6">
+      <ObjectHeader title="Agente" sub="Pianificazione e feedback del sync limitazioni massive." />
 
       {/* Card Pianificazione */}
       <section className="rounded-2xl border p-5 space-y-4" style={cardStyle}>

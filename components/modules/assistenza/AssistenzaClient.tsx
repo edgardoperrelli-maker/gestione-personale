@@ -5,6 +5,7 @@ import type { RealtimeChannel } from '@supabase/supabase-js';
 
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import MultiSelect from '@/components/ui/MultiSelect';
 import Skeleton from '@/components/ui/Skeleton';
 import { LOBBY, realtimeClient, type Richiesta } from '@/lib/assistenza/transport';
@@ -134,22 +135,20 @@ export default function AssistenzaClient() {
 
   return (
     <div className="flex flex-col gap-5 p-4 sm:p-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold text-[var(--brand-text-main)]">Assistenza</h1>
-          <p className="text-sm text-[var(--brand-text-muted)]">
-            Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo.
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <Button size="sm" variant="soft" onClick={() => setAnnuncioOpen(true)}>
-            ✨ Novità
-          </Button>
-          <Button size="sm" onClick={carica} loading={caricamento}>
-            Aggiorna
-          </Button>
-        </div>
-      </div>
+      <ObjectHeader
+        title="Assistenza"
+        sub="Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo."
+        actions={
+          <>
+            <Button size="sm" variant="soft" onClick={() => setAnnuncioOpen(true)}>
+              ✨ Novità
+            </Button>
+            <Button size="sm" onClick={carica} loading={caricamento}>
+              Aggiorna
+            </Button>
+          </>
+        }
+      />
 
       <AnnuncioAssistenza open={annuncioOpen} onClose={chiudiAnnuncio} />
 

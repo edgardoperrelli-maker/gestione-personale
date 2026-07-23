@@ -181,14 +181,15 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           type="button"
           onClick={() => toggleStato('')}
           aria-pressed={statoFiltro === ''}
-          className={`flex flex-col items-start rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+          className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors ${
             statoFiltro === ''
               ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]'
               : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
           }`}
         >
-          <span className="text-xs text-[var(--brand-text-muted)]">Tutti</span>
-          <span className="text-2xl font-semibold text-[var(--brand-primary)]">
+          <span className="absolute inset-y-0 left-0 w-1 bg-[var(--brand-primary)]" aria-hidden />
+          <span className="text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">Tutti</span>
+          <span className="font-mono text-2xl font-semibold tabular-nums text-[var(--brand-primary)]">
             {counts.total.toLocaleString('it-IT')}
           </span>
         </button>
@@ -204,12 +205,13 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
               onClick={() => toggleStato(s)}
               aria-pressed={active}
               title={`Filtra: ${STATO_LABEL[s]}`}
-              className={`flex flex-col items-start rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3 py-2 text-left transition-colors ${
+              className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors ${
                 active ? 'ring-1' : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
               }`}
               style={active ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : undefined}
             >
-              <span className="truncate text-xs text-[var(--brand-text-muted)]">{STATO_LABEL[s]}</span>
+              <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} aria-hidden />
+              <span className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">{STATO_LABEL[s]}</span>
               <span className="font-mono text-2xl font-semibold tabular-nums" style={{ color: accent }}>
                 {counts.byStato[s].toLocaleString('it-IT')}
               </span>

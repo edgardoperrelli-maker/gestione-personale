@@ -57,7 +57,7 @@ export default function CardTerritorio({
           <button onClick={() => setConfirmPiano(null)} className="text-[var(--brand-text-muted)]">No</button>
         </>
       ) : (
-        <button onClick={() => setConfirmPiano(piano.piano_id)} className="text-[var(--brand-text-muted)] hover:text-[var(--danger)]">🗑 Elimina</button>
+        <button onClick={() => setConfirmPiano(piano.piano_id)} className="text-[var(--brand-text-muted)] hover:text-[var(--danger)]">Elimina</button>
       )}
     </span>
   );
@@ -116,7 +116,7 @@ export default function CardTerritorio({
                       <span
                         className="rounded-full bg-[var(--status-warn-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--status-warn)]"
                         title="Foto ancora in caricamento dal telefono dell'operatore (non ancora sul server)"
-                      >⏳ {r.fotoInSospeso} foto in sospeso</span>
+                      >{r.fotoInSospeso} foto in sospeso</span>
                     )}
                     {r.territorio_override && (
                       <span

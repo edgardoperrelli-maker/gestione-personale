@@ -4,13 +4,14 @@
 >
 > **Fonti di verità nel codice:** i token vivono in [`app/globals.css`](app/globals.css); i primitivi in [`components/`](components) e [`components/ui/`](components/ui). Se questo file e il codice divergono, **vince il codice** — ma aggiorna questo file.
 
-## 1. Direzione: "sobrio enterprise"
+## 1. Direzione: "Cockpit" (console operativa enterprise)
 
-Stile **pulito, leggibile, da gestionale serio**. Identità precedente "Aurea neon" (ciano/magenta, glow, gradienti) **abbandonata**.
+Stile **console direzionale, pulita e leggibile** (evoluzione 2026-07-22 del "sobrio enterprise"; identità "Aurea neon" abbandonata da tempo). Direzione E+ scelta dal committente: mockup canonico in [`docs/design/mockup-cockpit.html`](docs/design/mockup-cockpit.html), spec `docs/superpowers/specs/2026-07-22-redesign-cockpit.md`.
 
 Principi:
-1. **Light-first.** Sfondo quasi bianco, superfici bianche, bordi neutri sottili. Il dark è una variante sobria, non il default.
-2. **Un solo accento blu.** Il blu porta il peso (azioni primarie, link, stato attivo). Tutto il resto è grigio freddo neutro.
+1. **Light-first su canvas.** Il contenuto vive su un **canvas grigio freddo**; le card sono bianche. Il dark è una variante sobria, non il default.
+2. **Un solo accento zaffiro** (blu profondo, hue 260). Porta il peso di azioni primarie, link, stato attivo. Tutto il resto è grigio freddo neutro.
+2bis. **I numeri comandano.** Dove i motori espongono già dei contatori, il modulo apre con card-KPI (barra colorata a sinistra, valore mono tabulare). Mai inventare metriche.
 3. **Profondità piatta.** Niente glow/gradienti. La profondità nasce da *bordo 1px + ombra tenue*.
 4. **Gerarchia per tipografia,** non per colore: titoli per dimensione/peso, non per tinte accese.
 5. **Semantici calmi** (success/warning/danger), usati col contagocce.
@@ -31,23 +32,23 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 | Token | Light | Dark | Uso |
 |---|---|---|---|
-| `--app-bg` / `--brand-bg` | `0.985 0.003 250` | `0.20 0.012 255` | sfondo pagina (piatto) |
+| `--app-bg` / `--brand-bg` | `0.965 0.006 250` (canvas) | `0.20 0.012 255` | sfondo pagina (canvas, le card bianche ci galleggiano sopra) |
 | `--brand-surface` (`--card-bg`) | `1 0 0` (bianco) | `0.24 0.014 255` | card, superfici, input |
-| `--brand-surface-muted` | `0.975 0.004 250` | `0.225 0.013 255` | header tabella, zebra, hover |
+| `--brand-surface-muted` | `0.965 0.006 250` | `0.225 0.013 255` | header tabella, zebra, hover |
 | `--brand-border` | `0.92 0.006 250` | `0.32 0.012 255` | bordo standard 1px |
 | `--brand-border-strong` | `0.86 0.008 250` | `0.40 0.012 255` | divisori marcati, bordo bottoni secondary |
 | `--brand-text-main` | `0.27 0.02 255` | `0.94 0.006 255` | testo principale |
 | `--brand-text-muted` | `0.50 0.02 255` | `0.70 0.012 255` | testo secondario, label |
 | `--brand-text-subtle` | `0.62 0.015 255` | `0.56 0.012 255` | placeholder, caption |
 
-### Accento blu
+### Accento zaffiro
 
 | Token | Light | Dark | Uso |
 |---|---|---|---|
-| `--brand-primary` | `0.55 0.17 255` | `0.70 0.15 255` | fill primario, link, attivo |
-| `--brand-primary-hover` | `0.48 0.17 255` | `0.76 0.15 255` | hover primario |
+| `--brand-primary` | `0.42 0.14 260` | `0.66 0.15 260` | fill primario, link, attivo |
+| `--brand-primary-hover` | `0.35 0.12 260` | `0.72 0.15 260` | hover primario |
 | `--brand-primary-soft` | `…/0.10` | `…/0.18` | sfondo chip/nav attiva |
-| `--primary-text` | `0.42 0.16 255` | `0.82 0.12 255` | **testo-accento** su soft/surface |
+| `--primary-text` | `0.40 0.14 260` | `0.80 0.12 260` | **testo-accento** su soft/surface |
 | `--on-primary` | `1 0 0` (bianco) | `0.20 0.012 255` (scuro) | **testo su fill accentato** (vedi nota WCAG) |
 
 > ⚠️ **`--on-primary` è tema-specifico**: bianco in light, scuro in dark. È il fix WCAG (testo bianco su blu chiaro in dark fallirebbe 2.7:1). Usalo per il testo di QUALSIASI bottone/badge a fondo pieno accentato (primary/success/warning/danger) — **mai** `text-white` o un colore fisso.
@@ -61,7 +62,7 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 | ok / fatto / approvato | `--status-ok` | success | `0.50 0.13 150` | `0.74 0.15 150` |
 | ko / non fatto / rifiutato | `--status-ko` | danger | `0.52 0.20 25` | `0.72 0.17 25` |
 | warn / in attesa | `--status-warn` | warning | `0.52 0.11 70` | `0.80 0.13 75` |
-| in corso / progress | `--status-progress` | primary | `0.55 0.17 255` | `0.70 0.15 255` |
+| in corso / progress | `--status-progress` | primary | `0.42 0.14 260` | `0.66 0.15 260` |
 | idle / neutro / offline | `--status-idle` | grigio | `0.62 0.015 255` | `0.55 0.012 255` |
 
 (+ `-soft` per i fondi; + `--on-danger`/`--on-warning` per il testo sui fill pieni.)
@@ -116,6 +117,11 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 | **MultiSelect** | `@/components/ui/MultiSelect` (default) | checkbox in popover; prop `error?`. |
 | **FogliettaCard** | `@/components/ui/FogliettaCard` (default) | card di landing modulo: `{ href, title, description?, icon?, count? }`. |
 | **Breadcrumb** | `@/components/ui/Breadcrumb` (default) | `{ items: { label, href? }[] }`; ultima voce = pagina corrente (`aria-current`). |
+| **ObjectHeader** | `@/components/ui/ObjectHeader` (default) + `{ StatusRibbon }` | card di testa modulo: `{ title, sub?, ribbon?, actions? }`. Ribbon solo per stati REALI. |
+| **KpiCard / KpiStrip** | `{ KpiCard, KpiDelta, KpiStrip }` da `@/components/ui/KpiCard` | KPI cockpit: `{ label, value, trend?, tone?, spark? }`; barra colorata a sinistra, valore mono. Solo numeri già esposti dai motori. |
+| **FilterBar** | `{ FilterBar, FilterPill, AddFilterButton }` da `@/components/ui/FilterBar` | filtri componibili: pill rimovibili (✕) + «+ Filtro»; lo stato resta nella pagina. |
+| **DetailDrawer** | `{ DrawerSplit, DetailDrawer, DrawerSection, DrawerKv }` da `@/components/ui/DetailDrawer` | scheda del record a destra della tabella (click riga), senza cambiare pagina. `className` per layout a scroll interno. |
+| **ProgressPill** | `@/components/ui/ProgressPill` (default) | avanzamento compatto `n/m` con barretta (es. foto in riga tabella). |
 
 Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/layout/moduleIcons.tsx) (`stroke="currentColor"`, `strokeWidth` ~1.6, linecap/linejoin round). Nessuna libreria icone esterna.
 
@@ -124,6 +130,13 @@ Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/la
 Regola ibrida (spec premium 2026-07-22):
 - **Vista di modulo** (contesti diversi nello stesso modulo, es. Storico/Riconsegna, Coda/Registro) → **foglietta**: landing con `FogliettaCard` + route dedicata + `Breadcrumb` di rientro.
 - **Filtro di dato** (stessa pagina, stesso dataset, es. "Tutti / Da fare / Completati") → resta in pagina con `Tabs` (segmented). Trasformare i filtri in pagine rallenta gli operatori.
+
+## 7ter. Pattern cockpit (spec 2026-07-22-redesign-cockpit.md)
+
+- **Testa di modulo**: `ObjectHeader` (titolo + sottotitolo + azioni primarie a destra). Le pagine-foglietta con `Breadcrumb` (viste figlie) restano sul pattern slim.
+- **Card-contatore = filtri rapidi**: dove i contatori sono cliccabili (Interventi, Misuratori) restano `<button aria-pressed>` con look KPI: barra colorata a sinistra, label uppercase piccola, valore `font-mono tabular-nums`.
+- **Filtri componibili**: barra con ricerca libera + pill dei filtri strutturati attivi (rimozione = patch + ricarica immediata) + «+ Filtro» che apre il pannello completo.
+- **Dettaglio senza cambiare pagina**: click sulla riga → `DetailDrawer` a destra (da `xl`); riga selezionata con fondo soft + inset rail zaffiro; i bottoni-riga fanno `stopPropagation`.
 
 ## 8. Navigazione (shell)
 
@@ -157,4 +170,4 @@ Regola ibrida (spec premium 2026-07-22):
 - Spec completa (con contrasti WCAG e razionale): `docs/superpowers/specs/2026-06-22-redesign-design-system-sobrio-design.md`.
 - Piani di implementazione: `docs/superpowers/plans/2026-06-22-redesign-*.md`.
 
-*Stato: redesign "sobrio enterprise" in produzione (2026-06-22); evoluzione **"Sobrio → Premium"** in corso (2026-07-22 — onda 1 fondazione completa: elevazione 3 livelli, Geist Mono dati, primitivi 8-stati, Toast/ConfirmDialog/Skeleton, fogliette, Dialog animato, shell con user menu + ⌘K, reduced-motion globale). Spec: `docs/superpowers/specs/2026-07-22-redesign-premium-sobrio-design.md`. Aggiorna questo file quando cambi token, primitivi o convenzioni.*
+*Stato: base "Sobrio → Premium" in produzione (PR #164, 2026-07-22); evoluzione **"Cockpit" (direzione E+)** attuata lo stesso giorno: accento zaffiro hue 260, canvas grigio freddo, ObjectHeader/KpiCard/FilterBar/DetailDrawer/ProgressPill, pattern §7ter su Interventi/hub/Misuratori/Assistenza/Consuntivazione/PI/Performance/Impostazioni/Assegnazioni AI. Spec: `docs/superpowers/specs/2026-07-22-redesign-cockpit.md` (mockup `docs/design/mockup-cockpit.html`). Aggiorna questo file quando cambi token, primitivi o convenzioni.*
