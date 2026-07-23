@@ -2,7 +2,7 @@
 import { useState, type ReactNode } from 'react';
 import {
   Check, Clock, Download, ExternalLink, Eye, Images, Link2, Lock, LockOpen,
-  MessageCircle, Trash2, UserMinus,
+  MessageCircle, Trash2, UserMinus, X,
 } from 'lucide-react';
 import Badge from '@/components/Badge';
 import { statoBadge, whatsappHref, type RapportinoStato } from '@/utils/rapportini/links';
@@ -11,6 +11,7 @@ import ModaleScaricaFoto from './ModaleScaricaFoto';
 import MenuSposta from './MenuSposta';
 import {
   AZIONE_ICONA, AZIONE_ICONA_DANGER, AZIONE_TESTO, AZIONE_TESTO_DANGER, AZIONE_TESTO_PRIMARIA,
+  nomeComando,
 } from './stili';
 
 function fmtOra(iso: string | null): string {
@@ -53,11 +54,14 @@ function AzioniPiano({
   onEliminaPiano: (pianoId: string) => void;
   onSpostaPiano: (pianoId: string, opts: { data?: string; territorio?: string | null }) => void;
 }) {
+  // Comandi a sola icona: con le etichette per esteso («Riapri · Sposta piano ·
+  // Elimina» ≈ 238px) la fascia non stava su una riga in una card da 320px e
+  // andava a capo. Le icone sono le stesse della riga operatore, quindi la card
+  // parla una lingua sola; il nome sta nell'aria-label.
   return (
-    <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-      <a href={onRiapriHref(piano.piano_id)} className={AZIONE_TESTO_PRIMARIA}>
+    <span className="flex shrink-0 items-center gap-1">
+      <a href={onRiapriHref(piano.piano_id)} {...nomeComando('Riapri questa pianificazione')} className={AZIONE_ICONA}>
         <ExternalLink size={13} aria-hidden />
-        Riapri
       </a>
       <MenuSposta
         modo="piano"
@@ -66,22 +70,25 @@ function AzioniPiano({
         onSpostaTerritorio={(t) => onSpostaPiano(piano.piano_id, { territorio: t })}
         onSpostaData={(d) => onSpostaPiano(piano.piano_id, { data: d })}
         busy={busy}
-        label="Sposta piano"
+        ariaLabel="Sposta la pianificazione in un altro territorio o giorno"
       />
       {confirmPiano === piano.piano_id ? (
         <>
           <button type="button" onClick={() => onEliminaPiano(piano.piano_id)} disabled={busy} className={AZIONE_TESTO_DANGER}>
-            <Trash2 size={13} aria-hidden />
-            Elimina davvero
+            Elimina
           </button>
-          <button type="button" onClick={() => setConfirmPiano(null)} className={AZIONE_TESTO}>
-            Annulla
+          <button type="button" onClick={() => setConfirmPiano(null)} {...nomeComando('Annulla l’eliminazione')} className={AZIONE_ICONA}>
+            <X size={13} aria-hidden />
           </button>
         </>
       ) : (
-        <button type="button" onClick={() => setConfirmPiano(piano.piano_id)} className={`${AZIONE_TESTO} hover:text-[var(--danger)]`}>
+        <button
+          type="button"
+          onClick={() => setConfirmPiano(piano.piano_id)}
+          {...nomeComando('Elimina questa pianificazione')}
+          className={AZIONE_ICONA_DANGER}
+        >
           <Trash2 size={13} aria-hidden />
-          Elimina
         </button>
       )}
     </span>
@@ -93,6 +100,7 @@ export default function CardTerritorio({
   onEliminaPiano, onRimuoviOp, onRiapriRapportino,
   confirmPiano, setConfirmPiano, confirmOp, setConfirmOp,
   busy, territori, onSpostaTerritorioOperatore, onSpostaDataOperatore, onSpostaPiano,
+  soloTerritorioDelGiorno = false,
 }: {
   terr: TerritorioGruppo;
   dataLabel: string;
@@ -112,6 +120,8 @@ export default function CardTerritorio({
   onSpostaTerritorioOperatore: (rapportinoId: string, territorio: string | null) => void;
   onSpostaDataOperatore: (rapportinoId: string, data: string) => void;
   onSpostaPiano: (pianoId: string, opts: { data?: string; territorio?: string | null }) => void;
+  /** Unico territorio del giorno: si tiene un tetto, altrimenti si stirerebbe su tutta la riga. */
+  soloTerritorioDelGiorno?: boolean;
 }) {
   const [fotoModal, setFotoModal] = useState<{ id: string; etichetta: string } | null>(null);
   const multiPiano = terr.piani.length > 1;
@@ -127,7 +137,17 @@ export default function CardTerritorio({
     <div
       // Niente `overflow-hidden` qui: il pannello di MenuSposta esce dai bordi
       // della card (è `absolute right-0`) e verrebbe tagliato.
-      className={`grow basis-[300px] min-w-[300px] max-w-[360px] rounded-[var(--radius-xl)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] ${
+      //
+      // Larghezza: da `xl` in su i territori stanno tutti sulla stessa riga e se
+      // la spartiscono in parti uguali (`flex-1 basis-0`), riempiendola fino in
+      // fondo — prima un tetto di 360px lasciava 178px morti a destra sui giorni
+      // con 4 territori e 1294px su quelli con uno solo. Sotto `xl` vanno a capo:
+      // con sei territori su uno schermo stretto diventerebbero illeggibili.
+      // Il tetto resta per il territorio unico del giorno, che altrimenti si
+      // stirerebbe su tutta la riga (già scartato il 19/06).
+      className={`grow basis-[300px] min-w-[300px] xl:min-w-0 xl:flex-1 xl:basis-0 rounded-[var(--radius-xl)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] ${
+        soloTerritorioDelGiorno ? 'max-w-[420px]' : ''
+      } ${
         terr.aiCreato ? 'border-2 border-[var(--success)]' : 'border border-[var(--brand-border)]'
       }`}
     >
@@ -160,11 +180,15 @@ export default function CardTerritorio({
         <div key={piano.piano_id}>
           {/* Fascia intestazione piano (solo se multi-piano) */}
           {multiPiano && (
-            <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 bg-[var(--brand-surface-muted)] px-3 py-1">
-              <span className="inline-flex items-center gap-1.5 text-xs font-medium text-[var(--brand-text-muted)]">
-                <Clock size={12} aria-hidden />
-                Pianificazione <N>{i + 1}</N>
-                {piano.creato_at && <> · creata <N>{fmtOra(piano.creato_at)}</N></>}
+            /* Una riga sola: niente `flex-wrap`, l'etichetta si stringe
+               (`min-w-0 truncate`) e i comandi restano interi. */
+            <div className="flex items-center justify-between gap-2 bg-[var(--brand-surface-muted)] px-3 py-1">
+              <span className="inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-medium text-[var(--brand-text-muted)]">
+                <Clock size={12} className="shrink-0" aria-hidden />
+                <span className="truncate">
+                  Pianificazione <N>{i + 1}</N>
+                  {piano.creato_at && <> · creata <N>{fmtOra(piano.creato_at)}</N></>}
+                </span>
               </span>
               <AzioniPiano piano={piano} {...azioniPiano} />
             </div>
@@ -196,7 +220,7 @@ export default function CardTerritorio({
                     <button
                       type="button"
                       onClick={() => onCopia(r)}
-                      aria-label={copiedToken === r.token ? 'Link copiato' : 'Copia il link del rapportino'}
+                      {...nomeComando(copiedToken === r.token ? 'Link copiato' : 'Copia il link del rapportino')}
                       className={AZIONE_ICONA}
                     >
                       {copiedToken === r.token
@@ -207,7 +231,7 @@ export default function CardTerritorio({
                       type="button"
                       onClick={() => onRiapriRapportino(r.id)}
                       disabled={busy || aperto}
-                      aria-label={aperto ? 'Rapportino aperto: l’operatore può modificarlo' : 'Riapri il rapportino per la modifica'}
+                      {...nomeComando(aperto ? 'Rapportino già aperto alla modifica' : 'Riapri il rapportino per la modifica')}
                       className={AZIONE_ICONA}
                     >
                       {aperto ? <LockOpen size={13} aria-hidden /> : <Lock size={13} aria-hidden />}
@@ -216,21 +240,21 @@ export default function CardTerritorio({
                       href={whatsappHref(r.url)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      aria-label="Invia il link su WhatsApp"
+                      {...nomeComando('Invia il link su WhatsApp')}
                       className={AZIONE_ICONA}
                     >
                       <MessageCircle size={13} aria-hidden />
                     </a>
                     <a
                       href={`/hub/rapportini/contenuto/${r.id}`}
-                      aria-label="Apri il contenuto del rapportino"
+                      {...nomeComando('Apri il contenuto del rapportino')}
                       className={AZIONE_ICONA}
                     >
                       <Eye size={13} aria-hidden />
                     </a>
                     <a
                       href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
-                      aria-label="Esporta il rapportino in Excel"
+                      {...nomeComando('Esporta il rapportino in Excel')}
                       className={AZIONE_ICONA}
                     >
                       <Download size={13} aria-hidden />
@@ -238,7 +262,7 @@ export default function CardTerritorio({
                     <button
                       type="button"
                       onClick={() => setFotoModal({ id: r.id, etichetta: `${r.staff_name ?? 'Operatore'} · ${dataLabel}` })}
-                      aria-label="Scarica le foto del rapportino"
+                      {...nomeComando('Scarica le foto del rapportino')}
                       className={AZIONE_ICONA}
                     >
                       <Images size={13} aria-hidden />
@@ -264,7 +288,7 @@ export default function CardTerritorio({
                       <button
                         type="button"
                         onClick={() => setConfirmOp(r.id)}
-                        aria-label="Rimuovi l’operatore dalla pianificazione"
+                        {...nomeComando('Rimuovi l’operatore dalla pianificazione')}
                         className={AZIONE_ICONA_DANGER}
                       >
                         <UserMinus size={13} aria-hidden />

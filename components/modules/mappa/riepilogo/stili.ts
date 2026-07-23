@@ -3,6 +3,14 @@
 // CardTerritorio: esportarle da lì creerebbe un ciclo.
 
 /**
+ * Nome di un comando a sola icona, dato una volta sola: finisce sia in
+ * `aria-label` (lettori di schermo, tastiera) sia in `title` (descrizione al
+ * passaggio del mouse). Un helper unico perché i due non possano divergere.
+ * Resta un nome di comando breve — non ci vanno le istruzioni operative.
+ */
+export const nomeComando = (testo: string) => ({ 'aria-label': testo, title: testo });
+
+/**
  * Comando a sola icona nella riga operatore. 24px netti — il minimo toccabile —
  * e nessun fill accentato: l'accento zaffiro porta le azioni primarie del modulo
  * (DESIGN.md §1.2), non decora otto comandi per riga ripetuti su ogni rapportino.

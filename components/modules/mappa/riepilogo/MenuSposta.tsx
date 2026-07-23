@@ -2,10 +2,11 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, CornerUpRight } from 'lucide-react';
 import DatePicker from '@/components/ui/DatePicker';
-import { AZIONE_ICONA, AZIONE_TESTO } from './stili';
+import { AZIONE_ICONA, AZIONE_TESTO, nomeComando } from './stili';
 
 export default function MenuSposta({
   modo, territori, territorioCorrente, onSpostaTerritorio, onSpostaData, busy, label,
+  ariaLabel = 'Sposta in un altro territorio o giorno',
 }: {
   modo: 'operatore' | 'piano';
   territori: Array<{ id: string; name: string }>;
@@ -13,8 +14,9 @@ export default function MenuSposta({
   onSpostaTerritorio: (territorio: string | null) => void;
   onSpostaData: (dataIso: string) => void;
   busy: boolean;
-  /** Se assente il comando è a sola icona (riga operatore); se presente è testuale. */
+  /** Se assente il comando è a sola icona; se presente è testuale. */
   label?: string;
+  ariaLabel?: string;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -32,7 +34,7 @@ export default function MenuSposta({
         onClick={() => setOpen((o) => !o)}
         disabled={busy}
         aria-expanded={open}
-        aria-label={label ? undefined : 'Sposta in un altro territorio o giorno'}
+        {...(label ? { title: ariaLabel } : nomeComando(ariaLabel))}
         className={label ? AZIONE_TESTO : AZIONE_ICONA}
       >
         <CornerUpRight size={13} aria-hidden />

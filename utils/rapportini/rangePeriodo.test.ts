@@ -10,6 +10,9 @@ describe('calcolaRange', () => {
   it('preset 7 giorni', () => {
     expect(calcolaRange('7', { dataDa: '', dataA: '' }, oggi)).toEqual({ from: '2026-05-29', to: '2026-06-19' });
   });
+  it('preset 3 giorni (ingresso del modulo)', () => {
+    expect(calcolaRange('3', { dataDa: '', dataA: '' }, oggi)).toEqual({ from: '2026-06-02', to: '2026-06-19' });
+  });
   it('preset sconosciuto → default 30', () => {
     expect(calcolaRange('xyz', { dataDa: '', dataA: '' }, oggi)).toEqual({ from: '2026-05-06', to: '2026-06-19' });
   });
@@ -23,7 +26,7 @@ describe('calcolaRange', () => {
   it('custom invertito (Da > A) → null', () => {
     expect(calcolaRange('custom', { dataDa: '2026-02-01', dataA: '2026-01-01' }, oggi)).toBeNull();
   });
-  it('PERIODI espone i tre preset', () => {
-    expect(PERIODI.map((p) => p.k)).toEqual(['7', '30', '90']);
+  it('PERIODI espone i quattro preset, col più corto per primo', () => {
+    expect(PERIODI.map((p) => p.k)).toEqual(['3', '7', '30', '90']);
   });
 });

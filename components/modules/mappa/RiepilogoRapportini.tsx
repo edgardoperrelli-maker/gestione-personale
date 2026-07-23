@@ -5,7 +5,9 @@
  *
  * Catalogue perché la pagina è un indice d'inventario: card uniformi per
  * territorio sotto una banda-giorno che fa da intestazione datata col conto.
- * Sopra, la testa di modulo standard (ObjectHeader) e il breadcrumb di rientro.
+ * Sopra, la testa di modulo standard (ObjectHeader) e il breadcrumb di rientro:
+ * la testa porta TUTTI i comandi (periodo, filtri, ricerca, export), così la
+ * pagina non si apre con due barre sovrapposte prima del primo giorno.
  * Niente striscia KPI in cima: provata il 2026-07-23 e tolta su richiesta —
  * i conti che servono stanno già sulla banda del giorno e sulle card.
  * L'accento zaffiro non entra nelle righe: prima ci stava 347 volte, una per
@@ -14,7 +16,7 @@
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, ListChecks, X } from 'lucide-react';
+import { FileSpreadsheet, X } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import Select from '@/components/ui/Select';
@@ -35,23 +37,12 @@ function fmtData(iso: string): string {
   return d.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-/**
- * Azione di testa che naviga: resta un `<a>` e non un `<Button>` perché deve
- * conservare apri-in-nuova-scheda e click centrale. Le classi ricalcano la
- * variante `outline` del primitivo; `whitespace-nowrap` tiene l'etichetta su
- * una riga sola anche a 320px.
- */
-const AZIONE_TESTA =
-  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] ' +
-  'border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium ' +
-  'text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] ' +
-  'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ' +
-  'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)]';
-
 export default function RiepilogoRapportini() {
   const [raps, setRaps] = useState<RapRiepilogo[]>([]);
   const [loading, setLoading] = useState(true);
-  const [periodo, setPeriodo] = useState('30');
+  // Ingresso sugli ultimi 3 giorni: con 30 il modulo scaricava tutto il mese
+  // prima di disegnare la prima card. Gli altri periodi restano nel menu.
+  const [periodo, setPeriodo] = useState('3');
   const [dataDa, setDataDa] = useState('');
   const [dataA, setDataA] = useState('');
   const [filtri, setFiltri] = useState<Filtri>({ territorio: '', operatore: '', stati: [], q: '' });
@@ -192,19 +183,45 @@ export default function RiepilogoRapportini() {
     <div className="space-y-4">
       <Breadcrumb items={[{ label: 'Mappa', href: '/hub/mappa' }, { label: 'Riepilogo rapportini' }]} />
 
+      {/* Tutti i comandi stanno nella testa: periodo, filtri, ricerca ed export
+          erano una fascia a sé sotto la card, che spezzava la pagina in due
+          barre prima ancora del primo giorno. */}
       <ObjectHeader
         title="Riepilogo rapportini"
         sub="Stato dei rapportini per giorno, territorio e operatore."
         actions={
           <>
+            <div className="min-w-[150px] sm:w-[170px]">
+              <Select
+                aria-label="Periodo"
+                className="py-1.5 text-xs"
+                value={periodo}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  if (v === 'custom' && !dataDa && !dataA) {
+                    const oggiStr = new Date().toISOString().slice(0, 10);
+                    const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggiStr);
+                    if (r) { setDataDa(r.from); setDataA(r.to); }
+                  }
+                  setPeriodo(v);
+                }}
+              >
+                {PERIODI.map((p) => <option key={p.k} value={p.k}>{p.label}</option>)}
+                <option value="custom">Personalizzato…</option>
+              </Select>
+            </div>
+            {periodo === 'custom' && (
+              <>
+                <DatePicker value={dataDa} onChange={setDataDa} max={dataA || undefined} ariaLabel="Dal giorno" />
+                <span className="text-xs text-[var(--brand-text-muted)]" aria-hidden>→</span>
+                <DatePicker value={dataA} onChange={setDataA} min={dataDa || undefined} ariaLabel="Al giorno" />
+              </>
+            )}
+            <FiltriRiepilogo filtri={filtri} setFiltri={setFiltri} territori={territori} operatori={operatori} />
             <Button variant="outline" size="sm" onClick={scaricaExcel} className="whitespace-nowrap">
               <FileSpreadsheet size={14} aria-hidden />
               Esporta Excel
             </Button>
-            <a href="/hub/rapportini/eseguiti" className={AZIONE_TESTA}>
-              <ListChecks size={14} aria-hidden />
-              Interventi eseguiti
-            </a>
           </>
         }
       />
@@ -223,36 +240,6 @@ export default function RiepilogoRapportini() {
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-[150px] flex-1 sm:max-w-[190px]">
-          <Select
-            aria-label="Periodo"
-            className="py-1.5 text-xs"
-            value={periodo}
-            onChange={(e) => {
-              const v = e.target.value;
-              if (v === 'custom' && !dataDa && !dataA) {
-                const oggiStr = new Date().toISOString().slice(0, 10);
-                const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggiStr);
-                if (r) { setDataDa(r.from); setDataA(r.to); }
-              }
-              setPeriodo(v);
-            }}
-          >
-            {PERIODI.map((p) => <option key={p.k} value={p.k}>{p.label}</option>)}
-            <option value="custom">Personalizzato…</option>
-          </Select>
-        </div>
-        {periodo === 'custom' && (
-          <>
-            <DatePicker value={dataDa} onChange={setDataDa} max={dataA || undefined} ariaLabel="Dal giorno" />
-            <span className="text-xs text-[var(--brand-text-muted)]" aria-hidden>→</span>
-            <DatePicker value={dataA} onChange={setDataA} min={dataDa || undefined} ariaLabel="Al giorno" />
-          </>
-        )}
-        <FiltriRiepilogo filtri={filtri} setFiltri={setFiltri} territori={territori} operatori={operatori} />
-      </div>
-
       {loading ? (
         <div className="py-12 text-center text-sm text-[var(--brand-text-muted)]">Caricamento riepilogo…</div>
       ) : giorni.length === 0 ? (
@@ -264,11 +251,14 @@ export default function RiepilogoRapportini() {
           {giorni.map((g) => (
             <div key={g.data} className="space-y-3">
               <IntestazioneGiorno giorno={g} oggi={oggi} />
-              <div className="flex flex-wrap items-start gap-3">
+              {/* Da `xl` in su tutti i territori del giorno stanno su una riga
+                  sola e se la spartiscono; sotto, vanno a capo. */}
+              <div className="flex flex-wrap items-start gap-3 xl:flex-nowrap">
                 {g.territori.map((t) => (
                   <CardTerritorio
                     key={`${g.data}-${t.chiave}`}
                     terr={t}
+                    soloTerritorioDelGiorno={g.territori.length === 1}
                     dataLabel={fmtData(g.data)}
                     copiedToken={copiedToken}
                     onCopia={copia}

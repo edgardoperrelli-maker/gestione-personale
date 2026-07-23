@@ -1,7 +1,12 @@
 // utils/rapportini/rangePeriodo.ts
 export type PeriodoPreset = { k: string; label: string; giorni: number };
 
+// `3` è il preset d'ingresso del Riepilogo: aprire il modulo scaricava 30 giorni
+// di rapportini (oltre 340 righe) prima di mostrare qualsiasi cosa, mentre chi
+// entra guarda quasi sempre ieri, oggi e domani. Gli altri preset restano a un
+// clic per chi deve andare indietro.
 export const PERIODI: PeriodoPreset[] = [
+  { k: '3', label: 'Ultimi 3 giorni', giorni: 3 },
   { k: '7', label: 'Ultimi 7 giorni', giorni: 7 },
   { k: '30', label: 'Ultimi 30 giorni', giorni: 30 },
   { k: '90', label: 'Ultimi 90 giorni', giorni: 90 },
