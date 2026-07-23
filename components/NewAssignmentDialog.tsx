@@ -9,13 +9,18 @@ import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
 import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
 
 export default function NewAssignmentDialog({
-  dayId, iso, staffList, actList, terrList, costCenterRangesByStaff, onClose, onCreated
+  dayId, iso, staffList, actList, terrList, costCenterRangesByStaff, onClose, onCreated,
+  initialStaffId, initialActivityIds, initialTerritoryId,
 }:{
   dayId: string; iso: string;
   staffList: Staff[]; actList: Activity[]; terrList: Territory[];
   costCenterRangesByStaff: Record<string, CostCenterRange[]>;
   onClose: () => void;
   onCreated: (row: Assignment, close?: boolean) => void;
+  /** Precompilazione (es. click "in magazzino": operatore + attività/territorio MAGAZZINO). */
+  initialStaffId?: string;
+  initialActivityIds?: string[];
+  initialTerritoryId?: string;
 }) {
   const sb = supabaseBrowser();
 
@@ -32,9 +37,9 @@ export default function NewAssignmentDialog({
     []
   );
 
-  const [staffId, setStaffId]         = useState<string>('');
-  const [activityId, setActivityId]   = useState<string>('');
-  const [territoryId, setTerritoryId] = useState<string>('');
+  const [staffId, setStaffId]         = useState<string>(initialStaffId ?? '');
+  const [activityIds, setActivityIds] = useState<string[]>(initialActivityIds ?? []);
+  const [territoryId, setTerritoryId] = useState<string>(initialTerritoryId ?? '');
   const [reperibile, setReperibile]   = useState<boolean>(false);
 const [zonaReperibilita, setZonaReperibilita] = useState<string>('');
 const [notes, setNotes]             = useState<string>('');
@@ -46,7 +51,10 @@ const [fromIso, setFromIso] = useState(iso);
 const [toIso, setToIso]     = useState(iso);
 useEffect(() => {
   setErr(undefined);
-}, [staffId, activityId, territoryId, reperibile, zonaReperibilita, notes]);
+}, [staffId, activityIds, territoryId, reperibile, zonaReperibilita, notes]);
+
+const toggleActivity = (id: string) =>
+  setActivityIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
 
 const canSave = !!staffId && !saving; // unica dichiarazione
 
@@ -131,7 +139,9 @@ const ins = await sb
   .insert({
     day_id:       targetDayId,
     staff_id:     staffId || null,
-    activity_id:  activityId || null,
+    // activity_id (primaria) è tenuta in sync dal trigger DB a partire da activity_ids.
+    activity_id:  activityIds[0] || null,
+    activity_ids: activityIds,
     territory_id: territoryId || null,
     reperibile:   !!reperibile,
     zona_reperibilita: reperibile ? (zonaReperibilita || null) : null,
@@ -161,7 +171,9 @@ if (ins.error || !ins.data) {
       cost_center: cc as CostCenter | null,
 
       staff: staffId ? { id: staffId, display_name: staffList.find(s => s.id === staffId)?.display_name ?? '' } : null,
-      activity: activityId ? { id: activityId, name: actList.find(a => a.id === activityId)?.name ?? '' } : null,
+      activity: activityIds[0] ? { id: activityIds[0], name: actList.find(a => a.id === activityIds[0])?.name ?? '' } : null,
+      activity_ids: activityIds,
+      activities: activityIds.map((id) => ({ id, name: actList.find(a => a.id === id)?.name ?? '' })),
       territory: territoryId ? { id: territoryId, name: terrList.find(t => t.id === territoryId)?.name ?? '' } : null,
     };
   }
@@ -251,20 +263,34 @@ if (ins.error || !ins.data) {
   </select>
 </label>
 
-            <label className="text-sm">
-              <span className="block text-[var(--brand-text-muted)] mb-1">Attività</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
-                value={activityId}
-                onChange={(e)=>setActivityId(e.target.value)}
-                disabled={saving}
-              >
-                <option value="">— Nessuna —</option>
-                {actSorted.map(a=>(
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-            </label>
+            <div className="text-sm md:col-span-2">
+              <span className="block text-[var(--brand-text-muted)] mb-1">
+                Attività <span className="opacity-60">— puoi sceglierne più di una</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {actSorted.map((a) => {
+                  const on = activityIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => toggleActivity(a.id)}
+                      aria-pressed={on}
+                      className="rounded-full border px-2.5 py-1 text-xs transition disabled:opacity-50"
+                      style={on
+                        ? { backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)', borderColor: 'var(--brand-primary)' }
+                        : { backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)', borderColor: 'var(--brand-border)' }}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
+                {actSorted.length === 0 && (
+                  <span className="text-xs text-[var(--brand-text-subtle)]">Nessuna attività disponibile</span>
+                )}
+              </div>
+            </div>
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
               <select

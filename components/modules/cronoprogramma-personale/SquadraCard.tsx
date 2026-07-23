@@ -42,7 +42,12 @@ export default function SquadraCard({
   const sotto = group.target != null && presenti < group.target;
   const incompleta = presenti < totale;
   const terr = first?.territory?.name ?? '';
-  const act = first?.activity?.name ?? '';
+  const acts = (first?.activities && first.activities.length
+    ? first.activities.map((x) => x.name)
+    : first?.activity?.name
+      ? [first.activity.name]
+      : []
+  ).filter(Boolean);
   const cc = first?.cost_center ?? '';
 
   // Il drop-target "aggiungi membro" vale solo per un drag di CARD singola; i drag di squadra o di
@@ -208,12 +213,20 @@ export default function SquadraCard({
         })}
       </div>
 
-      {(terr || act || cc) && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0 pl-1.5 text-[10px] opacity-75">
+      {(terr || acts.length > 0 || cc) && (
+        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1.5 text-[10px] opacity-75">
           {terr && <span className="font-medium">{terr}</span>}
-          {terr && act && <span className="opacity-50">|</span>}
-          {act && <span className="max-w-[90px] truncate">{act}</span>}
-          {cc && <span className="opacity-50">|</span>}
+          {terr && acts.length > 0 && <span className="opacity-50">|</span>}
+          {acts.map((name, i) => (
+            <span
+              key={`${name}-${i}`}
+              className="max-w-[110px] truncate rounded border px-1 leading-tight"
+              style={{ borderColor: 'currentColor' }}
+            >
+              {name}
+            </span>
+          ))}
+          {cc && (terr || acts.length > 0) && <span className="opacity-50">|</span>}
           {cc && <span className="opacity-70">{cc}</span>}
         </div>
       )}

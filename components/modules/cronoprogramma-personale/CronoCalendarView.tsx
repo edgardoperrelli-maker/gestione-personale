@@ -3,7 +3,7 @@
 import { type DragEvent, useMemo, useState } from 'react';
 import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
-import type { Assignment } from '@/types';
+import type { Assignment, Staff } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { TIPO_META, labelDisponibilita, isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
@@ -16,6 +16,7 @@ import {
   fmtDay,
   indexDays,
   isCopyDropGesture,
+  operatoriInMagazzino,
   readAssignmentDragData,
   readDayDragData,
   readSquadDragData,
@@ -56,6 +57,8 @@ export default function CronoCalendarView({
   onEdit,
   onDropAssignment,
   staffCount,
+  visibleStaff,
+  onPlaceInMagazzino,
   taskCountMap,
   assenzeByDay,
   onEditAssenza,
@@ -84,6 +87,10 @@ export default function CronoCalendarView({
     copy: boolean;
   }) => void;
   staffCount: number;
+  /** Operatori rilevanti per il range (per il collocamento automatico in magazzino). */
+  visibleStaff?: Staff[];
+  /** Click su un operatore "in magazzino": apre la Nuova assegnazione precompilata. */
+  onPlaceInMagazzino?: (d: Date, staffId: string) => void;
   taskCountMap?: Record<string, number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
@@ -91,6 +98,7 @@ export default function CronoCalendarView({
   squadra: SquadraHandlers;
 }) {
   const dayMap = useMemo(() => indexDays(days), [days]);
+  const todayIso = fmtDay(today);
 
   const [collapsedTerritori, setCollapsedTerritori] = useState<Set<string>>(() => new Set(loadCollapsed()));
   const toggleTerritorio = (key: string) =>
@@ -132,6 +140,9 @@ export default function CronoCalendarView({
               onEdit={onEdit}
               onDropAssignment={onDropAssignment}
               staffCount={staffCount}
+              visibleStaff={visibleStaff}
+              onPlaceInMagazzino={onPlaceInMagazzino}
+              todayIso={todayIso}
               taskCountMap={taskCountMap}
               assenzeByDay={assenzeByDay}
               onEditAssenza={onEditAssenza}
@@ -261,6 +272,9 @@ function DayCell(props: {
     copy: boolean;
   }) => void;
   staffCount: number;
+  visibleStaff?: Staff[];
+  onPlaceInMagazzino?: (d: Date, staffId: string) => void;
+  todayIso?: string;
   taskCountMap?: Record<string, number>;
   assenzeByDay?: Record<string, (Disponibilita & { staff_name: string })[]>;
   onEditAssenza?: (d: Disponibilita) => void;
@@ -283,6 +297,9 @@ function DayCell(props: {
     onEdit,
     onDropAssignment,
     staffCount,
+    visibleStaff,
+    onPlaceInMagazzino,
+    todayIso,
     taskCountMap,
     assenzeByDay,
     onEditAssenza,
@@ -301,6 +318,17 @@ function DayCell(props: {
 
   const filtered = filterAssignments(list, filters);
   const sorted = sortAssignments(filtered, sortMode);
+
+  // Collocamento MAGAZZINO: operatori validi quel giorno senza assegnazione e senza assenza intera.
+  // I filtri per attributo dell'assegnazione (ACT/TERR/CC/reperibile) nascondono il gruppo (i "senza
+  // attività" non possono soddisfarli); il filtro per operatore invece lo restringe a quegli operatori.
+  const staffFilterIds = filters.filter((t) => t.startsWith('STAFF:')).map((t) => t.slice(6));
+  const hasNonStaffFilter = filters.some((t) => !t.startsWith('STAFF:'));
+  const inMagazzino = hasNonStaffFilter
+    ? []
+    : operatoriInMagazzino(visibleStaff ?? [], list, absentIds, iso, todayIso).filter(
+        (op) => staffFilterIds.length === 0 || staffFilterIds.includes(op.id),
+      );
 
   // Rende una lista di assegnazioni: raggruppa in squadre (card fusa) e card singole (assenti saltati).
   const renderItems = (items: Assignment[]) =>
@@ -514,9 +542,51 @@ function DayCell(props: {
           ) : (
             <div className="space-y-1">{renderItems(sorted)}</div>
           )
-        ) : (
+        ) : inMagazzino.length ? null : (
           <div className="text-xs opacity-50">-</div>
         )}
+
+        {inMagazzino.length > 0 && (() => {
+          const s = getTerritoryStyle('MAGAZZINO');
+          const key = '__magazzino__';
+          const collapsed = props.collapsedTerritori?.has(key) ?? false;
+          return (
+            <div>
+              <button
+                type="button"
+                onClick={() => props.onToggleTerritorio?.(key)}
+                className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left"
+                style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
+                title={collapsed ? 'Espandi magazzino' : 'Comprimi magazzino'}
+              >
+                <span className="text-[9px] leading-none" style={{ color: s.text }}>{collapsed ? '▸' : '▾'}</span>
+                <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
+                <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
+                  Magazzino ({inMagazzino.length})
+                </span>
+              </button>
+              {!collapsed && (
+                <div className="space-y-1">
+                  {inMagazzino.map((op) => (
+                    <button
+                      key={op.id}
+                      type="button"
+                      onClick={() => onPlaceInMagazzino?.(d, op.id)}
+                      className="flex w-full items-center gap-1.5 rounded-lg border border-dashed px-2 py-1 text-left text-[11px] leading-snug shadow-sm transition hover:brightness-105"
+                      style={{ backgroundColor: s.bg, borderColor: s.border, color: s.text }}
+                      title="In magazzino — clic per assegnare un'attività"
+                    >
+                      <span className="min-w-0 flex-1 truncate font-semibold uppercase tracking-tight">
+                        {op.display_name}
+                      </span>
+                      <span className="shrink-0 text-[9px] opacity-70">in magazzino</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
     </div>
   );

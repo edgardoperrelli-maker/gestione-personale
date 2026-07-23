@@ -35,13 +35,22 @@ export default function EditAssignmentDialog({
   const [err, setErr] = useState<string | undefined>();
 
   const [staffId, setStaffId] = useState<string>(assignment?.staff?.id ?? '');
-  const [actId, setActId] = useState<string>(assignment?.activity?.id ?? '');
+  const [actIds, setActIds] = useState<string[]>(
+    assignment?.activity_ids && assignment.activity_ids.length
+      ? assignment.activity_ids
+      : assignment?.activity?.id
+        ? [assignment.activity.id]
+        : []
+  );
   const [terrId, setTerrId] = useState<string>(assignment?.territory?.id ?? '');
   const [rep, setRep] = useState<boolean>(!!assignment?.reperibile);
   const [zonaRep, setZonaRep] = useState<string>(assignment?.zona_reperibilita ?? '');
   const [notes, setNotes] = useState<string>(assignment?.notes ?? '');
 
-  useEffect(() => { setErr(undefined); }, [staffId, actId, terrId, rep, zonaRep, notes]);
+  const toggleActivity = (id: string) =>
+    setActIds((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]));
+
+  useEffect(() => { setErr(undefined); }, [staffId, actIds, terrId, rep, zonaRep, notes]);
   useEffect(() => {
     const p = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
@@ -104,7 +113,9 @@ export default function EditAssignmentDialog({
       .update({
         day_id: assignment.day_id,
         staff_id: staffId || null,
-        activity_id: actId || null,
+        // activity_id (primaria) è tenuta in sync dal trigger DB a partire da activity_ids.
+        activity_id: actIds[0] || null,
+        activity_ids: actIds,
         territory_id: terrId || null,
         cost_center: cc,
         reperibile: rep,
@@ -114,7 +125,7 @@ export default function EditAssignmentDialog({
       })
       .eq('id', assignment.id)
       .select(`
-        id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+        id, day_id, reperibile, zona_reperibilita, notes, cost_center, activity_ids,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
         activity:activity_id ( id, name )
@@ -127,7 +138,12 @@ export default function EditAssignmentDialog({
       return;
     }
 
-    onSaved(data as unknown as Assignment, true);
+    const saved: Assignment = {
+      ...(data as unknown as Assignment),
+      activity_ids: actIds,
+      activities: actIds.map((id) => ({ id, name: actSorted.find((a) => a.id === id)?.name ?? '' })),
+    };
+    onSaved(saved, true);
     setSaving(false);
     onClose();
   }
@@ -176,19 +192,34 @@ export default function EditAssignmentDialog({
               </select>
             </label>
 
-            <label className="text-sm">
-              <span className="block text-[var(--brand-text-muted)] mb-1">Attività</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
-                value={actId}
-                onChange={(e) => setActId(e.target.value)}
-              >
-                <option value="">— Nessuna —</option>
-                {actSorted.map((a) => (
-                  <option key={a.id} value={a.id}>{a.name}</option>
-                ))}
-              </select>
-            </label>
+            <div className="text-sm md:col-span-2">
+              <span className="block text-[var(--brand-text-muted)] mb-1">
+                Attività <span className="opacity-60">— puoi sceglierne più di una</span>
+              </span>
+              <div className="flex flex-wrap gap-1.5">
+                {actSorted.map((a) => {
+                  const on = actIds.includes(a.id);
+                  return (
+                    <button
+                      key={a.id}
+                      type="button"
+                      disabled={saving}
+                      onClick={() => toggleActivity(a.id)}
+                      aria-pressed={on}
+                      className="rounded-full border px-2.5 py-1 text-xs transition disabled:opacity-50"
+                      style={on
+                        ? { backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)', borderColor: 'var(--brand-primary)' }
+                        : { backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)', borderColor: 'var(--brand-border)' }}
+                    >
+                      {a.name}
+                    </button>
+                  );
+                })}
+                {actSorted.length === 0 && (
+                  <span className="text-xs text-[var(--brand-text-subtle)]">Nessuna attività disponibile</span>
+                )}
+              </div>
+            </div>
 
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
