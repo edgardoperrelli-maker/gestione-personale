@@ -4,10 +4,9 @@ import TrasfertaAlert from '@/components/trasferta/TrasfertaAlert';
 import RapportiniKpi from '@/components/modules/dashboard/RapportiniKpi';
 import DashboardTodayMap from '@/components/modules/dashboard/DashboardTodayMap';
 import PremialitaPanel from '@/components/modules/dashboard/PremialitaPanel';
-import FogliettaCard from '@/components/ui/FogliettaCard';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import { canViewPremialita, resolveAssignableRole, getAllowedModulesForUser } from '@/lib/moduleAccess';
-import { MODULE_ICONS } from '@/components/layout/moduleIcons';
+import ModuleLauncher from '@/components/modules/dashboard/ModuleLauncher';
 import { selectTodayOperators, type TodayAssignmentRow } from '@/lib/dashboard/todayOperators';
 import { isStaffValidOnDay } from '@/lib/staff';
 import type { Staff } from '@/types';
@@ -131,7 +130,6 @@ export default async function DashboardPage() {
   const role = resolveAssignableRole(profile?.role, user?.app_metadata?.role);
   const showPremialita = canViewPremialita(role);
   const allowedModules = getAllowedModulesForUser(user?.app_metadata, role);
-  const showLivePromo = allowedModules.includes('live');
 
   const todayIso = fmtDay(new Date());
   const todayRows = await loadTodayOperators(supabase, todayIso);
@@ -147,14 +145,7 @@ export default async function DashboardPage() {
         sub="Stato dei rapportini e operatori sul territorio per oggi."
       />
 
-      {showLivePromo && (
-        <FogliettaCard
-          href="/hub/live"
-          title="Live"
-          description="Interventi del giorno in tempo reale · mappa e board per operatore"
-          icon={MODULE_ICONS.live}
-        />
-      )}
+      <ModuleLauncher allowedModules={allowedModules} />
 
       <div className="grid gap-6 lg:grid-cols-2">
         <div className="space-y-6">
