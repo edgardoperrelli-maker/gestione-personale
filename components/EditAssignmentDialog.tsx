@@ -66,6 +66,26 @@ export default function EditAssignmentDialog({
     () => [...(actList || [])].sort((a, b) => a.name.localeCompare(b.name, 'it', { sensitivity: 'base' })),
     [actList]
   );
+
+  // Chip attività: attive (selezionabili) + eventuali attività GIÀ sulla card ma disattivate
+  // ("storiche"): restano visibili così i giorni passati/pianificati conservano il backup e si
+  // possono rimuovere. Le storiche non sono riproponibili ex-novo (non sono nella lista attiva).
+  const chipList = useMemo(() => {
+    const activeIds = new Set(actSorted.map((a) => a.id));
+    const nameById = new Map<string, string>();
+    (assignment?.activities ?? []).forEach((x) => { if (x?.id) nameById.set(x.id, x.name); });
+    if (assignment?.activity?.id) nameById.set(assignment.activity.id, assignment.activity.name);
+    const base = actSorted.map((a) => ({ id: a.id, name: a.name, retired: false }));
+    const presenti = assignment?.activity_ids && assignment.activity_ids.length
+      ? assignment.activity_ids
+      : assignment?.activity?.id
+        ? [assignment.activity.id]
+        : [];
+    const retired = presenti
+      .filter((id) => !activeIds.has(id))
+      .map((id) => ({ id, name: nameById.get(id) ?? 'Attività storica', retired: true }));
+    return [...base, ...retired];
+  }, [actSorted, assignment]);
   const todayIso = useMemo(
     () => new Date().toLocaleDateString('sv-SE', { timeZone: 'Europe/Rome' }),
     []
@@ -197,7 +217,7 @@ export default function EditAssignmentDialog({
                 Attività <span className="opacity-60">— puoi sceglierne più di una</span>
               </span>
               <div className="flex flex-wrap gap-1.5">
-                {actSorted.map((a) => {
+                {chipList.map((a) => {
                   const on = actIds.includes(a.id);
                   return (
                     <button
@@ -206,16 +226,19 @@ export default function EditAssignmentDialog({
                       disabled={saving}
                       onClick={() => toggleActivity(a.id)}
                       aria-pressed={on}
+                      title={a.retired ? 'Attività storica (disattivata): conservata sui giorni passati, puoi rimuoverla' : undefined}
                       className="rounded-full border px-2.5 py-1 text-xs transition disabled:opacity-50"
                       style={on
                         ? { backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)', borderColor: 'var(--brand-primary)' }
-                        : { backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)', borderColor: 'var(--brand-border)' }}
+                        : a.retired
+                          ? { backgroundColor: 'var(--brand-surface-muted)', color: 'var(--brand-text-muted)', borderColor: 'var(--brand-border)', borderStyle: 'dashed' }
+                          : { backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)', borderColor: 'var(--brand-border)' }}
                     >
-                      {a.name}
+                      {a.name}{a.retired ? ' · storica' : ''}
                     </button>
                   );
                 })}
-                {actSorted.length === 0 && (
+                {chipList.length === 0 && (
                   <span className="text-xs text-[var(--brand-text-subtle)]">Nessuna attività disponibile</span>
                 )}
               </div>
