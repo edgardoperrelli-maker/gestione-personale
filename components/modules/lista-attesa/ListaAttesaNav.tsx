@@ -1,33 +1,40 @@
-import Link from 'next/link';
+// Header delle viste del modulo Lista attesa — pattern «foglietta» (DESIGN.md §7bis):
+// breadcrumb + titolo della vista corrente, FogliettaCard verso la vista gemella.
+// Route invariate; sostituisce le vecchie underline-tab.
 
-/** Navigazione tra le due sotto-pagine del modulo Lista attesa.
- *  Usa uno stile underline-tab (come Tabs primitive) mantenendo next/link per prefetch/routing.
- */
+import Breadcrumb from '@/components/ui/Breadcrumb';
+import FogliettaCard from '@/components/ui/FogliettaCard';
+
+const VISTE = {
+  richieste: {
+    titolo: 'Richieste manuali',
+    href: '/hub/lista-attesa',
+    desc: 'Coda delle richieste operatori da approvare',
+  },
+  registro: {
+    titolo: 'Registro autorizzazioni',
+    href: '/hub/lista-attesa/registro',
+    desc: 'Storico delle richieste approvate e rifiutate',
+  },
+} as const;
+
 export function ListaAttesaNav({ attivo }: { attivo: 'richieste' | 'registro' }) {
+  const corrente = VISTE[attivo];
+  const altra = VISTE[attivo === 'richieste' ? 'registro' : 'richieste'];
   return (
-    <nav className="flex items-end gap-0 border-b border-[var(--brand-border)]">
-      <Link
-        href="/hub/lista-attesa"
-        className={[
-          'px-4 pb-2.5 text-xl font-semibold tracking-tight transition-colors',
-          attivo === 'richieste'
-            ? 'border-b-2 border-[var(--brand-primary)] text-[var(--brand-text-main)]'
-            : 'border-b-2 border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]',
-        ].join(' ')}
-      >
-        Richieste manuali
-      </Link>
-      <Link
-        href="/hub/lista-attesa/registro"
-        className={[
-          'px-4 pb-2.5 text-xl font-semibold tracking-tight transition-colors',
-          attivo === 'registro'
-            ? 'border-b-2 border-[var(--brand-primary)] text-[var(--brand-text-main)]'
-            : 'border-b-2 border-transparent text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]',
-        ].join(' ')}
-      >
-        Registro autorizzazioni
-      </Link>
-    </nav>
+    <div className="flex flex-wrap items-end justify-between gap-3">
+      <div>
+        <Breadcrumb items={[{ label: 'Lista attesa' }, { label: corrente.titolo }]} />
+        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
+          {corrente.titolo}
+        </h1>
+      </div>
+      <FogliettaCard
+        href={altra.href}
+        title={altra.titolo}
+        description={altra.desc}
+        className="w-full sm:w-auto sm:min-w-72"
+      />
+    </div>
   );
 }

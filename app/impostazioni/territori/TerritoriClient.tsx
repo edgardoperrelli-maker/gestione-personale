@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useMemo, useState } from 'react';
 import { isTerritoryValidOnDay } from '@/lib/territories';
 import NewTerritoryModal from './NewTerritoryModal';
@@ -155,7 +156,7 @@ export default function TerritoriClient({ initialTerritories }: Props) {
 
   const handleDelete = async (row: Territory) => {
     if (deletingId) return;
-    if (!window.confirm(`Confermi l'eliminazione del territorio ${row.name}?`)) return;
+    if (!(await chiediConferma({ title: `Eliminare il territorio ${row.name}?`, confirmLabel: 'Elimina', danger: true }))) return;
 
     setDeletingId(row.id);
 

@@ -17,6 +17,8 @@ type MultiSelectProps = {
   ariaLabel?: string;
   /** Classi per bordo/sfondo del trigger (sostituisce il default border/bg). */
   triggerClassName?: string;
+  /** Stato errore: bordo danger + aria-invalid (allineato a Input/Select/Textarea). */
+  error?: boolean;
 };
 
 export default function MultiSelect({
@@ -27,6 +29,7 @@ export default function MultiSelect({
   disabled = false,
   ariaLabel,
   triggerClassName = 'border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]',
+  error = false,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -67,8 +70,13 @@ export default function MultiSelect({
         aria-haspopup="listbox"
         aria-expanded={open}
         aria-label={ariaLabel ?? label}
-        className={`flex w-full items-center justify-between gap-2 rounded-lg px-3 py-2 text-sm text-[var(--brand-text-main)] transition disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none ${triggerClassName} ${
-          values.length > 0 ? 'border-[var(--brand-primary)]' : ''
+        data-error={error || undefined}
+        className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm text-[var(--brand-text-main)] transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none ${triggerClassName} ${
+          error
+            ? 'border-[var(--danger)]'
+            : values.length > 0
+              ? 'border-[var(--brand-primary)]'
+              : 'hover:border-[var(--brand-primary-border)]'
         }`}
       >
         <span className="truncate text-left">{label}: {riepilogo}</span>
@@ -80,12 +88,12 @@ export default function MultiSelect({
           role="listbox"
           aria-multiselectable="true"
           aria-label={ariaLabel ?? label}
-          className="absolute left-0 top-full z-30 mt-1 max-h-64 w-full min-w-56 overflow-auto rounded-lg border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] p-1 shadow-xl"
+          className="absolute left-0 top-full z-30 mt-1 max-h-64 w-full min-w-56 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-1 shadow-[var(--shadow-md)]"
         >
           <button
             type="button"
             onClick={() => { onChange([]); setOpen(false); }}
-            className="mb-1 w-full rounded-md border-b border-[var(--brand-border)] px-2 py-1.5 text-left text-xs font-semibold text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]"
+            className="mb-1 w-full rounded-[var(--radius-sm)] border-b border-[var(--brand-border)] px-2 py-1.5 text-left text-xs font-semibold text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]"
           >
             Tutti (azzera selezione)
           </button>
@@ -99,7 +107,7 @@ export default function MultiSelect({
                 key={o.value}
                 role="option"
                 aria-selected={checked}
-                className="flex cursor-pointer items-center gap-2 rounded-md px-2 py-1.5 text-sm text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+                className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-2 py-1.5 text-sm text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
               >
                 <input
                   type="checkbox"

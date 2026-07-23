@@ -1,16 +1,17 @@
+import { BRAND_EXPORT } from '@/lib/brand';
 import 'server-only';
 import ExcelJS from 'exceljs';
 import type { ProduzioneEconomica } from './load';
 
 // Genera il workbook "Produzione economica ACEA" da presentare alla proprietà:
 // foglio Dashboard (titolo + KPI + Produzione vs SAL per voce) + fogli Dati (per voce/operatore/
-// territorio/giorno + audit). Stile coerente col blu navy degli altri export (FF0F2749).
+// territorio/giorno + audit). Stile coerente col blu navy degli altri export (BRAND_EXPORT.navyArgb, navy brand).
 //
 // NB: questa via ExcelJS è SEMPRE apribile (niente grafici nativi). Se in futuro si vuole il
 // template con grafici Excel veri, basterà aggiungere public/templates/Produzione-Economica-Dashboard.xlsx
 // con un foglio "Dati - per voce" (stesse colonne) e iniettarvi i dati via jszip preservando i grafici.
 
-const NAVY = 'FF0F2749';
+const NAVY = BRAND_EXPORT.navyArgb;
 const WHITE = 'FFFFFFFF';
 const EUR = '#,##0.00\\ "€"';
 

@@ -1,6 +1,9 @@
 // components/modules/interventi/StoricoInterventiClient.tsx
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
+import Link from 'next/link';
+import Breadcrumb from '@/components/ui/Breadcrumb';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import StoricoFiltri, { type StatoFiltriUI } from './StoricoFiltri';
 import StoricoTabella from './StoricoTabella';
@@ -127,7 +130,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
     window.location.href = `/api/interventi/storico/export?${filtriToParams(filtri).toString()}`;
   };
   const cancella = async (voceId: string) => {
-    if (!window.confirm('Eliminare definitivamente questa riga (intervento, eventuali foto e richiesta collegata)? Operazione non reversibile.')) return;
+    if (!(await chiediConferma({ title: 'Eliminare definitivamente questa riga?', message: 'Intervento, eventuali foto e richiesta collegata verranno rimossi. Operazione non reversibile.', confirmLabel: 'Elimina', danger: true }))) return;
     setError(null);
     try {
       const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}`, { method: 'DELETE' });
@@ -176,6 +179,16 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
 
   return (
     <div className="flex h-[calc(100dvh-7rem)] flex-col gap-4">
+      {/* Header slim (pattern fogliette §7bis, variante densa): breadcrumb + vista gemella */}
+      <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
+        <Breadcrumb items={[{ label: 'Interventi' }, { label: 'Storico' }]} />
+        <Link
+          href="/hub/interventi/riconsegna"
+          className="rounded-[var(--radius-sm)] text-sm font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+        >
+          Riconsegna giornaliera →
+        </Link>
+      </div>
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {CARDS.map((c) => {
           const active = cardAttiva(c.key);

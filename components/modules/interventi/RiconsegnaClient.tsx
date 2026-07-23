@@ -1,5 +1,6 @@
 'use client';
 
+import Breadcrumb from '@/components/ui/Breadcrumb';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { riepilogoScarico, tuttiConsegnati } from '@/lib/interventi/riconsegnaLogic';
@@ -90,6 +91,10 @@ export default function RiconsegnaClient({ giorno, righe }: { giorno: string; ri
     <main className="mx-auto max-w-5xl space-y-5 px-6 py-8">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div>
+          <Breadcrumb
+            className="mb-1"
+            items={[{ label: 'Interventi', href: '/hub/interventi' }, { label: 'Riconsegna giornaliera' }]}
+          />
           <h1 className="text-2xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
             Scarico misuratori in magazzino
           </h1>

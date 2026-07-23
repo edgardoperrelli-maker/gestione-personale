@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useState } from 'react';
 import SettingsSubNav from '@/components/layout/SettingsSubNav';
 import type { Hotel, HotelRoomPrice, Territory } from '@/types';
@@ -100,7 +101,7 @@ export default function HotelClient({
   };
 
   const deactivateHotel = async (hotel: Hotel) => {
-    if (!window.confirm(`Disattivare "${hotel.name}"?`)) return;
+    if (!(await chiediConferma({ title: `Disattivare "${hotel.name}"?`, confirmLabel: 'Disattiva', danger: true }))) return;
     try {
       await patchHotel(hotel.id, { active: false });
       showFeedback('success', `${hotel.name} disattivato.`);

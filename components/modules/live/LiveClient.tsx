@@ -7,6 +7,8 @@ import { coloreStato, raggruppaPerOperatore, filtraInterventi, operatoriVisibili
 import { labelStato } from '@/lib/interventi/interventiView';
 import { useInterventiFeed, type TorreIntervento } from '@/lib/interventi/useInterventiFeed';
 import { EsportaExcelButton } from './EsportaExcelButton';
+import { toast } from '@/components/ui/Toast';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export type { TorreIntervento };
 
@@ -62,8 +64,9 @@ export default function LiveClient({
       setSyncing(false);
     }
   };
-  const rigenera = async () => {
-    if (!window.confirm('Rigenerare gli interventi del giorno dai piani salvati?\nRicrea gli assegnati dai task della distribuzione e preserva i completati.')) return;
+  const [confermaRigenera, setConfermaRigenera] = useState(false);
+  const rigenera = () => setConfermaRigenera(true);
+  const eseguiRigenera = async () => {
     setRigenerando(true);
     try {
       const res = await fetch(`/api/interventi/rigenera-giorno?data=${data}`, { method: 'POST' });
@@ -76,14 +79,15 @@ export default function LiveClient({
       };
       if (res.ok) {
         await refresh();
-        alert(`Rigenerati: ${j.creati ?? 0} creati, ${j.preservati ?? 0} preservati${j.scartati ? `, ${j.scartati} scartati` : ''} su ${j.piani ?? 0} piani.`);
+        toast.success(`Rigenerati: ${j.creati ?? 0} creati, ${j.preservati ?? 0} preservati${j.scartati ? `, ${j.scartati} scartati` : ''} su ${j.piani ?? 0} piani.`);
       } else {
-        alert(`Rigenerazione non riuscita — ${j.error ?? res.status}.`);
+        toast.error(`Rigenerazione non riuscita — ${j.error ?? res.status}.`);
       }
     } catch {
-      alert('Errore di rete nella rigenerazione.');
+      toast.error('Errore di rete nella rigenerazione.');
     } finally {
       setRigenerando(false);
+      setConfermaRigenera(false);
     }
   };
 
@@ -313,6 +317,16 @@ export default function LiveClient({
           </section>
         </div>
       </div>
+
+      <ConfirmDialog
+        open={confermaRigenera}
+        title="Rigenerare gli interventi del giorno?"
+        message="Ricrea gli assegnati dai task della distribuzione dei piani salvati e preserva i completati."
+        confirmLabel="Rigenera"
+        loading={rigenerando}
+        onConfirm={eseguiRigenera}
+        onClose={() => setConfermaRigenera(false)}
+      />
     </main>
   );
 }

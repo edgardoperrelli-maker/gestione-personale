@@ -79,34 +79,38 @@ export default function LoginClient() {
 
   return (
     <div className="w-full">
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 shadow-sm">
+      <div className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6 shadow-[var(--shadow-md)]">
         <div className="mb-6">
           <h2 className="text-xl font-semibold text-[var(--brand-text-main)]">Accesso</h2>
           <p className="text-sm text-[var(--brand-text-muted)]">Inserisci le credenziali aziendali.</p>
         </div>
         <form onSubmit={onSubmit} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Username</label>
+            <label htmlFor="login-username" className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Username</label>
             <Input
+              id="login-username"
               placeholder="Username o email"
               autoComplete="username"
               value={username}
+              error={!!err}
               onChange={(e) => setU(e.target.value)}
             />
           </div>
           <div>
-            <label className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Password</label>
+            <label htmlFor="login-password" className="mb-1 block text-xs font-medium text-[var(--brand-text-muted)]">Password</label>
             <Input
+              id="login-password"
               placeholder="Password"
               type="password"
               autoComplete="current-password"
               value={password}
+              error={!!err}
               onChange={(e) => setP(e.target.value)}
             />
           </div>
-          {err && <p className="text-sm text-[var(--danger)]">{err}</p>}
-          <Button type="submit" className="w-full" variant="primary" disabled={loading}>
-            {loading ? 'Accesso...' : 'Entra'}
+          <p aria-live="polite" className="min-h-[1.25rem] text-sm text-[var(--danger)]">{err}</p>
+          <Button type="submit" className="w-full" variant="primary" loading={loading}>
+            {loading ? 'Accesso…' : 'Entra'}
           </Button>
         </form>
       </div>

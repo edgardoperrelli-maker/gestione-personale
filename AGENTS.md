@@ -14,10 +14,10 @@ Sviluppato con GestiLab. Non modificare mai logica di business esistente senza i
 | Framework | Next.js 15 (App Router) | `--turbopack` in dev |
 | Language | TypeScript 5 strict | `noEmit`, niente `any` |
 | Styling | Tailwind CSS 4 | Solo utility classes + CSS variables |
-| State | Jotai | Solo per stato globale UI |
+| State | Stato locale nei componenti | (jotai installato ma non in uso) |
 | Database | Supabase (PostgreSQL) | RLS abilitato |
 | Auth | @supabase/auth-helpers-nextjs | Vedi sezione 5 |
-| Maps | Leaflet 1.9 | Import dinamico obbligatorio (SSR) |
+| Maps | MapLibre GL (wrapper "mapcn" in `components/ui/map.tsx`) | Leaflet rimosso — vedi sezione 7 |
 | Excel | xlsx + exceljs | Entrambi installati |
 | PDF | jspdf + jspdf-autotable | |
 | Deploy | Vercel | `vercel.json` presente |
@@ -129,107 +129,27 @@ function firstRelation<T>(value: T | T[] | null): T | null {
 
 ## 6. DESIGN SYSTEM
 
-### CSS Variables (da globals.css)
-```css
---brand-primary:        oklch(0.80 0.16 215)   /* cyan Aurea */
---brand-primary-hover:  oklch(0.74 0.18 215)
---brand-primary-soft:   oklch(0.20 0.05 215)
---brand-primary-border: oklch(0.45 0.12 215)
---brand-bg:             oklch(0.14 0.04 245)   /* navy dark */
---brand-surface:        oklch(0.18 0.05 245)
---brand-border:         oklch(0.30 0.03 245)
---brand-text-main:      oklch(0.94 0.015 220)
---brand-text-muted:     oklch(0.65 0.03 230)
---brand-nav-active-bg:  oklch(0.22 0.06 215)
+**Fonte canonica: [`DESIGN.md`](DESIGN.md)** (sistema "sobrio enterprise → premium", 2026-07). L'era "Aurea neon" (ciano/glow/gradienti) è stata abbandonata a giugno 2026: niente glow, niente accenti neon, niente colori hardcoded.
 
-/* neon accents */
---brand-magenta:        oklch(0.72 0.22 330)
---brand-green:          oklch(0.78 0.18 155)
---brand-violet:         oklch(0.68 0.20 285)
---brand-gold:           oklch(0.82 0.16 85)
+Punti chiave (dettagli e token completi in DESIGN.md e `app/globals.css`):
 
-/* sidebar */
---sidebar-bg-from:      oklch(0.12 0.04 245)   /* sidebar navy */
---sidebar-bg-to:        oklch(0.16 0.05 245)
---sidebar-text:         oklch(0.92 0.02 220)
---sidebar-muted:        oklch(0.60 0.03 230)
---sidebar-border:       oklch(0.25 0.03 245)
-
-/* shadow */
---shadow-hover:         0 0 20px oklch(0.80 0.16 215 / 0.35)
-```
-
-### Font
-- **Geist** (variabile `--font-geist`) — body e UI
-- Caricato via `next/font/google` in layout.tsx
-
-### Pattern card standard
-```tsx
-<div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-  <div className="text-xl font-semibold">Titolo</div>
-  <div className="text-sm text-[var(--brand-text-muted)]">Sottotitolo</div>
-</div>
-```
-
-### Pattern stat box
-```tsx
-<div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-primary-soft)]/40 px-3 py-2">
-  <div className="text-xs text-[var(--brand-text-muted)]">Label</div>
-  <div className="text-lg font-semibold text-[var(--brand-primary)]">{value}</div>
-</div>
-```
-
-### Bottone primario
-```tsx
-<button className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[oklch(0.16_0.06_245)] shadow-[0_0_16px_oklch(0.80_0.16_215/0.45)] hover:bg-[var(--brand-primary-hover)]">
-  Azione
-</button>
-```
-
-### Select / Input
-```tsx
-<select className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-sm">
-<input className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm w-full" />
-```
+- **Light-first**, un solo accento blu (OKLCH hue 255). Dark = *assenza* della classe `.light` su `<html>` (non esiste `.dark`).
+- **Ogni colore via `var(--token)`** (o utility `@theme`). Mai hex/oklch nel markup; `--on-primary` per il testo su fill accentati; `--status-*` per gli stati; `--terr-*` per i territori; `--chart-1..8` per i grafici.
+- **Font**: Geist (`--font-geist`) per UI; **Geist Mono** (`--font-mono`) con `font-mono tabular-nums` per dati numerici (KPI, importi, matricole).
+- **Elevazione a 3 livelli**: bordo 1px + `--shadow-sm` (superfici), `--shadow-md` (popover), `--shadow-lg` + `--overlay` (modali). Raggi via `--radius-sm/md/lg/xl`.
+- **Primitivi obbligatori** (`components/`, `components/ui/`): Button (con `loading`), Card, Badge, Input/Select/Textarea (`error`, `disabled`), Tabs (solo filtri di dato), Dialog (`busy`, animato), **ConfirmDialog** e **Toast** (`toast.*`) al posto di `confirm()`/`alert()` nativi (vietati), Skeleton, FogliettaCard + Breadcrumb (pattern viste di modulo, DESIGN.md §7bis), DatePicker, MultiSelect.
+- **Motion**: preset in `lib/animations.ts`, 150–200ms, `prefers-reduced-motion` garantito da `MotionProvider` nel root layout.
 
 ---
 
-## 7. PATTERN MAPPA (Leaflet)
+## 7. PATTERN MAPPA (MapLibre GL / "mapcn")
 
-Leaflet richiede import dinamico per evitare errori SSR.
+Leaflet è stato **rimosso** (migrazione 2026-07, vedi `docs/mapcn-fattibilita.md`). Le mappe usano **maplibre-gl** tramite il wrapper `components/ui/map.tsx` (`Map`, `MapMarker`, `MapPopup`, `MapRoute`, `MapControls`, …), theme-aware: basemap CARTO positron (light) / dark-matter (dark), tema rilevato via `hooks/useAppTheme.ts`.
 
-```typescript
-'use client';
-import { useEffect, useRef, useState } from 'react';
-
-const mapRef = useRef<HTMLDivElement | null>(null);
-const mapInstanceRef = useRef<Leaflet.Map | null>(null);
-const layerRef = useRef<Leaflet.LayerGroup | null>(null);
-const [leaflet, setLeaflet] = useState<typeof import('leaflet') | null>(null);
-
-// Init mappa
-useEffect(() => {
-  let alive = true;
-  (async () => {
-    const L = await import('leaflet');
-    if (!alive) return;
-    setLeaflet(L);
-    if (!mapRef.current || mapInstanceRef.current) return;
-    mapInstanceRef.current = L.map(mapRef.current).setView([41.9, 12.5], 6);
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      maxZoom: 19,
-    }).addTo(mapInstanceRef.current);
-    layerRef.current = L.layerGroup().addTo(mapInstanceRef.current);
-  })();
-  return () => {
-    alive = false;
-    if (mapInstanceRef.current) { mapInstanceRef.current.remove(); mapInstanceRef.current = null; }
-  };
-}, []);
-```
-
-Tile provider: **CartoDB Voyager** (no API key, open)
-Import CSS Leaflet: `import 'leaflet/dist/leaflet.css';` — solo nelle page.tsx server, non nei client components.
+Regole colori sulle mappe:
+- **Marker = nodi DOM** (portali React): accettano direttamente `var(--token)` e `color-mix(...)` — usarli.
+- **Paint WebGL** (polyline/fill di MapLibre) **non risolve `var()`**: risolvere prima con `getComputedStyle` (vedi `resolveCssColor()` in `components/modules/mappa/PlanningMap.tsx`).
+- Colori territorio: sempre `lib/territoryColors.ts` → token `--terr-*` (cambiano col tema senza re-render).
 
 ---
 
@@ -237,10 +157,14 @@ Import CSS Leaflet: `import 'leaflet/dist/leaflet.css';` — solo nelle page.tsx
 
 ```typescript
 type ValidRole = 'admin' | 'operatore';
+// AssignableRole aggiunge 'admin_plus' (super-admin: premialità, utenze).
 
-type AppModuleKey =
-  | 'dashboard' | 'hotel-calendar'
-  | 'rapportini' | 'mappa' | 'impostazioni';
+// La lista completa dei moduli (14+: dashboard, mappa, appuntamenti,
+// assegnazione-ai, hotel-calendar, interventi, consuntivazione, live,
+// lista-attesa, misuratori, agente, performance, impostazioni, …) vive in
+// APP_MODULES (lib/moduleAccess.ts) — quella è la fonte di verità, con i
+// gruppi sidebar (Pianificazione · Operatività · Analisi · Sistema).
+type AppModuleKey = (typeof APP_MODULES)[number]['key'];
 ```
 
 - `admin` → accesso completo incluso `/impostazioni`
@@ -296,14 +220,18 @@ export type Assignment = {
 4. **Strict TypeScript**: zero `any`, zero `@ts-ignore`.
 5. **Nessun `console.log`** in produzione — usare solo durante debug con commento `// DEBUG`.
 6. **Formati date**: sempre `YYYY-MM-DD` per Supabase, `dd/MM/yyyy` per display IT.
-7. **CSS**: usare sempre CSS variables del brand, mai colori hardcoded esclusi quelli già presenti nel codebase.
-8. **Componenti UI**: usare i componenti esistenti (Button, Card, Badge, Input, Tabs) prima di crearne di nuovi.
-9. **Leaflet**: sempre import dinamico, mai import statico (rompe SSR).
+7. **CSS**: usare sempre CSS variables del brand, **mai** colori hardcoded (tolleranza zero, come DESIGN.md §9); i nuovi token sono additivi e vanno definiti in entrambi i temi.
+8. **Componenti UI**: usare i primitivi esistenti (Button, Card, Badge, Input, Select, Textarea, Tabs, Dialog, ConfirmDialog, Toast, Skeleton, FogliettaCard, Breadcrumb) prima di crearne di nuovi. **Vietati `alert()`/`confirm()` nativi**: usare `toast.*` e ConfirmDialog.
+9. **Mappe**: usare il wrapper `components/ui/map.tsx` (MapLibre); mai `var()` nel paint WebGL (vedi sezione 7).
 10. **Excel parsing**: usare `xlsx` per lettura semplice, `exceljs` per formattazione avanzata.
 
 ---
 
-## 12. MODULO DA SVILUPPARE — OTTIMIZZAZIONE PERCORSI
+## 12. MODULO OTTIMIZZAZIONE PERCORSI (IMPLEMENTATO)
+
+> Nota 2026-07: il modulo è stato realizzato — la logica vive in `utils/routing/`
+> e la UI nel workspace mappa (`components/modules/mappa/`). La sezione resta
+> come riferimento storico della struttura.
 
 **Posizione nel progetto:**
 ```
@@ -327,7 +255,7 @@ app/hub/mappa/
 Non richiede nuovo AppModuleKey — è una sotto-sezione di `mappa`.
 Aggiungere link interno nella UI di `/hub/mappa`.
 
-**Dipendenze già disponibili:** Leaflet, xlsx, exceljs — nessuna installazione necessaria.
+**Dipendenze già disponibili:** maplibre-gl (via `components/ui/map.tsx`), xlsx, exceljs — nessuna installazione necessaria.
 
 ---
 

@@ -1,5 +1,6 @@
 ﻿'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
 type ActivityUsage = {
@@ -163,7 +164,7 @@ export default function GruppoAttivitaClient() {
 
   const handleDelete = async (row: ActivityRow) => {
     if (deletingId) return;
-    if (!window.confirm(`Confermi l'eliminazione di ${row.name}?`)) return;
+    if (!(await chiediConferma({ title: `Eliminare ${row.name}?`, confirmLabel: 'Elimina', danger: true }))) return;
 
     setDeletingId(row.id);
     try {

@@ -1,5 +1,6 @@
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RapportinoStato } from '@/utils/rapportini/links';
 import { type RapRiepilogo } from '@/utils/rapportini/groupByDay';
@@ -143,15 +144,15 @@ export default function RiepilogoRapportini() {
     } finally { setBusy(false); }
   };
 
-  const onSpostaDataOperatore = (rapportinoId: string, data: string) => {
+  const onSpostaDataOperatore = async (rapportinoId: string, data: string) => {
     const oggiStr = new Date().toISOString().slice(0, 10);
-    if (data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
+    if (data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile con 🔒).', confirmLabel: 'Procedi' }))) return;
     void gestisciSpostamento('/api/mappa/rapportini/data', { rapportinoId, data });
   };
 
-  const onSpostaPiano = (pianoId: string, opts: { data?: string; territorio?: string | null }) => {
+  const onSpostaPiano = async (pianoId: string, opts: { data?: string; territorio?: string | null }) => {
     const oggiStr = new Date().toISOString().slice(0, 10);
-    if (opts.data && opts.data < oggiStr && !window.confirm('Il link risulterà scaduto in quel giorno (riapribile con 🔒). Procedere?')) return;
+    if (opts.data && opts.data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile con 🔒).', confirmLabel: 'Procedi' }))) return;
     void gestisciSpostamento('/api/mappa/piani/sposta', { pianoId, ...opts });
   };
 

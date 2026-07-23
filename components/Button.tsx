@@ -11,6 +11,8 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
   size?: ButtonSize;
   animated?: boolean;
+  /** Stato di caricamento: spinner + aria-busy, il bottone è disabilitato finché dura. */
+  loading?: boolean;
 };
 
 const variantClasses: Record<ButtonVariant, string> = {
@@ -29,12 +31,45 @@ const sizeClasses: Record<ButtonSize, string> = {
   lg: 'px-5 py-2.5 text-base',
 };
 
+function Spinner() {
+  return (
+    <svg className="h-4 w-4 shrink-0 animate-spin" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+      <path className="opacity-90" fill="currentColor" d="M4 12a8 8 0 0 1 8-8v4a4 4 0 0 0-4 4H4z" />
+    </svg>
+  );
+}
+
 const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
-  ({ variant = 'outline', size = 'md', className = '', type = 'button', animated = true, ...props }, ref) => {
-    const classes = `inline-flex items-center justify-center rounded-[var(--radius-md)] font-medium transition focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 focus:ring-offset-[var(--brand-surface)] disabled:pointer-events-none disabled:opacity-50 ${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
+  (
+    {
+      variant = 'outline',
+      size = 'md',
+      className = '',
+      type = 'button',
+      animated = true,
+      loading = false,
+      disabled,
+      children,
+      ...props
+    },
+    ref
+  ) => {
+    const isDisabled = disabled || loading;
+    const classes = `inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] font-medium transition focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)] focus:ring-offset-2 focus:ring-offset-[var(--brand-surface)] disabled:pointer-events-none disabled:opacity-50 ${animated ? '' : 'active:translate-y-px '}${variantClasses[variant]} ${sizeClasses[size]} ${className}`;
+    const content = (
+      <>
+        {loading && <Spinner />}
+        {children}
+      </>
+    );
 
     if (!animated) {
-      return <button ref={ref} type={type} className={classes} {...props} />;
+      return (
+        <button ref={ref} type={type} className={classes} disabled={isDisabled} aria-busy={loading || undefined} {...props}>
+          {content}
+        </button>
+      );
     }
 
     return (
@@ -42,11 +77,15 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         ref={ref}
         type={type}
         className={classes}
+        disabled={isDisabled}
+        aria-busy={loading || undefined}
         whileHover={buttonHover.whileHover}
         whileTap={buttonHover.whileTap}
         transition={buttonHover.transition}
         {...(props as React.ComponentProps<typeof motion.button>)}
-      />
+      >
+        {content}
+      </motion.button>
     );
   }
 );

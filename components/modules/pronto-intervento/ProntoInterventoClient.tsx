@@ -1,5 +1,7 @@
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
+import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import PannelloContabilita from './PannelloContabilita';
 import ModalePIBackoffice from './ModalePIBackoffice';
@@ -151,7 +153,7 @@ function StoricoLink({ righe, onCambiato }: { righe: LinkRow[]; onCambiato: () =
     });
     setBusy(null);
     if (res.ok) { setApriPer(null); onCambiato(); }
-    else { const j = await res.json().catch(() => ({})); window.alert(j.dettaglio || j.error || 'Errore nella riapertura.'); }
+    else { const j = await res.json().catch(() => ({})); toast.error(j.dettaglio || j.error || 'Errore nella riapertura.'); }
   }
 
   return (
@@ -377,9 +379,9 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
     const msg = avviso
       ? 'Riaprire questo rapportino? Tornerà in approvazione e l’eventuale contabilità già inserita verrà cancellata.'
       : 'Riaprire questo rapportino rifiutato? Tornerà in approvazione, modificabile dall’operatore con link aperto.';
-    if (!window.confirm(msg)) return;
+    if (!(await chiediConferma({ title: 'Riaprire il rapportino?', message: msg, confirmLabel: 'Riapri' }))) return;
     const res = await fetch(`/api/admin/pi/interventi/${id}/riapri`, { method: 'POST' });
-    if (!res.ok) { const j = await res.json().catch(() => ({})); window.alert(j.error || 'Errore nella riapertura.'); }
+    if (!res.ok) { const j = await res.json().catch(() => ({})); toast.error(j.error || 'Errore nella riapertura.'); }
     void carica();
   }
 

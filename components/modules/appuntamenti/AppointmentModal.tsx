@@ -1,5 +1,7 @@
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
+import { toast } from '@/components/ui/Toast';
 import { useState, useEffect, useMemo, useRef } from 'react';
 import Button from '@/components/Button';
 import { getTerritoryStyle } from '@/lib/territoryColors';
@@ -71,7 +73,7 @@ function ViewMode({
   const terrStyle = getTerritoryStyle(appointment.territories?.name);
 
   const handleDelete = async () => {
-    if (!window.confirm('Sei sicuro di voler eliminare questo appuntamento?')) return;
+    if (!(await chiediConferma({ title: 'Eliminare questo appuntamento?', confirmLabel: 'Elimina', danger: true }))) return;
 
     setDeleting(true);
     const res = await fetch(`/api/appointments?id=${appointment.id}`, {
@@ -79,7 +81,7 @@ function ViewMode({
     });
 
     if (!res.ok) {
-      alert('Errore durante l\'eliminazione');
+      toast.error('Errore durante l\'eliminazione');
       setDeleting(false);
       return;
     }
@@ -274,11 +276,11 @@ function CreateMode({
     e.preventDefault();
 
     if (!pdr.trim()) {
-      alert('PDR obbligatorio');
+      toast.error('PDR obbligatorio');
       return;
     }
     if (!data.trim()) {
-      alert('Data obbligatoria');
+      toast.error('Data obbligatoria');
       return;
     }
 
@@ -320,7 +322,7 @@ function CreateMode({
 
     if (!res.ok) {
       const err = await res.json();
-      alert(`Errore: ${err.error || 'Errore sconosciuto'}`);
+      toast.error(`Errore: ${err.error || 'Errore sconosciuto'}`);
       return;
     }
 

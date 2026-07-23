@@ -22,7 +22,7 @@ export default function PremialitaPanel({ kpis }: { kpis?: KpiResult[] }) {
   const hasData = (kpis?.length ?? 0) > 0;
 
   return (
-    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm" style={{ borderRadius: 'var(--radius-xl)' }}>
+    <section className="border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]" style={{ borderRadius: 'var(--radius-xl)' }}>
       <div className="mb-3 flex items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <span className="rounded-full bg-[var(--brand-surface-muted)] px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-muted)] border border-[var(--brand-border)]">
@@ -39,11 +39,11 @@ export default function PremialitaPanel({ kpis }: { kpis?: KpiResult[] }) {
           const eff = k?.efficienza;
           const ok = k?.sogliaOk;
           return (
-            <div key={code} className="rounded-xl border border-[var(--brand-border)] px-3 py-3">
+            <div key={code} className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] px-3 py-3">
               <div className="flex items-center justify-between gap-2">
                 <span className="text-xs font-semibold text-[var(--brand-text-muted)]">{code}</span>
                 <span
-                  className={`text-lg font-bold tabular-nums ${
+                  className={`font-mono text-lg font-semibold tabular-nums ${
                     eff == null
                       ? 'text-[var(--brand-text-subtle)]'
                       : ok
@@ -69,7 +69,7 @@ export default function PremialitaPanel({ kpis }: { kpis?: KpiResult[] }) {
       </div>
 
       {!hasData && (
-        <p className="mt-3 rounded-lg border border-dashed border-[var(--brand-border)] px-3 py-2 text-xs text-[var(--brand-text-muted)]">
+        <p className="mt-3 rounded-[var(--radius-md)] border border-dashed border-[var(--brand-border)] px-3 py-2 text-xs text-[var(--brand-text-muted)]">
           Dati non ancora disponibili: gli esiti interventi (eseguiti positivi, accessi a vuoto, assegnati)
           alimenteranno questi KPI quando la tracciatura interventi sarà attiva. Premio sospensioni a ES ≥ {SOGLIA_PREMIO_ES}%.
         </p>

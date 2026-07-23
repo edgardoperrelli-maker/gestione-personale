@@ -15,8 +15,8 @@ const TH = 'px-3 py-2 text-left font-semibold align-bottom';
 const TD = 'px-3 py-2 align-top';
 
 const BADGE: Record<'verde' | 'rossa' | 'neutro', { label: string; bg: string; fg: string }> = {
-  verde: { label: '🟢 Fatto', bg: 'var(--success-soft, #dcfce7)', fg: 'var(--success, #166534)' },
-  rossa: { label: '🔴 Non fatto', bg: 'var(--danger-soft, #fee2e2)', fg: 'var(--danger, #991b1b)' },
+  verde: { label: '🟢 Fatto', bg: 'var(--success-soft)', fg: 'var(--success)' },
+  rossa: { label: '🔴 Non fatto', bg: 'var(--danger-soft)', fg: 'var(--danger)' },
   neutro: { label: '⚪ Da fare', bg: 'var(--brand-surface-muted)', fg: 'var(--brand-text-muted)' },
 };
 
@@ -185,10 +185,10 @@ export default function RapportinoEditor({
           <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{dirty.size} righe modificate</span>
         )}
         {stato === 'ok' && (
-          <span className="text-sm font-semibold" style={{ color: 'var(--success, #166534)' }}>✓ Salvato</span>
+          <span className="text-sm font-semibold" style={{ color: 'var(--success)' }}>✓ Salvato</span>
         )}
         {stato === 'errore' && (
-          <span className="text-sm font-semibold" style={{ color: 'var(--danger, #991b1b)' }}>
+          <span className="text-sm font-semibold" style={{ color: 'var(--danger)' }}>
             Errore nel salvataggio{errCode ? ` (${errCode})` : ''}
           </span>
         )}

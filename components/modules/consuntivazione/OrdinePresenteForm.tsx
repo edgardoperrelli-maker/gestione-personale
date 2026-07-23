@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/Button';
+import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 import SquadraPicker from './SquadraPicker';
 import AzioniForm from './AzioniForm';
 import { esitabileConsuntivo } from '@/lib/consuntivazione/statoEsito';
@@ -147,7 +148,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
 
         <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4 text-sm sm:grid-cols-3">
           <Info label="ODL / ODS" value={i.odl} />
-          <Info label="Attività" value={i.intervento_tipo} />
+          <Info label="Attività" value={attivitaUnificataDisplay(i.intervento_tipo)} />
           <Info label="Matricola" value={i.matricola_contatore} />
           <Info label="PDR" value={i.pdr} />
           <Info label="Nominativo" value={i.nominativo} />
@@ -171,7 +172,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
 
         <div className="flex items-center justify-end gap-3 border-t border-[var(--brand-border)] pt-4">
           <Button variant="ghost" onClick={() => setSel(null)} disabled={salvando}>Annulla</Button>
-          <Button variant="primary" onClick={submit} disabled={!pronto || salvando}>
+          <Button variant="primary" onClick={submit} loading={salvando} disabled={!pronto}>
             {salvando ? 'Esitazione…' : 'Esita ordine'}
           </Button>
         </div>
@@ -243,7 +244,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
           </p>
           <div className="flex items-center gap-2">
             <Button type="button" variant="ghost" onClick={azzera} disabled={caricando}>Azzera filtri</Button>
-            <Button type="submit" variant="primary" disabled={caricando || !hasFiltro}>
+            <Button type="submit" variant="primary" loading={caricando} disabled={!hasFiltro}>
               {caricando ? 'Ricerca…' : 'Cerca'}
             </Button>
           </div>
@@ -283,14 +284,14 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
                 >
                   <span className="min-w-0">
                     <span className="block truncate text-sm font-medium text-[var(--brand-text-main)]">
-                      {it.intervento_tipo || 'Intervento'} · {it.odl || 's/ODL'}
+                      {attivitaUnificataDisplay(it.intervento_tipo) || 'Intervento'} · {it.odl || 's/ODL'}
                     </span>
                     <span className="block truncate text-xs text-[var(--brand-text-muted)]">
                       {[it.indirizzo, it.comune].filter(Boolean).join(', ') || it.nominativo || '—'}
                       {it.matricola_contatore ? ` · matr. ${it.matricola_contatore}` : ''}
                     </span>
                   </span>
-                  <span className="shrink-0 text-xs text-[var(--brand-text-subtle)]">{it.data}</span>
+                  <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--brand-text-subtle)]">{it.data}</span>
                 </button>
               </li>
             ))}

@@ -61,3 +61,22 @@ export function appBaseUrl(): string {
 export function dataItaliana(iso?: string | null): string {
   return iso ? iso.split('-').reverse().join('/') : '';
 }
+
+/**
+ * Palette unica per gli export "stampati" (PDF jspdf in RGB, Excel exceljs in
+ * ARGB). Prima ogni generatore duplicava i propri valori (3 palette PDF
+ * diverse, navy Excel FF0F2749 ≠ brand #13243f): questa è la fonte sola.
+ * Sono colori di documento, volutamente indipendenti dai token CSS del tema.
+ */
+export const BRAND_EXPORT = {
+  /** Testo principale dei PDF. */
+  inkRgb: [26, 35, 48] as [number, number, number],
+  /** Testo secondario dei PDF. */
+  mutedRgb: [91, 103, 117] as [number, number, number],
+  /** Righe/divisori dei PDF. */
+  lineRgb: [227, 232, 238] as [number, number, number],
+  /** Accento di stampa (blu GestiLab). */
+  accentRgb: [10, 143, 176] as [number, number, number],
+  /** Header tabelle Excel = navy brand (#13243f). */
+  navyArgb: 'FF13243F',
+} as const;

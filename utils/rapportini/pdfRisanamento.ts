@@ -1,10 +1,11 @@
+import { BRAND_EXPORT } from '@/lib/brand';
 import type { DatiPdfRisanamento } from './datiPdfRisanamento';
 
 type RGB = [number, number, number];
-const INK: RGB = [26, 35, 48];
-const MUTED: RGB = [91, 103, 117];
-const CYAN: RGB = [10, 143, 176];
-const LINE: RGB = [227, 232, 238];
+const INK: RGB = BRAND_EXPORT.inkRgb;
+const MUTED: RGB = BRAND_EXPORT.mutedRgb;
+const CYAN: RGB = BRAND_EXPORT.accentRgb;
+const LINE: RGB = BRAND_EXPORT.lineRgb;
 const ML = 12;
 const MR = 12;
 

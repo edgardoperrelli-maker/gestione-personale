@@ -33,16 +33,16 @@ export async function buildTemplateImport(
   const colCommittente = COLONNE_TEMPLATE.indexOf('COMMITTENTE') + 1;
   const idxBloccate = new Set(COLONNE_BLOCCATE.map((c) => COLONNE_TEMPLATE.indexOf(c) + 1));
   const letteraDescr = ws.getColumn(colDescr).letter;
-  // Descrizione attività NON compilabile a mano: solo la tendina con le canoniche della
-  // Leggenda (errorStyle stop = Excel rifiuta il testo libero). Blank ammesso (righe vuote).
+  // Descrizione attività: la tendina con le voci della Leggenda resta come AIUTO, ma NON
+  // blocca (showErrorMessage:false). Così il back office può incollare il codice attività
+  // PER INTERO dal file di estrazione del committente (anche il dettaglio S-PR-003 A, …)
+  // senza che Excel rifiuti l'incolla. Il gate autorevole è validaImport lato server, che
+  // rifiuta solo le descrizioni davvero sconosciute. Blank ammesso (righe vuote).
   const validazioneDescr: ExcelJS.DataValidation = {
     type: 'list',
     allowBlank: true,
     formulae: [`Leggenda!$B$2:$B$${attive.length + 1}`],
-    showErrorMessage: true,
-    errorStyle: 'stop',
-    errorTitle: 'Attività non valida',
-    error: 'Scegli l\'attività dalla tendina: il testo libero non è ammesso. I valori validi sono nel foglio Leggenda.',
+    showErrorMessage: false,
   };
   for (let r = 2; r <= righeDati + 1; r++) {
     const row = ws.getRow(r);

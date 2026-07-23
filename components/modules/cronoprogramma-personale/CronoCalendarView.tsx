@@ -218,7 +218,7 @@ function SingoloCard({
       <OperatorCard a={a} onDelete={onDelete} onEdit={onEdit} taskCount={taskCount} />
       {/* Occhiello discoverabile a mouse fermo */}
       <div
-        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-sm group-hover/s:flex"
+        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-[var(--shadow-sm)] group-hover/s:flex"
         style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
       >
         ⛓
@@ -371,7 +371,7 @@ function DayCell(props: {
 
   return (
     <div
-      className={`rounded-2xl border border-[var(--card-bd)] p-2 shadow-sm ${dayBgClass(
+      className={`rounded-[var(--radius-xl)] border border-[var(--card-bd)] p-2 shadow-sm ${dayBgClass(
         d
       )} hover:ring-1 hover:ring-black/10`}
       onDragOver={(e) => {
@@ -442,7 +442,7 @@ function DayCell(props: {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onAdd(d)}
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
           >
             Nuovo
           </button>

@@ -89,7 +89,7 @@ function CenteredCard({
   return (
     <Shell>
       <div className="flex min-h-[60dvh] items-center justify-center">
-        <div className="w-full rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center shadow-sm">
+        <div className="w-full rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-8 text-center shadow-[var(--shadow-sm)]">
           <div
             className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full"
             style={{

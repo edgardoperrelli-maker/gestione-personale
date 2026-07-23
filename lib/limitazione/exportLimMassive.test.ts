@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, saracinescaPulita, valoreSaracinesca, type RigaDb } from './exportLimMassive';
+import { cognomeDaDisplayName, esitoFileDaIntervento, buildRigaLimMassive, saracinescaPulita, valoreSaracinesca, isNessunPassaggio, type RigaDb } from './exportLimMassive';
 
 describe('valoreSaracinesca', () => {
   it('booleano true (template a checkbox) → SI', () => {
@@ -61,6 +61,7 @@ describe('buildRigaLimMassive', () => {
       via: 'VIA CANCELLATA GRANDE 32', esecutore: 'CIARALLO', data_esecuzione: '2026-06-03',
       esito: 'eseguito', esito_motivo: null, sigillo: 'AA728566', manuale: false,
       esitoOk: true, pdr: '00123456789', nominativo: 'Rossi Mario', saracinesca: 'SI', note: '',
+      esitoTesto: null,
     });
   });
   it('display_name null → esecutore vuoto', () => {
@@ -161,5 +162,28 @@ describe('saracinescaPulita', () => {
     expect(
       buildRigaLimMassive({ ...base, esito: 'accesso_negato', note: null, esito_motivo: null }).note,
     ).toBe('');
+  });
+});
+
+describe('esitoTesto — "nessun passaggio" distinto dal "No" generico', () => {
+  it('voce NESSUN PASSAGGIO su completato non-positivo -> esitoTesto "nessun passaggio"', () => {
+    const r = buildRigaLimMassive({ ...base, esito: null, eseguito_voce: 'NESSUN PASSAGGIO' });
+    expect(r.esitoOk).toBe(false);
+    expect(r.esitoTesto).toBe('nessun passaggio');
+    expect(r.esito).toBe('No'); // campo legacy invariato (agente vecchio sicuro)
+  });
+  it('robusto a maiuscole e spazi doppi', () => {
+    expect(isNessunPassaggio('  nessun   Passaggio ')).toBe(true);
+    expect(isNessunPassaggio('NO')).toBe(false);
+    expect(isNessunPassaggio(null)).toBe(false);
+  });
+  it('voce NO -> esitoTesto null (resta il testo config dell agente)', () => {
+    expect(buildRigaLimMassive({ ...base, esito: null, eseguito_voce: 'NO' }).esitoTesto).toBeNull();
+  });
+  it('positivo -> esitoTesto null anche se la voce dice NESSUN PASSAGGIO (il positivo vince)', () => {
+    expect(buildRigaLimMassive({ ...base, eseguito_voce: 'NESSUN PASSAGGIO' }).esitoTesto).toBeNull();
+  });
+  it('non completato -> esitoTesto null', () => {
+    expect(buildRigaLimMassive({ ...base, stato: 'assegnato', esito: null, eseguito_voce: 'NESSUN PASSAGGIO' }).esitoTesto).toBeNull();
   });
 });

@@ -21,21 +21,22 @@ export default function AnnuncioAssistenza({ open, onClose }: { open: boolean; o
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-6"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 py-6"
+      style={{ background: 'var(--overlay)' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="annuncio-assistenza-title"
       onClick={onClose}
     >
       <div
-        className="my-auto flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl"
+        className="my-auto flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
         <div className="flex items-start gap-3 border-b border-[var(--brand-border)] px-5 py-4">
           <div>
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
               style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
             >
               ✨ Novità
@@ -50,7 +51,7 @@ export default function AnnuncioAssistenza({ open, onClose }: { open: boolean; o
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)]"
+            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)]"
             title="Chiudi"
           >
             ✕
@@ -125,8 +126,8 @@ export default function AnnuncioAssistenza({ open, onClose }: { open: boolean; o
 
 function Principio({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
+    <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
+      <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
       <p className="mt-1 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
@@ -134,7 +135,7 @@ function Principio({ label, title, children }: { label: string; title: string; c
 }
 
 function SezioneTitolo({ children }: { children: React.ReactNode }) {
-  return <div className="mb-2 text-[11px] font-bold uppercase tracking-widest text-[var(--brand-text-muted)]">{children}</div>;
+  return <div className="mb-2 text-[11px] font-semibold uppercase tracking-widest text-[var(--brand-text-muted)]">{children}</div>;
 }
 
 function Voce({ t, children }: { t: React.ReactNode; children: React.ReactNode }) {

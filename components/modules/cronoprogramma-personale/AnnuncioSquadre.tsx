@@ -8,9 +8,9 @@ import Button from '@/components/Button';
 export const ANNUNCIO_SQUADRE_KEY = 'crono-squadre-v1';
 
 type Terr = { bg: string; bd: string; tx: string; band: string };
-const NAPOLI: Terr = { bg: 'rgba(232,121,249,0.16)', bd: 'rgba(232,121,249,0.40)', tx: '#F0ABFC', band: '#E879F9' };
-const LAZIO_EST: Terr = { bg: 'rgba(56,189,248,0.16)', bd: 'rgba(56,189,248,0.40)', tx: '#7DD3FC', band: '#38BDF8' };
-const AURELIA: Terr = { bg: 'rgba(74,222,128,0.16)', bd: 'rgba(74,222,128,0.40)', tx: '#86EFAC', band: '#4ADE80' };
+const NAPOLI: Terr = { bg: 'var(--terr-napoli-bg)', bd: 'var(--terr-napoli-bd)', tx: 'var(--terr-napoli-text)', band: 'var(--terr-napoli-band)' };
+const LAZIO_EST: Terr = { bg: 'var(--terr-lazioest-bg)', bd: 'var(--terr-lazioest-bd)', tx: 'var(--terr-lazioest-text)', band: 'var(--terr-lazioest-band)' };
+const AURELIA: Terr = { bg: 'var(--terr-aurelia-bg)', bd: 'var(--terr-aurelia-bd)', tx: 'var(--terr-aurelia-text)', band: 'var(--terr-aurelia-band)' };
 
 type Membro = { nome: string; capo?: boolean; rep?: boolean; assente?: boolean };
 
@@ -32,14 +32,15 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
 
   return createPortal(
     <div
-      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 px-4 py-6"
+      className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto px-4 py-6"
+      style={{ background: 'var(--overlay)' }}
       role="dialog"
       aria-modal="true"
       aria-labelledby="annuncio-squadre-title"
       onClick={onClose}
     >
       <div
-        className="my-auto flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-2xl"
+        className="my-auto flex max-h-[88vh] w-full max-w-3xl flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -61,7 +62,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)]"
+            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)]"
             title="Chiudi"
           >
             ✕
@@ -107,7 +108,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
               <div>
                 <Etichetta>Aggancio del 4° membro (drag)</Etichetta>
                 <div
-                  className="mb-1 rounded-lg border px-2 py-1.5 text-[11px]"
+                  className="mb-1 rounded-[var(--radius-md)] border px-2 py-1.5 text-[11px]"
                   style={{ backgroundColor: NAPOLI.bg, borderColor: NAPOLI.bd, color: NAPOLI.tx, transform: 'rotate(-1.5deg)', opacity: 0.75 }}
                 >
                   <span className="font-semibold uppercase tracking-tight">Gallo V.</span>
@@ -127,7 +128,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
               </div>
             </div>
             <div
-              className="mt-3 rounded-xl border px-4 py-2.5 text-sm"
+              className="mt-3 rounded-[var(--radius-lg)] border px-4 py-2.5 text-sm"
               style={{ borderColor: 'var(--success)', backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}
             >
               Aggiunto Gallo V. alla squadra Resine · Napoli — VEN 17 · ora 4/4
@@ -188,7 +189,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
 
 function Principio({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
       <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
       <p className="mt-1 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
@@ -234,7 +235,7 @@ function SquadDemo({
 }) {
   return (
     <div
-      className="relative rounded-lg border px-2 pb-2 pt-1.5 text-[11px]"
+      className="relative rounded-[var(--radius-md)] border px-2 pb-2 pt-1.5 text-[11px]"
       style={{ backgroundColor: terr.bg, borderColor: terr.bd, color: terr.tx, outline: '1px solid var(--brand-primary-border)' }}
     >
       <span className="absolute left-0 top-0 h-full w-1 rounded-l-lg" style={{ backgroundColor: terr.band }} />

@@ -21,9 +21,9 @@ export function ModaleErroreImport({ errori, onClose }: { errori: ErroreImport[]
   const soloTassonomia = errori.length > 0 && errori.every((e) => e.tipo === 'tassonomia_non_disponibile');
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="dialog" aria-modal="true">
-      <div className="w-full max-w-lg rounded-xl bg-white p-5 shadow-xl dark:bg-zinc-900">
-        <h2 className="text-lg font-semibold text-red-700 dark:text-red-400">File rifiutato</h2>
-        <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-300">
+      <div className="w-full max-w-lg rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-[var(--shadow-lg)]">
+        <h2 className="text-lg font-semibold text-[var(--danger)]">File rifiutato</h2>
+        <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
           {soloFormato
             ? 'La pianificazione accetta solo il template UFFICIALE (pulsante «Scarica template»): scaricalo, compilalo e ricaricalo. Nessuna riga è stata importata.'
             : soloTassonomia
@@ -32,17 +32,17 @@ export function ModaleErroreImport({ errori, onClose }: { errori: ErroreImport[]
         </p>
         <ul className="mt-3 max-h-64 space-y-2 overflow-y-auto text-sm">
           {errori.map((e, i) => (
-            <li key={i} className="rounded-lg border border-red-200 bg-red-50 p-2 dark:border-red-900 dark:bg-red-950/40">
+            <li key={i} className="rounded-[var(--radius-md)] border border-[var(--danger-soft)] bg-[var(--danger-soft)] p-2">
               <div className="font-medium">{TITOLI[e.tipo]}</div>
               {e.valore ? <div className="font-mono text-xs">«{e.valore}»</div> : null}
               {e.atteso ? <div className="text-xs">Atteso: «{e.atteso}»</div> : null}
               {e.righe.length > 0 ? (
-                <div className="text-xs text-zinc-500">Righe file: {righeLabel(e.righe)}</div>
+                <div className="text-xs text-[var(--brand-text-subtle)]">Righe file: {righeLabel(e.righe)}</div>
               ) : null}
             </li>
           ))}
         </ul>
-        <p className="mt-3 text-xs text-zinc-500">
+        <p className="mt-3 text-xs text-[var(--brand-text-subtle)]">
           {soloFormato
             ? 'Il template ufficiale ha il foglio «Interventi» con le colonne originali (GRUPPO e COMMITTENTE si compilano da soli) e il foglio «Leggenda».'
             : soloTassonomia
@@ -50,7 +50,7 @@ export function ModaleErroreImport({ errori, onClose }: { errori: ErroreImport[]
               : 'Le descrizioni valide sono nel foglio «Leggenda» del template scaricabile.'}
         </p>
         <div className="mt-4 flex justify-end">
-          <button type="button" onClick={onClose} className="rounded-lg bg-zinc-800 px-4 py-2 text-sm text-white hover:bg-zinc-700">
+          <button type="button" onClick={onClose} className="rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-2 text-sm text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)]">
             Ho capito
           </button>
         </div>

@@ -1,6 +1,7 @@
 // components/modules/interventi/ModaleFotoVoce.tsx
 'use client';
 
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Dialog from '@/components/ui/Dialog';
 
@@ -41,7 +42,7 @@ export default function ModaleFotoVoce({
   useEffect(() => { void caricaFoto(); }, [caricaFoto]);
 
   const elimina = async (path: string) => {
-    if (!window.confirm('Eliminare definitivamente questa foto? Verrà rimossa anche dallo storage. Operazione non reversibile.')) return;
+    if (!(await chiediConferma({ title: 'Eliminare questa foto?', message: 'Verrà rimossa anche dallo storage. Operazione non reversibile.', confirmLabel: 'Elimina', danger: true }))) return;
     setDeleting(path);
     setError(null);
     try {

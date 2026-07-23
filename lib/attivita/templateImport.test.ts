@@ -82,15 +82,15 @@ describe('buildTemplateImport', () => {
       expect(locked(libera)).toBe(false);
     }
   });
-  it('la colonna DESCRIZIONE ATTIVITÀ è solo-tendina (list dalla Leggenda, errore stop)', async () => {
+  it('la colonna DESCRIZIONE ATTIVITÀ ha la tendina (aiuto) ma NON blocca il codice per intero', async () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
     const ws = wb.getWorksheet('Interventi')!;
     const idxDescr = COLONNE_TEMPLATE.indexOf('DESCRIZIONE ATTIVITÀ') + 1;
     for (const r of [2, 6]) {
       const dv = ws.getRow(r).getCell(idxDescr).dataValidation;
       expect(dv?.type).toBe('list');
-      expect(dv?.errorStyle).toBe('stop');
-      expect(dv?.showErrorMessage).toBe(true);
+      // Non blocca: permette di incollare il codice attività PER INTERO (gate = validaImport server).
+      expect(dv?.showErrorMessage).toBeFalsy();
       // 2 attive in TASSONOMIA → elenco B2:B3 della Leggenda.
       expect(String(dv?.formulae?.[0] ?? '')).toBe('Leggenda!$B$2:$B$3');
     }

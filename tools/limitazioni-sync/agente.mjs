@@ -46,10 +46,14 @@ function comunePrevalente(ws, rIntest, colComune) {
   return best;
 }
 
-/** Valore testuale dell'esito da scrivere, da esitoOk (true=positivo, false=negativo, null=non scrive). */
-function valoreEsito(l, esitoPositivo, esitoNegativo) {
-  if (l.esitoOk === true) return esitoPositivo;
-  if (l.esitoOk === false) return esitoNegativo;
+/** Valore testuale dell'esito da scrivere, da esitoOk (true=positivo, false=negativo, null=non scrive).
+ *  `l.esitoTesto` (dall'export) batte il testo config: oggi porta "nessun passaggio" sui giri
+ *  mai passati, che scritti come "No" secco travisavano l'esito. Export vecchio senza il campo
+ *  → fallback ai testi config, comportamento identico a prima. */
+export function valoreEsito(l, esitoPositivo, esitoNegativo) {
+  const specifico = typeof l.esitoTesto === 'string' && l.esitoTesto.trim() !== '' ? l.esitoTesto.trim() : null;
+  if (l.esitoOk === true) return specifico ?? esitoPositivo;
+  if (l.esitoOk === false) return specifico ?? esitoNegativo;
   return null; // non lavorato -> non scrive
 }
 

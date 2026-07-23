@@ -151,7 +151,7 @@ export default function NuovoOrdineForm({ boot, onDone }: { boot: Bootstrap; onD
 
       <div className="flex items-center justify-end gap-3 border-t border-[var(--brand-border)] pt-4">
         <Button variant="ghost" onClick={resetAll} disabled={salvando}>Azzera</Button>
-        <Button variant="primary" onClick={submit} disabled={!pronto || salvando}>
+        <Button variant="primary" onClick={submit} loading={salvando} disabled={!pronto}>
           {salvando ? 'Esitazione…' : 'Esita ordine'}
         </Button>
       </div>
