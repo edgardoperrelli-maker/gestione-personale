@@ -7,8 +7,9 @@ import Breadcrumb from '@/components/ui/Breadcrumb';
 import Button from '@/components/Button';
 import { DetailDrawer, DrawerKv, DrawerSection } from '@/components/ui/DetailDrawer';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import MultiSelect from '@/components/ui/MultiSelect';
 import StoricoFiltri, { type StatoFiltriUI } from './StoricoFiltri';
-import StoricoTabella from './StoricoTabella';
+import StoricoTabella, { COLS } from './StoricoTabella';
 import ModaleFotoVoce from './ModaleFotoVoce';
 import ModaleModificaVoce from './ModaleModificaVoce';
 import type { RigaStorico, ContatoriStorico } from '@/lib/interventi/storico/types';
@@ -66,6 +67,18 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
   const [dettaglio, setDettaglio] = useState<RigaStorico | null>(null);
+  // Selettore colonne (innesto SupplyHub): vuoto = tutte; persistito per utente.
+  const [colonne, setColonne] = useState<string[]>([]);
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem('storico-colonne');
+      if (raw) setColonne(JSON.parse(raw) as string[]);
+    } catch { /* senza localStorage si parte con tutte le colonne */ }
+  }, []);
+  const cambiaColonne = (next: string[]) => {
+    setColonne(next);
+    try { localStorage.setItem('storico-colonne', JSON.stringify(next)); } catch { /* no-op */ }
+  };
   const [righe, setRighe] = useState<RigaStorico[]>([]);
   const [total, setTotal] = useState(0);
   const [troncato, setTroncato] = useState(false);
@@ -191,12 +204,21 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
       {/* Header slim (pattern fogliette §7bis, variante densa): breadcrumb + vista gemella */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <Breadcrumb items={[{ label: 'Interventi' }, { label: 'Storico' }]} />
-        <Link
-          href="/hub/interventi/riconsegna"
-          className="rounded-[var(--radius-sm)] text-sm font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-        >
-          Riconsegna giornaliera →
-        </Link>
+        <div className="flex items-center gap-3">
+          <MultiSelect
+            label={colonne.length > 0 ? `Colonne (${colonne.length})` : 'Colonne: tutte'}
+            ariaLabel="Colonne visibili"
+            options={COLS.map((c) => ({ value: c.key, label: c.header }))}
+            values={colonne}
+            onChange={cambiaColonne}
+          />
+          <Link
+            href="/hub/interventi/riconsegna"
+            className="rounded-[var(--radius-sm)] text-sm font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            Riconsegna giornaliera →
+          </Link>
+        </div>
       </div>
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {CARDS.map((c) => {
@@ -271,6 +293,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
             onCancella={cancella}
             onRiga={(r) => setDettaglio((cur) => (cur?.id === r.id ? null : r))}
             rigaSelezionata={dettaglio?.id ?? null}
+            colonneVisibili={colonne}
           />
         </div>
 

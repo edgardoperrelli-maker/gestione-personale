@@ -6,7 +6,7 @@ import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 
 // 'Attività' è la descrizione grezza della voce; 'Gruppo attività' il gruppo di
 // tassonomia risolto (stesso valore su cui lavora il filtro omonimo).
-const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
+export const COLS: { key: keyof RigaStorico; header: string; siNo?: boolean }[] = [
   { key: 'odl', header: 'ODL/ODS' },
   { key: 'pdr', header: 'PDR' },
   { key: 'matricola', header: 'Matricola' },
@@ -58,7 +58,12 @@ export default function StoricoTabella({
   /** Click sulla riga → apre il drawer di dettaglio (sistema Cockpit). */
   onRiga?: (r: RigaStorico) => void;
   rigaSelezionata?: string | null;
+  /** Chiavi delle colonne visibili (selettore colonne); vuoto/assente = tutte. */
+  colonneVisibili?: string[];
 }) {
+  const cols = colonneVisibili && colonneVisibili.length > 0
+    ? COLS.filter((c) => colonneVisibili.includes(c.key))
+    : COLS;
   if (righe.length === 0) {
     return (
       <div className="py-12 text-center text-sm text-[var(--brand-text-muted)]">
@@ -70,7 +75,7 @@ export default function StoricoTabella({
     <table className="min-w-full text-left text-sm">
         <thead className="sticky top-0 z-10 border-b border-[var(--brand-border-strong)] text-xs text-[var(--brand-text-muted)]">
           <tr>
-            {COLS.map((c) => (
+            {cols.map((c) => (
               <th key={c.header} className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 font-semibold">{c.header}</th>
             ))}
             <th className="whitespace-nowrap bg-[var(--brand-surface-muted)] px-3 py-2 text-right font-semibold">Azioni</th>
@@ -87,7 +92,7 @@ export default function StoricoTabella({
                   : 'hover:bg-[var(--brand-surface-muted)]'
               } ${onRiga ? 'cursor-pointer' : ''}`}
             >
-              {COLS.map((c) => {
+              {cols.map((c) => {
                 const testo = cella(r, c.key);
                 return (
                   <td
