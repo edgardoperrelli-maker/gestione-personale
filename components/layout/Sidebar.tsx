@@ -4,15 +4,8 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
-import { MODULE_ICONS, DASHBOARD_HOME_ICON } from './moduleIcons';
+import { MODULE_ICONS, DASHBOARD_HOME_ICON, RIEPILOGO_RAPPORTINI_ICON } from './moduleIcons';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
-
-const RIEPILOGO_ICON = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6">
-    <path d="M9 11l3 3 8-8" />
-    <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
-  </svg>
-);
 
 type SidebarProps = {
   allowedModules?: AppModuleKey[];
@@ -127,7 +120,7 @@ export default function Sidebar({
           const suMappa = pathname === '/hub/mappa' || pathname.startsWith('/hub/mappa/');
           return [
             renderLink('/hub/mappa?vista=pianifica', 'Pianificazione', MODULE_ICONS.mappa, suMappa && vistaMappa !== 'riepilogo'),
-            renderLink('/hub/mappa?vista=riepilogo', 'Riepilogo rapportini', RIEPILOGO_ICON, suMappa && vistaMappa === 'riepilogo'),
+            renderLink('/hub/mappa?vista=riepilogo', 'Riepilogo rapportini', RIEPILOGO_RAPPORTINI_ICON, suMappa && vistaMappa === 'riepilogo'),
           ];
         }
         return [

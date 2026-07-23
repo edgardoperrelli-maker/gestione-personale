@@ -1,13 +1,13 @@
 'use client';
 
-import { type DragEvent, useMemo, useState } from 'react';
+import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
 import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { TIPO_META, labelDisponibilita, isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
-import { loadCollapsed, saveCollapsed } from '@/lib/cronoCollapse';
+import { loadCollapsed, saveCollapsed, ASSENZE_APERTE_KEY, WEEKEND_APERTO_KEY } from '@/lib/cronoCollapse';
 import { raggruppaSquadre } from './squadre';
 import SquadraCard from './SquadraCard';
 import {
@@ -39,6 +39,77 @@ const dayBgClass = (d: Date) => {
   if (isWeekend(d)) return 'bg-[var(--we-bg)]';
   return 'bg-[var(--card-bg)]';
 };
+
+/** Le ultime due (indici 5 e 6) sono sabato e domenica in ogni riga-settimana. */
+const INTESTAZIONI = ['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'];
+
+/**
+ * Auto-scroll durante il trascinamento: avvicinando la card al bordo alto o
+ * basso della colonna, la colonna scorre da sola. Serve da quando le colonne
+ * hanno un tetto e scorrono dentro di sé — senza, una card non si può portare
+ * in una posizione fuori dalla parte visibile.
+ */
+function useAutoScrollTrascinamento() {
+  const ref = useRef<HTMLDivElement>(null);
+  const raf = useRef<number | null>(null);
+  const velocita = useRef(0);
+
+  const ferma = () => {
+    if (raf.current != null) cancelAnimationFrame(raf.current);
+    raf.current = null;
+    velocita.current = 0;
+  };
+
+  const passo = () => {
+    const el = ref.current;
+    if (!el || velocita.current === 0) return ferma();
+    el.scrollTop += velocita.current;
+    raf.current = requestAnimationFrame(passo);
+  };
+
+  const suTrascinamento = (e: DragEvent<HTMLElement>) => {
+    const el = ref.current;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    const soglia = 56; // fascia calda ai due bordi
+    let v = 0;
+    if (e.clientY < r.top + soglia) v = -Math.ceil((r.top + soglia - e.clientY) / 3);
+    else if (e.clientY > r.bottom - soglia) v = Math.ceil((e.clientY - (r.bottom - soglia)) / 3);
+    velocita.current = Math.max(-24, Math.min(24, v));
+    if (velocita.current !== 0 && raf.current == null) raf.current = requestAnimationFrame(passo);
+    if (velocita.current === 0) ferma();
+  };
+
+  useEffect(() => ferma, []);
+  return { ref, suTrascinamento, ferma };
+}
+
+/**
+ * Sabato/domenica compressi: una striscia verticale al posto della colonna.
+ * Il giorno resta visibile e cliccabile — non sparisce, si ritira.
+ */
+function StrisciaWeekend({ d, isToday, onEspandi }: { d: Date; isToday: boolean; onEspandi: () => void }) {
+  const etichetta = d.toLocaleDateString('it-IT', { weekday: 'short' });
+  return (
+    <button
+      type="button"
+      onClick={onEspandi}
+      title={`Espandi sabato e domenica — ${etichetta} ${d.getDate()}`}
+      aria-label={`Espandi il weekend. ${etichetta} ${d.getDate()}`}
+      className={`flex h-full min-h-[8rem] flex-col items-center gap-2 rounded-[var(--radius-xl)] border p-2 shadow-[var(--shadow-sm)] transition hover:border-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${dayBgClass(d)} ${
+        isToday ? 'border-[var(--brand-primary)] border-t-[3px]' : 'border-[var(--brand-border)]'
+      }`}
+    >
+      <span className="text-sm font-semibold text-[var(--brand-text-main)]">{d.getDate()}</span>
+      <span
+        className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-muted)]"
+        style={{ writingMode: 'vertical-rl' }}
+      >
+        {etichetta}
+      </span>
+    </button>
+  );
+}
 
 export default function CronoCalendarView({
   weeks,
@@ -102,19 +173,60 @@ export default function CronoCalendarView({
       return next;
     });
 
-  return (
-    <div className="grid gap-4">
-      <div className="grid grid-cols-7 px-1 text-xs font-medium text-[var(--brand-text-muted)]">
-        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((h) => (
-          <div key={h} className="px-2">
-            {h}
-          </div>
-        ))}
-      </div>
+  // Le colonne hanno una LARGHEZZA MINIMA (220px) e crescono a 1fr quando c'è
+  // spazio: sotto quella soglia il calendario scorre in orizzontale invece di
+  // comprimersi. Prima erano 7 frazioni rigide — a 188px per colonna i nomi
+  // degli operatori, cioè il dato che si cerca per primo, arrivavano troncati.
+  // Intestazione e righe condividono lo stesso contenitore di scorrimento e la
+  // stessa griglia, così restano allineate (prima l'header non aveva il gap).
+  //
+  // Sabato e domenica si comprimono a una striscia: restano presenti — il conto
+  // dei giorni non cambia — ma smettono di valere una colonna piena, perché
+  // nella settimana operativa non sono il contenuto che si viene a cercare.
+  // Chiave a semantica invertita: senza preferenza salvata il weekend è compresso.
+  const weekendCompresso = !collapsedTerritori.has(WEEKEND_APERTO_KEY);
+  const toggleWeekend = () => toggleTerritorio(WEEKEND_APERTO_KEY);
+  const traccia = (weekend: boolean) =>
+    weekend && weekendCompresso ? '2.75rem' : 'minmax(13.75rem, 1fr)';
 
-      {weeks.map((w, i) => (
-        <div key={i} className="grid grid-cols-7 gap-3">
-          {w.map((d: Date) => (
+  return (
+    <div className="overflow-x-auto pb-1">
+      <div className="grid gap-4">
+        <div
+          className="grid gap-3 px-1 text-xs font-medium text-[var(--brand-text-muted)]"
+          style={{ gridTemplateColumns: INTESTAZIONI.map((_, i) => traccia(i >= 5)).join(' ') }}
+        >
+          {INTESTAZIONI.map((h, i) =>
+            i >= 5 ? (
+              // Il comando di vista È l'intestazione: si clicca «Sab» o «Dom» per
+              // ridurre il weekend a striscia e per riaprirlo. Prima stava in una
+              // riga di bottone sopra la griglia, che rubava una piega di spazio
+              // fra la testa di modulo e i giorni.
+              <button
+                key={h}
+                type="button"
+                onClick={toggleWeekend}
+                aria-pressed={weekendCompresso}
+                title={weekendCompresso ? 'Espandi sabato e domenica' : 'Comprimi sabato e domenica'}
+                className={`cursor-pointer rounded-[var(--radius-sm)] underline decoration-dotted underline-offset-4 transition hover:text-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                  weekendCompresso ? 'truncate text-center' : 'px-2 text-left'
+                }`}
+              >
+                {h}
+              </button>
+            ) : (
+              <div key={h} className="px-2">
+                {h}
+              </div>
+            ),
+          )}
+        </div>
+
+        {weeks.map((w, i) => (
+          <div key={i} className="grid gap-3" style={{ gridTemplateColumns: w.map((d) => traccia(isWeekend(d))).join(' ') }}>
+          {w.map((d: Date) => isWeekend(d) && weekendCompresso ? (
+            <StrisciaWeekend key={fmtDay(d)} d={d} isToday={eqDate(d, today)} onEspandi={toggleWeekend} />
+          ) : (
             <DayCell
               key={fmtDay(d)}
               d={d}
@@ -138,11 +250,12 @@ export default function CronoCalendarView({
               appointmentCountByIso={appointmentCountByIso}
               collapsedTerritori={collapsedTerritori}
               onToggleTerritorio={toggleTerritorio}
-              squadra={squadra}
-            />
-          ))}
-        </div>
-      ))}
+                squadra={squadra}
+              />
+            ))}
+          </div>
+        ))}
+      </div>
     </div>
   );
 }
@@ -226,7 +339,7 @@ function SingoloCard({
       {/* Feedback ben visibile mentre trascini un'altra card sopra questa */}
       {over && (
         <div
-          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)', outline: '2px solid var(--brand-primary)', outlineOffset: '1px' }}
         >
           <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
@@ -343,8 +456,11 @@ function DayCell(props: {
       );
     });
 
+  const autoScroll = useAutoScrollTrascinamento();
+
   const handleDrop = (e: DragEvent<HTMLDivElement>) => {
     e.preventDefault();
+    autoScroll.ferma();
     const squadData = readSquadDragData(e.dataTransfer);
     if (squadData) {
       squadra.onDropSquadra({ squadraId: squadData.squadraId, fromDay: squadData.fromDay, toDay: d, copyHint: isCopyDropGesture(e) });
@@ -370,14 +486,22 @@ function DayCell(props: {
   const hasTerritoryGrouping = sortMode === 'TERRITORIO' || sortMode === 'PER_TERRITORIO';
 
   return (
+    // «Oggi» ora pesa a livello di COLONNA, non solo sul pallino della data:
+    // rail zaffiro in cima + bordo accentato, così l'occhio ci atterra per
+    // primo. È lo stato attivo, l'uso che DESIGN.md §1.2 concede all'accento.
     <div
-      className={`rounded-[var(--radius-xl)] border border-[var(--card-bd)] p-2 shadow-sm ${dayBgClass(
-        d
-      )} hover:ring-1 hover:ring-black/10`}
+      className={`rounded-[var(--radius-xl)] border p-2 shadow-[var(--shadow-sm)] ${dayBgClass(d)} ${
+        isToday
+          ? 'border-[var(--brand-primary)] border-t-[3px] border-t-[var(--brand-primary)]'
+          : 'border-[var(--brand-border)]'
+      } hover:ring-1 hover:ring-[var(--brand-border-strong)]`}
       onDragOver={(e) => {
         e.preventDefault();
         e.dataTransfer.dropEffect = isCopyDropGesture(e) ? 'copy' : 'move';
+        autoScroll.suTrascinamento(e);
       }}
+      onDragLeave={autoScroll.ferma}
+      onDragEnd={autoScroll.ferma}
       onDrop={handleDrop}
     >
       <div className="flex items-center justify-between">
@@ -420,15 +544,9 @@ function DayCell(props: {
               </span>
             );
           })()}
-          {sortMode !== 'AZ' && (
-            <button
-              onClick={() => props.setSortMode('AZ')}
-              className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[10px] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
-              title="Ordina A - Z"
-            >
-              A-Z
-            </button>
-          )}
+          {/* L'ordinamento è un controllo di vista e ora vive nella testa del
+              modulo: qui dentro era ripetuto in ogni colonna (7 copie dello
+              stesso comando globale) e apriva una sola delle sei modalità. */}
           {(() => {
             const n = props.appointmentCountByIso?.[iso] ?? 0;
             if (n <= 0) return null;
@@ -442,27 +560,61 @@ function DayCell(props: {
         <div className="flex items-center gap-2">
           <button
             onClick={() => onAdd(d)}
-            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             Nuovo
           </button>
         </div>
       </div>
 
-      <div className="mt-2 space-y-2">
+      {/* Ogni colonna scorre DENTRO DI SÉ invece di allungare la pagina: con
+          tutti i territori estesi si arrivava a ~1500px per colonna e a crescere
+          era il documento, portandosi via l'intestazione dei giorni. Il tetto è
+          legato all'altezza della finestra, così la vista resta a schermo. */}
+      <div ref={autoScroll.ref} className="mt-2 max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto pr-0.5">
         {(() => {
           const dayAssenze = assenzeByDay?.[iso] ?? [];
           if (!dayAssenze.length) return null;
+
+          // Le assenze nascono RIASSUNTE in una riga sola. Prima erano tutte
+          // espanse in cima a ogni colonna: 6 chip = 169px, cioè oltre un terzo
+          // della piega, moltiplicato per sette giorni — le assegnazioni, che
+          // sono il contenuto della pagina, cominciavano sotto. Il conteggio e i
+          // tipi restano a vista, quindi non si nasconde nulla: si smette solo
+          // di spendere la parte alta della colonna per chi non c'è.
+          const aperte = props.collapsedTerritori?.has(ASSENZE_APERTE_KEY) ?? false;
+          const perTipo = new Map<string, number>();
+          for (const a of dayAssenze) {
+            const l = TIPO_META[a.tipo].label;
+            perTipo.set(l, (perTipo.get(l) ?? 0) + 1);
+          }
+          const dettaglio = [...perTipo.entries()]
+            .map(([l, n]) => `${n} ${l.toLowerCase()}`)
+            .join(', ');
+
           return (
             <div className="space-y-1">
-              {dayAssenze.map((a) => {
+              <button
+                type="button"
+                onClick={() => props.onToggleTerritorio?.(ASSENZE_APERTE_KEY)}
+                aria-expanded={aperte}
+                title={aperte ? 'Riassumi le assenze' : 'Mostra le assenze'}
+                className="flex w-full items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-1 text-left text-[11px] font-medium text-[var(--brand-text-muted)] transition hover:border-[var(--brand-border-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              >
+                <span className="text-[9px] leading-none">{aperte ? '▾' : '▸'}</span>
+                <span className="truncate">
+                  <span className="font-semibold text-[var(--brand-text-main)]">{dayAssenze.length}</span>{' '}
+                  {dayAssenze.length === 1 ? 'assente' : 'assenti'} · {dettaglio}
+                </span>
+              </button>
+              {aperte && dayAssenze.map((a) => {
                 const meta = TIPO_META[a.tipo];
                 return (
                   <button
                     key={a.id}
                     type="button"
                     onClick={() => onEditAssenza?.(a)}
-                    className="flex w-full items-center gap-1.5 rounded-md px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-110"
+                    className="flex w-full items-center gap-1.5 rounded-[var(--radius-md)] px-1.5 py-1 text-left text-[11px] font-medium transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     style={{ backgroundColor: meta.bg, border: `1px solid ${meta.border}`, color: meta.text }}
                     title={a.note ?? undefined}
                   >
@@ -496,7 +648,7 @@ function DayCell(props: {
                     <button
                       type="button"
                       onClick={() => props.onToggleTerritorio?.(key)}
-                      className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left"
+                      className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-1.5 py-0.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                       style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
                       title={collapsed ? 'Espandi territorio' : 'Comprimi territorio'}
                     >

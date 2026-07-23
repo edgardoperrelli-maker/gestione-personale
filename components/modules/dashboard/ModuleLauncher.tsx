@@ -2,25 +2,30 @@
 
 import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
-import { appNavigation } from '@/lib/appNavigation';
+import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey, AppModuleGroup } from '@/lib/moduleAccess';
 import { MODULE_ICONS } from '@/components/layout/moduleIcons';
 
-/** Tile colorata per gruppo (DNA launcher: categoria = colore, cappato ai 4 gruppi). */
-const TILE: Record<AppModuleGroup, { bg: string; fg: string }> = {
-  pianificazione: { bg: 'var(--brand-violet-soft)', fg: 'var(--brand-violet)' },
-  operativita: { bg: 'var(--brand-primary-soft)', fg: 'var(--primary-text)' },
-  analisi: { bg: 'var(--brand-green-soft)', fg: 'var(--brand-green)' },
-  sistema: { bg: 'var(--brand-gold-soft)', fg: 'var(--brand-gold)' },
-};
-
 const LS_KEY = 'hub-preferiti';
 
+/** Titoletto di sezione: unico segnale di raggruppamento, per tipografia. */
+function Titoletto({ children }: { children: React.ReactNode }) {
+  return (
+    <div className="pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--brand-text-subtle)]">
+      {children}
+    </div>
+  );
+}
+
 /**
- * Launcher dei moduli sull'hub (innesto SupplyHub sul Cockpit): card con tile
- * icona colorata per gruppo, descrizione, stella per i preferiti (localStorage)
- * e ricerca. I preferiti compaiono in testa SOLO se esistono — niente pannello
- * vuoto che mangia il fold.
+ * Launcher dei moduli sull'hub: card con tile icona, descrizione, stella per i
+ * preferiti (localStorage) e ricerca. I preferiti compaiono in testa SOLO se
+ * esistono — niente pannello vuoto che mangia il fold.
+ *
+ * Il 2026-07-23 le tile hanno smesso di colorarsi per gruppo (viola/verde/oro):
+ * DESIGN.md §1.2 ammette un solo accento zaffiro e §3 marca quei token come
+ * decorativi da NON usare come accenti. Il gruppo ora si legge dai titoletti,
+ * cioè per tipografia — che è il principio 4 dello stesso documento.
  */
 export default function ModuleLauncher({ allowedModules }: { allowedModules: AppModuleKey[] }) {
   const [preferiti, setPreferiti] = useState<string[]>([]);
@@ -63,18 +68,18 @@ export default function ModuleLauncher({ allowedModules }: { allowedModules: App
   const inPreferiti = visibili.filter((i) => preferiti.includes(i.key));
   const altri = visibili.filter((i) => !preferiti.includes(i.key));
 
+  const perGruppo = GROUP_ORDER
+    .map((g) => ({ gruppo: g as AppModuleGroup, voci: altri.filter((i) => i.group === g) }))
+    .filter((x) => x.voci.length > 0);
+
   const card = (i: (typeof moduli)[number]) => {
-    const tile = TILE[i.group!];
     const stellato = preferiti.includes(i.key);
     return (
       <div
         key={i.key}
         className="group relative flex items-start gap-3.5 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0"
       >
-        <span
-          className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)]"
-          style={{ backgroundColor: tile.bg, color: tile.fg }}
-        >
+        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]">
           {MODULE_ICONS[i.key as AppModuleKey]}
         </span>
         <span className="min-w-0 pr-7">
@@ -85,13 +90,21 @@ export default function ModuleLauncher({ allowedModules }: { allowedModules: App
             <span className="mt-0.5 block truncate text-xs text-[var(--brand-text-muted)]">{i.description}</span>
           )}
         </span>
+        {/*
+          La stella resta SEMPRE visibile. Prima appariva solo su `group-hover`:
+          al touch, dove l'hover non esiste, era un bersaglio invisibile ma
+          cliccabile sopra il link steso — chi toccava l'angolo metteva un
+          preferito senza capire perché.
+        */}
         <button
           type="button"
           onClick={() => toggle(i.key)}
           aria-pressed={stellato}
           aria-label={stellato ? `Togli ${i.label} dai preferiti` : `Aggiungi ${i.label} ai preferiti`}
           className={`absolute right-2.5 top-2.5 z-10 rounded-[var(--radius-sm)] p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
-            stellato ? 'text-[var(--brand-gold)]' : 'text-[var(--brand-text-subtle)] opacity-0 hover:text-[var(--brand-text-muted)] focus-visible:opacity-100 group-hover:opacity-100'
+            stellato
+              ? 'text-[var(--brand-primary)]'
+              : 'text-[var(--brand-text-subtle)] hover:text-[var(--brand-primary)]'
           }`}
         >
           <svg viewBox="0 0 24 24" className="h-4 w-4" fill={stellato ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
@@ -117,13 +130,17 @@ export default function ModuleLauncher({ allowedModules }: { allowedModules: App
 
       {caricati && inPreferiti.length > 0 && (
         <>
-          <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--brand-text-subtle)]">Preferiti</div>
+          <Titoletto>Preferiti</Titoletto>
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{inPreferiti.map(card)}</div>
-          <div className="pt-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--brand-text-subtle)]">Tutti</div>
         </>
       )}
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{altri.map(card)}</div>
+      {perGruppo.map(({ gruppo, voci }) => (
+        <div key={gruppo} className="space-y-3">
+          <Titoletto>{groupLabels[gruppo]}</Titoletto>
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{voci.map(card)}</div>
+        </div>
+      ))}
 
       {visibili.length === 0 && (
         <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border-strong)] p-6 text-center text-sm text-[var(--brand-text-muted)]">

@@ -11,8 +11,6 @@ import NewAssignmentDialog from '@/components/NewAssignmentDialog';
 import ExportAssignmentsDialog from '@/components/ExportAssignmentsDialog';
 import type { Assignment, Activity, Staff, Territory } from '@/types';
 import CronoToolbar from './CronoToolbar';
-import CronoFiltersPanel from './CronoFiltersPanel';
-import CronoStats from './CronoStats';
 import CronoCalendarView, { type SquadraHandlers } from './CronoCalendarView';
 import AssenzaDialog from './AssenzaDialog';
 import AnnuncioSquadre, { ANNUNCIO_SQUADRE_KEY } from './AnnuncioSquadre';
@@ -22,6 +20,10 @@ import type { CostCenterRange } from '@/lib/costCenter';
 import { staggerContainer, staggerItem } from '@/lib/animations';
 import type { DayRow, FilterToken, SortMode, ViewMode } from './types';
 import { countAppointmentsByDay } from '@/lib/appuntamenti';
+
+/** Id fittizio: nessun territorio lo possiede, quindi `TERR:<questo>` non lascia passare nulla. */
+const TERR_NESSUNO = '__nessuno__';
+
 import {
   addDays,
   capitalize,
@@ -61,7 +63,9 @@ export default function CronoprogrammaWorkspace() {
   const tz = 'Europe/Rome';
   const [today] = useState<Date>(() => toLocalDate(new Date(), tz));
   const [anchor, setAnchor] = useState<Date>(() => startOfWeek(today));
-  const [mode, setMode] = useState<ViewMode>('week');
+  // Nessun selettore di vista è cablato: il modulo resta sulla settimana. Il tipo
+  // resta `ViewMode` perché i rami mese/bisettimana sono ancora nel codice.
+  const [mode] = useState<ViewMode>('week');
   const [annuncioOpen, setAnnuncioOpen] = useState(false);
 
   const [days, setDays] = useState<DayRow[]>([]);
@@ -75,7 +79,6 @@ export default function CronoprogrammaWorkspace() {
   const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('TERRITORIO');
   const [filters, setFilters] = useState<FilterToken[]>([]);
-  const [filtersOpen, setFiltersOpen] = useState(false);
 
   const [openInsertRep, setOpenInsertRep] = useState(false);
   const [openExport, setOpenExport] = useState(false);
@@ -89,7 +92,6 @@ export default function CronoprogrammaWorkspace() {
   const dropChoiceResolverRef = useRef<((choice: 'move' | 'copy' | null) => void) | null>(null);
 
   const [taskCountMap, setTaskCountMap] = useState<Record<string,number>>({});
-  const [taskCountRefresh, setTaskCountRefresh] = useState(0);
 
   // Assenze / disponibilità (per giorno ISO)
   const [assenze, setAssenze] = useState<Record<string, (Disponibilita & { staff_name: string })[]>>({});
@@ -101,7 +103,6 @@ export default function CronoprogrammaWorkspace() {
 
   const [rev, setRev] = useState(0);
   const softRefresh = () => startTransition(() => setRev((v) => v + 1));
-  const refreshTaskCounts = () => setTaskCountRefresh((v) => v + 1);
 
   // ponytail: doppia conferma sequenziale SINCRONA dentro i flussi drag&drop —
   // resta window.confirm (renderla async propagherebbe nei handler DnD; rischio > beneficio).
@@ -181,10 +182,6 @@ export default function CronoprogrammaWorkspace() {
       territory: firstRelation(row.territory ?? null),
       activity: firstRelation(row.activity ?? null),
     })) as Assignment[];
-  };
-
-  const toggleToken = (t: string) => {
-    setFilters((prev) => (prev.includes(t) ? prev.filter((x) => x !== t) : [...prev, t]));
   };
 
   const range = useMemo(() => {
@@ -395,7 +392,7 @@ export default function CronoprogrammaWorkspace() {
     return () => {
       alive = false;
     };
-  }, [range.start, range.end, taskCountRefresh]);
+  }, [range.start, range.end]);
 
   useEffect(() => {
     let alive = true;
@@ -635,7 +632,7 @@ export default function CronoprogrammaWorkspace() {
         typeof window === 'undefined'
           ? true
           : window.confirm(
-              `${label} e gia presente nel giorno ${targetIso}. Vuoi sovrascrivere i dati esistenti?`
+              `${label} è già presente nel giorno ${targetIso}. Vuoi sovrascrivere i dati esistenti?`
             );
 
       if (!shouldOverwrite) {
@@ -1053,12 +1050,6 @@ export default function CronoprogrammaWorkspace() {
     softRefresh();
   };
 
-  const gotoMode = (m: ViewMode) => {
-    setMode(m);
-    if (m === 'week' || m === 'twoWeeks') setAnchor(startOfWeek(today));
-    softRefresh();
-  };
-
   const visibleAssignments = useMemo(() => {
     const next: Record<string, Assignment[]> = {};
     Object.entries(assignments).forEach(([dayId, list]) => {
@@ -1084,6 +1075,29 @@ export default function CronoprogrammaWorkspace() {
   const allAssignments = useMemo(() => Object.values(visibleAssignments).flat(), [visibleAssignments]);
   const filteredAssignments = useMemo(() => filterAssignments(allAssignments, filters), [allAssignments, filters]);
 
+  // Ponte fra il MultiSelect (lista di id) e i token `TERR:<id>` che
+  // `filterAssignments` si aspetta. Gli eventuali token di altro tipo restano.
+  //
+  // Le caselle rappresentano LETTERALMENTE ciò che si vede: senza filtro sono
+  // tutte spuntate, non tutte vuote come prima (l'etichetta diceva «tutti» e i
+  // flag erano assenti — l'interfaccia contraddiceva sé stessa).
+  //
+  // «Nessuna spuntata» deve dare un tabellone vuoto, ma per `filterAssignments`
+  // un gruppo TERR vuoto significa «nessun vincolo», cioè mostra tutto. Serve
+  // quindi un token sentinella che non corrisponde ad alcun territorio.
+  const territoriSelezionati = useMemo(() => {
+    const tok = filters.filter((t) => t.startsWith('TERR:'));
+    if (tok.length === 0) return territories.map((t) => t.id); // nessun filtro = tutti spuntati
+    return tok.map((t) => t.slice(5)).filter((id) => id !== TERR_NESSUNO);
+  }, [filters, territories]);
+
+  const setTerritoriSelezionati = (ids: string[]) => {
+    const altri = filters.filter((t) => !t.startsWith('TERR:'));
+    if (ids.length === territories.length) return setFilters(altri); // tutti = nessun vincolo
+    if (ids.length === 0) return setFilters([...altri, `TERR:${TERR_NESSUNO}`]);
+    setFilters([...altri, ...ids.map((id) => `TERR:${id}`)]);
+  };
+
   const statsSource = filters.length ? filteredAssignments : allAssignments;
   const stats = useMemo(() => {
     const staffIds = new Set<string>();
@@ -1106,13 +1120,19 @@ export default function CronoprogrammaWorkspace() {
       initial="initial"
       animate="animate"
     >
+      {/* Fondo canvas OPACO: prima era una superficie traslucida con
+          `backdrop-blur`, cioè vetro — e DESIGN.md §1.3 vuole profondità piatta
+          (bordo 1px + ombra tenue). La card dell'ObjectHeader ci galleggia sopra. */}
       <motion.div
-        className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-surface)]/95 px-1 pb-4 pt-1 backdrop-blur supports-[backdrop-filter]:bg-[var(--brand-surface)]/88"
+        className="sticky top-0 z-30 -mx-1 space-y-4 bg-[var(--brand-bg)] px-1 pb-4 pt-1"
         variants={staggerItem}
       >
         <CronoToolbar
           title={title}
           reperibili={stats.reperibili}
+          territori={territories}
+          territoriSelezionati={territoriSelezionati}
+          onTerritoriChange={setTerritoriSelezionati}
           onPrev={goPrev}
           onNext={goNext}
           onToday={goToday}
@@ -1303,7 +1323,7 @@ export default function CronoprogrammaWorkspace() {
       <AnnuncioSquadre open={annuncioOpen} onClose={handleCloseAnnuncio} />
 
       {dropChoiceDialog && (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[var(--overlay)] px-4">
           <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
             <div className="text-lg font-semibold text-[var(--brand-text-main)]">Operazione sulla card</div>
             <p className="mt-2 text-sm text-[var(--brand-text-muted)]">

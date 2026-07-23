@@ -101,7 +101,7 @@ export default function AnnuncioSegnalazione({ open, onClose }: { open: boolean;
             </Passo>
           </div>
 
-          <p className="text-[12.5px] text-[var(--brand-text-muted)]">
+          <p className="text-xs text-[var(--brand-text-muted)]">
             Vale per tutto: un bottone storto, un numero che non torna, un&apos;idea per rendere l&apos;app più comoda. Più ci scrivi, più l&apos;app migliora.
           </p>
         </div>
@@ -130,7 +130,7 @@ function Passo({ n, titolo, children }: { n: number; titolo: string; children: R
         </span>
         <span className="text-sm font-semibold text-[var(--brand-text-main)]">{titolo}</span>
       </div>
-      <p className="mt-1.5 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
+      <p className="mt-1.5 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
   );
 }

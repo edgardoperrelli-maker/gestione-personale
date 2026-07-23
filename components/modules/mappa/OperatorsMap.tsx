@@ -8,7 +8,7 @@
  * dichiarativi di mapcn (`@/components/ui/map`).
  *
  * Deve essere caricato lato client (WebGL): i consumer lo importano già via
- * `next/dynamic(..., { ssr: false })` (DashboardTodayMap, LiveClient→TorreMappa).
+ * `next/dynamic(..., { ssr: false })` (LiveClient→TorreMappa).
  *
  * Vantaggi rispetto alla versione Leaflet:
  * - i marker sono nodi DOM → i colori possono usare `var(--token)` direttamente,

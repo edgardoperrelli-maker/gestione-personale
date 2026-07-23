@@ -3,20 +3,12 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { redirect } from 'next/navigation';
 import AppShell from '@/components/layout/AppShell';
 import { PageTransitionWrapper } from '@/components/layout/PageTransitionWrapper';
-import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
-
-function formatRole(role?: string | null) {
-  if (!role) return 'Operatore';
-  const map: Record<string, string> = {
-    admin: 'Admin',
-    operatore: 'Operatore',
-    operator: 'Operatore',
-    editor: 'Operatore',
-    viewer: 'Operatore',
-  };
-  const key = role.toLowerCase();
-  return map[key] ?? `${role.charAt(0).toUpperCase()}${role.slice(1)}`;
-}
+import {
+  ASSIGNABLE_ROLE_LABELS,
+  getAllowedModulesForUser,
+  isAdminAssignableRole,
+  resolveAssignableRole,
+} from '@/lib/moduleAccess';
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const cookieStore = await cookies();
@@ -36,13 +28,16 @@ export default async function DashboardLayout({ children }: { children: React.Re
     .eq('id', user.id)
     .maybeSingle();
 
-  const effectiveRole = resolveUserRole(profile?.role, user.app_metadata?.role);
-  const roleLabel = formatRole(effectiveRole);
+  // Stessa risoluzione di app/hub/layout.tsx: prima qui viveva un `formatRole`
+  // locale con una mappa propria, che a un admin_plus mostrava «Admin» mentre
+  // l'hub gli mostrava «Admin Plus». Una sola fonte per l'etichetta.
+  const effectiveRole = resolveAssignableRole(profile?.role, user.app_metadata?.role);
+  const roleLabel = ASSIGNABLE_ROLE_LABELS[effectiveRole];
   const userName = profile?.username ?? user.email ?? undefined;
   const allowedModules = getAllowedModulesForUser(user.app_metadata, effectiveRole);
 
   return (
-    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules} isAdmin={effectiveRole === 'admin'}>
+    <AppShell roleLabel={roleLabel} userName={userName} allowedModules={allowedModules} isAdmin={isAdminAssignableRole(effectiveRole)}>
       <PageTransitionWrapper>{children}</PageTransitionWrapper>
     </AppShell>
   );

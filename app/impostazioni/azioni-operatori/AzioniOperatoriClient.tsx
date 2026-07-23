@@ -145,7 +145,7 @@ function ChipAzione({ campo }: { campo: TemplateCampo }) {
   const obb = campo.obbligatoria === true;
   return (
     <span
-      className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[10.5px] font-medium ${
+      className={`whitespace-nowrap rounded-full border px-2 py-0.5 text-[11px] font-medium ${
         obb
           ? 'border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
           : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'
@@ -753,7 +753,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
           </div>
         ))}
 
-        <div className="mt-3 border-t border-[var(--brand-border)] pt-2 text-[12.5px]">
+        <div className="mt-3 border-t border-[var(--brand-border)] pt-2 text-xs">
           <a href="#modelli-plus" className="block rounded-[var(--radius-md)] px-3 py-1.5 text-[var(--brand-text-muted)] transition hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]" onClick={tornaPanoramica}>
             ⊞ Modelli del «+» operatore
           </a>
@@ -803,7 +803,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
           <button
             type="button"
             onClick={() => apriGruppo(scoperte[0].committente, scoperte[0].gruppo)}
-            className="shrink-0 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3.5 py-1.5 text-[12.5px] font-medium text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="shrink-0 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3.5 py-1.5 text-xs font-medium text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             Configura ora
           </button>
@@ -829,26 +829,26 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   onClick={() => apriGruppo(c.committente, g.gruppo)}
                   className="grid w-full grid-cols-1 items-center gap-x-4 gap-y-1 border-b border-[var(--brand-border)] px-4 py-2.5 text-left transition last:border-b-0 hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)] md:grid-cols-[minmax(180px,1fr)_minmax(0,1.6fr)_110px_70px]"
                 >
-                  <span className="flex min-w-0 items-center gap-2.5 text-[13.5px] font-medium text-[var(--brand-text-main)]">
+                  <span className="flex min-w-0 items-center gap-2.5 text-sm font-medium text-[var(--brand-text-main)]">
                     <Dot tone={win ? 'ok' : 'warn'} />
                     <span className="truncate">{g.gruppo}</span>
                     {win && tagNatura(win).filter((n) => n !== 'manuale (+)').map((n) => (
-                      <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[9.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
+                      <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
                     ))}
-                    {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[9.5px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
+                    {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[10px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
                   </span>
                   <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                     {win ? (
                       <>
                         {prime.map((cp) => <ChipAzione key={cp.chiave} campo={cp} />)}
-                        {extra > 0 && <span className="rounded-full border border-dashed border-[var(--brand-border-strong)] px-2 py-0.5 text-[10.5px] text-[var(--brand-text-subtle)]">＋{extra}</span>}
+                        {extra > 0 && <span className="rounded-full border border-dashed border-[var(--brand-border-strong)] px-2 py-0.5 text-[11px] text-[var(--brand-text-subtle)]">＋{extra}</span>}
                       </>
                     ) : (
-                      <span className="rounded-full border border-dashed border-[var(--warning)] px-2 py-0.5 text-[10.5px] font-medium text-[var(--warning)]">nessuna azione configurata</span>
+                      <span className="rounded-full border border-dashed border-[var(--warning)] px-2 py-0.5 text-[11px] font-medium text-[var(--warning)]">nessuna azione configurata</span>
                     )}
                   </span>
                   <span>{win ? <Pill tone="ok">{win.campi.length} azioni</Pill> : <Pill tone="warn">scoperta</Pill>}</span>
-                  <span className="text-right text-[11.5px] text-[var(--brand-text-subtle)]">{dataBreve(win?.updated_at)}</span>
+                  <span className="text-right text-xs text-[var(--brand-text-subtle)]">{dataBreve(win?.updated_at)}</span>
                 </button>
               );
             })}
@@ -891,7 +891,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 {slot ? (
                   <button type="button" onClick={() => apriFlusso(slot)} className="min-w-0 truncate text-left font-medium text-[var(--brand-text-main)] underline-offset-2 transition hover:text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
                     {slot.nome}
-                    <span className="ml-2 text-[11.5px] font-normal text-[var(--brand-text-muted)]">{slot.campi.length} azioni</span>
+                    <span className="ml-2 text-xs font-normal text-[var(--brand-text-muted)]">{slot.campi.length} azioni</span>
                   </button>
                 ) : (
                   <span className="flex min-w-0 flex-wrap items-center gap-2 text-[var(--brand-text-subtle)]">
@@ -899,7 +899,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                     <button
                       type="button"
                       onClick={() => { startNew({ soloManuale: true, committente: v }); setVista({ t: 'flusso', id: '__nuovo__' }); }}
-                      className="rounded-[var(--radius-md)] border border-dashed border-[var(--brand-primary)] px-2 py-0.5 text-[11.5px] font-medium text-[var(--primary-text)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      className="rounded-[var(--radius-md)] border border-dashed border-[var(--brand-primary)] px-2 py-0.5 text-xs font-medium text-[var(--primary-text)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     >
                       ＋ Crea
                     </button>
@@ -914,7 +914,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               <span className="text-xs font-semibold text-[var(--brand-text-main)]">Modulo P.I.</span>
               <button type="button" onClick={() => apriFlusso(riservatoPI)} className="min-w-0 truncate text-left font-medium text-[var(--brand-text-main)] underline-offset-2 transition hover:text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
                 {riservatoPI.nome}
-                <span className="ml-2 text-[11.5px] font-normal text-[var(--brand-text-muted)]">usato dai token P.I. — non alimenta il «+»</span>
+                <span className="ml-2 text-xs font-normal text-[var(--brand-text-muted)]">usato dai token P.I. — non alimenta il «+»</span>
               </button>
               <Pill tone="primary">riservato P.I.</Pill>
             </div>
@@ -929,7 +929,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
           </summary>
           <div className="mt-2 space-y-2">
             {archiviati.map((t) => (
-              <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border-strong)] px-4 py-2.5 text-[12.5px] text-[var(--brand-text-muted)]">
+              <div key={t.id} className="flex flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border-strong)] px-4 py-2.5 text-xs text-[var(--brand-text-muted)]">
                 <span aria-hidden>▣</span>
                 <span className="min-w-0 flex-1">
                   <b className="font-semibold text-[var(--brand-text-main)]">{t.nome}</b>
@@ -964,7 +964,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     <div className="rounded-[var(--radius-xl)] border-2 border-dashed border-[var(--brand-border-strong)] bg-[var(--brand-surface)] p-8 text-center">
       <div aria-hidden className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-xl bg-[var(--brand-primary-soft)] text-lg text-[var(--primary-text)]">＋</div>
       <h3 className="text-[15px] font-semibold text-[var(--brand-text-main)]">Quali azioni deve fare l&apos;operatore?</h3>
-      <p className="mx-auto mt-1 max-w-[46ch] text-[12.5px] text-[var(--brand-text-muted)]">
+      <p className="mx-auto mt-1 max-w-[46ch] text-xs text-[var(--brand-text-muted)]">
         Oggi gli interventi di «{gruppoVista.gruppo}» arrivano al telefono <b className="font-semibold">senza azioni da compilare</b>.
         Parti da zero o duplica un flusso che assomiglia.
       </p>
@@ -1054,7 +1054,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
           <button
             type="button"
             onClick={addCampo}
-            className="ml-auto rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-1.5 text-[12.5px] font-medium text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="ml-auto rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             ＋ Azione
           </button>
@@ -1077,7 +1077,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   type="text"
                   value={campo.etichetta}
                   onChange={(e) => updateCampo(idx, { etichetta: e.target.value })}
-                  className={`min-w-[150px] flex-1 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-[13.5px] font-medium text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] transition focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)] ${campo.etichetta.trim() ? 'border-[var(--brand-border)]' : 'border-[var(--warning)]'}`}
+                  className={`min-w-[150px] flex-1 rounded-[var(--radius-md)] border px-2.5 py-1.5 text-sm font-medium text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] transition focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)] ${campo.etichetta.trim() ? 'border-[var(--brand-border)]' : 'border-[var(--warning)]'}`}
                   placeholder="Cosa deve fare? es. Foto contatore"
                   aria-label={`Etichetta azione ${idx + 1}`}
                 />
@@ -1085,7 +1085,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                   value={campo.tipo}
                   onChange={(e) => updateCampo(idx, { tipo: e.target.value as TemplateCampo['tipo'] })}
                   title="Tipo di risposta"
-                  className="w-44 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1.5 text-[12.5px] text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
+                  className="w-44 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
                 >
                   {(Object.keys(TIPO_LABELS) as TemplateCampo['tipo'][]).map((t) => (
                     <option key={t} value={t}>{TIPO_LABELS[t]}</option>
@@ -1226,7 +1226,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
 
           {tipo === 'risanamento' && haCampiFoto && (
             <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3 text-xs">
-              <p className="mb-1.5 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima sezioni foto</p>
+              <p className="mb-1.5 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima sezioni foto</p>
               {SCOPE_FOTO.map((s) => {
                 const slots = campi.filter((c) => c.tipo === 'foto' && (c.scope_foto ?? 'misuratore') === s.v);
                 if (slots.length === 0) return null;
@@ -1478,7 +1478,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 ))}
               </div>
               <div className="mt-3 rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-primary)] bg-[var(--brand-surface-muted)] p-3">
-                <p className="mb-1 text-[10.5px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
+                <p className="mb-1 text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Anteprima nome file (primo campo foto)</p>
                 <code className="text-sm text-[var(--brand-text-main)]">{anteprimaNomeFoto}</code>
               </div>
             </div>

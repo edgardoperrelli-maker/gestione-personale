@@ -18,8 +18,8 @@ export default function ObjectHeader({
   return (
     <div className="flex flex-wrap items-center gap-x-5 gap-y-3 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-5 py-4 shadow-[var(--shadow-sm)] sm:px-6">
       <div className="min-w-0">
-        <h1 className="text-xl font-bold tracking-[-0.015em] text-[var(--brand-text-main)]">{title}</h1>
-        {sub && <p className="mt-0.5 text-[12.5px] text-[var(--brand-text-muted)]">{sub}</p>}
+        <h1 className="text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">{title}</h1>
+        {sub && <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">{sub}</p>}
       </div>
       {ribbon}
       {actions && <div className="ml-auto flex flex-wrap items-center gap-2">{actions}</div>}
@@ -33,7 +33,7 @@ export function StatusRibbon({ children, tone = 'ok' }: { children: React.ReactN
   const bg = tone === 'ok' ? 'var(--status-ok-soft)' : tone === 'warn' ? 'var(--status-warn-soft)' : 'var(--status-ko-soft)';
   return (
     <span
-      className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-bold"
+      className="inline-flex items-center gap-2 rounded-full px-3.5 py-1 text-xs font-semibold"
       style={{ color, backgroundColor: bg }}
     >
       <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: color }} aria-hidden />

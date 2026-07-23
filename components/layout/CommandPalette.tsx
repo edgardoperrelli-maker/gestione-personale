@@ -9,7 +9,7 @@ import { useRouter } from 'next/navigation';
 import { AnimatePresence, motion, useReducedMotion } from 'framer-motion';
 import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
-import { MODULE_ICONS, DASHBOARD_HOME_ICON } from './moduleIcons';
+import { MODULE_ICONS, DASHBOARD_HOME_ICON, RIEPILOGO_RAPPORTINI_ICON } from './moduleIcons';
 
 type CommandPaletteProps = {
   open: boolean;
@@ -65,7 +65,7 @@ export default function CommandPalette({ open, onOpenChange, allowedModules }: C
         if (item.key === 'mappa') {
           base.push(
             { href: '/hub/mappa?vista=pianifica', label: 'Pianificazione', group: groupLabels[group], icon: MODULE_ICONS.mappa },
-            { href: '/hub/mappa?vista=riepilogo', label: 'Riepilogo rapportini', group: groupLabels[group], icon: MODULE_ICONS.mappa },
+            { href: '/hub/mappa?vista=riepilogo', label: 'Riepilogo rapportini', group: groupLabels[group], icon: RIEPILOGO_RAPPORTINI_ICON },
           );
         } else {
           base.push({

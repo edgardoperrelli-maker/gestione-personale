@@ -1,130 +1,67 @@
 import type { ReactNode } from 'react';
+import {
+  Activity,
+  BedDouble,
+  Bot,
+  CalendarClock,
+  ChartColumn,
+  ChartGantt,
+  ClipboardCheck,
+  Gauge,
+  Headset,
+  House,
+  ListTodo,
+  MapPinned,
+  Settings,
+  Siren,
+  Sparkles,
+  Table,
+  Wrench,
+} from 'lucide-react';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 
 /**
- * Icone per modulo, riusate dalla Sidebar e dalla Dashboard.
- * Set a linee sobrio (stroke currentColor, linecap/linejoin round), una icona
- * riconoscibile per ogni voce: Cronoprogramma=caschetto cantiere, Calendario Hotel=letto,
- * Pianificazione=mappa, Interventi=lente (cerca intervento), Live=georadar,
- * Lista attesa=lista+orologio, Appuntamenti=calendario+check, Misuratori=contatore,
- * Agente=robot, Performance=barre, Impostazioni=ingranaggio, Assegnazione AI=scintille.
+ * Icone per modulo, riusate dalla Sidebar e dal launcher dell'hub.
+ *
+ * Dal 2026-07-23 il set viene da `lucide-react` (già dipendenza del progetto,
+ * usata anche dai controlli mappa) invece che da SVG disegnate a mano: stesso
+ * linguaggio a linee, tratto allineato a 1.6 come da DESIGN.md §7, metafore
+ * mantenute da terzi. Le sostituzioni che cambiano significato rispetto al set
+ * precedente:
+ * - Interventi: lente → chiave inglese (la lente vuol dire «cerca» e collideva
+ *   con la ricerca ⌘K in topbar);
+ * - Live: «georadar» illeggibile a 20px → tracciato di attività (tempo reale);
+ * - Cronoprogramma: caschetto da cantiere → barra Gantt (sequenza temporale);
+ * - Appuntamenti: calendario+spunta → calendario+orologio, così la spunta resta
+ *   solo a Consuntivazione e le due voci non si confondono di sguardo.
  */
+const ICON_PROPS = { className: 'h-5 w-5', strokeWidth: 1.6 } as const;
+
 export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
-  dashboard: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 17.5h18" />
-      <path d="M5 17.5v-1.5a7 7 0 0 1 14 0v1.5" />
-      <path d="M10 16.5V9.2a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1v7.3" />
-    </svg>
-  ),
-  'hotel-calendar': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 18v-3a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2v3" />
-      <path d="M3 18h18" />
-      <path d="M3 21v-4M21 21v-2" />
-      <path d="M6 13v-1.5A1.5 1.5 0 0 1 7.5 10h3A1.5 1.5 0 0 1 12 11.5V13" />
-    </svg>
-  ),
-  mappa: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 21s6-6.1 6-11a6 6 0 1 0-12 0c0 4.9 6 11 6 11z" />
-      <circle cx="12" cy="10" r="2.5" />
-    </svg>
-  ),
-  interventi: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <circle cx="11" cy="11" r="6" />
-      <path d="m20 20-3.6-3.6" />
-    </svg>
-  ),
-  consuntivazione: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M9 4h6a1 1 0 0 1 1 1v1h1.5A1.5 1.5 0 0 1 19 7.5v11A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-11A1.5 1.5 0 0 1 6.5 6H8V5a1 1 0 0 1 1-1Z" />
-      <path d="M9 6h6" />
-      <path d="m8.8 13.2 2 2 4-4" />
-    </svg>
-  ),
-  'pronto-intervento': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M10.3 3.8 2.7 17a2 2 0 0 0 1.7 3h15.2a2 2 0 0 0 1.7-3L13.7 3.8a2 2 0 0 0-3.4 0Z" />
-      <path d="M12.6 8.4 9.8 12.6h3.2L11.4 16" />
-    </svg>
-  ),
-  assistenza: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 13v-1a8 8 0 0 1 16 0v1" />
-      <path d="M4 14a2 2 0 0 1 2 2v1a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-1a2 2 0 0 1 2-2Z" />
-      <path d="M20 14a2 2 0 0 0-2 2v1a2 2 0 0 0 2 2 2 2 0 0 0 2-2v-1a2 2 0 0 0-2-2Z" />
-      <path d="M20 18v1a3 3 0 0 1-3 3h-3" />
-    </svg>
-  ),
-  live: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M3 8.5h18" />
-      <rect x="9.5" y="4.5" width="5" height="3" rx="1" />
-      <path d="M9 11.5q3 3 6 0" />
-      <path d="M7 13.5q5 4 10 0" />
-    </svg>
-  ),
-  'lista-attesa': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 6h9M4 12h6M4 18h5" />
-      <circle cx="17.5" cy="15.5" r="4" />
-      <path d="M17.5 13.7v1.8l1.3 1.3" />
-    </svg>
-  ),
-  appuntamenti: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="3" y="4.5" width="18" height="16" rx="2" />
-      <path d="M3 9h18M8 2.5v4M16 2.5v4" />
-      <path d="M9 14.8l2 2 4-4" />
-    </svg>
-  ),
-  misuratori: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4.5" y="4" width="15" height="15" rx="2.5" />
-      <circle cx="12" cy="11.5" r="4.5" />
-      <path d="M12 11.5 14.8 9.3" />
-      <path d="M12 7.4v.6M16.1 11.5h-.6M12 15.6v-.6M7.9 11.5h.6" />
-      <path d="M9 19v1.6M15 19v1.6" />
-    </svg>
-  ),
-  agente: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <rect x="4.5" y="8" width="15" height="11" rx="2.5" />
-      <path d="M12 4.5v3.5" />
-      <circle cx="12" cy="3.5" r="1.4" />
-      <path d="M9.5 13h.01M14.5 13h.01" />
-      <path d="M9.5 16.5h5" />
-    </svg>
-  ),
-  performance: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M4 4v16h16" />
-      <rect x="7" y="12" width="2.6" height="5" rx="1" />
-      <rect x="11.7" y="8.5" width="2.6" height="8.5" rx="1" />
-      <rect x="16.4" y="5.5" width="2.6" height="11.5" rx="1" />
-    </svg>
-  ),
-  impostazioni: (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M12 15.5A3.5 3.5 0 1 0 12 8.5a3.5 3.5 0 0 0 0 7Z" />
-      <path d="M19.4 15a1.7 1.7 0 0 0 .34 1.88l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.88-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.88.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.04A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.88l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.88.34H9a1.7 1.7 0 0 0 1.03-1.56V3a2 2 0 1 1 4 0v.09A1.7 1.7 0 0 0 15.06 4.65a1.7 1.7 0 0 0 1.88-.34l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.88V9c0 .67.4 1.28 1.03 1.56H21a2 2 0 1 1 0 4h-.09A1.7 1.7 0 0 0 19.35 15Z" />
-    </svg>
-  ),
-  'assegnazione-ai': (
-    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-      <path d="M11 3.5l1.5 4 4 1.5-4 1.5L11 14.5 9.5 10.5 5.5 9l4-1.5z" />
-      <path d="M18 13.5l.8 2 2 .8-2 .8-.8 2-.8-2-2-.8 2-.8z" />
-    </svg>
-  ),
+  dashboard: <ChartGantt {...ICON_PROPS} />,
+  'hotel-calendar': <BedDouble {...ICON_PROPS} />,
+  mappa: <MapPinned {...ICON_PROPS} />,
+  interventi: <Wrench {...ICON_PROPS} />,
+  consuntivazione: <ClipboardCheck {...ICON_PROPS} />,
+  'pronto-intervento': <Siren {...ICON_PROPS} />,
+  assistenza: <Headset {...ICON_PROPS} />,
+  live: <Activity {...ICON_PROPS} />,
+  'lista-attesa': <ListTodo {...ICON_PROPS} />,
+  appuntamenti: <CalendarClock {...ICON_PROPS} />,
+  misuratori: <Gauge {...ICON_PROPS} />,
+  agente: <Bot {...ICON_PROPS} />,
+  performance: <ChartColumn {...ICON_PROPS} />,
+  impostazioni: <Settings {...ICON_PROPS} />,
+  'assegnazione-ai': <Sparkles {...ICON_PROPS} />,
 };
 
 /** Icona "Dashboard / Home" usata in cima alla sidebar. */
-export const DASHBOARD_HOME_ICON: ReactNode = (
-  <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 10.5 12 3l9 7.5" />
-    <path d="M5 9.5V21h14V9.5" />
-    <path d="M9 21v-6h6v6" />
-  </svg>
-);
+export const DASHBOARD_HOME_ICON: ReactNode = <House {...ICON_PROPS} />;
+
+/**
+ * Il modulo `mappa` espone due viste distinte (Pianificazione / Riepilogo
+ * rapportini) che nella navigazione vivono come voci separate. La seconda ha
+ * bisogno di un'icona propria, altrimenti in sidebar e in ⌘K compaiono due voci
+ * diverse con lo stesso pin. Tabella = «stati per giorno e operatore».
+ */
+export const RIEPILOGO_RAPPORTINI_ICON: ReactNode = <Table {...ICON_PROPS} />;

@@ -19,6 +19,17 @@ type MultiSelectProps = {
   triggerClassName?: string;
   /** Stato errore: bordo danger + aria-invalid (allineato a Input/Select/Textarea). */
   error?: boolean;
+  /**
+   * Selezione ESPLICITA (opt-in, default off): ogni opzione visibile è spuntata
+   * e «tutti» significa tutte spuntate, non "nessun filtro". Sostituisce
+   * l'azione «Tutti (azzera selezione)» con la coppia «Seleziona tutti /
+   * Deseleziona tutti».
+   *
+   * È additivo di proposito: i chiamanti che non lo passano mantengono la
+   * semantica storica «vuoto = nessun filtro», su cui si appoggiano gli altri
+   * moduli (Assistenza, Consuntivazione, Interventi, Performance).
+   */
+  selezioneEsplicita?: boolean;
 };
 
 export default function MultiSelect({
@@ -30,6 +41,7 @@ export default function MultiSelect({
   ariaLabel,
   triggerClassName = 'border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]',
   error = false,
+  selezioneEsplicita = false,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -52,10 +64,15 @@ export default function MultiSelect({
   }, [open]);
 
   const riepilogo = useMemo(() => {
-    if (values.length === 0) return 'tutti';
+    if (selezioneEsplicita) {
+      if (options.length > 0 && values.length === options.length) return 'tutti';
+      if (values.length === 0) return 'nessuno';
+    } else if (values.length === 0) {
+      return 'tutti';
+    }
     if (values.length === 1) return options.find((o) => o.value === values[0])?.label ?? values[0];
     return `${values.length} selezionati`;
-  }, [values, options]);
+  }, [values, options, selezioneEsplicita]);
 
   const toggle = (v: string) => {
     onChange(values.includes(v) ? values.filter((x) => x !== v) : [...values, v]);
@@ -90,13 +107,35 @@ export default function MultiSelect({
           aria-label={ariaLabel ?? label}
           className="absolute left-0 top-full z-30 mt-1 max-h-64 w-full min-w-56 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-1 shadow-[var(--shadow-md)]"
         >
-          <button
-            type="button"
-            onClick={() => { onChange([]); setOpen(false); }}
-            className="mb-1 w-full rounded-[var(--radius-sm)] border-b border-[var(--brand-border)] px-2 py-1.5 text-left text-xs font-semibold text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]"
-          >
-            Tutti (azzera selezione)
-          </button>
+          {selezioneEsplicita ? (
+            <div className="mb-0.5 flex items-center gap-2 border-b border-[var(--brand-border)] px-2 pb-1 text-[11px]">
+              <button
+                type="button"
+                onClick={() => onChange(options.map((o) => o.value))}
+                disabled={values.length === options.length}
+                className="rounded-[var(--radius-sm)] py-0.5 font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:text-[var(--brand-text-subtle)] disabled:no-underline"
+              >
+                Tutti
+              </button>
+              <span aria-hidden className="text-[var(--brand-border-strong)]">·</span>
+              <button
+                type="button"
+                onClick={() => onChange([])}
+                disabled={values.length === 0}
+                className="rounded-[var(--radius-sm)] py-0.5 font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-not-allowed disabled:text-[var(--brand-text-subtle)] disabled:no-underline"
+              >
+                Nessuno
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => { onChange([]); setOpen(false); }}
+              className="mb-1 w-full rounded-[var(--radius-sm)] border-b border-[var(--brand-border)] px-2 py-1.5 text-left text-xs font-semibold text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)]"
+            >
+              Tutti (azzera selezione)
+            </button>
+          )}
           {options.length === 0 && (
             <div className="px-2 py-1.5 text-sm text-[var(--brand-text-muted)]">Nessuna opzione.</div>
           )}

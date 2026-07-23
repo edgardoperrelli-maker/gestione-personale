@@ -34,7 +34,7 @@ export function KpiCard({
       <div className="mt-1 font-mono text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--brand-text-main)] tabular-nums">
         {value}
       </div>
-      {trend && <div className="mt-1.5 text-[11.5px] text-[var(--brand-text-muted)]">{trend}</div>}
+      {trend && <div className="mt-1.5 text-xs text-[var(--brand-text-muted)]">{trend}</div>}
       {spark && spark.length > 1 && (
         <div className="absolute bottom-2.5 right-3 flex h-6 items-end gap-[2px] opacity-70" aria-hidden>
           {spark.map((v, i) => (

@@ -127,7 +127,7 @@ function Principio({ label, title, children }: { label: string; title: string; c
     <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
       <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
-      <p className="mt-1 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
+      <p className="mt-1 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
   );
 }

@@ -67,8 +67,10 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
     'flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
   return (
+    // Superficie OPACA: era traslucida con `backdrop-blur`, cioè vetro, e
+    // DESIGN.md §1.3 vuole profondità piatta. Qui la stacca il bordo 1px sotto.
     <header
-      className="sticky top-0 z-40 border-b bg-[var(--brand-surface)]/95 backdrop-blur"
+      className="sticky top-0 z-40 border-b bg-[var(--brand-surface)]"
       style={{ borderColor: 'var(--brand-border)' }}
     >
       <div className="flex min-h-14 items-center justify-between gap-3 px-3 py-2 sm:px-4 md:px-6">

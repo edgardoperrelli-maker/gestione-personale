@@ -46,7 +46,7 @@ export function DetailDrawer({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             {eyebrow && <div className="font-mono text-xs font-semibold text-[var(--primary-text)]">{eyebrow}</div>}
-            <h2 className="mt-0.5 truncate text-[15px] font-bold tracking-[-0.01em] text-[var(--brand-text-main)]">{title}</h2>
+            <h2 className="mt-0.5 truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--brand-text-main)]">{title}</h2>
             {meta && <div className="mt-1.5 text-xs text-[var(--brand-text-muted)]">{meta}</div>}
           </div>
           <button
@@ -69,7 +69,7 @@ export function DetailDrawer({
 export function DrawerSection({ title, children }: { title: React.ReactNode; children: React.ReactNode }) {
   return (
     <section>
-      <h3 className="mb-2 text-[10.5px] font-bold uppercase tracking-[0.1em] text-[var(--brand-text-subtle)]">{title}</h3>
+      <h3 className="mb-2 text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-subtle)]">{title}</h3>
       {children}
     </section>
   );
@@ -78,7 +78,7 @@ export function DrawerSection({ title, children }: { title: React.ReactNode; chi
 /** Coppie chiave/valore della scheda. */
 export function DrawerKv({ rows }: { rows: { k: React.ReactNode; v: React.ReactNode; mono?: boolean }[] }) {
   return (
-    <dl className="grid grid-cols-[104px_1fr] gap-x-3 gap-y-1.5 text-[12.5px]">
+    <dl className="grid grid-cols-[104px_1fr] gap-x-3 gap-y-1.5 text-xs">
       {rows.map((r, i) => (
         <React.Fragment key={i}>
           <dt className="text-[var(--brand-text-muted)]">{r.k}</dt>

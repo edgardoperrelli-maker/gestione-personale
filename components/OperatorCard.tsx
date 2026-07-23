@@ -52,7 +52,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onEdit(a);
             }}
-            className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium"
+            className="rounded chip-overlay px-1.5 py-px text-[9px] font-medium"
             title="Modifica"
           >
             M
@@ -62,7 +62,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium text-[var(--danger)]"
+            className="rounded chip-overlay px-1.5 py-px text-[9px] font-medium text-[var(--danger)]"
             title="Elimina"
           >
             X

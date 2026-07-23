@@ -62,7 +62,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
           <button
             type="button"
             onClick={onClose}
-            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)]"
+            className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Chiudi"
           >
             ✕
@@ -192,7 +192,7 @@ function Principio({ label, title, children }: { label: string; title: string; c
     <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
       <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
-      <p className="mt-1 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
+      <p className="mt-1 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
   );
 }
@@ -261,18 +261,18 @@ function SquadDemo({
           <div key={m.nome} className="relative flex items-center gap-1.5 py-0.5">
             <span className="absolute -left-[11px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full" style={{ backgroundColor: 'var(--brand-primary)', boxShadow: `0 0 0 2px ${terr.bg}` }} />
             {m.capo && (
-              <span className="rounded px-1 text-[8.5px] font-bold" style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}>
+              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}>
                 CAPO
               </span>
             )}
             {m.rep && (
-              <span className="rounded px-1 text-[8.5px] font-bold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                 REP
               </span>
             )}
             <span className={`font-semibold uppercase tracking-tight ${m.assente ? 'line-through opacity-50' : ''}`}>{m.nome}</span>
             {m.assente && (
-              <span className="rounded px-1 text-[8.5px] font-bold" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
+              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
                 FERIE
               </span>
             )}

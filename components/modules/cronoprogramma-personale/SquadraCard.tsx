@@ -87,7 +87,7 @@ export default function SquadraCard({
       <span className="absolute left-0 top-0 h-full w-1 rounded-l-lg" style={{ backgroundColor: s.band }} />
       {over && (
         <div
-          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-lg"
+          className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)' }}
         >
           <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
@@ -123,7 +123,7 @@ export default function SquadraCard({
               e.stopPropagation();
               onSciogli(group.squadraId);
             }}
-            className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium opacity-0 transition-opacity group-hover:opacity-100"
+            className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             style={{ color: 'var(--danger)' }}
             title="Sciogli la squadra"
           >
@@ -156,7 +156,7 @@ export default function SquadraCard({
                   e.stopPropagation();
                   onSetCapo(group.squadraId, m.id);
                 }}
-                className="shrink-0 text-[10px] leading-none transition"
+                className="shrink-0 rounded-[var(--radius-sm)] text-[10px] leading-none transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 style={{ color: capo ? 'var(--brand-primary)' : 'var(--brand-text-muted)', opacity: capo ? 1 : 0.5 }}
                 title={capo ? 'Capo squadra' : 'Imposta come capo'}
               >
@@ -178,14 +178,17 @@ export default function SquadraCard({
                   assente
                 </span>
               )}
-              <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover/m:opacity-100">
+              {/* `focus-within` oltre a `group-hover`: senza, chi arriva da
+                  tastiera metterebbe il fuoco su bottoni a opacità 0 — l'anello
+                  di focus si disegnerebbe su qualcosa di invisibile. */}
+              <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity focus-within:opacity-100 group-hover/m:opacity-100">
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     onEditMembro(m);
                   }}
-                  className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium"
+                  className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   title="Modifica"
                 >
                   M
@@ -196,7 +199,7 @@ export default function SquadraCard({
                     e.stopPropagation();
                     onRimuoviMembro(group.squadraId, m.id);
                   }}
-                  className="rounded border border-white/20 bg-black/20 px-1.5 py-px text-[9px] font-medium"
+                  className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   style={{ color: 'var(--danger)' }}
                   title="Togli dalla squadra"
                 >

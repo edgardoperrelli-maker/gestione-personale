@@ -309,7 +309,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
                   .map(([lbl, v]) => (
                     <span
                       key={lbl}
-                      className="rounded-full px-2 py-0.5 text-[10.5px] font-bold"
+                      className="rounded-full px-2 py-0.5 text-[11px] font-bold"
                       style={{
                         color: v === 'SI' ? 'var(--status-ok)' : 'var(--status-ko)',
                         backgroundColor: v === 'SI' ? 'var(--status-ok-soft)' : 'var(--status-ko-soft)',
@@ -346,7 +346,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
             </DrawerSection>
             {dettaglio.note && (
               <DrawerSection title="Note">
-                <p className="whitespace-pre-wrap text-[12.5px] text-[var(--brand-text-muted)]">{dettaglio.note}</p>
+                <p className="whitespace-pre-wrap text-xs text-[var(--brand-text-muted)]">{dettaglio.note}</p>
               </DrawerSection>
             )}
           </DetailDrawer>

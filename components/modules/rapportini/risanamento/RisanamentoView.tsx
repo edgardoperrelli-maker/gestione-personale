@@ -355,7 +355,7 @@ export function RisanamentoView({
                       <span className="block truncate text-[15px] font-bold text-[var(--brand-text-main)]">
                         {titolo || voce.nominativo || `Civico ${idx + 1}`}
                       </span>
-                      <span className="block truncate text-[12.5px] text-[var(--brand-text-muted)]">{voce.comune ?? ''}</span>
+                      <span className="block truncate text-xs text-[var(--brand-text-muted)]">{voce.comune ?? ''}</span>
                     </span>
                     <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
                       {nMisuratori} misuratori

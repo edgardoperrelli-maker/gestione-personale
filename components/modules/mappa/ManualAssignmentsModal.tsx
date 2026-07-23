@@ -50,7 +50,7 @@ export default function ManualAssignmentsModal(p: Props) {
             <div className="flex items-center gap-2 text-[19px] font-semibold">
               <span style={{ color: C.primary }}>📌</span> Assegnazioni manuali
             </div>
-            <div className="mt-0.5 text-[12.5px]" style={{ color: 'var(--brand-text-muted)' }}>
+            <div className="mt-0.5 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
               {p.rules.length} regole · {pinnedStaffIds.size} operatori pinnati
             </div>
           </div>
@@ -94,7 +94,7 @@ export default function ManualAssignmentsModal(p: Props) {
               const pinned = pinnedStaffIds.has(o.id);
               return (
                 <div key={o.id} className="flex items-center justify-between rounded-xl border px-3 py-2.5" style={{ borderColor: C.border, opacity: pinned ? 1 : 0.6 }}>
-                  <span className="text-[13.5px] font-semibold">{o.name}{pinned ? '' : ' · automatico'}</span>
+                  <span className="text-sm font-semibold">{o.name}{pinned ? '' : ' · automatico'}</span>
                   <div className="flex items-center gap-2">
                     <button onClick={() => p.onChangeManualiLiberi({ ...p.manualiLiberi, [o.id]: !liberi })}
                       title="Interventi manuali liberi: saltano l'approvazione della torre"
@@ -133,7 +133,7 @@ export default function ManualAssignmentsModal(p: Props) {
         </div>
 
         <div className="flex items-center justify-between border-t px-7 py-4" style={{ borderColor: C.border, background: 'var(--brand-surface-muted)' }}>
-          <span className="text-[12.5px]" style={{ color: 'var(--brand-text-muted)' }}>{p.rules.length} regole attive</span>
+          <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>{p.rules.length} regole attive</span>
           <div className="flex gap-2.5">
             <button onClick={p.onClose} className="rounded-2xl px-5 py-2.5 text-sm font-semibold" style={{ color: 'var(--brand-text-muted)' }}>Chiudi</button>
             <button onClick={p.onDistribute} className="rounded-2xl px-5 py-2.5 text-sm font-semibold"

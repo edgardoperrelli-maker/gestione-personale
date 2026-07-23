@@ -101,7 +101,7 @@ export default function AssenzaDialog({
   };
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/35 px-4">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[var(--overlay)] px-4">
       <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
         <div className="text-lg font-semibold text-[var(--brand-text-main)]">
           {isEdit ? 'Modifica assenza / disponibilità' : 'Assenza / Disponibilità'}
@@ -138,7 +138,7 @@ export default function AssenzaDialog({
                 key={t}
                 type="button"
                 onClick={() => setTipo(t)}
-                className="rounded-[var(--radius-md)] border px-3 py-1.5 text-xs font-semibold transition"
+                className="rounded-[var(--radius-md)] border px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 style={{
                   backgroundColor: active ? meta.bg : 'transparent',
                   borderColor: active ? meta.border : 'var(--brand-border)',
@@ -164,7 +164,7 @@ export default function AssenzaDialog({
               key={val}
               type="button"
               onClick={() => setModo(val)}
-              className={`rounded-[var(--radius-md)] border px-3 py-2 text-left transition ${
+              className={`rounded-[var(--radius-md)] border px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                 modo === val
                   ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-text-main)]'
                   : 'border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]'

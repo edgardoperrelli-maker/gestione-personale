@@ -78,7 +78,7 @@ export default function AnnuncioOdlPositivi({ open, onClose }: { open: boolean; 
               <div className="rounded-lg border px-3 py-2 text-xs" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                 ⛔ 2 ODL già eseguiti positivi — non affidabili, al salvataggio verranno esclusi da rapportini e torre: 9573…, 9573…
               </div>
-              <p className="text-[12.5px] leading-snug text-[var(--brand-text-muted)]">
+              <p className="text-xs leading-snug text-[var(--brand-text-muted)]">
                 In <b className="text-[var(--brand-text-main)]">Pianificazione</b> il banner rosso compare appena carichi i lavori, prima ancora di salvare.
                 Al <b className="text-[var(--brand-text-main)]">salvataggio</b> l&rsquo;avviso &ldquo;Torre: N interventi generati&rdquo; elenca gli ODL esclusi.
                 In <b className="text-[var(--brand-text-main)]">Assegnazione AI</b> gli esclusi compaiono tra gli avvisi a fine assegnazione.
@@ -122,7 +122,7 @@ function Principio({ label, title, children }: { label: string; title: string; c
     <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
       <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
-      <p className="mt-1 text-[12.5px] leading-snug text-[var(--brand-text-muted)]">{children}</p>
+      <p className="mt-1 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
   );
 }

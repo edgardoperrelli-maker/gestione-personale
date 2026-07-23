@@ -41,6 +41,8 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 | `--brand-text-muted` | `0.50 0.02 255` | `0.70 0.012 255` | testo secondario, label |
 | `--brand-text-subtle` | `0.62 0.015 255` | `0.56 0.012 255` | placeholder, caption |
 
+> Le utility `bg-background` / `bg-muted` / `bg-popover` / `border-border` (convenzione shadcn, usate da [`components/ui/map.tsx`](components/ui/map.tsx) e dai primitivi mapcn) **sono** questi stessi token: `@theme` mappa `--color-background` → `--brand-surface`, `--color-muted` → `--brand-surface-muted`, `--color-border` → `--brand-border`. Non sono un secondo sistema di colore, e non vanno bonificate.
+
 ### Accento zaffiro
 
 | Token | Light | Dark | Uso |
@@ -73,6 +75,7 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 - `--overlay`: fondo semitrasparente di modali/drawer.
 - `--on-marker`: testo leggibile sui marker mappa colorati (MapLibre, marker DOM).
 - `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
+- `--chip-overlay-bd` / `--chip-overlay-bg`: velo dei bottoncini sulle card operatore (Cronoprogramma, Mappa), il cui fondo è **dinamico** — è il colore del territorio. Si invertono col tema: su scuro il bordo schiarisce e il fondo scurisce, su chiaro il contrario, perché un bordo bianco su card chiara sparirebbe. Usali al posto di `border-white/20` + `bg-black/20`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
 
 ## 4. Tipografia
@@ -81,7 +84,7 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 - **Dati numerici in Geist Mono** (`--font-geist-mono`, esposto come `--font-mono` in `@theme`): KPI, importi €, matricole, celle numeriche di tabella usano `font-mono tabular-nums` — le colonne si allineano otticamente.
 - **Sentence case** sempre. Niente Title Case né ALL CAPS gridato (label maiuscole solo piccole, con tracking ridotto).
 - Pesi: **titoli 600**, **corpo 400**, **label/bottoni 500**. (Niente 700/bold "urlato".)
-- Scala (convenzione, via classi Tailwind — non ci sono token `--text-*`): `text-xs`(12) caption · `text-sm`(13) dati densi · `text-sm/base`(14) corpo · `text-base/lg`(16) sottotitoli · `text-xl`(20) titoli sezione · `text-2xl`(26) titoli pagina. **Niente dimensioni a mezzo pixel** (`text-[14.5px]` ecc.).
+- Scala (via classi Tailwind — non ci sono token `--text-*`). Valori **misurati sul reso**, non stimati: `text-xs`=**12** caption e dati densi · `text-sm`=**14** corpo · `text-base`=**16** sottotitoli · `text-lg`=**18** · `text-xl`=**20** titoli sezione e di pagina · `text-2xl`=**24**. **Niente dimensioni a mezzo pixel** (`text-[14.5px]` ecc.): se serve un gradino intermedio si usa il pixel intero (`text-[11px]`, `text-[13px]`), mai il mezzo. Bonifica completata il 2026-07-23 — 37 occorrenze eliminate, la regola vale ora per tutto `app/` e `components/`.
 
 ## 5. Raggi, ombre, densità, motion
 
@@ -123,7 +126,7 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 | **DetailDrawer** | `{ DrawerSplit, DetailDrawer, DrawerSection, DrawerKv }` da `@/components/ui/DetailDrawer` | scheda del record a destra della tabella (click riga), senza cambiare pagina. `className` per layout a scroll interno. |
 | **ProgressPill** | `@/components/ui/ProgressPill` (default) | avanzamento compatto `n/m` con barretta (es. foto in riga tabella). |
 
-Icone moduli: SVG a linee in [`components/layout/moduleIcons.tsx`](components/layout/moduleIcons.tsx) (`stroke="currentColor"`, `strokeWidth` ~1.6, linecap/linejoin round). Nessuna libreria icone esterna.
+Icone moduli: da **`lucide-react`**, centralizzate in [`components/layout/moduleIcons.tsx`](components/layout/moduleIcons.tsx) — `MODULE_ICONS` (una per `AppModuleKey`), `DASHBOARD_HOME_ICON`, `RIEPILOGO_RAPPORTINI_ICON`. Tutte montate con `className="h-5 w-5"` e `strokeWidth={1.6}` per restare sul tratto di casa. **Non importare lucide direttamente nei moduli di navigazione**: si passa da questo file, così sidebar, launcher dell'hub e ⌘K non possono divergere. (Set precedente disegnato a mano sostituito il 2026-07-23; `lucide-react` era già dipendenza, usata dai controlli mappa in [`components/ui/map.tsx`](components/ui/map.tsx).)
 
 ## 7bis. IA dei moduli — fogliette, non tab
 
@@ -159,7 +162,7 @@ Regola ibrida (spec premium 2026-07-22):
 ❌ **Don't**
 - Niente hex/oklch hardcoded nel markup (`text-[oklch(...)]`, `bg-emerald-500`, `#22c55e`, `text-white` su fill). Tokenizza.
 - Niente glow, gradienti neon, oro/magenta come accenti.
-- Niente `alert()`/`confirm()` nativi → usa `toast.*` e `ConfirmDialog`.
+- Niente `alert()`/`confirm()` nativi → usa `toast.*` e `ConfirmDialog`. **Unica deroga registrata:** i flussi drag&drop del Cronoprogramma ([`CronoprogrammaWorkspace.tsx`](components/modules/cronoprogramma-personale/CronoprogrammaWorkspace.tsx)) tengono `window.confirm` perché la conferma dev'essere **sincrona** dentro i handler DnD — renderla asincrona si propagherebbe a tutta la catena drop. La deroga vale solo lì: fuori dal DnD si usa `ConfirmDialog`.
 - Niente `var()` passato a recharts (SVG) o al paint WebGL di MapLibre → risolvi con `getComputedStyle`/`useChartColors` (i marker DOM di MapLibre invece accettano `var()` direttamente).
 - Non rinominare/rimuovere token esistenti; aggiungi additivi.
 - Niente ALL CAPS / dimensioni a mezzo pixel / `rounded-2xl` fuori scala.

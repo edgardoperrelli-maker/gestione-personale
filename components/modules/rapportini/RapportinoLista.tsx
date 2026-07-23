@@ -190,7 +190,7 @@ export function RapportinoLista({
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30">
-        <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)]/95 px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2 backdrop-blur">
+        <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2">
           {inviato ? (
             <>
               <p className="mb-1.5 text-center text-xs font-medium text-[var(--status-ok)]">Rapportino inviato ✓</p>
@@ -208,16 +208,16 @@ export function RapportinoLista({
           ) : (
             <>
               {!readOnly && tentatoInvio && mancanti.length > 0 && (
-                <div className="mb-2 rounded-xl border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3 py-2">
+                <div className="mb-2 rounded-[var(--radius-xl)] border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3 py-2">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="text-xs font-bold text-[var(--status-ko)]">
+                    <p className="text-xs font-semibold text-[var(--status-ko)]">
                       ⚠️ Non puoi inviare: completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}
                     </p>
                     <button
                       type="button"
                       onClick={() => setTentatoInvio(false)}
                       aria-label="Chiudi avviso"
-                      className="-mr-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-md text-sm font-bold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15"
+                      className="-mr-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-[var(--radius-md)] text-sm font-semibold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     >
                       ✕
                     </button>
@@ -228,10 +228,10 @@ export function RapportinoLista({
                         key={m.index}
                         type="button"
                         onClick={() => onApri(m.index)}
-                        className="flex w-full items-center gap-2 rounded-lg px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)]"
+                        className="flex w-full items-center gap-2 rounded-[var(--radius-lg)] px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                       >
                         <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
-                          <span className="font-bold">Intervento {m.index + 1}</span>
+                          <span className="font-semibold">Intervento {m.index + 1}</span>
                           {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
                         </span>
                         <span className="max-w-[45%] shrink-0 whitespace-normal text-right font-semibold leading-tight text-[var(--status-ko)]">{MOTIVO_LABEL[m.motivo]}</span>
@@ -248,7 +248,7 @@ export function RapportinoLista({
                   type="button"
                   onClick={() => { if (inviabile) { onInvia(); } else { setTentatoInvio(true); } }}
                   disabled={inviando}
-                  className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
+                  className="w-full rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
                   {inviando ? 'Invio in corso…' : 'Invia rapportino'}
                 </button>
