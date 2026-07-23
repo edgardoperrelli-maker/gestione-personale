@@ -43,6 +43,8 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 > Le utility `bg-background` / `bg-muted` / `bg-popover` / `border-border` (convenzione shadcn, usate da [`components/ui/map.tsx`](components/ui/map.tsx) e dai primitivi mapcn) **sono** questi stessi token: `@theme` mappa `--color-background` → `--brand-surface`, `--color-muted` → `--brand-surface-muted`, `--color-border` → `--brand-border`. Non sono un secondo sistema di colore, e non vanno bonificate.
 
+> ⚠️ **Il reset dei bottoni vive in `@layer base`** (`globals.css`). Ci è stato spostato il 2026-07-23: scritto fuori dai layer batteva in cascata ogni utility Tailwind, e **qualsiasi `bg-*` o `border-*` su un `<button>` non disegnava nulla** — la barra comandi di Pianificazione rendeva cinque etichette di testo nudo pur dichiarando un primario accentato. Se aggiungi regole d'elemento in `globals.css`, mettile in `@layer base`, altrimenti spegni silenziosamente le utility di quell'elemento.
+
 ### Accento zaffiro
 
 | Token | Light | Dark | Uso |
@@ -77,6 +79,10 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 - `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
 - `--chip-overlay-bd` / `--chip-overlay-bg`: velo dei bottoncini sulle card operatore (Cronoprogramma, Mappa), il cui fondo è **dinamico** — è il colore del territorio. Si invertono col tema: su scuro il bordo schiarisce e il fondo scurisce, su chiaro il contrario, perché un bordo bianco su card chiara sparirebbe. Usali al posto di `border-white/20` + `bg-black/20`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
+
+### Testa di modulo
+
+Ogni modulo apre con [`ObjectHeader`](components/ui/ObjectHeader.tsx) — titolo, sottotitolo, `ribbon` di stato, `actions` a destra. **Nessuna testa su misura**: al 2026-07-23 il primitivo è usato da 16 moduli, e Pianificazione era l'ultimo rimasto fuori. Nelle `actions` vale **un solo primario per volta** (l'azione della fase corrente); tutto il resto è `variant="outline"`, e i comandi che ricominciano da capo vanno in coda dopo un separatore. Dove il modulo ha una progressione (fasi, passi), la striscia va **sotto** la testa: prima la pagina dice cos'è, poi a che punto sei.
 
 ## 4. Tipografia
 

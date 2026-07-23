@@ -1,0 +1,10 @@
+[
+  {
+    "date": "2026-07-23",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Pianificazione (/hub/mappa?vista=pianifica) — testa di modulo standard, gerarchia dei comandi, ordine testa→fasi→lavoro, proporzioni per fase"
+  }
+]

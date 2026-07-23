@@ -1,5 +1,12 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench
+ * design-system: DESIGN.md · designed-as-app
+ * pre-emit critique: P5 H5 E4 S5 R5 V4
+ * Redesign 2026-07-23 del solo strato visivo della vista Pianificazione:
+ * testa di modulo, gerarchia dei comandi, ordine testa→fasi→lavoro, proporzioni
+ * per fase. Handler, condizioni `hidden`/`disabled` e query invariati.
+ */
 import { toast } from '@/components/ui/Toast';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import dynamic from 'next/dynamic';
@@ -37,6 +44,9 @@ import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponib
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
 import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
+import ObjectHeader from '@/components/ui/ObjectHeader';
+import Button from '@/components/Button';
+import { ChevronDown, Download, Plus, RotateCcw } from 'lucide-react';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 import MenuDropdown, { type MenuItem } from './MenuDropdown';
@@ -2822,13 +2832,17 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
           </div>
         );
       })()}
-      {(setupDone || isEditMode) && <PhaseStrip current={currentPhase} />}
-      {/* Header + filtri */}
-      <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-        <div className="flex flex-wrap items-center gap-3">
-          <div className="flex flex-wrap items-center gap-4">
-            <div className="text-xl font-semibold">Pianifica indirizzi</div>
-            <div className="flex items-center gap-2">
+      {/* Testa di modulo: `ObjectHeader`, come negli altri 15 moduli (DESIGN.md
+          §7ter). Prima era una card su misura con un titolo nudo, e questo era
+          l'unico modulo maggiore fuori dal primitivo. La striscia delle fasi
+          scende SOTTO la testa: prima la pagina apriva col progresso e diceva
+          solo dopo di cosa si trattasse. */}
+      <ObjectHeader
+        title="Pianifica indirizzi"
+        sub="Interventi del giorno distribuiti sul territorio."
+        actions={
+          <>
+            <div className="flex flex-wrap items-center gap-2">
               <label className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
                 Data
               </label>
@@ -2870,34 +2884,18 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 );
               })()}
             </div>
-          </div>
 
-          <div className="ml-auto flex flex-wrap items-center gap-2">
-            <button
-              type="button"
-              onClick={handleNuovaPianificazione}
-              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
-            >
-              Nuova pianificazione
-            </button>
-
-            {!excelMode && (
-              <button
-                type="button"
-                onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
-                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm"
-              >
-                Azzera
-              </button>
-            )}
-
+            {/* I comandi hanno UN primario per fase — «Aggiungi interventi» —
+                e il resto in outline. Prima erano sei bottoni tutti uguali, e
+                per giunta resi come testo nudo: la regola `button` fuori da
+                @layer cancellava sfondi e bordi (vedi globals.css). */}
             <input ref={fileInputRef} type="file" accept=".xlsx,.xls" className="hidden" onChange={handleFileChange} />
             <input ref={fileTemplateInputRef} type="file" accept=".xlsx,.xls" style={{ display: 'none' }} onChange={handleTemplateFileChange} />
 
             <MenuDropdown
               align="right"
-              buttonClassName="rounded-lg border border-[var(--brand-primary)]/40 bg-[var(--brand-primary-soft)] px-3 py-1.5 text-sm font-medium text-[var(--brand-primary)] hover:opacity-90"
-              label="+ Aggiungi interventi ▾"
+              buttonClassName="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)]"
+              label={<><Plus size={13} aria-hidden /> Aggiungi interventi <ChevronDown size={13} aria-hidden /></>}
               items={[
                 { label: 'Carica Excel',                    onClick: () => fileInputRef.current?.click(),          hidden: excelMode },
                 { label: 'Carica interventi del giorno',    onClick: caricaInterventiDelGiorno,                    hidden: excelMode },
@@ -2909,45 +2907,81 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
             />
 
             {!excelMode && !distribution && !modalitaSenzaInterventi && (
-              <button
-                type="button"
+              <Button
+                variant="outline"
+                size="sm"
                 onClick={avviaSenzaInterventi}
                 title="Crea rapportini vuoti per il personale, da compilare solo con ordini manuali (es. limitazioni massive). Nessuna data prevista finisce sul master."
-                className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
               >
                 Senza interventi
-              </button>
+              </Button>
             )}
 
             {distribution && (
               <MenuDropdown
                 align="right"
-                buttonClassName="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-sm text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
-                label="Esporta ▾"
+                buttonClassName="inline-flex items-center justify-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)]"
+                label={<><Download size={13} aria-hidden /> Esporta <ChevronDown size={13} aria-hidden /></>}
                 items={[{ label: 'Esporta Excel', onClick: exportDistribution }]}
               />
             )}
 
-            {/* Percorso ottimale — nascosto se è attiva la distribuzione */}
+            {/* Percorso ottimale — nascosto se è attiva la distribuzione. È un
+                interruttore di vista: acceso resta pieno accentato. */}
             {!distribution && (() => {
               const canRoute = excelMode ? excelGeocoded >= 2 : rowsWithCoords.length >= 2;
               return (
-                <button
-                  type="button"
+                <Button
+                  variant={routeMode ? 'primary' : 'outline'}
+                  size="sm"
                   onClick={() => setRouteMode((v) => !v)}
                   disabled={!canRoute}
-                  className={`rounded-lg border px-3 py-1.5 text-sm font-medium transition ${
-                    routeMode
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary)] text-[var(--on-primary)]'
-                      : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]'
-                  } disabled:opacity-40`}
+                  aria-pressed={routeMode}
                 >
                   Percorso ottimale
-                </button>
+                </Button>
               );
             })()}
-          </div>
-        </div>
+
+            {/* Coda: i due comandi che ricominciano da capo, staccati dal resto
+                perché non appartengono al flusso della fase corrente. */}
+            <span className="mx-1 hidden h-5 w-px bg-[var(--brand-border)] sm:block" aria-hidden />
+            <Button variant="outline" size="sm" onClick={handleNuovaPianificazione}>
+              Nuova pianificazione
+            </Button>
+            {!excelMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => { setTerritoryFilter(''); setDayFilter(''); setOnlyRep(false); setRouteMode(false); }}
+                title="Rimette a zero i filtri della vista. Non tocca gli interventi caricati."
+              >
+                <RotateCcw size={13} aria-hidden /> Azzera filtri
+              </Button>
+            )}
+          </>
+        }
+      />
+
+      {(setupDone || isEditMode) && <PhaseStrip current={currentPhase} />}
+
+      {/* Pannello di lavoro della fase: avvisi, geocodifica, distribuzione.
+          In fase 2 non ha ancora contenuto, e restava una striscia bianca vuota
+          fra le fasi e la mappa: qui sparisce del tutto finché non serve. Le due
+          condizioni sono le stesse dei blocchi interni — se ne aggiungi uno,
+          aggiungilo anche qui. */}
+      <div
+        className={`rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm ${
+          (() => {
+            const ora = new Date();
+            const avvisoAppuntamenti =
+              ora.getHours() >= 15 &&
+              planningDate === isoTomorrow() &&
+              filteredAppointmentTasks.length > 0;
+            return avvisoAppuntamenti || excelMode || modalitaSenzaInterventi ? 'p-4' : 'hidden';
+          })()
+        }`}
+      >
 
         {/* Banner alert appuntamenti non assegnati */}
         {(() => {
@@ -3317,16 +3351,20 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
       {/* Mappa + pannello laterale */}
       <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="isolate rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-sm">
+          {/* Finché non ci sono interventi la mappa non ha punti da mostrare, e
+              a 520px si prendeva la piega intera per disegnare mezza Europa
+              vuota mentre l'unica azione utile stava in una colonna da 320px.
+              Si arretra e torna piena appena i punti esistono. */}
           {mapReady ? (
             <PlanningMap
               markers={planningMarkers}
               routes={planningRoutes}
               focus={mapFocus}
               fitPadding={mapFitPadding}
-              className="h-[520px] w-full rounded-2xl overflow-hidden"
+              className={`${currentPhase <= 2 ? 'h-[260px]' : 'h-[520px]'} w-full rounded-2xl overflow-hidden`}
             />
           ) : (
-            <div className="h-[520px] w-full rounded-2xl" />
+            <div className={`${currentPhase <= 2 ? 'h-[260px]' : 'h-[520px]'} w-full rounded-2xl`} />
           )}
         </div>
 
@@ -3890,8 +3928,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               }
             </div>
           ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-[var(--brand-text-muted)]">
-              Carica un file Excel o aggiungi appuntamenti per visualizzare gli interventi.
+            /* Stato vuoto che dice dove agire, invece di una frase passiva. Il
+               comando non si ripete qui: sta nella testa di modulo, e duplicarlo
+               è l'errore già corretto altrove (controlli di vista replicati). */
+            <div className="flex flex-1 flex-col items-center justify-center gap-1 py-10 text-center">
+              <p className="text-sm font-medium text-[var(--brand-text-main)]">Nessun intervento caricato</p>
+              <p className="max-w-[24ch] text-xs text-[var(--brand-text-muted)]">
+                Aprili da «Aggiungi interventi», in alto: da file Excel o dagli interventi del giorno.
+              </p>
             </div>
           )}
         </div>
