@@ -1,7 +1,25 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Catalogue · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Catalogue perché la pagina è un indice d'inventario: card uniformi per
+ * territorio sotto una banda-giorno che fa da intestazione datata col conto.
+ * Sopra, la testa di modulo standard (ObjectHeader) e il breadcrumb di rientro.
+ * Niente striscia KPI in cima: provata il 2026-07-23 e tolta su richiesta —
+ * i conti che servono stanno già sulla banda del giorno e sulle card.
+ * L'accento zaffiro non entra nelle righe: prima ci stava 347 volte, una per
+ * rapportino, sul pulsante «copia link».
+ */
+
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { FileSpreadsheet, ListChecks, X } from 'lucide-react';
+import Breadcrumb from '@/components/ui/Breadcrumb';
+import ObjectHeader from '@/components/ui/ObjectHeader';
+import Select from '@/components/ui/Select';
+import DatePicker from '@/components/ui/DatePicker';
+import Button from '@/components/Button';
 import type { RapportinoStato } from '@/utils/rapportini/links';
 import { type RapRiepilogo } from '@/utils/rapportini/groupByDay';
 import { groupByDayTerritory } from '@/utils/rapportini/groupByDayTerritory';
@@ -16,6 +34,19 @@ function fmtData(iso: string): string {
   if (Number.isNaN(d.getTime())) return iso;
   return d.toLocaleDateString('it-IT', { weekday: 'long', day: '2-digit', month: 'long', year: 'numeric' });
 }
+
+/**
+ * Azione di testa che naviga: resta un `<a>` e non un `<Button>` perché deve
+ * conservare apri-in-nuova-scheda e click centrale. Le classi ricalcano la
+ * variante `outline` del primitivo; `whitespace-nowrap` tiene l'etichetta su
+ * una riga sola anche a 320px.
+ */
+const AZIONE_TESTA =
+  'inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-[var(--radius-md)] ' +
+  'border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium ' +
+  'text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] ' +
+  'focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ' +
+  'focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)]';
 
 export default function RiepilogoRapportini() {
   const [raps, setRaps] = useState<RapRiepilogo[]>([]);
@@ -69,7 +100,8 @@ export default function RiepilogoRapportini() {
   }, [raps]);
 
   const oggi = new Date().toISOString().slice(0, 10);
-  const giorni = useMemo(() => groupByDayTerritory(filtraRapportini(raps, filtri), oggi), [raps, filtri, oggi]);
+  const rapsFiltrati = useMemo(() => filtraRapportini(raps, filtri), [raps, filtri]);
+  const giorni = useMemo(() => groupByDayTerritory(rapsFiltrati, oggi), [rapsFiltrati, oggi]);
 
   const copia = async (r: RapportinoStato & { url: string; token: string }) => {
     try {
@@ -146,117 +178,120 @@ export default function RiepilogoRapportini() {
 
   const onSpostaDataOperatore = async (rapportinoId: string, data: string) => {
     const oggiStr = new Date().toISOString().slice(0, 10);
-    if (data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile con 🔒).', confirmLabel: 'Procedi' }))) return;
+    if (data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile dal lucchetto).', confirmLabel: 'Procedi' }))) return;
     void gestisciSpostamento('/api/mappa/rapportini/data', { rapportinoId, data });
   };
 
   const onSpostaPiano = async (pianoId: string, opts: { data?: string; territorio?: string | null }) => {
     const oggiStr = new Date().toISOString().slice(0, 10);
-    if (opts.data && opts.data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile con 🔒).', confirmLabel: 'Procedi' }))) return;
+    if (opts.data && opts.data < oggiStr && !(await chiediConferma({ title: 'Spostare a una data passata?', message: 'Il link risulterà scaduto in quel giorno (riapribile dal lucchetto).', confirmLabel: 'Procedi' }))) return;
     void gestisciSpostamento('/api/mappa/piani/sposta', { pianoId, ...opts });
   };
 
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
+      <Breadcrumb items={[{ label: 'Mappa', href: '/hub/mappa' }, { label: 'Riepilogo rapportini' }]} />
+
+      <ObjectHeader
+        title="Riepilogo rapportini"
+        sub="Stato dei rapportini per giorno, territorio e operatore."
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={scaricaExcel} className="whitespace-nowrap">
+              <FileSpreadsheet size={14} aria-hidden />
+              Esporta Excel
+            </Button>
+            <a href="/hub/rapportini/eseguiti" className={AZIONE_TESTA}>
+              <ListChecks size={14} aria-hidden />
+              Interventi eseguiti
+            </a>
+          </>
+        }
+      />
+
       {avviso && (
-        <div className="rounded-lg border border-[var(--warning)]/30 bg-[var(--warning-soft)] px-4 py-2.5 text-sm text-[var(--warning)]">
-          {avviso}
-          <button type="button" onClick={() => setAvviso(null)} className="ml-3 text-[var(--warning)] opacity-70 hover:opacity-100">✕</button>
-        </div>
-      )}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-base font-semibold">Riepilogo rapportini</h2>
-        <div className="flex items-center gap-2">
+        <div role="alert" className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--warning-soft)] px-4 py-2.5 text-sm text-[var(--warning)]">
+          <span className="flex-1">{avviso}</span>
           <button
             type="button"
-            onClick={scaricaExcel}
-            title="Scarica Excel con tutti gli interventi del periodo selezionato"
-            className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]"
+            onClick={() => setAvviso(null)}
+            aria-label="Chiudi l’avviso"
+            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors hover:bg-[var(--brand-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
-            Excel interventi
+            <X size={14} aria-hidden />
           </button>
-          <a href="/hub/rapportini/eseguiti" className="rounded-lg border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-primary)] hover:opacity-90">📋 Tutti gli interventi eseguiti</a>
         </div>
-      </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-2">
-        <select
-          className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
-          value={periodo}
-          onChange={(e) => {
-            const v = e.target.value;
-            if (v === 'custom' && !dataDa && !dataA) {
-              const oggiStr = new Date().toISOString().slice(0, 10);
-              const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggiStr);
-              if (r) { setDataDa(r.from); setDataA(r.to); }
-            }
-            setPeriodo(v);
-          }}
-        >
-          {PERIODI.map((p) => <option key={p.k} value={p.k}>{p.label}</option>)}
-          <option value="custom">Personalizzato…</option>
-        </select>
+        <div className="min-w-[150px] flex-1 sm:max-w-[190px]">
+          <Select
+            aria-label="Periodo"
+            className="py-1.5 text-xs"
+            value={periodo}
+            onChange={(e) => {
+              const v = e.target.value;
+              if (v === 'custom' && !dataDa && !dataA) {
+                const oggiStr = new Date().toISOString().slice(0, 10);
+                const r = calcolaRange(periodo, { dataDa: '', dataA: '' }, oggiStr);
+                if (r) { setDataDa(r.from); setDataA(r.to); }
+              }
+              setPeriodo(v);
+            }}
+          >
+            {PERIODI.map((p) => <option key={p.k} value={p.k}>{p.label}</option>)}
+            <option value="custom">Personalizzato…</option>
+          </Select>
+        </div>
         {periodo === 'custom' && (
           <>
-            <input
-              type="date"
-              aria-label="Dal"
-              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
-              value={dataDa}
-              max={dataA || undefined}
-              onChange={(e) => setDataDa(e.target.value)}
-            />
-            <span className="text-xs text-[var(--brand-text-muted)]">→</span>
-            <input
-              type="date"
-              aria-label="Al"
-              className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs"
-              value={dataA}
-              min={dataDa || undefined}
-              onChange={(e) => setDataA(e.target.value)}
-            />
+            <DatePicker value={dataDa} onChange={setDataDa} max={dataA || undefined} ariaLabel="Dal giorno" />
+            <span className="text-xs text-[var(--brand-text-muted)]" aria-hidden>→</span>
+            <DatePicker value={dataA} onChange={setDataA} min={dataDa || undefined} ariaLabel="Al giorno" />
           </>
         )}
         <FiltriRiepilogo filtri={filtri} setFiltri={setFiltri} territori={territori} operatori={operatori} />
       </div>
 
       {loading ? (
-        <div className="py-12 text-center text-sm text-[var(--brand-text-muted)]">Caricamento riepilogo...</div>
+        <div className="py-12 text-center text-sm text-[var(--brand-text-muted)]">Caricamento riepilogo…</div>
       ) : giorni.length === 0 ? (
-        <div className="rounded-lg border border-dashed border-[var(--brand-border)] px-6 py-12 text-center text-sm text-[var(--brand-text-muted)]">
+        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border)] px-6 py-12 text-center text-sm text-[var(--brand-text-muted)]">
           Nessun rapportino per i filtri selezionati.
         </div>
       ) : (
-        giorni.map((g) => (
-          <div key={g.data} className="space-y-3">
-            <IntestazioneGiorno giorno={g} oggi={oggi} />
-            <div className="flex flex-wrap items-start gap-3">
-              {g.territori.map((t) => (
-                <CardTerritorio
-                  key={`${g.data}-${t.chiave}`}
-                  terr={t}
-                  dataLabel={fmtData(g.data)}
-                  copiedToken={copiedToken}
-                  onCopia={copia}
-                  onRiapriHref={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
-                  onRiapriTerritorioHref={(terr) => `/hub/mappa?vista=pianifica&pianoId=${terr.piani[0]?.piano_id ?? ''}&scope=territorio`}
-                  onEliminaPiano={eliminaPiano}
-                  onRimuoviOp={rimuoviOperatore}
-                  onRiapriRapportino={riapriRapportino}
-                  confirmPiano={confirmPiano}
-                  setConfirmPiano={setConfirmPiano}
-                  confirmOp={confirmOp}
-                  setConfirmOp={setConfirmOp}
-                  busy={busy}
-                  territori={territoriLista}
-                  onSpostaTerritorioOperatore={spostaOperatore}
-                  onSpostaDataOperatore={onSpostaDataOperatore}
-                  onSpostaPiano={onSpostaPiano}
-                />
-              ))}
+        <div className="space-y-6">
+          {giorni.map((g) => (
+            <div key={g.data} className="space-y-3">
+              <IntestazioneGiorno giorno={g} oggi={oggi} />
+              <div className="flex flex-wrap items-start gap-3">
+                {g.territori.map((t) => (
+                  <CardTerritorio
+                    key={`${g.data}-${t.chiave}`}
+                    terr={t}
+                    dataLabel={fmtData(g.data)}
+                    copiedToken={copiedToken}
+                    onCopia={copia}
+                    onRiapriHref={(pianoId) => `/hub/mappa?vista=pianifica&pianoId=${pianoId}`}
+                    onRiapriTerritorioHref={(terr) => `/hub/mappa?vista=pianifica&pianoId=${terr.piani[0]?.piano_id ?? ''}&scope=territorio`}
+                    onEliminaPiano={eliminaPiano}
+                    onRimuoviOp={rimuoviOperatore}
+                    onRiapriRapportino={riapriRapportino}
+                    confirmPiano={confirmPiano}
+                    setConfirmPiano={setConfirmPiano}
+                    confirmOp={confirmOp}
+                    setConfirmOp={setConfirmOp}
+                    busy={busy}
+                    territori={territoriLista}
+                    onSpostaTerritorioOperatore={spostaOperatore}
+                    onSpostaDataOperatore={onSpostaDataOperatore}
+                    onSpostaPiano={onSpostaPiano}
+                  />
+                ))}
+              </div>
             </div>
-          </div>
-        ))
+          ))}
+        </div>
       )}
     </div>
   );

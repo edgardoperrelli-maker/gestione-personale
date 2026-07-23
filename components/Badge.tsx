@@ -41,8 +41,10 @@ const variantClasses: Record<BadgeVariant, string> = {
 
 export default function Badge({ variant = 'primary', className = '', ...props }: BadgeProps) {
   return (
+    // 11px e non 10: la scala di DESIGN.md §4 si ferma a text-xs=12, con 11 e 13
+    // come soli gradini intermedi — 10px non esiste nel sistema.
     <span
-      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ${
+      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold ${
         variantClasses[variant]
       } ${className}`}
       {...props}

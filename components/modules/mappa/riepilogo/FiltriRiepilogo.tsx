@@ -1,4 +1,6 @@
 'use client';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
 import type { FiltriRiepilogo as Filtri } from '@/utils/rapportini/filtraRapportini';
 
 const STATI: Array<{ k: 'valido' | 'scaduto' | 'inviato'; label: string }> = [
@@ -21,37 +23,63 @@ export default function FiltriRiepilogo({
       stati: filtri.stati.includes(k) ? filtri.stati.filter((s) => s !== k) : [...filtri.stati, k],
     });
   };
-  const sel = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs';
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <select className={sel} value={filtri.territorio} onChange={(e) => setFiltri({ ...filtri, territorio: e.target.value })}>
-        <option value="">Territorio: tutti</option>
-        {territori.map((t) => <option key={t} value={t}>{t}</option>)}
-      </select>
-      <select className={sel} value={filtri.operatore} onChange={(e) => setFiltri({ ...filtri, operatore: e.target.value })}>
-        <option value="">Operatore: tutti</option>
-        {operatori.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
-      </select>
-      {STATI.map((s) => (
-        <button
-          key={s.k}
-          type="button"
-          onClick={() => toggleStato(s.k)}
-          className={`rounded-full px-2.5 py-1 text-[11px] font-semibold ${
-            filtri.stati.includes(s.k)
-              ? 'border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
-              : 'border border-[var(--brand-border)] text-[var(--brand-text-muted)]'
-          }`}
+    <>
+      {/* I primitivi Select/Input sono `w-full`: la larghezza si governa dal
+          contenitore, non sovrascrivendo la classe (l'ordine fra due utility
+          della stessa proprietà non è garantito). */}
+      <div className="min-w-[150px] flex-1 sm:max-w-[200px]">
+        <Select
+          aria-label="Filtra per territorio"
+          className="py-1.5 text-xs"
+          value={filtri.territorio}
+          onChange={(e) => setFiltri({ ...filtri, territorio: e.target.value })}
         >
-          {s.label}
-        </button>
-      ))}
-      <input
-        className={`${sel} flex-1 min-w-[140px]`}
-        placeholder="cerca operatore / territorio…"
-        value={filtri.q}
-        onChange={(e) => setFiltri({ ...filtri, q: e.target.value })}
-      />
-    </div>
+          <option value="">Territorio: tutti</option>
+          {territori.map((t) => <option key={t} value={t}>{t}</option>)}
+        </Select>
+      </div>
+      <div className="min-w-[150px] flex-1 sm:max-w-[200px]">
+        <Select
+          aria-label="Filtra per operatore"
+          className="py-1.5 text-xs"
+          value={filtri.operatore}
+          onChange={(e) => setFiltri({ ...filtri, operatore: e.target.value })}
+        >
+          <option value="">Operatore: tutti</option>
+          {/* value = staff_id: è la chiave su cui filtra `filtraRapportini`. */}
+          {operatori.map((o) => <option key={o.id} value={o.id}>{o.nome}</option>)}
+        </Select>
+      </div>
+      <div className="flex items-center gap-1.5" role="group" aria-label="Filtra per stato">
+        {STATI.map((s) => {
+          const attivo = filtri.stati.includes(s.k);
+          return (
+            <button
+              key={s.k}
+              type="button"
+              onClick={() => toggleStato(s.k)}
+              aria-pressed={attivo}
+              className={`rounded-full border px-3 py-1 text-xs font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                attivo
+                  ? 'border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
+                  : 'border-[var(--brand-border)] text-[var(--brand-text-muted)] hover:border-[var(--brand-border-strong)] hover:text-[var(--brand-text-main)]'
+              }`}
+            >
+              {s.label}
+            </button>
+          );
+        })}
+      </div>
+      <div className="min-w-[160px] flex-1 sm:max-w-[240px]">
+        <Input
+          aria-label="Cerca operatore o territorio"
+          className="py-1.5 text-xs"
+          placeholder="cerca operatore / territorio…"
+          value={filtri.q}
+          onChange={(e) => setFiltri({ ...filtri, q: e.target.value })}
+        />
+      </div>
+    </>
   );
 }

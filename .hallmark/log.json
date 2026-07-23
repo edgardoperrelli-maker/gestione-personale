@@ -2,6 +2,14 @@
   {
     "date": "2026-07-23",
     "scope": "app",
+    "macrostructure": "Catalogue",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Riepilogo rapportini (/hub/mappa?vista=riepilogo) — bonifica dei 3 critical e degli 8 major dell'audit: scala tipografica, accento, primitivi, nome territorio, icone, mono tabulare, testa+sintesi, Dialog, focus, responsive, stamp"
+  },
+  {
+    "date": "2026-07-23",
+    "scope": "app",
     "macrostructure": "Workbench",
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",

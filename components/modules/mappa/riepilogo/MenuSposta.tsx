@@ -1,9 +1,11 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDown, CornerUpRight } from 'lucide-react';
 import DatePicker from '@/components/ui/DatePicker';
+import { AZIONE_ICONA, AZIONE_TESTO } from './stili';
 
 export default function MenuSposta({
-  modo, territori, territorioCorrente, onSpostaTerritorio, onSpostaData, busy, label = '↪',
+  modo, territori, territorioCorrente, onSpostaTerritorio, onSpostaData, busy, label,
 }: {
   modo: 'operatore' | 'piano';
   territori: Array<{ id: string; name: string }>;
@@ -11,6 +13,7 @@ export default function MenuSposta({
   onSpostaTerritorio: (territorio: string | null) => void;
   onSpostaData: (dataIso: string) => void;
   busy: boolean;
+  /** Se assente il comando è a sola icona (riga operatore); se presente è testuale. */
   label?: string;
 }) {
   const [open, setOpen] = useState(false);
@@ -28,23 +31,29 @@ export default function MenuSposta({
         type="button"
         onClick={() => setOpen((o) => !o)}
         disabled={busy}
-        title="Sposta in un altro territorio o giorno"
-        className="rounded border border-[var(--brand-border)] px-2 py-0.5 text-[11px] text-[var(--brand-text-muted)] hover:text-[var(--brand-primary)] disabled:opacity-50"
-      >{label}</button>
+        aria-expanded={open}
+        aria-label={label ? undefined : 'Sposta in un altro territorio o giorno'}
+        className={label ? AZIONE_TESTO : AZIONE_ICONA}
+      >
+        <CornerUpRight size={13} aria-hidden />
+        {label}
+        {label && <ChevronDown size={12} aria-hidden />}
+      </button>
       {open && (
-        <div className="absolute right-0 top-full z-[60] mt-1 w-56 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 text-[12px]" style={{ boxShadow: 'var(--shadow-lg)' }}>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">In un altro territorio</div>
+        <div className="absolute right-0 top-full z-[60] mt-1 w-60 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2.5 shadow-[var(--shadow-lg)]">
+          <div className="mb-1 text-xs font-semibold text-[var(--brand-text-muted)]">In un altro territorio</div>
           <select
             defaultValue=""
             disabled={busy}
+            aria-label="Sposta in un altro territorio"
             onChange={(e) => { const v = e.target.value; if (v === '') return; onSpostaTerritorio(v === '__reset__' ? null : v); setOpen(false); }}
-            className="mb-2 w-full rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-1 text-[12px]"
+            className="mb-2.5 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:border-[var(--brand-border-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
           >
             <option value="" disabled>Scegli territorio…</option>
-            {modo === 'operatore' && territorioCorrente && <option value="__reset__">↩ Riporta al piano</option>}
+            {modo === 'operatore' && territorioCorrente && <option value="__reset__">Riporta al piano</option>}
             {territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
           </select>
-          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">In un altro giorno</div>
+          <div className="mb-1 text-xs font-semibold text-[var(--brand-text-muted)]">In un altro giorno</div>
           <DatePicker
             value=""
             onChange={(iso) => { onSpostaData(iso); setOpen(false); }}
