@@ -3,6 +3,8 @@
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useState } from 'react';
 import SettingsSubNav from '@/components/layout/SettingsSubNav';
+import Button from '@/components/Button';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import type { Hotel, HotelRoomPrice, Territory } from '@/types';
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
@@ -175,21 +177,15 @@ export default function HotelClient({
   return (
     <div className="space-y-6">
       <SettingsSubNav isAdminPlus={isAdminPlus} />
-      <div className="flex flex-wrap items-center justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-[var(--brand-text-main)]">Hotel</h1>
-          <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-            Strutture ricettive per trasferte: territorio, email e prezzi correnti per tipologia camera.
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setShowNewForm((value) => !value)}
-          className="rounded-xl bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]"
-        >
-          {showNewForm ? 'Annulla' : '+ Nuovo hotel'}
-        </button>
-      </div>
+      <ObjectHeader
+        title="Hotel"
+        sub="Strutture ricettive per trasferte: territorio, email e prezzi correnti per tipologia camera."
+        actions={
+          <Button variant="primary" onClick={() => setShowNewForm((value) => !value)}>
+            {showNewForm ? 'Annulla' : '+ Nuovo hotel'}
+          </Button>
+        }
+      />
 
       {feedback && (
         <div className={`rounded-xl px-4 py-3 text-sm ${

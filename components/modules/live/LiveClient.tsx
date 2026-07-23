@@ -8,6 +8,7 @@ import { labelStato } from '@/lib/interventi/interventiView';
 import { useInterventiFeed, type TorreIntervento } from '@/lib/interventi/useInterventiFeed';
 import { EsportaExcelButton } from './EsportaExcelButton';
 import { toast } from '@/components/ui/Toast';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 
 export type { TorreIntervento };
@@ -127,16 +128,18 @@ export default function LiveClient({
 
   return (
     <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-3xl font-semibold tracking-tight" style={{ color: 'var(--brand-text-main)' }}>
-            Live
-          </h1>
-          <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-            {data} · {items.length} interventi · ✅ {totali.fatti} · ❌ {totali.nonFatti} · ⏳ {totali.daFare}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
+      <ObjectHeader
+        title="Live"
+        sub={
+          <>
+            <span className="font-mono tabular-nums">{data}</span> · <span className="font-mono tabular-nums">{items.length}</span> interventi ·{' '}
+            <b style={{ color: 'var(--status-ok)' }}>{totali.fatti} fatti</b> ·{' '}
+            <b style={{ color: 'var(--status-ko)' }}>{totali.nonFatti} non fatti</b> ·{' '}
+            <b style={{ color: 'var(--status-warn)' }}>{totali.daFare} da fare</b>
+          </>
+        }
+        actions={
+          <>
           <input
             type="date"
             value={data}
@@ -182,8 +185,9 @@ export default function LiveClient({
               agg. {lastUpdate}
             </span>
           )}
-        </div>
-      </header>
+          </>
+        }
+      />
 
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
         {/* Colonna sinistra: operatori come filtri, scrollabile */}

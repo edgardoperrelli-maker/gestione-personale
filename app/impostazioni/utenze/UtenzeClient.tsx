@@ -10,6 +10,7 @@ import {
   type AppModuleGroup,
 } from '@/lib/moduleAccess';
 import Button from '@/components/Button';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import Badge from '@/components/Badge';
 import Dialog from '@/components/ui/Dialog';
 
@@ -462,12 +463,10 @@ export default function UtenzeClient() {
 
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6">
-      <div className="space-y-1">
-        <h1 className="text-2xl font-bold" style={{ color: 'var(--brand-text-main)' }}>Impostazioni Utenze</h1>
-        <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-          Il ruolo precompila i moduli; poi puoi abilitarli o disabilitarli liberamente per ogni utente.
-        </p>
-      </div>
+      <ObjectHeader
+        title="Impostazioni Utenze"
+        sub="Il ruolo precompila i moduli; poi puoi abilitarli o disabilitarli liberamente per ogni utente."
+      />
 
       {feedback && (
         <div
