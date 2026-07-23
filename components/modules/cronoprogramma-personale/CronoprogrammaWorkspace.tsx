@@ -1,7 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { startTransition, useEffect, useMemo, useRef, useState } from 'react';
+import { startTransition, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import { isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import Button from '@/components/Button';
@@ -24,6 +24,7 @@ import type { DayRow, FilterToken, SortMode, ViewMode } from './types';
 import { countAppointmentsByDay } from '@/lib/appuntamenti';
 import {
   addDays,
+  assignmentActivityIds,
   capitalize,
   endOfMonth,
   filterAssignments,
@@ -71,7 +72,10 @@ export default function CronoprogrammaWorkspace() {
   const [activities, setActivities] = useState<Activity[]>([]);
   const [territories, setTerritories] = useState<Territory[]>([]);
 
-  const [dialogOpenForDay, setDialogOpenForDay] = useState<{ id: string; iso: string } | null>(null);
+  type NewDialogPrefill = { staffId?: string; activityIds?: string[]; territoryId?: string };
+  const [dialogOpenForDay, setDialogOpenForDay] = useState<
+    { id: string; iso: string; prefill?: NewDialogPrefill } | null
+  >(null);
   const [editAssignment, setEditAssignment] = useState<Assignment | null>(null);
   const [sortMode, setSortMode] = useState<SortMode>('TERRITORIO');
   const [filters, setFilters] = useState<FilterToken[]>([]);
@@ -144,7 +148,7 @@ export default function CronoprogrammaWorkspace() {
   const assignmentSignature = (assignment: Assignment) =>
     [
       assignment.staff?.id ?? '',
-      assignment.activity?.id ?? '',
+      [...assignmentActivityIds(assignment)].sort().join(','),
       assignment.territory?.id ?? '',
       assignment.reperibile ? '1' : '0',
       assignment.notes ?? '',
@@ -158,7 +162,7 @@ export default function CronoprogrammaWorkspace() {
     const ares = await sb
       .from('assignments')
       .select(`
-        id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+        id, day_id, reperibile, zona_reperibilita, notes, cost_center, activity_ids,
         squadra_id, team_order, is_capo,
         staff:staff_id ( id, display_name ),
         territory:territory_id ( id, name ),
@@ -243,6 +247,23 @@ export default function CronoprogrammaWorkspace() {
     [activities]
   );
 
+  // id → nome per risolvere le attività di una card (multi-attività) dalla lista attiva.
+  const activityNameById = useMemo(() => {
+    const m = new Map<string, string>();
+    activities.forEach((a) => m.set(a.id, a.name));
+    return m;
+  }, [activities]);
+
+  // MAGAZZINO come collocamento: attività e territorio omonimi (per il click "in magazzino").
+  const magazzinoActivityId = useMemo(
+    () => activities.find((a) => a.name.trim().toUpperCase() === 'MAGAZZINO')?.id ?? null,
+    [activities]
+  );
+  const magazzinoTerritoryId = useMemo(
+    () => territories.find((t) => t.name.trim().toUpperCase() === 'MAGAZZINO')?.id ?? null,
+    [territories]
+  );
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -314,7 +335,7 @@ export default function CronoprogrammaWorkspace() {
         const ares = await sb
           .from('assignments')
           .select(`
-            id, day_id, reperibile, zona_reperibilita, notes, cost_center,
+            id, day_id, reperibile, zona_reperibilita, notes, cost_center, activity_ids,
             squadra_id, team_order, is_capo,
             staff:staff_id ( id, display_name ),
             territory:territory_id ( id, name ),
@@ -490,12 +511,12 @@ export default function CronoprogrammaWorkspace() {
     setEditAssignment(a);
   };
 
-  const openNewForDate = async (d: Date) => {
+  const openNewForDate = async (d: Date, prefill?: NewDialogPrefill) => {
     const iso = fmtDay(d);
 
     const existing = dayMap[iso];
     if (existing) {
-      setDialogOpenForDay({ id: existing.id, iso });
+      setDialogOpenForDay({ id: existing.id, iso, prefill });
       return;
     }
 
@@ -514,7 +535,7 @@ export default function CronoprogrammaWorkspace() {
 
     if (res.status === 409) {
       const { current } = await res.json();
-      if (current?.id) setDialogOpenForDay({ id: current.id, iso });
+      if (current?.id) setDialogOpenForDay({ id: current.id, iso, prefill });
       return;
     }
     if (!res.ok) return;
@@ -523,8 +544,16 @@ export default function CronoprogrammaWorkspace() {
     if (!row?.id) return;
 
     setDays((prev) => (prev.some((x) => x.id === row.id) ? prev : [...prev, { id: row.id, day: row.day }]));
-    setDialogOpenForDay({ id: row.id, iso });
+    setDialogOpenForDay({ id: row.id, iso, prefill });
   };
+
+  // "Metti in magazzino": apre la Nuova assegnazione precompilata (operatore + MAGAZZINO attività/territorio).
+  const openMagazzinoForStaff = (d: Date, staffId: string) =>
+    openNewForDate(d, {
+      staffId,
+      activityIds: magazzinoActivityId ? [magazzinoActivityId] : [],
+      territoryId: magazzinoTerritoryId ?? undefined,
+    });
 
   const ensureDayId = async (iso: string) => {
     const existing = dayMap[iso];
@@ -790,6 +819,7 @@ export default function CronoprogrammaWorkspace() {
         day_id: targetDayId,
         staff_id: a.staff?.id ?? null,
         activity_id: a.activity?.id ?? null,
+        activity_ids: a.activity_ids ?? (a.activity?.id ? [a.activity.id] : []),
         territory_id: a.territory?.id ?? null,
         reperibile: a.reperibile,
         notes: a.notes ?? null,
@@ -986,6 +1016,7 @@ export default function CronoprogrammaWorkspace() {
         day_id: targetDayId,
         staff_id: m.staff?.id ?? null,
         activity_id: m.activity?.id ?? null,
+        activity_ids: m.activity_ids ?? (m.activity?.id ? [m.activity.id] : []),
         territory_id: m.territory?.id ?? null,
         reperibile: m.reperibile,
         notes: m.notes ?? null,
@@ -1059,21 +1090,37 @@ export default function CronoprogrammaWorkspace() {
     softRefresh();
   };
 
+  // Risolve le attività (id → nome) di una card. La PRIMARIA usa anche a.activity (join, risolve pure
+  // le attività disattivate dello storico); le altre vengono dalla lista attiva.
+  const decoraAttivita = useCallback(
+    (a: Assignment): Assignment => {
+      const ids = a.activity_ids ?? (a.activity?.id ? [a.activity.id] : []);
+      const acts = ids.map((id) => ({
+        id,
+        name: activityNameById.get(id) ?? (a.activity?.id === id ? a.activity?.name ?? '' : ''),
+      }));
+      return { ...a, activities: acts };
+    },
+    [activityNameById]
+  );
+
   const visibleAssignments = useMemo(() => {
     const next: Record<string, Assignment[]> = {};
     Object.entries(assignments).forEach(([dayId, list]) => {
       const iso = dayIdMap[dayId];
       if (!iso) {
-        next[dayId] = list;
+        next[dayId] = list.map(decoraAttivita);
         return;
       }
-      next[dayId] = list.filter((assignment) => {
-        const staffId = assignment.staff?.id;
-        return isStaffValidOnDay(staffId ? staffById.get(staffId) : null, iso, todayIso);
-      });
+      next[dayId] = list
+        .filter((assignment) => {
+          const staffId = assignment.staff?.id;
+          return isStaffValidOnDay(staffId ? staffById.get(staffId) : null, iso, todayIso);
+        })
+        .map(decoraAttivita);
     });
     return next;
-  }, [assignments, dayIdMap, staffById, todayIso]);
+  }, [assignments, dayIdMap, staffById, todayIso, decoraAttivita]);
 
   const visibleStaff = useMemo(() => {
     const rangeFromIso = fmtDay(range.start);
@@ -1152,6 +1199,8 @@ export default function CronoprogrammaWorkspace() {
             onDropAssignment={handleDropAssignment}
             onDropDay={handleDropDay}
             staffCount={visibleStaff.length}
+            visibleStaff={visibleStaff}
+            onPlaceInMagazzino={openMagazzinoForStaff}
             taskCountMap={taskCountMap}
             assenzeByDay={assenze}
             onEditAssenza={openEditAssenza}
@@ -1162,11 +1211,11 @@ export default function CronoprogrammaWorkspace() {
 
       {dialogOpenForDay
         ? (() => {
-            const { id: dayId, iso } = dialogOpenForDay;
+            const { id: dayId, iso, prefill } = dialogOpenForDay;
             const excludeIds = new Set(
               (assignments[dayId] ?? [])
                 .map((a) => a?.staff?.id ?? '')
-                .filter((id) => id !== '')
+                .filter((id) => id !== '' && id !== (prefill?.staffId ?? ''))
             );
             const absentIdsForDay = new Set(
               (assenze[iso] ?? []).filter((x) => isAssenzaIntera(x)).map((x) => x.staff_id)
@@ -1183,6 +1232,9 @@ export default function CronoprogrammaWorkspace() {
                 actList={workActivities}
                 terrList={territories}
                 costCenterRangesByStaff={costCenterRangesByStaff}
+                initialStaffId={prefill?.staffId}
+                initialActivityIds={prefill?.activityIds}
+                initialTerritoryId={prefill?.territoryId}
                 onClose={() => setDialogOpenForDay(null)}
                 onCreated={(row: Assignment, close = true) => {
                   const bucket = row.day_id;
