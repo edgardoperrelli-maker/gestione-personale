@@ -47,7 +47,7 @@ function toneClass(v: string): string {
 }
 
 export default function StoricoTabella({
-  righe, isAdminPlus, puoModificare, onFoto, onModifica, onCancella, onRiga, rigaSelezionata,
+  righe, isAdminPlus, puoModificare, onFoto, onModifica, onCancella, onRiga, rigaSelezionata, colonneVisibili,
 }: {
   righe: RigaStorico[];
   isAdminPlus: boolean;
