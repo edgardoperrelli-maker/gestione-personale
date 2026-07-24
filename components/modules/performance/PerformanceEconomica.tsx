@@ -1,7 +1,9 @@
 'use client';
+/* Hallmark · redesign KPI (economica) · genre: modern-minimal · design-system: DESIGN.md ("Cockpit") · designed-as-app */
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '@/components/Button';
 import Badge from '@/components/Badge';
+import { ArrowRight } from 'lucide-react';
 import type { Aggregato } from '@/lib/produzione/aggregaProduzione';
 import type { ClasseDiscrepanza } from '@/lib/produzione/riconciliazione';
 import EditorListinoAcea from './EditorListinoAcea';
@@ -38,7 +40,7 @@ function pad(n: number) {
 }
 
 const field =
-  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
+  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 export default function PerformanceEconomica() {
   const now = useMemo(() => new Date(), []);
@@ -113,7 +115,7 @@ export default function PerformanceEconomica() {
   const auditClassi = dati ? ORDINE_AUDIT.filter((c) => dati.auditSummary[c] > 0) : [];
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
         <div className="flex flex-wrap items-center gap-2">
@@ -126,7 +128,7 @@ export default function PerformanceEconomica() {
           </Button>
           <a
             href={invalid ? undefined : exportUrl}
-            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-white ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--on-primary)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
           >
             Scarica Excel (dashboard)
           </a>
@@ -134,7 +136,7 @@ export default function PerformanceEconomica() {
             href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}`}
             target="_blank"
             rel="noreferrer"
-            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--brand-primary)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
           >
             Presentazione
           </a>
@@ -143,16 +145,16 @@ export default function PerformanceEconomica() {
       {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
 
       {editorOpen && (
-        <div className="mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+        <div className="mb-4 rounded-xl bg-[var(--brand-surface-muted)] p-3">
           <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Listino tariffe per voce (con validità)</h3>
           <EditorListinoAcea onSaved={carica} />
         </div>
       )}
 
       {/* Barra periodo */}
-      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
+      <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] px-3 py-2">
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={field} aria-label="Da" />
-        <span className="text-xs text-[var(--brand-text-subtle)]">→</span>
+        <ArrowRight size={13} className="shrink-0 text-[var(--brand-text-subtle)]" aria-hidden />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={field} aria-label="A" />
         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetMese}>Mese</Button>
         <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTrimestre}>Trim.</Button>
@@ -197,29 +199,31 @@ export default function PerformanceEconomica() {
           </div>
 
           {/* Produzione vs SAL per voce (tabella operativa) */}
-          <div className="mb-4 rounded-xl border border-[var(--brand-border)] p-3">
+          <div className="mb-4 rounded-xl bg-[var(--brand-surface-muted)] p-3">
             <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs Esitato ACEA per voce</h3>
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="text-left text-[var(--brand-text-muted)]">
-                  <th className="py-1 pr-2">Voce</th>
-                  <th className="py-1 pr-2 text-right">Produzione</th>
-                  <th className="py-1 pr-2 text-right">Esitato ACEA</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dati.produzione.perVoce.map((v) => {
-                  const sal = dati.sal.perVoce.find((s) => s.chiave === v.chiave);
-                  return (
-                    <tr key={v.chiave} className="border-t border-[var(--brand-border)]">
-                      <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{v.chiave}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums">{eur(v.valore)}</td>
-                      <td className="py-1 pr-2 text-right tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-left text-[var(--brand-text-muted)]">
+                    <th className="py-1 pr-2">Voce</th>
+                    <th className="py-1 pr-2 text-right">Produzione</th>
+                    <th className="py-1 pr-2 text-right">Esitato ACEA</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {dati.produzione.perVoce.map((v) => {
+                    const sal = dati.sal.perVoce.find((s) => s.chiave === v.chiave);
+                    return (
+                      <tr key={v.chiave} className="border-t border-[var(--brand-border)]">
+                        <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{v.chiave}</td>
+                        <td className="py-1 pr-2 text-right font-mono tabular-nums">{eur(v.valore)}</td>
+                        <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
 
           {/* Per attività (dettaglio granulare del listino) */}
@@ -234,7 +238,7 @@ export default function PerformanceEconomica() {
           </div>
 
           {/* Audit a tre vie */}
-          <div className="rounded-xl border border-[var(--brand-border)] p-3">
+          <div className="rounded-xl bg-[var(--brand-surface-muted)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">Audit a tre vie (DB · master · portale)</h3>
               {(!dati.masterPopolato || !dati.portalePopolato) && (
@@ -292,22 +296,24 @@ export default function PerformanceEconomica() {
 function TabellaAgg({ titolo, righe, max = 12 }: { titolo: string; righe: Aggregato[]; max?: number }) {
   const top = righe.slice(0, max);
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] p-3">
+    <div className="rounded-xl bg-[var(--brand-surface-muted)] p-3">
       <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">{titolo}</h3>
       {top.length === 0 ? (
         <p className="py-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun dato.</p>
       ) : (
-        <table className="w-full text-xs">
-          <tbody>
-            {top.map((r) => (
-              <tr key={r.chiave} className="border-t border-[var(--brand-border)] first:border-t-0">
-                <td className="py-1 pr-2 text-[var(--brand-text-main)]">{r.label}</td>
-                <td className="py-1 pr-2 text-right tabular-nums text-[var(--brand-text-muted)]">{r.conteggio.toLocaleString('it-IT')}</td>
-                <td className="py-1 pr-2 text-right font-medium tabular-nums">{r.valore.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <tbody>
+              {top.map((r) => (
+                <tr key={r.chiave} className="border-t border-[var(--brand-border)] first:border-t-0">
+                  <td className="py-1 pr-2 text-[var(--brand-text-main)]">{r.label}</td>
+                  <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{r.conteggio.toLocaleString('it-IT')}</td>
+                  <td className="py-1 pr-2 text-right font-mono font-medium tabular-nums">{r.valore.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       )}
     </div>
   );

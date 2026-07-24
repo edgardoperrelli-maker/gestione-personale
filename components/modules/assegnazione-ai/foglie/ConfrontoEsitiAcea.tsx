@@ -9,6 +9,7 @@ import { ChevronDown, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
+import StatTile from '@/components/ui/StatTile';
 import type { EsitoConfrontoAcea, FontePositivoDb, RigaDbVersoAcea } from '@/lib/agente/confrontoEsitiAcea';
 
 type MancanteRow = { odl: string; operatore: string | null; causa: string | null; statoDb: string | null; ultimaData: string | null };
@@ -58,14 +59,9 @@ function dataIt(iso: string | null | undefined): string {
   return m ? `${m[3]}/${m[2]}/${m[1]}` : '—';
 }
 
+// Adapter al primitivo StatTile (default tono = primary, come nella versione originale).
 function StatBox({ label, value, tono }: { label: string; value: number; tono?: 'ok' | 'warn' | 'danger' }) {
-  const colore = tono === 'danger' ? 'var(--danger)' : tono === 'warn' ? 'var(--warning)' : 'var(--brand-primary)';
-  return (
-    <div className="rounded-[var(--radius-lg)] border px-3 py-2" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'color-mix(in oklch, var(--brand-primary-soft) 40%, transparent)' }}>
-      <div className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>{label}</div>
-      <div className="font-mono text-lg font-semibold tabular-nums" style={{ color: colore }}>{value}</div>
-    </div>
-  );
+  return <StatTile label={label} value={value} tone={tono ?? 'primary'} />;
 }
 
 export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | null }) {
@@ -142,7 +138,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
           <button
             type="button"
             onClick={() => setAperta((v) => !v)}
-            className="flex items-center gap-2 text-left"
+            className="flex items-center gap-2 rounded-[var(--radius-sm)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             aria-expanded={aperta}
           >
             <span aria-hidden="true" className="text-[var(--brand-text-muted)]">
@@ -196,7 +192,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
             {dati.dbVersoAcea.righe.length > 0 && (
               <div>
                 <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                  Positivi nostri non allineati su ACEA ({dati.dbVersoAcea.righe.length})
+                  Positivi nostri non allineati su ACEA (<span className="font-mono tabular-nums">{dati.dbVersoAcea.righe.length}</span>)
                 </h3>
                 <div className="max-h-64 overflow-auto rounded-[var(--radius-lg)] border" style={{ borderColor: 'var(--brand-border)' }}>
                   <table className="w-full text-xs">
@@ -215,7 +211,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
                           <td className="px-2 py-1 font-mono tabular-nums">{r.odl}</td>
                           <td className="px-2 py-1">{dataIt(r.dataDb)}</td>
-                          <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
+                          <td className="px-2 py-1" style={{ color: 'var(--success)' }}>
                             POSITIVO <span style={{ color: 'var(--brand-text-muted)' }}>({ETICHETTA_FONTE[r.fonte]})</span>
                           </td>
                           <td className="px-2 py-1" style={{ color: r.esito === 'non_consuntivato' ? 'var(--danger)' : 'var(--warning)' }}>
@@ -239,7 +235,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
             {dati.aceaVersoDb.mancanti.length > 0 && (
               <div>
                 <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                  Positivi ACEA senza positivo nel nostro DB ({dati.aceaVersoDb.mancanti.length})
+                  Positivi ACEA senza positivo nel nostro DB (<span className="font-mono tabular-nums">{dati.aceaVersoDb.mancanti.length}</span>)
                 </h3>
                 <div className="max-h-64 overflow-auto rounded-[var(--radius-lg)] border" style={{ borderColor: 'var(--brand-border)' }}>
                   <table className="w-full text-xs">
@@ -257,7 +253,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
                           <td className="px-2 py-1 font-mono tabular-nums">{r.odl}</td>
                           <td className="px-2 py-1">{r.operatore ?? '—'}</td>
-                          <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
+                          <td className="px-2 py-1" style={{ color: 'var(--success)' }}>
                             POSITIVO{r.causa ? <span style={{ color: 'var(--brand-text-muted)' }}> · {r.causa}</span> : null}
                           </td>
                           <td className="px-2 py-1" style={{ color: 'var(--danger)' }}>{r.statoDb ?? '—'}</td>
@@ -278,11 +274,11 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
             {(dati.aceaVersoDb.maiVisti.length > 0 || dati.aceaVersoDb.fuoriAmbito > 0) && (
               <p className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>
                 {dati.aceaVersoDb.maiVisti.length > 0 && (
-                  <>{dati.aceaVersoDb.maiVisti.length} ODL positivi su ACEA mai comparsi nell&rsquo;app
+                  <><span className="font-mono tabular-nums">{dati.aceaVersoDb.maiVisti.length}</span> ODL positivi su ACEA mai comparsi nell&rsquo;app
                   (lavori pre-app o mai pianificati qui): elenco nell&rsquo;export Excel.{' '}</>
                 )}
                 {dati.aceaVersoDb.fuoriAmbito > 0 && (
-                  <>{dati.aceaVersoDb.fuoriAmbito} ODL fuori ambito Dunning (es. limitazioni massive): esclusi dal confronto.</>
+                  <><span className="font-mono tabular-nums">{dati.aceaVersoDb.fuoriAmbito}</span> ODL fuori ambito Dunning (es. limitazioni massive): esclusi dal confronto.</>
                 )}
               </p>
             )}

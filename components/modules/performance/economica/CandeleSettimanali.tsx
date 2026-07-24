@@ -1,6 +1,7 @@
 'use client';
 import { useEffect, useMemo, useState } from 'react';
 import { Bar, BarChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/Button';
 import { giorniSettimana, lunediSettimana } from '@/lib/produzione/settimana';
 import type { CandelaGiorno, CandelaOperatore } from '@/lib/produzione/aggregaCandele';
@@ -67,7 +68,7 @@ export default function CandeleSettimanali() {
             onClick={() => setLunedi((l) => spostaGiorni(l, -7))}
             aria-label="Settimana precedente"
           >
-            ←
+            <ChevronLeft className="h-4 w-4" strokeWidth={1.6} aria-hidden />
           </Button>
           <span className="text-xs text-[var(--brand-text-muted)]">
             Settimana del {giornoIT(giorni[0])} – {giornoIT(giorni[6])}
@@ -80,7 +81,7 @@ export default function CandeleSettimanali() {
             onClick={() => setLunedi((l) => spostaGiorni(l, 7))}
             aria-label="Settimana successiva"
           >
-            →
+            <ChevronRight className="h-4 w-4" strokeWidth={1.6} aria-hidden />
           </Button>
         </div>
       </div>

@@ -1,7 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FiltroStatoLive } from '@/lib/interventi/exportFiltro';
+import Button from '@/components/Button';
+import DatePicker from '@/components/ui/DatePicker';
 
 /**
  * Pulsante + popover per esportare gli interventi in Excel su un range Dal/Al
@@ -23,6 +25,16 @@ export function EsportaExcelButton({
   const [open, setOpen] = useState(false);
   const [from, setFrom] = useState(defaultData);
   const [to, setTo] = useState(defaultData);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const onDoc = (e: MouseEvent) => { if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false); };
+    const onEsc = (e: KeyboardEvent) => { if (e.key === 'Escape') setOpen(false); };
+    document.addEventListener('mousedown', onDoc);
+    document.addEventListener('keydown', onEsc);
+    return () => { document.removeEventListener('mousedown', onDoc); document.removeEventListener('keydown', onEsc); };
+  }, [open]);
 
   const scarica = () => {
     const params = new URLSearchParams({ from, to, stato: filtroStato });
@@ -33,39 +45,29 @@ export function EsportaExcelButton({
   };
 
   return (
-    <div className="relative">
-      <button
-        type="button"
+    <div ref={ref} className="relative">
+      <Button
+        variant="primary"
         onClick={() => setOpen((o) => !o)}
-        className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)]"
-        style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+        aria-expanded={open}
         title="Esporta gli interventi del periodo in Excel (rispetta i filtri attivi)"
       >
         Esporta Excel
-      </button>
+      </Button>
       {open && (
         <div
-          className="absolute right-0 z-20 mt-1 flex flex-col gap-2 rounded-xl border p-3 shadow-lg"
-          style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
+          className="absolute right-0 z-20 mt-2 flex w-72 flex-col gap-3 rounded-[var(--radius-lg)] border p-3"
+          style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', boxShadow: 'var(--shadow-md)' }}
         >
-          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-            Dal
-            <input type="date" value={from} max={to} onChange={(e) => setFrom(e.target.value)}
-              className="rounded-lg border px-2 py-1 text-sm" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }} />
-          </label>
-          <label className="flex items-center justify-between gap-2 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-            Al
-            <input type="date" value={to} min={from} max={maxData} onChange={(e) => setTo(e.target.value)}
-              className="rounded-lg border px-2 py-1 text-sm" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }} />
-          </label>
-          <button
-            type="button"
-            onClick={scarica}
-            className="rounded-lg px-3 py-1.5 text-sm font-semibold"
-            style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}
-          >
-            Scarica
-          </button>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Dal</span>
+            <DatePicker value={from} onChange={setFrom} max={to} ariaLabel="Data inizio" fullWidth />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>Al</span>
+            <DatePicker value={to} onChange={setTo} min={from} max={maxData} ariaLabel="Data fine" fullWidth />
+          </div>
+          <Button variant="primary" onClick={scarica}>Scarica</Button>
         </div>
       )}
     </div>

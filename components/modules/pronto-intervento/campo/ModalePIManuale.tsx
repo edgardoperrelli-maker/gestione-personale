@@ -1,7 +1,11 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { Camera } from 'lucide-react';
 import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { ScannerMisuratore } from '@/components/modules/rapportini/risanamento/ScannerMisuratore';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
@@ -15,9 +19,6 @@ function oggiRoma(): string {
 }
 
 const ALTRO = '__altro__';
-
-const inputCls =
-  'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none';
 
 /** Dati di una chiamata esistente per la modalità modifica (Q4: solo con link valido). */
 export type RigaEsistente = {
@@ -154,49 +155,43 @@ export default function ModalePIManuale({
         title={modifica ? 'Modifica chiamata P.I.' : 'Nuova chiamata P.I.'}
         footer={
           <div className="flex items-center justify-end gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-medium">Annulla</button>
-            <button
-              type="button"
-              disabled={salvataggio}
-              onClick={invia}
-              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50"
-            >
+            <Button variant="outline" onClick={onClose}>Annulla</Button>
+            <Button variant="primary" loading={salvataggio} onClick={invia}>
               {salvataggio ? 'Salvataggio…' : modifica ? 'Salva modifiche' : 'Invia richiesta'}
-            </button>
+            </Button>
           </div>
         }
       >
         <div className="space-y-4">
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Data chiamata</label>
-            <input type="date" value={data} onChange={(e) => setData(e.target.value)} className={inputCls} />
+            <Input type="date" value={data} onChange={(e) => setData(e.target.value)} />
           </div>
 
           <div>
             <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Esecutore</label>
-            <select
+            <Select
               value={altro ? ALTRO : esecutoreEff}
               onChange={(e) => selezionaEsecutore(e.target.value)}
-              className={inputCls}
             >
               <option value="">— Seleziona —</option>
               {reperibiliData.map((r) => (
                 <option key={r.staffId} value={r.staffId}>{r.nome}</option>
               ))}
               <option value={ALTRO}>Altro operatore…</option>
-            </select>
+            </Select>
 
             {altro && (
-              <select
+              <Select
                 value={esecutore}
                 onChange={(e) => setEsecutore(e.target.value)}
-                className={`${inputCls} mt-2`}
+                className="mt-2"
               >
                 <option value="">— Seleziona operatore —</option>
                 {operatori.map((o) => (
                   <option key={o.staffId} value={o.staffId}>{o.nome}</option>
                 ))}
-              </select>
+              </Select>
             )}
 
             {!altro && reperibiliData.length === 0 && (
@@ -210,14 +205,14 @@ export default function ModalePIManuale({
           {infoOrdinati.map((c) => (
             <div key={c.chiave}>
               <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
-              <input
+              <Input
                 type="text"
                 value={anagrafica[c.chiave] ?? ''}
                 // MAIUSCOLO "IME-safe": su Android non muta il testo durante la composizione, così lo
                 // SPAZIO non cancella il campo (il MAIUSCOLO definitivo è garantito dal server).
                 onChange={(e) => setAnagrafica((a) => ({ ...a, [c.chiave]: maiuscoloDigitando(e) }))}
                 onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((a) => ({ ...a, [c.chiave]: v })); }}
-                className={`${inputCls} uppercase`}
+                className="uppercase"
               />
             </div>
           ))}
@@ -233,7 +228,7 @@ export default function ModalePIManuale({
           ))}
 
           {/* Campo PATCH: crocetta; se spuntata la matricola è obbligatoria (scan o digitazione). */}
-          <div className="rounded-lg border border-[var(--brand-border)] p-3">
+          <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] p-3">
             <label className="flex items-center gap-2 text-sm font-medium text-[var(--brand-text-main)]">
               <input type="checkbox" checked={patch} onChange={(e) => setPatch(e.target.checked)} className="h-4 w-4" />
               PATCH
@@ -242,20 +237,16 @@ export default function ModalePIManuale({
               <div className="mt-3">
                 <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Matricola patch</label>
                 <div className="flex gap-2">
-                  <input
+                  <Input
                     type="text"
                     value={patchMatricola}
                     onChange={(e) => setPatchMatricola(e.target.value.toUpperCase())}
                     placeholder="Matricola"
-                    className={`${inputCls} uppercase`}
+                    className="uppercase"
                   />
-                  <button
-                    type="button"
-                    onClick={() => setScanner(true)}
-                    className="shrink-0 rounded-lg border border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
-                  >
-                    📷 Scansiona
-                  </button>
+                  <Button variant="outline" className="shrink-0" onClick={() => setScanner(true)}>
+                    <Camera className="h-4 w-4" aria-hidden /> Scansiona
+                  </Button>
                 </div>
               </div>
             )}

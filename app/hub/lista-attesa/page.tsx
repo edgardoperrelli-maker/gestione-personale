@@ -9,10 +9,7 @@ export default async function ListaAttesaPage() {
 
   return (
     <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
-      <header className="space-y-2">
-        <p className="text-xs font-medium uppercase tracking-widest text-[var(--brand-text-muted)]">Lista attesa</p>
-        <ListaAttesaNav attivo="richieste" />
-      </header>
+      <ListaAttesaNav attivo="richieste" />
       <CodaRichiesteManuali infoCampi={infoCampi} infoCampiPerCommittente={infoCampiPerCommittente} campiPerCommittente={campiPerCommittente} userId={userId} adminNomi={adminNomi} tassonomia={tassonomia} />
     </main>
   );

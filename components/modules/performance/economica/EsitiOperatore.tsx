@@ -85,14 +85,14 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
               />
               <Legend wrapperStyle={{ fontSize: 12 }} />
               <Bar dataKey="positivi" stackId="e" name="Positivi" fill={cc.success}>
-                <LabelList content={etichettaPctSegmento(righe, 'positivi', '#ffffff')} />
+                <LabelList content={etichettaPctSegmento(righe, 'positivi', cc.onPrimary)} />
               </Bar>
               <Bar dataKey="negativi" stackId="e" name="Negativi" fill={cc.danger}>
-                <LabelList content={etichettaPctSegmento(righe, 'negativi', '#ffffff')} />
+                <LabelList content={etichettaPctSegmento(righe, 'negativi', cc.onPrimary)} />
               </Bar>
               <Bar dataKey="nonLavorati" stackId="e" name="Non lavorati" fill={cc.brandTextMuted} radius={[0, 4, 4, 0]}>
                 <LabelList dataKey="valore" position="right" formatter={(v: unknown) => eur(Number(v))} style={{ fill: cc.brandTextMuted, fontSize: 10 }} />
-                <LabelList content={etichettaPctSegmento(righe, 'nonLavorati', 'var(--brand-text-main)')} />
+                <LabelList content={etichettaPctSegmento(righe, 'nonLavorati', cc.onPrimary)} />
               </Bar>
             </BarChart>
           </ResponsiveContainer>

@@ -1,11 +1,17 @@
+/* Hallmark · redesign: Cockpit-aligned · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { Clock, Play, RotateCw, TriangleAlert } from 'lucide-react';
 import type { RegolaMappa } from '@/lib/agente/decisione';
 import { GIORNI_LABEL, formattaContatto, type AgenteConfigRow, type AgenteRunRow, type AgenteFileColonneRow } from '@/lib/agente/uiTypes';
 import { AvvisiSyncBanner } from './AvvisiSyncBanner';
 import ObjectHeader from '@/components/ui/ObjectHeader';
+import Button from '@/components/Button';
+import Select from '@/components/ui/Select';
+import Input from '@/components/Input';
+import { Card, CardContent } from '@/components/Card';
 import { opzioniAceaTarget, opzioniComuneGiro, TARGET_DUNNING, TARGET_TUTTI } from '@/lib/agente/comuni';
 import { StoricoCard } from './StoricoCard';
 import { ColonneCard } from './ColonneCard';
@@ -37,11 +43,6 @@ export type ConfigForm = {
   esito_positivo: string;
   esito_negativo: string;
 };
-
-const cardStyle = {
-  borderColor: 'var(--brand-border)',
-  backgroundColor: 'var(--brand-surface)',
-} as const;
 
 export default function AgenteClient({ config, runs, files, stato, minutiDaContatto, forzaGiro, forzaScan, forzaAcea, forzaAceaSal, avvisiSync, avvisiSyncIl }: AgenteClientProps) {
   const router = useRouter();
@@ -161,217 +162,237 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
       <ObjectHeader title="Agente" sub="Pianificazione e feedback del sync limitazioni massive." />
 
       {/* Card Pianificazione */}
-      <section className="rounded-2xl border p-5 space-y-4" style={cardStyle}>
-        <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>Pianificazione</h2>
-          <button
-            type="button"
-            onClick={() => patch({ enabled: !form.enabled })}
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold transition"
-            style={{
-              backgroundColor: form.enabled ? 'var(--success-soft)' : 'var(--brand-surface-muted)',
-              color: form.enabled ? 'var(--success)' : 'var(--brand-text-muted)',
-            }}
-            aria-pressed={form.enabled}
-          >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: form.enabled ? 'var(--status-ok)' : 'var(--status-idle)' }} />
-            {form.enabled ? 'Acceso' : 'Spento'}
-          </button>
-        </div>
-
-        <div className="space-y-2">
-          <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Giorni</label>
-          <div className="flex flex-wrap gap-1.5">
-            {GIORNI_LABEL.map((lbl, i) => {
-              const iso = i + 1; // 1=Lun..7=Dom
-              const on = form.giorni.includes(iso);
-              return (
-                <button
-                  key={iso}
-                  type="button"
-                  onClick={() => toggleGiorno(iso)}
-                  className="rounded-xl border px-3 py-1.5 text-sm font-medium transition"
-                  style={{
-                    borderColor: on ? 'var(--brand-primary)' : 'var(--brand-border)',
-                    backgroundColor: on ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
-                    color: 'var(--brand-text-main)',
-                  }}
-                  aria-pressed={on}
-                >
-                  {lbl}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-
-        <div className="flex flex-wrap items-end gap-4">
-          <div className="space-y-1">
-            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
-              Ora
-              <input
-                type="time"
-                value={form.ora}
-                onChange={(e) => patch({ ora: e.target.value })}
-                className="mt-1 block rounded-xl border px-3 py-1.5 text-sm outline-none"
-                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-              />
-            </label>
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>
-              Finestra (giorni)
-              <input
-                type="number"
-                min={1}
-                max={60}
-                value={form.finestra_giorni}
-                onChange={(e) => patch({ finestra_giorni: Number(e.target.value) })}
-                className="mt-1 block w-24 rounded-xl border px-3 py-1.5 text-sm outline-none"
-                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-              />
-            </label>
-          </div>
-          <div className="space-y-1">
-            <label className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Modalità</label>
+      <Card animated={false}>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Pianificazione</h2>
             <button
               type="button"
-              onClick={() => { const nuovo = !form.dry_run; patch({ dry_run: nuovo }); void salva({ dry_run: nuovo }); }}
-              disabled={salvando}
-              className="rounded-xl border px-3 py-1.5 text-sm font-medium transition disabled:opacity-60"
+              onClick={() => patch({ enabled: !form.enabled })}
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-sm font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               style={{
-                borderColor: 'var(--brand-border)',
-                backgroundColor: form.dry_run ? 'var(--warning-soft)' : 'var(--brand-surface)',
-                color: 'var(--brand-text-main)',
+                backgroundColor: form.enabled ? 'var(--success-soft)' : 'var(--brand-surface-muted)',
+                color: form.enabled ? 'var(--success)' : 'var(--brand-text-muted)',
               }}
-              aria-pressed={form.dry_run}
-              title="Prova non scrive sui file; Reale scrive. Si salva subito."
+              aria-pressed={form.enabled}
             >
-              {form.dry_run ? 'Prova (dry-run)' : 'Reale'}
+              <span className="h-2 w-2 rounded-full" style={{ backgroundColor: form.enabled ? 'var(--status-ok)' : 'var(--status-idle)' }} />
+              {form.enabled ? 'Acceso' : 'Spento'}
             </button>
           </div>
-        </div>
-      </section>
+
+          <div className="space-y-2">
+            <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Giorni</span>
+            <div className="flex flex-wrap gap-1.5">
+              {GIORNI_LABEL.map((lbl, i) => {
+                const iso = i + 1; // 1=Lun..7=Dom
+                const on = form.giorni.includes(iso);
+                return (
+                  <button
+                    key={iso}
+                    type="button"
+                    onClick={() => toggleGiorno(iso)}
+                    className="rounded-[var(--radius-md)] border px-3 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    style={{
+                      borderColor: on ? 'var(--brand-primary)' : 'var(--brand-border)',
+                      backgroundColor: on ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
+                      color: on ? 'var(--primary-text)' : 'var(--brand-text-main)',
+                    }}
+                    aria-pressed={on}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="flex flex-wrap items-end gap-4">
+            <label className="block space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Ora</span>
+              <span className="inline-block w-36">
+                <Input
+                  type="time"
+                  value={form.ora}
+                  onChange={(e) => patch({ ora: e.target.value })}
+                  className="py-1.5 font-mono tabular-nums"
+                />
+              </span>
+            </label>
+            <label className="block space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Finestra (giorni)</span>
+              <span className="inline-block w-24">
+                <Input
+                  type="number"
+                  min={1}
+                  max={60}
+                  value={form.finestra_giorni}
+                  onChange={(e) => patch({ finestra_giorni: Number(e.target.value) })}
+                  className="py-1.5 font-mono tabular-nums"
+                />
+              </span>
+            </label>
+            <div className="space-y-1">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Modalità</span>
+              <button
+                type="button"
+                onClick={() => { const nuovo = !form.dry_run; patch({ dry_run: nuovo }); void salva({ dry_run: nuovo }); }}
+                disabled={salvando}
+                className="rounded-[var(--radius-md)] border px-3 py-1.5 text-sm font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-60"
+                style={{
+                  borderColor: form.dry_run ? 'var(--warning)' : 'var(--brand-border)',
+                  backgroundColor: form.dry_run ? 'var(--warning-soft)' : 'var(--brand-surface)',
+                  color: 'var(--brand-text-main)',
+                }}
+                aria-pressed={form.dry_run}
+                title="Prova non scrive sui file; Reale scrive. Si salva subito."
+              >
+                {form.dry_run ? 'Prova (dry-run)' : 'Reale'}
+              </button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Card Stato */}
-      <section className="rounded-2xl border p-5 space-y-3" style={cardStyle}>
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>Stato</h2>
-        <div className="flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full" style={{ backgroundColor: stato.online ? 'var(--status-ok)' : 'var(--status-idle)' }} />
-          <span className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
-            {stato.online ? 'Online' : 'Offline'}
-          </span>
-          <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-            · ultimo contatto {formattaContatto(minutiDaContatto)}
-          </span>
-        </div>
-        {(forzaGiro || forzaScan || forzaAcea || forzaAceaSal) && (
-          <div
-            className="flex flex-wrap items-center gap-2 rounded-xl border px-3 py-2 text-sm"
-            style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
-          >
-            <span>⏳ In attesa del prossimo contatto dell&apos;agente:</span>
-            {forzaGiro && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
-                giro forzato
-              </span>
-            )}
-            {forzaScan && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
-                re-scan colonne
-              </span>
-            )}
-            {forzaAcea && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
-                stato ACEA
-              </span>
-            )}
-            {forzaAceaSal && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)' }}>
-                leggi SAL
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={() => router.refresh()}
-              className="ml-auto rounded-lg border px-2 py-0.5 text-xs font-medium"
-              style={{ borderColor: 'var(--brand-border)' }}
+      <Card animated={false}>
+        <CardContent className="space-y-4">
+          <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Stato</h2>
+          <div className="flex items-center gap-2">
+            <span className="h-3 w-3 rounded-full" style={{ backgroundColor: stato.online ? 'var(--status-ok)' : 'var(--status-idle)' }} />
+            <span className="text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
+              {stato.online ? 'Online' : 'Offline'}
+            </span>
+            <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
+              · ultimo contatto {formattaContatto(minutiDaContatto)}
+            </span>
+          </div>
+          {(forzaGiro || forzaScan || forzaAcea || forzaAceaSal) && (
+            <div
+              className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
             >
-              ↻ Aggiorna stato
-            </button>
+              <Clock size={15} className="shrink-0" style={{ color: 'var(--warning)' }} aria-hidden />
+              <span>In attesa del prossimo contatto dell&apos;agente:</span>
+              {forzaGiro && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--primary-text)' }}>
+                  giro forzato
+                </span>
+              )}
+              {forzaScan && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--primary-text)' }}>
+                  re-scan colonne
+                </span>
+              )}
+              {forzaAcea && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--primary-text)' }}>
+                  stato ACEA
+                </span>
+              )}
+              {forzaAceaSal && (
+                <span className="rounded-full px-2 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--primary-text)' }}>
+                  leggi SAL
+                </span>
+              )}
+              <button
+                type="button"
+                onClick={() => router.refresh()}
+                className="ml-auto inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border px-2 py-0.5 text-xs font-medium transition hover:bg-[var(--brand-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                style={{ borderColor: 'var(--brand-border-strong)', color: 'var(--brand-text-main)' }}
+              >
+                <RotateCw size={13} aria-hidden />
+                Aggiorna stato
+              </button>
+            </div>
+          )}
+          {stato.allerta && (
+            <div
+              className="flex items-center gap-2 rounded-[var(--radius-lg)] border px-3 py-2 text-sm"
+              style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
+              role="alert"
+            >
+              <TriangleAlert size={15} className="shrink-0" aria-hidden />
+              {stato.allerta}
+            </div>
+          )}
+          <AvvisiSyncBanner avvisi={avvisiSync} rilevatoIl={avvisiSyncIl} />
+
+          {/* Azioni manuali — passano tutte dal prossimo contatto dell'agente */}
+          <div className="space-y-3 border-t pt-4" style={{ borderColor: 'var(--brand-border)' }}>
+            {/* Giro sincronizzazione manuale */}
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Giro sincronizzazione</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-block w-52">
+                  <Select
+                    value={giroComune}
+                    onChange={(e) => setGiroComune(e.target.value)}
+                    disabled={arming}
+                    className="py-1.5 text-sm"
+                    title="Limita QUESTO giro manuale a un solo comune. Il giro notturno pianificato gira sempre su tutti i comuni."
+                    aria-label="Comune del giro manuale"
+                  >
+                    {comuneOpzioni.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </Select>
+                </span>
+                <Button variant="primary" onClick={eseguiOra} loading={arming}>
+                  {!arming && <Play size={14} aria-hidden />}
+                  {arming ? 'Armo…' : 'Esegui ora'}
+                </Button>
+                {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
+              </div>
+            </div>
+
+            {/* Stato ODL da ACEA */}
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>Stato ODL da ACEA</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="inline-block w-52">
+                  <Select
+                    value={aceaTarget}
+                    onChange={(e) => setAceaTarget(e.target.value)}
+                    disabled={aceaArming}
+                    className="py-1.5 text-sm"
+                    title="Quale master aggiornare con lo stato ODL da ACEA"
+                    aria-label="Master da aggiornare con lo stato ODL"
+                  >
+                    {targetOpzioni.map((o) => (
+                      <option key={o.value} value={o.value}>{o.label}</option>
+                    ))}
+                  </Select>
+                </span>
+                <Button
+                  variant="soft"
+                  onClick={aggiornaStatoAcea}
+                  loading={aceaArming}
+                  title="Playwright accede ad ACEA, esporta e aggiorna la colonna stato del master scelto."
+                >
+                  {aceaArming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
+                </Button>
+                {aceaMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</span>}
+              </div>
+            </div>
+
+            {/* Lettura SAL */}
+            <div className="space-y-1.5">
+              <span className="block text-xs font-medium uppercase tracking-wide" style={{ color: 'var(--brand-text-muted)' }}>SAL — produzione economica</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <Button
+                  variant="outline"
+                  onClick={leggiSal}
+                  loading={salArming}
+                  title="Legge i file SAL N.xlsx dalla cartella CONTABILITA' e aggiorna lo storico SAL del KPI produzione economica."
+                >
+                  {salArming ? 'Invio…' : 'Leggi SAL'}
+                </Button>
+                {salMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{salMsg}</span>}
+              </div>
+            </div>
           </div>
-        )}
-        {stato.allerta && (
-          <div
-            className="rounded-xl border px-3 py-2 text-sm"
-            style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
-            role="alert"
-          >
-            ⚠ {stato.allerta}
-          </div>
-        )}
-        <AvvisiSyncBanner avvisi={avvisiSync} rilevatoIl={avvisiSyncIl} />
-        <div className="mt-3 flex items-center gap-3">
-          <button
-            type="button"
-            onClick={eseguiOra}
-            disabled={arming}
-            className="rounded-lg px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
-            style={{ backgroundColor: 'var(--brand-primary)' }}
-          >
-            {arming ? 'Armo…' : 'Esegui ora'}
-          </button>
-          <select
-            value={giroComune}
-            onChange={(e) => setGiroComune(e.target.value)}
-            disabled={arming}
-            className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            title="Limita QUESTO giro manuale a un solo comune. Il giro notturno pianificato gira sempre su tutti i comuni."
-            aria-label="Comune del giro manuale"
-          >
-            {comuneOpzioni.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          {armMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{armMsg}</span>}
-          <select
-            value={aceaTarget}
-            onChange={(e) => setAceaTarget(e.target.value)}
-            disabled={aceaArming}
-            className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-50"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            title="Quale master aggiornare con lo stato ODL da ACEA"
-            aria-label="Master da aggiornare con lo stato ODL"
-          >
-            {targetOpzioni.map((o) => (
-              <option key={o.value} value={o.value}>{o.label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={aggiornaStatoAcea}
-            disabled={aceaArming}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
-            title="Playwright accede ad ACEA, esporta e aggiorna la colonna stato del master scelto."
-          >
-            {aceaArming ? 'Invio…' : 'Aggiorna stato ODL da ACEA'}
-          </button>
-          {aceaMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{aceaMsg}</span>}
-          <button
-            type="button"
-            onClick={leggiSal}
-            disabled={salArming}
-            className="rounded-lg border px-3 py-1.5 text-sm font-medium disabled:opacity-50"
-            style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
-            title="Legge i file SAL N.xlsx dalla cartella CONTABILITA' e aggiorna lo storico SAL del KPI produzione economica."
-          >
-            {salArming ? 'Invio…' : 'Leggi SAL'}
-          </button>
-          {salMsg && <span className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{salMsg}</span>}
-        </div>
-      </section>
+        </CardContent>
+      </Card>
 
       {/* Card Storico (D6) */}
       <StoricoCard runs={runs} />
@@ -398,15 +419,9 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
             {esitoSalva.msg}
           </span>
         )}
-        <button
-          type="button"
-          onClick={() => void salva()}
-          disabled={salvando}
-          className="rounded-xl border px-4 py-2 text-sm font-semibold transition hover:border-[var(--brand-primary)] disabled:opacity-60"
-          style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-text-main)' }}
-        >
+        <Button variant="primary" onClick={() => void salva()} loading={salvando}>
           {salvando ? 'Salvo…' : 'Salva impostazioni'}
-        </button>
+        </Button>
       </div>
     </main>
   );

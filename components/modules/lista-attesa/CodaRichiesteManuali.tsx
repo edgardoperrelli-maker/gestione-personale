@@ -1,6 +1,17 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Coda «Richieste manuali». Allineamento Cockpit: testa non più duplicata dalla
+ * ListaAttesaNav (il titolo lo dà l'h1), toolbar di stato con conteggio mono +
+ * pallino live, pill presa-in-carico → primitivo Badge, icona lucide su Aggiorna,
+ * un solo livello di card bordata (il pannello di revisione perde la sua cornice,
+ * vive dentro la riga). Rotte/feed realtime/azioni invariati.
+ */
+
 import { useMemo, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { PannelloRevisioneRichiesta } from './PannelloRevisioneRichiesta';
@@ -12,6 +23,7 @@ import { datiAnagraficaCoda, filtraCoda } from '@/lib/interventi/manuali/filtraC
 import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import Button from '@/components/Button';
+import Badge from '@/components/Badge';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 
@@ -74,21 +86,24 @@ export function CodaRichiesteManuali({
   };
 
   return (
-    <section className="space-y-3">
-      {/* Header: h2 dominante + live dot + Aggiorna */}
-      <div className="flex items-center justify-between">
-        <h2 className="flex items-center gap-2 text-xl font-semibold text-[var(--brand-text-main)]">
-          Richieste manuali
-          <span className="text-sm font-normal text-[var(--brand-text-muted)]">
-            in attesa ({filtroAttivo ? `${filtrate.length} di ${count}` : count})
-          </span>
+    <section aria-label="Richieste manuali" className="space-y-3">
+      {/* Toolbar di stato: conteggio in attesa (mono) + pallino live + Aggiorna.
+          Il titolo lo porta l'h1 della ListaAttesaNav: qui niente h2 duplicato. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="flex items-center gap-2 text-sm text-[var(--brand-text-muted)]">
           <span
-            className={`inline-block h-2 w-2 rounded-full ${live ? 'bg-[var(--status-ok)]' : 'bg-[var(--status-idle)]'}`}
+            className={`inline-block h-2 w-2 shrink-0 rounded-full ${live ? 'bg-[var(--status-ok)]' : 'bg-[var(--status-idle)]'}`}
             title={live ? 'Realtime attivo' : 'Realtime non attivo (polling)'}
           />
-        </h2>
+          <span>
+            <span className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">
+              {filtroAttivo ? `${filtrate.length} di ${count}` : count}
+            </span>{' '}
+            in attesa
+          </span>
+        </p>
         <Button variant="secondary" size="sm" animated={false} onClick={() => void refresh()}>
-          Aggiorna
+          <RefreshCw size={15} aria-hidden /> Aggiorna
         </Button>
       </div>
 
@@ -147,25 +162,28 @@ export function CodaRichiesteManuali({
                   <button
                     type="button"
                     onClick={() => setAperta((a) => (a === r.id ? null : r.id))}
-                    className="flex flex-col items-start gap-0.5 text-left"
+                    className="flex flex-col items-start gap-0.5 rounded-[var(--radius-sm)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   >
                     <span className="text-sm font-semibold text-[var(--brand-text-main)]">
                       {r.staff_name ?? r.staff_id} · {etichettaCommittente(r.committente)}
                     </span>
                     {(dati.via || dati.matricola) && (
                       <span className="text-xs text-[var(--brand-text-main)]">
-                        {[dati.via, dati.matricola && `matr. ${dati.matricola}`].filter(Boolean).join(' · ')}
+                        {dati.via}
+                        {dati.via && dati.matricola && ' · '}
+                        {dati.matricola && (
+                          <>matr. <span className="font-mono tabular-nums">{dati.matricola}</span></>
+                        )}
                       </span>
                     )}
                     <span className="text-xs font-medium text-[var(--brand-text-muted)]">
-                      {formatDataIt(r.data)} · inviata {formatOraIt(r.created_at)}
+                      <span className="font-mono tabular-nums">{formatDataIt(r.data)}</span> · inviata{' '}
+                      <span className="font-mono tabular-nums">{formatOraIt(r.created_at)}</span>
                     </span>
                   </button>
                   <div className="flex items-center gap-2">
                     {presa.etichetta && (
-                      <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${presa.miaPresa ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]'}`}>
-                        {presa.etichetta}
-                      </span>
+                      <Badge variant={presa.miaPresa ? 'primary' : 'muted'}>{presa.etichetta}</Badge>
                     )}
                     {presa.mostraPrendi && (
                       <Button variant="primary" size="sm" animated={false} disabled={busy} onClick={() => void prendi(r.id)}>

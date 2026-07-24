@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { FileText, Pencil, Plus } from 'lucide-react';
 import ModalePIManuale, { type RigaEsistente } from './ModalePIManuale';
+import Button from '@/components/Button';
+import Badge from '@/components/Badge';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { ReperibileRef } from '@/lib/pi/types';
@@ -63,6 +66,13 @@ const STATO_LABEL: Record<string, string> = {
   annullato: 'Annullato',
 };
 
+const STATO_BADGE: Record<string, 'ok' | 'ko' | 'warn' | 'idle'> = {
+  in_attesa: 'warn',
+  approvato: 'ok',
+  rifiutato: 'ko',
+  annullato: 'idle',
+};
+
 function fmtData(d: string | null): string {
   if (!d) return '';
   const [y, m, g] = d.split('-');
@@ -110,7 +120,7 @@ export default function PILinkClient({ token }: { token: string }) {
         </header>
 
         {!valido && payload && (
-          <div className="mb-4 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3 text-sm text-[var(--warning)]">
+          <div className="mb-4 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3 text-sm text-[var(--warning)]">
             {payload.token.statoCalcolato === 'non_attivo' && 'Link non ancora attivo.'}
             {payload.token.statoCalcolato === 'scaduto' && 'Link scaduto: non è più possibile inserire chiamate.'}
             {payload.token.statoCalcolato === 'revocato' && 'Link revocato dall’ufficio.'}
@@ -120,7 +130,7 @@ export default function PILinkClient({ token }: { token: string }) {
         {caricamento && <p className="text-sm text-[var(--brand-text-muted)]">Caricamento…</p>}
 
         {payload && payload.righe.length === 0 && (
-          <div className="rounded-xl border border-dashed border-[var(--brand-border)] p-8 text-center text-sm text-[var(--brand-text-muted)]">
+          <div className="rounded-[var(--radius-xl)] border border-dashed border-[var(--brand-border)] p-8 text-center text-sm text-[var(--brand-text-muted)]">
             Nessuna chiamata registrata. Premi “+” per aggiungerne una.
           </div>
         )}
@@ -130,44 +140,35 @@ export default function PILinkClient({ token }: { token: string }) {
             const ana = (r.dati_correnti?.anagrafica ?? {}) as Record<string, unknown>;
             const indirizzo = [ana.via, ana.comune].filter(Boolean).join(' · ');
             return (
-              <li key={r.id} className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-sm">
+              <li key={r.id} className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
                 <div className="flex items-start justify-between gap-2">
                   <div>
                     <div className="text-sm font-semibold">{indirizzo || '—'}</div>
                     <div className="text-xs text-[var(--brand-text-muted)]">{fmtData(r.data)} · {r.staff_name ?? '—'}</div>
                   </div>
                   <div className="flex flex-col items-end gap-1">
-                    <span className="rounded-full bg-[var(--brand-surface-muted)] px-2 py-0.5 text-xs font-medium">{STATO_LABEL[r.stato] ?? r.stato}</span>
-                    {r.anomalia_reperibilita && (
-                      <span className="rounded-full bg-[var(--danger-soft,transparent)] px-2 py-0.5 text-xs font-semibold text-[var(--danger)]">anomalia reperibilità</span>
-                    )}
+                    <Badge variant={STATO_BADGE[r.stato] ?? 'idle'}>{STATO_LABEL[r.stato] ?? r.stato}</Badge>
+                    {r.anomalia_reperibilita && <Badge variant="ko">anomalia reperibilità</Badge>}
                   </div>
                 </div>
-                <div className="mt-2 flex items-center gap-3">
-                  <button
-                    type="button"
-                    onClick={() => { void condividiRapportinoPdf(r).catch(() => {}); }}
-                    className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
-                  >
-                    📄 Genera PDF
-                  </button>
+                <div className="mt-2 flex items-center gap-2">
+                  <Button variant="outline" size="sm" onClick={() => { void condividiRapportinoPdf(r).catch(() => {}); }}>
+                    <FileText className="h-3.5 w-3.5" aria-hidden /> Genera PDF
+                  </Button>
                   {r.stato === 'in_attesa' && valido && (
-                    <button
-                      type="button"
-                      onClick={() => apriModifica(r)}
-                      className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]"
-                    >
-                      ✏️ Modifica
-                    </button>
+                    <Button variant="outline" size="sm" onClick={() => apriModifica(r)}>
+                      <Pencil className="h-3.5 w-3.5" aria-hidden /> Modifica
+                    </Button>
                   )}
                   {r.stato === 'in_attesa' && (
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-[var(--danger)]"
                       onClick={async () => { await fetch(`/api/pi/${token}/intervento/${r.id}/annulla`, { method: 'POST' }); void carica(); }}
-                      className="text-xs font-medium text-[var(--danger)] underline"
                     >
                       Annulla
-                    </button>
+                    </Button>
                   )}
                 </div>
               </li>
@@ -181,9 +182,9 @@ export default function PILinkClient({ token }: { token: string }) {
           type="button"
           aria-label="Aggiungi chiamata"
           onClick={() => setModale(true)}
-          className="fixed bottom-6 right-6 h-14 w-14 rounded-full bg-[var(--brand-primary)] text-2xl font-bold text-[var(--on-primary)] shadow-lg"
+          className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[var(--on-primary)] shadow-[var(--shadow-lg)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-bg)]"
         >
-          +
+          <Plus className="h-6 w-6" aria-hidden />
         </button>
       )}
 

@@ -1,5 +1,6 @@
 'use client';
 
+import { X } from 'lucide-react';
 import MultiSelect from '@/components/ui/MultiSelect';
 
 export type Operatore = { staffId: string; nome: string };
@@ -54,9 +55,9 @@ export default function SquadraPicker({
                   type="button"
                   aria-label={`Rimuovi ${nome(id)}`}
                   onClick={() => onChange(valori.filter((x) => x !== id))}
-                  className="text-[var(--brand-text-subtle)] hover:text-[var(--status-ko)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="flex items-center text-[var(--brand-text-subtle)] transition-colors hover:text-[var(--status-ko)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
-                  ×
+                  <X className="h-3.5 w-3.5" aria-hidden />
                 </button>
               )}
             </span>

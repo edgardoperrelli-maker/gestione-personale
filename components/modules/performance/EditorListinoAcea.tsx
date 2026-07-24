@@ -19,7 +19,7 @@ interface ListinoRow {
 }
 
 const field =
-  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
+  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 function oggiISO(): string {
   const d = new Date();
@@ -156,7 +156,7 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
                   <input type="date" value={r.valido_al ?? ''} onChange={(e) => aggiorna(r.id, { valido_al: e.target.value || null })} className={field} />
                 </td>
                 <td className="py-1 pr-2">
-                  <input type="checkbox" checked={r.attivo} onChange={(e) => aggiorna(r.id, { attivo: e.target.checked })} className="accent-[var(--brand-primary)]" />
+                  <input type="checkbox" checked={r.attivo} onChange={(e) => aggiorna(r.id, { attivo: e.target.checked })} className="accent-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--brand-surface)]" />
                 </td>
                 <td className="py-1 pr-2">
                   <div className="flex gap-1">

@@ -2,6 +2,7 @@
 import { type PerfFilters, type SelectOption, formatItDate } from '@/lib/performance/shape';
 import Button from '@/components/Button';
 import MultiSelect from '@/components/ui/MultiSelect';
+import { ArrowRight } from 'lucide-react';
 
 function toISO(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -39,14 +40,14 @@ export default function PerfFilterBar({
   const presetAnno = () => setRange(toISO(new Date(now.getFullYear(), 0, 1)), today);
   const presetTutto = () => setRange('', '');
 
-  const field = 'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-1 focus:ring-[var(--brand-primary)]';
+  const field = 'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
       {/* Cluster Periodo */}
       <div className="flex flex-wrap items-center gap-1.5">
         <input type="date" value={value.dateFrom} onChange={(e) => set({ dateFrom: e.target.value })} className={field} aria-label="Da" />
-        <span className="text-xs text-[var(--brand-text-subtle)]">→</span>
+        <ArrowRight size={13} className="shrink-0 text-[var(--brand-text-subtle)]" aria-hidden />
         <input type="date" value={value.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className={field} aria-label="A" />
         <div className="flex items-center gap-1">
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetSettimana}>Sett.</Button>
@@ -89,7 +90,7 @@ export default function PerfFilterBar({
             options={options.territori} values={value.territorioIds} onChange={(territorioIds) => set({ territorioIds })} />
         </div>
         <label className="inline-flex cursor-pointer items-center gap-1 text-xs text-[var(--brand-text-muted)]">
-          <input type="checkbox" checked={value.soloValvola} onChange={(e) => set({ soloValvola: e.target.checked })} className="accent-[var(--brand-primary)]" />
+          <input type="checkbox" checked={value.soloValvola} onChange={(e) => set({ soloValvola: e.target.checked })} className="accent-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-1 focus-visible:ring-offset-[var(--brand-surface-muted)]" />
           Solo saracinesca
         </label>
       </div>

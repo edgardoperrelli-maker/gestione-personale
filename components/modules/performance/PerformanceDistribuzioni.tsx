@@ -59,7 +59,7 @@ function Donut({ title, data, colorBy, palette, colorForGruppo, brandSurface }: 
             {data.map((d, i) => (
               <span key={d.chiave} className="inline-flex items-center gap-1">
                 <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: color(d.chiave, i) }} />
-                {d.chiave} <span className="tabular-nums">{d.n.toLocaleString('it-IT')}</span>
+                {d.chiave} <span className="font-mono tabular-nums">{d.n.toLocaleString('it-IT')}</span>
               </span>
             ))}
           </div>
@@ -79,7 +79,7 @@ export default function PerformanceDistribuzioni({ allRows, options, initial }: 
   const colorForGruppo = useMemo(() => makeColorForGruppo(options.gruppi, cc.palette), [options.gruppi, cc.palette]);
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <h2 className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Distribuzioni</h2>
       <PerfFilterBar value={f} onChange={setF} options={options} />
       <div className="grid grid-cols-1 gap-6 md:grid-cols-3">

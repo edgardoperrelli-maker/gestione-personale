@@ -16,7 +16,7 @@ export default function PerformanceGiornaliera({ allRows, options, initial }: { 
   const colorForGruppo = useMemo(() => makeColorForGruppo(options.gruppi, cc.palette), [options.gruppi, cc.palette]);
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione giornaliera</h2>
         <span className="text-xs text-[var(--brand-text-muted)]">

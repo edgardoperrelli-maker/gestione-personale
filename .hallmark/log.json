@@ -2,6 +2,78 @@
   {
     "date": "2026-07-24",
     "scope": "app",
+    "macrostructure": "Launcher grid",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Estratto il primitivo ModuleTile (components/ui/ModuleTile.tsx): tile della griglia-launcher hub/Impostazioni (verso un MODULO, distinta da FogliettaCard che è la nav tra viste di un modulo). Due modi per coprire entrambi i consumatori SENZA cambiarne il comportamento: senza `action` → l'intera card è un <Link> (Impostazioni); con `action` (la stella dei preferiti) → <div> + link-overlay (after:inset-0) con l'azione z-10 cliccabile sopra il link (hub ModuleLauncher). Prop: href/title/description/icon/action/descriptionLines(1|2)/titleClassName. Adottato in ModuleLauncher (stella come action, rimosso l'import Link) e app/impostazioni/page.tsx (descriptionLines=2, titleClassName=text-sm, rimosso l'import Link); DESIGN.md aggiornato (regola launcher-griglia + tabella primitivi). Verifica LIVE su entrambe le pagine critiche: hub 15 card (icona+stella+overlay), toggle stella funziona via localStorage e NON naviga, 0 console error; Impostazioni 11 card come <Link> intero senza stella, 0 console error; tsc consolidato pulito (restano i 2 preesistenti template-rapportini), eslint verde sui 3 file. Chiude l'ultimo deferred architetturale degli audit."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Estratto il primitivo StatTile (components/ui/StatTile.tsx): tessera-statistica densa (label + valore mono tabulare accentato per tone neutral/ok/warn/danger/primary + nota opzionale, size sm/md), WELL senza bordo per stare dentro Card/Dialog senza card-in-card; distinto da KpiCard (hero, barra colorata, valore 26px). Adottato nei 3 punti che lo reimplementavano, come adapter sottili che preservano i nomi di dominio: KpiDirezione.Card (accent pos/neg/warn→tone), ConfrontoEsitiAcea.StatBox (default→primary; bonus: era bordato+tinto dentro una Card→ora well, card-in-card chiuso), AnnuncioConfrontoEsiti.TileDemo (size sm; era bordato dentro un Dialog→ora well). Rimossi 3 blocchi di markup duplicato; StatTile aggiunto a DESIGN.md §7. Verifica: tsc consolidato pulito (restano i 2 preesistenti template-rapportini), eslint verde sui 4 file, tile KpiDirezione verificate a schermo (identiche). Resta raccomandato (non fatto): il primitivo ModuleTile per de-duplicare le landing hub↔Impostazioni."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Deferred architetturali degli audit — risolti in sequenza (single-owner, no agenti paralleli sui file condivisi). FATTI: (1) classe `field` con focus:ring-1 → focus-visible:ring-2 in PerfFilterBar/PerformanceEconomica/EditorListinoAcea — scoperto che NON era una classe globale di globals.css ma una const LOCALE per file (l'agente l'aveva deferita per errore), quindi module-local; (2) PerformanceEconomica doppio/triplo livello di card bordata APPIATTITO: la <section> esterna resta l'unico livello bordato, tutti i blocchi interni (barra periodo, editor listino, tabelle Produzione-vs-Esitato/per-voce/per-operatore/territorio, audit a tre vie via TabellaAgg ×3, tile KpiDirezione) → wells senza bordo su --brand-surface-muted; verificato a schermo (0 console error, no overflow, gerarchia pulita); (3) primitivo FogliettaCard: glifo `→` → lucide ArrowRight + docstring corretta (era bugiarda: NON unifica le landing di Performance/Impostazioni/Consuntivazione — è la card di navigazione tra viste di UN modulo, §7bis, usata da ListaAttesaNav Coda↔Registro); (4) separatori `→` delle barre-periodo KPI → lucide ArrowRight; (5) DESIGN.md §7 chiarito: la voce FogliettaCard e nuova regola «launcher-griglia» (hub/Impostazioni = griglia di MODULI con grammatica ModuleLauncher, distinta da FogliettaCard). RISOLTI-PER-DECISIONE (non forzati, con motivo): il finding 'Impostazioni usi FogliettaCard' era un MISREAD dell'audit (Impostazioni è un launcher-griglia, usa correttamente la grammatica ModuleLauncher); KpiDirezione resta separato da KpiCard (pattern StatTile denso 6-up ≠ KpiCard hero 4-up; unificare regredirebbe densità o gonfierebbe il primitivo → raccomandato futuro primitivo StatTile condiviso con ConfrontoEsitiAcea.StatBox/TileDemo); date native <input type=date> restano (le barre compatte servirebbero una size del DatePicker che non c'è, e i picker in-tabella di EditorListinoAcea metterebbero un popover in un contenitore scrollabile — l'a11y del focus è comunque sistemata dal fix #1); estrazione ModuleTile per de-duplicare hub↔Impostazioni raccomandata ma non forzata (rewire dell'hub = rischio sproporzionato per pura DRY; documentato in DESIGN.md). Verifica: tsc consolidato pulito (restano i 2 preesistenti template-rapportini), eslint verde sui 5 file, economica verificata a schermo."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Correzione multi-agente dei finding dei 9 audit post-redesign (0 critical, 3 major KPI, 23 minor; un fix-agent per modulo, confine rigido). KPI: pass font-mono completo su tutti i numeri/€ (0 tabular-nums senza mono), EsitiOperatore fill etichetta 'var(--brand-text-main)' letterale→cc.onPrimary risolto (contrasto AA verificato light 5.99:1 / dark 6.78:1), SalStorico + tabelle PerformanceEconomica in overflow-x-auto, azioni primarie→Button/focus-ring, icone landing SVG→lucide (Users/LineChart), checkbox con focus-visible. Consuntivazione: ODL/matricola in mono + title sui troncati. Assistenza: «Richiedi di nuovo» variant=primary, «Aggiorna» variant=outline, <b>→font-semibold, caption stato col colore solo sul pallino. Pronto Intervento: window.prompt del rifiuto→Dialog+Textarea (Annulla=annulla, Conferma=rifiuta), triplo bordo CampoMod risolto. Live: popover Esporta con dismiss click-esterno+ESC, <h2>→<span> label filtro. Lista attesa: matricola/data/ora in mono, focus-ring sul button espansione, «Dettagli» del Registro→button reale (aria-expanded, tastiera). Misuratori: cella Data font-mono, stato-attivo box-shadow composta (elevazione+ring, via ring-1 inerte), codice morto STATO_COLOR/STATO_ROW_TINT rimosso da types/misuratori.ts. Agente: timestamp ColonneCard/AvvisiSyncBanner in mono. Verifica: tsc consolidato pulito (restano i 2 preesistenti template-rapportini), eslint verde per-modulo, zero cambi a file condivisi. DEFERRED (architetturali/strutturali, riportati non forzati): Impostazioni+KPI-landing card ad-hoc vs primitivo FogliettaCard (di fatto morto, §7 DESIGN.md stale), KpiDirezione vs KpiCard (densità 6-col incompatibile), classe globale field focus:ring-1 (globals.css), PerformanceEconomica doppio livello card bordata, date native→DatePicker (KPI), RegistroAutorizzazioni pattern click-riga sistemico. Cambio comportamento da confermare: Annulla del rifiuto PI ora non rifiuta più (prima sì)."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Ondata redesign multi-agente: 9 moduli allineati al sistema Cockpit in parallelo (un agente per modulo, confine rigido per-modulo, file condivisi read-only). (1) Impostazioni: launcher da 11 SVG a mano → card lucide con grammatica hub + inventario delle 12 sotto-pagine per la prossima ondata. (2) Consuntivazione: AnnuncioConsuntivazione createPortal→Dialog (CTA variant=primary), icone foglietta/glifi→lucide, chip esito→Badge, card-in-card ridotto, ODL/PDR/matricola/conteggi mono. (3) Live: ObjectHeader (Live nel ribbon, un primario+ripristini) + KpiStrip sui contatori reali, input date→DatePicker, select→Select, emoji contatori→pallini --status-* mono, raggi in scala, grid minmax(0,1fr), logica marker intatta. (4) Assistenza: AnnuncioAssistenza→Dialog, ✨✕🛟→lucide, Badge stato, un livello bordato, X sessione con Tooltip, offline su --status-idle. (5) Agente (guard ACEA non toccato): sezioni→Card, text-white/#fff eliminati, input/select→primitivi, glifi→lucide, toolbar Stato in 3 cluster, mono su ora/finestra/timestamp; AvvisiSyncBanner solo icona+raggio. (6) Lista attesa: titoli tripli de-duplicati→toolbar mono, card annidata risolta, glifi→lucide, pill→Badge, celle numeriche mono, loading dei Button. (7) KPI (/hub/performance): 6 card-grafico rounded-2xl+shadow-sm→rounded-xl+shadow token, text-white/#fff sui fill→--on-primary (fix contrasto AA dark), onPrimary in useChartColors, chevron settimana→lucide. (8) Misuratori: StatoBadge sorgente unica stato→token (color-mix), fondo-riga neon→rail su token, frecce→lucide, ObjectHeader+Button, filtri→primitivi, banner errore tokenizzato. (9) Pronto Intervento: StrisciaConteggi→KpiStrip, tab a mano→primitivo Tabs, bottoni→Button, glifi/emoji→lucide, badge stato→Badge, importi €→it-IT+mono, distinzione backoffice↔campo preservata. Verifica: tsc consolidato pulito (restano solo i 2 preesistenti template-rapportini), eslint verde per-modulo, ZERO cambi a file condivisi (DESIGN.md/globals.css/primitivi/.hallmark intatti). Follow-up rimandati (da decidere): 10 sotto-pagine Impostazioni fuori-sistema (rounded-2xl+modali bg-black/40 a mano su personale/territori/azioni-operatori), OperatoreAssistenza lato /r/[token], PerformanceEconomica doppio livello card + date native→DatePicker, types/misuratori.ts STATO_COLOR/STATO_ROW_TINT orfani (hex neon) da rimuovere, window.prompt del rifiuto in Pronto Intervento→Dialog, glifi nei primitivi FogliettaCard/Breadcrumb."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Tre audit Hallmark multi-agente (Riepilogo rapportini, Appuntamenti, Assegnazione AI) + correzione dei 18 finding emersi (2 critical, 8 major, 8 minor). Appuntamenti: variant primary su «Nuovo appuntamento» e «Crea», glifo + → lucide Plus nelle testate-giorno, chip-giorno senza doppio bordo (via il solo stripe-categoria a sinistra + fondo muted/hover), apostrofo tipografico. Riepilogo: IntestazioneRiepilogo con icone lucide Check/X, conteggi in font-mono tabular-nums e pesi riportati in scala (600/500); MenuAzioni select grezzo → primitivo Select; freccia → del range → lucide ArrowRight; IntestazioneGiorno in sentence-case via JS (niente più «Luglio» maiuscolo dal capitalize CSS). Assegnazione AI: «POSITIVO» da --brand-green → --success (semantico), ring focus-visible sul toggle ConfrontoEsiti, «Ho capito» del Dialog Novità variant primary, Link ghost con ring, color-mix oklch → oklab, conteggi mono, bordo dei banner «in attesa» su --status-progress. tsc/eslint puliti; resa verificata: primario zaffiro lab(31 8 -49), sentence-case, +→SVG lucide, 0 errori console."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Interventi → follow-up dell'audit: (1) cancellati 3 componenti morti confermati da verifica a 3 agenti (InterventiFilters, InterventiAssegnabili, GeocodePanel); (2) rimossa per intero la feature «Riconsegna giornaliera» — pagina, client, 2 API (sync/consegna) e riconsegnaLogic+test — perché ridondante col modulo Misuratori (tabella misuratori_riconsegna lasciata in DB); tolto il link da StoricoInterventiClient"
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Interventi (/hub/interventi) — cleanup dei residui pre-Cockpit nei pezzi periferici (la spina §7ter del 22/07 era già a norma): emoji 📷/✎/🗑 e frecce ←/→/▲/▼ → icone lucide; 3 portali bg-black (AnnuncioOdlPositivi, AnnuncioGruppoAttivita del Novità center, ModaleErroreImport della Mappa) → primitivo Dialog; ModaleModificaVoce ai primitivi Input/Select/Textarea/Button; bottone elimina-foto text-white → --on-danger; StoricoFiltri bottoni → Button e raggi in scala. Dati/logica invariati; niente API"
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Calendario hotel (/hub/hotel-calendar) — allineamento al sistema Cockpit: testa ObjectHeader + control-bar (nav ‹ Oggi › + periodo mono + vista settimana/2 settimane/mese), Modal fatti a mano → Dialog (nuova/modifica/esporta + SendRequestModal), <select>/<input>/<textarea> → primitivi, ospiti → MultiSelect, importi → € in mono, glifi ✕ e label inglesi → lucide, via il link Hub e l'evento globale hotel-edit. Fetch/realtime/export invariati; niente API. + follow-up audit: HotelCard chip SENZA bordo (risolto card-in-card, un solo livello bordato = la cella-giorno), vista agenda a colonna singola sotto md (la griglia 7-col era illeggibile a 375px), colori territorio dalla scala --chart-* (via --brand-violet e semantici), title ridondanti rimossi"
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
     "macrostructure": "Workbench",
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",

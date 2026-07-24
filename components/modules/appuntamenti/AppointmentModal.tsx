@@ -70,7 +70,7 @@ function ViewMode({ appointment, onClose, onDelete }: { appointment: Appointment
     if (!(await chiediConferma({ title: 'Eliminare questo appuntamento?', confirmLabel: 'Elimina', danger: true }))) return;
     setDeleting(true);
     const res = await fetch(`/api/appointments?id=${appointment.id}`, { method: 'DELETE' });
-    if (!res.ok) { toast.error("Errore durante l'eliminazione"); setDeleting(false); return; }
+    if (!res.ok) { toast.error('Errore durante l’eliminazione'); setDeleting(false); return; }
     onDelete(appointment.id);
     onClose();
   };
@@ -193,7 +193,7 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
       footer={
         <>
           <Button variant="outline" size="sm" onClick={onClose}>Annulla</Button>
-          <Button size="sm" onClick={handleSubmit} loading={loading}>Crea</Button>
+          <Button variant="primary" size="sm" onClick={handleSubmit} loading={loading}>Crea</Button>
         </>
       }
     >

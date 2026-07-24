@@ -1,9 +1,20 @@
+// components/modules/assistenza/AssistenzaClient.tsx
 'use client';
+
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H4 E5 S4 R5 V4
+ *
+ * Console operativa del back office: testa ObjectHeader, richieste in arrivo e rapportini
+ * del giorno come liste dense su un solo livello di card bordata. Allineata al sistema
+ * Cockpit (badge di stato dal primitivo, icone lucide, niente glifi).
+ */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { Sparkles } from 'lucide-react';
 
 import Button from '@/components/Button';
+import Badge from '@/components/Badge';
 import Input from '@/components/Input';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import MultiSelect from '@/components/ui/MultiSelect';
@@ -141,9 +152,9 @@ export default function AssistenzaClient() {
         actions={
           <>
             <Button size="sm" variant="soft" onClick={() => setAnnuncioOpen(true)}>
-              ✨ Novità
+              <Sparkles size={14} aria-hidden /> Novità
             </Button>
-            <Button size="sm" onClick={carica} loading={caricamento}>
+            <Button size="sm" variant="outline" onClick={carica} loading={caricamento}>
               Aggiorna
             </Button>
           </>
@@ -164,8 +175,11 @@ export default function AssistenzaClient() {
           <div className="mb-2 text-sm font-semibold">Richieste in arrivo</div>
           <div className="flex flex-col gap-2">
             {richiesteList.map((r) => (
-              <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2">
-                <div className="text-sm"><b>{r.staff}</b> <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {r.data}</span></div>
+              <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--brand-surface)] px-3 py-2 shadow-[var(--shadow-sm)]">
+                <div className="min-w-0 text-sm">
+                  <span className="font-semibold text-[var(--brand-text-main)]">{r.staff}</span>{' '}
+                  <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {r.data}</span>
+                </div>
                 <Button size="sm" variant="primary" onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data }, 'operatore')}>
                   Apri
                 </Button>
@@ -232,10 +246,10 @@ export default function AssistenzaClient() {
             {rapportiniFiltrati.map((r) => {
               const aperta = sessioni.some((x) => x.sid === r.sid);
               return (
-                <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 py-2">
-                  <div className="text-sm">
-                    <b>{r.staff}</b>
-                    <span className="ml-2 rounded-full border border-[var(--brand-border)] px-2 py-0.5 text-[11px] text-[var(--brand-text-muted)]">{r.stato}</span>
+                <div key={r.sid} className="flex items-center justify-between gap-3 rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] px-3 py-2">
+                  <div className="flex min-w-0 items-center gap-2 text-sm">
+                    <span className="truncate font-semibold text-[var(--brand-text-main)]">{r.staff}</span>
+                    <Badge variant="muted">{r.stato}</Badge>
                   </div>
                   <Button size="sm" variant="primary" disabled={aperta || !env}
                     onClick={() => apri({ sid: r.sid, staff: r.staff, data: r.data })}>

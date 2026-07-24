@@ -161,7 +161,7 @@ function AppuntamentiInner() {
                 />
               </div>
             )}
-            <Button size="sm" onClick={() => { setNewAppointmentDate(undefined); setShowCreateModal(true); }}>
+            <Button variant="primary" size="sm" onClick={() => { setNewAppointmentDate(undefined); setShowCreateModal(true); }}>
               <CalendarPlus size={14} aria-hidden />
               Nuovo appuntamento
             </Button>

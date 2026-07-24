@@ -53,7 +53,7 @@ export default function TorreMappa({ interventi }: { interventi: TorreIntervento
 
   return (
     <div
-      className="h-[420px] w-full overflow-hidden rounded-2xl border"
+      className="h-[420px] w-full overflow-hidden rounded-[var(--radius-xl)] border"
       style={{ borderColor: 'var(--brand-border)' }}
     >
       <OperatorsMap points={points} maxZoom={14} fitPadding={30} />

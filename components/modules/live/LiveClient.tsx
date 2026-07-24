@@ -1,5 +1,18 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E5 S4 R5 V4
+ *
+ * Torre di controllo live: rail-filtri operatori a sinistra, banco mappa+dettaglio
+ * a destra. Il modulo precedeva il sistema Cockpit: l'allineamento ha portato la
+ * testa a ObjectHeader (badge Live nel ribbon, un solo primario «Esporta» + comandi
+ * di ripristino dopo separatore), un'apertura a KpiStrip sui contatori del giorno
+ * (numeri già esposti dal motore, mai inventati), <input date> → DatePicker,
+ * <select> → primitivo Select, i comandi grezzi → Button, gli emoji dei contatori
+ * per-operatore → pallini --status-* con numeri mono, raggi in scala, ring
+ * focus-visible e aria-pressed sui filtri. Fetch/realtime/logica mappa invariati.
+ */
+
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -10,6 +23,10 @@ import { EsportaExcelButton } from './EsportaExcelButton';
 import { toast } from '@/components/ui/Toast';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
+import Button from '@/components/Button';
+import Select from '@/components/ui/Select';
+import DatePicker from '@/components/ui/DatePicker';
+import { KpiCard, KpiStrip } from '@/components/ui/KpiCard';
 
 export type { TorreIntervento };
 
@@ -130,83 +147,81 @@ export default function LiveClient({
     <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
       <ObjectHeader
         title="Live"
-        sub={
-          <>
-            <span className="font-mono tabular-nums">{data}</span> · <span className="font-mono tabular-nums">{items.length}</span> interventi ·{' '}
-            <b style={{ color: 'var(--status-ok)' }}>{totali.fatti} fatti</b> ·{' '}
-            <b style={{ color: 'var(--status-ko)' }}>{totali.nonFatti} non fatti</b> ·{' '}
-            <b style={{ color: 'var(--status-warn)' }}>{totali.daFare} da fare</b>
-          </>
+        sub={<span className="font-mono tabular-nums">{data}</span>}
+        ribbon={
+          <div className="flex items-center gap-2">
+            <span
+              className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
+              style={{
+                backgroundColor: live ? 'var(--status-ok-soft)' : 'var(--brand-surface-muted)',
+                color: live ? 'var(--status-ok)' : 'var(--brand-text-muted)',
+              }}
+            >
+              <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: live ? 'var(--status-ok)' : 'var(--status-idle)' }} />
+              {live ? 'Live' : 'Non connesso'}
+            </span>
+            {lastUpdate && (
+              <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
+                agg. <span className="font-mono tabular-nums">{lastUpdate}</span>
+              </span>
+            )}
+          </div>
         }
         actions={
           <>
-          <input
-            type="date"
-            value={data}
-            onChange={(e) => e.target.value && router.push(`/hub/live?data=${e.target.value}`)}
-            min={minData}
-            max={maxData}
-            className="rounded-xl border px-3 py-1.5 text-sm outline-none"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-          />
-          <button
-            type="button"
-            onClick={() => void risincronizza()}
-            disabled={syncing}
-            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)] disabled:opacity-60"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            title="Ri-aggancia le voci e riapplica gli esiti dei rapportini già compilati"
-          >
-            {syncing ? 'Sincronizzo…' : 'Risincronizza esiti'}
-          </button>
-          <button
-            type="button"
-            onClick={() => void rigenera()}
-            disabled={rigenerando}
-            className="rounded-xl border px-3 py-1.5 text-sm font-medium transition hover:border-[var(--brand-primary)] disabled:opacity-60"
-            style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-            title="Ricrea gli interventi del giorno dai task salvati dei piani (ripristino), preservando i completati"
-          >
-            {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
-          </button>
-          <EsportaExcelButton defaultData={data} maxData={maxData} selStaff={selStaff} selTerr={selTerr} filtroStato={filtroStato} />
-          <span
-            className="inline-flex items-center gap-2 rounded-full px-3 py-1 text-xs font-semibold"
-            style={{
-              backgroundColor: live ? 'var(--success-soft)' : 'var(--brand-surface-muted)',
-              color: live ? 'var(--success)' : 'var(--brand-text-muted)',
-            }}
-          >
-            <span className="h-2 w-2 rounded-full" style={{ backgroundColor: live ? 'var(--status-ok)' : 'var(--status-idle)' }} />
-            {live ? 'Live' : 'Non connesso'}
-          </span>
-          {lastUpdate && (
-            <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-              agg. {lastUpdate}
-            </span>
-          )}
+            <DatePicker
+              value={data}
+              onChange={(iso) => iso && router.push(`/hub/live?data=${iso}`)}
+              min={minData}
+              max={maxData}
+              ariaLabel="Giorno"
+            />
+            <EsportaExcelButton defaultData={data} maxData={maxData} selStaff={selStaff} selTerr={selTerr} filtroStato={filtroStato} />
+            <span className="mx-0.5 h-6 w-px" style={{ backgroundColor: 'var(--brand-border)' }} aria-hidden />
+            <Button
+              variant="outline"
+              onClick={() => void risincronizza()}
+              loading={syncing}
+              title="Ri-aggancia le voci e riapplica gli esiti dei rapportini già compilati"
+            >
+              {syncing ? 'Sincronizzo…' : 'Risincronizza esiti'}
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => void rigenera()}
+              loading={rigenerando}
+              title="Ricrea gli interventi del giorno dai task salvati dei piani (ripristino), preservando i completati"
+            >
+              {rigenerando ? 'Rigenero…' : 'Rigenera interventi'}
+            </Button>
           </>
         }
       />
 
-      <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
+      <KpiStrip>
+        <KpiCard label="Interventi" value={items.length} tone="primary" />
+        <KpiCard label="Fatti" value={totali.fatti} tone="ok" />
+        <KpiCard label="Non fatti" value={totali.nonFatti} tone="ko" />
+        <KpiCard label="Da fare" value={totali.daFare} tone="warn" />
+      </KpiStrip>
+
+      <div className="grid gap-4 lg:grid-cols-[340px_minmax(0,1fr)]">
         {/* Colonna sinistra: operatori come filtri, scrollabile */}
         <div className="space-y-2.5 lg:max-h-[calc(100vh-11rem)] lg:overflow-y-auto lg:pr-1">
           {territori.length > 0 && (
-            <select
+            <Select
               value={selTerr ?? ''}
               onChange={(e) => {
                 setSelTerr(e.target.value || null);
                 setSelStaff(null);
               }}
-              className="w-full rounded-2xl border px-3 py-2 text-sm outline-none"
-              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
+              aria-label="Territorio"
             >
               <option value="">Tutti i territori</option>
               {territori.map((t) => (
                 <option key={t.id} value={t.id}>{t.name}</option>
               ))}
-            </select>
+            </Select>
           )}
           {gruppiVisibili.map((g) => {
             const opKey = g.operatore.id ?? SENTINELLA_NON_ASSEGNATI;
@@ -215,8 +230,9 @@ export default function LiveClient({
               <button
                 key={opKey}
                 type="button"
+                aria-pressed={sel}
                 onClick={() => setSelStaff((p) => (p === opKey ? null : opKey))}
-                className="w-full rounded-2xl border p-3 text-left transition hover:border-[var(--brand-primary)]"
+                className="w-full rounded-[var(--radius-lg)] border p-3 text-left transition hover:border-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 style={{
                   borderColor: sel ? 'var(--brand-primary)' : 'var(--brand-border)',
                   backgroundColor: sel ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
@@ -224,11 +240,22 @@ export default function LiveClient({
                 }}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <h2 className="truncate font-semibold" style={{ color: 'var(--brand-text-main)' }}>
+                  <span className="truncate font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                     {g.operatore.display_name}
-                  </h2>
-                  <div className="shrink-0 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                    {g.conteggi.assegnati}⏳ · {g.conteggi.fatti}✅ · {g.conteggi.nonFatti}❌
+                  </span>
+                  <div className="flex shrink-0 items-center gap-2 font-mono text-xs tabular-nums" style={{ color: 'var(--brand-text-muted)' }}>
+                    <span className="inline-flex items-center gap-1" title="Da fare">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--status-warn)' }} />
+                      {g.conteggi.assegnati}
+                    </span>
+                    <span className="inline-flex items-center gap-1" title="Fatti">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--status-ok)' }} />
+                      {g.conteggi.fatti}
+                    </span>
+                    <span className="inline-flex items-center gap-1" title="Non fatti">
+                      <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: 'var(--status-ko)' }} />
+                      {g.conteggi.nonFatti}
+                    </span>
                   </div>
                 </div>
               </button>
@@ -240,11 +267,15 @@ export default function LiveClient({
         <div className="space-y-2 lg:sticky lg:top-4 lg:h-fit">
           {selStaff && (
             <div
-              className="flex items-center justify-between gap-2 rounded-xl border px-3 py-1.5 text-xs"
-              style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
+              className="flex items-center justify-between gap-2 rounded-[var(--radius-md)] border px-3 py-1.5 text-xs"
+              style={{ borderColor: 'var(--brand-primary)', backgroundColor: 'var(--brand-primary-soft)', color: 'var(--primary-text)' }}
             >
               <span className="font-semibold">Filtro mappa: {nomeSel}</span>
-              <button type="button" onClick={() => setSelStaff(null)} className="font-medium underline">
+              <button
+                type="button"
+                onClick={() => setSelStaff(null)}
+                className="rounded-[var(--radius-sm)] font-medium underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              >
                 Mostra tutti
               </button>
             </div>
@@ -252,13 +283,13 @@ export default function LiveClient({
           <TorreMappa interventi={itemsMappa} />
 
           {/* Dettaglio lavori (operatore selezionato o tutti): righe colorate, live. */}
-          <section className="rounded-2xl border" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}>
+          <section className="rounded-[var(--radius-xl)] border" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}>
             <header
               className="flex items-center justify-between gap-2 border-b px-3 py-2 text-sm font-semibold"
               style={{ borderColor: 'var(--brand-border)', color: 'var(--brand-text-main)' }}
             >
               <span className="truncate">{nomeSel ? `Dettaglio lavori — ${nomeSel}` : 'Tutti i lavori'}</span>
-              <span className="shrink-0 text-xs font-medium" style={{ color: 'var(--brand-text-muted)' }}>{itemsMappa.length}</span>
+              <span className="shrink-0 font-mono text-xs font-medium tabular-nums" style={{ color: 'var(--brand-text-muted)' }}>{itemsMappa.length}</span>
             </header>
             <div className="flex flex-wrap gap-1.5 border-b px-3 py-2" style={{ borderColor: 'var(--brand-border)' }}>
               {([
@@ -272,15 +303,16 @@ export default function LiveClient({
                   <button
                     key={c.key}
                     type="button"
+                    aria-pressed={active}
                     onClick={() => setFiltroStato(c.key)}
-                    className="rounded-full border px-2.5 py-1 text-xs font-medium transition"
+                    className="inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     style={{
                       borderColor: active ? 'var(--brand-primary)' : 'var(--brand-border)',
                       backgroundColor: active ? 'var(--brand-primary-soft)' : 'var(--brand-surface)',
-                      color: active ? 'var(--brand-primary)' : 'var(--brand-text-muted)',
+                      color: active ? 'var(--primary-text)' : 'var(--brand-text-muted)',
                     }}
                   >
-                    {c.label} {c.n}
+                    {c.label} <span className="font-mono tabular-nums">{c.n}</span>
                   </button>
                 );
               })}
@@ -300,7 +332,7 @@ export default function LiveClient({
                         <div className="flex items-center gap-1.5">
                           <span className="truncate font-medium" style={{ color: 'var(--brand-text-main)' }}>{riga.primario}</span>
                           {it.chiuso_at && (
-                            <span className="shrink-0 text-xs font-normal" style={{ color: 'var(--brand-text-muted)' }}>{oraEsito(it.chiuso_at)}</span>
+                            <span className="shrink-0 font-mono text-xs font-normal tabular-nums" style={{ color: 'var(--brand-text-muted)' }}>{oraEsito(it.chiuso_at)}</span>
                           )}
                         </div>
                         {riga.secondario && (

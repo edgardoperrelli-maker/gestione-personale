@@ -1,4 +1,5 @@
 'use client';
+/* Hallmark · redesign KPI (operatori) · genre: modern-minimal · design-system: DESIGN.md ("Cockpit") · designed-as-app */
 import { useMemo } from 'react';
 import { emptyFilters, type ClientRow, type PerfFilters, type SelectOption } from '@/lib/performance/shape';
 import type { FilterOptions } from './PerfFilterBar';

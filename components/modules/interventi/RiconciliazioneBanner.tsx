@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { ChevronDown, ChevronUp, TriangleAlert } from 'lucide-react';
 import type { RigaRiconciliazione, TipoRiconciliazione } from '@/app/api/interventi/riconciliazione/route';
 
 const TIPO_LABEL: Record<TipoRiconciliazione, { label: string; title: string }> = {
@@ -43,10 +44,14 @@ export default function RiconciliazioneBanner() {
       <button
         type="button"
         onClick={() => setAperto((v) => !v)}
-        className="flex w-full items-center justify-between font-medium text-[var(--brand-text-main)]"
+        aria-expanded={aperto}
+        className="flex w-full items-center justify-between gap-2 rounded-[var(--radius-sm)] font-medium text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
       >
-        <span>⚠️ {righe.length} intervent{righe.length === 1 ? 'o' : 'i'} da riconciliare (ODL già positivo)</span>
-        <span>{aperto ? '▲' : '▼'}</span>
+        <span className="flex items-center gap-2">
+          <TriangleAlert size={15} className="shrink-0 text-[var(--warning)]" aria-hidden />
+          {righe.length} intervent{righe.length === 1 ? 'o' : 'i'} da riconciliare (ODL già positivo)
+        </span>
+        {aperto ? <ChevronUp size={16} aria-hidden /> : <ChevronDown size={16} aria-hidden />}
       </button>
       {aperto && (
         <table className="mt-3 w-full text-left text-xs">

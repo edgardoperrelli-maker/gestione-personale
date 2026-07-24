@@ -4,6 +4,7 @@
 'use client';
 
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 
 export type MultiSelectOption = { value: string; label: string };
 
@@ -97,7 +98,7 @@ export default function MultiSelect({
         }`}
       >
         <span className="truncate text-left">{label}: {riepilogo}</span>
-        <span aria-hidden className="shrink-0 text-[10px] text-[var(--brand-text-muted)]">▼</span>
+        <ChevronDown size={14} aria-hidden className="shrink-0 text-[var(--brand-text-muted)]" />
       </button>
 
       {open && (

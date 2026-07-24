@@ -1,7 +1,7 @@
 'use client';
 
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import ModuleTile from '@/components/ui/ModuleTile';
 import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey, AppModuleGroup } from '@/lib/moduleAccess';
 import { MODULE_ICONS } from '@/components/layout/moduleIcons';
@@ -75,43 +75,36 @@ export default function ModuleLauncher({ allowedModules }: { allowedModules: App
   const card = (i: (typeof moduli)[number]) => {
     const stellato = preferiti.includes(i.key);
     return (
-      <div
+      <ModuleTile
         key={i.key}
-        className="group relative flex items-start gap-3.5 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus-within:ring-2 focus-within:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0"
-      >
-        <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-[var(--radius-lg)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]">
-          {MODULE_ICONS[i.key as AppModuleKey]}
-        </span>
-        <span className="min-w-0 pr-7">
-          <Link href={i.href} className="font-semibold text-[var(--brand-text-main)] focus:outline-none after:absolute after:inset-0 after:content-['']">
-            {i.label}
-          </Link>
-          {i.description && (
-            <span className="mt-0.5 block truncate text-xs text-[var(--brand-text-muted)]">{i.description}</span>
-          )}
-        </span>
-        {/*
-          La stella resta SEMPRE visibile. Prima appariva solo su `group-hover`:
-          al touch, dove l'hover non esiste, era un bersaglio invisibile ma
-          cliccabile sopra il link steso — chi toccava l'angolo metteva un
-          preferito senza capire perché.
-        */}
-        <button
-          type="button"
-          onClick={() => toggle(i.key)}
-          aria-pressed={stellato}
-          aria-label={stellato ? `Togli ${i.label} dai preferiti` : `Aggiungi ${i.label} ai preferiti`}
-          className={`absolute right-2.5 top-2.5 z-10 rounded-[var(--radius-sm)] p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
-            stellato
-              ? 'text-[var(--brand-primary)]'
-              : 'text-[var(--brand-text-subtle)] hover:text-[var(--brand-primary)]'
-          }`}
-        >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill={stellato ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
-            <path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.2 9.4l6.1-.8Z" />
-          </svg>
-        </button>
-      </div>
+        href={i.href}
+        title={i.label}
+        description={i.description}
+        icon={MODULE_ICONS[i.key as AppModuleKey]}
+        action={
+          /*
+            La stella resta SEMPRE visibile. Prima appariva solo su `group-hover`:
+            al touch, dove l'hover non esiste, era un bersaglio invisibile ma
+            cliccabile sopra il link steso — chi toccava l'angolo metteva un
+            preferito senza capire perché.
+          */
+          <button
+            type="button"
+            onClick={() => toggle(i.key)}
+            aria-pressed={stellato}
+            aria-label={stellato ? `Togli ${i.label} dai preferiti` : `Aggiungi ${i.label} ai preferiti`}
+            className={`absolute right-2.5 top-2.5 z-10 rounded-[var(--radius-sm)] p-1 transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+              stellato
+                ? 'text-[var(--brand-primary)]'
+                : 'text-[var(--brand-text-subtle)] hover:text-[var(--brand-primary)]'
+            }`}
+          >
+            <svg viewBox="0 0 24 24" className="h-4 w-4" fill={stellato ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" aria-hidden>
+              <path d="m12 3 2.7 5.6 6.1.8-4.5 4.3 1.1 6-5.4-2.9-5.4 2.9 1.1-6L3.2 9.4l6.1-.8Z" />
+            </svg>
+          </button>
+        }
+      />
     );
   };
 

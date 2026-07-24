@@ -1,6 +1,17 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E5 S5 R5 V4
+ *
+ * Pannello di revisione della richiesta. Allineamento Cockpit: vive dentro la
+ * riga della coda senza cornice propria (un solo livello di card bordata), alert
+ * duplicato/sigillo/foto tokenizzati via className (niente style inline), glifi
+ * ⛔/⚠️ → icone lucide (Ban, TriangleAlert), pesi 600 al posto del bold urlato,
+ * Approva con stato loading. Logica di approvazione/rifiuto/foto invariata.
+ */
+
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Ban, TriangleAlert } from 'lucide-react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
@@ -116,9 +127,11 @@ export function PannelloRevisioneRichiesta({
   };
 
   return (
-    <div className="space-y-3 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
+    <div className="space-y-3">
       <p className="text-xs font-medium text-[var(--brand-text-muted)]">
-        {riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} · {formatDataIt(riga.data)} · inviata {formatOraIt(riga.created_at)}
+        {riga.staff_name ?? riga.staff_id} · {etichettaCommittente(riga.committente)} ·{' '}
+        <span className="font-mono tabular-nums">{formatDataIt(riga.data)}</span> · inviata{' '}
+        <span className="font-mono tabular-nums">{formatOraIt(riga.created_at)}</span>
       </p>
 
       {/* Anagrafica compatta: 2 colonne */}
@@ -185,9 +198,9 @@ export function PannelloRevisioneRichiesta({
                 <img src={f.url} alt={f.etichetta} className="h-full w-full object-cover" />
               </a>
             ) : (
-              <div key={f.id} title={`${f.etichetta} — file mancante, da re-inviare`} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-md)] border border-dashed border-[var(--danger)] bg-[var(--danger-soft)] p-1 text-center">
-                <span className="text-[13px] leading-none" aria-hidden>⚠️</span>
-                <span className="text-xs font-semibold leading-tight text-[var(--danger)]">da re-inviare</span>
+              <div key={f.id} title={`${f.etichetta} — file mancante, da re-inviare`} className="flex h-16 w-16 flex-col items-center justify-center gap-0.5 rounded-[var(--radius-md)] border border-dashed border-[var(--danger)] bg-[var(--danger-soft)] p-1 text-center text-[var(--danger)]">
+                <TriangleAlert size={16} aria-hidden />
+                <span className="text-xs font-semibold leading-tight">da re-inviare</span>
               </div>
             )))}
           </div>
@@ -210,21 +223,18 @@ export function PannelloRevisioneRichiesta({
 
       {/* Sigillo duplicato — alert BLOCCANTE (nessun "approva comunque"): va corretto qui */}
       {sigBloccante && (
-        <div
-          className="space-y-2 rounded-[var(--radius-md)] border p-3"
-          style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)' }}
-        >
-          <p className="text-sm font-bold" style={{ color: 'var(--danger)' }}>
-            &#9940; Sigillo {sigBloccante.sigillo} GIÀ presente nel database ({sigBloccante.duplicati.length})
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--danger)]">
+            <Ban size={16} aria-hidden /> Sigillo {sigBloccante.sigillo} GIÀ presente nel database ({sigBloccante.duplicati.length})
           </p>
           <p className="text-xs text-[var(--brand-text-main)]">
             Per evitare un doppione nel file master, correggi il sigillo nei campi esito qui sopra e riprova. L&apos;approvazione è bloccata finché il sigillo resta duplicato.
           </p>
           {sigBloccante.duplicati.length > 0 && (
-            <ul className="space-y-1 text-xs text-[var(--brand-text-main)]">
+            <ul className="list-disc space-y-1 pl-4 text-xs text-[var(--brand-text-main)]">
               {sigBloccante.duplicati.map((d) => (
                 <li key={d.id}>
-                  &bull; {formatDataIt(d.data)}
+                  {formatDataIt(d.data)}
                   {d.comune ? ` · ${d.comune}` : ''}
                   {d.odl ? ` · ODL ${d.odl}` : ''}
                   {d.matricola ? ` · matr. ${d.matricola}` : ''}
@@ -243,17 +253,14 @@ export function PannelloRevisioneRichiesta({
 
       {/* Avviso duplicato matricola — callout sobrio */}
       {dupAvviso && (
-        <div
-          className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] p-3"
-          style={{ backgroundColor: 'var(--warning-soft)' }}
-        >
-          <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>
-            &#9888; Matricola {dupAvviso.matricola} già approvata ({dupAvviso.duplicati.length})
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] p-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--warning)]">
+            <TriangleAlert size={16} aria-hidden /> Matricola {dupAvviso.matricola} già approvata ({dupAvviso.duplicati.length})
           </p>
-          <ul className="space-y-1 text-xs text-[var(--brand-text-main)]">
+          <ul className="list-disc space-y-1 pl-4 text-xs text-[var(--brand-text-main)]">
             {dupAvviso.duplicati.map((d) => (
               <li key={d.id}>
-                &bull; {formatDataIt(d.data)}
+                {formatDataIt(d.data)}
                 {d.staff_name ? ` · ${d.staff_name}` : ''}
                 {d.deciso_at ? ` · approvato il ${formatDataOraIt(d.deciso_at)}` : ''}
                 {d.deciso_da_name ? ` da ${d.deciso_da_name}` : ''}
@@ -280,9 +287,9 @@ export function PannelloRevisioneRichiesta({
 
       {/* Avviso foto mancanti — callout forzabile */}
       {fotoAvviso !== null && (
-        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] p-3" style={{ backgroundColor: 'var(--warning-soft)' }}>
-          <p className="text-sm font-bold" style={{ color: 'var(--warning)' }}>
-            &#9888; Mancano {fotoAvviso} foto: l&apos;intervento risulterà senza prove.
+        <div className="space-y-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] p-3">
+          <p className="flex items-center gap-1.5 text-sm font-semibold text-[var(--warning)]">
+            <TriangleAlert size={16} aria-hidden /> Mancano {fotoAvviso} foto: l&apos;intervento risulterà senza prove.
           </p>
           <div className="flex gap-2">
             <Button variant="secondary" size="sm" animated={false} disabled={busy} onClick={() => setFotoAvviso(null)}>Annulla</Button>
@@ -297,8 +304,8 @@ export function PannelloRevisioneRichiesta({
         <Button variant="danger" size="md" animated={false} disabled={busy} onClick={rifiuta}>
           Rifiuta
         </Button>
-        <Button variant="primary" size="md" animated={false} disabled={busy} className="flex-1" onClick={() => void approva()}>
-          {busy ? '…' : 'Approva'}
+        <Button variant="primary" size="md" animated={false} loading={busy} className="flex-1" onClick={() => void approva()}>
+          Approva
         </Button>
       </div>
     </div>

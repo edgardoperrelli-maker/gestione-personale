@@ -1,5 +1,6 @@
 'use client';
 
+import { Plus } from 'lucide-react';
 import { coloreCommittente } from '@/lib/appuntamenti/committenti';
 import { fmtDay } from '@/components/modules/cronoprogramma-personale/utils';
 import type { Appointment } from './AppointmentModal';
@@ -53,7 +54,7 @@ export default function AppointmentDayCards({
                 title="Nuovo appuntamento"
                 className="inline-flex h-5 w-5 items-center justify-center rounded-[var(--radius-sm)] text-[var(--brand-text-muted)] transition-colors hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
-                +
+                <Plus size={13} aria-hidden />
               </button>
             </div>
 
@@ -65,7 +66,7 @@ export default function AppointmentDayCards({
                   draggable
                   onClick={() => onAppointmentClick(a)}
                   onDragStart={(e) => e.dataTransfer.setData('application/x-appointment-id', a.id)}
-                  className="cursor-pointer rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs transition-colors hover:bg-[var(--brand-surface-muted)]"
+                  className="cursor-pointer rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] px-2 py-1 text-xs transition-colors hover:bg-[var(--brand-primary-soft)]"
                   style={{ borderLeft: `3px solid ${coloreCommittente(a.committente_id ?? a.committente?.nome)}` }}
                 >
                   <div className="flex items-center gap-1.5">

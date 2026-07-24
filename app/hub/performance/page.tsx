@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Users, LineChart } from 'lucide-react';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import { assertKpiAccess } from '@/lib/performance/kpiGate';
 
@@ -8,20 +9,9 @@ export const dynamic = 'force-dynamic';
 const cardClass =
   'group flex min-h-56 flex-col gap-4 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-7 text-left shadow-[var(--shadow-sm)] transition hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0 sm:p-8';
 
-const ICONA_OPERATORI = (
-  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-    <circle cx="9" cy="7" r="4" />
-    <path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75" />
-  </svg>
-);
+const ICONA_OPERATORI = <Users className="h-7 w-7" strokeWidth={1.6} aria-hidden />;
 
-const ICONA_ECONOMICA = (
-  <svg viewBox="0 0 24 24" className="h-7 w-7" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 3v18h18" />
-    <path d="M7 15l4-4 3 3 5-6" />
-  </svg>
-);
+const ICONA_ECONOMICA = <LineChart className="h-7 w-7" strokeWidth={1.6} aria-hidden />;
 
 export default async function KpiLandingPage() {
   await assertKpiAccess();

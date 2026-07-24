@@ -3,7 +3,9 @@
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from 'react';
+import { Plus, X } from 'lucide-react';
 import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
 
 type Foto = { etichetta: string; fileName: string; url: string; path: string };
 
@@ -90,14 +92,10 @@ export default function ModaleFotoVoce({
       {puoCaricare && (
         <div className="mb-4 flex items-center gap-3 rounded-[var(--radius-md)] border border-dashed border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-2">
           <input ref={fileRef} type="file" accept="image/*" multiple className="hidden" onChange={onPick} />
-          <button
-            type="button"
-            onClick={() => fileRef.current?.click()}
-            disabled={uploading}
-            className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-          >
-            {uploading ? 'Caricamento…' : '➕ Aggiungi foto mancanti'}
-          </button>
+          <Button type="button" variant="primary" size="sm" onClick={() => fileRef.current?.click()} loading={uploading}>
+            {!uploading && <Plus size={14} aria-hidden />}
+            {uploading ? 'Caricamento…' : 'Aggiungi foto mancanti'}
+          </Button>
           <span className="text-xs text-[var(--brand-text-muted)]">Puoi selezionare più immagini.</span>
         </div>
       )}
@@ -133,9 +131,13 @@ export default function ModaleFotoVoce({
                   disabled={deleting === f.path}
                   title="Elimina foto"
                   aria-label="Elimina foto"
-                  className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[var(--danger)] text-sm font-bold leading-none text-white shadow-md transition hover:brightness-110 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-white focus-visible:outline-none"
+                  className="absolute right-1.5 top-1.5 z-10 flex h-7 w-7 items-center justify-center rounded-full border-2 border-[var(--brand-surface)] bg-[var(--danger)] leading-none text-[var(--on-danger)] shadow-[var(--shadow-md)] transition hover:brightness-110 disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                 >
-                  {deleting === f.path ? '…' : '✕'}
+                  {deleting === f.path ? (
+                    <span className="h-3 w-3 animate-spin rounded-full border-2 border-current border-t-transparent" aria-hidden />
+                  ) : (
+                    <X size={14} aria-hidden />
+                  )}
                 </button>
               )}
             </div>

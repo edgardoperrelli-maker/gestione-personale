@@ -1,9 +1,24 @@
 'use client';
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench
+ * design-system: DESIGN.md (Cockpit) · designed-as-app · pre-emit critique: P5 H4 E5 S4 R5 V4
+ *
+ * Allineamento Cockpit del modulo Misuratori (registro rimozioni + riconsegna al committente):
+ * testa → ObjectHeader, azioni → primitivo Button (primario esplicito), filtri → Input/Select,
+ * stati misuratore su token semantici (status-idle/warn/progress/ok, viola), niente hex/neon, banner errore tokenizzato,
+ * tabella su superficie bianca con header muted sticky. Logica, fetch, ottimistica e
+ * flusso di riconsegna invariati.
+ */
 import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertTriangle, FileDown, Loader2, RefreshCw } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import MisuratoriTabella from './MisuratoriTabella';
+import { STATO_ACCENT } from './StatoBadge';
 import { exportMisuratoriPdf, type PdfFilters } from './exportMisuratoriPdf';
 
 /** Filtri lato server (la data/comune/esecutore rifanno la fetch). Lo stato è un
@@ -21,15 +36,6 @@ const FILTERS_EMPTY: Filters = {
   dataFine: '',
   comune: '',
   esecutore: '',
-};
-
-/** Accento colore per ogni stato (card-contatore + valore). */
-const STATO_ACCENT: Record<StatoMisuratore, string> = {
-  da_consegnare_deposito:  'var(--status-idle)',
-  scaricato_deposito:      'var(--warning)',
-  verificato_deposito:     'var(--viola)',
-  in_consegna_committente: 'var(--status-progress)',
-  consegnato_committente:  'var(--status-ok)'
 };
 
 export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean }) {
@@ -151,28 +157,28 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
 
   return (
     <div className="flex h-[calc(100dvh-7rem)] flex-col gap-4">
-      {/* Header (fisso) */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-xl font-semibold text-[var(--brand-text-main)]">
-          Misuratori Rimossi
-        </h1>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={handleSync}
-            disabled={syncing}
-            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] transition-colors disabled:opacity-50"
-          >
-            {syncing ? 'Sincronizzando…' : 'Ricalcola'}
-          </button>
-          <button
-            onClick={handleExportPdf}
-            disabled={visibleRows.length === 0}
-            className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-1.5 text-sm font-medium text-white hover:opacity-90 transition-opacity disabled:opacity-40"
-          >
-            Esporta PDF
-          </button>
-        </div>
-      </div>
+      {/* Testa di modulo (fissa) */}
+      <ObjectHeader
+        title="Misuratori Rimossi"
+        sub="Riconsegna dei misuratori rimossi, dal deposito al committente"
+        actions={
+          <>
+            <Button variant="outline" size="sm" onClick={handleSync} loading={syncing}>
+              {!syncing && <RefreshCw className="h-4 w-4" aria-hidden />}
+              {syncing ? 'Ricalcolo…' : 'Ricalcola'}
+            </Button>
+            <Button
+              variant="primary"
+              size="sm"
+              onClick={handleExportPdf}
+              disabled={visibleRows.length === 0}
+            >
+              <FileDown className="h-4 w-4" aria-hidden />
+              Esporta PDF
+            </Button>
+          </>
+        }
+      />
 
       {/* Card-contatore = filtri rapidi per stato (fisse) */}
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
@@ -181,7 +187,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
           type="button"
           onClick={() => toggleStato('')}
           aria-pressed={statoFiltro === ''}
-          className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors ${
+          className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
             statoFiltro === ''
               ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]'
               : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
@@ -205,10 +211,10 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
               onClick={() => toggleStato(s)}
               aria-pressed={active}
               title={`Filtra: ${STATO_LABEL[s]}`}
-              className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors ${
-                active ? 'ring-1' : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
+              className={`relative flex flex-col items-start overflow-hidden rounded-[var(--radius-lg)] border bg-[var(--brand-surface)] px-3.5 py-2 text-left shadow-[var(--shadow-sm)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                active ? '' : 'border-[var(--brand-border)] hover:border-[var(--brand-text-muted)]'
               }`}
-              style={active ? { borderColor: accent, boxShadow: `0 0 0 1px ${accent}` } : undefined}
+              style={active ? { borderColor: accent, boxShadow: `var(--shadow-sm), 0 0 0 1px ${accent}` } : undefined}
             >
               <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: accent }} aria-hidden />
               <span className="truncate text-[11px] font-semibold uppercase tracking-[0.06em] text-[var(--brand-text-muted)]">{STATO_LABEL[s]}</span>
@@ -221,54 +227,41 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
       </div>
 
       {/* Filtri (fissi) */}
-      <div className="flex flex-wrap gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-[var(--brand-text-muted)]">Dal</label>
-          <input
-            type="date"
-            value={filters.dataInizio}
-            onChange={e => setFilter('dataInizio', e.target.value)}
-            className="rounded border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1 text-sm"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-[var(--brand-text-muted)]">Al</label>
-          <input
-            type="date"
-            value={filters.dataFine}
-            onChange={e => setFilter('dataFine', e.target.value)}
-            className="rounded border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1 text-sm"
-          />
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-[var(--brand-text-muted)]">Comune</label>
-          <select
-            value={filters.comune}
-            onChange={e => setFilter('comune', e.target.value)}
-            className="rounded border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1 text-sm"
-          >
+      <div className="flex shrink-0 flex-wrap items-end gap-3 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
+        <label className="flex w-40 flex-col gap-1">
+          <span className="text-xs text-[var(--brand-text-muted)]">Dal</span>
+          <Input type="date" value={filters.dataInizio} onChange={e => setFilter('dataInizio', e.target.value)} />
+        </label>
+        <label className="flex w-40 flex-col gap-1">
+          <span className="text-xs text-[var(--brand-text-muted)]">Al</span>
+          <Input type="date" value={filters.dataFine} onChange={e => setFilter('dataFine', e.target.value)} />
+        </label>
+        <label className="flex w-48 flex-col gap-1">
+          <span className="text-xs text-[var(--brand-text-muted)]">Comune</span>
+          <Select value={filters.comune} onChange={e => setFilter('comune', e.target.value)}>
             <option value="">Tutti</option>
             {comuni.map(c => <option key={c} value={c}>{c}</option>)}
-          </select>
-        </div>
-        <div className="flex flex-col gap-1">
-          <label className="text-xs text-[var(--brand-text-muted)]">Esecutore</label>
-          <select
-            value={filters.esecutore}
-            onChange={e => setFilter('esecutore', e.target.value)}
-            className="rounded border border-[var(--brand-border)] bg-[var(--brand-bg)] px-2 py-1 text-sm"
-          >
+          </Select>
+        </label>
+        <label className="flex w-48 flex-col gap-1">
+          <span className="text-xs text-[var(--brand-text-muted)]">Esecutore</span>
+          <Select value={filters.esecutore} onChange={e => setFilter('esecutore', e.target.value)}>
             <option value="">Tutti</option>
             {esecutori.map(e => <option key={e} value={e}>{e}</option>)}
-          </select>
-        </div>
+          </Select>
+        </label>
       </div>
 
       {/* Errore (fisso) */}
       {error && (
-        <p className="shrink-0 rounded-[var(--radius-md)] border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+        <div
+          role="alert"
+          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border px-4 py-2 text-sm"
+          style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
+        >
+          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
           {error}
-        </p>
+        </div>
       )}
 
       {/* Conteggio (fisso) */}
@@ -279,10 +272,10 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
       </p>
 
       {/* Area tabella: UNICA parte che scorre */}
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)]">
+      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]">
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
-            <span className="h-6 w-6 animate-spin rounded-full border-2 border-[var(--brand-border)] border-t-[var(--brand-primary)]" />
+            <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden />
             Caricamento…
           </div>
         )}

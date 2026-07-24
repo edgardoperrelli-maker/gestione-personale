@@ -1,11 +1,22 @@
+// components/modules/assistenza/SessionePanel.tsx
 'use client';
+
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H4 E5 S4 R5 V4
+ *
+ * Scheda di una sessione di assistenza: intestazione con spie di stato, area replay
+ * scalata e campo suggerimento. Allineata al sistema Cockpit (icona lucide + Tooltip
+ * per il comando a sola icona, stato offline dal token --status-idle).
+ */
 
 import 'rrweb/dist/style.css';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { RealtimeChannel } from '@supabase/supabase-js';
+import { X } from 'lucide-react';
 
 import Button from '@/components/Button';
 import Input from '@/components/Input';
+import Tooltip from '@/components/ui/Tooltip';
 import { canaleSessione, creaRicevitore, realtimeClient, type Chunk } from '@/lib/assistenza/transport';
 
 type Props = { sid: string; staff: string; data: string; onClose: () => void };
@@ -150,23 +161,25 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
     <div className="flex flex-col overflow-hidden rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]">
       <div className="flex items-center justify-between gap-2 border-b border-[var(--brand-border)] px-3 py-2">
         <div className="text-sm text-[var(--brand-text-main)]">
-          <b>{staff}</b> <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {data}</span>
+          <strong className="font-semibold">{staff}</strong> <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· {data}</span>
         </div>
         <div className="flex items-center gap-2 text-[11px]">
-          <span className="flex items-center gap-1" style={{ color: operatorePresente ? 'var(--status-ok)' : 'var(--brand-text-muted)' }}>
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: operatorePresente ? 'var(--status-ok)' : 'var(--brand-text-muted)' }} />
+          <span className="flex items-center gap-1 text-[var(--brand-text-muted)]">
+            <span className="h-1.5 w-1.5 rounded-full" style={{ background: operatorePresente ? 'var(--status-ok)' : 'var(--status-idle)' }} />
             {operatorePresente ? 'operatore in linea' : 'operatore offline'}
           </span>
           <span className="font-mono text-[var(--brand-text-muted)] tabular-nums">· eventi {ricevuti}</span>
           {errori > 0 && <span className="font-mono text-[var(--status-ko)] tabular-nums">· errori {errori}</span>}
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Chiudi sessione"
-            className="rounded-[var(--radius-sm)] px-1 text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          >
-            ✕
-          </button>
+          <Tooltip testo="Chiudi sessione">
+            <button
+              type="button"
+              onClick={onClose}
+              aria-label="Chiudi sessione"
+              className="flex items-center justify-center rounded-[var(--radius-sm)] p-1 text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              <X size={16} aria-hidden />
+            </button>
+          </Tooltip>
         </div>
       </div>
 
@@ -186,7 +199,7 @@ export default function SessionePanel({ sid, staff, data, onClose }: Props) {
                 : 'Operatore non in linea. Aprirà l\'assistenza dal suo rapportino.'}
             </div>
             {operatorePresente && (
-              <Button size="sm" onClick={richiediDiNuovo}>Richiedi di nuovo</Button>
+              <Button size="sm" variant="primary" onClick={richiediDiNuovo}>Richiedi di nuovo</Button>
             )}
           </div>
         )}

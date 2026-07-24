@@ -1,6 +1,17 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Registro autorizzazioni (vista gemella della coda). Allineamento Cockpit: testa
+ * non più duplicata dalla ListaAttesaNav (toolbar con conteggio mono + Esporta),
+ * glifi (⇩ export, ▾/▸ dettagli, → range date) → icone lucide, celle numeriche
+ * (data, matricola, approvato il) in font-mono tabular-nums. Stato via primitivo
+ * Badge già in uso. Fetch/CSV/filtri invariati.
+ */
+
 import { Fragment, useCallback, useEffect, useMemo, useState, type ComponentProps } from 'react';
+import { ArrowRight, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { filtraRegistro, type FiltriRegistro } from '@/lib/interventi/manuali/filtraRegistro';
 import { STATI_RICHIESTA } from '@/lib/interventi/manuali/types';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
@@ -160,10 +171,16 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
   };
 
   return (
-    <section className="space-y-3">
-      {/* Header: h2 dominante + Esporta */}
-      <div className="flex items-center justify-between gap-2">
-        <h2 className="text-xl font-semibold text-[var(--brand-text-main)]">Registro autorizzazioni</h2>
+    <section aria-label="Registro autorizzazioni" className="space-y-3">
+      {/* Toolbar: conteggio risultati (mono) + Esporta. Il titolo lo porta l'h1
+          della ListaAttesaNav: qui niente h2 duplicato. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <p className="text-sm text-[var(--brand-text-muted)]">
+          <span className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">
+            {filtrate.length}
+          </span>{' '}
+          {filtrate.length === 1 ? 'richiesta' : 'richieste'}
+        </p>
         <Button
           variant="secondary"
           size="sm"
@@ -171,7 +188,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           disabled={filtrate.length === 0}
           onClick={esporta}
         >
-          &#8615; Esporta CSV
+          <Download size={15} aria-hidden /> Esporta CSV
         </Button>
       </div>
 
@@ -229,7 +246,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
             onChange={(e) => setFiltri((f) => ({ ...f, from: e.target.value }))}
             className="min-w-0 flex-1 py-1.5 text-xs"
           />
-          <span className="shrink-0 text-xs text-[var(--brand-text-muted)]">&rarr;</span>
+          <ArrowRight size={14} aria-hidden className="shrink-0 text-[var(--brand-text-muted)]" />
           <Input
             type="date"
             aria-label="Al"
@@ -272,21 +289,26 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                       onClick={() => setApertaId((cur) => (cur === r.id ? null : r.id))}
                       className="cursor-pointer transition hover:bg-[var(--brand-surface-muted)]"
                     >
-                      <td className="whitespace-nowrap px-3 py-2">{formatDataIt(r.data)}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatDataIt(r.data)}</td>
                       <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
                       <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                       <td className="max-w-[200px] truncate px-3 py-2" title={a.via || undefined}>{a.via || '—'}</td>
-                      <td className="px-3 py-2">{a.matricola || '—'}</td>
+                      <td className="px-3 py-2 font-mono tabular-nums">{a.matricola || '—'}</td>
                       <td className="max-w-[160px] truncate px-3 py-2" title={a.attivita || undefined}>{attivitaUnificataDisplay(a.attivita) || '—'}</td>
                       <td className="px-3 py-2"><StatoBadge stato={r.stato} /></td>
                       <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
-                      <td className="whitespace-nowrap px-3 py-2 text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
+                      <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
                       <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
                       <td className="px-3 py-2">
-                        <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--brand-text-muted)]">
-                          <span aria-hidden>{apertaId === r.id ? '▾' : '▸'}</span>
+                        <button
+                          type="button"
+                          aria-expanded={apertaId === r.id}
+                          onClick={(e) => { e.stopPropagation(); setApertaId((cur) => (cur === r.id ? null : r.id)); }}
+                          className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] text-xs font-semibold text-[var(--brand-text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                        >
+                          {apertaId === r.id ? <ChevronDown size={14} aria-hidden /> : <ChevronRight size={14} aria-hidden />}
                           {apertaId === r.id ? 'Chiudi' : 'Dettagli'}
-                        </span>
+                        </button>
                       </td>
                     </tr>
                     {apertaId === r.id && (

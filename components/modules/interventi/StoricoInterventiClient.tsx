@@ -1,8 +1,18 @@
 // components/modules/interventi/StoricoInterventiClient.tsx
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Consultazione «Storico interventi». La spina (breadcrumb, card-filtro cockpit,
+ * FilterBar, split tabella + DetailDrawer) è del pass §7ter del 22/07; questo
+ * ritocco bonifica i residui pre-Cockpit sparsi nei pezzi periferici del modulo:
+ * emoji/frecce → icone lucide, portali bg-black degli annunci → primitivo Dialog,
+ * <select> grezzi → primitivo Select, raggi nudi fuori scala → token.
+ */
+
 import { chiediConferma } from '@/components/ui/chiediConferma';
-import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import Button from '@/components/Button';
 import { DetailDrawer, DrawerKv, DrawerSection } from '@/components/ui/DetailDrawer';
@@ -204,21 +214,13 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
       {/* Header slim (pattern fogliette §7bis, variante densa): breadcrumb + vista gemella */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <Breadcrumb items={[{ label: 'Interventi' }, { label: 'Storico' }]} />
-        <div className="flex items-center gap-3">
-          <MultiSelect
-            label={colonne.length > 0 ? `Colonne (${colonne.length})` : 'Colonne: tutte'}
-            ariaLabel="Colonne visibili"
-            options={COLS.map((c) => ({ value: c.key, label: c.header }))}
-            values={colonne}
-            onChange={cambiaColonne}
-          />
-          <Link
-            href="/hub/interventi/riconsegna"
-            className="rounded-[var(--radius-sm)] text-sm font-medium text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          >
-            Riconsegna giornaliera →
-          </Link>
-        </div>
+        <MultiSelect
+          label={colonne.length > 0 ? `Colonne (${colonne.length})` : 'Colonne: tutte'}
+          ariaLabel="Colonne visibili"
+          options={COLS.map((c) => ({ value: c.key, label: c.header }))}
+          values={colonne}
+          onChange={cambiaColonne}
+        />
       </div>
       <div className="grid shrink-0 grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         {CARDS.map((c) => {
@@ -264,13 +266,13 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
       />
 
       {troncato && (
-        <div className="rounded-lg border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[var(--warning-soft)] px-4 py-2 text-sm text-[var(--warning)]">
           Troppi risultati: i contatori e la tabella mostrano i primi {total}. Restringi i filtri.
         </div>
       )}
 
       {error && (
-        <div className="rounded-lg border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--danger)]">
           {error}
         </div>
       )}
@@ -362,9 +364,9 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
               aria-label="Pagina precedente"
               onClick={() => vaiPagina(Math.max(0, page - 1))}
               disabled={loading || page === 0}
-              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+              className="inline-flex items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
             >
-              ←
+              <ChevronLeft size={16} aria-hidden />
             </button>
             <span>Pagina {page + 1} di {totPagine}</span>
             <button
@@ -372,9 +374,9 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
               aria-label="Pagina successiva"
               onClick={() => vaiPagina(Math.min(totPagine - 1, page + 1))}
               disabled={loading || page >= totPagine - 1}
-              className="rounded-lg border border-[var(--brand-border)] px-3 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+              className="inline-flex items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 disabled:opacity-50 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
             >
-              →
+              <ChevronRight size={16} aria-hidden />
             </button>
           </div>
         )}

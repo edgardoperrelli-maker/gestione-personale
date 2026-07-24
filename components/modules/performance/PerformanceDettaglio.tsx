@@ -20,7 +20,7 @@ export default function PerformanceDettaglio({ allRows, options, initial }: { al
   const onChange = (nf: PerfFilters) => { setPage(0); setF(nf); };
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-2 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Dettaglio interventi</h2>
         <span className="text-xs text-[var(--brand-text-muted)]">{rows.length.toLocaleString('it-IT')} interventi</span>

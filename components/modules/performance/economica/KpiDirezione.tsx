@@ -1,16 +1,11 @@
 'use client';
+import StatTile from '@/components/ui/StatTile';
 import { eur, num, type DatiProduzione } from './tipi';
 
+// Adapter dai nomi di dominio (titolo/valore/nota/accent) al primitivo StatTile.
 function Card({ titolo, valore, nota, accent }: { titolo: string; valore: string; nota?: string; accent?: 'pos' | 'neg' | 'warn' }) {
-  const color =
-    accent === 'pos' ? 'text-[var(--success)]' : accent === 'neg' ? 'text-[var(--danger)]' : accent === 'warn' ? 'text-[var(--warning)]' : 'text-[var(--brand-text-main)]';
-  return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
-      <div className="text-[11px] text-[var(--brand-text-muted)]">{titolo}</div>
-      <div className={`text-lg font-semibold tabular-nums ${color}`}>{valore}</div>
-      {nota && <div className="text-[10px] text-[var(--brand-text-subtle)]">{nota}</div>}
-    </div>
-  );
+  const tone = accent === 'pos' ? 'ok' : accent === 'neg' ? 'danger' : accent === 'warn' ? 'warn' : 'neutral';
+  return <StatTile label={titolo} value={valore} note={nota} tone={tone} />;
 }
 
 /** Fila di KPI per la dirigenza: economia + personale. Con `operative` aggiunge le 2 card di controllo. */

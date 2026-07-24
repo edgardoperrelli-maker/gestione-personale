@@ -1,6 +1,7 @@
 // components/modules/interventi/StoricoTabella.tsx
 'use client';
 
+import { Camera, Pencil, Trash2 } from 'lucide-react';
 import type { RigaStorico } from '@/lib/interventi/storico/types';
 import { attivitaUnificataDisplay } from '@/lib/attivita/attivitaDisplay';
 
@@ -126,9 +127,9 @@ export default function StoricoTabella({
                     onClick={() => onFoto(r.id)}
                     title="Vedi foto"
                     aria-label="Vedi foto"
-                    className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+                    className="rounded-[var(--radius-md)] border border-[var(--brand-border)] p-1.5 text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                   >
-                    📷
+                    <Camera size={15} aria-hidden />
                   </button>
                   {puoModificare && (
                     <button
@@ -136,9 +137,9 @@ export default function StoricoTabella({
                       onClick={() => onModifica(r.id)}
                       title="Modifica"
                       aria-label="Modifica"
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+                      className="rounded-[var(--radius-md)] border border-[var(--brand-border)] p-1.5 text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                     >
-                      ✎
+                      <Pencil size={15} aria-hidden />
                     </button>
                   )}
                   {isAdminPlus && (
@@ -147,9 +148,9 @@ export default function StoricoTabella({
                       onClick={() => onCancella(r.id)}
                       title="Elimina riga"
                       aria-label="Elimina riga"
-                      className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-[var(--brand-text-main)] transition hover:border-[var(--danger)] hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
+                      className="rounded-[var(--radius-md)] border border-[var(--brand-border)] p-1.5 text-[var(--brand-text-muted)] transition hover:border-[var(--danger)] hover:text-[var(--danger)] focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
                     >
-                      🗑
+                      <Trash2 size={15} aria-hidden />
                     </button>
                   )}
                 </div>

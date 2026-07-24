@@ -17,18 +17,18 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
   const cc = useChartColors();
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Esiti operatori</h2>
         <div className="flex flex-wrap items-center gap-1.5 text-xs">
-          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--success-soft)] px-2.5 py-0.5 font-medium text-[var(--success)] tabular-nums">
-            {tot.positivi.toLocaleString('it-IT')} positivi
+          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--success-soft)] px-2.5 py-0.5 font-medium text-[var(--success)]">
+            <span className="font-mono tabular-nums">{tot.positivi.toLocaleString('it-IT')}</span> positivi
           </span>
-          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--danger-soft)] px-2.5 py-0.5 font-medium text-[var(--danger)] tabular-nums">
-            {tot.negativi.toLocaleString('it-IT')} negativi
+          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--danger-soft)] px-2.5 py-0.5 font-medium text-[var(--danger)]">
+            <span className="font-mono tabular-nums">{tot.negativi.toLocaleString('it-IT')}</span> negativi
           </span>
-          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-0.5 font-medium text-[var(--brand-text-main)] tabular-nums">
-            {tot.pct}% riuscita
+          <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-0.5 font-medium text-[var(--brand-text-main)]">
+            <span className="font-mono tabular-nums">{tot.pct}%</span> riuscita
           </span>
         </div>
       </div>
@@ -79,10 +79,10 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
                 <div key={o.id} className="grid grid-cols-[160px_1fr_56px] items-center gap-3 rounded-[var(--radius-md)] px-2 py-1.5 hover:bg-[var(--brand-surface-muted)]">
                   <div className="min-w-0">
                     <div className="truncate text-[13px] font-medium text-[var(--brand-text-main)]">{o.name}</div>
-                    <div className="truncate text-xs tabular-nums text-[var(--brand-text-muted)]">
-                      <span className="text-[var(--success)]">{o.positivi.toLocaleString('it-IT')} pos</span>
+                    <div className="truncate text-xs text-[var(--brand-text-muted)]">
+                      <span className="text-[var(--success)]"><span className="font-mono tabular-nums">{o.positivi.toLocaleString('it-IT')}</span> pos</span>
                       {' · '}
-                      <span className="text-[var(--danger)]">{o.negativi.toLocaleString('it-IT')} neg</span>
+                      <span className="text-[var(--danger)]"><span className="font-mono tabular-nums">{o.negativi.toLocaleString('it-IT')}</span> neg</span>
                     </div>
                   </div>
                   <div className="h-3.5 overflow-hidden rounded-[var(--radius-md)] bg-[var(--brand-border)]/40">
@@ -91,7 +91,7 @@ export default function PerformanceEsiti({ allRows, options, initial }: { allRow
                       {o.negativi > 0 && <div className="h-full" style={{ flex: o.negativi, background: 'var(--danger)' }} title={`Negativi: ${o.negativi}`} />}
                     </div>
                   </div>
-                  <div className="text-right text-[13px] font-semibold tabular-nums text-[var(--brand-text-main)]">{o.pct}%</div>
+                  <div className="text-right text-[13px] font-semibold font-mono tabular-nums text-[var(--brand-text-main)]">{o.pct}%</div>
                 </div>
               ))}
             </div>

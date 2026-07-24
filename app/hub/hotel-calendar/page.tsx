@@ -1,11 +1,30 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Calendario delle prenotazioni hotel per le trasferte. Testa di modulo standard
+ * (ObjectHeader) con i comandi; sotto, una control-bar con navigazione + periodo
+ * + vista (settimana / 2 settimane / mese) e la griglia a sette colonne. Il
+ * modulo nasceva prima del sistema Cockpit: il redesign ha portato il Modal
+ * fatto a mano → primitivo Dialog, i <select>/<input>/<textarea> grezzi → Input/
+ * Select/Textarea/MultiSelect, i glifi e le etichette inglesi → icone lucide, gli
+ * importi → € in mono tabulare. Dati, fetch, realtime ed export invariati.
+ */
+
 import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { toast } from '@/components/ui/Toast';
 import { createClient } from '@supabase/supabase-js';
-import Link from 'next/link';
 import { useEffect, useMemo, useState } from 'react';
+import { CalendarPlus, ChevronLeft, ChevronRight, Download, Pencil, RotateCw, Trash2 } from 'lucide-react';
 import SendRequestModal from './SendRequestModal';
+import ObjectHeader from '@/components/ui/ObjectHeader';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
+import Textarea from '@/components/ui/Textarea';
+import MultiSelect from '@/components/ui/MultiSelect';
+import Dialog from '@/components/ui/Dialog';
 import type { Hotel, Territory } from '@/types';
 
 const supabase = createClient(
@@ -62,11 +81,20 @@ type RoomOption = {
   configured: boolean;
 };
 
-const TERRITORY_UI: Record<string, { pill: string; card: string }> = {
-  FIRENZE: { pill: 'bg-[var(--warning-soft)] text-[var(--warning)] border-[var(--brand-border)]', card: 'bg-[var(--warning-soft)] border-[var(--brand-border)]' },
-  PADOVA: { pill: 'bg-[var(--brand-violet-soft)] text-[var(--brand-violet)] border-[var(--brand-border)]', card: 'bg-[var(--brand-violet-soft)] border-[var(--brand-border)]' },
-  PERUGIA: { pill: 'bg-[var(--danger-soft)] text-[var(--danger)] border-[var(--brand-border)]', card: 'bg-[var(--danger-soft)] border-[var(--brand-border)]' },
-  NAPOLI: { pill: 'bg-[var(--info-soft)] text-[var(--info)] border-[var(--brand-border)]', card: 'bg-[var(--info-soft)] border-[var(--brand-border)]' },
+const VIEW_MODES: { key: ViewMode; label: string }[] = [
+  { key: 'week', label: 'Settimana' },
+  { key: 'twoWeeks', label: '2 settimane' },
+  { key: 'month', label: 'Mese' },
+];
+
+// Colore per territorio dalla scala grafici sobria (--chart-*), non dai semantici:
+// un territorio non è uno stato «errore/attenzione». Niente --chart-4 (rosso) né
+// --brand-violet (retro-compat) — vedi DESIGN.md §3.
+const TERRITORY_CHART: Record<string, string> = {
+  FIRENZE: 'var(--chart-3)', // ambra
+  PADOVA: 'var(--chart-5)', // viola
+  PERUGIA: 'var(--chart-6)', // teal
+  NAPOLI: 'var(--chart-1)', // blu
 };
 
 function yyyyMmDd(date: Date) {
@@ -121,14 +149,13 @@ function chunk<T>(items: T[], size: number) {
   return result;
 }
 
-function territoryPillClasses(territory: string) {
-  const key = (territory || '').toUpperCase();
-  return TERRITORY_UI[key]?.pill ?? 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)] border-[var(--brand-border)]';
+/** Colore categorico del territorio (grigio di riserva per i territori non mappati). */
+function territoryColor(territory: string) {
+  return TERRITORY_CHART[(territory || '').toUpperCase()] ?? 'var(--chart-8)';
 }
-
-function territoryCardClasses(territory: string) {
-  const key = (territory || '').toUpperCase();
-  return TERRITORY_UI[key]?.card ?? 'bg-[var(--brand-surface)] border-[var(--brand-border)]';
+/** Tinta traslucida di un colore, per i chip a fondo pieno senza bordo. */
+function tint(color: string, pct: number) {
+  return `color-mix(in oklab, ${color} ${pct}%, transparent)`;
 }
 
 function normalizeGuests(value: unknown): Guest[] {
@@ -160,8 +187,8 @@ function bookingFromRow(row: RawHotelBooking): HotelBooking {
 }
 
 function money(value: number | undefined) {
-  if (value == null) return '-';
-  return `EUR ${value.toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  if (value == null) return '—';
+  return value.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 }
 
 function normalizeLookup(value: string) {
@@ -194,33 +221,7 @@ function territoryNameById(territories: Territory[], territoryId: string | null 
   return territories.find((territory) => territory.id === territoryId)?.name ?? '';
 }
 
-function Modal({
-  open,
-  title,
-  onClose,
-  children,
-}: {
-  open: boolean;
-  title: string;
-  onClose: () => void;
-  children: React.ReactNode;
-}) {
-  if (!open) return null;
-  return (
-    <div className="fixed inset-0 z-50">
-      <div className="absolute inset-0 bg-[oklch(0_0_0/0.6)]" aria-hidden="true" onClick={onClose} />
-      <div className="absolute inset-0 flex items-center justify-center p-4">
-        <div className="w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]">
-          <div className="flex items-center justify-between border-b p-3">
-            <div className="text-sm font-semibold">{title}</div>
-            <button type="button" className="rounded-[var(--radius-md)] border px-2 py-1 text-xs" onClick={onClose}>Chiudi</button>
-          </div>
-          <div className="p-4">{children}</div>
-        </div>
-      </div>
-    </div>
-  );
-}
+const labelCls = 'mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]';
 
 function BookingForm({
   value,
@@ -229,6 +230,7 @@ function BookingForm({
   territories,
   rangeEnd,
   onRangeEndChange,
+  showRange,
 }: {
   value: HotelBooking;
   onChange: (next: HotelBooking) => void;
@@ -236,6 +238,7 @@ function BookingForm({
   territories: Territory[];
   rangeEnd: string | null;
   onRangeEndChange: (value: string) => void;
+  showRange: boolean;
 }) {
   const [eligibleGuests, setEligibleGuests] = useState<Guest[]>([]);
   const [loadingGuests, setLoadingGuests] = useState(false);
@@ -249,6 +252,16 @@ function BookingForm({
     ?? '';
   const roomOptions = roomOptionsForHotel(selectedHotel);
   const selectedRoomId = roomOptions.find((room) => room.room_type === value.roomType)?.id ?? '';
+
+  // Opzioni ospiti: unione tra chi è già assegnato alla prenotazione e chi risulta
+  // eleggibile dal cronoprogramma, così un ospite salvato resta visibile anche se
+  // fuori dalla finestra corrente.
+  const guestOptions = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const guest of value.guests) map.set(guest.id, guest.name);
+    for (const guest of eligibleGuests) map.set(guest.id, guest.name);
+    return Array.from(map, ([id, name]) => ({ value: id, label: name }));
+  }, [value.guests, eligibleGuests]);
 
   const loadCronoprogrammaGuests = async () => {
     if (!autoTerritoryId) {
@@ -314,33 +327,32 @@ function BookingForm({
   };
 
   return (
-    <form className="space-y-3" onSubmit={(event) => event.preventDefault()}>
+    <form className="space-y-4" onSubmit={(event) => event.preventDefault()}>
       <div className="grid grid-cols-2 gap-3">
-        <label className="text-xs">
-          <div className="mb-1">Dal</div>
-          <input
+        <label className="block">
+          <span className={labelCls}>Dal</span>
+          <Input
             type="date"
-            className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
             value={value.date}
             onChange={(event) => onChange({ ...value, date: event.target.value })}
           />
         </label>
-        <label className="text-xs">
-          <div className="mb-1">Al</div>
-          <input
-            type="date"
-            className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
-            value={rangeEnd ?? value.date}
-            min={value.date}
-            onChange={(event) => onRangeEndChange(event.target.value)}
-          />
-        </label>
+        {showRange && (
+          <label className="block">
+            <span className={labelCls}>Al</span>
+            <Input
+              type="date"
+              value={rangeEnd ?? value.date}
+              min={value.date}
+              onChange={(event) => onRangeEndChange(event.target.value)}
+            />
+          </label>
+        )}
       </div>
 
-      <label className="block text-xs">
-        <div className="mb-1">Hotel</div>
-        <select
-          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
+      <label className="block">
+        <span className={labelCls}>Hotel</span>
+        <Select
           value={value.hotel_id ?? ''}
           onChange={(event) => {
             const hotel = hotels.find((item) => item.id === event.target.value) ?? null;
@@ -361,20 +373,19 @@ function BookingForm({
           {hotels.filter((hotel) => hotel.active).map((hotel) => (
             <option key={hotel.id} value={hotel.id}>{hotel.name}</option>
           ))}
-        </select>
+        </Select>
       </label>
 
       <div>
-        <div className="mb-1 text-xs">Territorio</div>
-        <div className="inline-flex rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--brand-primary)]">
+        <span className={labelCls}>Territorio</span>
+        <span className="inline-flex rounded-full border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-3 py-1 text-xs font-semibold text-[var(--primary-text)]">
           {autoTerritoryName ? autoTerritoryName.toUpperCase() : 'Seleziona un hotel'}
-        </div>
+        </span>
       </div>
 
-      <label className="block text-xs">
-        <div className="mb-1">Tipologia camera</div>
-        <select
-          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
+      <label className="block">
+        <span className={labelCls}>Tipologia camera</span>
+        <Select
           value={selectedRoomId}
           disabled={!selectedHotel}
           onChange={(event) => {
@@ -390,71 +401,76 @@ function BookingForm({
           <option value="">Seleziona tipologia</option>
           {roomOptions.map((room) => (
             <option key={room.id} value={room.id}>
-              {room.room_type} - {money(room.price_per_night)}/notte
+              {room.room_type} — {money(room.price_per_night)}/notte
               {room.dinner_price_per_person != null ? ` + cena ${money(Number(room.dinner_price_per_person))}/pers.` : ''}
             </option>
           ))}
-        </select>
+        </Select>
         {selectedHotel && roomOptions.every((room) => !room.configured) && (
-          <div className="mt-1 text-[11px] text-[var(--warning)]">
-            Prezzi non configurati per questo hotel: puoi selezionare una tipologia base a EUR 0,00 o impostare i prezzi in Impostazioni - Hotel.
-          </div>
+          <p className="mt-1 text-[11px] text-[var(--warning)]">
+            Prezzi non configurati per questo hotel: puoi selezionare una tipologia base a {money(0)} o impostare i prezzi in Impostazioni → Hotel.
+          </p>
         )}
       </label>
 
       <div className="grid grid-cols-2 gap-3 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3 text-xs">
         <div>
           <div className="text-[var(--brand-text-muted)]">Prezzo camera</div>
-          <div className="font-semibold">{money(value.roomPrice)}</div>
+          <div className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">{money(value.roomPrice)}</div>
         </div>
         <div>
           <div className="text-[var(--brand-text-muted)]">Cena per persona</div>
-          <div className="font-semibold">{money(value.dinnerPrice)}</div>
+          <div className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">{money(value.dinnerPrice)}</div>
         </div>
       </div>
 
-      <label className="block text-xs">
-        <div className="mb-1">Note</div>
-        <textarea
-          className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
+      <label className="block">
+        <span className={labelCls}>Note</span>
+        <Textarea
           rows={3}
           value={value.notes ?? ''}
           onChange={(event) => onChange({ ...value, notes: event.target.value })}
         />
       </label>
 
-      {autoTerritoryId && (
-        <button
-          type="button"
-          className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 py-2 text-xs font-semibold"
-          onClick={() => void populateFromCronoprogramma()}
-        >
-          Aggiorna da cronoprogramma
-        </button>
-      )}
-
-      <label className="block text-xs">
-        <div className="mb-1">Ospiti</div>
-        <select
-          multiple
-          className="h-28 w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm"
-          value={value.guests.map((guest) => guest.id)}
-          onChange={(event) => {
-            const selectedIds = Array.from(event.currentTarget.selectedOptions).map((option) => option.value);
-            const selected = eligibleGuests.filter((guest) => selectedIds.includes(guest.id));
-            onChange({ ...value, guests: selected });
-          }}
-        >
-          {eligibleGuests.map((guest) => (
-            <option key={guest.id} value={guest.id}>{guest.name}</option>
-          ))}
-        </select>
-        <div className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
-          {loadingGuests
-            ? 'Caricamento operatori dal cronoprogramma...'
-            : 'Sono mostrati solo gli operatori assegnati nel cronoprogramma a questo territorio; i residenti sono esclusi.'}
+      <div className="space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          <span className={`${labelCls} mb-0`}>Ospiti</span>
+          {autoTerritoryId && (
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => void populateFromCronoprogramma()}
+            >
+              <RotateCw size={13} aria-hidden />
+              Aggiorna da cronoprogramma
+            </Button>
+          )}
         </div>
-      </label>
+        <MultiSelect
+          label="Ospiti"
+          ariaLabel="Seleziona ospiti"
+          options={guestOptions}
+          values={value.guests.map((guest) => guest.id)}
+          triggerClassName="border border-[var(--brand-border-strong)] bg-[var(--brand-surface)]"
+          onChange={(ids) => {
+            const pool = new Map<string, Guest>();
+            for (const guest of value.guests) pool.set(guest.id, guest);
+            for (const guest of eligibleGuests) pool.set(guest.id, guest);
+            const next = ids.flatMap((id) => {
+              const guest = pool.get(id);
+              return guest ? [guest] : [];
+            });
+            onChange({ ...value, guests: next });
+          }}
+        />
+        <p className="text-[11px] text-[var(--brand-text-subtle)]">
+          {loadingGuests
+            ? 'Caricamento operatori dal cronoprogramma…'
+            : 'Sono mostrati solo gli operatori assegnati nel cronoprogramma a questo territorio; i residenti sono esclusi.'}
+        </p>
+      </div>
     </form>
   );
 }
@@ -488,10 +504,8 @@ export default function Page() {
   }
 
   const isMonth = mode === 'month';
-  const fmtIt = (date: Date) => date.toLocaleDateString('it-IT');
-  const weekStart = startOfWeekMonday(pivot);
-  const weekEnd = addDays(weekStart, 6);
-  const rangeLabel = `${fmtIt(weekStart)} - ${fmtIt(weekEnd)}`;
+  const fmtShort = (date: Date) => date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' });
+  const fmtLong = (date: Date) => date.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' });
 
   useEffect(() => {
     fetch('/api/hotel-calendar/bootstrap', { cache: 'no-store' }).then(async (response) => {
@@ -530,15 +544,6 @@ export default function Page() {
       void supabase.removeChannel(channel);
     };
   }, [pivot]);
-
-  useEffect(() => {
-    const handler = (event: Event) => {
-      const custom = event as CustomEvent<HotelBooking>;
-      openEdit(custom.detail);
-    };
-    window.addEventListener('hotel-edit', handler);
-    return () => window.removeEventListener('hotel-edit', handler);
-  }, []);
 
   function deleteBooking(id: string) {
     setDaEliminare(id);
@@ -688,136 +693,231 @@ export default function Page() {
     return map;
   }, [bookings]);
 
-  if (!loaded) return <div className="p-4 text-sm text-[var(--brand-text-subtle)]">Caricamento...</div>;
+  const periodLabel = isMonth
+    ? (() => {
+        const raw = pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' });
+        return raw.charAt(0).toUpperCase() + raw.slice(1);
+      })()
+    : `${fmtShort(range.from)} – ${fmtLong(range.to)}`;
+
+  if (!loaded) return <div className="p-4 text-sm text-[var(--brand-text-subtle)]">Caricamento…</div>;
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={goPrev}>Prev</button>
-          {isMonth ? (
-            <div className="text-lg font-semibold">{pivot.toLocaleString('it-IT', { month: 'long', year: 'numeric' })}</div>
-          ) : (
-            <div className="text-lg font-semibold">{rangeLabel}</div>
-          )}
-          <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={goNext}>Next</button>
-
-          <div className="ml-2 flex items-center gap-1">
-            <button type="button" onClick={() => setMode('week')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'week' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Settimana</button>
-            <button type="button" onClick={() => setMode('twoWeeks')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'twoWeeks' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>2 settimane</button>
-            <button type="button" onClick={() => setMode('month')} className={`rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow ${mode === 'month' ? 'bg-[var(--brand-primary)] text-[var(--on-primary)] border-[var(--brand-primary)]' : 'border-[var(--brand-border)] hover:bg-[var(--brand-surface-muted)]'}`}>Mese</button>
-            <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</button>
-            <button type="button" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow" onClick={() => openNew(yyyyMmDd(pivot))}>Nuova prenotazione</button>
-            <button
-              type="button"
-              className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow"
+    <div className="space-y-4">
+      <ObjectHeader
+        title="Calendario hotel"
+        sub="Prenotazioni hotel per le trasferte."
+        actions={
+          <>
+            <Button size="sm" variant="primary" onClick={() => openNew(yyyyMmDd(pivot))}>
+              <CalendarPlus size={14} aria-hidden />
+              Nuova prenotazione
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
               onClick={() => setExportModal({
                 open: true,
                 from: yyyyMmDd(startOfWeekMonday(pivot)),
                 to: yyyyMmDd(endOfWeekSunday(pivot)),
               })}
             >
+              <Download size={14} aria-hidden />
               Esporta XLSX
-            </button>
+            </Button>
             <SendRequestModal hotels={hotels} />
+          </>
+        }
+      />
+
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1">
+            <Button size="sm" variant="outline" aria-label="Periodo precedente" onClick={goPrev}>
+              <ChevronLeft size={16} aria-hidden />
+            </Button>
+            <Button size="sm" variant="outline" onClick={() => setPivot(startOfDay(new Date()))}>Oggi</Button>
+            <Button size="sm" variant="outline" aria-label="Periodo successivo" onClick={goNext}>
+              <ChevronRight size={16} aria-hidden />
+            </Button>
           </div>
+          <div className="font-mono text-base font-semibold tabular-nums text-[var(--brand-text-main)]">{periodLabel}</div>
         </div>
 
-        <Link href="/hub" className="rounded-[var(--radius-lg)] border px-3 py-2 text-sm shadow">Hub</Link>
+        <div className="inline-flex items-center gap-1">
+          {VIEW_MODES.map((view) => (
+            <Button
+              key={view.key}
+              size="sm"
+              variant={mode === view.key ? 'soft' : 'outline'}
+              aria-pressed={mode === view.key}
+              onClick={() => setMode(view.key)}
+            >
+              {view.label}
+            </Button>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((day) => (
-          <div key={day} className="px-2 py-1 text-xs font-medium">{day}</div>
-        ))}
+      {/* Desktop/tablet (≥ md): griglia mese a 7 colonne */}
+      <div className="hidden space-y-2 md:block">
+        <div className="grid grid-cols-7 gap-2">
+          {['Lun', 'Mar', 'Mer', 'Gio', 'Ven', 'Sab', 'Dom'].map((day) => (
+            <div key={day} className="px-2 py-1 text-xs font-medium text-[var(--brand-text-muted)]">{day}</div>
+          ))}
+        </div>
+
+        <div className="grid grid-cols-7 gap-2">
+          {weeks.map((week, weekIndex) => (
+            <div key={weekIndex} className="contents">
+              {week.map((day, dayIndex) => {
+                const key = yyyyMmDd(day);
+                const dayBookings = bookingsByDay[key] ?? [];
+                const isToday = key === today;
+                const inMonth = day.getMonth() === pivot.getMonth();
+
+                return (
+                  <div
+                    key={`${weekIndex}-${dayIndex}`}
+                    className={`flex min-h-[220px] flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 shadow-[var(--shadow-sm)] ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-[var(--brand-primary)]' : ''}`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <div className={`font-mono text-sm font-semibold tabular-nums ${isToday ? 'text-[var(--primary-text)]' : 'text-[var(--brand-text-main)]'}`}>{day.getDate()}</div>
+                    </div>
+                    <div className="flex-1 space-y-2 overflow-auto">
+                      {dayBookings.map((booking) => (
+                        <HotelCard
+                          key={booking.id}
+                          booking={booking}
+                          onEdit={() => openEdit(booking)}
+                          onDelete={() => void deleteBooking(booking.id)}
+                        />
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ))}
+        </div>
       </div>
 
-      <div className="grid grid-cols-7 gap-2">
-        {weeks.map((week, weekIndex) => (
-          <div key={weekIndex} className="contents">
-            {week.map((day, dayIndex) => {
-              const key = yyyyMmDd(day);
-              const dayBookings = bookingsByDay[key] ?? [];
-              const isToday = key === today;
-              const inMonth = day.getMonth() === pivot.getMonth();
-
-              return (
-                <div
-                  key={`${weekIndex}-${dayIndex}`}
-                  className={`flex min-h-[220px] flex-col gap-2 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 ${inMonth ? '' : 'opacity-40'} ${isToday ? 'ring-2 ring-[var(--brand-primary)]' : ''}`}
-                >
-                  <div className="flex items-center justify-between">
-                    <div className="text-sm font-semibold">{day.getDate()}</div>
-                  </div>
-                  <div className="flex-1 space-y-2 overflow-auto">
-                    {dayBookings.map((booking) => (
-                      <HotelCard key={booking.id} booking={booking} onDelete={() => void deleteBooking(booking.id)} />
-                    ))}
-                    {dayBookings.length === 0 && <div className="text-xs text-[var(--brand-text-subtle)]">Nessuna prenotazione</div>}
-                  </div>
+      {/* Mobile (< md): agenda a colonna singola — la griglia a 7 colonne è illeggibile sotto md */}
+      <div className="space-y-4 md:hidden">
+        {(() => {
+          const conPrenotazioni = days.filter((day) => (bookingsByDay[yyyyMmDd(day)] ?? []).length > 0);
+          if (conPrenotazioni.length === 0) {
+            return (
+              <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border)] px-4 py-10 text-center text-sm text-[var(--brand-text-muted)]">
+                Nessuna prenotazione nel periodo.
+              </div>
+            );
+          }
+          return conPrenotazioni.map((day) => {
+            const key = yyyyMmDd(day);
+            const isToday = key === today;
+            return (
+              <section key={key}>
+                <h3 className="mb-2 flex items-baseline gap-2 border-b border-[var(--brand-border)] pb-1">
+                  <span className={`text-sm font-semibold capitalize ${isToday ? 'text-[var(--primary-text)]' : 'text-[var(--brand-text-main)]'}`}>
+                    {day.toLocaleDateString('it-IT', { weekday: 'long' })}
+                  </span>
+                  <span className="font-mono text-xs tabular-nums text-[var(--brand-text-muted)]">
+                    {day.toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })}
+                  </span>
+                </h3>
+                <div className="space-y-2">
+                  {(bookingsByDay[key] ?? []).map((booking) => (
+                    <HotelCard
+                      key={booking.id}
+                      booking={booking}
+                      onEdit={() => openEdit(booking)}
+                      onDelete={() => void deleteBooking(booking.id)}
+                    />
+                  ))}
                 </div>
-              );
-            })}
-          </div>
-        ))}
+              </section>
+            );
+          });
+        })()}
       </div>
 
-      <Modal open={newModal.open && !!draft} title="Nuova prenotazione hotel" onClose={closeModals}>
-        {draft && (
+      <Dialog
+        open={newModal.open && !!draft}
+        onClose={closeModals}
+        title="Nuova prenotazione hotel"
+        className="sm:max-w-xl"
+        footer={
           <>
-            <BookingForm
-              value={draft}
-              onChange={setDraft}
-              hotels={hotels}
-              territories={territories}
-              rangeEnd={rangeEnd}
-              onRangeEndChange={setRangeEnd}
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={closeModals}>Annulla</button>
-              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void saveDraft()}>Salva</button>
-            </div>
+            <Button variant="outline" size="sm" onClick={closeModals}>Annulla</Button>
+            <Button variant="primary" size="sm" onClick={() => void saveDraft()}>Salva</Button>
           </>
-        )}
-      </Modal>
-
-      <Modal open={editModal.open && !!draft} title="Modifica prenotazione hotel" onClose={closeModals}>
+        }
+      >
         {draft && (
-          <>
-            <BookingForm
-              value={draft}
-              onChange={setDraft}
-              hotels={hotels}
-              territories={territories}
-              rangeEnd={draft.date}
-              onRangeEndChange={() => undefined}
-            />
-            <div className="mt-4 flex justify-end gap-2">
-              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={closeModals}>Annulla</button>
-              <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void saveDraft()}>Salva</button>
-            </div>
-          </>
+          <BookingForm
+            value={draft}
+            onChange={setDraft}
+            hotels={hotels}
+            territories={territories}
+            rangeEnd={rangeEnd}
+            onRangeEndChange={setRangeEnd}
+            showRange
+          />
         )}
-      </Modal>
+      </Dialog>
 
-      <Modal open={exportModal.open} title="Esporta prenotazioni" onClose={() => setExportModal((modal) => ({ ...modal, open: false }))}>
-        <div className="space-y-3">
-          <div className="grid grid-cols-2 gap-3">
-            <label className="text-xs">
-              <div className="mb-1">Dal</div>
-              <input type="date" className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm" value={exportModal.from} onChange={(event) => setExportModal((modal) => ({ ...modal, from: event.target.value }))} />
-            </label>
-            <label className="text-xs">
-              <div className="mb-1">Al</div>
-              <input type="date" className="w-full rounded-[var(--radius-md)] border px-2 py-1 text-sm" min={exportModal.from} value={exportModal.to} onChange={(event) => setExportModal((modal) => ({ ...modal, to: event.target.value }))} />
-            </label>
-          </div>
-          <div className="flex justify-end gap-2">
-            <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2" onClick={() => setExportModal((modal) => ({ ...modal, open: false }))}>Annulla</button>
-            <button type="button" className="rounded-[var(--radius-md)] border px-3 py-2 shadow-[var(--shadow-sm)]" onClick={() => void exportXlsx()}>Esporta</button>
-          </div>
+      <Dialog
+        open={editModal.open && !!draft}
+        onClose={closeModals}
+        title="Modifica prenotazione hotel"
+        className="sm:max-w-xl"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={closeModals}>Annulla</Button>
+            <Button variant="primary" size="sm" onClick={() => void saveDraft()}>Salva</Button>
+          </>
+        }
+      >
+        {draft && (
+          <BookingForm
+            value={draft}
+            onChange={setDraft}
+            hotels={hotels}
+            territories={territories}
+            rangeEnd={draft.date}
+            onRangeEndChange={() => undefined}
+            showRange={false}
+          />
+        )}
+      </Dialog>
+
+      <Dialog
+        open={exportModal.open}
+        onClose={() => setExportModal((modal) => ({ ...modal, open: false }))}
+        title="Esporta prenotazioni"
+        footer={
+          <>
+            <Button variant="outline" size="sm" onClick={() => setExportModal((modal) => ({ ...modal, open: false }))}>Annulla</Button>
+            <Button variant="primary" size="sm" onClick={() => void exportXlsx()}>
+              <Download size={14} aria-hidden />
+              Esporta
+            </Button>
+          </>
+        }
+      >
+        <div className="grid grid-cols-2 gap-3">
+          <label className="block">
+            <span className={labelCls}>Dal</span>
+            <Input type="date" value={exportModal.from} onChange={(event) => setExportModal((modal) => ({ ...modal, from: event.target.value }))} />
+          </label>
+          <label className="block">
+            <span className={labelCls}>Al</span>
+            <Input type="date" min={exportModal.from} value={exportModal.to} onChange={(event) => setExportModal((modal) => ({ ...modal, to: event.target.value }))} />
+          </label>
         </div>
-      </Modal>
+      </Dialog>
+
       <ConfirmDialog
         open={daEliminare !== null}
         title="Eliminare questa prenotazione?"
@@ -831,54 +931,57 @@ export default function Page() {
   );
 }
 
-function HotelCard({ booking, onDelete }: { booking: HotelBooking; onDelete: () => void }) {
+function HotelCard({ booking, onEdit, onDelete }: { booking: HotelBooking; onEdit: () => void; onDelete: () => void }) {
+  // Chip a fondo pieno senza bordo: la cella-giorno è l'unico livello bordato.
+  const colore = territoryColor(booking.territory);
   return (
-    <div className={`rounded-[var(--radius-lg)] border p-2 shadow-[var(--shadow-sm)] ${territoryCardClasses(booking.territory)}`}>
+    <div className="rounded-[var(--radius-md)] p-2" style={{ backgroundColor: tint(colore, 14) }}>
       <div className="flex items-center justify-between gap-2">
-        <div className="flex items-center gap-2">
-          <div className="text-sm font-semibold">{booking.hotelName}</div>
-          <span className={`rounded-full border px-2 py-0.5 text-[10px] ${territoryPillClasses(booking.territory)}`} title={booking.territory}>
-            {booking.territory}
-          </span>
+        <div className="flex min-w-0 items-center gap-2">
+          <div className="truncate text-sm font-semibold text-[var(--brand-text-main)]">{booking.hotelName}</div>
+          {booking.territory && (
+            <span
+              className="shrink-0 rounded-full px-2 py-0.5 text-[11px] font-medium"
+              style={{ color: colore, backgroundColor: tint(colore, 20) }}
+            >
+              {booking.territory}
+            </span>
+          )}
         </div>
       </div>
 
       <div className="mt-1 grid grid-cols-2 gap-x-2 gap-y-1 text-xs">
-        <div className="font-medium">Camera</div>
-        <div>{booking.roomType}</div>
-        <div className="font-medium">Prezzo camera</div>
-        <div>{money(booking.roomPrice)}</div>
-        <div className="font-medium">Cena totale</div>
-        <div>{booking.dinnerPrice ? money(booking.dinnerPrice * (booking.guests?.length ?? 0)) : '-'}</div>
-        <div className="font-medium">Note</div>
-        <div className="truncate" title={booking.notes || ''}>{booking.notes || '-'}</div>
+        <div className="font-medium text-[var(--brand-text-muted)]">Camera</div>
+        <div className="text-[var(--brand-text-main)]">{booking.roomType || '—'}</div>
+        <div className="font-medium text-[var(--brand-text-muted)]">Prezzo camera</div>
+        <div className="font-mono tabular-nums text-[var(--brand-text-main)]">{money(booking.roomPrice)}</div>
+        <div className="font-medium text-[var(--brand-text-muted)]">Cena totale</div>
+        <div className="font-mono tabular-nums text-[var(--brand-text-main)]">{booking.dinnerPrice ? money(booking.dinnerPrice * (booking.guests?.length ?? 0)) : '—'}</div>
+        <div className="font-medium text-[var(--brand-text-muted)]">Note</div>
+        {/* Note: unico valore troncato → il `title` nativo rivela il testo intero. */}
+        <div className="min-w-0 truncate text-[var(--brand-text-main)]" title={booking.notes || undefined}>{booking.notes || '—'}</div>
       </div>
 
-      <div className="mt-2">
-        <div className="mb-1 text-xs font-medium">Ospiti</div>
-        <div className="flex flex-nowrap gap-1 overflow-x-auto">
-          {booking.guests.map((guest) => (
-            <span key={guest.id} className="whitespace-nowrap rounded-full border px-2 py-1 text-[10px]" title={guest.name}>{guest.name}</span>
-          ))}
+      {booking.guests.length > 0 && (
+        <div className="mt-2">
+          <div className="mb-1 text-xs font-medium text-[var(--brand-text-muted)]">Ospiti</div>
+          <div className="flex flex-nowrap gap-1 overflow-x-auto">
+            {booking.guests.map((guest) => (
+              <span key={guest.id} className="whitespace-nowrap rounded-full bg-[var(--brand-surface)] px-2 py-1 text-[11px] text-[var(--brand-text-main)]">{guest.name}</span>
+            ))}
+          </div>
         </div>
-        <div className="mt-2 flex gap-2">
-          <button
-            type="button"
-            className="rounded-[var(--radius-md)] border px-2 py-1 text-xs shadow"
-            onClick={() => window.dispatchEvent(new CustomEvent('hotel-edit', { detail: booking }))}
-            aria-label={`Modifica prenotazione ${booking.id}`}
-          >
-            Modifica
-          </button>
-          <button
-            type="button"
-            className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--danger)] shadow"
-            onClick={onDelete}
-            aria-label={`Elimina prenotazione ${booking.id}`}
-          >
-            Elimina
-          </button>
-        </div>
+      )}
+
+      <div className="mt-2 flex gap-2">
+        <Button size="sm" variant="outline" onClick={onEdit} aria-label={`Modifica prenotazione ${booking.hotelName}`}>
+          <Pencil size={13} aria-hidden />
+          Modifica
+        </Button>
+        <Button size="sm" variant="outline" className="text-[var(--danger)]" onClick={onDelete} aria-label={`Elimina prenotazione ${booking.hotelName}`}>
+          <Trash2 size={13} aria-hidden />
+          Elimina
+        </Button>
       </div>
     </div>
   );

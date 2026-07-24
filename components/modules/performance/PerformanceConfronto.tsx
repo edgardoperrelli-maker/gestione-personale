@@ -14,7 +14,7 @@ export default function PerformanceConfronto({ allRows, options, initial }: { al
   const colorForGruppo = useMemo(() => makeColorForGruppo(options.gruppi, PALETTE), [options.gruppi]);
 
   return (
-    <section className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-1 flex flex-wrap items-baseline justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Confronto operatori</h2>
         <span className="text-xs text-[var(--brand-text-muted)]">
@@ -45,7 +45,7 @@ export default function PerformanceConfronto({ allRows, options, initial }: { al
                     ))}
                   </div>
                 </div>
-                <div className="text-right text-[13px] font-semibold tabular-nums text-[var(--brand-text-main)]">{o.total.toLocaleString('it-IT')}</div>
+                <div className="text-right text-[13px] font-semibold font-mono tabular-nums text-[var(--brand-text-main)]">{o.total.toLocaleString('it-IT')}</div>
               </div>
             );
           })}

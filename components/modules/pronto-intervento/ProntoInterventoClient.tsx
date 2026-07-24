@@ -1,9 +1,29 @@
 'use client';
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
+import Dialog from '@/components/ui/Dialog';
+import Textarea from '@/components/ui/Textarea';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import {
+  AlertTriangle,
+  ArrowDown,
+  ArrowLeft,
+  ArrowUp,
+  Check,
+  ChevronDown,
+  ChevronUp,
+  Copy,
+  Download,
+  ExternalLink,
+  Plus,
+} from 'lucide-react';
+import Button from '@/components/Button';
+import Badge from '@/components/Badge';
+import Input from '@/components/Input';
+import Tabs from '@/components/Tabs';
+import { KpiCard, KpiStrip } from '@/components/ui/KpiCard';
 import PannelloContabilita from './PannelloContabilita';
 import ModalePIBackoffice from './ModalePIBackoffice';
 import { generaRapportinoManutenzionePdfBlob, nomeFileRapportinoPI } from '@/lib/pi/rapportinoManutenzionePdf';
@@ -12,6 +32,13 @@ import { piTokenStato } from '@/lib/pi/tokenValidita';
 import type { PiTokenStato } from '@/lib/pi/types';
 
 type Area = { codice: string; label: string; attiva: boolean; ordine: number; usa_contabilita: boolean; in_attesa?: number };
+
+/** Importi in euro (contabilità): formato it-IT con valuta. */
+const fmtEuro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
+
+/** Classe per un'ancora con voce da bottone outline (per i link download / apri pagina). */
+const outlineAnchor =
+  'inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] font-medium text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 /** Cella modificabile per correzioni dell'ufficio (salva su blur). */
 function EditableCell({ id, campo, valore, tipo = 'testo', onSaved }: {
@@ -37,7 +64,7 @@ function CampoMod({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="text-xs">
       <span className="mb-0.5 block text-[var(--brand-text-muted)]">{label}</span>
-      <div className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1 py-0.5">{children}</div>
+      <div className="rounded-md bg-[var(--brand-surface-muted)] px-1 py-0.5">{children}</div>
     </div>
   );
 }
@@ -104,11 +131,11 @@ function valoreCol(r: TabRiga, k: ColKey): string {
   return s(r[k as keyof TabRiga]);
 }
 
-const STATO_LINK: Record<PiTokenStato, { label: string; cls: string }> = {
-  valido: { label: 'Attivo', cls: 'bg-[var(--status-ok-soft,var(--brand-surface-muted))] text-[var(--status-ok,var(--brand-text-main))]' },
-  scaduto: { label: 'Scaduto', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
-  non_attivo: { label: 'Non attivo', cls: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]' },
-  revocato: { label: 'Revocato', cls: 'bg-[var(--danger-soft,transparent)] text-[var(--danger)]' },
+const STATO_LINK: Record<PiTokenStato, { label: string; variant: 'ok' | 'idle' | 'ko' }> = {
+  valido: { label: 'Attivo', variant: 'ok' },
+  scaduto: { label: 'Scaduto', variant: 'idle' },
+  non_attivo: { label: 'Non attivo', variant: 'idle' },
+  revocato: { label: 'Revocato', variant: 'ko' },
 };
 
 function oggiRomaYmd(): string {
@@ -158,8 +185,8 @@ function StoricoLink({ righe, onCambiato }: { righe: LinkRow[]; onCambiato: () =
   }
 
   return (
-    <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-      <h3 className="mb-3 text-base font-semibold">Link ({righe.length})</h3>
+    <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
+      <h3 className="mb-3 text-base font-semibold text-[var(--brand-text-main)]">Link ({righe.length})</h3>
       {righe.length === 0 ? (
         <p className="text-sm text-[var(--brand-text-muted)]">Nessun link generato per questa foglia.</p>
       ) : (
@@ -169,33 +196,35 @@ function StoricoLink({ righe, onCambiato }: { righe: LinkRow[]; onCambiato: () =
             const badge = STATO_LINK[stato];
             const attivo = stato === 'valido';
             return (
-              <li key={l.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-lg border p-3 ${attivo ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]' : 'border-[var(--brand-border)]'}`}>
+              <li key={l.id} className={`flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border p-3 ${attivo ? 'border-[var(--brand-primary)] ring-1 ring-[var(--brand-primary)]' : 'border-[var(--brand-border)]'}`}>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2 text-sm font-medium">
-                    <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${badge.cls}`}>{badge.label}</span>
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
                     <span className="truncate">{l.note || '—'}</span>
                   </div>
                   <div className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
-                    Validità {fmtData(l.valido_dal)} – {fmtData(l.valido_al)} · {l.n_rapportini} rapportini
+                    Validità {fmtData(l.valido_dal)} – {fmtData(l.valido_al)} · <span className="font-mono tabular-nums">{l.n_rapportini}</span> rapportini
                   </div>
                   {apriPer === l.id && (
                     <div className="mt-2 flex flex-wrap items-center gap-2">
-                      <label className="text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Riapri fino al</label>
-                      <input type="date" value={nuovaData} min={oggiRomaYmd()} onChange={(e) => setNuovaData(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
-                      <button type="button" disabled={busy === l.id} onClick={() => confermaApri(l)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)] disabled:opacity-50">Conferma</button>
-                      <button type="button" onClick={() => setApriPer(null)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">Annulla</button>
+                      <label className="text-[11px] uppercase tracking-wide text-[var(--brand-text-muted)]">Riapri fino al</label>
+                      <Input type="date" value={nuovaData} min={oggiRomaYmd()} onChange={(e) => setNuovaData(e.target.value)} className="w-auto" />
+                      <Button variant="primary" size="sm" disabled={busy === l.id} onClick={() => confermaApri(l)}>Conferma</Button>
+                      <Button variant="outline" size="sm" onClick={() => setApriPer(null)}>Annulla</Button>
                     </div>
                   )}
                 </div>
                 <div className="flex items-center gap-2">
-                  <button type="button" onClick={() => copia(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">
-                    {copiato === l.id ? 'Copiato ✓' : 'Copia link'}
-                  </button>
-                  <a href={`/pi/${l.token}`} target="_blank" rel="noreferrer" className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium hover:border-[var(--brand-primary)]">Apri pagina ↗</a>
+                  <Button variant="outline" size="sm" onClick={() => copia(l)}>
+                    {copiato === l.id ? <><Check className="h-3.5 w-3.5" aria-hidden /> Copiato</> : <><Copy className="h-3.5 w-3.5" aria-hidden /> Copia link</>}
+                  </Button>
+                  <a href={`/pi/${l.token}`} target="_blank" rel="noreferrer" className={`${outlineAnchor} px-3 py-1.5 text-xs`}>
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden /> Apri pagina
+                  </a>
                   {attivo ? (
-                    <button type="button" disabled={busy === l.id} onClick={() => chiudi(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold text-[var(--danger)] hover:border-[var(--danger)] disabled:opacity-50">Chiudi</button>
+                    <Button variant="outline" size="sm" className="text-[var(--danger)] hover:border-[var(--danger)]" disabled={busy === l.id} onClick={() => chiudi(l)}>Chiudi</Button>
                   ) : apriPer !== l.id ? (
-                    <button type="button" onClick={() => iniziaApri(l)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)]">Apri</button>
+                    <Button variant="outline" size="sm" onClick={() => iniziaApri(l)}>Apri</Button>
                   ) : null}
                 </div>
               </li>
@@ -245,24 +274,22 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
           onClick={() => a.attiva && onApri(a.codice)}
           className={`rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 text-left shadow-[var(--shadow-sm)] transition ${
             a.attiva
-              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0'
+              ? 'hover:-translate-y-0.5 hover:border-[var(--brand-primary-border)] hover:shadow-[var(--shadow-md)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] motion-reduce:hover:translate-y-0'
               : 'cursor-not-allowed opacity-60'
           }`}
         >
           <div className="flex items-center justify-between gap-2">
-            <span className="text-lg font-semibold">{a.label}</span>
-            {a.attiva ? (
-              <span className="rounded-full bg-[var(--status-ok-soft,var(--brand-surface-muted))] px-2 py-0.5 text-xs font-semibold text-[var(--status-ok,var(--brand-text-main))]">Attiva</span>
-            ) : (
-              <span className="rounded-full bg-[var(--brand-surface-muted)] px-2 py-0.5 text-xs font-medium text-[var(--brand-text-muted)]">in arrivo</span>
-            )}
+            <span className="text-lg font-semibold text-[var(--brand-text-main)]">{a.label}</span>
+            {a.attiva ? <Badge variant="ok">Attiva</Badge> : <Badge variant="muted">In arrivo</Badge>}
           </div>
           <p className="mt-2 text-sm text-[var(--brand-text-muted)]">
             {a.attiva ? 'Apri il sottomodulo: link, approvazioni, contabilità ed export.' : 'Sottomodulo non ancora attivo.'}
           </p>
           {a.attiva && (a.in_attesa ?? 0) > 0 && (
-            <div className="mt-3 inline-flex items-center gap-1 rounded-full bg-[var(--warning-soft,var(--brand-surface-muted))] px-2.5 py-1 text-xs font-semibold text-[var(--warning,var(--brand-text-main))]">
-              {a.in_attesa} in approvazione
+            <div className="mt-3">
+              <Badge variant="warn">
+                <span className="font-mono tabular-nums">{a.in_attesa}</span>&nbsp;in approvazione
+              </Badge>
             </div>
           )}
         </button>
@@ -271,23 +298,17 @@ function CardsSottomoduli({ aree, onApri }: { aree: Area[]; onApri: (codice: str
   );
 }
 
-/** Striscia di conteggi in cima al Riepilogo. */
+/** Striscia di conteggi (card-KPI del cockpit) in cima al Riepilogo. */
 function StrisciaConteggi({ inAttesa, rifiutati, interventi, valore, mostraValore }: {
   inAttesa: number; rifiutati: number; interventi: number; valore: number; mostraValore: boolean;
 }) {
-  const Item = ({ label, value }: { label: string; value: string }) => (
-    <div className="rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">{label}</div>
-      <div className="text-lg font-semibold">{value}</div>
-    </div>
-  );
   return (
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-      <Item label="In attesa" value={String(inAttesa)} />
-      <Item label="Rifiutati" value={String(rifiutati)} />
-      <Item label="Interventi" value={String(interventi)} />
-      {mostraValore && <Item label="Valore totale" value={`${valore.toFixed(2)} €`} />}
-    </div>
+    <KpiStrip>
+      <KpiCard label="In attesa" value={inAttesa} tone="warn" />
+      <KpiCard label="Rifiutati" value={rifiutati} tone="ko" />
+      <KpiCard label="Interventi" value={interventi} tone="primary" />
+      {mostraValore && <KpiCard label="Valore totale" value={fmtEuro(valore)} tone="ok" />}
+    </KpiStrip>
   );
 }
 
@@ -303,6 +324,10 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
   const [genera, setGenera] = useState(false);
   const [inserimento, setInserimento] = useState(false);
   const [apertoId, setApertoId] = useState<string | null>(null);
+  // Rifiuto rapportino: id in lavorazione (Dialog aperto se non-null), motivo opzionale e stato invio.
+  const [rifiutaId, setRifiutaId] = useState<string | null>(null);
+  const [motivoRifiuto, setMotivoRifiuto] = useState('');
+  const [rifiutaBusy, setRifiutaBusy] = useState(false);
   const [mostraRifiutati, setMostraRifiutati] = useState(false);
   const [tab, setTab] = useState<'riepilogo' | 'interventi'>('riepilogo');
   const [from, setFrom] = useState('');
@@ -365,11 +390,25 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
     await fetch(`/api/admin/pi/interventi/${id}/approva`, { method: 'POST' });
     void carica();
   }
-  async function rifiuta(id: string) {
-    const motivo = window.prompt('Motivo del rifiuto (opzionale):') ?? undefined;
-    await fetch(`/api/admin/pi/interventi/${id}/rifiuta`, {
+  function apriRifiuto(id: string) {
+    setRifiutaId(id);
+    setMotivoRifiuto('');
+  }
+  function chiudiRifiuto() {
+    if (rifiutaBusy) return;
+    setRifiutaId(null);
+    setMotivoRifiuto('');
+  }
+  async function confermaRifiuto() {
+    if (!rifiutaId) return;
+    setRifiutaBusy(true);
+    const motivo = motivoRifiuto.trim() || undefined;
+    await fetch(`/api/admin/pi/interventi/${rifiutaId}/rifiuta`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo }),
     });
+    setRifiutaBusy(false);
+    setRifiutaId(null);
+    setMotivoRifiuto('');
     void carica();
   }
   /** Riapre un rapportino → torna in coda (in_attesa). `avviso` per il caso approvato. */
@@ -383,24 +422,22 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
     void carica();
   }
 
-  const tabBtn = (k: 'riepilogo' | 'interventi', label: string) => (
-    <button
-      type="button"
-      onClick={() => setTab(k)}
-      className={`rounded-lg px-3 py-1.5 text-sm font-medium ${tab === k ? 'bg-[var(--brand-primary)] text-[var(--on-primary)]' : 'border border-[var(--brand-border)] hover:border-[var(--brand-primary)]'}`}
-    >
-      {label}
-    </button>
-  );
-
   return (
     <div className="space-y-5">
       <div className="flex flex-wrap items-center gap-3">
-        <button type="button" onClick={onIndietro} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">← Sottomoduli</button>
-        <h2 className="text-lg font-semibold">{area.label}</h2>
-        <div className="ml-auto flex items-center gap-2">
-          {tabBtn('riepilogo', 'Riepilogo')}
-          {tabBtn('interventi', 'Interventi')}
+        <Button variant="outline" size="sm" onClick={onIndietro}>
+          <ArrowLeft className="h-4 w-4" aria-hidden /> Sottomoduli
+        </Button>
+        <h2 className="text-lg font-semibold text-[var(--brand-text-main)]">{area.label}</h2>
+        <div className="ml-auto">
+          <Tabs
+            value={tab}
+            onValueChange={(v) => setTab(v as 'riepilogo' | 'interventi')}
+            items={[
+              { value: 'riepilogo', label: 'Riepilogo' },
+              { value: 'interventi', label: 'Interventi' },
+            ]}
+          />
         </div>
       </div>
 
@@ -409,9 +446,9 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           <StrisciaConteggi inAttesa={coda.length} rifiutati={rifiutati.length} interventi={tabella.length} valore={valoreTotale} mostraValore={usaContabilita} />
 
           <div className="flex justify-end">
-            <button type="button" onClick={() => setGenera((v) => !v)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">
+            <Button variant="outline" size="sm" onClick={() => setGenera((v) => !v)}>
               {genera ? 'Chiudi' : 'Genera link'}
-            </button>
+            </Button>
           </div>
           {genera && <GeneraLink area={codice} onCreato={() => void carica()} />}
 
@@ -419,26 +456,30 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           <StoricoLink righe={link} onCambiato={() => void carica()} />
 
           {/* Coda di approvazione */}
-          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-            <h3 className="mb-3 text-base font-semibold">In approvazione ({coda.length})</h3>
+          <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
+            <h3 className="mb-3 text-base font-semibold text-[var(--brand-text-main)]">In approvazione ({coda.length})</h3>
             {coda.length === 0 ? (
               <p className="text-sm text-[var(--brand-text-muted)]">Nessuna richiesta in attesa.</p>
             ) : (
               <ul className="space-y-2">
                 {coda.map((r) => (
-                  <li key={r.id} className="rounded-lg border border-[var(--brand-border)] p-3">
+                  <li key={r.id} className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] p-3">
                     <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
                         <div className="text-xs text-[var(--brand-text-muted)]">
                           {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'} · {s(r.ora_inizio)}–{s(r.ora_fine)}
-                          {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia reperibilità</span>}
+                          {r.anomalia_reperibilita && (
+                            <span className="ml-2 inline-flex items-center gap-1 font-semibold text-[var(--danger)]">
+                              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> anomalia reperibilità
+                            </span>
+                          )}
                         </div>
                       </div>
                       <div className="flex gap-2">
-                        <button type="button" onClick={() => setApertoId(apertoId === r.id ? null : r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium">{apertoId === r.id ? 'Chiudi' : 'Apri'}</button>
-                        <button type="button" onClick={() => approva(r.id)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-semibold text-[var(--on-primary)]">Approva</button>
-                        <button type="button" onClick={() => rifiuta(r.id)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--danger)]">Rifiuta</button>
+                        <Button variant="outline" size="sm" onClick={() => setApertoId(apertoId === r.id ? null : r.id)}>{apertoId === r.id ? 'Chiudi' : 'Apri'}</Button>
+                        <Button variant="primary" size="sm" onClick={() => approva(r.id)}>Approva</Button>
+                        <Button variant="outline" size="sm" className="text-[var(--danger)] hover:border-[var(--danger)]" onClick={() => apriRifiuto(r.id)}>Rifiuta</Button>
                       </div>
                     </div>
                     {apertoId === r.id && (
@@ -460,10 +501,12 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           </section>
 
           {/* Rifiutati (collassabile): da qui si riaprono */}
-          <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
-            <button type="button" onClick={() => setMostraRifiutati((v) => !v)} className="flex w-full items-center justify-between text-base font-semibold">
+          <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
+            <button type="button" onClick={() => setMostraRifiutati((v) => !v)} className="flex w-full items-center justify-between rounded-[var(--radius-md)] text-base font-semibold text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
               <span>Rifiutati ({rifiutati.length})</span>
-              <span className="text-sm text-[var(--brand-text-muted)]">{mostraRifiutati ? '▲' : '▼'}</span>
+              {mostraRifiutati
+                ? <ChevronUp className="h-4 w-4 text-[var(--brand-text-muted)]" aria-hidden />
+                : <ChevronDown className="h-4 w-4 text-[var(--brand-text-muted)]" aria-hidden />}
             </button>
             {mostraRifiutati && (
               rifiutati.length === 0 ? (
@@ -471,16 +514,20 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
               ) : (
                 <ul className="mt-3 space-y-2">
                   {rifiutati.map((r) => (
-                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-[var(--brand-border)] p-3">
+                    <li key={r.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] p-3">
                       <div className="min-w-0">
                         <div className="text-sm font-medium">{s(r.indirizzo) || '—'} · {s(r.comune)}</div>
                         <div className="text-xs text-[var(--brand-text-muted)]">
                           {fmtData(r.data)} · {r.esecutore ?? '—'} · n° {s(r.n_segnalazione) || '—'}
                           {r.motivo_rifiuto ? ` · motivo: ${r.motivo_rifiuto}` : ''}
-                          {r.anomalia_reperibilita && <span className="ml-2 font-semibold text-[var(--danger)]">⚠ anomalia</span>}
+                          {r.anomalia_reperibilita && (
+                            <span className="ml-2 inline-flex items-center gap-1 font-semibold text-[var(--danger)]">
+                              <AlertTriangle className="h-3.5 w-3.5" aria-hidden /> anomalia
+                            </span>
+                          )}
                         </div>
                       </div>
-                      <button type="button" onClick={() => riapri(r.id, false)} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold hover:border-[var(--brand-primary)]">Riapri</button>
+                      <Button variant="outline" size="sm" onClick={() => riapri(r.id, false)}>Riapri</Button>
                     </li>
                   ))}
                 </ul>
@@ -491,21 +538,25 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
       )}
 
       {tab === 'interventi' && (
-      <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+      <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-2">
-          <h3 className="text-base font-semibold">Interventi ({righeVisibili.length}{righeVisibili.length !== tabella.length ? ` / ${tabella.length}` : ''})</h3>
+          <h3 className="text-base font-semibold text-[var(--brand-text-main)]">Interventi ({righeVisibili.length}{righeVisibili.length !== tabella.length ? ` / ${tabella.length}` : ''})</h3>
           <div className="flex flex-wrap items-end gap-2">
-            <button type="button" onClick={() => setInserimento(true)} className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)]">+ Inserisci intervento</button>
+            <Button variant="primary" size="sm" onClick={() => setInserimento(true)}>
+              <Plus className="h-4 w-4" aria-hidden /> Inserisci intervento
+            </Button>
             {(Object.values(filtri).some((v) => (v ?? '').trim() !== '') || sortKey !== 'data' || sortAsc) && (
-              <button type="button" onClick={() => { setFiltri({}); setSortKey('data'); setSortAsc(false); }} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)]">Azzera filtri</button>
+              <Button variant="outline" size="sm" className="text-[var(--brand-text-muted)]" onClick={() => { setFiltri({}); setSortKey('data'); setSortAsc(false); }}>Azzera filtri</Button>
             )}
-            <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
-              <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+            <label className="flex flex-col text-[11px] uppercase tracking-wide text-[var(--brand-text-muted)]">Dal
+              <Input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className="mt-1 w-auto" />
             </label>
-            <label className="flex flex-col text-[10px] uppercase tracking-wide text-[var(--brand-text-muted)]">Al
-              <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-sm" />
+            <label className="flex flex-col text-[11px] uppercase tracking-wide text-[var(--brand-text-muted)]">Al
+              <Input type="date" value={to} onChange={(e) => setTo(e.target.value)} className="mt-1 w-auto" />
             </label>
-            <a href={`/api/admin/pi/export?${periodoQS}`} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium hover:border-[var(--brand-primary)]">Esporta Excel</a>
+            <a href={`/api/admin/pi/export?${periodoQS}`} className={`${outlineAnchor} px-3 py-1.5 text-sm`}>
+              <Download className="h-4 w-4" aria-hidden /> Esporta Excel
+            </a>
           </div>
         </div>
         <p className="mb-2 text-xs text-[var(--brand-text-muted)]">Celle modificabili per correzioni: scrivi e clicca fuori per salvare.</p>
@@ -518,10 +569,11 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                     <button
                       type="button"
                       onClick={() => toggleSort(c.key)}
-                      className={`flex items-center gap-1 font-semibold uppercase tracking-wide hover:text-[var(--brand-text-main)] ${c.right ? 'ml-auto' : ''}`}
+                      className={`flex items-center gap-1 font-semibold uppercase tracking-wide hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${c.right ? 'ml-auto' : ''}`}
                       title="Ordina"
                     >
-                      {c.label}{sortKey === c.key ? (sortAsc ? ' ↑' : ' ↓') : ''}
+                      {c.label}
+                      {sortKey === c.key && (sortAsc ? <ArrowUp className="h-3 w-3" aria-hidden /> : <ArrowDown className="h-3 w-3" aria-hidden />)}
                     </button>
                     <input
                       type="text"
@@ -551,14 +603,14 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="ora_fine" tipo="ora" valore={s(r.ora_fine)} onSaved={carica} /></td>
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="assistente_te" valore={s(r.assistente_te)} onSaved={carica} /></td>
                   <td className="py-1 pr-2"><EditableCell id={r.id} campo="note" valore={s(r.note)} onSaved={carica} /></td>
-                  {usaContabilita && <td className="py-1.5 pr-3 text-right font-medium">{r.valore ? `${r.valore.toFixed(2)} €` : '—'}</td>}
+                  {usaContabilita && <td className="py-1.5 pr-3 text-right font-mono tabular-nums">{r.valore ? fmtEuro(r.valore) : '—'}</td>}
                   <td className="py-1.5 text-right">
                     <div className="flex items-center justify-end gap-1">
-                      <button type="button" onClick={() => { void condividiPdfTab(r).catch(() => {}); }} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium" title="Genera PDF rapportino">PDF</button>
+                      <Button variant="outline" size="sm" onClick={() => { void condividiPdfTab(r).catch(() => {}); }} title="Genera PDF rapportino">PDF</Button>
                       {usaContabilita && r.intervento_id && (
-                        <button type="button" onClick={() => setContabilitaPer(r.intervento_id)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Contabilità</button>
+                        <Button variant="outline" size="sm" onClick={() => setContabilitaPer(r.intervento_id)}>Contabilità</Button>
                       )}
-                      <button type="button" onClick={() => riapri(r.id, true)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium text-[var(--danger)] hover:border-[var(--danger)]" title="Riapri: torna in approvazione">Riapri</button>
+                      <Button variant="outline" size="sm" className="text-[var(--danger)] hover:border-[var(--danger)]" onClick={() => riapri(r.id, true)} title="Riapri: torna in approvazione">Riapri</Button>
                     </div>
                   </td>
                 </tr>
@@ -585,6 +637,28 @@ function FogliaDettaglio({ area, onIndietro }: { area: Area; onIndietro: () => v
           onSaved={() => { setInserimento(false); setTab('interventi'); void carica(); }}
         />
       )}
+
+      <Dialog
+        open={rifiutaId !== null}
+        onClose={chiudiRifiuto}
+        busy={rifiutaBusy}
+        title="Rifiutare il rapportino?"
+        footer={
+          <>
+            <Button variant="outline" size="sm" disabled={rifiutaBusy} onClick={chiudiRifiuto}>Annulla</Button>
+            <Button variant="danger" size="sm" loading={rifiutaBusy} onClick={() => void confermaRifiuto()}>Conferma rifiuto</Button>
+          </>
+        }
+      >
+        <label htmlFor="pi-motivo-rifiuto" className="mb-1 block text-xs text-[var(--brand-text-muted)]">Motivo del rifiuto (opzionale)</label>
+        <Textarea
+          id="pi-motivo-rifiuto"
+          value={motivoRifiuto}
+          onChange={(e) => setMotivoRifiuto(e.target.value)}
+          rows={3}
+          placeholder="Motivo del rifiuto (opzionale)"
+        />
+      </Dialog>
     </div>
   );
 }
@@ -608,20 +682,21 @@ function GeneraLink({ area, onCreato }: { area: string; onCreato: () => void }) 
     onCreato();
   }
 
-  const inputCls = 'rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-sm';
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-sm">
+    <div className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="flex flex-wrap items-end gap-3">
-        <label className="flex flex-col text-xs text-[var(--brand-text-muted)]">Dal<input type="date" value={dal} onChange={(e) => setDal(e.target.value)} className={inputCls} /></label>
-        <label className="flex flex-col text-xs text-[var(--brand-text-muted)]">Al<input type="date" value={al} onChange={(e) => setAl(e.target.value)} className={inputCls} /></label>
-        <label className="flex flex-1 flex-col text-xs text-[var(--brand-text-muted)]">Note<input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="es. Reperibilità sett. 26" className={inputCls} /></label>
-        <button type="button" onClick={genera} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)]">Genera</button>
+        <label className="flex w-40 flex-col gap-1 text-xs text-[var(--brand-text-muted)]">Dal<Input type="date" value={dal} onChange={(e) => setDal(e.target.value)} /></label>
+        <label className="flex w-40 flex-col gap-1 text-xs text-[var(--brand-text-muted)]">Al<Input type="date" value={al} onChange={(e) => setAl(e.target.value)} /></label>
+        <label className="flex flex-1 flex-col gap-1 text-xs text-[var(--brand-text-muted)]">Note<Input type="text" value={note} onChange={(e) => setNote(e.target.value)} placeholder="es. Reperibilità sett. 26" /></label>
+        <Button variant="primary" onClick={genera}>Genera</Button>
       </div>
       {errore && <p className="mt-2 text-sm text-[var(--danger)]">{errore}</p>}
       {url && (
-        <div className="mt-3 flex items-center gap-2 rounded-lg bg-[var(--brand-surface-muted)] p-2">
+        <div className="mt-3 flex items-center gap-2 rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] p-2">
           <code className="flex-1 truncate text-xs">{url}</code>
-          <button type="button" onClick={() => navigator.clipboard?.writeText(url)} className="rounded-md border border-[var(--brand-border)] px-2 py-1 text-xs font-medium">Copia</button>
+          <Button variant="outline" size="sm" onClick={() => navigator.clipboard?.writeText(url)}>
+            <Copy className="h-3.5 w-3.5" aria-hidden /> Copia
+          </Button>
         </div>
       )}
     </div>

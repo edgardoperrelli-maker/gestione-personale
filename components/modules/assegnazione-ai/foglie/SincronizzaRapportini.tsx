@@ -124,7 +124,7 @@ export function SincronizzaRapportini({ runs, filesMaster, online }: Sincronizza
 
           <Link
             href="/hub/agente"
-            className="inline-flex items-center justify-center rounded-[var(--radius-md)] font-medium transition px-3 py-1.5 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
+            className="inline-flex items-center justify-center rounded-[var(--radius-md)] font-medium transition px-3 py-1.5 text-xs text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             Configura colonne in Agente
           </Link>

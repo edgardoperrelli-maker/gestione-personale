@@ -1,6 +1,15 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H4 E5 S5 R5 V4
+ *
+ * Carica foto di recupero (ufficio). Allineamento Cockpit: glifi 📷/▲/▼ → icone
+ * lucide (Camera, ChevronUp/Down), invio con stato loading del primitivo Button.
+ * Upload/slot invariati.
+ */
+
 import { useState } from 'react';
+import { Camera, ChevronDown, ChevronUp } from 'lucide-react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { CampoFoto } from '@/components/modules/rapportini/CampoFoto';
 import Button from '@/components/Button';
@@ -51,8 +60,10 @@ export function CaricaFotoRichiesta({
         className="w-full justify-between"
         onClick={() => setAperto((a) => !a)}
       >
-        <span>📷 Carica foto (recupero){nSel ? ` · ${nSel} pronte` : ''}</span>
-        <span>{aperto ? '▲' : '▼'}</span>
+        <span className="inline-flex items-center gap-1.5">
+          <Camera size={15} aria-hidden /> Carica foto (recupero){nSel ? ` · ${nSel} pronte` : ''}
+        </span>
+        {aperto ? <ChevronUp size={15} aria-hidden /> : <ChevronDown size={15} aria-hidden />}
       </Button>
       {aperto && (
         <>
@@ -79,10 +90,11 @@ export function CaricaFotoRichiesta({
             variant="primary"
             size="md"
             animated={false}
-            disabled={inviando || nSel === 0}
+            loading={inviando}
+            disabled={nSel === 0}
             onClick={() => void carica()}
           >
-            {inviando ? 'Caricamento…' : `Carica ${nSel || ''} foto`}
+            {`Carica ${nSel || ''} foto`}
           </Button>
         </>
       )}

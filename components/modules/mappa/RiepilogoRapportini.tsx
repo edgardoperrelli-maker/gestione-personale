@@ -16,7 +16,7 @@
 
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { FileSpreadsheet, X } from 'lucide-react';
+import { ArrowRight, FileSpreadsheet, X } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import Select from '@/components/ui/Select';
@@ -213,7 +213,7 @@ export default function RiepilogoRapportini() {
             {periodo === 'custom' && (
               <>
                 <DatePicker value={dataDa} onChange={setDataDa} max={dataA || undefined} ariaLabel="Dal giorno" />
-                <span className="text-xs text-[var(--brand-text-muted)]" aria-hidden>→</span>
+                <ArrowRight size={14} className="shrink-0 text-[var(--brand-text-muted)]" aria-hidden />
                 <DatePicker value={dataA} onChange={setDataA} min={dataDa || undefined} ariaLabel="Al giorno" />
               </>
             )}

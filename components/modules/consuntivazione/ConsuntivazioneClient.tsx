@@ -1,6 +1,17 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Consuntivazione: il back office carica ed esita interventi come se fossero chiusi
+ * dal rapportino di un operatore. Allineamento al sistema Cockpit (07-24): glifi
+ * Unicode (icone foglietta disegnate a mano, ← → × ✕ ✨) → icone lucide; l'annuncio
+ * Novità dall'overlay createPortal fatto a mano → primitivo Dialog; l'esito calcolato
+ * → Badge di stato; pannelli-filtro senza doppio bordo (un solo livello di card).
+ */
+
 import { useEffect, useState } from 'react';
+import { ArrowLeft, ArrowRight, ClipboardList, FileSearch } from 'lucide-react';
 import NuovoOrdineForm from './NuovoOrdineForm';
 import OrdinePresenteForm from './OrdinePresenteForm';
 import AnnuncioConsuntivazione, { ANNUNCIO_CONSUNTIVAZIONE_KEY } from './AnnuncioConsuntivazione';
@@ -25,24 +36,14 @@ const FOGLIETTE: { id: Exclude<Vista, 'home'>; titolo: string; desc: string; ico
   {
     id: 'nuovo',
     titolo: 'Nuovo ordine',
-    desc: "Crea un ordine da zero e chiudilo come da rapportino: anagrafica, azioni, foto ed esito.",
-    icona: (
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 4h6a1 1 0 0 1 1 1v1h1.5A1.5 1.5 0 0 1 19 7.5v11A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-11A1.5 1.5 0 0 1 6.5 6H8V5a1 1 0 0 1 1-1Z" />
-        <path d="M9 6h6M12 10.5v5M9.5 13h5" />
-      </svg>
-    ),
+    desc: 'Crea un ordine da zero e chiudilo come da rapportino: anagrafica, azioni, foto ed esito.',
+    icona: <ClipboardList strokeWidth={1.6} aria-hidden />,
   },
   {
     id: 'presente',
     titolo: 'Ordine presente',
     desc: 'Esita un intervento rimasto aperto dai rapportini: compila le sue azioni e chiudilo.',
-    icona: (
-      <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M9 4h6a1 1 0 0 1 1 1v1h1.5A1.5 1.5 0 0 1 19 7.5v11A1.5 1.5 0 0 1 17.5 20h-11A1.5 1.5 0 0 1 5 18.5v-11A1.5 1.5 0 0 1 6.5 6H8V5a1 1 0 0 1 1-1Z" />
-        <path d="M9 6h6M8.8 13.2l2 2 4-4" />
-      </svg>
-    ),
+    icona: <FileSearch strokeWidth={1.6} aria-hidden />,
   },
 ];
 
@@ -120,22 +121,23 @@ export default function ConsuntivazioneClient() {
               </span>
               <span className="text-lg font-semibold text-[var(--brand-text-main)]">{f.titolo}</span>
               <span className="max-w-[52ch] text-sm leading-relaxed text-[var(--brand-text-muted)]">{f.desc}</span>
-              <span className="mt-auto text-sm font-semibold text-[var(--primary-text)] transition group-hover:translate-x-0.5 motion-reduce:transition-none">
-                Apri →
+              <span className="mt-auto inline-flex items-center gap-1.5 text-sm font-semibold text-[var(--primary-text)]">
+                Apri
+                <ArrowRight className="h-4 w-4 transition-transform group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0" aria-hidden />
               </span>
             </button>
           ))}
         </div>
       ) : (
         <section className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-[var(--shadow-sm)] sm:p-6">
-          <div className="mb-5 flex items-center gap-3">
+          <div className="mb-5 flex items-center gap-2">
             <button
               type="button"
               onClick={() => setVista('home')}
               aria-label="Torna alla scelta della vista"
-              className="rounded-[var(--radius-md)] px-2 py-1 text-sm text-[var(--primary-text)] hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              className="flex h-8 w-8 items-center justify-center rounded-[var(--radius-md)] text-[var(--brand-text-muted)] transition-colors hover:bg-[var(--brand-surface-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
-              ←
+              <ArrowLeft className="h-4 w-4" aria-hidden />
             </button>
             <h2 className="text-lg font-semibold text-[var(--brand-text-main)]">{titoloCorrente}</h2>
           </div>

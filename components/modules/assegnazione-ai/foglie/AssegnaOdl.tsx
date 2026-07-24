@@ -353,7 +353,7 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         {pianificaData && (
           <div
             className="space-y-2 rounded-[var(--radius-lg)] border px-3 py-2.5"
-            style={{ borderColor: 'var(--status-progress-soft)', backgroundColor: 'var(--status-progress-soft)' }}
+            style={{ borderColor: 'var(--status-progress)', backgroundColor: 'var(--status-progress-soft)' }}
           >
             <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
               <RotateCw size={14} className="animate-spin" style={{ color: 'var(--status-progress)' }} aria-hidden />

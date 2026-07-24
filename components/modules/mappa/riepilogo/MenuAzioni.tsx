@@ -2,6 +2,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { MoreHorizontal } from 'lucide-react';
 import DatePicker from '@/components/ui/DatePicker';
+import Select from '@/components/ui/Select';
 import Tooltip from '@/components/ui/Tooltip';
 import { AZIONE_ICONA } from './stili';
 
@@ -104,22 +105,22 @@ export default function MenuAzioni({
             return (
               <div key={i} className="mt-1 border-t border-[var(--brand-border)] px-2 pb-1 pt-2">
                 <div className="mb-1 text-xs font-semibold text-[var(--brand-text-muted)]">Sposta in un altro territorio</div>
-                <select
+                <Select
                   defaultValue=""
                   disabled={busy}
                   aria-label="Sposta in un altro territorio"
+                  className="mb-2.5"
                   onChange={(e) => {
                     const val = e.target.value;
                     if (val === '') return;
                     v.onSpostaTerritorio(val === '__reset__' ? null : val);
                     setOpen(false);
                   }}
-                  className="mb-2.5 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:border-[var(--brand-border-strong)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
                 >
                   <option value="" disabled>Scegli territorio…</option>
                   {v.territorioCorrente && <option value="__reset__">Riporta al piano</option>}
                   {v.territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                </select>
+                </Select>
                 <div className="mb-1 text-xs font-semibold text-[var(--brand-text-muted)]">Sposta in un altro giorno</div>
                 <DatePicker
                   value=""

@@ -1,5 +1,6 @@
 'use client';
 import { useEffect, useState } from 'react';
+import Button from '@/components/Button';
 import KpiDirezione from './KpiDirezione';
 import TrendProduzioneSal from './TrendProduzioneSal';
 import SalStorico from './SalStorico';
@@ -56,13 +57,9 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
             <a href="/hub/performance/economica" className="inline-flex h-8 items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 text-xs text-[var(--brand-text-muted)]">
               ← Torna al modulo
             </a>
-            <button
-              type="button"
-              onClick={() => window.print()}
-              className="inline-flex h-8 items-center rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-white"
-            >
+            <Button type="button" variant="primary" size="sm" className="h-8" onClick={() => window.print()}>
               Stampa / PDF
-            </button>
+            </Button>
           </div>
         </div>
 

@@ -124,10 +124,12 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 | **Skeleton** | `@/components/ui/Skeleton` (default) | shimmer sobrio per caricamenti con forma nota; dimensioni via className. |
 | **DatePicker** | `@/components/ui/DatePicker` | calendario popover a tema; prop `error?`. |
 | **MultiSelect** | `@/components/ui/MultiSelect` (default) | checkbox in popover; prop `error?`. |
-| **FogliettaCard** | `@/components/ui/FogliettaCard` (default) | card di landing modulo: `{ href, title, description?, icon?, count? }`. |
+| **FogliettaCard** | `@/components/ui/FogliettaCard` (default) | card di navigazione tra viste di uno stesso modulo (§7bis; NON il launcher-griglia dell'hub): `{ href, title, description?, icon?, count? }`. |
+| **ModuleTile** | `@/components/ui/ModuleTile` (default) | tile della griglia-launcher hub/Impostazioni (verso un MODULO): `{ href, title, description?, icon?, action?, descriptionLines?, titleClassName? }`. Senza `action` = `<Link>` a tutta card; con `action` (stella) = div + link-overlay. |
 | **Breadcrumb** | `@/components/ui/Breadcrumb` (default) | `{ items: { label, href? }[] }`; ultima voce = pagina corrente (`aria-current`). |
 | **ObjectHeader** | `@/components/ui/ObjectHeader` (default) + `{ StatusRibbon }` | card di testa modulo: `{ title, sub?, ribbon?, actions? }`. Ribbon solo per stati REALI. |
 | **KpiCard / KpiStrip** | `{ KpiCard, KpiDelta, KpiStrip }` da `@/components/ui/KpiCard` | KPI cockpit: `{ label, value, trend?, tone?, spark? }`; barra colorata a sinistra, valore mono. Solo numeri già esposti dai motori. |
+| **StatTile** | `@/components/ui/StatTile` (default) | tessera-statistica densa: `{ label, value, note?, tone?, size? }`; label + valore mono accentato per `tone` + nota; well SENZA bordo (per stare dentro Card/Dialog). Per i KPI hero a piena elevazione usa `KpiCard`. |
 | **FilterBar** | `{ FilterBar, FilterPill, AddFilterButton }` da `@/components/ui/FilterBar` | filtri componibili: pill rimovibili (✕) + «+ Filtro»; lo stato resta nella pagina. |
 | **DetailDrawer** | `{ DrawerSplit, DetailDrawer, DrawerSection, DrawerKv }` da `@/components/ui/DetailDrawer` | scheda del record a destra della tabella (click riga), senza cambiare pagina. `className` per layout a scroll interno. |
 | **ProgressPill** | `@/components/ui/ProgressPill` (default) | avanzamento compatto `n/m` con barretta (es. foto in riga tabella). |
@@ -139,6 +141,7 @@ Icone moduli: da **`lucide-react`**, centralizzate in [`components/layout/module
 Regola ibrida (spec premium 2026-07-22):
 - **Vista di modulo** (contesti diversi nello stesso modulo, es. Storico/Riconsegna, Coda/Registro) → **foglietta**: landing con `FogliettaCard` + route dedicata + `Breadcrumb` di rientro.
 - **Filtro di dato** (stessa pagina, stesso dataset, es. "Tutti / Da fare / Completati") → resta in pagina con `Tabs` (segmented). Trasformare i filtri in pagine rallenta gli operatori.
+- **Launcher-griglia** (hub, Impostazioni) → griglia di MODULI (non viste di un modulo): primitivo condiviso `ModuleTile` (`rounded-[var(--radius-xl)]`, riquadro icona `h-11`). Senza `action` è un `<Link>` a tutta card; con `action` (es. la stella dei preferiti dell'hub) diventa `<div>` + link-overlay (`after:inset-0`) per ospitare l'azione. NON è `FogliettaCard`.
 
 ## 7ter. Pattern cockpit (spec 2026-07-22-redesign-cockpit.md)
 

@@ -46,7 +46,7 @@ export default function ComposizioneProduzione({ dati }: { dati: DatiProduzione 
               {slices.map((s, i) => (
                 <span key={s.chiave} className="inline-flex items-center gap-1">
                   <span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: cc.palette[i % cc.palette.length] }} />
-                  {s.label} <span className="tabular-nums">{eur(s.valore)}</span> · <span className="tabular-nums">{num(s.conteggio)}</span>
+                  {s.label} <span className="font-mono tabular-nums">{eur(s.valore)}</span> · <span className="font-mono tabular-nums">{num(s.conteggio)}</span>
                 </span>
               ))}
             </div>

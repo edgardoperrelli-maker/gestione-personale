@@ -2,6 +2,7 @@
 'use client';
 
 import { useState } from 'react';
+import Button from '@/components/Button';
 import DatePicker from '@/components/ui/DatePicker';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { FilterPill, AddFilterButton } from '@/components/ui/FilterBar';
@@ -24,7 +25,7 @@ export type StatoFiltriUI = {
 type Staff = { id: string; display_name: string };
 
 const sel =
-  'rounded-lg border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-2 text-sm text-[var(--brand-text-main)]';
+  'rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-3 py-2 text-sm text-[var(--brand-text-main)]';
 const dateTrigger = 'border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]';
 
 const SI_NO = [
@@ -145,14 +146,9 @@ export default function StoricoFiltri({
         <AddFilterButton onClick={() => setAperto((v) => !v)} aria-expanded={aperto}>
           {aperto ? 'Chiudi filtri' : '+ Filtro'}
         </AddFilterButton>
-        <button
-          type="button"
-          onClick={onEsporta}
-          disabled={loading}
-          className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-        >
+        <Button type="button" variant="outline" size="sm" onClick={onEsporta} disabled={loading}>
           Esporta Excel
-        </button>
+        </Button>
       </div>
 
       {aperto && (
@@ -210,22 +206,8 @@ export default function StoricoFiltri({
           </div>
 
           <div className="flex flex-wrap gap-2">
-            <button
-              type="button"
-              onClick={onApplica}
-              disabled={loading}
-              className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-            >
-              Cerca
-            </button>
-            <button
-              type="button"
-              onClick={onPulisci}
-              disabled={loading}
-              className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-            >
-              Pulisci
-            </button>
+            <Button type="button" variant="primary" onClick={onApplica} disabled={loading}>Cerca</Button>
+            <Button type="button" variant="outline" onClick={onPulisci} disabled={loading}>Pulisci</Button>
           </div>
         </>
       )}

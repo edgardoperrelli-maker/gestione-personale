@@ -88,6 +88,9 @@ interface ResolvedChartColors {
   danger: string;
   /** Colore risolto per --brand-primary (serie primaria). */
   brandPrimary: string;
+  /** Colore risolto per --on-primary: testo leggibile sui fill colorati (etichette dentro le barre).
+   *  Tema-specifico (bianco in light, scuro in dark) → contrasto AA in entrambi i temi. */
+  onPrimary: string;
 }
 
 function readTokens(): ResolvedChartColors {
@@ -103,6 +106,7 @@ function readTokens(): ResolvedChartColors {
     success:      resolve('--success'),
     danger:       resolve('--danger'),
     brandPrimary: resolve('--brand-primary'),
+    onPrimary:    resolve('--on-primary'),
   };
 }
 
@@ -115,6 +119,7 @@ const FALLBACK: ResolvedChartColors = {
   success:      '#16a34a',
   danger:       '#dc2626',
   brandPrimary: '#2563eb',
+  onPrimary:    '#ffffff',
 };
 
 /**

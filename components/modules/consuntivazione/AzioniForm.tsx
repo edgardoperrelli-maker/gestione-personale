@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useMemo } from 'react';
+import Badge from '@/components/Badge';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
 import { RapportinoFotoCtx } from '@/components/modules/rapportini/RapportinoFotoCtx';
 import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
@@ -8,10 +9,10 @@ import { slotFotoCondizionali, fotoSlotObbligatorio } from '@/utils/rapportini/f
 import { statoEsitoConsuntivo, notaNegativoMancante, type StatoEsitoConsuntivo } from '@/lib/consuntivazione/statoEsito';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
-const ESITO_META: Record<StatoEsitoConsuntivo, { label: string; token: string }> = {
-  positivo: { label: 'Positivo', token: 'ok' },
-  negativo: { label: 'Negativo', token: 'ko' },
-  da_esitare: { label: 'Da esitare', token: 'idle' },
+const ESITO_META: Record<StatoEsitoConsuntivo, { label: string; variant: 'ok' | 'ko' | 'idle' }> = {
+  positivo: { label: 'Positivo', variant: 'ok' },
+  negativo: { label: 'Negativo', variant: 'ko' },
+  da_esitare: { label: 'Da esitare', variant: 'idle' },
 };
 
 /** Renderizza le azioni del flusso (motore Azioni operatori) e mostra l'esito calcolato live. */
@@ -72,16 +73,10 @@ export default function AzioniForm({
       <div className="space-y-4">
         <div className="flex items-center justify-between gap-3">
           <h3 className="text-base font-semibold text-[var(--brand-text-main)]">Esitazione</h3>
-          <span
-            className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium"
-            style={{
-              background: `var(--status-${meta.token}-soft)`,
-              color: `var(--status-${meta.token})`,
-            }}
-          >
-            <span className="h-1.5 w-1.5 rounded-full" style={{ background: `var(--status-${meta.token})` }} />
+          <Badge variant={meta.variant} className="gap-1.5">
+            <span className="h-1.5 w-1.5 rounded-full bg-current" aria-hidden />
             {meta.label}
-          </span>
+          </Badge>
         </div>
 
         <div className="grid gap-3 sm:grid-cols-2">

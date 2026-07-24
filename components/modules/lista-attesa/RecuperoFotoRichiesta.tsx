@@ -1,5 +1,12 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H4 E5 S5 R5 V4
+ *
+ * Recupero foto nel dettaglio del registro. Allineamento Cockpit: miniature al
+ * raggio --radius-md come gli altri riquadri foto del modulo. Fetch invariato.
+ */
+
 import { useCallback, useEffect, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { CaricaFotoRichiesta } from './CaricaFotoRichiesta';
@@ -26,7 +33,7 @@ export function RecuperoFotoRichiesta({
       {foto.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {foto.map((f) => f.url && (
-            <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-16 w-16 overflow-hidden rounded-lg border border-[var(--brand-border)]">
+            <a key={f.id} href={f.url} target="_blank" rel="noopener noreferrer" title={f.etichetta} className="block h-16 w-16 overflow-hidden rounded-[var(--radius-md)] border border-[var(--brand-border)]">
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={f.url} alt={f.etichetta} className="h-full w-full object-cover" />
             </a>

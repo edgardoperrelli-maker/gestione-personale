@@ -1,10 +1,12 @@
-// Card "foglietta": voce di landing di un modulo che porta a una vista dedicata
-// (pattern IA della spec premium: viste di modulo = fogliette + route + breadcrumb;
-// le tab restano solo come filtri di dato in pagina). Unifica le landing di
-// Performance / Impostazioni / Consuntivazione.
+// Card "foglietta": la voce di NAVIGAZIONE tra viste di uno stesso modulo
+// (pattern §7bis: viste di modulo = fogliette + route + breadcrumb; le tab
+// restano solo come filtri di dato in pagina). Usata da ListaAttesaNav
+// (Coda ↔ Registro). NB: NON è la card del launcher-griglia dell'hub/Impostazioni
+// (griglia di MODULI), che usa la grammatica di ModuleLauncher — pattern distinto.
 
 import Link from 'next/link';
 import * as React from 'react';
+import { ArrowRight } from 'lucide-react';
 
 type FogliettaCardProps = {
   href: string;
@@ -49,12 +51,11 @@ export default function FogliettaCard({
           {count}
         </span>
       )}
-      <span
+      <ArrowRight
+        size={16}
         aria-hidden="true"
         className="shrink-0 text-[var(--primary-text)] transition-transform group-hover:translate-x-0.5 motion-reduce:group-hover:translate-x-0"
-      >
-        →
-      </span>
+      />
     </Link>
   );
 }

@@ -2,12 +2,16 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
 import { valoreRiga, totaleContabilita } from '@/lib/pi/contabilita';
 
 type Articolo = { codice: string; descrizione: string | null; unita_misura: string | null; prezzo_unitario: number; attivo: boolean };
 type RigaSalvata = { articolo_codice: string; quantita: number };
 
 const num = (v: unknown) => (typeof v === 'number' ? v : Number(v) || 0);
+/** Importi in euro (contabilità): formato it-IT con valuta. */
+const fmtEuro = (n: number) => n.toLocaleString('it-IT', { style: 'currency', currency: 'EUR' });
 
 export default function PannelloContabilita({
   interventoId,
@@ -68,12 +72,12 @@ export default function PannelloContabilita({
       title="Contabilità intervento"
       footer={
         <div className="flex items-center justify-between gap-3">
-          <div className="text-sm">Totale: <span className="font-semibold">{totale.toFixed(2)} €</span></div>
+          <div className="text-sm">Totale: <span className="font-mono font-semibold tabular-nums">{fmtEuro(totale)}</span></div>
           <div className="flex gap-2">
-            <button type="button" onClick={onClose} className="rounded-lg border border-[var(--brand-border)] px-4 py-2 text-sm font-medium">Chiudi</button>
-            <button type="button" disabled={salvataggio} onClick={salva} className="rounded-lg bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50">
+            <Button variant="outline" onClick={onClose}>Chiudi</Button>
+            <Button variant="primary" loading={salvataggio} onClick={salva}>
               {salvataggio ? 'Salvataggio…' : 'Salva contabilità'}
-            </button>
+            </Button>
           </div>
         </div>
       }
@@ -101,19 +105,19 @@ export default function PannelloContabilita({
                     <td className="py-1.5 pr-2 font-mono text-xs">{a.codice}</td>
                     <td className="py-1.5 pr-2">{a.descrizione}</td>
                     <td className="py-1.5 pr-2">{a.unita_misura}</td>
-                    <td className="py-1.5 pr-2 text-right">{Number(a.prezzo_unitario).toFixed(2)}</td>
+                    <td className="py-1.5 pr-2 text-right font-mono tabular-nums">{fmtEuro(Number(a.prezzo_unitario))}</td>
                     <td className="py-1.5 pr-2 text-right">
-                      <input
+                      <Input
                         type="number"
                         inputMode="decimal"
                         min={0}
                         step="0.001"
                         value={qta[a.codice] ?? ''}
                         onChange={(e) => setQta((m) => ({ ...m, [a.codice]: e.target.value }))}
-                        className="w-24 rounded-md border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-1 text-right"
+                        className="w-24 text-right tabular-nums"
                       />
                     </td>
-                    <td className="py-1.5 text-right font-medium">{q > 0 ? valoreRiga(q, a.prezzo_unitario).toFixed(2) : '—'}</td>
+                    <td className="py-1.5 text-right font-mono font-medium tabular-nums">{q > 0 ? fmtEuro(valoreRiga(q, a.prezzo_unitario)) : '—'}</td>
                   </tr>
                 );
               })}

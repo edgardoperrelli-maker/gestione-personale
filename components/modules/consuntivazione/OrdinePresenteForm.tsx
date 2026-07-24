@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState } from 'react';
+import { ArrowLeft } from 'lucide-react';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/Button';
@@ -141,16 +142,17 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
         <button
           type="button"
           onClick={() => setSel(null)}
-          className="text-sm text-[var(--primary-text)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          className="inline-flex items-center gap-1.5 rounded-[var(--radius-sm)] text-sm text-[var(--primary-text)] transition-colors hover:text-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
         >
-          ← Torna ai risultati
+          <ArrowLeft className="h-4 w-4" aria-hidden />
+          Torna ai risultati
         </button>
 
-        <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4 text-sm sm:grid-cols-3">
-          <Info label="ODL / ODS" value={i.odl} />
+        <dl className="grid gap-x-6 gap-y-2 rounded-[var(--radius-lg)] bg-[var(--brand-surface-muted)] p-4 text-sm sm:grid-cols-3">
+          <Info label="ODL / ODS" value={i.odl} mono />
           <Info label="Attività" value={attivitaUnificataDisplay(i.intervento_tipo)} />
-          <Info label="Matricola" value={i.matricola_contatore} />
-          <Info label="PDR" value={i.pdr} />
+          <Info label="Matricola" value={i.matricola_contatore} mono />
+          <Info label="PDR" value={i.pdr} mono />
           <Info label="Nominativo" value={i.nominativo} />
           <Info label="Indirizzo" value={[i.indirizzo, i.comune].filter(Boolean).join(', ') || null} />
         </dl>
@@ -171,7 +173,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
         {errore && <p className="text-sm text-[var(--status-ko)]">{errore}</p>}
 
         <div className="flex items-center justify-end gap-3 border-t border-[var(--brand-border)] pt-4">
-          <Button variant="ghost" onClick={() => setSel(null)} disabled={salvando}>Annulla</Button>
+          <Button variant="outline" onClick={() => setSel(null)} disabled={salvando}>Annulla</Button>
           <Button variant="primary" onClick={submit} loading={salvando} disabled={!pronto}>
             {salvando ? 'Esitazione…' : 'Esita ordine'}
           </Button>
@@ -185,7 +187,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
     <div className="space-y-5">
       <form
         onSubmit={(e) => { e.preventDefault(); void cerca(); }}
-        className="space-y-4 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]/60 p-4"
+        className="space-y-4 rounded-[var(--radius-lg)] bg-[var(--brand-surface-muted)]/60 p-4"
       >
         <div className="grid gap-3 sm:grid-cols-2">
           <div>
@@ -270,7 +272,7 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
         <>
           <div className="flex items-center justify-between gap-3">
             <p className="text-xs text-[var(--brand-text-subtle)]">
-              {risultati.length} ordini aperti trovati{risultati.length === 200 ? ' (mostrati i primi 200; l’export li include tutti)' : ''}.
+              <span className="font-mono tabular-nums">{risultati.length}</span> ordini aperti trovati{risultati.length === 200 ? ' (mostrati i primi 200; l’export li include tutti)' : ''}.
             </p>
             <Button type="button" variant="outline" onClick={esporta}>Esporta Excel</Button>
           </div>
@@ -283,12 +285,18 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
                   className="flex w-full items-center justify-between gap-4 px-4 py-3 text-left transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:bg-[var(--brand-surface-muted)] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
                 >
                   <span className="min-w-0">
-                    <span className="block truncate text-sm font-medium text-[var(--brand-text-main)]">
-                      {attivitaUnificataDisplay(it.intervento_tipo) || 'Intervento'} · {it.odl || 's/ODL'}
+                    <span
+                      className="block truncate text-sm font-medium text-[var(--brand-text-main)]"
+                      title={`${attivitaUnificataDisplay(it.intervento_tipo) || 'Intervento'} · ${it.odl || 's/ODL'}`}
+                    >
+                      {attivitaUnificataDisplay(it.intervento_tipo) || 'Intervento'} · <span className="font-mono tabular-nums">{it.odl || 's/ODL'}</span>
                     </span>
-                    <span className="block truncate text-xs text-[var(--brand-text-muted)]">
+                    <span
+                      className="block truncate text-xs text-[var(--brand-text-muted)]"
+                      title={`${[it.indirizzo, it.comune].filter(Boolean).join(', ') || it.nominativo || '—'}${it.matricola_contatore ? ` · matr. ${it.matricola_contatore}` : ''}`}
+                    >
                       {[it.indirizzo, it.comune].filter(Boolean).join(', ') || it.nominativo || '—'}
-                      {it.matricola_contatore ? ` · matr. ${it.matricola_contatore}` : ''}
+                      {it.matricola_contatore ? <> · matr. <span className="font-mono tabular-nums">{it.matricola_contatore}</span></> : ''}
                     </span>
                   </span>
                   <span className="shrink-0 font-mono text-xs tabular-nums text-[var(--brand-text-subtle)]">{it.data}</span>
@@ -303,11 +311,11 @@ export default function OrdinePresenteForm({ boot, onDone }: { boot: Bootstrap; 
   );
 }
 
-function Info({ label, value }: { label: string; value: string | null }) {
+function Info({ label, value, mono = false }: { label: string; value: string | null; mono?: boolean }) {
   return (
     <div>
       <dt className="text-xs text-[var(--brand-text-subtle)]">{label}</dt>
-      <dd className="text-[var(--brand-text-main)]">{value || '—'}</dd>
+      <dd className={`text-[var(--brand-text-main)] ${mono && value ? 'font-mono tabular-nums' : ''}`}>{value || '—'}</dd>
     </div>
   );
 }

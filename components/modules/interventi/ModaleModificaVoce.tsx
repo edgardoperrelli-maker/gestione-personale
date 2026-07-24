@@ -3,6 +3,10 @@
 
 import { useEffect, useState } from 'react';
 import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
+import Textarea from '@/components/ui/Textarea';
 import { ANAGRAFICA_COLONNE, ANAGRAFICA_LABEL } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
@@ -11,9 +15,6 @@ type EditorData = {
   risposte: Record<string, unknown>;
   campi: TemplateCampo[];
 };
-
-const inputCls =
-  'w-full rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-bg)] px-2 py-1 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 function CampoInput({ campo, valore, onChange }: { campo: TemplateCampo; valore: unknown; onChange: (v: unknown) => void }) {
   if (campo.tipo === 'crocetta') {
@@ -29,25 +30,24 @@ function CampoInput({ campo, valore, onChange }: { campo: TemplateCampo; valore:
   }
   if (campo.tipo === 'select') {
     return (
-      <select value={typeof valore === 'string' ? valore : ''} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+      <Select value={typeof valore === 'string' ? valore : ''} onChange={(e) => onChange(e.target.value)}>
         <option value="">—</option>
         {(campo.opzioni ?? []).map((o) => (<option key={o} value={o}>{o}</option>))}
-      </select>
+      </Select>
     );
   }
   if (campo.tipo === 'numero') {
     return (
-      <input
+      <Input
         type="number"
         inputMode="decimal"
         value={typeof valore === 'number' || typeof valore === 'string' ? String(valore) : ''}
         onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-        className={inputCls}
       />
     );
   }
   return (
-    <textarea rows={2} value={typeof valore === 'string' ? valore : ''} onChange={(e) => onChange(e.target.value)} className={`${inputCls} resize-y`} />
+    <Textarea rows={2} value={typeof valore === 'string' ? valore : ''} onChange={(e) => onChange(e.target.value)} className="resize-y" />
   );
 }
 
@@ -115,22 +115,8 @@ export default function ModaleModificaVoce({
 
   const footer = (
     <>
-      <button
-        type="button"
-        onClick={onClose}
-        disabled={saving}
-        className="rounded-[var(--radius-md)] border border-[var(--brand-border)] px-4 py-2 text-sm text-[var(--brand-text-main)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-      >
-        Annulla
-      </button>
-      <button
-        type="button"
-        onClick={salva}
-        disabled={saving}
-        className="rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none"
-      >
-        {saving ? 'Salvataggio…' : 'Salva'}
-      </button>
+      <Button variant="outline" size="sm" onClick={onClose} disabled={saving}>Annulla</Button>
+      <Button variant="primary" size="sm" onClick={salva} loading={saving}>Salva</Button>
     </>
   );
 
@@ -149,8 +135,7 @@ export default function ModaleModificaVoce({
               {ANAGRAFICA_COLONNE.map((k) => (
                 <label key={k} className="block">
                   <span className="mb-1 block text-xs text-[var(--brand-text-muted)]">{ANAGRAFICA_LABEL[k]}</span>
-                  <input
-                    className={inputCls}
+                  <Input
                     value={anagrafica[k] ?? ''}
                     onChange={(e) => setAnagrafica((p) => ({ ...p, [k]: e.target.value }))}
                   />

@@ -3,6 +3,7 @@
 import { Sparkles } from 'lucide-react';
 import Button from '@/components/Button';
 import Dialog from '@/components/ui/Dialog';
+import StatTile from '@/components/ui/StatTile';
 
 /** Chiave versionata dell'avviso: per un nuovo annuncio si usa una nuova chiave. */
 export const ANNUNCIO_CONFRONTO_ESITI_KEY = 'confronto-esiti-acea-v1';
@@ -22,7 +23,7 @@ export default function AnnuncioConfrontoEsiti({ open, onClose }: { open: boolea
       onClose={onClose}
       title="Controllo esiti DB ↔ ACEA"
       className="sm:max-w-3xl"
-      footer={<Button onClick={onClose} size="sm">Ho capito</Button>}
+      footer={<Button variant="primary" onClick={onClose} size="sm">Ho capito</Button>}
     >
       <div className="space-y-6">
         <div className="space-y-2">
@@ -103,12 +104,7 @@ function Voce({ t, children }: { t: React.ReactNode; children: React.ReactNode }
   );
 }
 
+// Adapter al primitivo StatTile (tessera demo dei contatori nell'annuncio Novità).
 function TileDemo({ label, value, tono }: { label: string; value: string; tono: 'ok' | 'warn' | 'danger' }) {
-  const colore = tono === 'danger' ? 'var(--danger)' : tono === 'warn' ? 'var(--warning)' : 'var(--brand-primary)';
-  return (
-    <div className="rounded-[var(--radius-lg)] border px-3 py-2" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-bg)' }}>
-      <div className="text-[10px]" style={{ color: 'var(--brand-text-muted)' }}>{label}</div>
-      <div className="font-mono text-base font-semibold tabular-nums" style={{ color: colore }}>{value}</div>
-    </div>
-  );
+  return <StatTile label={label} value={value} tone={tono} size="sm" />;
 }
