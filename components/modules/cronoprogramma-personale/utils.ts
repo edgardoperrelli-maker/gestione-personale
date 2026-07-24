@@ -1,5 +1,12 @@
-import type { Assignment } from '@/types';
+import type { Assignment, Staff } from '@/types';
+import { isStaffValidOnDay } from '@/lib/staff';
 import type { SortMode } from './types';
+
+/** id di tutte le attività di un'assegnazione (array multi-attività, fallback all'attività primaria). */
+export function assignmentActivityIds(a: Assignment): string[] {
+  if (a.activity_ids && a.activity_ids.length) return a.activity_ids;
+  return a.activity?.id ? [a.activity.id] : [];
+}
 
 export type AssignmentDragPayload = {
   id: string;
@@ -89,7 +96,8 @@ export function filterAssignments(items: Assignment[], tokens: string[]): Assign
       if (!ok) return false;
     }
     if (groups['ACT']) {
-      const ok = groups['ACT'].some((t) => a.activity?.id === t.slice(4));
+      const actIds = assignmentActivityIds(a);
+      const ok = groups['ACT'].some((t) => actIds.includes(t.slice(4)));
       if (!ok) return false;
     }
     if (groups['TERR']) {
@@ -106,6 +114,27 @@ export function filterAssignments(items: Assignment[], tokens: string[]): Assign
 
 export function capitalize(s: string) {
   return s.charAt(0).toUpperCase() + s.slice(1);
+}
+
+/**
+ * Operatori "in magazzino" per un giorno: chi è valido quel giorno (isStaffValidOnDay) ma NON ha
+ * nessuna assegnazione e NON è in assenza intera. Sono il collocamento di default (nessuna attività
+ * assegnata → resta in magazzino). Risultato puramente visuale: nessuna riga viene creata a DB.
+ * Preserva l'ordine di `visibleStaff`.
+ */
+export function operatoriInMagazzino(
+  visibleStaff: Staff[],
+  assignmentsForDay: Assignment[],
+  absentIds: Set<string>,
+  iso: string,
+  todayIso?: string,
+): Staff[] {
+  const assegnati = new Set(
+    (assignmentsForDay ?? []).map((a) => a.staff?.id).filter(Boolean) as string[],
+  );
+  return (visibleStaff ?? []).filter(
+    (s) => isStaffValidOnDay(s, iso, todayIso) && !assegnati.has(s.id) && !absentIds.has(s.id),
+  );
 }
 
 export function indexDays(rows: { id: string; day: string }[]) {

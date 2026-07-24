@@ -15,7 +15,12 @@ export default function OperatorCard({
 }) {
   const style = getTerritoryStyle(a.territory?.name);
   const terr = a.territory?.name ?? '';
-  const act = a.activity?.name ?? '';
+  const acts = (a.activities && a.activities.length
+    ? a.activities.map((x) => x.name)
+    : a.activity?.name
+      ? [a.activity.name]
+      : []
+  ).filter(Boolean);
   const cc = a.cost_center ?? '';
 
   return (
@@ -70,11 +75,19 @@ export default function OperatorCard({
         </div>
       </div>
 
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0 pl-1 text-[10px] opacity-75">
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1 text-[10px] opacity-75">
         {terr && <span className="font-medium">{terr}</span>}
-        {terr && act && <span className="opacity-50">|</span>}
-        {act && <span className="max-w-[90px] truncate">{act}</span>}
-        {cc && <span className="opacity-50">|</span>}
+        {terr && acts.length > 0 && <span className="opacity-50">|</span>}
+        {acts.map((name, i) => (
+          <span
+            key={`${name}-${i}`}
+            className="max-w-[110px] truncate rounded border px-1 leading-tight"
+            style={{ borderColor: 'currentColor' }}
+          >
+            {name}
+          </span>
+        ))}
+        {cc && (terr || acts.length > 0) && <span className="opacity-50">|</span>}
         {cc && <span className="opacity-70">{cc}</span>}
       </div>
     </div>

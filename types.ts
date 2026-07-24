@@ -57,7 +57,12 @@ export type Assignment = {
   id: string;
   day_id: string;
   staff?: { id:string; display_name:string } | null;
+  /** Attività PRIMARIA (primo elemento di activity_ids). Mantenuta per compat Mappa/Export/Produzione. */
   activity?: { id:string; name:string } | null;
+  /** Tutte le attività dell'assegnazione (un operatore può farne più d'una nello stesso giorno). */
+  activity_ids?: string[] | null;
+  /** Attività risolte (id → nome) per il rendering; derivate lato client da activity_ids. */
+  activities?: { id:string; name:string }[] | null;
   territory?: { id:string; name:string } | null;
   cost_center?: CostCenter | null;
   reperibile: boolean;
