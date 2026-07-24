@@ -4,6 +4,7 @@ import { useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Button from '@/components/Button';
+import Select from '@/components/ui/Select';
 import { Card, CardContent } from '@/components/Card';
 import type { AgenteRunRow } from '@/lib/agente/uiTypes';
 import { opzioniComuneGiro, TARGET_TUTTI, type FileMaster } from '@/lib/agente/comuni';
@@ -98,18 +99,19 @@ export function SincronizzaRapportini({ runs, filesMaster, online }: Sincronizza
         <div className="flex flex-wrap items-center gap-3">
           <label className="flex items-center gap-2 text-sm" style={{ color: 'var(--brand-text-muted)' }}>
             Comune
-            <select
-              value={comune}
-              onChange={(e) => setComune(e.target.value)}
-              disabled={arming || inAttesa}
-              className="rounded-lg border px-2 py-1.5 text-sm disabled:opacity-60"
-              style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-              title="Quale file master aggiornare. Vale solo per questo lancio manuale: il giro serale fa sempre tutti i comuni."
-            >
-              {opzioni.map((o) => (
-                <option key={o.value} value={o.value}>{o.label}</option>
-              ))}
-            </select>
+            <span className="inline-block w-52">
+              <Select
+                value={comune}
+                onChange={(e) => setComune(e.target.value)}
+                disabled={arming || inAttesa}
+                className="py-1.5 text-sm"
+                title="Quale file master aggiornare. Vale solo per questo lancio manuale: il giro serale fa sempre tutti i comuni."
+              >
+                {opzioni.map((o) => (
+                  <option key={o.value} value={o.value}>{o.label}</option>
+                ))}
+              </Select>
+            </span>
           </label>
 
           <Button

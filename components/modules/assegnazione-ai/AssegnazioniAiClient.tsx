@@ -1,5 +1,15 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Hub drill-down (Commessa→Attività→Azione) + banco di lavoro per operatore. Il
+ * modulo nasceva prima del sistema Cockpit: il redesign ha portato glifi Unicode
+ * → icone lucide, la modale territorio e l'annuncio → primitivo Dialog, il
+ * breadcrumb a mano → primitivo condiviso, i #fff cablati → --on-danger, i raggi
+ * in scala e i numeri in mono tabulare. IA e logica invariate; niente API/driver.
+ */
+
 import { useAceaNav } from './useAceaNav';
 import { AvvisiSyncBanner } from '@/components/modules/agente/AvvisiSyncBanner';
 import ObjectHeader from '@/components/ui/ObjectHeader';
@@ -22,7 +32,7 @@ export default function AssegnazioniAiClient(props: {
   avvisiSync: string[];
   avvisiSyncIl: string | null;
 }) {
-  const { nav, vai, risali } = useAceaNav();
+  const { nav, vai } = useAceaNav();
   const { commessa, attivita, azione } = nav;
 
   return (
@@ -31,7 +41,7 @@ export default function AssegnazioniAiClient(props: {
 
       <AvvisiSyncBanner avvisi={props.avvisiSync} rilevatoIl={props.avvisiSyncIl} />
 
-      {commessa && <Breadcrumb nav={nav} onNavigate={risali} />}
+      {commessa && <Breadcrumb nav={nav} />}
 
       {!commessa && (
         <CommessaGrid onSelect={(c) => vai({ commessa: c, attivita: null, azione: null })} />

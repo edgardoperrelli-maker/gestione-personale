@@ -1,17 +1,19 @@
 'use client';
 
+import { Check, TriangleAlert, HelpCircle, MapPin, X, ChevronDown, ChevronRight, type LucideIcon } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
 import type { GruppoOperatore, StatoOp } from '@/lib/agente/costruisciAnteprima';
 import type { AceaEsitoRiga } from './tipi';
 
-// ─── Costanti di stato (identiche al monolite) ───────────────────────────────
+// ─── Costanti di stato ───────────────────────────────────────────────────────
+// Icone lucide (non più glifi Unicode): stesse tinte semantiche di prima.
 
-export const STATO: Record<StatoOp, { label: string; icon: string; bg: string; fg: string }> = {
-  libero:      { label: 'libero',            icon: '✓', bg: 'var(--success-soft)', fg: 'var(--success)' },
-  conflitto:   { label: 'già pianificato',   icon: '⚠', bg: 'var(--warning-soft)', fg: 'var(--warning)' },
-  ambiguo:     { label: 'esecutore ambiguo', icon: '?', bg: 'var(--danger-soft)',  fg: 'var(--danger)'  },
-  non_risolto: { label: 'non risolto',       icon: '?', bg: 'var(--danger-soft)',  fg: 'var(--danger)'  },
+export const STATO: Record<StatoOp, { label: string; Icon: LucideIcon; bg: string; fg: string }> = {
+  libero:      { label: 'libero',            Icon: Check,         bg: 'var(--success-soft)', fg: 'var(--success)' },
+  conflitto:   { label: 'già pianificato',   Icon: TriangleAlert, bg: 'var(--warning-soft)', fg: 'var(--warning)' },
+  ambiguo:     { label: 'esecutore ambiguo', Icon: HelpCircle,    bg: 'var(--danger-soft)',  fg: 'var(--danger)'  },
+  non_risolto: { label: 'non risolto',       Icon: HelpCircle,    bg: 'var(--danger-soft)',  fg: 'var(--danger)'  },
 };
 
 // ─── Helper puri ─────────────────────────────────────────────────────────────
@@ -35,6 +37,11 @@ export function righeLibere(o: GruppoOperatore, okIds?: Set<string>): string[] {
 
 const ESITO_OK = (e?: string) => e === 'assegnato' || e === 'gia-assegnato';
 const ESITO_ERR = (e?: string) => e === 'fallito' || e === 'non assegnato';
+
+/** Cifra in mono tabulare: i conteggi si allineano fra le righe operatore. */
+function N({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono tabular-nums">{children}</span>;
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -68,12 +75,13 @@ export function AnteprimaPianificazione({
   return (
     <section className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-lg font-semibold" style={{ color: 'var(--brand-text-main)' }}>Anteprima pianificazione</h2>
-        {caricando && <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>aggiorno…</span>}
+        <h2 className="text-lg font-semibold text-[var(--brand-text-main)]">Anteprima pianificazione</h2>
+        {caricando && <span className="text-xs text-[var(--brand-text-subtle)]">aggiorno…</span>}
       </div>
 
       {gruppi.map((o) => {
         const st = STATO[o.stato];
+        const StatoIcon = st.Icon;
         const idsLiberi = righeLibere(o, okIds);
         const selezionabile = idsLiberi.length > 0;
         const selDe = idsLiberi.filter((id) => selezione.has(id)).length;
@@ -111,8 +119,8 @@ export function AnteprimaPianificazione({
                 {o.staffId ? iniziali(o.nome) : '?'}
                 {inErrore && (
                   <span
-                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold leading-none"
-                    style={{ backgroundColor: 'var(--danger)', color: '#fff', boxShadow: '0 0 0 2px var(--brand-surface)' }}
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-bold leading-none tabular-nums"
+                    style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)', boxShadow: '0 0 0 2px var(--brand-surface)' }}
                     aria-hidden
                   >
                     {bdg?.errore}
@@ -125,50 +133,50 @@ export function AnteprimaPianificazione({
                 onClick={() => onToggleEspandi(o.key)}
                 className="flex flex-1 items-center gap-2 text-left min-w-0 justify-start"
               >
-                <span className="text-sm font-semibold truncate" style={{ color: 'var(--brand-text-main)' }}>{o.nome}</span>
-                <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs flex-none">
-                  · {ddmm(o.data)} · {nComuni} {nComuni === 1 ? 'comune' : 'comuni'}
+                <span className="text-sm font-semibold truncate text-[var(--brand-text-main)]">{o.nome}</span>
+                <span className="flex-none text-xs text-[var(--brand-text-muted)]">
+                  · <N>{ddmm(o.data)}</N> · <N>{nComuni}</N> {nComuni === 1 ? 'comune' : 'comuni'}
                 </span>
                 {bdg && (bdg.ok > 0 || bdg.errore > 0) && (
-                  <span className="inline-flex items-center gap-1 flex-none">
+                  <span className="inline-flex flex-none items-center gap-1">
                     {bdg.ok > 0 && (
                       <span
-                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold"
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
                         style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}
                         title={`${bdg.ok} assegnati / già assegnati su ACEA`}
                         aria-label={`${bdg.ok} assegnati su ACEA`}
                       >
-                        ✓ {bdg.ok}
+                        <Check size={12} aria-hidden /> <N>{bdg.ok}</N>
                       </span>
                     )}
                     {bdg.errore > 0 && (
                       <span
-                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-bold"
-                        style={{ backgroundColor: 'var(--danger)', color: '#fff' }}
+                        className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
+                        style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)' }}
                         title={`${bdg.errore} falliti su ACEA — espandi per i dettagli`}
                         aria-label={`${bdg.errore} falliti su ACEA`}
                       >
-                        <span aria-hidden>⚠</span> {bdg.errore}
+                        <TriangleAlert size={12} aria-hidden /> <N>{bdg.errore}</N>
                       </span>
                     )}
                   </span>
                 )}
                 {o.stato !== 'libero' && (
                   <span
-                    className="rounded-full px-2 py-0.5 text-[11px] font-medium flex-none"
+                    className="inline-flex flex-none items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                     style={{ backgroundColor: st.bg, color: st.fg }}
                   >
-                    {st.icon} {st.label}
+                    <StatoIcon size={12} aria-hidden /> {st.label}
                   </span>
                 )}
-                <span className="flex-none text-xs" style={{ color: 'var(--brand-text-subtle)' }}>
-                  {aperto ? '▾' : '▸'}
+                <span className="flex-none text-[var(--brand-text-subtle)]" aria-hidden>
+                  {aperto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
                 </span>
               </Button>
               <div className="flex-none text-right">
-                <div className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>{o.righe.length}</div>
-                <div className="text-[11px]" style={{ color: 'var(--brand-text-muted)' }}>
-                  {selezionabile ? `${selDe} selez.` : 'esclusi'}
+                <div className="text-base font-semibold text-[var(--brand-text-main)]"><N>{o.righe.length}</N></div>
+                <div className="text-[11px] text-[var(--brand-text-muted)]">
+                  {selezionabile ? <><N>{selDe}</N> selez.</> : 'esclusi'}
                 </div>
               </div>
               <Button
@@ -177,40 +185,38 @@ export function AnteprimaPianificazione({
                 onClick={() => onScarta(o)}
                 title="Rimuovi dall'anteprima (non verrà pianificato)"
                 aria-label={`rimuovi ${o.nome} dall'anteprima`}
-                className="flex-none h-7 w-7 p-0"
+                className="h-7 w-7 flex-none p-0"
               >
-                ✕
+                <X size={15} aria-hidden />
               </Button>
             </div>
 
             {aperto && (
-              <div className="px-4 pb-3 space-y-3">
+              <div className="space-y-3 px-4 pb-3">
                 {o.comuni.map((c) => {
                   const cst = STATO[c.stato];
+                  const CstIcon = cst.Icon;
                   const cSel = c.righe.filter((r) => selezione.has(r.id)).length;
                   const cLibero = c.stato === 'libero';
                   return (
-                    <div key={c.comune} className="rounded-xl border" style={{ borderColor: 'var(--brand-border)' }}>
-                      <div
-                        className="flex items-center gap-2 px-3 py-1.5 text-xs border-b"
-                        style={{ borderColor: 'var(--brand-border)' }}
-                      >
-                        <span style={{ color: 'var(--brand-text-muted)' }}>⌖</span>
-                        <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>{c.comune || '—'}</span>
+                    <div key={c.comune} className="rounded-[var(--radius-lg)] border border-[var(--brand-border)]">
+                      <div className="flex items-center gap-2 border-b border-[var(--brand-border)] px-3 py-1.5 text-xs">
+                        <MapPin size={13} className="text-[var(--brand-text-subtle)]" aria-hidden />
+                        <span className="font-semibold text-[var(--brand-text-main)]">{c.comune || '—'}</span>
                         <span
-                          className="rounded-full px-2 py-0.5 text-[10px] font-medium"
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
                           style={{ backgroundColor: cst.bg, color: cst.fg }}
                         >
-                          {cst.icon} {c.stato === 'conflitto' ? `già pianificato ${ddmm(o.data)}` : cst.label}
+                          <CstIcon size={11} aria-hidden /> {c.stato === 'conflitto' ? `già pianificato ${ddmm(o.data)}` : cst.label}
                         </span>
-                        <span className="ml-auto" style={{ color: 'var(--brand-text-muted)' }}>
-                          {c.righe.length} interventi{cLibero ? ` · ${cSel} selez.` : ''}
+                        <span className="ml-auto text-[var(--brand-text-muted)]">
+                          <N>{c.righe.length}</N> interventi{cLibero ? <> · <N>{cSel}</N> selez.</> : ''}
                         </span>
                       </div>
                       <div className="overflow-auto">
                         <table className="w-full border-collapse text-left text-xs">
                           <thead>
-                            <tr style={{ color: 'var(--brand-text-muted)' }}>
+                            <tr className="text-[var(--brand-text-muted)]">
                               <th className="px-2 py-1.5 font-medium"></th>
                               {['ODL', 'Matricola', 'Indirizzo', 'Esito'].map((h) => (
                                 <th key={h} className="px-2 py-1.5 font-medium whitespace-nowrap">{h}</th>
@@ -241,16 +247,18 @@ export function AnteprimaPianificazione({
                                     onChange={() => onToggleRiga(r.id)}
                                   />
                                 </td>
-                                <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.odl ?? '—'}</td>
-                                <td className="px-2 py-1.5 whitespace-nowrap font-mono">{r.matricola ?? '—'}</td>
+                                <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{r.odl ?? '—'}</td>
+                                <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{r.matricola ?? '—'}</td>
                                 <td className="px-2 py-1.5">{r.indirizzo ?? '—'}</td>
-                                <td className="px-2 py-1.5 whitespace-nowrap">
+                                <td className="whitespace-nowrap px-2 py-1.5">
                                   {okLock && (
-                                    <span className="rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}>✓ fatto</span>
+                                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}>
+                                      <Check size={11} aria-hidden /> fatto
+                                    </span>
                                   )}
                                   {err && (
-                                    <span title={er?.motivo ?? ''} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-bold" style={{ backgroundColor: 'var(--danger)', color: '#fff' }}>
-                                      <span aria-hidden>⚠</span>{er?.esito === 'non assegnato' ? 'non assegn.' : 'errore'}
+                                    <span title={er?.motivo ?? ''} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)' }}>
+                                      <TriangleAlert size={11} aria-hidden />{er?.esito === 'non assegnato' ? 'non assegn.' : 'errore'}
                                     </span>
                                   )}
                                 </td>

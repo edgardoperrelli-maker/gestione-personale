@@ -1,8 +1,14 @@
 'use client';
 
+import { ChevronDown, ChevronRight, RotateCw } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import type { AceaEsiti } from './tipi';
+
+/** Cifra in mono tabulare. */
+function N({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono tabular-nums">{children}</span>;
+}
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 // Solo gli ESITI: il trigger (toggle Prova + "Assegna su ACEA") vive nella barra azioni
@@ -24,19 +30,15 @@ export function PannelloAceaAssegna({ aperto, onToggle, msg, esiti, checking, on
     <Card animated={false}>
     <CardContent className="space-y-2">
       <div className="flex items-center gap-2">
-        <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-2 text-left">
-          <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{aperto ? '▾' : '▸'}</span>
+        <button type="button" onClick={onToggle} className="flex flex-1 items-center gap-2 rounded-[var(--radius-sm)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
+          <span className="text-[var(--brand-text-subtle)]" aria-hidden>{aperto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}</span>
           <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
             Esito assegnazione ACEA
           </h2>
         </button>
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={onRicarica}
-          disabled={checking}
-        >
-          {checking ? '…' : '↻ Aggiorna esito'}
+        <Button variant="ghost" size="sm" onClick={onRicarica} disabled={checking}>
+          <RotateCw size={13} className={checking ? 'animate-spin' : ''} aria-hidden />
+          {checking ? 'Aggiorno…' : 'Aggiorna esito'}
         </Button>
       </div>
       {aperto && (
@@ -46,8 +48,8 @@ export function PannelloAceaAssegna({ aperto, onToggle, msg, esiti, checking, on
       {esiti?.ultimoRun ? (
         <p className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>
           Ultimo giro: <strong>{esiti.ultimoRun.dryRun ? 'PROVA' : 'REALE'}</strong> · giorno{' '}
-          {esiti.ultimoRun.giorno ?? '—'} · {esiti.ultimoRun.lavori} ODL ·{' '}
-          {new Date(esiti.ultimoRun.creato_il).toLocaleString('it-IT')}
+          <N>{esiti.ultimoRun.giorno ?? '—'}</N> · <N>{esiti.ultimoRun.lavori}</N> ODL ·{' '}
+          <N>{new Date(esiti.ultimoRun.creato_il).toLocaleString('it-IT')}</N>
           {esiti.ultimoRun.lavori === 0 && (
             <span style={{ color: 'var(--warning)' }}> — 0 ODL: niente da assegnare.</span>
           )}
@@ -73,7 +75,7 @@ export function PannelloAceaAssegna({ aperto, onToggle, msg, esiti, checking, on
                 color: 'var(--brand-text-main)',
               }}
             >
-              {k}: {n}
+              {k}: <N>{n}</N>
             </span>
           ))}
         </div>
@@ -95,7 +97,7 @@ export function PannelloAceaAssegna({ aperto, onToggle, msg, esiti, checking, on
                   key={i}
                   style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}
                 >
-                  <td className="px-2 py-1 whitespace-nowrap font-mono">{r.odl}</td>
+                  <td className="whitespace-nowrap px-2 py-1 font-mono tabular-nums">{r.odl}</td>
                   <td className="px-2 py-1 whitespace-nowrap">{r.operatore_acea ?? '—'}</td>
                   <td className="px-2 py-1 whitespace-nowrap">
                     {r.esito}{r.dry_run ? ' (prova)' : ''}

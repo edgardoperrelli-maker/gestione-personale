@@ -1,69 +1,26 @@
 'use client';
 
-import Button from '@/components/Button';
-import { breadcrumbSegments } from '@/lib/agente/aceaNav';
-import type { NavState } from '@/lib/agente/aceaNav';
+// Adapter sul primitivo condiviso `@/components/ui/Breadcrumb` (DESIGN.md §7):
+// la navigazione del modulo è già in URL (?commessa&attivita&azione), quindi ogni
+// segmento diventa un link — cliccarlo risale nel drill-down. Prima era un
+// breadcrumb reimplementato a mano con «← Indietro» e separatori «/» di testo.
 
-type BreadcrumbProps = {
-  nav: NavState;
-  onNavigate: (level: 'root' | 'commessa' | 'attivita') => void;
-};
+import BreadcrumbBase, { type BreadcrumbItem } from '@/components/ui/Breadcrumb';
+import { breadcrumbSegments, type NavState } from '@/lib/agente/aceaNav';
 
-export function Breadcrumb({ nav, onNavigate }: BreadcrumbProps) {
-  const segments = breadcrumbSegments(nav);
+const BASE = '/hub/assegnazione-ai';
 
-  if (segments.length === 0) return null;
+export function Breadcrumb({ nav }: { nav: NavState }) {
+  const segs = breadcrumbSegments(nav);
+  if (segs.length === 0) return null;
 
-  // determina a quale livello risale il "← Indietro"
-  const backLevel: 'root' | 'commessa' | 'attivita' =
-    segments.length >= 3 ? 'attivita' : segments.length === 2 ? 'commessa' : 'root';
+  const items: BreadcrumbItem[] = [{ label: 'Assegnazioni AI', href: BASE }];
+  const qs = new URLSearchParams();
+  segs.forEach((s, i) => {
+    qs.set(s.level, s.key);
+    const last = i === segs.length - 1;
+    items.push({ label: s.label, href: last ? undefined : `${BASE}?${qs.toString()}` });
+  });
 
-  return (
-    <nav aria-label="breadcrumb" className="flex items-center gap-1 flex-wrap">
-      <Button
-        variant="ghost"
-        size="sm"
-        animated={false}
-        onClick={() => onNavigate(backLevel)}
-        className="flex items-center gap-1"
-        style={{ color: 'var(--brand-text-muted)' }}
-      >
-        ← Indietro
-      </Button>
-
-      <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs select-none">/</span>
-
-      {segments.map((seg, i) => {
-        const isLast = i === segments.length - 1;
-        // i=0 → cliccando "ACEA" (commessa) vogliamo mostrare AttivitaGrid → risali('commessa')
-        // i=1 → cliccando "Limitazioni massive" (attività) vogliamo mostrare AzioneGrid → risali('attivita')
-        const targetLevel = (['commessa', 'attivita'] as const)[i] as 'commessa' | 'attivita';
-        if (isLast) {
-          return (
-            <span
-              key={seg.key}
-              className="text-xs font-medium"
-              style={{ color: 'var(--brand-text-main)' }}
-            >
-              {seg.label}
-            </span>
-          );
-        }
-        return (
-          <span key={seg.key} className="flex items-center gap-1">
-            <Button
-              variant="ghost"
-              size="sm"
-              animated={false}
-              onClick={() => onNavigate(targetLevel)}
-              style={{ color: 'var(--brand-text-muted)' }}
-            >
-              {seg.label}
-            </Button>
-            <span style={{ color: 'var(--brand-text-muted)' }} className="text-xs select-none">/</span>
-          </span>
-        );
-      })}
-    </nav>
-  );
+  return <BreadcrumbBase items={items} />;
 }

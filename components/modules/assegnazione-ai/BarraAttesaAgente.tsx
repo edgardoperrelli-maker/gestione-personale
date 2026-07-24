@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { TriangleAlert, RotateCw } from 'lucide-react';
 import { statoAttesa } from '@/lib/agente/attesaAgente';
 
 // Barra "In attesa dell'agente" per chi lancia una richiesta che passa dal tick.
@@ -37,26 +38,26 @@ export function BarraAttesaAgente({
   if (stato === 'stallo') {
     return (
       <div
-        className="flex items-center gap-2 rounded-xl border px-3 py-2 text-sm"
+        className="flex items-center gap-2 rounded-[var(--radius-lg)] border px-3 py-2 text-sm"
         style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
       >
-        <span style={{ color: 'var(--warning)' }}>⚠</span>
-        <span>{etichetta}: ci sta mettendo più del previsto ({minuti}+ min). Controlla qui sotto o riprova.</span>
+        <TriangleAlert size={15} className="shrink-0" style={{ color: 'var(--warning)' }} aria-hidden />
+        <span>{etichetta}: ci sta mettendo più del previsto (<span className="font-mono tabular-nums">{minuti}</span>+ min). Controlla qui sotto o riprova.</span>
       </div>
     );
   }
 
   return (
     <div
-      className="rounded-xl border px-3 py-2.5 space-y-2"
+      className="space-y-2 rounded-[var(--radius-lg)] border px-3 py-2.5"
       style={{ borderColor: 'var(--status-progress-soft)', backgroundColor: 'var(--status-progress-soft)' }}
     >
       <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
-        <span style={{ color: 'var(--status-progress)' }}>⟳</span>
+        <RotateCw size={14} className="animate-spin" style={{ color: 'var(--status-progress)' }} aria-hidden />
         <span>
           {etichetta} — in attesa dell&rsquo;agente…
           <span className="font-normal" style={{ color: 'var(--brand-text-muted)' }}>
-            {' '}(parte entro ~1 min{ora ? ` · da ${ora}` : ''})
+            {' '}(parte entro ~1 min{ora ? <> · da <span className="font-mono tabular-nums">{ora}</span></> : ''})
           </span>
         </span>
       </div>

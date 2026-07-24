@@ -5,6 +5,7 @@
 // Default sulla finestra corrente dell'agente, interruttore "tutto lo storico", export Excel.
 // Decisioni di design: lib/agente/confrontoEsitiAcea.ts (grigliata 20/07).
 import { useCallback, useEffect, useState } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import * as XLSX from 'xlsx';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
@@ -60,9 +61,9 @@ function dataIt(iso: string | null | undefined): string {
 function StatBox({ label, value, tono }: { label: string; value: number; tono?: 'ok' | 'warn' | 'danger' }) {
   const colore = tono === 'danger' ? 'var(--danger)' : tono === 'warn' ? 'var(--warning)' : 'var(--brand-primary)';
   return (
-    <div className="rounded-xl border px-3 py-2" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'color-mix(in oklch, var(--brand-primary-soft) 40%, transparent)' }}>
+    <div className="rounded-[var(--radius-lg)] border px-3 py-2" style={{ borderColor: 'var(--brand-border)', backgroundColor: 'color-mix(in oklch, var(--brand-primary-soft) 40%, transparent)' }}>
       <div className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>{label}</div>
-      <div className="text-lg font-semibold" style={{ color: colore }}>{value}</div>
+      <div className="font-mono text-lg font-semibold tabular-nums" style={{ color: colore }}>{value}</div>
     </div>
   );
 }
@@ -144,8 +145,8 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
             className="flex items-center gap-2 text-left"
             aria-expanded={aperta}
           >
-            <span aria-hidden="true" className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
-              {aperta ? '▾' : '▸'}
+            <span aria-hidden="true" className="text-[var(--brand-text-muted)]">
+              {aperta ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
             </span>
             <span>
               <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>
@@ -197,7 +198,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                 <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                   Positivi nostri non allineati su ACEA ({dati.dbVersoAcea.righe.length})
                 </h3>
-                <div className="max-h-64 overflow-auto rounded-lg border" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="max-h-64 overflow-auto rounded-[var(--radius-lg)] border" style={{ borderColor: 'var(--brand-border)' }}>
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ color: 'var(--brand-text-muted)' }}>
@@ -212,7 +213,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                     <tbody style={{ color: 'var(--brand-text-main)' }}>
                       {dati.dbVersoAcea.righe.slice(0, MAX_RIGHE_VISTA).map((r) => (
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
-                          <td className="px-2 py-1 font-mono">{r.odl}</td>
+                          <td className="px-2 py-1 font-mono tabular-nums">{r.odl}</td>
                           <td className="px-2 py-1">{dataIt(r.dataDb)}</td>
                           <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
                             POSITIVO <span style={{ color: 'var(--brand-text-muted)' }}>({ETICHETTA_FONTE[r.fonte]})</span>
@@ -240,7 +241,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                 <h3 className="mb-1 text-sm font-semibold" style={{ color: 'var(--brand-text-main)' }}>
                   Positivi ACEA senza positivo nel nostro DB ({dati.aceaVersoDb.mancanti.length})
                 </h3>
-                <div className="max-h-64 overflow-auto rounded-lg border" style={{ borderColor: 'var(--brand-border)' }}>
+                <div className="max-h-64 overflow-auto rounded-[var(--radius-lg)] border" style={{ borderColor: 'var(--brand-border)' }}>
                   <table className="w-full text-xs">
                     <thead>
                       <tr style={{ color: 'var(--brand-text-muted)' }}>
@@ -254,7 +255,7 @@ export function ConfrontoEsitiAcea({ ultimoGiroTs }: { ultimoGiroTs: string | nu
                     <tbody style={{ color: 'var(--brand-text-main)' }}>
                       {dati.aceaVersoDb.mancanti.slice(0, MAX_RIGHE_VISTA).map((r) => (
                         <tr key={r.odl} className="border-t" style={{ borderColor: 'var(--brand-border)' }}>
-                          <td className="px-2 py-1 font-mono">{r.odl}</td>
+                          <td className="px-2 py-1 font-mono tabular-nums">{r.odl}</td>
                           <td className="px-2 py-1">{r.operatore ?? '—'}</td>
                           <td className="px-2 py-1" style={{ color: 'var(--brand-green)' }}>
                             POSITIVO{r.causa ? <span style={{ color: 'var(--brand-text-muted)' }}> · {r.causa}</span> : null}

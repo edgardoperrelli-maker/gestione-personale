@@ -11,9 +11,17 @@ import { esitoEffettivoPerOdl } from '@/lib/agente/aceaBadgePerRisorsa';
 import { PannelloAceaAssegna } from '../PannelloAceaAssegna';
 import { useAttesaAgente } from '../useAttesaAgente';
 import { BarraAttesaAgente } from '../BarraAttesaAgente';
+import { ChevronDown, ChevronRight, RotateCw, TriangleAlert } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card, CardContent } from '@/components/Card';
 import DatePicker from '@/components/ui/DatePicker';
+import Dialog from '@/components/ui/Dialog';
+import Select from '@/components/ui/Select';
+
+/** Cifra in mono tabulare. */
+function N({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono tabular-nums">{children}</span>;
+}
 
 // ─── Helper ──────────────────────────────────────────────────────────────────
 
@@ -344,13 +352,13 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
         </div>
         {pianificaData && (
           <div
-            className="rounded-xl border px-3 py-2.5 space-y-2"
+            className="space-y-2 rounded-[var(--radius-lg)] border px-3 py-2.5"
             style={{ borderColor: 'var(--status-progress-soft)', backgroundColor: 'var(--status-progress-soft)' }}
           >
             <div className="flex items-center gap-2 text-sm font-medium" style={{ color: 'var(--brand-text-main)' }}>
-              <span style={{ color: 'var(--status-progress)' }}>⟳</span>
+              <RotateCw size={14} className="animate-spin" style={{ color: 'var(--status-progress)' }} aria-hidden />
               <span>
-                In attesa dell&rsquo;agente — lettura del giorno {pianificaData}…
+                In attesa dell&rsquo;agente — lettura del giorno <N>{pianificaData}</N>…
                 <span className="font-normal" style={{ color: 'var(--brand-text-muted)' }}>{' '}(parte entro ~1 min)</span>
               </span>
             </div>
@@ -389,12 +397,12 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
       {idsAttivita.length > 0 && (
         <>
           <div
-            className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border px-4 py-3"
+            className="sticky bottom-3 flex flex-wrap items-center justify-between gap-3 rounded-[var(--radius-xl)] border px-4 py-3"
             style={{ borderColor: 'var(--brand-primary-border)', backgroundColor: 'var(--brand-surface)', boxShadow: 'var(--shadow-md)' }}
           >
             <div className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>
               <span className="font-semibold" style={{ color: 'var(--brand-text-main)' }}>
-                {operatoriDaCreare.length} operatori · {selezione.size} interventi
+                <N>{operatoriDaCreare.length}</N> operatori · <N>{selezione.size}</N> interventi
               </span>
             </div>
             <div className="flex flex-wrap items-center gap-2">
@@ -422,35 +430,31 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
               )}
             </div>
           </div>
-          {territorioModale && (
-            <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4" onClick={() => setTerritorioModale(false)}>
-              <div
-                className="w-full max-w-sm rounded-2xl border p-5"
-                style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)' }}
-                onClick={(e) => e.stopPropagation()}
-              >
-                <h3 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Territorio da associare</h3>
-                <p className="mt-1 text-xs" style={{ color: 'var(--brand-text-muted)' }}>
-                  Gli interventi selezionati ({operatoriDaCreare.length} operatori) vengono accorpati sotto questo territorio: un solo rapportino — e un solo link — per operatore.
-                </p>
-                <select
-                  value={territorioSel}
-                  onChange={(e) => setTerritorioSel(e.target.value)}
-                  className="mt-3 w-full rounded-lg border px-3 py-2 text-sm"
-                  style={{ borderColor: 'var(--brand-border)', backgroundColor: 'var(--brand-surface)', color: 'var(--brand-text-main)' }}
-                >
-                  <option value="">Scegli territorio…</option>
-                  {territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
-                </select>
-                <div className="mt-4 flex justify-end gap-2">
-                  <Button variant="ghost" size="sm" onClick={() => setTerritorioModale(false)}>Annulla</Button>
-                  <Button variant="primary" size="sm" disabled={!territorioSel || procedendo} onClick={() => void procedi(territorioSel)}>
-                    {procedendo ? 'Creo…' : 'Crea rapportini'}
-                  </Button>
-                </div>
-              </div>
-            </div>
-          )}
+          <Dialog
+            open={territorioModale}
+            onClose={() => setTerritorioModale(false)}
+            title="Territorio da associare"
+            footer={
+              <>
+                <Button variant="outline" size="sm" onClick={() => setTerritorioModale(false)}>Annulla</Button>
+                <Button variant="primary" size="sm" disabled={!territorioSel || procedendo} onClick={() => void procedi(territorioSel)}>
+                  {procedendo ? 'Creo…' : 'Crea rapportini'}
+                </Button>
+              </>
+            }
+          >
+            <p className="text-xs text-[var(--brand-text-muted)]">
+              Gli interventi selezionati (<N>{operatoriDaCreare.length}</N> operatori) vengono accorpati sotto questo territorio:
+              un solo rapportino — e un solo link — per operatore.
+            </p>
+            <label className="mt-3 block">
+              <span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Territorio</span>
+              <Select value={territorioSel} onChange={(e) => setTerritorioSel(e.target.value)} autoFocus>
+                <option value="">Scegli territorio…</option>
+                {territori.map((t) => <option key={t.id} value={t.name}>{t.name}</option>)}
+              </Select>
+            </label>
+          </Dialog>
           {esito && <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>{esito}</p>}
         </>
       )}
@@ -461,11 +465,13 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
           <button
             type="button"
             onClick={() => setStoricoAperto((v) => !v)}
-            className="flex w-full items-center gap-2 text-left"
+            className="flex w-full items-center gap-2 rounded-[var(--radius-sm)] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
-            <span className="text-xs" style={{ color: 'var(--brand-text-subtle)' }}>{storicoAperto ? '▾' : '▸'}</span>
+            <span className="text-[var(--brand-text-subtle)]" aria-hidden>
+              {storicoAperto ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+            </span>
             <h2 className="text-base font-semibold" style={{ color: 'var(--brand-text-main)' }}>Storico assegnazioni</h2>
-            {storico.length > 0 && <span className="text-xs" style={{ color: 'var(--brand-text-muted)' }}>· {storico.length}</span>}
+            {storico.length > 0 && <span className="text-xs text-[var(--brand-text-muted)]">· <N>{storico.length}</N></span>}
           </button>
           {/* avviso doppione — SOLO all'occorrenza: stai per creare per operatori GIÀ assegnati quel
               giorno (i conflitti per-operatore sono già segnalati nell'anteprima). */}
@@ -476,11 +482,14 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
             if (delGiorno.length === 0) return null;
             return (
               <div
-                className="rounded-xl border px-3 py-2 text-sm"
+                className="flex items-start gap-2 rounded-[var(--radius-lg)] border px-3 py-2 text-sm"
                 style={{ borderColor: 'var(--warning)', backgroundColor: 'var(--warning-soft)', color: 'var(--brand-text-main)' }}
               >
-                ⚠️ Stai per creare rapportini per operatori già assegnati il {dataSelez}:{' '}
-                {delGiorno.map((s) => `${s.staff_name ?? '—'} (${s.comune}, ${s.n_interventi})`).join(', ')}.
+                <TriangleAlert size={15} className="mt-0.5 shrink-0" style={{ color: 'var(--warning)' }} aria-hidden />
+                <span>
+                  Stai per creare rapportini per operatori già assegnati il <N>{dataSelez}</N>:{' '}
+                  {delGiorno.map((s) => `${s.staff_name ?? '—'} (${s.comune}, ${s.n_interventi})`).join(', ')}.
+                </span>
               </div>
             );
           })()}
@@ -500,11 +509,11 @@ export function AssegnaOdl({ nav, righe, fileConfig, pianificaData }: AssegnaOdl
                   <tbody>
                     {storico.map((s, idx) => (
                       <tr key={idx} style={{ borderTop: '1px solid var(--brand-border)', color: 'var(--brand-text-main)' }}>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{s.data_pianificata}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{s.data_pianificata}</td>
                         <td className="px-2 py-1.5">{s.comune}</td>
                         <td className="px-2 py-1.5">{s.staff_name ?? '—'}</td>
-                        <td className="px-2 py-1.5">{s.n_interventi}</td>
-                        <td className="px-2 py-1.5 whitespace-nowrap">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
+                        <td className="px-2 py-1.5 font-mono tabular-nums">{s.n_interventi}</td>
+                        <td className="whitespace-nowrap px-2 py-1.5 font-mono tabular-nums">{new Date(s.creato_il).toLocaleString('it-IT')}</td>
                       </tr>
                     ))}
                   </tbody>

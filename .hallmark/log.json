@@ -1,5 +1,13 @@
 [
   {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Assegnazione AI (/hub/assegnazione-ai) — allineamento al sistema Cockpit: glifi→lucide, modale territorio + annuncio→Dialog, breadcrumb→primitivo condiviso, #fff→--on-danger, raggi in scala, numeri mono, select→primitivo, icone coerenti nelle griglie. IA drill-down e logica invariate; niente API/driver"
+  },
+  {
     "date": "2026-07-23",
     "scope": "app",
     "macrostructure": "Catalogue",
