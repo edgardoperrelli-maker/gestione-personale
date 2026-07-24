@@ -1,32 +1,26 @@
 'use client';
 
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Calendario settimanale degli appuntamenti. Testa di modulo standard
+ * (ObjectHeader) con la settimana e i comandi; sotto, sette colonne-giorno con
+ * drag-per-spostare. Ogni appuntamento appartiene a un committente e a un suo
+ * territorio (AcquaLatina → Terracina, …), gestiti dal modulo dedicato in
+ * Impostazioni; la banda della card prende il colore del committente.
+ */
+
 import { Suspense, useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
+import { CalendarPlus, ChevronLeft, ChevronRight } from 'lucide-react';
 import { supabaseBrowser } from '@/lib/supabaseBrowser';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import Button from '@/components/Button';
+import Select from '@/components/ui/Select';
 import AppointmentDayCards from '@/components/modules/appuntamenti/AppointmentDayCards';
-import AppointmentModal from '@/components/modules/appuntamenti/AppointmentModal';
+import AppointmentModal, { type Appointment } from '@/components/modules/appuntamenti/AppointmentModal';
 import { addDays, fmtDay, startOfWeek } from '@/components/modules/cronoprogramma-personale/utils';
-import type { Territory } from '@/types';
-
-type AppointmentTerritory = { id: string; name: string } | null;
-type Appointment = {
-  id: string;
-  pdr: string;
-  nome_cognome: string | null;
-  indirizzo: string | null;
-  cap: string | null;
-  citta: string | null;
-  lat: number | null;
-  lng: number | null;
-  data: string;
-  fascia_oraria: string | null;
-  tipo_intervento: string | null;
-  territorio_id: string | null;
-  note: string | null;
-  status: 'pending' | 'confirmed';
-  territories: AppointmentTerritory;
-};
+import { committentiAttivi, type AppuntamentoCommittente } from '@/lib/appuntamenti/committenti';
 
 function parseDateParam(value: string | null): Date {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -42,7 +36,8 @@ function AppuntamentiInner() {
 
   const [anchor, setAnchor] = useState<Date>(() => startOfWeek(parseDateParam(searchParams.get('date'))));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [territories, setTerritories] = useState<Territory[]>([]);
+  const [committenti, setCommittenti] = useState<AppuntamentoCommittente[]>([]);
+  const [filtroCommittente, setFiltroCommittente] = useState('');
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
@@ -62,21 +57,28 @@ function AppuntamentiInner() {
         console.error('Errore fetch appuntamenti:', e);
       }
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [from, to]);
 
   useEffect(() => {
     let alive = true;
     (async () => {
-      const { data } = await sb.from('territories').select('*').order('name', { ascending: true });
-      if (alive && data) setTerritories(data as Territory[]);
+      // Le tabelle possono non esistere finché la migrazione non è applicata:
+      // in quel caso `data` è null e si resta con l'elenco vuoto.
+      const { data } = await sb
+        .from('appuntamenti_committenti')
+        .select('id, nome, attivo, territori:appuntamenti_territori(id, committente_id, nome, attivo)')
+        .order('nome', { ascending: true });
+      if (alive && data) setCommittenti(data as AppuntamentoCommittente[]);
     })();
-    return () => {
-      alive = false;
-    };
+    return () => { alive = false; };
   }, [sb]);
+
+  const committentiSel = useMemo(() => committentiAttivi(committenti), [committenti]);
+  const appuntamentiVisibili = useMemo(
+    () => (filtroCommittente ? appointments.filter((a) => a.committente_id === filtroCommittente) : appointments),
+    [appointments, filtroCommittente],
+  );
 
   const handleDrop = async (appointmentId: string, newDate: string) => {
     const res = await fetch('/api/appointments', {
@@ -100,44 +102,64 @@ function AppuntamentiInner() {
     setNewAppointmentDate(undefined);
   };
 
-  const title = `${days[0].toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} - ${days[6].toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
+  const title = `${days[0].toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit' })} – ${days[6].toLocaleDateString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric' })}`;
 
   return (
-    <div className="space-y-4 p-4">
-      <div className="flex flex-wrap items-center gap-2 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3 shadow-sm">
-        <Button size="sm" onClick={() => setAnchor((a) => addDays(a, -7))}>{'<'}</Button>
-        <div className="text-lg font-semibold tracking-tight">{title}</div>
-        <Button size="sm" onClick={() => setAnchor((a) => addDays(a, 7))}>{'>'}</Button>
-        <Button size="sm" variant="soft" onClick={() => setAnchor(startOfWeek(new Date()))}>Oggi</Button>
-        <div className="ml-auto">
-          <Button size="sm" onClick={() => { setNewAppointmentDate(undefined); setShowCreateModal(true); }}>
-            + Nuovo appuntamento
-          </Button>
+    <div className="space-y-4">
+      <ObjectHeader
+        title="Appuntamenti"
+        sub={<span className="font-mono tabular-nums">{title}</span>}
+        actions={
+          <>
+            <div className="flex items-center gap-1">
+              <Button size="sm" variant="outline" onClick={() => setAnchor((a) => addDays(a, -7))} aria-label="Settimana precedente">
+                <ChevronLeft size={16} aria-hidden />
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setAnchor(startOfWeek(new Date()))}>Oggi</Button>
+              <Button size="sm" variant="outline" onClick={() => setAnchor((a) => addDays(a, 7))} aria-label="Settimana successiva">
+                <ChevronRight size={16} aria-hidden />
+              </Button>
+            </div>
+            {committentiSel.length > 1 && (
+              <div className="w-[190px]">
+                <Select aria-label="Filtra per committente" className="py-1.5 text-xs" value={filtroCommittente} onChange={(e) => setFiltroCommittente(e.target.value)}>
+                  <option value="">Tutti i committenti</option>
+                  {committentiSel.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
+                </Select>
+              </div>
+            )}
+            <Button size="sm" onClick={() => { setNewAppointmentDate(undefined); setShowCreateModal(true); }}>
+              <CalendarPlus size={14} aria-hidden />
+              Nuovo appuntamento
+            </Button>
+          </>
+        }
+      />
+
+      {committentiSel.length === 0 && (
+        <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border)] px-4 py-3 text-sm text-[var(--brand-text-muted)]">
+          Nessun committente configurato. Aggiungi committenti e territori da{' '}
+          <a href="/impostazioni/appuntamenti-committenti" className="font-semibold text-[var(--primary-text)] hover:text-[var(--brand-primary)]">Impostazioni → Committenti appuntamenti</a>.
         </div>
-      </div>
+      )}
 
       <AppointmentDayCards
         days={days}
-        appointments={appointments}
+        appointments={appuntamentiVisibili}
         onAppointmentClick={(a) => { setSelectedAppointment(a); setShowCreateModal(false); }}
         onAppointmentDrop={handleDrop}
         onNewAppointment={(date) => { setNewAppointmentDate(date); setShowCreateModal(true); }}
       />
 
       {selectedAppointment && (
-        <AppointmentModal
-          mode="view"
-          appointment={selectedAppointment}
-          onClose={() => setSelectedAppointment(null)}
-          onDelete={handleDelete}
-        />
+        <AppointmentModal mode="view" appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onDelete={handleDelete} />
       )}
 
       {showCreateModal && (
         <AppointmentModal
           mode="create"
           defaultDate={newAppointmentDate}
-          territories={territories}
+          committenti={committenti}
           onClose={() => { setShowCreateModal(false); setNewAppointmentDate(undefined); }}
           onCreate={handleCreated}
         />

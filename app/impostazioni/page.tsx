@@ -54,6 +54,12 @@ const MODULES = [
     icon: icona(<><circle cx="12" cy="12" r="8.5" /><path d="M6 6l12 12" /></>),
   },
   {
+    href: '/impostazioni/appuntamenti-committenti',
+    title: 'Committenti appuntamenti',
+    description: 'Committenti e territori per cui si registrano appuntamenti (es. AcquaLatina → Terracina). Separati dai territori della mappa.',
+    icon: icona(<><rect x="3.5" y="4.5" width="17" height="16" rx="2" /><path d="M3.5 9h17M8 3v3M16 3v3" /><path d="M8.5 13.5l1.5 1.5 2.5-2.5" /></>),
+  },
+  {
     href: '/impostazioni/hotel',
     title: 'Hotel',
     description: 'Strutture ricettive per le trasferte: territorio di riferimento, email e prezzi correnti per tipologia camera.',

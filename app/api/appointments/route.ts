@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from('appointments')
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, note, status, created_at, territories(id, name)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, created_at, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
     .order('data', { ascending: true })
     .order('fascia_oraria', { ascending: true });
 
@@ -51,6 +51,8 @@ export async function POST(req: NextRequest) {
     fascia_oraria?: string | null;
     tipo_intervento?: string | null;
     territorio_id?: string | null;
+    committente_id?: string | null;
+    appuntamento_territorio_id?: string | null;
     note?: string | null;
   };
 
@@ -76,10 +78,12 @@ export async function POST(req: NextRequest) {
       fascia_oraria: body.fascia_oraria ?? null,
       tipo_intervento: body.tipo_intervento ?? null,
       territorio_id: body.territorio_id ?? null,
+      committente_id: body.committente_id ?? null,
+      appuntamento_territorio_id: body.appuntamento_territorio_id ?? null,
       note: body.note ?? null,
       created_by: user.id,
     })
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, note, status, territories(id, name)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -125,7 +129,7 @@ export async function PATCH(req: NextRequest) {
     .from('appointments')
     .update(patch)
     .eq('id', id)
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, note, status, territories(id, name)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
