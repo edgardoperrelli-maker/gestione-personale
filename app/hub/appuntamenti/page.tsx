@@ -17,10 +17,11 @@ import { supabaseBrowser } from '@/lib/supabaseBrowser';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
+import MultiSelect from '@/components/ui/MultiSelect';
 import AppointmentDayCards from '@/components/modules/appuntamenti/AppointmentDayCards';
 import AppointmentModal, { type Appointment } from '@/components/modules/appuntamenti/AppointmentModal';
 import { addDays, fmtDay, startOfWeek } from '@/components/modules/cronoprogramma-personale/utils';
-import { committentiAttivi, type AppuntamentoCommittente } from '@/lib/appuntamenti/committenti';
+import { committentiAttivi, territoriAttivi, type AppuntamentoCommittente } from '@/lib/appuntamenti/committenti';
 
 function parseDateParam(value: string | null): Date {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -38,6 +39,7 @@ function AppuntamentiInner() {
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [committenti, setCommittenti] = useState<AppuntamentoCommittente[]>([]);
   const [filtroCommittente, setFiltroCommittente] = useState('');
+  const [filtroTerritori, setFiltroTerritori] = useState<string[]>([]); // [] = tutti
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [newAppointmentDate, setNewAppointmentDate] = useState<string | undefined>(undefined);
@@ -75,10 +77,29 @@ function AppuntamentiInner() {
   }, [sb]);
 
   const committentiSel = useMemo(() => committentiAttivi(committenti), [committenti]);
+
+  // Opzioni del filtro territori: quelli del committente scelto, o tutti (con il
+  // committente in etichetta per disambiguare quando ce n'è più d'uno).
+  const territoriOpzioni = useMemo(() => {
+    const scope = filtroCommittente ? committentiSel.filter((c) => c.id === filtroCommittente) : committentiSel;
+    const disambigua = !filtroCommittente && committentiSel.length > 1;
+    return scope.flatMap((c) =>
+      territoriAttivi(c).map((t) => ({ value: t.id, label: disambigua ? `${c.nome} · ${t.nome}` : t.nome })),
+    );
+  }, [committentiSel, filtroCommittente]);
+
   const appuntamentiVisibili = useMemo(
-    () => (filtroCommittente ? appointments.filter((a) => a.committente_id === filtroCommittente) : appointments),
-    [appointments, filtroCommittente],
+    () => appointments.filter((a) =>
+      (!filtroCommittente || a.committente_id === filtroCommittente) &&
+      (filtroTerritori.length === 0 || (a.appuntamento_territorio_id != null && filtroTerritori.includes(a.appuntamento_territorio_id))),
+    ),
+    [appointments, filtroCommittente, filtroTerritori],
   );
+
+  const onFiltroCommittente = (id: string) => {
+    setFiltroCommittente(id);
+    setFiltroTerritori([]); // le opzioni territori cambiano: riparti da «tutti»
+  };
 
   const handleDrop = async (appointmentId: string, newDate: string) => {
     const res = await fetch('/api/appointments', {
@@ -122,10 +143,22 @@ function AppuntamentiInner() {
             </div>
             {committentiSel.length > 1 && (
               <div className="w-[190px]">
-                <Select aria-label="Filtra per committente" className="py-1.5 text-xs" value={filtroCommittente} onChange={(e) => setFiltroCommittente(e.target.value)}>
+                <Select aria-label="Filtra per committente" className="py-1.5 text-xs" value={filtroCommittente} onChange={(e) => onFiltroCommittente(e.target.value)}>
                   <option value="">Tutti i committenti</option>
                   {committentiSel.map((c) => <option key={c.id} value={c.id}>{c.nome}</option>)}
                 </Select>
+              </div>
+            )}
+            {territoriOpzioni.length > 0 && (
+              <div className="w-[190px]">
+                <MultiSelect
+                  label="Territori"
+                  ariaLabel="Filtra per territorio"
+                  options={territoriOpzioni}
+                  values={filtroTerritori}
+                  onChange={setFiltroTerritori}
+                  triggerClassName="border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] py-1.5 text-xs"
+                />
               </div>
             )}
             <Button size="sm" onClick={() => { setNewAppointmentDate(undefined); setShowCreateModal(true); }}>

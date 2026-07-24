@@ -30,9 +30,13 @@ CREATE INDEX IF NOT EXISTS appuntamenti_territori_committente_idx
   ON public.appuntamenti_territori (committente_id);
 
 -- La funzione set_updated_at() esiste già dalla migrazione 20260413000000_appointments.sql.
+-- DROP … IF EXISTS prima di CREATE: i trigger e le policy non hanno IF NOT EXISTS,
+-- così la migrazione resta ri-applicabile senza errori.
+DROP TRIGGER IF EXISTS appuntamenti_committenti_updated_at ON public.appuntamenti_committenti;
 CREATE TRIGGER appuntamenti_committenti_updated_at
   BEFORE UPDATE ON public.appuntamenti_committenti
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
+DROP TRIGGER IF EXISTS appuntamenti_territori_updated_at ON public.appuntamenti_territori;
 CREATE TRIGGER appuntamenti_territori_updated_at
   BEFORE UPDATE ON public.appuntamenti_territori
   FOR EACH ROW EXECUTE FUNCTION public.set_updated_at();
@@ -54,8 +58,10 @@ CREATE INDEX IF NOT EXISTS appointments_appuntamento_territorio_idx
 -- (le route admin), esattamente come per `territories`.
 ALTER TABLE public.appuntamenti_committenti ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.appuntamenti_territori   ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS "appuntamenti_committenti_select" ON public.appuntamenti_committenti;
 CREATE POLICY "appuntamenti_committenti_select" ON public.appuntamenti_committenti
   FOR SELECT TO authenticated USING (true);
+DROP POLICY IF EXISTS "appuntamenti_territori_select" ON public.appuntamenti_territori;
 CREATE POLICY "appuntamenti_territori_select" ON public.appuntamenti_territori
   FOR SELECT TO authenticated USING (true);
 
