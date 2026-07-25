@@ -2,6 +2,8 @@
 
 import { useState } from 'react';
 import Button from '@/components/Button';
+import Select from '@/components/ui/Select';
+import Input from '@/components/Input';
 import DatePicker from '@/components/ui/DatePicker';
 import { TIPI_ASSENZA, TIPO_META, type Disponibilita, type TipoAssenza } from '@/lib/disponibilita';
 import type { Staff } from '@/types';
@@ -102,24 +104,24 @@ export default function AssenzaDialog({
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[var(--overlay)] px-4">
-      <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-2xl">
+      <div className="w-full max-w-md rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-5 shadow-[var(--shadow-lg)]">
         <div className="text-lg font-semibold text-[var(--brand-text-main)]">
           {isEdit ? 'Modifica assenza / disponibilità' : 'Assenza / Disponibilità'}
         </div>
 
         {/* Operatore */}
         <label className="mt-4 block text-xs font-semibold text-[var(--brand-text-muted)]">Operatore</label>
-        <select
+        <Select
           value={staffId}
           disabled={isEdit}
           onChange={(e) => setStaffId(e.target.value)}
-          className="mt-1 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm disabled:opacity-60"
+          className="mt-1"
         >
           <option value="">— seleziona —</option>
           {staffList.map((s) => (
             <option key={s.id} value={s.id}>{s.display_name}</option>
           ))}
-        </select>
+        </Select>
 
         {/* Data */}
         <label className="mt-3 block text-xs font-semibold text-[var(--brand-text-muted)]">Data</label>
@@ -179,22 +181,19 @@ export default function AssenzaDialog({
         {(modo === 'dalle' || modo === 'finestra') && (
           <div className="mt-2">
             <label className="block text-xs text-[var(--brand-text-muted)]">Dalle</label>
-            <input type="time" value={oraDa} onChange={(e) => setOraDa(e.target.value)}
-              className="mt-1 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+            <Input type="time" value={oraDa} onChange={(e) => setOraDa(e.target.value)} className="mt-1" />
           </div>
         )}
         {(modo === 'fino' || modo === 'finestra') && (
           <div className="mt-2">
             <label className="block text-xs text-[var(--brand-text-muted)]">Fino alle</label>
-            <input type="time" value={oraA} onChange={(e) => setOraA(e.target.value)}
-              className="mt-1 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+            <Input type="time" value={oraA} onChange={(e) => setOraA(e.target.value)} className="mt-1" />
           </div>
         )}
 
         {/* Note */}
         <label className="mt-3 block text-xs font-semibold text-[var(--brand-text-muted)]">Note (opzionale)</label>
-        <input value={note} onChange={(e) => setNote(e.target.value)}
-          className="mt-1 w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm" />
+        <Input value={note} onChange={(e) => setNote(e.target.value)} className="mt-1" />
 
         {error && <div className="mt-3 text-sm" style={{ color: 'var(--danger)' }}>{error}</div>}
 

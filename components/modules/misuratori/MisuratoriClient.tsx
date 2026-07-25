@@ -156,7 +156,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
     setStatoFiltro(prev => (s === '' ? '' : prev === s ? '' : s));
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-4">
+    <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
       {/* Testa di modulo (fissa) */}
       <ObjectHeader
         title="Misuratori Rimossi"

@@ -194,7 +194,11 @@ export default function AppShell({
           onOpenMobile={() => setMobileOpen(true)}
           onOpenPalette={() => setPaletteOpen(true)}
         />
-        <main className="mx-auto w-full max-w-[1920px] px-3 py-6 sm:px-4 md:px-6 lg:px-8">
+        {/* Contenitore di pagina — UNICO proprietario della cornice (DESIGN.md §8).
+            I moduli NON aggiungono px/py né un `max-w` proprio: il bordo si sommava
+            (32px shell + 24px modulo = 56px per lato) e i cap `max-w-6xl` lasciavano
+            oltre 1100px vuoti su un monitor 2560. */}
+        <main className="mx-auto w-full max-w-[2560px] px-3 py-4 sm:px-4 lg:px-5">
           {children}
         </main>
       </div>

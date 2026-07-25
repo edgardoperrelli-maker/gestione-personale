@@ -1,6 +1,10 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useState, useEffect, useMemo } from 'react';
+import { Check, ChevronLeft, ChevronRight, FileText, Plus, ScanLine, Trash2 } from 'lucide-react';
+import Button from '@/components/Button';
+import Dialog from '@/components/ui/Dialog';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { campiPerScope } from '@/utils/rapportini/campiScope';
 import type { Voce } from '@/components/modules/rapportini/RapportinoForm';
@@ -329,7 +333,7 @@ export function RisanamentoView({
         <div className="flex h-dvh flex-col">
           {/* Header */}
           <div className="shrink-0 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-4">
-            <div className="text-base font-bold text-[var(--brand-text-main)]">{rapportino.staff_name}</div>
+            <div className="text-base font-semibold text-[var(--brand-text-main)]">{rapportino.staff_name}</div>
             <div className="text-sm text-[var(--brand-text-muted)]">{formatData(rapportino.data)}</div>
           </div>
 
@@ -342,27 +346,27 @@ export function RisanamentoView({
                 const nMisuratori = righe.filter((r) => r.voce_id === voce.id).length;
                 const titolo = [voce.via, (voce as Voce & { civico?: string }).civico].filter(Boolean).join(' ');
                 return (
+                  // Card-riga a tutta larghezza: resta un `<button>` a mano (il primitivo la
+                  // stringerebbe a un comando in linea). Focus ring e stato di pressione espliciti.
                   <button
                     key={voce.id}
                     type="button"
                     onClick={() => { setCivicoApertoId(voce.id); setErrore(null); }}
-                    className="flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-left transition active:border-[var(--brand-primary)]"
+                    className="flex w-full items-center gap-3 rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-3 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:border-[var(--brand-primary)]"
                   >
-                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary-soft)] text-sm font-bold text-[var(--brand-primary)]">
+                    <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary-soft)] font-mono text-sm font-semibold tabular-nums text-[var(--brand-primary)]">
                       {idx + 1}
                     </span>
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-[15px] font-bold text-[var(--brand-text-main)]">
+                      <span className="block truncate text-base font-semibold text-[var(--brand-text-main)]">
                         {titolo || voce.nominativo || `Civico ${idx + 1}`}
                       </span>
                       <span className="block truncate text-xs text-[var(--brand-text-muted)]">{voce.comune ?? ''}</span>
                     </span>
-                    <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
-                      {nMisuratori} misuratori
+                    <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-semibold text-[var(--brand-text-subtle)]">
+                      <span className="font-mono tabular-nums">{nMisuratori}</span> misuratori
                     </span>
-                    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2">
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
+                    <ChevronRight className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" strokeWidth={2} aria-hidden />
                   </button>
                 );
               })
@@ -373,7 +377,7 @@ export function RisanamentoView({
           {!readOnly && !inviato && (
             <div className="sticky bottom-0 border-t border-[var(--brand-border)] bg-[var(--brand-surface)] p-3">
               {incompleti.length > 0 && (
-                <div className="mb-2 rounded-xl border border-[var(--danger)] bg-[var(--danger)]/10 p-3 text-xs text-[var(--danger)]">
+                <div className="mb-2 rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-xs text-[var(--danger)]">
                   <p className="mb-1 font-semibold">Mancano foto obbligatorie:</p>
                   <ul className="space-y-1">
                     {incompleti.map((d, i) => (
@@ -381,7 +385,7 @@ export function RisanamentoView({
                         <button
                           type="button"
                           onClick={() => vaiAIncompleto(d)}
-                          className="flex w-full items-start gap-1.5 rounded-lg px-1.5 py-1 text-left transition hover:bg-[var(--danger)]/10"
+                          className="flex min-h-[44px] w-full items-start gap-1.5 rounded-[var(--radius-md)] px-1.5 py-1 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:bg-[var(--danger-soft)]"
                         >
                           <span className="min-w-0 flex-1">
                             <span className="block font-semibold">
@@ -394,64 +398,68 @@ export function RisanamentoView({
                             )}
                             <span className="block">Manca: {d.campiMancanti.join(', ')}</span>
                           </span>
-                          <span className="shrink-0 whitespace-nowrap text-[10px] font-semibold opacity-70">apri ›</span>
+                          <span className="inline-flex shrink-0 items-center gap-0.5 whitespace-nowrap text-[11px] font-semibold opacity-70">
+                            apri
+                            <ChevronRight className="h-3 w-3" strokeWidth={2} aria-hidden />
+                          </span>
                         </button>
                       </li>
                     ))}
                   </ul>
                 </div>
               )}
-              <button
-                type="button"
+              <Button
+                variant="primary"
+                size="touch"
                 onClick={onInviaClick}
                 disabled={inviando}
-                className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-white disabled:opacity-50"
+                loading={inviando}
+                className="w-full"
               >
-                {inviando ? 'Invio…' : `Invia rapportino (${puntiGas} punti gas)`}
-              </button>
+                {inviando ? 'Invio…' : <>Invia rapportino (<span className="font-mono tabular-nums">{puntiGas}</span> punti gas)</>}
+              </Button>
             </div>
           )}
 
           {/* Banner inviato */}
           {inviato && (
-            <div className="m-3 rounded-xl border border-[var(--success)] bg-[var(--success)]/10 p-4 text-center">
-              <p className="mb-3 text-sm font-semibold text-[var(--success)]">Rapportino inviato ✓</p>
-              <button type="button" onClick={condividiPdf} disabled={pdfBusy}
-                className="rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">
-                {pdfBusy ? 'Genero…' : '📄 Condividi PDF'}
-              </button>
+            <div className="m-3 rounded-[var(--radius-lg)] border border-[var(--success)] bg-[var(--success-soft)] p-4 text-center">
+              <p className="mb-3 flex items-center justify-center gap-1.5 text-sm font-semibold text-[var(--success)]">
+                <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                Rapportino inviato
+              </p>
+              <Button variant="primary" size="touch" onClick={condividiPdf} disabled={pdfBusy} loading={pdfBusy}>
+                {pdfBusy ? 'Genero…' : <><FileText className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />Condividi PDF</>}
+              </Button>
               {errore && <p className="mt-2 text-xs text-[var(--danger)]">{errore}</p>}
             </div>
           )}
         </div>
 
-        {/* Modale conferma punti gas */}
-        {modalePuntiGas && (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-            <div className="w-full max-w-sm rounded-2xl bg-[var(--brand-surface)] p-5">
-              <p className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Conferma invio</p>
-              <p className="mb-4 text-sm text-[var(--brand-text-soft)]">
-                Rilevati <b>{puntiGas} punti gas</b> ({puntiGas} misuratori in {nCivici} civici). Confermi l&apos;invio del rapportino?
-              </p>
-              <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setModalePuntiGas(false)}
-                  className="flex-1 rounded-xl border border-[var(--brand-border)] px-4 py-2.5 text-sm font-semibold"
-                >
-                  Annulla
-                </button>
-                <button
-                  type="button"
-                  onClick={() => { void confermaInvio(); }}
-                  className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-white"
-                >
-                  Conferma
-                </button>
-              </div>
+        {/* Modale conferma punti gas — primitivo Dialog (focus-trap + ESC + aria-modal),
+            variante sheet: sul telefono arriva dal basso, a portata di pollice. */}
+        <Dialog
+          open={modalePuntiGas}
+          onClose={() => setModalePuntiGas(false)}
+          title="Conferma invio"
+          variant="sheet"
+          footer={
+            <div className="flex w-full gap-2">
+              <Button variant="outline" size="touch" onClick={() => setModalePuntiGas(false)} className="flex-1">
+                Annulla
+              </Button>
+              <Button variant="primary" size="touch" onClick={() => { void confermaInvio(); }} className="flex-1">
+                Conferma
+              </Button>
             </div>
-          </div>
-        )}
+          }
+        >
+          <p className="text-sm text-[var(--brand-text-muted)]">
+            Rilevati <b className="font-semibold text-[var(--brand-text-main)]"><span className="font-mono tabular-nums">{puntiGas}</span> punti gas</b>
+            {' '}(<span className="font-mono tabular-nums">{puntiGas}</span> misuratori in <span className="font-mono tabular-nums">{nCivici}</span> civici).
+            {' '}Confermi l&apos;invio del rapportino?
+          </p>
+        </Dialog>
       </>
     );
   }
@@ -480,17 +488,17 @@ export function RisanamentoView({
     <div className="flex h-dvh flex-col">
       {/* Header dettaglio */}
       <div className="shrink-0 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3">
+        {/* Rientro: resta a mano per tenere il testo-accento zaffiro (le varianti del
+            primitivo portano i colori di superficie). 48px di area di tocco. */}
         <button
           type="button"
           onClick={() => { setCivicoApertoId(null); setErrore(null); }}
-          className="mb-1 flex items-center gap-1 text-sm font-semibold text-[var(--brand-primary)]"
+          className="-ml-1 mb-1 flex min-h-[48px] items-center gap-1 rounded-[var(--radius-md)] px-1 text-sm font-semibold text-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
         >
-          <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
-            <path d="M15 18l-6-6 6-6" />
-          </svg>
+          <ChevronLeft className="h-4 w-4" strokeWidth={2} aria-hidden />
           Civici
         </button>
-        <div className="text-base font-bold text-[var(--brand-text-main)]">{titoloCivico}</div>
+        <div className="text-base font-semibold text-[var(--brand-text-main)]">{titoloCivico}</div>
         <div className="text-sm text-[var(--brand-text-muted)]">{voceDefinita.comune ?? ''}</div>
       </div>
 
@@ -498,17 +506,17 @@ export function RisanamentoView({
       <div className="flex-1 space-y-4 overflow-y-auto px-3 pb-8 pt-3">
         {/* Errore inline */}
         {errore && (
-          <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-medium text-[var(--danger)]">
+          <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] px-3 py-2 text-sm font-medium text-[var(--danger)]">
             {errore}
           </div>
         )}
 
         {/* ── Sezione 1: Misuratori ─────────────────────────────────────────── */}
-        <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+        <div className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
           <div className="mb-3 flex items-center justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Misuratori</h2>
+            <h2 className="text-sm font-semibold text-[var(--brand-text-muted)]">Misuratori</h2>
             {righeCivico.length > 0 && (
-              <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 text-[11px] font-bold text-[var(--brand-text-subtle)]">
+              <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-2.5 py-1 font-mono text-[11px] font-semibold tabular-nums text-[var(--brand-text-subtle)]">
                 {righeCivico.length}
               </span>
             )}
@@ -522,31 +530,42 @@ export function RisanamentoView({
             const aperto = espansi.has(riga.id) || evidenziata === riga.id;
             const st = statoFotoRiga(riga);
             return (
-              <div key={riga.id} id={`mis-${riga.id}`} className={`mb-2.5 overflow-hidden rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
-                {/* Intestazione: toggle accordion + stato foto + elimina */}
+              <div key={riga.id} id={`mis-${riga.id}`} className={`mb-2.5 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)]${evidenziata === riga.id ? ' ring-2 ring-[var(--brand-primary)]' : ''}`}>
+                {/* Intestazione: toggle accordion (riga intera → resta a mano) + stato foto + elimina */}
                 <div className="flex items-center gap-1.5 pr-2">
                   <button
                     type="button"
                     onClick={() => toggleRiga(riga.id)}
                     aria-expanded={aperto}
-                    className="flex min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-3 text-left"
+                    className="flex min-h-[48px] min-w-0 flex-1 items-center gap-2.5 py-2.5 pl-3 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   >
-                    <svg viewBox="0 0 24 24" className={`h-4 w-4 shrink-0 text-[var(--brand-text-subtle)] transition-transform${aperto ? ' rotate-90' : ''}`} fill="none" stroke="currentColor" strokeWidth="2.2">
-                      <path d="M9 6l6 6-6 6" />
-                    </svg>
+                    <ChevronRight
+                      className={`h-4 w-4 shrink-0 text-[var(--brand-text-subtle)] transition-transform${aperto ? ' rotate-90' : ''}`}
+                      strokeWidth={2}
+                      aria-hidden
+                    />
                     <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-semibold text-[var(--brand-text-main)]">
+                      <span className="block truncate font-mono text-sm font-semibold tabular-nums text-[var(--brand-text-main)]">
                         {riga.matricola || 'Senza matricola'}
                       </span>
                       {riga.nominativo && (
-                        <span className="block truncate text-[12px] text-[var(--brand-text-muted)]">{riga.nominativo}</span>
+                        <span className="block truncate text-xs text-[var(--brand-text-muted)]">{riga.nominativo}</span>
                       )}
                     </span>
                   </button>
                   <span
-                    className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${st.completa ? 'bg-[var(--success)]/15 text-[var(--success)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'}`}
+                    className={`inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold ${st.completa ? 'bg-[var(--success-soft)] text-[var(--success)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'}`}
                   >
-                    {st.completa ? '✓ foto' : `${st.fatte}/${st.totale} foto`}
+                    {st.completa ? (
+                      <>
+                        <Check className="h-3 w-3 shrink-0" strokeWidth={2.4} aria-hidden />
+                        foto
+                      </>
+                    ) : (
+                      <>
+                        <span className="font-mono tabular-nums">{st.fatte}/{st.totale}</span> foto
+                      </>
+                    )}
                   </span>
                   {!readOnly && (
                     <button
@@ -554,11 +573,9 @@ export function RisanamentoView({
                       onClick={() => { setEliminaTarget(riga); setEliminaStep2(false); }}
                       aria-label={`Elimina misuratore ${riga.matricola ?? ''}`}
                       title="Elimina misuratore"
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-[var(--danger)] transition hover:bg-[var(--danger-soft)]"
+                      className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full text-[var(--danger)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:bg-[var(--danger-soft)]"
                     >
-                      <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth="2.2">
-                        <path d="M18 6L6 18M6 6l12 12" />
-                      </svg>
+                      <Trash2 className="h-4 w-4" strokeWidth={2} aria-hidden />
                     </button>
                   )}
                 </div>
@@ -584,8 +601,8 @@ export function RisanamentoView({
 
           {/* Card cerca / scansiona / aggiungi misuratore (sempre presente) */}
           {!readOnly && (
-            <div className="mt-3 space-y-2 rounded-xl border border-dashed border-[var(--brand-border)] p-3">
-              <div className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Cerca o aggiungi misuratore</div>
+            <div className="mt-3 space-y-2 rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border)] p-3">
+              <div className="text-sm font-semibold text-[var(--brand-text-muted)]">Cerca o aggiungi misuratore</div>
               <p className="text-[11px] leading-snug text-[var(--brand-text-muted)]">
                 Scansiona o digita la matricola: se è già presente la apri per la foto, altrimenti viene aggiunta.
               </p>
@@ -599,7 +616,7 @@ export function RisanamentoView({
                 onChange={(e) => { setMat(maiuscoloDigitando(e)); setErrore(null); }}
                 onCompositionEnd={(e) => setMat(e.currentTarget.value.toUpperCase())}
                 onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); void aggiungiRiga(); } }}
-                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 font-mono text-base uppercase tabular-nums text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
               />
               <input
                 type="text"
@@ -608,7 +625,7 @@ export function RisanamentoView({
                 value={pdr}
                 onChange={(e) => { setPdr(maiuscoloDigitando(e)); }}
                 onCompositionEnd={(e) => setPdr(e.currentTarget.value.toUpperCase())}
-                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 font-mono text-base uppercase tabular-nums text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
               />
               <input
                 type="text"
@@ -617,24 +634,24 @@ export function RisanamentoView({
                 value={nom}
                 onChange={(e) => { setNom(maiuscoloDigitando(e)); }}
                 onCompositionEnd={(e) => setNom(e.currentTarget.value.toUpperCase())}
-                className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none"
+                className="w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-base uppercase text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
               />
               <div className="flex gap-2">
-                <button
-                  type="button"
-                  onClick={() => setScanner(true)}
-                  className="flex-1 whitespace-nowrap rounded-xl border border-[var(--brand-primary)] px-2 py-2.5 text-sm font-semibold text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)]"
-                >
-                  📷 Scansiona
-                </button>
-                <button
-                  type="button"
+                <Button variant="soft" size="touch" onClick={() => setScanner(true)} className="flex-1 whitespace-nowrap px-2">
+                  <ScanLine className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />
+                  Scansiona
+                </Button>
+                <Button
+                  variant="primary"
+                  size="touch"
                   onClick={() => { void aggiungiRiga(); }}
                   disabled={aggiungendoRiga}
-                  className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-2.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
+                  loading={aggiungendoRiga}
+                  className="flex-1"
                 >
-                  ＋ Aggiungi
-                </button>
+                  {!aggiungendoRiga && <Plus className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />}
+                  Aggiungi
+                </Button>
               </div>
             </div>
           )}
@@ -642,8 +659,8 @@ export function RisanamentoView({
 
         {/* ── Sezione 2: Fasi ───────────────────────────────────────────────── */}
         {scope.fase.length > 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-            <h2 className="mb-3 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Fasi</h2>
+          <div className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+            <h2 className="mb-3 text-sm font-semibold text-[var(--brand-text-muted)]">Fasi</h2>
             <div className="space-y-2">
               {scope.fase.map((campo) => (
                 <GalleriaFoto
@@ -663,8 +680,8 @@ export function RisanamentoView({
 
         {/* ── Sezione 3: Accessorie (slot sempre visibili, facoltativi) ─────── */}
         {scope.accessoria.length > 0 && (
-          <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
-            <h2 className="mb-1 text-sm font-bold uppercase tracking-wide text-[var(--brand-text-subtle)]">Accessorie</h2>
+          <div className="rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4">
+            <h2 className="mb-1 text-sm font-semibold text-[var(--brand-text-muted)]">Accessorie</h2>
             <p className="mb-3 text-[11px] text-[var(--brand-text-muted)]">Foto facoltative: compila solo quelle che servono.</p>
             <div className="space-y-2">
               {scope.accessoria.map((campo) => (
@@ -687,61 +704,58 @@ export function RisanamentoView({
         <ScannerMisuratore onCodice={onScan} onChiudi={() => setScanner(false)} />
       )}
 
-      {/* Eliminazione misuratore — doppia conferma */}
+      {/* Eliminazione misuratore — doppia conferma, sullo stesso primitivo Dialog:
+          `eliminaStep2` commuta titolo, testo ed etichetta di conferma (la logica dei
+          due passaggi è invariata). `busy` blocca ESC/overlay durante la cancellazione. */}
+      {/* Montata solo con un target: così il nome del misuratore non lampeggia in
+          "(senza matricola)" mentre il pannello esce. */}
       {eliminaTarget && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-sm rounded-2xl bg-[var(--brand-surface)] p-5">
+      <Dialog
+        open
+        onClose={() => { setEliminaTarget(null); setEliminaStep2(false); }}
+        title={eliminaStep2 ? 'Conferma eliminazione' : 'Eliminare il misuratore?'}
+        variant="sheet"
+        busy={eliminando}
+        footer={
+          <div className="flex w-full gap-2">
+            <Button
+              variant="outline"
+              size="touch"
+              onClick={() => { setEliminaTarget(null); setEliminaStep2(false); }}
+              disabled={eliminando}
+              className="flex-1"
+            >
+              Annulla
+            </Button>
             {!eliminaStep2 ? (
-              <>
-                <p className="mb-2 text-base font-semibold text-[var(--brand-text-main)]">Eliminare il misuratore?</p>
-                <p className="mb-4 text-sm text-[var(--brand-text-soft)]">
-                  Stai per eliminare <b>{eliminaTarget.matricola?.trim() || '(senza matricola)'}</b> e tutte le foto caricate su questo misuratore.
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setEliminaTarget(null); setEliminaStep2(false); }}
-                    className="flex-1 rounded-xl border border-[var(--brand-border)] px-4 py-2.5 text-sm font-semibold"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setEliminaStep2(true)}
-                    className="flex-1 rounded-xl bg-[var(--danger)] px-4 py-2.5 text-sm font-semibold text-white"
-                  >
-                    Elimina
-                  </button>
-                </div>
-              </>
+              <Button variant="danger" size="touch" onClick={() => setEliminaStep2(true)} className="flex-1">
+                Elimina
+              </Button>
             ) : (
-              <>
-                <p className="mb-2 text-base font-semibold text-[var(--danger)]">Conferma eliminazione</p>
-                <p className="mb-4 text-sm text-[var(--brand-text-soft)]">
-                  L&apos;operazione è <b>definitiva e non reversibile</b>. Confermi l&apos;eliminazione di <b>{eliminaTarget.matricola?.trim() || '(senza matricola)'}</b>?
-                </p>
-                <div className="flex gap-2">
-                  <button
-                    type="button"
-                    onClick={() => { setEliminaTarget(null); setEliminaStep2(false); }}
-                    disabled={eliminando}
-                    className="flex-1 rounded-xl border border-[var(--brand-border)] px-4 py-2.5 text-sm font-semibold disabled:opacity-50"
-                  >
-                    Annulla
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => { void eliminaRiga(); }}
-                    disabled={eliminando}
-                    className="flex-1 rounded-xl bg-[var(--danger)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50"
-                  >
-                    {eliminando ? 'Elimino…' : 'Sì, elimina'}
-                  </button>
-                </div>
-              </>
+              <Button
+                variant="danger"
+                size="touch"
+                onClick={() => { void eliminaRiga(); }}
+                disabled={eliminando}
+                loading={eliminando}
+                className="flex-1"
+              >
+                {eliminando ? 'Elimino…' : 'Sì, elimina'}
+              </Button>
             )}
           </div>
-        </div>
+        }
+      >
+        {!eliminaStep2 ? (
+          <p className="text-sm text-[var(--brand-text-muted)]">
+            Stai per eliminare <b className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">{eliminaTarget.matricola?.trim() || '(senza matricola)'}</b> e tutte le foto caricate su questo misuratore.
+          </p>
+        ) : (
+          <p className="text-sm text-[var(--brand-text-muted)]">
+            L&apos;operazione è <b className="text-[var(--danger)]">definitiva e non reversibile</b>. Confermi l&apos;eliminazione di <b className="font-mono font-semibold tabular-nums text-[var(--brand-text-main)]">{eliminaTarget.matricola?.trim() || '(senza matricola)'}</b>?
+          </p>
+        )}
+      </Dialog>
       )}
     </div>
   );

@@ -1,6 +1,10 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Check } from 'lucide-react';
+import Button from '@/components/Button';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { dbOutbox } from '@/lib/offline/db';
 import { sincronizzaToken } from '@/lib/offline/sync';
 import { ripristinaApp } from '@/lib/offline/ripristino';
@@ -21,11 +25,18 @@ const ORDINE: OutboxItem['type'][] = ['voce', 'foto', 'manuale', 'agenda', 'invi
  * (la coda offline raggruppata per tipo) e l'avanzamento live finché la coda si svuota.
  * All'apertura, se online, avvia il drenaggio della coda e fa poll per aggiornare i conteggi.
  * Il pulsante "Aggiorna pagina" ricarica per riallineare la vista al server.
+ *
+ * Il contenitore resta un bottom-sheet a mano (già `role="dialog" aria-modal`) e NON passa
+ * dal primitivo `Dialog`: dentro ospita la `ConfirmDialog` del ripristino, e due `Dialog`
+ * annidati si contenderebbero focus-trap ed Escape.
  */
 export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi: () => void }) {
   const [items, setItems] = useState<OutboxItem[] | null>(null);
   const [online] = useState(() => typeof navigator === 'undefined' || navigator.onLine !== false);
   const [sincronizzando, setSincronizzando] = useState(false);
+  /** Conferma del ripristino "come navigazione anonima" (era un window.confirm bloccante). */
+  const [confermaRipristino, setConfermaRipristino] = useState(false);
+  const [ripristinando, setRipristinando] = useState(false);
   const attivoRef = useRef(true);
 
   useEffect(() => {
@@ -68,16 +79,30 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
   const bloccati = lista.filter((i) => i.stato === 'bloccato');
   const conteggi = ORDINE.map((t) => ({ t, n: attivi.filter((i) => i.type === t).length })).filter((x) => x.n > 0);
 
+  // Ultima spiaggia: azzera cache + service worker + elementi bloccati e ricarica.
+  // Parte SOLO dalla conferma della ConfirmDialog.
+  const eseguiRipristino = async () => {
+    setRipristinando(true);
+    try {
+      await ripristinaApp(bloccati);
+      if (typeof window !== 'undefined') window.location.reload();
+    } finally {
+      setRipristinando(false);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal>
-      <div className="max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-xl sm:rounded-2xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[var(--brand-text-main)]">Sincronizzazione</h2>
-          <button type="button" onClick={onChiudi} className="text-sm font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
+    <div className="fixed inset-0 z-40 flex items-end justify-center bg-[var(--overlay)] sm:items-center" role="dialog" aria-modal>
+      <div className="max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-lg)] sm:rounded-[var(--radius-xl)]">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h2 className="text-lg font-semibold text-[var(--brand-text-main)]">Sincronizzazione</h2>
+          <Button variant="ghost" size="touch" onClick={onChiudi} className="shrink-0 text-[var(--brand-text-muted)]">
+            Chiudi
+          </Button>
         </div>
 
         {!online && (
-          <p className="mb-3 rounded-xl border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] p-3 text-sm font-medium text-[var(--warning-fg,#92400e)]">
+          <p className="mb-3 rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[var(--warning-soft)] p-3 text-sm font-medium text-[var(--brand-text-main)]">
             Sei offline. I dati sono salvati sul telefono e partiranno appena torni online.
           </p>
         )}
@@ -89,9 +114,9 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
             {conteggi.length > 0 && (
               <ul className="space-y-2">
                 {conteggi.map(({ t, n }) => (
-                  <li key={t} className="flex items-center justify-between rounded-xl bg-[var(--brand-surface-muted)] px-3 py-2.5 text-sm">
+                  <li key={t} className="flex items-center justify-between rounded-[var(--radius-lg)] bg-[var(--brand-surface-muted)] px-3 py-2.5 text-sm">
                     <span className="font-semibold text-[var(--brand-text-main)]">{ETICHETTA[t]}</span>
-                    <span className="inline-flex items-center gap-2 font-semibold text-[var(--brand-text-muted)]">
+                    <span className="inline-flex items-center gap-2 font-mono font-semibold tabular-nums text-[var(--brand-text-muted)]">
                       {n}
                       {sincronizzando && online && (
                         <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[var(--brand-primary)] border-t-transparent" aria-hidden />
@@ -103,7 +128,10 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
             )}
 
             {conteggi.length === 0 && bloccati.length === 0 && (
-              <p className="rounded-xl bg-[var(--success-soft)] px-3 py-3 text-sm font-semibold text-[var(--success)]">✓ Tutto sincronizzato</p>
+              <p className="flex items-center gap-2 rounded-[var(--radius-lg)] bg-[var(--success-soft)] px-3 py-3 text-sm font-semibold text-[var(--success)]">
+                <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+                Tutto sincronizzato
+              </p>
             )}
 
             {!sincronizzando && online && conteggi.length > 0 && (
@@ -113,8 +141,10 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
             )}
 
             {bloccati.length > 0 && (
-              <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3">
-                <p className="mb-1 text-sm font-bold text-[var(--danger)]">{bloccati.length} da risolvere</p>
+              <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3">
+                <p className="mb-1 text-sm font-semibold text-[var(--danger)]">
+                  <span className="font-mono tabular-nums">{bloccati.length}</span> da risolvere
+                </p>
                 <ul className="space-y-1">
                   {bloccati.map((it) => (
                     <li key={it.id} className="text-xs text-[var(--danger)]">
@@ -129,17 +159,18 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
         )}
 
         <div className="mt-4 flex gap-2">
-          <button type="button" onClick={onChiudi} className="flex-1 rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 text-sm font-bold text-[var(--brand-text-main)]">
+          <Button variant="outline" size="touch" onClick={onChiudi} className="flex-1">
             Chiudi
-          </button>
-          <button
-            type="button"
+          </Button>
+          <Button
+            variant="primary"
+            size="touch"
             onClick={() => { if (typeof window !== 'undefined') window.location.reload(); }}
             disabled={sincronizzando && online}
-            className="flex-1 whitespace-nowrap rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50"
+            className="flex-1 whitespace-nowrap"
           >
             Aggiorna pagina
-          </button>
+          </Button>
         </div>
 
         {/*
@@ -148,18 +179,27 @@ export function ModaleSincronizza({ token, onChiudi }: { token: string; onChiudi
           elementi bloccati e ricarica — come aprire in navigazione anonima, ma con un tocco. NON
           tocca gli interventi validi ancora in coda. Funziona su Android e iOS (API standard).
         */}
-        <button
-          type="button"
-          onClick={async () => {
-            if (!window.confirm('Svuota la cache dell’app e ricarica. Utile se gli invii restano bloccati. Gli elementi “da risolvere” verranno eliminati; gli interventi in corso di invio restano al sicuro. Continuare?')) return;
-            await ripristinaApp(bloccati);
-            if (typeof window !== 'undefined') window.location.reload();
-          }}
-          className="mt-2 w-full rounded-xl border border-[var(--brand-border-strong)] px-4 py-2.5 text-sm font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--danger)] hover:text-[var(--danger)]"
+        <Button
+          variant="outline"
+          size="touch"
+          onClick={() => setConfermaRipristino(true)}
+          className="mt-2 w-full text-[var(--brand-text-muted)]"
         >
           Svuota cache e ricarica
-        </button>
+        </Button>
       </div>
+
+      <ConfirmDialog
+        open={confermaRipristino}
+        danger
+        size="touch"
+        loading={ripristinando}
+        title="Svuota cache e ricarica"
+        message={'Utile se gli invii restano bloccati. Gli elementi “da risolvere” verranno eliminati; gli interventi in corso di invio restano al sicuro.'}
+        confirmLabel="Svuota e ricarica"
+        onConfirm={() => { void eseguiRipristino(); }}
+        onClose={() => setConfermaRipristino(false)}
+      />
     </div>
   );
 }

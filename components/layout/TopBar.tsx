@@ -24,14 +24,9 @@ function iniziali(nome: string): string {
 }
 
 export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = false, onLogout, onOpenMobile, onOpenPalette }: TopBarProps) {
-  const [isLight, setIsLight] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const reduced = useReducedMotion();
-
-  useEffect(() => {
-    setIsLight(document.documentElement.classList.contains('light'));
-  }, []);
 
   // Chiusura user menu su click esterno + Esc (stesso pattern di MultiSelect).
   useEffect(() => {
@@ -49,19 +44,6 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
       document.removeEventListener('keydown', onKey);
     };
   }, [menuOpen]);
-
-  const toggleTheme = () => {
-    setIsLight((current) => {
-      const next = !current;
-      document.documentElement.classList.toggle('light', next);
-      try {
-        localStorage.setItem('theme', next ? 'light' : 'dark');
-      } catch {
-        // localStorage non disponibile: ignora
-      }
-      return next;
-    });
-  };
 
   const menuItemClasses =
     'flex w-full items-center gap-2.5 rounded-[var(--radius-sm)] px-3 py-2 text-left text-sm font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
@@ -143,28 +125,9 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
                     </p>
                     <p className="text-xs text-[var(--brand-text-muted)]">{roleLabel}</p>
                   </div>
-                  <div className="mx-1 my-1 border-t border-[var(--brand-border)]" />
-                  <button
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      toggleTheme();
-                      setMenuOpen(false);
-                    }}
-                    className={menuItemClasses}
-                  >
-                    {isLight ? (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
-                      </svg>
-                    ) : (
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                        <circle cx="12" cy="12" r="4" />
-                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41" />
-                      </svg>
-                    )}
-                    {isLight ? 'Tema scuro' : 'Tema chiaro'}
-                  </button>
+                  {/* Il selettore di tema stava qui: rimosso il 2026-07-25 con l'abbandono
+                      del tema scuro. Un interruttore con una sola posizione è peggio di
+                      nessun interruttore. */}
                   <div className="mx-1 my-1 border-t border-[var(--brand-border)]" />
                   <button
                     type="button"

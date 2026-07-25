@@ -14,16 +14,23 @@ export interface RapportinoStato {
   fotoInSospeso?: number;
 }
 
+/**
+ * Variante del primitivo `Badge` (components/Badge.tsx) che porta lo stato del
+ * rapportino. È una *variante*, non una stringa di classi: il badge si disegna
+ * una volta sola, nel primitivo — prima ogni chiamante ricopiava a mano
+ * `rounded-full px-2 py-0.5 …` e le copie divergevano (una era scesa a 9px).
+ */
+export type StatoBadgeVariante = 'ok' | 'ko' | 'warn';
+
 export function statoBadge(
   stato: RapportinoStato['statoCalcolato'],
-): { label: string; className: string } {
-  if (stato === 'inviato') {
-    return { label: 'Inviato', className: 'bg-[var(--success-soft)] text-[var(--success)]' };
-  }
-  if (stato === 'scaduto') {
-    return { label: 'Scaduto', className: 'bg-[var(--danger-soft)] text-[var(--danger)]' };
-  }
-  return { label: 'In corso', className: 'bg-[var(--warning-soft)] text-[var(--warning)]' };
+): { label: string; variant: StatoBadgeVariante } {
+  // Token d'INTENTO (`--status-*`, dentro Badge) e non i semantici
+  // `--success`/`--danger`/`--warning`: stessi valori, ma su una pill di stato
+  // il colore *è* l'informazione (DESIGN.md §3).
+  if (stato === 'inviato') return { label: 'Inviato', variant: 'ok' };
+  if (stato === 'scaduto') return { label: 'Scaduto', variant: 'ko' };
+  return { label: 'In corso', variant: 'warn' };
 }
 
 /**

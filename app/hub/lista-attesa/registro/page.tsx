@@ -8,9 +8,9 @@ export default async function RegistroAutorizzazioniPage() {
   const { campiPerCommittente } = await caricaDatiListaAttesa();
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6 px-6 py-6">
+    <div className="space-y-6">
       <ListaAttesaNav attivo="registro" />
       <RegistroAutorizzazioni campiPerCommittente={campiPerCommittente} />
-    </main>
+    </div>
   );
 }

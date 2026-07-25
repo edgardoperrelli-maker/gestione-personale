@@ -119,7 +119,7 @@ export default async function ImpostazioniPage() {
     <div className="space-y-6">
       <ObjectHeader title="Impostazioni" sub="Gestisci la configurazione dell'app e gli accessi degli utenti." />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      <div className="grid gap-3 min-[640px]:grid-cols-2 min-[1280px]:grid-cols-3 min-[1536px]:grid-cols-4 min-[2000px]:grid-cols-5">
         {modules.map((module) => (
           <ModuleTile
             key={module.href}

@@ -18,6 +18,9 @@ type ConfirmDialogProps = {
   danger?: boolean;
   /** Operazione in corso: spinner sul bottone, chiusura bloccata. */
   loading?: boolean;
+  /** Taglia delle due azioni. Nel portale operatore passa `touch` (48px, DESIGN.md §7quater):
+   *  il default `md` è tarato sul mouse e sul telefono resta sotto il target del pollice. */
+  size?: 'sm' | 'md' | 'lg' | 'touch';
   onConfirm: () => void;
   onClose: () => void;
 };
@@ -30,6 +33,7 @@ export default function ConfirmDialog({
   cancelLabel = 'Annulla',
   danger = false,
   loading = false,
+  size = 'md',
   onConfirm,
   onClose,
 }: ConfirmDialogProps) {
@@ -44,10 +48,10 @@ export default function ConfirmDialog({
       title={title}
       footer={
         <div className="flex justify-end gap-2">
-          <Button variant="ghost" onClick={handleClose} disabled={loading}>
+          <Button variant="ghost" size={size} onClick={handleClose} disabled={loading}>
             {cancelLabel}
           </Button>
-          <Button variant={danger ? 'danger' : 'primary'} loading={loading} onClick={onConfirm}>
+          <Button variant={danger ? 'danger' : 'primary'} size={size} loading={loading} onClick={onConfirm}>
             {confirmLabel}
           </Button>
         </div>

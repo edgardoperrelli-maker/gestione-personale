@@ -1,5 +1,9 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
+import { useState } from 'react';
+import Button from '@/components/Button';
+import ConfirmDialog from '@/components/ui/ConfirmDialog';
 import { rimuoviItemEBlob, ripristinaApp } from '@/lib/offline/ripristino';
 import type { OutboxItem } from '@/lib/offline/types';
 
@@ -23,26 +27,44 @@ export function CassettoDaRisolvere({
   items: OutboxItem[];
   onRimosso: () => void;
 }) {
+  /** Conferma del ripristino "come navigazione anonima" (era un window.confirm bloccante). */
+  const [confermaRipristino, setConfermaRipristino] = useState(false);
+  const [ripristinando, setRipristinando] = useState(false);
+
+  // Parte SOLO dalla conferma della ConfirmDialog.
+  const eseguiRipristino = async () => {
+    setRipristinando(true);
+    try {
+      await ripristinaApp(items);
+      window.location.reload();
+    } finally {
+      setRipristinando(false);
+    }
+  };
+
   if (items.length === 0) return null;
   return (
-    <div className="mx-3 mb-3 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4">
-      <div className="mb-2 text-sm font-bold text-[var(--danger)]">
-        {items.length === 1 ? '1 elemento da risolvere' : `${items.length} elementi da risolvere`}
+    <div className="mx-3 mb-3 rounded-[var(--radius-xl)] border border-[var(--danger)] bg-[var(--danger-soft)] p-4">
+      <div className="mb-2 text-sm font-semibold text-[var(--danger)]">
+        {items.length === 1
+          ? '1 elemento da risolvere'
+          : <><span className="font-mono tabular-nums">{items.length}</span> elementi da risolvere</>}
       </div>
       <ul className="flex flex-col gap-2">
         {items.map((it) => (
-          <li key={it.id} className="flex items-start justify-between gap-3 rounded-xl bg-[var(--brand-surface)] p-2.5">
+          <li key={it.id} className="flex items-center justify-between gap-3 rounded-[var(--radius-lg)] bg-[var(--brand-surface)] p-2.5">
             <div className="min-w-0">
               <div className="text-sm font-semibold text-[var(--brand-text-main)]">{ETICHETTA[it.type]}</div>
               <div className="text-xs text-[var(--brand-text-muted)]">{it.ultimoErrore ?? 'Non sincronizzabile'}</div>
             </div>
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="touch"
               onClick={async () => { await rimuoviItemEBlob(it); onRimosso(); }}
-              className="shrink-0 rounded-lg border border-[var(--brand-border)] px-2.5 py-1 text-xs font-semibold text-[var(--brand-text-main)] transition hover:border-[var(--danger)]"
+              className="shrink-0"
             >
               Rimuovi
-            </button>
+            </Button>
           </li>
         ))}
       </ul>
@@ -54,17 +76,26 @@ export function CassettoDaRisolvere({
         corretto. Questo azzera cache + service worker + gli elementi qui bloccati e ricarica, così
         l'app riparte pulita. NON tocca gli interventi validi ancora in coda (solo questi "da risolvere").
       */}
-      <button
-        type="button"
-        onClick={async () => {
-          if (!window.confirm('Svuota la cache dell’app e ricarica la pagina. Gli elementi “da risolvere” qui sopra verranno eliminati (andranno rifatti). Gli interventi in corso di invio restano al sicuro. Continuare?')) return;
-          await ripristinaApp(items);
-          window.location.reload();
-        }}
-        className="mt-3 w-full rounded-lg border border-[var(--danger)] px-3 py-2 text-xs font-bold text-[var(--danger)] transition hover:bg-[var(--danger)] hover:text-[var(--on-primary)]"
+      <Button
+        variant="outline"
+        size="touch"
+        onClick={() => setConfermaRipristino(true)}
+        className="mt-3 w-full text-[var(--danger)]"
       >
         Svuota cache e ricarica
-      </button>
+      </Button>
+
+      <ConfirmDialog
+        open={confermaRipristino}
+        danger
+        size="touch"
+        loading={ripristinando}
+        title="Svuota cache e ricarica"
+        message={'Gli elementi “da risolvere” qui sopra verranno eliminati (andranno rifatti). Gli interventi in corso di invio restano al sicuro.'}
+        confirmLabel="Svuota e ricarica"
+        onConfirm={() => { void eseguiRipristino(); }}
+        onClose={() => setConfermaRipristino(false)}
+      />
     </div>
   );
 }

@@ -17,12 +17,9 @@ function fmtOra(iso: string | null): string {
   return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
 }
 
-/** Variante del Badge di stato; l'etichetta continua a venire da `statoBadge`. */
-const VARIANTE_STATO: Record<RapportinoStato['statoCalcolato'], 'ok' | 'warn' | 'ko'> = {
-  inviato: 'ok',
-  valido: 'warn',
-  scaduto: 'ko',
-};
+/* La mappa stato→variante stava qui: rimossa il 2026-07-25, ora `statoBadge()` restituisce
+   direttamente `{ label, variant }`. Tenerla avrebbe lasciato in vita una seconda sorgente
+   di verità per gli stessi tre stati — cioè il difetto che il fix ha appena chiuso. */
 
 const contaInterventi = (piani: PianoGruppo[]) =>
   piani.reduce((s, p) => s + p.operatori.reduce((x, o) => x + (o.nVoci ?? 0), 0), 0);
@@ -243,7 +240,7 @@ export default function CardTerritorio({
                 <li key={r.id} className="px-3 py-1.5">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
                     <span className="text-sm font-medium text-[var(--brand-text-main)]">{r.staff_name ?? 'Operatore'}</span>
-                    <Badge variant={VARIANTE_STATO[r.statoCalcolato]}>{badge.label}</Badge>
+                    <Badge variant={badge.variant}>{badge.label}</Badge>
                     <span className="text-xs text-[var(--brand-text-muted)]">
                       <N>{r.nVoci}</N> interventi
                     </span>

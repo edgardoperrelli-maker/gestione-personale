@@ -36,7 +36,7 @@ export default function AssegnazioniAiClient(props: {
   const { commessa, attivita, azione } = nav;
 
   return (
-    <main className="mx-auto max-w-6xl space-y-5 px-6 py-6">
+    <div className="space-y-5">
       <ObjectHeader title="Assegnazioni AI" sub="Operazioni ACEA per commessa e attività." />
 
       <AvvisiSyncBanner avvisi={props.avvisiSync} rilevatoIl={props.avvisiSyncIl} />
@@ -57,6 +57,6 @@ export default function AssegnazioniAiClient(props: {
         />
       )}
       {commessa && attivita && azione && <Foglia nav={nav} {...props} />}
-    </main>
+    </div>
   );
 }

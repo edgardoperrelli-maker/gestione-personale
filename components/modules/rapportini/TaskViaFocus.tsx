@@ -1,6 +1,9 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { ChevronLeft, Plus } from 'lucide-react';
+import Button from '@/components/Button';
 import type { Voce } from './RapportinoForm';
 
 const STATO_LABEL: Record<string, string> = {
@@ -33,25 +36,25 @@ export function TaskViaFocus({
   return (
     <div className="space-y-4 p-4">
       <div className="flex items-center justify-between">
-        <button type="button" onClick={onClose} className="text-sm font-semibold text-[var(--brand-text-muted)]">&larr; Indietro</button>
-        <span className="text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Bonifiche extra</span>
+        <button type="button" onClick={onClose} className="-ml-1 inline-flex min-h-[48px] items-center gap-1.5 rounded-[var(--radius-md)] px-1 text-sm font-semibold text-[var(--brand-text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
+          <ChevronLeft className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
+          Indietro
+        </button>
+        <span className="text-xs font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">Bonifiche extra</span>
       </div>
 
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Via</p>
-        <p className="text-lg font-bold text-[var(--brand-text-main)]">{voce.via ?? '—'}</p>
+        <p className="text-[11px] font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">Via</p>
+        <p className="text-lg font-semibold text-[var(--brand-text-main)]">{voce.via ?? '—'}</p>
       </div>
 
-      <button
-        type="button"
-        onClick={() => onAggiungi(voce)}
-        className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]"
-      >
-        + Aggiungi intervento
-      </button>
+      <Button variant="primary" size="touch" onClick={() => onAggiungi(voce)} className="w-full">
+        <Plus className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+        Aggiungi intervento
+      </Button>
 
       <div className="space-y-2">
-        <p className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Interventi su questa via ({interventi.length})</p>
+        <p className="text-[11px] font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">Interventi su questa via ({interventi.length})</p>
         {interventi.length === 0 ? (
           <p className="text-sm text-[var(--brand-text-muted)]">Nessun intervento creato per ora.</p>
         ) : (

@@ -1,5 +1,8 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import Button from '@/components/Button';
 import { type InfoChiave, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { StatoVoce } from '@/utils/rapportini/riepilogo';
@@ -37,11 +40,11 @@ export function VoceFocus({
   return (
     <div className="flex h-dvh flex-col">
       <div className="flex shrink-0 items-center justify-between gap-3 px-3 pb-2 pt-3">
-        <button type="button" onClick={onClose} className="-ml-1 inline-flex min-h-[40px] items-center gap-1.5 px-1 py-1.5 text-sm font-semibold text-[var(--brand-primary)]">
-          <svg viewBox="0 0 24 24" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M15 18l-6-6 6-6" /></svg>
+        <button type="button" onClick={onClose} className="-ml-1 inline-flex min-h-[48px] items-center gap-1.5 rounded-[var(--radius-md)] px-1 py-1.5 text-sm font-semibold text-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
+          <ChevronLeft className="h-[18px] w-[18px] shrink-0" strokeWidth={2} aria-hidden />
           Tutti gli interventi
         </button>
-        <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1 text-[13px] font-bold text-[var(--brand-text-muted)]">{indice + 1} / {totale}</span>
+        <span className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-1 font-mono text-[13px] font-semibold tabular-nums text-[var(--brand-text-muted)]">{indice + 1} / {totale}</span>
       </div>
 
       <div className="rapp-scroll flex-1 overflow-y-auto px-3 pb-28">
@@ -64,10 +67,16 @@ export function VoceFocus({
 
       <div className="fixed inset-x-0 bottom-0 z-10">
         <div className="mx-auto flex max-w-[480px] items-center gap-2.5 border-t border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2">
-          <button type="button" onClick={onPrev} disabled={isFirst} aria-label="Voce precedente" className="shrink-0 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-semibold text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-40">‹</button>
-          <button type="button" onClick={onNext} className="flex-1 rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
-            {disabilitato ? (isLast ? 'Torna alla lista' : 'Avanti ›') : isLast ? 'Salva e torna alla lista' : 'Salva e avanti ›'}
-          </button>
+          <Button variant="outline" size="touch" onClick={onPrev} disabled={isFirst} aria-label="Voce precedente" className="shrink-0">
+            <ChevronLeft className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />
+          </Button>
+          {/* Il verso "avanti" lo porta l'icona, non un `›` dentro la stringa: così resta
+              coerente con il ChevronLeft qui a fianco e sparisce quando il passo è l'ultimo
+              (dove non si va avanti, si torna alla lista). */}
+          <Button variant="primary" size="touch" onClick={onNext} className="flex-1 shadow-[var(--shadow-sm)]">
+            {disabilitato ? (isLast ? 'Torna alla lista' : 'Avanti') : isLast ? 'Salva e torna alla lista' : 'Salva e avanti'}
+            {!isLast && <ChevronRight className="h-5 w-5 shrink-0" strokeWidth={2} aria-hidden />}
+          </Button>
         </div>
       </div>
     </div>

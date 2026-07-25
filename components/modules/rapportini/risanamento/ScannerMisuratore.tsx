@@ -1,3 +1,4 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 import { useEffect, useRef, useState } from 'react';
 // Ponyfill: usa il BarcodeDetector NATIVO se disponibile (Android Chrome), altrimenti zxing-WASM
@@ -74,13 +75,24 @@ export function ScannerMisuratore({
   }, []);
 
   return (
-    <div className="fixed inset-0 z-50 flex flex-col bg-black/90">
-      <div className="flex items-center justify-between p-4">
-        <span className="text-sm font-semibold text-white">{etichetta}</span>
-        <button type="button" onClick={onChiudi} className="rounded-lg bg-white/20 px-3 py-1.5 text-sm font-semibold text-white">Annulla</button>
+    // Visore: sotto c'è l'immagine della fotocamera, non una superficie del tema. I token
+    // --scanner-veil/--scanner-chip/--on-scanner hanno valori IDENTICI in light e dark
+    // (DESIGN.md §3, stessa logica di --phone-bezel): schiarire il velo spegnerebbe il visore.
+    <div className="fixed inset-0 z-50 flex flex-col bg-[var(--scanner-veil)]">
+      <div className="flex items-center justify-between gap-3 p-4 pt-[calc(1rem+env(safe-area-inset-top))]">
+        <span className="text-sm font-semibold text-[var(--on-scanner)]">{etichetta}</span>
+        {/* Resta a mano: sopra la camera serve il chip velato, e il primitivo Button porta
+            i colori di una superficie del tema (illeggibili su nero in light). */}
+        <button
+          type="button"
+          onClick={onChiudi}
+          className="flex min-h-[48px] shrink-0 items-center justify-center rounded-[var(--radius-md)] bg-[var(--scanner-chip)] px-4 text-base font-medium text-[var(--on-scanner)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--on-scanner)]"
+        >
+          Annulla
+        </button>
       </div>
       {errore ? (
-        <div className="m-4 rounded-xl bg-white p-4 text-sm text-[var(--danger)]">{errore}</div>
+        <div className="m-4 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 text-sm text-[var(--danger)]">{errore}</div>
       ) : (
         <video ref={videoRef} className="min-h-0 flex-1 object-cover" muted playsInline />
       )}

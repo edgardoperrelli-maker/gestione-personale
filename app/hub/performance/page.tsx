@@ -17,7 +17,7 @@ export default async function KpiLandingPage() {
   await assertKpiAccess();
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-4 sm:p-6">
+    <div className="space-y-4">
       <ObjectHeader title="KPI" sub="Scegli la vista." />
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <Link href="/hub/performance/operatori" className={cardClass}>

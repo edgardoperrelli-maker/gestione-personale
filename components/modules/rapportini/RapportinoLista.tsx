@@ -1,6 +1,10 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useState } from 'react';
+import { AlertTriangle, Ban, Check, ChevronRight, Clock, StickyNote, X } from 'lucide-react';
+import Badge from '@/components/Badge';
+import Button from '@/components/Button';
 import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
@@ -13,11 +17,23 @@ import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
-const CHIP: Record<StatoVoce, { label: string; cls: string }> = {
-  eseguito: { label: '✓ Fatto', cls: 'bg-[var(--status-ok-soft)] text-[var(--status-ok)]' },
-  non_eseguito: { label: 'Non fatto', cls: 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]' },
-  da_fare: { label: 'Da fare', cls: 'border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-subtle)]' },
+/** Chip di stato della riga: reso col primitivo Badge, toni d'intento --status-* (DESIGN.md §3). */
+const CHIP: Record<StatoVoce, { label: string; variant: 'ok' | 'ko' | 'idle' }> = {
+  eseguito: { label: 'Fatto', variant: 'ok' },
+  non_eseguito: { label: 'Non fatto', variant: 'ko' },
+  da_fare: { label: 'Da fare', variant: 'idle' },
 };
+
+/**
+ * Marcatori della riga. Geometria allineata al primitivo Badge, ma il markup resta a mano:
+ * Badge non ha né un variant a fondo PIENO (serve al blocco, che deve urlare più del chip)
+ * né la coppia `--warning-soft` / `--brand-text-main`. Le coppie sono le stesse del banner
+ * in VoceCard, che mostra lo stesso dato: se divergessero, riga e voce direbbero due cose.
+ */
+const PILL = 'shrink-0 rounded-full px-2 py-0.5 text-[11px] font-semibold';
+const PILL_BLOCCO = 'bg-[var(--status-ko)] text-[var(--on-danger)]';
+const PILL_ATTESA = 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]';
+const PILL_RIFIUTATO = 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]';
 
 const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], ['completati', 'Completati']];
 
@@ -36,38 +52,47 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
     <button
       type="button"
       onClick={spenta ? undefined : () => onApri(r.index)}
-      className={`flex w-full items-center gap-3 rounded-2xl border border-[var(--brand-border)] p-3 text-left transition ${spenta ? 'cursor-not-allowed border-[var(--status-ko)] bg-[var(--status-ko-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
+      /* Densità: `px-3 py-2` invece di `p-3`, e gap 2.5. Sul telefono il root è 18px
+         (globals.css), quindi `p-3` rendeva 13,5px per lato — 27px di padding verticale su
+         78px di card, oltre un terzo. Stretto il contenitore, NON il testo: l'ODL resta a
+         `text-base` e l'indirizzo a 13px, perché quelli sono il lavoro (§7quater). */
+      className={`flex w-full items-center gap-2.5 rounded-[var(--radius-xl)] border border-[var(--brand-border)] px-3 py-2 text-left transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${spenta ? 'cursor-not-allowed border-[var(--status-ko)] bg-[var(--status-ko-soft)]' : 'bg-[var(--brand-surface)] active:border-[var(--brand-primary)]'} ${bordo}`}
     >
-      <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-sm font-bold ${num}`}>{r.index + 1}</span>
+      {/* Il numero d'ordine è cromatura, non dato: da h-8/w-8 (36px resi) a 28px. */}
+      <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full font-mono text-xs font-semibold tabular-nums ${num}`}>{r.index + 1}</span>
       <span className={`min-w-0 flex-1 ${spenta ? 'opacity-70' : ''}`}>
         <span className="flex min-w-0 flex-wrap items-center gap-1.5">
           {r.annullato && (
-            <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
+            <span className={`${PILL} ${PILL_BLOCCO}`}>
               Annullato
             </span>
           )}
           {!r.annullato && r.bloccoPositivo && (
-            <span className="shrink-0 rounded-full bg-[var(--status-ko)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--on-danger)]">
+            <span className={`${PILL} ${PILL_BLOCCO}`}>
               Già positivo
             </span>
           )}
           {r.nuovo && (
-            <span className="shrink-0 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none text-[var(--brand-text-main)]">
+            <span className={`${PILL} ${PILL_ATTESA}`}>
               Nuovo
             </span>
           )}
           {r.badge && (
-            <span className={`shrink-0 rounded-full px-1.5 py-0.5 text-[10px] font-extrabold uppercase leading-none ${r.badge.tono === 'attesa' ? 'bg-[var(--warning-soft)] text-[var(--brand-text-main)]' : 'bg-[var(--status-ko-soft)] text-[var(--status-ko)]'}`}>
+            <span className={`${PILL} ${r.badge.tono === 'attesa' ? PILL_ATTESA : PILL_RIFIUTATO}`}>
               {r.badge.label}
             </span>
           )}
           {r.nota && (
-            <span title="Nota dall'ufficio" aria-label="Nota dall'ufficio" className="shrink-0 text-[13px] leading-none">📝</span>
+            <span title="Nota dall'ufficio" aria-label="Nota dall'ufficio" className="inline-flex shrink-0 text-[var(--primary-text)]">
+              <StickyNote size={14} strokeWidth={2} aria-hidden />
+            </span>
           )}
           {r.notaCollega && (
-            <span title="Nota da un collega (intervento precedente)" aria-label="Nota da un collega" className="shrink-0 text-[13px] leading-none">🕒</span>
+            <span title="Nota da un collega (intervento precedente)" aria-label="Nota da un collega" className="inline-flex shrink-0 text-[var(--brand-text-muted)]">
+              <Clock size={14} strokeWidth={2} aria-hidden />
+            </span>
           )}
-          <span className={`min-w-[10ch] flex-1 truncate text-[15px] font-bold text-[var(--brand-text-main)] ${spenta ? 'line-through' : ''}`}>{r.titolo}</span>
+          <span className={`min-w-[10ch] flex-1 truncate text-base font-semibold text-[var(--brand-text-main)] ${spenta ? 'line-through' : ''}`}>{r.titolo}</span>
           {(r.attivita || r.fascia) && (
             <span className="max-w-[45%] truncate text-xs font-medium text-[var(--brand-text-muted)]">
               {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
@@ -75,17 +100,25 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
           )}
         </span>
         <span className="mt-0.5 flex items-center gap-2">
-          <span className="min-w-0 flex-1 truncate text-xs text-[var(--brand-text-muted)]">{r.sub}</span>
+          {/* L'indirizzo sale a 13px: è il dato che l'operatore legge camminando, non un
+              metadato. Gli altri secondari (attività, fascia) restano a 12 — §7quater. */}
+          <span className="min-w-0 flex-1 truncate text-[13px] text-[var(--brand-text-muted)]">{r.sub}</span>
           {/* La voce bloccata non è "Da fare": il chip di stato lascerebbe intendere il contrario. */}
           {!r.bloccoPositivo && (
-            <span className={`shrink-0 rounded-full px-2.5 py-1 text-[11px] font-bold ${chip.cls}`}>{chip.label}</span>
+            <Badge variant={chip.variant} className="shrink-0 gap-1">
+              {r.stato === 'eseguito' && <Check size={12} strokeWidth={2.5} aria-hidden />}
+              {chip.label}
+            </Badge>
           )}
         </span>
         {r.bloccoPositivo && (
-          <span className="mt-1 block text-xs font-semibold text-[var(--status-ko)]">⛔ {r.bloccoPositivo}</span>
+          <span className="mt-1 flex items-start gap-1 text-xs font-semibold text-[var(--status-ko)]">
+            <Ban size={14} strokeWidth={2} aria-hidden className="mt-px shrink-0" />
+            {r.bloccoPositivo}
+          </span>
         )}
       </span>
-      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
+      <ChevronRight size={16} strokeWidth={2} aria-hidden className="shrink-0 text-[var(--brand-text-subtle)]" />
     </button>
   );
 }
@@ -153,19 +186,27 @@ export function RapportinoLista({
     <div className="flex h-dvh flex-col">
       <div className="shrink-0 px-3 pt-2">
         <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
-        <div className="mt-2 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-1">
+        {/* Segmented dei filtri: `role=group` + `aria-pressed` sui tre bottoni — è lo stesso
+            pattern delle card-contatore §7ter. Senza, uno screen reader legge tre bottoni
+            identici e non dice quale filtro è attivo (il colore da solo non basta). */}
+        {/* `p-0.5`: il `min-height: 46px` globale sui <button> (globals.css, ≤768px) fissa già
+            l'altezza dei tre segmenti — il padding del contenitore ci si sommava sopra. */}
+        <div role="group" aria-label="Filtra gli interventi" className="mt-1.5 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-0.5">
           {FILTRI.map(([k, lbl]) => (
             <button
               key={k}
               type="button"
+              aria-pressed={filtro === k}
               onClick={() => onFiltro(k)}
-              className={`flex min-h-[44px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition min-[380px]:text-sm ${
+              /* 44px, non 48: è il minimo WCAG sull'area di tocco, e qui i tre segmenti
+                 sono affiancati — ogni pixel in più si paga in altezza della lista. */
+              className={`flex min-h-[44px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] min-[380px]:text-sm ${
                 filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
               }`}
             >
               <span className="truncate">{lbl}</span>
               <span
-                className={`min-w-[1.25rem] shrink-0 rounded-full px-1 text-xs font-bold tabular-nums ${
+                className={`min-w-[1.25rem] shrink-0 rounded-full px-1 font-mono text-xs font-semibold tabular-nums ${
                   filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
                 }`}
               >
@@ -181,7 +222,9 @@ export function RapportinoLista({
         )}
       </div>
 
-      <div className="rapp-scroll flex-1 space-y-2.5 overflow-y-auto px-3 pb-[16rem] pt-2">
+      {/* `space-y-1.5` invece di 2.5: il bordo a sinistra colorato già separa le card, il
+          vuoto in mezzo non aggiunge leggibilità — aggiunge scroll. */}
+      <div className="rapp-scroll flex-1 space-y-1.5 overflow-y-auto px-3 pb-[16rem] pt-2">
         {visibili.length === 0 ? (
           <p className="mt-8 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento in questo filtro.</p>
         ) : (
@@ -190,10 +233,13 @@ export function RapportinoLista({
       </div>
 
       <div className="fixed inset-x-0 bottom-0 z-30">
-        <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 pb-[calc(0.75rem+env(safe-area-inset-bottom))] pt-2">
+        <div className="mx-auto max-w-[480px] border-t border-[var(--brand-border)] bg-[var(--brand-bg)] px-3 pb-[calc(0.5rem+env(safe-area-inset-bottom))] pt-1.5">
           {inviato ? (
             <>
-              <p className="mb-1.5 text-center text-xs font-medium text-[var(--status-ok)]">Rapportino inviato ✓</p>
+              <p className="mb-1.5 flex items-center justify-center gap-1 text-xs font-medium text-[var(--status-ok)]">
+                <Check size={14} strokeWidth={2.5} aria-hidden />
+                Rapportino inviato
+              </p>
               <CondividiPdfButton
                 staffName={staffName}
                 dataLabel={dataLabel}
@@ -210,17 +256,19 @@ export function RapportinoLista({
               {!readOnly && tentatoInvio && mancanti.length > 0 && (
                 <div className="mb-2 rounded-[var(--radius-xl)] border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3 py-2">
                   <div className="mb-1 flex items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-[var(--status-ko)]">
-                      ⚠️ Non puoi inviare: completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}
+                    <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--status-ko)]">
+                      <AlertTriangle size={14} strokeWidth={2} aria-hidden className="shrink-0" />
+                      Non puoi inviare: completa {mancanti.length} {mancanti.length === 1 ? 'intervento' : 'interventi'}
                     </p>
-                    <button
-                      type="button"
+                    <Button
+                      variant="ghost"
+                      size="touch"
                       onClick={() => setTentatoInvio(false)}
                       aria-label="Chiudi avviso"
-                      className="-mr-1 flex min-h-[44px] min-w-[44px] shrink-0 items-center justify-center rounded-[var(--radius-md)] text-sm font-semibold leading-none text-[var(--status-ko)] hover:bg-[var(--status-ko)]/15 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      className="-mr-1 shrink-0"
                     >
-                      ✕
-                    </button>
+                      <X size={16} strokeWidth={2} aria-hidden className="text-[var(--status-ko)]" />
+                    </Button>
                   </div>
                   <div className="max-h-[30dvh] space-y-0.5 overflow-y-auto">
                     {mancanti.map((m) => (
@@ -228,10 +276,10 @@ export function RapportinoLista({
                         key={m.index}
                         type="button"
                         onClick={() => onApri(m.index)}
-                        className="flex w-full items-center gap-2 rounded-[var(--radius-lg)] px-2 py-1 text-left text-[13px] transition hover:bg-[var(--brand-surface)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                        className="flex min-h-[48px] w-full items-center gap-2 rounded-[var(--radius-lg)] px-2 py-1 text-left text-[13px] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:bg-[var(--brand-surface)]"
                       >
                         <span className="min-w-0 flex-1 truncate text-[var(--brand-text-main)]">
-                          <span className="font-semibold">Intervento {m.index + 1}</span>
+                          <span className="font-semibold">Intervento <span className="font-mono tabular-nums">{m.index + 1}</span></span>
                           {m.titolo ? <span className="text-[var(--brand-text-muted)]"> · {m.titolo}</span> : null}
                         </span>
                         <span className="max-w-[45%] shrink-0 whitespace-normal text-right font-semibold leading-tight text-[var(--status-ko)]">{MOTIVO_LABEL[m.motivo]}</span>
@@ -241,17 +289,22 @@ export function RapportinoLista({
                 </div>
               )}
               {!readOnly && inviabile && (
-                <p className="mb-1.5 text-center text-xs font-medium text-[var(--status-ok)]">Tutti gli interventi hanno un esito ✓</p>
+                <p className="mb-1.5 flex items-center justify-center gap-1 text-xs font-medium text-[var(--status-ok)]">
+                  <Check size={14} strokeWidth={2.5} aria-hidden />
+                  Tutti gli interventi hanno un esito
+                </p>
               )}
               {!readOnly && (
-                <button
-                  type="button"
+                <Button
+                  variant="primary"
+                  size="touch"
+                  className="w-full"
                   onClick={() => { if (inviabile) { onInvia(); } else { setTentatoInvio(true); } }}
+                  loading={inviando}
                   disabled={inviando}
-                  className="w-full rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-[var(--shadow-sm)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-45 disabled:shadow-none"
                 >
                   {inviando ? 'Invio in corso…' : 'Invia rapportino'}
-                </button>
+                </Button>
               )}
             </>
           )}

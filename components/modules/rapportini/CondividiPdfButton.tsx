@@ -1,7 +1,10 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 // components/modules/rapportini/CondividiPdfButton.tsx
 'use client';
 
 import { useState } from 'react';
+import { AlertTriangle, Check, FileText } from 'lucide-react';
+import Button from '@/components/Button';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { costruisciDatiPdf, type VoceRiepilogo } from '@/utils/rapportini/datiRiepilogoPdf';
@@ -51,20 +54,24 @@ export function CondividiPdfButton({
     }
   };
 
-  const label =
+  // Le icone stanno nel JSX (lucide a currentColor), non nella stringa: le emoji
+  // cambiano col font di sistema e in monocromia spariscono (DESIGN.md §7quater).
+  const contenuto =
     stato === 'lavoro' ? 'Generazione…'
-      : stato === 'fatto' ? 'PDF condiviso ✓'
-      : stato === 'errore' ? 'Errore — tocca per riprovare'
-      : '📄 Condividi PDF su WhatsApp';
+      : stato === 'fatto' ? <><Check size={16} strokeWidth={2} aria-hidden />PDF condiviso</>
+      : stato === 'errore' ? <><AlertTriangle size={16} strokeWidth={2} aria-hidden />Errore — tocca per riprovare</>
+      : <><FileText size={16} strokeWidth={2} aria-hidden />Condividi PDF su WhatsApp</>;
 
   return (
-    <button
-      type="button"
+    <Button
+      variant="primary"
+      size="touch"
+      className="w-full"
       onClick={onClick}
+      loading={stato === 'lavoro'}
       disabled={stato === 'lavoro'}
-      className="w-full rounded-xl bg-[var(--brand-primary)] px-4 py-3 text-base font-semibold text-[var(--on-primary)] shadow-sm transition enabled:hover:bg-[var(--brand-primary-hover)] disabled:cursor-not-allowed disabled:opacity-60"
     >
-      {label}
-    </button>
+      {contenuto}
+    </Button>
   );
 }

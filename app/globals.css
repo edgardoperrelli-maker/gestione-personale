@@ -89,6 +89,23 @@
   --phone-bezel:  oklch(0.30 0.012 255);
   --phone-screen: oklch(0.20 0.012 255);
 
+  /* Alias di indirezione per l'override shadow in `@theme inline` (vedi il blocco sopra).
+     ADDITIVI e definiti una volta sola: puntano ai token `--shadow-*`, che sono ridefiniti
+     in `html.light`, quindi `var(--elevation-1)` risolve nel tema attivo senza duplicare i
+     valori e senza toccare i token esistenti (DESIGN.md §2: mai rinominare, solo aggiungere).
+     Non c'è ciclo: `@theme inline` sostituisce nell'utility, non emette la property. */
+  --elevation-1: var(--shadow-sm);
+  --elevation-2: var(--shadow-md);
+  --elevation-3: var(--shadow-lg);
+
+  /* additivi portale operatore: visore dello scanner barcode (ScannerMisuratore).
+     Come --phone-bezel resta SCURO in entrambi i temi: sotto c'è l'immagine della
+     fotocamera, non una superficie del tema — schiarirlo in light spegnerebbe il
+     visore. --on-scanner è il testo/comando sopra l'immagine. */
+  --scanner-veil: oklch(0 0 0 / 0.90);
+  --scanner-chip: oklch(1 0 0 / 0.20);
+  --on-scanner:   oklch(1 0 0);
+
   /* additivi Cronoprogramma: velo dei bottoni sulle card operatore. Il fondo
      della card è dinamico (colore del territorio), quindi qui serve un velo
      neutro e non un colore pieno: su scuro il bordo schiarisce e il fondo
@@ -229,6 +246,12 @@ html.light {
   --phone-bezel:  oklch(0.22 0.012 255);
   --phone-screen: oklch(0.965 0.006 250);
 
+  /* additivi portale operatore: visore dello scanner. Valori IDENTICI al dark —
+     sotto c'è la fotocamera, non il tema: vedi il blocco dark per il perché. */
+  --scanner-veil: oklch(0 0 0 / 0.90);
+  --scanner-chip: oklch(1 0 0 / 0.20);
+  --on-scanner:   oklch(1 0 0);
+
   /* additivi Cronoprogramma: velo dei bottoni sulle card — vedi blocco dark. */
   --chip-overlay-bd: oklch(0.27 0.02 255 / 0.20);
   --chip-overlay-bg: oklch(1 0 0 / 0.55);
@@ -255,6 +278,19 @@ html.light {
 }
 
 @theme inline {
+  /* ELEVAZIONE — override del namespace shadow di Tailwind (2026-07-25).
+     Prima di questo blocco, le utility NUDE `shadow-sm`/`md`/`lg` rendevano i default di
+     Tailwind e NON i token del sistema: Tailwind v4 inlinea il proprio valore letterale
+     nell'utility, quindi la definizione di `--shadow-*` in `:root`/`html.light` non la
+     raggiungeva mai. Effetto misurato in dark: alpha 0.1 invece di 0.32 — card piatte.
+     Con `@theme inline` il valore NON viene emesso come custom property ma sostituito
+     dentro l'utility, così `var(--elevation-N)` si risolve al punto d'uso e segue il tema.
+     Passa dagli alias `--elevation-*` (sotto) perché `--shadow-sm: var(--shadow-sm)`
+     sarebbe circolare. Verificato in light e dark: utility nuda ≡ `shadow-[var(--shadow-sm)]`. */
+  --shadow-sm: var(--elevation-1);
+  --shadow-md: var(--elevation-2);
+  --shadow-lg: var(--elevation-3);
+
   --color-brand-bg: var(--brand-bg);
   --color-brand-surface: var(--brand-surface);
   --color-brand-surface-muted: var(--brand-surface-muted);
@@ -383,7 +419,13 @@ html { font-size: 16px; }
   input:not([type='checkbox']):not([type='radio']), select, textarea, button { min-height: 44px; }
 }
 @media (max-width: 768px) {
-  html { font-size: 18px; }
+  /* 16px sul TELEFONO (deciso il 2026-07-25). Prima era 18: la scala si ingrandiva proprio
+     dove lo spazio manca, e ogni `rem` valeva +12,5% — `p-3` rendeva 13,5px, `text-base` 18.
+     L'effetto sul portale operatore era meno dati per schermata e più scroll in strada, che è
+     il vero costo del campo (DESIGN.md §7quater). I target di tocco NON dipendono da qui:
+     sono px assoluti (o il `min-height` sotto), quindi scendere non li rimpicciolisce.
+     Il tablet resta a 17px: là lo spazio non è il vincolo. */
+  html { font-size: 16px; }
   input:not([type='checkbox']):not([type='radio']), select, textarea, button { min-height: 46px; }
 }
 

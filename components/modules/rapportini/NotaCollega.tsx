@@ -1,5 +1,8 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
+import { Clock } from 'lucide-react';
+import Button from '@/components/Button';
 import Dialog from '@/components/ui/Dialog';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 
@@ -13,7 +16,7 @@ function NotaCollegaItem({ nota }: { nota: NotaPrecedente }) {
   const meta = metaNota(nota);
   return (
     <div className="rounded-xl border border-[var(--warning)]/30 bg-[var(--brand-surface)]/60 px-3 py-2">
-      <p className="whitespace-pre-wrap break-words text-[14px] text-[var(--brand-text-main)]">{nota.testo}</p>
+      <p className="whitespace-pre-wrap break-words text-sm text-[var(--brand-text-main)]">{nota.testo}</p>
       {meta && <p className="mt-1 text-[11px] font-medium text-[var(--brand-text-muted)]">{meta}</p>}
     </div>
   );
@@ -29,8 +32,8 @@ export function BannerNotaCollega({ note }: { note: NotaPrecedente[] }) {
   return (
     <div className="mt-3 rounded-xl border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-3.5 py-2.5">
       <div className="flex items-center gap-2">
-        <span aria-hidden className="text-base leading-none">🕒</span>
-        <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--brand-text-muted)]">
+        <Clock className="h-4 w-4 shrink-0 text-[var(--brand-text-muted)]" strokeWidth={1.8} aria-hidden />
+        <p className="text-[11px] font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">
           {note.length === 1 ? 'Nota da un collega' : `Note da un collega (${note.length})`}
           <span className="ml-1 font-semibold normal-case tracking-normal">· intervento precedente sullo stesso impianto</span>
         </p>
@@ -55,15 +58,11 @@ export function ModaleNotaCollega({ note, onChiudi }: { note: NotaPrecedente[]; 
       open
       onClose={onChiudi}
       variant="sheet"
-      title="🕒 C'è una nota da un collega"
+      title="C'è una nota da un collega"
       footer={
-        <button
-          type="button"
-          onClick={onChiudi}
-          className="w-full rounded-[var(--radius-lg)] bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]"
-        >
+        <Button variant="primary" size="touch" onClick={onChiudi} className="w-full">
           Ho capito
-        </button>
+        </Button>
       }
     >
       <p className="text-sm text-[var(--brand-text-muted)]">

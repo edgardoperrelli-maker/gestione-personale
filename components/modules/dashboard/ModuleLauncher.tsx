@@ -124,14 +124,14 @@ export default function ModuleLauncher({ allowedModules }: { allowedModules: App
       {caricati && inPreferiti.length > 0 && (
         <>
           <Titoletto>Preferiti</Titoletto>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{inPreferiti.map(card)}</div>
+          <div className="grid gap-3 min-[640px]:grid-cols-2 min-[1280px]:grid-cols-3 min-[1536px]:grid-cols-4 min-[2000px]:grid-cols-5">{inPreferiti.map(card)}</div>
         </>
       )}
 
       {perGruppo.map(({ gruppo, voci }) => (
         <div key={gruppo} className="space-y-3">
           <Titoletto>{groupLabels[gruppo]}</Titoletto>
-          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">{voci.map(card)}</div>
+          <div className="grid gap-3 min-[640px]:grid-cols-2 min-[1280px]:grid-cols-3 min-[1536px]:grid-cols-4 min-[2000px]:grid-cols-5">{voci.map(card)}</div>
         </div>
       ))}
 

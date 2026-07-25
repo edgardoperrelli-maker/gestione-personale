@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { createPortal } from 'react-dom';
+import { Sparkles, X, Link2 } from 'lucide-react';
 import Button from '@/components/Button';
 
 /** Chiave versionata dell'avviso: per un nuovo annuncio si usa una nuova chiave. */
@@ -50,7 +51,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
               className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
               style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
             >
-              ✨ Novità
+              <Sparkles size={11} aria-hidden /> Novità
             </span>
             <h2 id="annuncio-squadre-title" className="mt-2 text-xl font-semibold tracking-tight text-[var(--brand-text-main)]">
               Squadre nel Cronoprogramma
@@ -65,7 +66,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
             className="ml-auto flex h-7 w-7 shrink-0 items-center justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-bg)] text-[var(--brand-text-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Chiudi"
           >
-            ✕
+            <X size={14} aria-hidden />
           </button>
         </div>
 
@@ -244,7 +245,7 @@ function SquadDemo({
           className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wide"
           style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
         >
-          ⛓ Squadra ×{count}
+          <Link2 size={12} aria-hidden /> Squadra ×{count}
         </span>
         {progress && (
           <span

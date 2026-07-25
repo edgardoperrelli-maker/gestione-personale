@@ -144,7 +144,7 @@ export default function LiveClient({
   );
 
   return (
-    <main className="mx-auto max-w-7xl space-y-4 px-6 py-6">
+    <div className="space-y-4">
       <ObjectHeader
         title="Live"
         sub={<span className="font-mono tabular-nums">{data}</span>}
@@ -363,6 +363,6 @@ export default function LiveClient({
         onConfirm={eseguiRigenera}
         onClose={() => setConfermaRigenera(false)}
       />
-    </main>
+    </div>
   );
 }

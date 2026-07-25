@@ -46,7 +46,17 @@ import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import Button from '@/components/Button';
-import { ChevronDown, ChevronRight, Download, Plus, RotateCcw } from 'lucide-react';
+import Badge from '@/components/Badge';
+import Tooltip from '@/components/ui/Tooltip';
+// Le classi dei comandi del pannello «link operatori» arrivano dalla vista gemella
+// (Riepilogo), che rende gli stessi dati con gli stessi helper: una sola
+// definizione per il touch target degli <a> (che `globals.css` non copre) e per
+// il divieto di fill accentato sui comandi ripetuti a ogni riga.
+import { AZIONE_ICONA, AZIONE_ICONA_DANGER } from './riepilogo/stili';
+import {
+  Check, ChevronDown, ChevronRight, Download, FileSpreadsheet, Link2, MessageCircle,
+  Pin, Plus, RotateCcw, TriangleAlert, X,
+} from 'lucide-react';
 import PhaseStrip from './PhaseStrip';
 import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 import MenuDropdown, { type MenuItem } from './MenuDropdown';
@@ -3078,7 +3088,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 </div>
 
                 {modalitaSenzaInterventi && (
-                  <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
+                  /* 12px + `--brand-text-muted` come il resto del pannello: a 10px su
+                     `--brand-text-subtle` il contrasto misurato era 3,29:1, sotto AA. */
+                  <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
                     Nessun intervento caricato: i rapportini nasceranno vuoti, da compilare solo con ordini manuali. Le quantità sono ignorate.
                   </p>
                 )}
@@ -3132,8 +3144,8 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           })}
                         </div>
                         {territoryFilter && territoryFilteredOperators.length < availableOperators.length && (
-                          <p className="text-[10px] text-[var(--brand-text-subtle)] mt-1">
-                            Cronoprogramma {planningDate} | {territoryFilteredOperators.length} operatori su {availableOperators.length}
+                          <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
+                            Cronoprogramma {planningDate} | <span className="font-mono tabular-nums">{territoryFilteredOperators.length}</span> operatori su <span className="font-mono tabular-nums">{availableOperators.length}</span>
                             {selectedPlanningTerritory ? ` assegnati a ${selectedPlanningTerritory.name}` : ''}
                           </p>
                         )}
@@ -3192,8 +3204,15 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 {selectedOps.length > 0 && (
                   <div className="mt-2 space-y-1">
                     <div className="grid grid-cols-[1fr_auto_auto] items-center gap-x-2 gap-y-1">
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Operatore</span>
-                      <span className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)] text-right">N. interventi</span>
+                      {/* Header di colonna: 11px è il gradino intermedio ammesso da
+                          DESIGN.md §4 e tiene stretta la colonna «N. interventi»; il
+                          testo passa a `--brand-text-muted` perché 10px su
+                          `--brand-text-subtle` rendeva 3,29:1 sul fondo
+                          `--brand-surface-muted` di questo pannello (AA chiede 4,5:1, e
+                          a 10px non vale la deroga «large text»). L'uppercase resta:
+                          è il pattern canonico degli header (vedi KpiCard). */}
+                      <span className="text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">Operatore</span>
+                      <span className="text-right text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">N. interventi</span>
                       <span />
                       {selectedOps.map((op, i) => (
                         <React.Fragment key={op.id}>
@@ -3205,13 +3224,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 const a = assenzeByStaff[op.id];
                                 if (!a || !isAssenzaIntera(a)) return null;
                                 return (
-                                  <span className="mt-0.5 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
-                                    ⚠ ora in {a.tipo}
-                                  </span>
+                                  <Badge variant="ko" className="mt-0.5">
+                                    <TriangleAlert size={13} aria-hidden className="mr-1 shrink-0" />
+                                    ora in {a.tipo}
+                                  </Badge>
                                 );
                               })()}
                               {op.startAddress && (
-                                <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">{op.startAddress}</div>
+                                <div className="truncate text-xs text-[var(--brand-text-muted)]">{op.startAddress}</div>
                               )}
                               {(() => {
                                 const r = rapByStaff.get(op.id);
@@ -3219,35 +3239,66 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 const badge = statoBadge(r.statoCalcolato);
                                 return (
                                   <div className="mt-1 flex flex-wrap items-center gap-1">
-                                    <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-semibold ${badge.className}`}>
-                                      {badge.label}
-                                    </span>
-                                    <button
-                                      type="button"
-                                      onClick={() => handleCopyLink(r)}
-                                      className="rounded bg-[var(--brand-primary)] px-2 py-0.5 text-[10px] font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]"
-                                    >
-                                      {copiedToken === r.token ? '✓ Copiato!' : '🔗 Copia link'}
-                                    </button>
-                                    <a
-                                      href={whatsappHref(r.url)}
-                                      target="_blank"
-                                      rel="noopener noreferrer"
-                                      className="rounded border border-[var(--success)]/40 bg-[var(--success-soft)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--success)] hover:opacity-80"
-                                    >
-                                      WhatsApp
-                                    </a>
-                                    <a
-                                      href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
-                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[9px] font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]"
-                                    >
-                                      Excel
-                                    </a>
+                                    <Badge variant={badge.variant}>{badge.label}</Badge>
+                                    {/* «Copia link» è l'unico <button> dei tre: sta sul
+                                        primitivo, che porta raggio `md`, focus ring e
+                                        target da 28px. Perde il fill zaffiro: l'accento
+                                        regge le azioni primarie del modulo (§1.2), non
+                                        un comando ripetuto a ogni riga — qui il primario
+                                        è «Distribuisci», in fondo al pannello. */}
+                                    <Button variant="outline" size="sm" onClick={() => handleCopyLink(r)}>
+                                      {copiedToken === r.token ? (
+                                        <>
+                                          <Check size={13} aria-hidden className="text-[var(--status-ok)]" />
+                                          Copiato
+                                        </>
+                                      ) : (
+                                        <>
+                                          <Link2 size={13} aria-hidden />
+                                          Copia link
+                                        </>
+                                      )}
+                                    </Button>
+                                    {/* WhatsApp ed Excel restano <a>: il primitivo Button
+                                        non ha `href`/`asChild`, e convertirli spegnerebbe
+                                        clic centrale, «apri in nuova scheda» e il download
+                                        nativo. Il target lo dà `AZIONE_ICONA` (24px netti,
+                                        46px sotto i 769px, dove il `min-height` di
+                                        globals.css non copre i link); il nome sta una volta
+                                        sola nell'aria-label, la descrizione nel Tooltip. */}
+                                    <Tooltip testo="Invia il link su WhatsApp">
+                                      <a
+                                        href={whatsappHref(r.url)}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        aria-label="Invia il link su WhatsApp"
+                                        className={AZIONE_ICONA}
+                                      >
+                                        <MessageCircle size={13} aria-hidden />
+                                      </a>
+                                    </Tooltip>
+                                    <Tooltip testo="Esporta il rapportino in Excel">
+                                      <a
+                                        href={`/api/mappa/rapportini/export?rapportinoId=${r.id}`}
+                                        aria-label="Esporta il rapportino in Excel"
+                                        className={AZIONE_ICONA}
+                                      >
+                                        <FileSpreadsheet size={13} aria-hidden />
+                                      </a>
+                                    </Tooltip>
                                   </div>
                                 );
                               })()}
                             </div>
                           </div>
+                          {/* Quantità: resta un <input> nudo e non il primitivo `Input`,
+                              che cabla `w-full` — nel CSS compilato `.w-full` è emessa
+                              DOPO `.w-16`, quindi vincerebbe e la casella si stirerebbe
+                              per tutta la colonna (e `px-3 py-2 text-sm` sfonderebbe una
+                              griglia tutta a 12px). Qui si alza il target a mano: 32px
+                              invece di 22, quanto una riga densa (§5); sotto i 768px il
+                              `min-height: 46px` di globals.css copre già gli <input>.
+                              Focus ring e colori vengono dalla regola globale sugli input. */}
                           <input
                             key={op.id + '-qty'}
                             type="number"
@@ -3255,42 +3306,60 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             value={op.qty || ''}
                             onChange={(e) => changeOpQty(op.id, parseInt(e.target.value, 10) || 0)}
                             placeholder="auto"
-                            className="w-16 rounded border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs text-right"
+                            aria-label={`Numero di interventi per ${op.name}`}
+                            className="h-8 w-16 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 text-right font-mono text-xs tabular-nums"
                           />
-                          <button
-                            key={op.id + '-rm'}
-                            type="button"
-                            onClick={() => setSelectedOps((prev) => prev.filter((o) => o.id !== op.id))}
-                            className="text-xs text-[var(--brand-text-subtle)] hover:text-[var(--danger)]"
-                          >
-                            ×
-                          </button>
+                          <Tooltip key={op.id + '-rm'} testo={`Togli ${op.name} dal piano`}>
+                            <button
+                              type="button"
+                              onClick={() => setSelectedOps((prev) => prev.filter((o) => o.id !== op.id))}
+                              aria-label={`Togli ${op.name} dal piano`}
+                              className={AZIONE_ICONA_DANGER}
+                            >
+                              <X size={13} aria-hidden />
+                            </button>
+                          </Tooltip>
                         </React.Fragment>
                       ))}
                     </div>
                     {!modalitaSenzaInterventi && (
-                      <p className="text-[10px] text-[var(--brand-text-subtle)]">Lascia vuoto per distribuzione automatica uguale.</p>
+                      <p className="text-xs text-[var(--brand-text-muted)]">Lascia vuoto per distribuzione automatica uguale.</p>
                     )}
+                    {/* Gerarchia dei comandi: la primaria è «Distribuisci» ed è la più
+                        grande; le due di contorno sono `outline` della STESSA taglia.
+                        Prima la secondaria era 38px e la primaria 24, così il colore
+                        dichiarava la primazia e la tipografia la negava (§1.4).
+                        `size="sm"` e non il default `md`: due bottoni da 36px in un
+                        pannello tutto a 12px peserebbero più del dato. */}
                     <div className="flex items-center gap-2 pt-1">
                       {!modalitaSenzaInterventi && (
-                        <button type="button" onClick={() => setAssignModalOpen(true)}
-                          className="rounded-xl border border-[var(--brand-border)] px-4 py-2 text-sm font-medium text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]">
-                          📌 Assegnazioni manuali{manualRules.length ? ` (${manualRules.length})` : ''}
-                        </button>
+                        <Button variant="outline" size="sm" onClick={() => setAssignModalOpen(true)}>
+                          <Pin size={13} aria-hidden />
+                          {/* Etichetta e conteggio in un solo figlio del flex: il
+                              `gap-2` del primitivo, altrimenti, staccherebbe «(3)»
+                              dalla parola a cui appartiene. */}
+                          <span>
+                            Assegnazioni manuali
+                            {manualRules.length > 0 && (
+                              <span className="font-mono tabular-nums"> ({manualRules.length})</span>
+                            )}
+                          </span>
+                        </Button>
                       )}
-                      <button
-                        type="button"
+                      <Button
+                        variant="primary"
+                        size="sm"
                         onClick={modalitaSenzaInterventi ? confermaSenzaInterventi : distributeToOps}
                         disabled={bloccaRidistribuzione || (modalitaSenzaInterventi && selectedOps.length === 0)}
                         title={bloccaRidistribuzione ? 'Piano riaperto: le assegnazioni seguono il master/file. Usa Azzera per ridistribuire da zero.' : undefined}
-                        className="rounded-lg bg-[var(--brand-primary)] px-3 py-1 text-xs font-semibold text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)] disabled:opacity-50 disabled:cursor-not-allowed"
                       >
                         {modalitaSenzaInterventi ? 'Conferma personale' : (selectedOps.length === 1 ? 'Assegna' : 'Distribuisci')}
-                      </button>
+                      </Button>
                       {distribution && (
                         <>
-                          <button
-                            type="button"
+                          <Button
+                            variant="outline"
+                            size="sm"
                             onClick={() => {
                               setDistribution(null);
                               setUnassignedTasks([]);
@@ -3303,15 +3372,14 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 window.history.replaceState({}, '', '/hub/mappa?vista=pianifica');
                               }
                             }}
-                            className="rounded-lg border border-[var(--brand-border)] px-2 py-1 text-xs text-[var(--brand-text-muted)] hover:bg-[var(--brand-surface-muted)]"
                           >
                             Azzera
-                          </button>
+                          </Button>
                         </>
                       )}
                     </div>
                     {rapError && (
-                      <p className="text-[10px] text-[var(--danger)]">{rapError}</p>
+                      <p className="text-xs text-[var(--danger)]">{rapError}</p>
                     )}
                   </div>
                 )}
@@ -3733,7 +3801,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               <div className="sticky -top-4 z-10 -mx-4 -mt-4 mb-3 space-y-2 border-b border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 pt-4 pb-3">
                 <div className="flex items-center justify-between gap-2">
                   <div className="text-sm font-semibold text-[var(--warning)]">Attivita da Excel</div>
-                  <span className="text-[10px] font-medium text-[var(--brand-text-subtle)]">
+                  <span className="font-mono text-xs font-medium tabular-nums text-[var(--brand-text-muted)]">
                     {filteredExcelTasks.length}/{excelTasks.length}
                   </span>
                 </div>

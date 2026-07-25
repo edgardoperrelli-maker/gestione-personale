@@ -49,9 +49,9 @@ export default async function InterventiPage() {
   )];
 
   return (
-    <main className="w-full space-y-4 px-4 py-6">
+    <div className="space-y-4">
       {isAdminPlus && <RiconciliazioneBanner />}
       <StoricoInterventiClient staff={staff} gruppi={gruppi} territori={territori} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
-    </main>
+    </div>
   );
 }

@@ -1,3 +1,4 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
@@ -28,6 +29,8 @@ import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
+import Button from '@/components/Button';
+import { toast } from '@/components/ui/Toast';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
 import { FabSync } from '@/components/offline/FabSync';
 import { ModaleSincronizza } from '@/components/offline/ModaleSincronizza';
@@ -450,7 +453,7 @@ export default function RapportinoForm({
       setInviato(true);
       setReadOnly(true);
       setVista('lista');
-      window.alert('Rapportino messo in coda: verrà inviato appena torna la rete.');
+      toast.info('Rapportino messo in coda: verrà inviato appena torna la rete.');
       return;
     }
     setInviando(true);
@@ -462,7 +465,7 @@ export default function RapportinoForm({
           setBloccoSospese(body.inSospeso ?? 1); // banner soft, ritentabile dopo approvazione
         } else if (body.error === 'esiti_mancanti') {
           // Esiti mancanti (nessun esito o un NO senza motivo): azione dell'operatore, non terminale.
-          window.alert('Alcuni interventi non hanno l’esito (o hanno un NO senza la nota col motivo). Completa gli esiti e reinvia.');
+          toast.error('Alcuni interventi non hanno l’esito (o hanno un NO senza la nota col motivo). Completa gli esiti e reinvia.');
         } else {
           setBloccatoInvia(true); // terminale: link scaduto / già inviato
         }
@@ -474,7 +477,7 @@ export default function RapportinoForm({
       setReadOnly(true);
       setVista('lista');
     } catch {
-      window.alert('Invio non riuscito. Controlla la connessione e riprova.');
+      toast.error('Invio non riuscito. Controlla la connessione e riprova.');
     } finally {
       if (mountedRef.current) setInviando(false);
     }
@@ -501,7 +504,7 @@ export default function RapportinoForm({
     return (
       <div className="mx-auto max-w-[480px] px-3 py-6">
         {bloccatoInvia && (
-          <div className="mb-3 rounded-2xl border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger)]">
+          <div className="mb-3 rounded-[var(--radius-xl)] border border-[var(--danger)] bg-[var(--danger-soft)] p-4 text-sm font-medium text-[var(--danger)]">
             Rapportino non più inviabile (link scaduto o già inviato). Contatta l&apos;ufficio.
           </div>
         )}
@@ -511,7 +514,9 @@ export default function RapportinoForm({
   }
 
   const bannerSospese = bloccoSospese !== null && !inviato ? (
-    <div className="mx-3 mb-3 rounded-2xl border border-[var(--warning,#f59e0b)] bg-[var(--warning-soft,#fef3c7)] p-4 text-sm font-medium text-[var(--warning-fg,#92400e)]">
+    // `--warning-fg` non esiste: il fallback stampava un marrone fisso, uguale in light e dark.
+    // Su fondo `-soft` il testo è `--brand-text-main` (`--on-warning` è per i fill PIENI).
+    <div className="mx-3 mb-3 rounded-[var(--radius-xl)] border border-[var(--warning)] bg-[var(--warning-soft)] p-4 text-sm font-medium text-[var(--brand-text-main)]">
       {bloccoSospese === 1
         ? 'Hai 1 intervento in attesa di approvazione: il rapportino non è inviabile finché non viene approvato.'
         : `Hai ${bloccoSospese} interventi in attesa di approvazione: il rapportino non è inviabile finché non vengono approvati.`}
@@ -528,9 +533,9 @@ export default function RapportinoForm({
     <div className="mx-auto max-w-[480px]">
       <OfflineStatusPill token={token} />
       {avvisoManuale && (
-        <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3 text-sm text-[var(--brand-text-main)]">
+        <div className="mx-3 mb-2 flex items-center justify-between gap-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] py-2 pl-3 pr-2 text-sm text-[var(--brand-text-main)]">
           <span>{avvisoManuale}</span>
-          <button type="button" onClick={() => setAvvisoManuale(null)} className="-mr-1 flex min-h-[40px] shrink-0 items-center px-2 text-xs font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
+          <Button size="touch" variant="ghost" className="shrink-0" onClick={() => setAvvisoManuale(null)}>Chiudi</Button>
         </div>
       )}
       {bannerSospese}
@@ -636,7 +641,7 @@ export default function RapportinoForm({
             setModaleAperta(false);
             setPrefillManuale(null);
             const idx = voci.findIndex((v) => v.id === voceId);
-            if (idx >= 0) { window.alert('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
+            if (idx >= 0) { toast.info('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
           }}
           onClose={() => { setModaleAperta(false); setPrefillManuale(null); }}
           onCreata={(stato) => {

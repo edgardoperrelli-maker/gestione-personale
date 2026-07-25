@@ -9,7 +9,7 @@ export default async function ProduzioneEconomicaPage() {
   await assertKpiAccess();
 
   return (
-    <div className="mx-auto max-w-6xl space-y-4 p-4">
+    <div className="space-y-4">
       <div className="space-y-2">
         <Link href="/hub/performance" className="text-xs text-[var(--brand-text-muted)] hover:underline">← KPI</Link>
         <ObjectHeader

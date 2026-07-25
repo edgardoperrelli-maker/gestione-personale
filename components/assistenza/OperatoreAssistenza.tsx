@@ -161,7 +161,9 @@ export default function OperatoreAssistenza({ sessionId, staff, data }: Props) {
         type="button"
         onClick={() => setAperto((v) => !v)}
         aria-label="Assistenza remota"
-        className="fixed bottom-4 left-4 z-40 flex h-12 w-12 items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--primary-text)] shadow-[var(--shadow-lg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+        /* 48px esatti: `h-12` (3rem) sul telefono rende 54px perché il root è a 18px,
+           e questo cerchio galleggia sopra la lista degli interventi (DESIGN.md §7quater). */
+        className="fixed bottom-4 left-4 z-40 flex h-[48px] w-[48px] items-center justify-center rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--primary-text)] shadow-[var(--shadow-lg)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
         style={stato === 'attiva' ? { borderColor: 'var(--status-ko)' } : undefined}
       >
         {stato === 'attiva' ? (

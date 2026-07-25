@@ -210,7 +210,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
   const totPagine = Math.max(1, Math.ceil(total / pageSize));
 
   return (
-    <div className="flex h-[calc(100dvh-7rem)] flex-col gap-4">
+    <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
       {/* Header slim (pattern fogliette §7bis, variante densa): breadcrumb + vista gemella */}
       <div className="flex shrink-0 flex-wrap items-center justify-between gap-2">
         <Breadcrumb items={[{ label: 'Interventi' }, { label: 'Storico' }]} />

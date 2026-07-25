@@ -18,6 +18,7 @@ import type { CommittenteManuale } from '@/lib/interventi/manuali/types';
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { caricaTemplateManuali } from '@/lib/interventi/manuali/caricaTemplateManuali';
 import { BrandHeader } from '@/components/brand/BrandHeader';
+import { Toaster } from '@/components/ui/Toast';
 import { BRAND, appBaseUrl } from '@/lib/brand';
 import { sessionId as assistSessionId } from '@/lib/assistenza/canale';
 import OperatoreAssistenza from '@/components/assistenza/OperatoreAssistenza';
@@ -400,6 +401,9 @@ export default async function RapportinoPublicPage({
         tassonomia={tassonomia}
       />
       <OperatoreAssistenza sessionId={assistSessionId(token)} staff={rap.staff_name} data={rap.data} />
+      {/* Il portale vive fuori dall'AppShell → monta il proprio Toaster (DESIGN.md §7quater),
+          altrimenti i toast del rapportino non hanno dove atterrare. */}
+      <Toaster />
     </main>
   );
 }

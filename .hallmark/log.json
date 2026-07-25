@@ -1,5 +1,53 @@
 [
   {
+    "date": "2026-07-25",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, solo chiaro)",
+    "enrichment": "none",
+    "brief": "ManualAssignmentsModal allineata (il follow-up del pannello link operatori: la modale era rimasta indietro e il contrasto con la superficie adiacente si vedeva). Portata sul primitivo Dialog: guadagna focus-trap, ESC e aria-modal che non aveva. Overlay da 4 gradienti con oklch+rgba cablati a --overlay; rounded-[28px] e [24px] a --radius-xl; boxShadow cablato a --shadow-lg; fontFamily inline via (arriva da next/font). 15 glifi/emoji a lucide (Pin/X/Plus/Target/Home/MapPin/Wrench/Lock/LockOpen/Settings2/Check). 8 button a Button size=sm, select+5 input a Select/Input, e le 6 label ora hanno htmlFor (nessuna lo aveva). I 4 oklch cablati dei lucchetti a --status-ok/--status-warn: il magenta e vietato come accento (§3) e 'chiuso' non e un errore ma una restrizione voluta. Cancellata la costante C: navy (oklch cablato) e magenta erano CODICE MORTO, mai usati. Il RuleWizard resta markup a mano ma tokenizzato: annidato nel corpo del Dialog, due Dialog si contenderebbero focus-trap ed ESC. Larghezza del pannello con l'important suffisso di Tailwind v4 perche max-w-lg del primitivo e nello stesso gruppo di utility: misurata 1058px = 95vw (senza override sarebbero 512). Verificato a schermo montando la modale su una pagina di prova temporanea, poi rimossa."
+  },
+  {
+    "date": "2026-07-25",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, SOLO CHIARO)",
+    "enrichment": "none",
+    "brief": "(1) TEMA SCURO ABBANDONATO. <html className='light'> statica in layout.tsx (via lo script inline che leggeva localStorage: senza una seconda variante non serviva piu), selettore rimosso dal TopBar con stato+toggle+2 SVG, effetto force-light ridondante togliato da PresentazioneProduzione, themeColor da 2 varianti a 1 (su un telefono col sistema in dark coloriva di scuro la barra sopra una pagina chiara). I valori scuri RESTANO in globals.css dormienti: i token non si rimuovono (§2) e la rimozione sarebbe irreversibile. Verificato: light attivo anche con localStorage.theme='dark'. mapcn legge la classe .light esplicita prima di prefers-color-scheme, quindi la mappa segue l'app. §2 riscritta. (2) Chiusi i 18 finding dell'audit sul pannello LINK OPERATORI (?vista=pianifica): riusato il modello della vista gemella ?vista=riepilogo (AZIONE_ICONA/AZIONE_TESTO da riepilogo/stili.ts, che risolvono anche il caso degli <a> non coperti dal min-height globale) invece di reinventare. 6 major: scala sub-12px con contrasto da 3,29:1 a 5,41:1 misurato, bersagli da 18px a 24/46px, emoji->lucide, gerarchia primary/secondary raddrizzata, 3 raggi -> 2 in scala, badge ricopiato a mano -> primitivo Badge con statoBadge() che ora ritorna {label,variant} invece di stringhe di classi. Piu 10 minor. Rimossa VARIANTE_STATO da CardTerritorio: dopo il cambio duplicava la mappa di statoBadge, cioe il difetto appena chiuso. Chiuse anche 3 righe 10px+subtle fuori dal blocco ma nello STESSO pannello (sarebbero rimaste visibilmente incoerenti)."
+  },
+  {
+    "date": "2026-07-25",
+    "scope": "app",
+    "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed)",
+    "enrichment": "none",
+    "brief": "Due interventi sul SISTEMA. (1) Densita di campo sul portale operatore, dopo un rilievo dell'utente: avevo ottimizzato il target touch e peggiorato la scansione. Root mobile da 18px a 16 (la scala si INGRANDIVA dove lo spazio manca: ogni rem valeva +12,5%), pill 'Tutto sincronizzato' non piu montata quando non ha nulla da dire, 4 FAB da 54 a 48px esatti (h-12 era 3rem = 54px a root 18: i target ora sono in px assoluti, non rem), numero d'ordine 36->28, padding/gap/barre. Risultato misurato su 22 voci a 375px: voci per schermata 7,3->9,8 (+34%), cromatura fissa 33%->23%, scroll 2240->1773px, comandi sotto 44px sempre 0. §7quater riscritta con le DUE esigenze in tensione (target vs densita) e le tre regole che le tengono insieme. (2) Ombre: le utility NUDE shadow-sm/md/lg rendevano i default Tailwind e non i token, perche Tailwind v4 inlinea il proprio valore nell'utility. Risolto con 3 righe in @theme inline verso alias additivi --elevation-1/2/3 (--shadow-sm: var(--shadow-sm) sarebbe circolare). Verificato in light E dark: utility nuda identica a shadow-[var(--shadow-sm)]. Censimento CORRETTO: 48 nude su 18 file, non 146 su 40 — il regex ingenuo matchava dentro --shadow-sm."
+  },
+  {
+    "date": "2026-07-25",
+    "scope": "app",
+    "macrostructure": "Workbench (variante campo)",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Portale operatore /r/[token] — l'ultima superficie mai passata dal sistema, e la sola non-desktop (telefono, guanti, sole, offline). Emendato il sistema invece di piegare la pagina: nuova size Button 'touch' (48px, additiva: alzare md/lg avrebbe cambiato 16 moduli), size passante su ConfirmDialog, 3 token additivi per il visore scanner (--scanner-veil/-chip/--on-scanner, identici nei due temi come --phone-bezel), Toaster montato nel portale, nuova sezione DESIGN.md §7quater 'Portale operatore (campo)' con la tabella di densita INVERTITA. Poi 25 file allineati in 4 cluster paralleli: ~70 button/select/input grezzi -> primitivi, 16 emoji + 6 SVG a mano -> lucide, 4 alert() -> toast, 2 confirm() -> ConfirmDialog, raggi/ombre in scala, via i 10px e il bold urlato. Scoperto e bonificato il token FANTASMA --warning-fg (6 occorrenze che rendevano l'hex #92400e fisso nei due temi, propagate per copia da un piano offline-first di giugno) + --brand-text-soft. Registrata la regola: su tono warning il badge di STATO usa --status-warn, il banner di TESTO usa --brand-text-main. Verificato sul dataless reale a 320/375/414 in light e dark: 0 sotto 44px, zero glifi residui, bottoni foto da ~32px a 54-56px."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Cronoprogramma — chiusura dei 9 finding dell'audit post-redesign (5 major, 4 minor), sui file lasciati fuori dal primo giro. SquadraCard: badge/occhiello ⛓→lucide Link2, capo squadra ★/☆→Star (fill/outline), Sciogli e togli-membro ✕→X, x/N squadra e ×N in font-mono tabular-nums. CronoCalendarView: occhiello/overlay drag ⛓→Link2, contatore senza-assegnazione ⚠→AlertTriangle, caret ▾/▸→ChevronDown/ChevronRight. CronoToolbar: frecce periodo ‹/›→ChevronLeft/ChevronRight, conteggio reperibili in mono. OperatorCard: bottoni M/X→Pencil/Trash2 con focus-visible ring + type=button + group-focus-within (erano una trappola tastiera: invisibili e senza fuoco), taskCount in mono. AssenzaDialog: shadow-2xl→--shadow-lg, select/input grezzi→primitivi Select/Input. CronoprogrammaWorkspace: solo shadow-2xl→--shadow-lg sul dropChoiceDialog (i window.confirm DnD restano, deroga confermata). Verifica: tsc consolidato pulito (2 preesistenti template-rapportini), eslint verde sui 6 file, /dashboard 0 console error, screenshot confermano 0 glifi chrome residui nel testo visibile (residualGlyphsInVisibleText: []), focus-visible su OperatorCard verificato, AssenzaDialog verificato a schermo (shell token + Select/Input primitivi)."
+  },
+  {
+    "date": "2026-07-24",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Redesign Cronoprogramma (/dashboard) — allineamento Cockpit dei residui, in gran parte post-merge PR #169. EditAssignmentDialog + NewAssignmentDialog (modali fatte a mano): overlay `bg-[oklch(0_0_0/0.6)]` CABLATO → var(--overlay) (la violazione peggiore), rounded-2xl → --radius-xl, shadow-xl → --shadow-lg, <select> grezzi → primitivo Select, <input> note → Input, bottoni footer → Button (Salva variant=primary, Annulla outline, Elimina danger). AnnuncioSquadre: glifi UI-chrome ✨/✕/⛓(badge) → lucide Sparkles/X/Link2; prosa tutorial illustrativa lasciata. Lasciati intatti: i window.confirm dei handler DnD (deliberati, async romperebbe il drag), OperatorCard (rounded-lg=10px in scala + shadow-sm convenzione). Logica/fetch/DnD/copy invariati. Verifica: tsc consolidato pulito (2 preesistenti template-rapportini), eslint verde sui file toccati, NewAssignmentDialog verificato a schermo (radius 14px, overlay token, 2 Select primitivi, Salva zaffiro lab(31 8 -49)), /dashboard 0 console error."
+  },
+  {
     "date": "2026-07-24",
     "scope": "app",
     "macrostructure": "Launcher grid",
@@ -94,5 +142,13 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Pianificazione (/hub/mappa?vista=pianifica) — testa di modulo standard, gerarchia dei comandi, ordine testa→fasi→lavoro, proporzioni per fase"
+  },
+  {
+    "date": "2026-07-25",
+    "scope": "app",
+    "macrostructure": "Workbench",
+    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
+    "enrichment": "none",
+    "brief": "Cornice di pagina — la shell diventa l'unico proprietario del bordo: 56px per lato (32 shell + 24 modulo) -> 20px, cap max-w-6xl/7xl rimossi da 13 moduli, shell a max-w-[2560px], launcher a 5 colonne oltre 2000px. Emendato DESIGN.md §8 (contenitore + trappola dei breakpoint misti)."
   }
 ]

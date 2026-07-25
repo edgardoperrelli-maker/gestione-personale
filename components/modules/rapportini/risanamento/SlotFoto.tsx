@@ -1,5 +1,8 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 import { useRef, useState } from 'react';
+import { Camera, Check, Images } from 'lucide-react';
+import Button from '@/components/Button';
 import { comprimiImmagine } from '../CampoFoto';
 
 /** Uno slot foto: scatta/libreria → comprime → carica via foto-campo → onUploaded(path). */
@@ -30,10 +33,15 @@ export function SlotFoto({
   };
 
   return (
-    <div className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
-      <div className="mb-1 flex items-center justify-between">
+    <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+      <div className="mb-1 flex items-center justify-between gap-2">
         <span className="text-sm font-medium text-[var(--brand-text-main)]">{etichetta}{obbligatoria ? ' *' : ''}</span>
-        {valore ? <span className="text-xs text-[var(--success)]">✓ caricata</span> : err ? <span className="text-xs text-[var(--danger)]">errore</span> : null}
+        {valore ? (
+          <span className="inline-flex shrink-0 items-center gap-1 text-xs text-[var(--success)]">
+            <Check className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />
+            caricata
+          </span>
+        ) : err ? <span className="shrink-0 text-xs text-[var(--danger)]">errore</span> : null}
       </div>
       {valore && (
         <a href={`/api/r/${token}/foto-campo?path=${encodeURIComponent(valore)}`} target="_blank" rel="noreferrer" className="mb-2 block">
@@ -41,14 +49,21 @@ export function SlotFoto({
             src={`/api/r/${token}/foto-campo?path=${encodeURIComponent(valore)}`}
             alt={etichetta}
             loading="lazy"
-            className="h-28 w-full rounded-lg object-cover"
+            className="h-28 w-full rounded-[var(--radius-md)] object-cover"
           />
         </a>
       )}
+      {/* I due comandi più premuti del portale: taglia `touch` (48px) obbligata (DESIGN.md §7quater). */}
       {!disabilitato && (
         <div className="flex gap-2">
-          <button type="button" disabled={busy} onClick={() => camRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">📷 {busy ? '…' : 'Scatta'}</button>
-          <button type="button" disabled={busy} onClick={() => libRef.current?.click()} className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-xs font-semibold disabled:opacity-50">🖼️ Libreria</button>
+          <Button variant="outline" size="touch" disabled={busy} onClick={() => camRef.current?.click()} className="flex-1">
+            <Camera className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />
+            {busy ? 'Carico…' : 'Scatta'}
+          </Button>
+          <Button variant="outline" size="touch" disabled={busy} onClick={() => libRef.current?.click()} className="flex-1">
+            <Images className="h-5 w-5 shrink-0" strokeWidth={1.8} aria-hidden />
+            Libreria
+          </Button>
         </div>
       )}
       <input ref={camRef} type="file" accept="image/*" capture="environment" aria-hidden tabIndex={-1}

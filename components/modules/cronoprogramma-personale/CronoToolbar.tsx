@@ -1,4 +1,5 @@
 'use client';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/Button';
 import ObjectHeader from '@/components/ui/ObjectHeader';
 import MultiSelect from '@/components/ui/MultiSelect';
@@ -49,13 +50,13 @@ export default function CronoToolbar({
               rigido da 10rem sfondava la pagina in orizzontale (gate 34). */}
           <div className="flex flex-wrap items-center gap-1.5">
             <Button onClick={onPrev} size="sm" aria-label="Periodo precedente">
-              ‹
+              <ChevronLeft size={16} aria-hidden />
             </Button>
             <span className="whitespace-nowrap text-center text-sm font-semibold tracking-tight text-[var(--brand-text-main)] sm:min-w-[10rem]">
               {title}
             </span>
             <Button onClick={onNext} size="sm" aria-label="Periodo successivo">
-              ›
+              <ChevronRight size={16} aria-hidden />
             </Button>
             <Button onClick={onToday} variant="soft" size="sm">
               Oggi
@@ -78,7 +79,7 @@ export default function CronoToolbar({
           {reperibili > 0 && (
             <span className="rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-primary-soft)] px-3 py-1.5 text-sm">
               <span className="text-[var(--brand-text-muted)]">Reperibili </span>
-              <span className="font-semibold text-[var(--primary-text)]">{reperibili}</span>
+              <span className="font-mono tabular-nums font-semibold text-[var(--primary-text)]">{reperibili}</span>
             </span>
           )}
 

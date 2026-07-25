@@ -5,6 +5,9 @@ import { isTerritoryValidOnDay } from '@/lib/territories';
 import type { Assignment, Staff, Activity, Territory } from '@/types';
 import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
 import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
+import Select from '@/components/ui/Select';
+import Input from '@/components/Input';
+import Button from '@/components/Button';
 
 export default function EditAssignmentDialog({
   assignment,
@@ -179,8 +182,8 @@ export default function EditAssignmentDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
-      <div className="absolute inset-0 bg-[oklch(0_0_0/0.6)]" onClick={onClose} />
-      <div className="relative w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl">
+      <div className="absolute inset-0 bg-[var(--overlay)]" onClick={onClose} />
+      <div className="relative w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]">
         <div className="px-4 py-3 border-b border-[var(--brand-border)] flex items-center justify-between">
           <div className="text-sm text-[var(--brand-text-muted)]">Modifica assegnazione</div>
           <div className="text-base font-semibold">ID: {assignment.id.slice(0, 8)}…</div>
@@ -199,8 +202,7 @@ export default function EditAssignmentDialog({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Operatore *</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+              <Select
                 value={staffId}
                 onChange={(e) => setStaffId(e.target.value)}
                 autoFocus
@@ -209,7 +211,7 @@ export default function EditAssignmentDialog({
                 {staffSorted.map((s) => (
                   <option key={s.id} value={s.id}>{s.display_name}</option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <div className="text-sm md:col-span-2">
@@ -246,8 +248,7 @@ export default function EditAssignmentDialog({
 
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+              <Select
                 value={terrId}
                 onChange={(e) => setTerrId(e.target.value)}
               >
@@ -255,7 +256,7 @@ export default function EditAssignmentDialog({
                 {terrSorted.map((t) => (
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="text-sm flex items-center gap-2 mt-6 md:mt-0">
@@ -271,8 +272,7 @@ export default function EditAssignmentDialog({
             {rep && (
               <label className="text-sm md:col-span-2">
                 <span className="block text-[var(--brand-text-muted)] mb-1">Zona reperibilità (P.I.)</span>
-                <select
-                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+                <Select
                   value={zonaRep}
                   onChange={(e) => setZonaRep(e.target.value)}
                 >
@@ -280,15 +280,14 @@ export default function EditAssignmentDialog({
                   {FOGLIE_REPERIBILITA.map((f) => (
                     <option key={f.codice} value={f.codice}>{f.label}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
           </div>
 
           <label className="text-sm block">
             <span className="block text-[var(--brand-text-muted)] mb-1">Note</span>
-            <input
-              className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)]"
+            <Input
               value={notes}
               onChange={(e) => setNotes(e.target.value)}
               placeholder="Opzionale"
@@ -298,29 +297,29 @@ export default function EditAssignmentDialog({
           {err && <div className="text-sm text-[var(--danger)]">{err}</div>}
 
           <div className="px-0 pt-3 border-t border-[var(--brand-border)] flex items-center justify-end gap-2">
-            <button
+            <Button
+              variant="outline"
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]"
               disabled={saving || busy}
             >
               Annulla
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="danger"
               type="button"
               onClick={handleDelete}
               disabled={busy}
-              className="px-3 py-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]"
             >
               Elimina
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               disabled={!canSave}
-              className={`px-4 py-1.5 rounded-lg text-[var(--on-primary)] ${canSave ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
             >
               {saving ? 'Salvo…' : 'Salva'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

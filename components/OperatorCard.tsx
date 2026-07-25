@@ -1,4 +1,5 @@
 'use client';
+import { Pencil, Trash2 } from 'lucide-react';
 import type { Assignment } from '@/types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 
@@ -47,30 +48,35 @@ export default function OperatorCard({
             className="block min-w-0 truncate whitespace-nowrap font-semibold uppercase tracking-tight"
             title={a.staff?.display_name ?? '-'}
           >
-            {`${a.staff?.display_name ?? '-'}${taskCount != null && taskCount > 0 ? ` (${taskCount})` : ''}`}
+            {a.staff?.display_name ?? '-'}
+            {taskCount != null && taskCount > 0 && (
+              <> (<span className="font-mono tabular-nums">{taskCount}</span>)</>
+            )}
           </span>
         </div>
 
-        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100">
+        <div className="flex shrink-0 items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onEdit(a);
             }}
-            className="rounded chip-overlay px-1.5 py-px text-[9px] font-medium"
+            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Modifica"
           >
-            M
+            <Pencil size={12} aria-hidden />
           </button>
           <button
+            type="button"
             onClick={(e) => {
               e.stopPropagation();
               onDelete();
             }}
-            className="rounded chip-overlay px-1.5 py-px text-[9px] font-medium text-[var(--danger)]"
+            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[9px] font-medium text-[var(--danger)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Elimina"
           >
-            X
+            <Trash2 size={12} aria-hidden />
           </button>
         </div>
       </div>

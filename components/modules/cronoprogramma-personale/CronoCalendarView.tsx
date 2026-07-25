@@ -1,6 +1,7 @@
 'use client';
 
 import { type DragEvent, useEffect, useMemo, useRef, useState } from 'react';
+import { Link2, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
 import OperatorCard from '@/components/OperatorCard';
 import { isItalyHoliday, isWeekend } from '@/utils/date-it';
 import type { Assignment, Staff } from '@/types';
@@ -345,7 +346,7 @@ function SingoloCard({
         className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-[var(--shadow-sm)] group-hover/s:flex"
         style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
       >
-        ⛓
+        <Link2 size={12} aria-hidden />
       </div>
       {/* Feedback ben visibile mentre trascini un'altra card sopra questa */}
       {over && (
@@ -353,8 +354,8 @@ function SingoloCard({
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)', outline: '2px solid var(--brand-primary)', outlineOffset: '1px' }}
         >
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
-            ⛓ Aggancia
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+            <Link2 size={12} aria-hidden /> Aggancia
           </span>
         </div>
       )}
@@ -568,7 +569,7 @@ function DayCell(props: {
                 title={`${unassigned} operator${unassigned === 1 ? 'e' : 'i'} senza assegnazione`}
                 className="inline-flex items-center gap-0.5 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
               >
-                ⚠ {unassigned}
+                <AlertTriangle size={12} aria-hidden /> {unassigned}
               </span>
             );
           })()}
@@ -629,7 +630,7 @@ function DayCell(props: {
                 title={aperte ? 'Riassumi le assenze' : 'Mostra le assenze'}
                 className="flex w-full items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-1 text-left text-[11px] font-medium text-[var(--brand-text-muted)] transition hover:border-[var(--brand-border-strong)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               >
-                <span className="text-[9px] leading-none">{aperte ? '▾' : '▸'}</span>
+                <span className="inline-flex items-center leading-none">{aperte ? <ChevronDown size={12} aria-hidden /> : <ChevronRight size={12} aria-hidden />}</span>
                 <span className="truncate">
                   <span className="font-semibold text-[var(--brand-text-main)]">{dayAssenze.length}</span>{' '}
                   {dayAssenze.length === 1 ? 'assente' : 'assenti'} · {dettaglio}
@@ -680,7 +681,7 @@ function DayCell(props: {
                       style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
                       title={collapsed ? 'Espandi territorio' : 'Comprimi territorio'}
                     >
-                      <span className="text-[9px] leading-none" style={{ color: s.text }}>{collapsed ? '▸' : '▾'}</span>
+                      <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
                       <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
                         {g.terrName || 'Senza territorio'}{collapsed ? ` (${g.items.length})` : ''}
@@ -711,7 +712,7 @@ function DayCell(props: {
                 style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
                 title={collapsed ? 'Espandi magazzino' : 'Comprimi magazzino'}
               >
-                <span className="text-[9px] leading-none" style={{ color: s.text }}>{collapsed ? '▸' : '▾'}</span>
+                <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
                 <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
                   Magazzino ({inMagazzino.length})

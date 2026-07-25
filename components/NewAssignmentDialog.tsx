@@ -7,6 +7,9 @@ import type { Assignment, Staff, Activity, Territory } from '@/types';
 import type { CostCenter } from '@/constants/cost-centers';
 import { resolveCostCenter, type CostCenterRange } from '@/lib/costCenter';
 import { FOGLIE_REPERIBILITA } from '@/lib/pi/foglie';
+import Select from '@/components/ui/Select';
+import Input from '@/components/Input';
+import Button from '@/components/Button';
 
 export default function NewAssignmentDialog({
   dayId, iso, staffList, actList, terrList, costCenterRangesByStaff, onClose, onCreated,
@@ -233,10 +236,10 @@ if (ins.error || !ins.data) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div
-        className="absolute inset-0 bg-[oklch(0_0_0/0.6)]"
+        className="absolute inset-0 bg-[var(--overlay)]"
         onClick={() => { if (!saving) onClose(); }}
       />
-      <div className="relative w-full max-w-lg rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-xl">
+      <div className="relative w-full max-w-lg rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-lg)]">
         <div className="px-4 py-3 border-b border-[var(--brand-border)] flex items-center justify-between">
           <div className="text-sm text-[var(--brand-text-muted)]">Nuova assegnazione</div>
           <div className="text-base font-semibold">{iso}</div>
@@ -249,8 +252,7 @@ if (ins.error || !ins.data) {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
 <label className="text-sm">
   <span className="block text-[var(--brand-text-muted)] mb-1">Operatore *</span>
-  <select
-    className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+  <Select
     value={staffId}
     onChange={(e)=>setStaffId(e.target.value)}
     disabled={saving}
@@ -260,7 +262,7 @@ if (ins.error || !ins.data) {
     {staffSorted.map(s=>(
       <option key={s.id} value={s.id}>{s.display_name}</option>
     ))}
-  </select>
+  </Select>
 </label>
 
             <div className="text-sm md:col-span-2">
@@ -293,8 +295,7 @@ if (ins.error || !ins.data) {
             </div>
             <label className="text-sm">
               <span className="block text-[var(--brand-text-muted)] mb-1">Territorio</span>
-              <select
-                className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+              <Select
                 value={territoryId}
                 onChange={(e)=>setTerritoryId(e.target.value)}
                 disabled={saving}
@@ -303,7 +304,7 @@ if (ins.error || !ins.data) {
                 {terrSorted.map(t=>(
                   <option key={t.id} value={t.id}>{t.name}</option>
                 ))}
-              </select>
+              </Select>
             </label>
 
             <label className="text-sm flex items-center gap-2 mt-6 md:mt-0">
@@ -320,8 +321,7 @@ if (ins.error || !ins.data) {
             {reperibile && (
               <label className="text-sm md:col-span-2">
                 <span className="block text-[var(--brand-text-muted)] mb-1">Zona reperibilità (P.I.)</span>
-                <select
-                  className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)]"
+                <Select
                   value={zonaReperibilita}
                   onChange={(e)=>setZonaReperibilita(e.target.value)}
                   disabled={saving}
@@ -330,15 +330,14 @@ if (ins.error || !ins.data) {
                   {FOGLIE_REPERIBILITA.map((f) => (
                     <option key={f.codice} value={f.codice}>{f.label}</option>
                   ))}
-                </select>
+                </Select>
               </label>
             )}
           </div>
 
           <label className="text-sm block">
             <span className="block text-[var(--brand-text-muted)] mb-1">Note</span>
-            <input
-              className="w-full border border-[var(--brand-border)] rounded-lg px-3 py-2 bg-[var(--brand-surface)] text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)]"
+            <Input
               value={notes}
               onChange={(e)=>setNotes(e.target.value)}
               placeholder="Opzionale"
@@ -381,21 +380,21 @@ if (ins.error || !ins.data) {
 
 <div className="px-0 pt-3 border-t border-[var(--brand-border)] flex items-center justify-end gap-2">
 
-            <button
+            <Button
+              variant="outline"
               type="button"
               onClick={onClose}
-              className="px-3 py-1.5 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] hover:bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]"
               disabled={saving}
             >
               Annulla
-            </button>
-            <button
+            </Button>
+            <Button
+              variant="primary"
               type="submit"
               disabled={!canSave}
-              className={`px-4 py-1.5 rounded-lg text-[var(--on-primary)] ${canSave ? 'bg-[var(--brand-primary)] hover:bg-[var(--brand-primary-hover)]' : 'bg-[var(--brand-text-subtle)] cursor-not-allowed'}`}
             >
               {saving ? 'Salvo…' : 'Salva'}
-            </button>
+            </Button>
           </div>
         </form>
       </div>

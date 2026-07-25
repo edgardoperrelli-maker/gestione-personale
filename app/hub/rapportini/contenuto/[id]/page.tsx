@@ -31,12 +31,12 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
 
   if (!rap) {
     return (
-      <main className="mx-auto max-w-2xl px-6 py-10 text-center">
+      <div className="mx-auto max-w-2xl py-6 text-center">
         <p className="text-sm" style={{ color: 'var(--brand-text-muted)' }}>Rapportino non trovato.</p>
         <Link href="/hub/mappa?vista=riepilogo" className="mt-3 inline-block text-sm" style={{ color: 'var(--brand-primary)' }}>
           ← Torna al riepilogo
         </Link>
-      </main>
+      </div>
     );
   }
 
@@ -59,7 +59,7 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
   const voci = (vociRows ?? []) as VoceEditabile[];
 
   return (
-    <main className="mx-auto max-w-6xl space-y-4 px-6 py-8">
+    <div className="mx-auto max-w-6xl space-y-4">
       <div>
         <Link href="/hub/mappa?vista=riepilogo" className="text-sm" style={{ color: 'var(--brand-primary)' }}>
           ← Riepilogo rapportini
@@ -79,6 +79,6 @@ export default async function ContenutoRapportinoPage({ params }: { params: Prom
       ) : (
         <RapportinoEditor rapportinoId={id} vociIniziali={voci} campi={campi} />
       )}
-    </main>
+    </div>
   );
 }

@@ -1,6 +1,9 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Camera, Images } from 'lucide-react';
+import Button from '@/components/Button';
 import { dimensioniTarget, TENTATIVI_COMPRESSIONE, MAX_FOTO_BYTES } from '@/lib/interventi/manuali/compressioneFoto';
 
 /** Ricodifica il canvas in JPEG alla qualità data (Promise-wrapper di `toBlob`). */
@@ -94,7 +97,7 @@ export function CampoFoto({
       <div className="mb-2 flex items-center gap-2">
         <span className="text-sm font-semibold text-[var(--brand-text-main)]">{campo.etichetta}</span>
         {campo.obbligatoria && (
-          <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-xs font-bold text-[var(--danger)]">
+          <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-xs font-semibold text-[var(--danger)]">
             obbligatoria
           </span>
         )}
@@ -137,31 +140,38 @@ export function CampoFoto({
       />
 
       <div className="flex flex-wrap gap-2">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="touch"
           disabled={disabilitato || elaboro}
           onClick={() => scattoRef.current?.click()}
-          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
         >
-          {preview ? 'Rifai scatto' : '📷 Scatta'}
-        </button>
-        <button
-          type="button"
+          <Camera className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          {preview ? 'Rifai scatto' : 'Scatta'}
+        </Button>
+        <Button
+          variant="outline"
+          size="touch"
           disabled={disabilitato || elaboro}
           onClick={() => libreriaRef.current?.click()}
-          className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-semibold text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] disabled:opacity-50"
         >
-          🖼️ Libreria
-        </button>
+          <Images className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          Libreria
+        </Button>
         {preview && !disabilitato && (
-          <button
-            type="button"
+          /* Danger "quieto" (bordo + testo, non fill): due utility arbitrarie dello stesso
+             gruppo-colore competerebbero in cascata con quelle della variante `outline`,
+             l'inline style col token è invece deterministico. */
+          <Button
+            variant="outline"
+            size="touch"
             disabled={elaboro}
             onClick={() => onChange(null)}
-            className="rounded-lg border border-[var(--danger)] px-3 py-1.5 text-sm font-semibold text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-50"
+            style={{ borderColor: 'var(--danger)', color: 'var(--danger)' }}
+            className="hover:bg-[var(--danger-soft)]"
           >
             Rimuovi
-          </button>
+          </Button>
         )}
         {elaboro && <span className="self-center text-xs text-[var(--brand-text-muted)]">Elaborazione…</span>}
       </div>

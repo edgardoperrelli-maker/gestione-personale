@@ -17,13 +17,10 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
-  useEffect(() => {
-    const aveva = document.documentElement.classList.contains('light');
-    document.documentElement.classList.add('light');
-    return () => {
-      if (!aveva) document.documentElement.classList.remove('light');
-    };
-  }, []);
+  /* Qui c'era un effetto che forzava `.light` all'ingresso e lo ripristinava all'uscita:
+     questa vista è pensata per essere proiettata, e sul proiettore il fondo scuro si
+     legge male. Con l'abbandono del tema scuro (2026-07-25) l'app è chiara sempre,
+     quindi l'effetto era diventato una manipolazione del DOM che non cambiava nulla. */
 
   useEffect(() => {
     let vivo = true;

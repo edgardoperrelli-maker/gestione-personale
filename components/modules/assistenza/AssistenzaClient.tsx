@@ -145,7 +145,7 @@ export default function AssistenzaClient() {
   }, [rapportini, filtroOp, q, filtroAttivo]);
 
   return (
-    <div className="flex flex-col gap-5 p-4 sm:p-6">
+    <div className="flex flex-col gap-5">
       <ObjectHeader
         title="Assistenza"
         sub="Assisti gli operatori sul rapportino, in diretta e in sola lettura. Sessioni multiple in parallelo."

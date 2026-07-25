@@ -1,6 +1,9 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useEffect, useState } from 'react';
+import { AlertTriangle, Ban, ClipboardList, ScanLine } from 'lucide-react';
+import Button from '@/components/Button';
 import { ScannerMisuratore } from '@/components/modules/rapportini/risanamento/ScannerMisuratore';
 import type { CensitoMisuratore } from '@/lib/limitazione/autofillAnagrafica';
 import { matchVociMatricola, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
@@ -126,28 +129,38 @@ export function CercaMatricolaLimitazione({
         <input
           type="text"
           inputMode="text"
-          placeholder="Matricola misuratore"
+          // Placeholder corto: in Geist Mono "Matricola misuratore" non entra nel campo
+          // accanto ai due comandi da 48px (veniva troncato).
+          placeholder="Matricola"
           aria-label="Matricola"
           value={q}
           onChange={(e) => { setQ(e.target.value); setCercato(false); }}
           onKeyDown={(e) => { if (e.key === 'Enter') void cerca(q); }}
-          className="min-w-0 flex-1 rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
+          className="min-w-0 flex-1 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 font-mono text-base tabular-nums text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
         />
-        <button type="button" onClick={() => setScanner(true)} className="shrink-0 rounded-lg border border-[var(--brand-primary)] px-3 py-2 text-sm font-semibold text-[var(--brand-primary)]">📷</button>
-        <button type="button" disabled={cercando || !q.trim()} onClick={() => void cerca(q)} className="shrink-0 rounded-lg bg-[var(--brand-primary)] px-3 py-2 text-sm font-semibold text-[var(--on-primary)] disabled:opacity-50">{cercando ? '…' : 'Cerca'}</button>
+        <Button variant="soft" size="touch" onClick={() => setScanner(true)} aria-label="Scansiona la matricola" title="Scansiona la matricola" className="shrink-0">
+          <ScanLine className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+        </Button>
+        <Button variant="primary" size="touch" disabled={cercando || !q.trim()} loading={cercando} onClick={() => void cerca(q)} className="shrink-0">
+          Cerca
+        </Button>
       </div>
 
       {errore && <p className="text-sm font-medium text-[var(--danger)]">{errore}</p>}
 
       {altroOperatore && !bloccato && (
-        <div className="rounded-xl border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm font-medium text-[var(--danger)]">
-          ⚠️ Matricola assegnata a <b>{altroOperatore}</b> — contatta l&apos;ufficio per fartela assegnare.
+        <div className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm font-medium text-[var(--danger)]">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          <span>Matricola assegnata a <b>{altroOperatore}</b> — contatta l&apos;ufficio per fartela assegnare.</span>
         </div>
       )}
 
       {bloccato && (
-        <div className="rounded-xl border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">
-          <p className="font-bold">⛔ Intervento già eseguito su questo misuratore.</p>
+        <div className="rounded-[var(--radius-lg)] border-2 border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--danger)]">
+          <p className="flex items-start gap-2 font-semibold">
+            <Ban className="mt-0.5 h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            <span>Intervento già eseguito su questo misuratore.</span>
+          </p>
           {(bloccato.odl || bloccato.esecutore) && (
             <p className="mt-1 text-xs">
               {bloccato.odl ? <>ODL <b>{bloccato.odl}</b></> : null}
@@ -159,29 +172,34 @@ export function CercaMatricolaLimitazione({
       )}
 
       {cercato && !bloccato && (
-        <div className="space-y-2 rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+        <div className="space-y-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
           {misuratore && (altroOperatore || daVerificare) ? (
             <>
               {daVerificare && (
-                <p className="rounded-lg border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] px-3 py-2 text-xs font-semibold text-[var(--warning-fg,#92400e)]">
+                <p className="rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-text-main)]">
                   Offline: dati dal censimento locale. L&apos;assegnazione verrà verificata alla sincronizzazione.
                 </p>
               )}
-              <button type="button" onClick={() => onTrovato(misuratore)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
+              <Button variant="primary" size="touch" onClick={() => onTrovato(misuratore)} className="w-full">
                 Procedi (compila i dati)
-              </button>
+              </Button>
             </>
           ) : (
             <>
               {suggVoci.length > 0 && (
                 <>
-                  <p className="text-xs font-semibold text-[var(--brand-text-muted)]">📋 Già nel tuo rapportino:</p>
+                  <p className="flex items-center gap-1.5 text-xs font-semibold text-[var(--brand-text-muted)]">
+                    <ClipboardList className="h-3.5 w-3.5 shrink-0" strokeWidth={1.8} aria-hidden />
+                    Già nel tuo rapportino:
+                  </p>
+                  {/* Righe-elenco: restano `<button>` a mano (contenuto su due colonne, allineato a
+                      sinistra e a piena larghezza — il primitivo le stringerebbe). */}
                   <ul className="space-y-1">
                     {suggVoci.map((s) => (
                       <li key={s.id}>
-                        <button type="button" onClick={() => onApriAssegnato(s.id)} className="w-full rounded-lg border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] hover:bg-[var(--brand-primary-soft)]">
-                          <span className="font-semibold">{s.matricola}</span>
-                          <span className="ml-2 text-xs text-[var(--brand-text-muted)]">{[s.via, s.comune].filter(Boolean).join(' ')}</span>
+                        <button type="button" onClick={() => onApriAssegnato(s.id)} className="flex min-h-[48px] w-full items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:bg-[var(--brand-primary-soft)]">
+                          <span className="font-mono font-semibold tabular-nums">{s.matricola}</span>
+                          <span className="ml-2 min-w-0 truncate text-xs text-[var(--brand-text-muted)]">{[s.via, s.comune].filter(Boolean).join(' ')}</span>
                         </button>
                       </li>
                     ))}
@@ -194,9 +212,9 @@ export function CercaMatricolaLimitazione({
                   <ul className="space-y-1">
                     {suggerimenti.map((s) => (
                       <li key={s.matricola}>
-                        <button type="button" onClick={() => onTrovato(s)} className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] hover:border-[var(--brand-primary)]">
-                          <span className="font-semibold">{s.matricola}</span>
-                          <span className="ml-2 text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
+                        <button type="button" onClick={() => onTrovato(s)} className="flex min-h-[48px] w-full items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:border-[var(--brand-primary)]">
+                          <span className="font-mono font-semibold tabular-nums">{s.matricola}</span>
+                          <span className="ml-2 min-w-0 truncate text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
                         </button>
                       </li>
                     ))}
@@ -204,22 +222,22 @@ export function CercaMatricolaLimitazione({
                 </>
               )}
               {offline && (
-                <p className="rounded-lg border border-[var(--warning-fg,#92400e)] bg-[var(--warning-soft,#fef3c7)] px-3 py-2 text-xs font-semibold text-[var(--warning-fg,#92400e)]">
+                <p className="rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 text-xs font-semibold text-[var(--brand-text-main)]">
                   Offline: ricerca dal censimento locale. Se non trovi la matricola inseriscila a mano (verrà verificata alla sincronizzazione).
                 </p>
               )}
               {suggVoci.length === 0 && suggerimenti.length === 0 && !offline && (
                 <p className="text-sm font-medium text-[var(--brand-text-main)]">Matricola non censita.</p>
               )}
-              <button type="button" onClick={() => onManuale(q.trim())} className="w-full rounded-lg border border-dashed border-[var(--brand-border)] px-3 py-2 text-sm font-semibold text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)]">
+              <Button variant="outline" size="touch" onClick={() => onManuale(q.trim())} className="w-full border-dashed">
                 Inserisci a mano questa matricola
-              </button>
+              </Button>
             </>
           )}
         </div>
       )}
 
-      <button type="button" onClick={onIndietro} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">Indietro</button>
+      <Button variant="outline" size="touch" onClick={onIndietro}>Indietro</Button>
 
       {scanner && (
         <ScannerMisuratore onCodice={(codice) => { setScanner(false); setQ(codice); void cerca(codice); }} onChiudi={() => setScanner(false)} />

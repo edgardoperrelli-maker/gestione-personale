@@ -1,6 +1,7 @@
 'use client';
 
 import { type DragEvent, useState } from 'react';
+import { Link2, Star, X } from 'lucide-react';
 import type { Assignment } from '@/types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { membriPresenti, type SquadraGroup } from './squadre';
@@ -95,8 +96,8 @@ export default function SquadraCard({
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)' }}
         >
-          <span className="rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
-            ⛓ Aggiungi alla squadra
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+            <Link2 size={12} aria-hidden /> Aggiungi alla squadra
           </span>
         </div>
       )}
@@ -106,7 +107,7 @@ export default function SquadraCard({
           className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wide"
           style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)', border: '1px solid var(--brand-primary-border)' }}
         >
-          ⛓ Squadra ×{totale}
+          <Link2 size={12} aria-hidden /> Squadra <span className="font-mono tabular-nums">×{totale}</span>
         </span>
         <div className="flex items-center gap-1">
           {group.target != null && (
@@ -119,7 +120,7 @@ export default function SquadraCard({
               }
               title={sotto ? 'Squadra sotto organico' : 'Organico consigliato'}
             >
-              {presenti}/{group.target}
+              <span className="font-mono tabular-nums">{presenti}/{group.target}</span>
             </span>
           )}
           <button
@@ -128,11 +129,11 @@ export default function SquadraCard({
               e.stopPropagation();
               onSciogli(group.squadraId);
             }}
-            className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             style={{ color: 'var(--danger)' }}
             title="Sciogli la squadra"
           >
-            Sciogli ✕
+            Sciogli <X size={12} aria-hidden />
           </button>
         </div>
       </div>
@@ -161,11 +162,11 @@ export default function SquadraCard({
                   e.stopPropagation();
                   onSetCapo(group.squadraId, m.id);
                 }}
-                className="shrink-0 rounded-[var(--radius-sm)] text-[10px] leading-none transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                className="inline-flex shrink-0 items-center rounded-[var(--radius-sm)] leading-none transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 style={{ color: capo ? 'var(--brand-primary)' : 'var(--brand-text-muted)', opacity: capo ? 1 : 0.5 }}
                 title={capo ? 'Capo squadra' : 'Imposta come capo'}
               >
-                {capo ? '★' : '☆'}
+                {capo ? <Star size={12} fill="currentColor" aria-hidden /> : <Star size={12} aria-hidden />}
               </button>
               {m.reperibile && (
                 <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold leading-none" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
@@ -204,11 +205,11 @@ export default function SquadraCard({
                     e.stopPropagation();
                     onRimuoviMembro(group.squadraId, m.id);
                   }}
-                  className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   style={{ color: 'var(--danger)' }}
                   title="Togli dalla squadra"
                 >
-                  ✕
+                  <X size={12} aria-hidden />
                 </button>
               </div>
             </div>

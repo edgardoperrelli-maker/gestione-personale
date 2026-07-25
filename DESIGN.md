@@ -17,12 +17,13 @@ Principi:
 5. **Semantici calmi** (success/warning/danger), usati col contagocce.
 6. **Focus sempre visibile** (ring blu) e contrasti AA.
 
-## 2. Tema (light-first)
+## 2. Tema — **solo chiaro** (dal 2026-07-25)
 
-- Il **light è il default**: lo script inline in [`app/layout.tsx`](app/layout.tsx) aggiunge la classe `.light` su `<html>` salvo `localStorage 'theme' === 'dark'`.
-- I **valori dark** stanno in `:root`; i **valori light** in `html.light` (in `globals.css`). Aggiungendo/togliendo `.light` si commuta.
-- Il toggle è in [`components/layout/TopBar.tsx`](components/layout/TopBar.tsx) (`toggleTheme`).
-- **Ogni token va definito in ENTRAMBI i blocchi** (`:root` e `html.light`). Mai rimuovere/rinominare un token esistente: si cambia solo il *valore*; i nuovi token sono **additivi**.
+- **L'app è chiara e sola.** `<html className="light">` è scritta staticamente in [`app/layout.tsx`](app/layout.tsx): niente script inline, niente `localStorage`, niente lampo di tema al primo paint. Il **selettore di tema è stato rimosso** dal TopBar — un interruttore con una sola posizione è peggio di nessun interruttore. Anche `themeColor` (barra browser/PWA) ha un solo valore.
+- **I valori scuri restano in `globals.css` (`:root`), dormienti.** Non sono stati cancellati: i token non si rimuovono (regola sotto), la rimozione sarebbe irreversibile, e riaccendere il dark resterebbe possibile togliendo la classe. Ma **nessuna schermata li usa**, quindi non vanno più verificati né mantenuti allineati: quando cambi un valore, quello che conta è il blocco `html.light`.
+- **Dove scrivere i valori**: `html.light` per ciò che si vede. Il blocco `:root` serve ancora come *fallback* (se `.light` mancasse, l'app resterebbe leggibile invece di perdere ogni colore), quindi un token nuovo va comunque dichiarato in entrambi — ma il valore che disegna è quello light.
+- **Mai rimuovere o rinominare un token esistente**: si cambia solo il *valore*; i nuovi token sono **additivi**. Vale ancora, ed è la ragione per cui i valori dark sono rimasti.
+- I componenti **mapcn** ([`components/ui/map.tsx`](components/ui/map.tsx)) risolvono il tema per conto proprio, ma leggono la classe `.light` esplicita sull'`<html>` prima di ricadere su `prefers-color-scheme`: seguono l'app, e non diventano scuri se il sistema operativo è in dark.
 
 ## 3. Colore (token)
 
@@ -71,12 +72,16 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 (+ `-soft` per i fondi; + `--on-danger`/`--on-warning` per il testo sui fill pieni.)
 
+> **Quale dei tre usare sul tono warning** (la scelta che sbaglia più spesso): su un **badge/pill di stato** il colore *è* l'informazione → `--status-warn` su `--status-warn-soft`. Su un **banner di testo lungo** il colore serve alla leggibilità, non a dire di che stato si tratta → `--brand-text-main` su `--warning-soft`. `--on-warning` **solo** sul fill pieno. Stessa logica per ok/ko.
+
 ### Grafici (recharts) e altro
 
 - `--chart-1 … --chart-8`: scala categorica sobria (blu, verde, ambra, rosso, viola, teal, ardesia, grigio). **recharts non risolve `var()` negli attributi SVG** → leggili a runtime con l'hook `useChartColors()` ([`components/modules/performance/palette.ts`](components/modules/performance/palette.ts)).
 - `--overlay`: fondo semitrasparente di modali/drawer.
 - `--on-marker`: testo leggibile sui marker mappa colorati (MapLibre, marker DOM).
 - `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
+- `--scanner-veil` / `--scanner-chip` / `--on-scanner`: visore dello scanner barcode del portale operatore ([`ScannerMisuratore.tsx`](components/modules/rapportini/risanamento/ScannerMisuratore.tsx)). Stessa logica del bezel: **valori identici in light e dark**, perché sotto c'è l'immagine della fotocamera e non una superficie del tema — schiarire il velo in light spegnerebbe il visore. Usali al posto di `bg-black/90` + `text-white`.
+- ⚠️ **`--warning-fg` non esiste** (e non va creato). Se lo trovi scritto come `var(--warning-fg,#92400e)` stai leggendo un hex cablato che ignora il tema: il testo su fondo `--warning-soft` va su **`--brand-text-main`**; `--on-warning` è solo per il fill *pieno*.
 - `--chip-overlay-bd` / `--chip-overlay-bg`: velo dei bottoncini sulle card operatore (Cronoprogramma, Mappa), il cui fondo è **dinamico** — è il colore del territorio. Si invertono col tema: su scuro il bordo schiarisce e il fondo scurisce, su chiaro il contrario, perché un bordo bianco su card chiara sparirebbe. Usali al posto di `border-white/20` + `bg-black/20`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
 
@@ -96,6 +101,9 @@ Ogni modulo apre con [`ObjectHeader`](components/ui/ObjectHeader.tsx) — titolo
 
 - **Raggi** (token in `@theme`): `--radius-sm` 4 · `--radius-md` 6 · `--radius-lg` 10 · `--radius-xl` 14. Card a `lg`/`xl`, input/bottoni a `md`, pill/badge pieni (`rounded-full`). Usa `rounded-[var(--radius-md)]` ecc.
 - **Ombre — elevazione a 3 livelli** (valori a doppio strato ambient+key, redesign premium 2026-07-22): livello 1 superfici in flusso (card, tabelle) = bordo 1px + `--shadow-sm`; livello 2 sovrapposti (popover, dropdown, datepicker) = `--shadow-md`; livello 3 modali/drawer = `--shadow-lg` + `--overlay`. **Mai glow.**
+- ✅ **`shadow-sm` nudo ORA è `--shadow-sm`** (risolto il 2026-07-25). Le tre utility sono ridefinite in `@theme inline` verso gli alias additivi `--elevation-1/2/3`, che puntano ai token: l'utility nuda e `shadow-[var(--shadow-sm)]` rendono **identiche**, e seguono il tema. Entrambe le forme sono valide; la nuda è più leggibile.
+  <br>*Perché serviva l'indirezione*: Tailwind v4 **inlinea il proprio default** nell'utility (emette valori letterali, non `var(--shadow-sm)`), quindi la definizione in `:root` non la raggiungeva. Prima del fix, in dark le utility nude rendevano alpha ~0.1 contro lo 0.32–0.40 del token: **card piatte contro il canvas**, su 48 occorrenze in 18 file (i moduli Impostazioni, Mappa e i controlli mapcn). `--shadow-sm: var(--shadow-sm)` sarebbe stato circolare: da qui gli alias.
+  <br>⚠️ Se aggiungi un livello di elevazione, definiscilo in **entrambi** i blocchi tema *e* aggiungi l'alias `--elevation-N` + la riga in `@theme inline`, altrimenti l'utility nuda torna silenziosamente al default Tailwind.
 - **Densità bilanciata**: tabelle/liste **compatte** (righe ~32–36px, padding ridotto, header sticky su `--brand-surface-muted`); form/dettaglio/modali **ariosi**.
 - **Motion**: framer-motion (`lib/animations.ts`, `PageTransitionWrapper`). Sobrio: hover lift ~1px, durate 150–200ms; overlay (Dialog, drawer, dropdown, palette) con enter/exit via `AnimatePresence` (enter 150–200ms, exit più rapido). `prefers-reduced-motion` è garantito globalmente da `components/layout/MotionProvider.tsx` (`MotionConfig reducedMotion="user"` nel root layout) — i transform collassano, resta l'opacità. Non aggiungere animazioni dove non ci sono.
 
@@ -111,7 +119,7 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 
 | Componente | Import | Note |
 |---|---|---|
-| **Button** | `@/components/Button` (default) | `variant`: `primary` \| `secondary` \| `outline` \| `ghost` \| `soft` \| `danger` \| `gold`; `size`: `sm`\|`md`\|`lg`; `animated`; **`loading`** (spinner + `aria-busy` + disabilitato). Primary usa `--on-primary`. |
+| **Button** | `@/components/Button` (default) | `variant`: `primary` \| `secondary` \| `outline` \| `ghost` \| `soft` \| `danger` \| `gold`; `size`: `sm`\|`md`\|`lg`\|**`touch`**; `animated`; **`loading`** (spinner + `aria-busy` + disabilitato). Primary usa `--on-primary`. `touch` = 48px minimi, **solo portale operatore** (§7quater): le altre tre taglie sono tarate sul mouse e `lg` si ferma a ~42px. |
 | **Card** | `{ Card, CardHeader, CardContent, CardFooter }` da `@/components/Card` | superficie bianca, bordo 1px, ombra `sm`, raggio `xl`; `interactive` (focusabile da tastiera)/`animated`. |
 | **Input** | `@/components/Input` (default) | prop `error?`; focus ring blu 2px; stili `disabled` e hover bordo. |
 | **Select** | `@/components/ui/Select` (default) | prop `error?`; stili `disabled` e hover. |
@@ -119,7 +127,7 @@ Import e props principali (le props sono compatibili coi call-site esistenti):
 | **Badge** | `@/components/Badge` (default) | `variant`: `primary`\|`muted`\|`success`\|`warning`\|`danger`\|`gold` + **stati** `ok`\|`ko`\|`warn`\|`idle`\|`progress`. |
 | **Tabs** | `@/components/Tabs` (default) | stile **underline**; props `{ value, onValueChange, items }`; `items[].disabled?`. **Solo filtri di dato in pagina** — le viste di modulo usano le fogliette (§7bis). |
 | **Dialog** | `@/components/ui/Dialog` (default) | `{ open, onClose, title, children, footer, variant, busy }`; `variant="sheet"` = bottom-sheet mobile; animato (enter/exit); `busy` blocca Escape/overlay/Chiudi. Focus-trap + ESC + `aria-modal`. |
-| **ConfirmDialog** | `@/components/ui/ConfirmDialog` (default) | conferme brand (`danger?`, `loading?`) — **sostituisce `confirm()` nativo**. |
+| **ConfirmDialog** | `@/components/ui/ConfirmDialog` (default) | conferme brand (`danger?`, `loading?`, `size?`) — **sostituisce `confirm()` nativo**. `size` passa alle due azioni: nel portale operatore va `touch` (§7quater). |
 | **Toast** | `{ toast, Toaster }` da `@/components/ui/Toast` | `toast.success/error/info('…')` — **sostituisce `alert()` nativo**. `Toaster` montato in AppShell (i portali token lo montano nel proprio layout). |
 | **Skeleton** | `@/components/ui/Skeleton` (default) | shimmer sobrio per caricamenti con forma nota; dimensioni via className. |
 | **DatePicker** | `@/components/ui/DatePicker` | calendario popover a tema; prop `error?`. |
@@ -150,11 +158,53 @@ Regola ibrida (spec premium 2026-07-22):
 - **Filtri componibili**: barra con ricerca libera + pill dei filtri strutturati attivi (rimozione = patch + ricarica immediata) + «+ Filtro» che apre il pannello completo.
 - **Dettaglio senza cambiare pagina**: click sulla riga → `DetailDrawer` a destra (da `xl`); riga selezionata con fondo soft + inset rail zaffiro; i bottoni-riga fanno `stopPropagation`.
 
+## 7quater. Portale operatore (campo) — la densità si inverte
+
+Il rapportino operatore (`/r/[token]`, link pubblico senza login) è l'**unica superficie non-desktop** del prodotto: gira su un telefono, in strada, in una sola mano, spesso con i guanti, sotto il sole, e sovente offline. Vive **fuori** dall'`AppShell` (niente sidebar, niente TopBar, niente `ObjectHeader`) e monta il proprio `<Toaster/>`.
+
+Usa **gli stessi token, lo stesso accento zaffiro e la stessa tipografia** della console. Cambia una cosa sola, e cambia al contrario: **la densità**.
+
+| | Console (§5) | Portale operatore |
+|---|---|---|
+| Comandi | `size="md"` (~36px) | **`size="touch"`** dove il comando è un'azione a sé (barre fisse, foto, modali) |
+| Riga di lista | 32–36px, densa | **~62–66px** — è un dato che si tocca, non un bottone: densa quanto il target consente |
+| Corpo | `text-xs` 12 per i dati densi | **`text-sm` minimo** sul dato che si legge; 13 per i metadati di seconda riga |
+| Minimo assoluto | 12 | **11** — sotto gli 11px non si scende mai, nemmeno sui chip |
+| Peso | titoli 600 | **uguale: 600**. Niente `font-bold`/`font-extrabold` "urlato" per compensare lo schermo piccolo: si compensa con la *dimensione*, non col peso |
+| Hover | portante | **inesistente** — nessuna affordance può vivere solo in `hover`. Lo stato di pressione è `active:` |
+
+### Le due esigenze in tensione — e come si risolve
+
+Il campo chiede **due cose opposte**: bersagli grandi per un pollice guantato, e **molti dati per schermata** perché scrollare in piedi in strada, con una mano, è il vero costo. Servire solo la prima produce un'interfaccia gonfia in cui l'operatore scorre all'infinito cercando un ODL. **Sono entrambe requisiti, non l'una il prezzo dell'altra.**
+
+Le tre regole che le tengono insieme:
+
+1. **44px di area tappabile ≠ 44px di ingombro visivo.** Il minimo WCAG è sull'*area di tocco*: un cerchio disegnato a 44px con dentro un'icona da 18px è corretto; lo stesso cerchio a 54px spreca 10px di schermo su ogni lato. Disegna al minimo, tocca al minimo — non sommare i due.
+2. **La cromatura fissa è un budget, non uno spazio libero.** Pill di stato, testa, filtri e barre fisse **non superano un quarto dell'altezza dello schermo**. Misurato: a 375×812 il tetto è ~200px. Un banner che dice «va tutto bene» non è informazione — si monta solo quando ha qualcosa da dire.
+3. **Distingui il comando dal dato.** Una riga di lista non è un bottone: è un dato che si tocca. Va compressa fino al target, non gonfiata fino alla taglia di un comando. Il numero d'ordine, i cerchi e i chevron sono cromatura: si stringono. L'ODL e l'indirizzo sono il lavoro: non si toccano.
+
+> **Scala del root** (`globals.css`): 16px desktop · **17px ≤1024** (tablet) · **16px ≤768** (telefono). Il telefono era a 18px fino al 2026-07-25: ogni `rem` valeva +12,5% e la scala si *ingrandiva* dove lo spazio manca — sul portale operatore costava una voce e mezza per schermata. Riportato a 16; il tablet resta a 17, là lo spazio non è il vincolo.
+>
+> ⚠️ **Corollario per i target di tocco: NON usare `rem` per dimensionarli.** `h-12` è 3rem, quindi rendeva 54px a root 18 e rende 48px a root 16: la stessa classe cambia bersaglio col breakpoint. I comandi che devono valere esattamente il minimo (FAB, chip circolari) si scrivono in **px assoluti** — `h-[48px] w-[48px]` — così non seguono il root. Il pavimento resta comunque garantito dal `min-height: 44px`/`46px` in `globals.css`, che però **non copre gli `<a>`**: su un link-comando il minimo va scritto a mano (vedi `AZIONE_ICONA` in [`riepilogo/stili.ts`](components/modules/mappa/riepilogo/stili.ts), che usa `max-[769px]:min-h-[46px]`).
+
+Regole aggiuntive, tutte per la stessa ragione (uno schermo al sole, letto di corsa):
+
+- **Niente emoji come icone di comando.** Le emoji si rendono col font di sistema: cambiano per versione di Android e in monocromia 🟢/🔴 diventano indistinguibili. Icone `lucide-react` a `currentColor`, così prendono il token semantico (`--status-ok`/`--status-ko`) e il contrasto è verificato. Vale anche per gli SVG ridisegnati a mano: la libreria è già in dipendenza.
+- **Larghezza**: colonna `max-w-[480px]` centrata; verificata a **320 / 375 / 414**. Niente testo cliccabile su due righe.
+- **Barre fisse** (invio, navigazione voce): `pb-[calc(...+env(safe-area-inset-bottom))]`, sempre.
+- **Nessun enrichment** — vale la regola delle app page.
+
 ## 8. Navigazione (shell)
 
+- **Contenitore di pagina** ([`AppShell.tsx`](components/layout/AppShell.tsx)): `mx-auto w-full max-w-[2560px] px-3 py-4 sm:px-4 lg:px-5`. È l'**unico proprietario della cornice**. I moduli montati sotto `/hub`, `/dashboard` e `/impostazioni` **non** aggiungono `px-*`/`py-*`/`p-*` né un `max-w-*` proprio: mettono solo `space-y-*`/`gap-*` e la radice è un `<div>`, non un secondo `<main>`.
+  <br>*Perché la regola esiste* (2026-07-25): il bordo si **sommava** — 32px di shell + 24px di modulo = **56px per lato** — e 13 moduli portavano un cap `max-w-6xl`/`max-w-7xl` che su un monitor 2560 lasciava oltre 1100px di canvas vuoto. Ripulito, su Live il contenuto è passato da 1035 a **1097px** a 1387 di viewport e da 1280 a **2110px** a 2400. I `<main>` annidati erano anche un doppio landmark: ora è uno solo.
+  <br>⚠️ I due moduli a schermo pieno (`h-[calc(100dvh-6rem)]`: Interventi, Misuratori) **scontano la cornice verticale della shell** — header 57px + `py-4`×2 = 89px ≈ 6rem. Se cambi `py` sul contenitore, aggiorna anche quel valore o resta un buco in fondo.
+  <br>Deroghe legittime al "niente `max-w`": una colonna di sola lettura (il contenuto rapportino stampabile resta a `max-w-6xl`) e le pagine fuori shell (portale operatore `/r`, presentazione dirigenza).
+- **Griglia launcher** (hub + Impostazioni): 1 → `min-[640px]`:2 → `min-[1280px]`:3 → `min-[1536px]`:4 → `min-[2000px]`:5 colonne. Tiene la tile in 320–420px a ogni gradino, invece di stirarla a 611px sul monitor largo.
+  <br>⚠️ **Non mischiare breakpoint nominali e arbitrari nello stesso gruppo di utility.** Tailwind v4 emette i nominali **dopo** gli arbitrari: `xl:grid-cols-3` batte `min-[2000px]:grid-cols-5` anche a 2400px (misurato: 3 colonne invece di 5, con entrambe le regole presenti e funzionanti da sole). Da qui la forma tutta-arbitraria. Vale per **ogni** gruppo — `grid-cols-*`, `max-w-*`, `px-*`: dentro il gruppo decide l'ordine di emissione del CSS, non la specificità né l'ordine nell'attributo. Se devi far vincere una classe passata da fuori, serve il suffisso important di v4 (`classe!`).
 - Sidebar raggruppata in **4 sezioni**: **Pianificazione · Operatività · Analisi · Sistema**, via il campo additivo `group` su `AppModuleDefinition` in [`lib/moduleAccess.ts`](lib/moduleAccess.ts) (+ `groupLabels`/`GROUP_ORDER` in [`lib/appNavigation.ts`](lib/appNavigation.ts)). `section` resta separato (gating/middleware): **non** riusarlo per i gruppi.
 - Voce attiva: `bg-[var(--brand-primary-soft)]` + testo `--primary-text` + **barra 3px a sinistra** + focus ring. Hover = `--brand-surface-muted`. Collapse con `transition-[width]` 200ms.
-- **TopBar**: pill di ricerca centrale (⌘K) + NovitaCenter + campanella admin + **user menu** (avatar a iniziali → nome, ruolo, toggle tema, Esci). Wordmark in topbar solo su mobile (il brand vive nella sidebar).
+- **TopBar**: pill di ricerca centrale (⌘K) + NovitaCenter + campanella admin + **user menu** (avatar a iniziali → nome, ruolo, Esci — il toggle tema è stato rimosso col tema scuro, §2). Wordmark in topbar solo su mobile (il brand vive nella sidebar).
 - **Command palette** (`components/layout/CommandPalette.tsx`): Ctrl/⌘-K, entries derivate da `appNavigation` (mai duplicare la lista), filtro su `allowedModules`.
 - **Drawer mobile**: slide-in animato, focus-trap, scroll-lock del body, `role=dialog`.
 - Per aggiungere un modulo: aggiungi la voce in `APP_MODULES` (con `group`) e l'icona in `moduleIcons.tsx` — sidebar e ⌘K la vedono da soli.

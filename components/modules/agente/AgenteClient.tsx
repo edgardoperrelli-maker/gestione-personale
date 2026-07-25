@@ -158,7 +158,7 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
   }
 
   return (
-    <main className="mx-auto max-w-6xl space-y-5 px-6 py-6">
+    <div className="space-y-5">
       <ObjectHeader title="Agente" sub="Pianificazione e feedback del sync limitazioni massive." />
 
       {/* Card Pianificazione */}
@@ -423,6 +423,6 @@ export default function AgenteClient({ config, runs, files, stato, minutiDaConta
           {salvando ? 'Salvo…' : 'Salva impostazioni'}
         </Button>
       </div>
-    </main>
+    </div>
   );
 }

@@ -1,15 +1,25 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { Camera, Check, CloudOff, Images } from 'lucide-react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
+import Textarea from '@/components/ui/Textarea';
 import { comprimiImmagine } from './CampoFoto';
 import { useUploadFoto } from './RapportinoFotoCtx';
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { leggiBlobFoto } from '@/lib/offline/persistFoto';
 import { maiuscoloDigitando } from '@/lib/testo/maiuscolo';
 
-const inputCls =
-  'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2 text-base text-[var(--brand-text-main)] placeholder-[var(--brand-text-muted)] focus:border-[var(--brand-primary)] focus:outline-none disabled:opacity-70';
+/**
+ * I campi del portale operatore restano a 16px: sotto i 16 iOS Safari ZOOMA la pagina
+ * al focus e l'operatore si ritrova la scheda fuori schermo. I primitivi
+ * (Input/Select/Textarea) nascono a `text-sm` per la console — qui si rialzano.
+ */
+const campoCls = 'text-base';
 
 export function CampoInput({
   campo,
@@ -28,7 +38,7 @@ export function CampoInput({
     const checked = valore === true;
     return (
       <label
-        className={`flex min-h-[50px] items-center gap-3 rounded-xl border p-3 transition ${
+        className={`flex min-h-[50px] items-center gap-3 rounded-xl border p-3 transition focus-within:ring-2 focus-within:ring-[var(--brand-primary)] ${
           checked
             ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
             : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]'
@@ -50,9 +60,9 @@ export function CampoInput({
   }
 
   const labelEl = (
-    <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+    <label className="mb-1 block text-xs font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">
       {campo.etichetta}
-      {campo.obbligatoria && <span className="ml-1 font-bold text-[var(--danger)]">*</span>}
+      {campo.obbligatoria && <span className="ml-1 font-semibold text-[var(--danger)]">*</span>}
     </label>
   );
 
@@ -60,12 +70,12 @@ export function CampoInput({
     return (
       <div>
         {labelEl}
-        <select value={typeof valore === 'string' ? valore : ''} disabled={disabilitato} onChange={(e) => onChange(e.target.value)} className={inputCls}>
+        <Select value={typeof valore === 'string' ? valore : ''} disabled={disabilitato} onChange={(e) => onChange(e.target.value)} className={campoCls}>
           <option value="">— Seleziona —</option>
           {(campo.opzioni ?? []).map((opt) => (
             <option key={opt} value={opt}>{opt}</option>
           ))}
-        </select>
+        </Select>
       </div>
     );
   }
@@ -74,13 +84,13 @@ export function CampoInput({
     return (
       <div>
         {labelEl}
-        <input
+        <Input
           type="number"
           inputMode="decimal"
           value={typeof valore === 'number' || typeof valore === 'string' ? String(valore) : ''}
           disabled={disabilitato}
           onChange={(e) => onChange(e.target.value === '' ? '' : Number(e.target.value))}
-          className={inputCls}
+          className={campoCls}
         />
       </div>
     );
@@ -90,12 +100,12 @@ export function CampoInput({
     return (
       <div>
         {labelEl}
-        <input
+        <Input
           type="time"
           value={typeof valore === 'string' ? valore : ''}
           disabled={disabilitato}
           onChange={(e) => onChange(e.target.value)}
-          className={inputCls}
+          className={campoCls}
         />
       </div>
     );
@@ -183,9 +193,9 @@ function CampoFotoInput({
 
   return (
     <div>
-      <label className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">
         {campo.etichetta}
-        {campo.obbligatoria && <span className="ml-1 font-bold text-[var(--danger)]">*</span>}
+        {campo.obbligatoria && <span className="ml-1 font-semibold text-[var(--danger)]">*</span>}
       </label>
 
       {preview && (
@@ -216,34 +226,49 @@ function CampoFotoInput({
       />
 
       <div className="flex flex-wrap items-center gap-2">
-        <button
-          type="button"
+        <Button
+          variant="primary"
+          size="touch"
           disabled={disabilitato || busy}
           onClick={() => scattoRef.current?.click()}
-          className="rounded-lg bg-[var(--brand-primary)] px-3 py-1.5 text-sm font-semibold text-[var(--on-primary)] transition hover:opacity-90 disabled:opacity-50"
         >
-          {hasFotoEsistente || inAttesaRete || uploadStato === 'ok' ? '📷 Rifai scatto' : '📷 Scatta'}
-        </button>
-        <button
-          type="button"
+          <Camera className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          {hasFotoEsistente || inAttesaRete || uploadStato === 'ok' ? 'Rifai scatto' : 'Scatta'}
+        </Button>
+        <Button
+          variant="outline"
+          size="touch"
           disabled={disabilitato || busy}
           onClick={() => libreriaRef.current?.click()}
-          className="rounded-lg border border-[var(--brand-border)] px-3 py-1.5 text-sm font-semibold text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] disabled:opacity-50"
         >
-          🖼️ Libreria
-        </button>
+          <Images className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+          Libreria
+        </Button>
         {busy && <span className="text-xs text-[var(--brand-text-muted)]">Caricamento…</span>}
         {!busy && uploadStato === 'ok' && (
-          <span className="text-xs font-semibold text-[var(--success)]">✓ Caricata</span>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
+            <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            Caricata
+          </span>
         )}
         {!busy && uploadStato === 'errore' && (
           <span className="text-xs font-semibold text-[var(--danger)]">Errore upload</span>
         )}
         {!busy && inAttesaRete && (
-          <span className="text-xs font-semibold text-[var(--warning-fg,#92400e)]">⏳ in attesa di rete</span>
+          /* Era `text-[var(--warning-fg,#92400e)]`: token inesistente → rendeva l'hex di
+             fallback, fisso in light e dark. Ora `--status-warn`, il token d'intento
+             «warn / in attesa» (§3): il colore È l'informazione, come per gli altri due
+             stati qui accanto (`--success` caricata, `--danger` errore). */
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--status-warn)]">
+            <CloudOff className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            in attesa di rete
+          </span>
         )}
         {!busy && uploadStato === 'idle' && hasFotoEsistente && (
-          <span className="text-xs font-semibold text-[var(--success)]">✓ Già presente</span>
+          <span className="inline-flex items-center gap-1 text-xs font-semibold text-[var(--success)]">
+            <Check className="h-4 w-4 shrink-0" strokeWidth={2} aria-hidden />
+            Già presente
+          </span>
         )}
       </div>
     </div>
@@ -260,17 +285,18 @@ function TextareaAuto({ valore, disabilitato, onChange, evidenzia }: { valore: s
     el.style.height = `${el.scrollHeight}px`;
   }, [valore]);
   return (
-    <textarea
+    <Textarea
       ref={ref}
       rows={1}
       value={valore}
       disabled={disabilitato}
+      error={evidenzia}
       // DB pulito: il testo libero viene scritto SEMPRE in MAIUSCOLO. La conversione è "IME-safe"
       // (maiuscoloDigitando): su Android non muta il testo mentre la tastiera compone la parola, così
       // lo SPAZIO non cancella il campo. Il MAIUSCOLO definitivo lo garantisce comunque il server.
       onChange={(e) => onChange(maiuscoloDigitando(e))}
       onCompositionEnd={(e) => onChange(e.currentTarget.value.toUpperCase())}
-      className={`${inputCls} resize-none overflow-hidden uppercase ${evidenzia ? 'border-[var(--status-ko)] ring-1 ring-[var(--status-ko)]' : ''}`}
+      className={`${campoCls} resize-none overflow-hidden uppercase ${evidenzia ? 'ring-1 ring-[var(--status-ko)]' : ''}`}
     />
   );
 }

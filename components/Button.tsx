@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { buttonHover } from '@/lib/animations';
 
 type ButtonVariant = 'primary' | 'secondary' | 'outline' | 'ghost' | 'soft' | 'danger' | 'gold';
-type ButtonSize = 'sm' | 'md' | 'lg';
+type ButtonSize = 'sm' | 'md' | 'lg' | 'touch';
 
 type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   variant?: ButtonVariant;
@@ -29,6 +29,11 @@ const sizeClasses: Record<ButtonSize, string> = {
   sm: 'px-3 py-1.5 text-xs',
   md: 'px-4 py-2 text-sm',
   lg: 'px-5 py-2.5 text-base',
+  // Taglia di CAMPO (portale operatore /r/[token]): 48px di altezza minima, il target
+  // touch di un pollice guantato. Le tre taglie sopra sono tarate sul mouse — `lg` si
+  // ferma a ~42px — e non vanno alzate: cambierebbero i 16 moduli della console.
+  // Additiva per la stessa ragione per cui i token sono additivi (DESIGN.md §2).
+  touch: 'min-h-[48px] px-4 py-3 text-base',
 };
 
 function Spinner() {

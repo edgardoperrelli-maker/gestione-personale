@@ -27,7 +27,7 @@ export default async function DashboardPage() {
   const allowedModules = getAllowedModulesForUser(user?.app_metadata, role);
 
   return (
-    <main className="mx-auto max-w-6xl space-y-6">
+    <div className="space-y-6">
       <TrasfertaAlert />
 
       <ObjectHeader
@@ -36,6 +36,6 @@ export default async function DashboardPage() {
       />
 
       <ModuleLauncher allowedModules={allowedModules} />
-    </main>
+    </div>
   );
 }

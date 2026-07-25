@@ -1,6 +1,11 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
 import { useMemo, useState } from 'react';
+import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
+import Input from '@/components/Input';
+import Select from '@/components/ui/Select';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from './CampoInput';
@@ -153,161 +158,189 @@ export function ModaleInterventoManuale({
     }
   };
 
+  // Il passo "cerca matricola" (limitazioni massive) porta la propria navigazione dentro
+  // `CercaMatricolaLimitazione`: lì il footer della Dialog resta vuoto, altrimenti ci
+  // sarebbero due "Indietro" con due significati diversi.
+  const passoCerca = step === 2 && committente === 'lim_massive' && !cercaFatta;
+
+  // Azioni di passo nel `footer` del primitivo: barra fissa in fondo al foglio, il corpo
+  // scrolla sotto (prima scorrevano insieme e su schermo corto l'"Avanti" finiva fuori vista).
+  const azioni =
+    step === 2 && !passoCerca ? (
+      <>
+        <Button size="touch" variant="outline" className="shrink-0" onClick={() => setStep(1)}>
+          Indietro
+        </Button>
+        <Button
+          size="touch"
+          variant="primary"
+          className="flex-1"
+          onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }}
+        >
+          Avanti
+        </Button>
+      </>
+    ) : step === 3 ? (
+      <>
+        <Button size="touch" variant="outline" className="shrink-0" disabled={inviando} onClick={() => setStep(2)}>
+          Indietro
+        </Button>
+        <Button size="touch" variant="primary" className="flex-1" disabled={inviando} onClick={() => setStep(4)}>
+          Avanti
+        </Button>
+      </>
+    ) : step === 4 ? (
+      <>
+        {/* Cosa blocca l'invio sta ACCANTO al bottone che blocca, non in fondo al corpo
+            scrollabile: nel footer resta visibile anche col foglio scrollato in alto. */}
+        {!esitoFoto.ok && (
+          <p className="w-full text-sm font-medium text-[var(--danger)]">Mancano: {esitoFoto.mancanti.join(', ')}</p>
+        )}
+        {errore && <p className="w-full text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
+        <Button size="touch" variant="outline" className="shrink-0" disabled={inviando} onClick={() => setStep(3)}>
+          Indietro
+        </Button>
+        <Button
+          size="touch"
+          variant="primary"
+          className="flex-1"
+          loading={inviando}
+          disabled={!esitoFoto.ok}
+          onClick={handleInvia}
+        >
+          {inviando ? 'Invio…' : 'Invia richiesta'}
+        </Button>
+      </>
+    ) : null;
+
   return (
-    <div className="fixed inset-0 z-30 flex items-end justify-center bg-black/40 sm:items-center" role="dialog" aria-modal>
-      <div className="max-h-[90dvh] w-full max-w-[480px] overflow-y-auto rounded-t-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-xl sm:rounded-2xl">
-        <div className="mb-3 flex items-center justify-between">
-          <h2 className="text-lg font-bold text-[var(--brand-text-main)]">Nuovo intervento</h2>
-          <button type="button" onClick={onClose} className="text-sm font-semibold text-[var(--brand-text-muted)]">Chiudi</button>
-        </div>
-
-        {step === 1 && (
-          <div className="space-y-2">
-            <p className="text-sm font-semibold text-[var(--brand-text-muted)]">Committente</p>
-            <div className="grid grid-cols-2 gap-2">
-              {COMMITTENTI.map((c) => (
-                <button
-                  key={c.value}
-                  type="button"
-                  onClick={() => {
-                    setCommittente(c.value);
-                    setStep(2);
-                    setCercaFatta(false);
-                    const att = attivitaDefaultManuale(c.value);
-                    if (att) setAnagrafica((prev) => (String(prev.attivita ?? '').trim() ? prev : { ...prev, attivita: att }));
-                  }}
-                  className={`min-h-[50px] rounded-xl border p-3 text-sm font-semibold transition ${
-                    committente === c.value
-                      ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
-                      : 'border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)]'
-                  }`}
-                >
-                  {c.label}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {step === 2 && committente === 'lim_massive' && !cercaFatta && (
-          <CercaMatricolaLimitazione
-            token={token}
-            voci={voci}
-            onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
-            onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
-            onApriAssegnato={onApriAssegnato}
-            onIndietro={() => setStep(1)}
-          />
-        )}
-
-        {step === 2 && !(committente === 'lim_massive' && !cercaFatta) && (
-          <div className="space-y-3">
-            <div className="grid grid-cols-1 gap-x-2 gap-y-2 min-[380px]:grid-cols-2">
-              {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
-                  presente, per ogni committente, anche se l'anagrafica del template non prevede
-                  `attivita` (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). */}
-              <div className="col-span-full min-w-0">
-                <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-                  {etichettaAttivita}
-                  <span className="text-[var(--danger)]"> *</span>
-                </label>
-                <select
-                  required
-                  value={String(anagrafica.attivita ?? '')}
-                  onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
-                  className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                >
-                  <option value="">— scegli l&apos;attività —</option>
-                  {opzioniAttivita.map((o) => (
-                    <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
-                      {o.descrizione} — {o.gruppo}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
-                <div key={c.chiave} className="min-w-0">
-                  <label className="mb-0.5 block truncate text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
-                  <input
-                    type="text"
-                    value={anagrafica[c.chiave] ?? ''}
-                    // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
-                    // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
-                    // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
-                    // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
-                    onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                    onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
-                    className="w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1.5 text-sm uppercase text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none"
-                  />
-                </div>
-              ))}
-            </div>
-            <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setStep(1)} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">Indietro</button>
-              <button type="button" onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]">Avanti</button>
-            </div>
-          </div>
-        )}
-
-        {step === 3 && (
-          <div className="space-y-3.5">
-            {campiEsito.length === 0 && (
-              <p className="text-sm text-[var(--brand-text-muted)]">Nessun campo esito per questo committente: la richiesta verrà inviata per approvazione.</p>
-            )}
-            {campiEsito.filter((c) => c.tipo !== 'foto').map((campo) => (
-              <CampoInput key={campo.chiave} campo={campo} valore={risposte[campo.chiave]} disabilitato={inviando} onChange={(v) => setRisposte((prev) => ({ ...prev, [campo.chiave]: v }))} />
-            ))}
-            <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setStep(2)} disabled={inviando} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)] disabled:opacity-50">Indietro</button>
-              <button type="button" onClick={() => setStep(4)} disabled={inviando} className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50">Avanti</button>
-            </div>
-          </div>
-        )}
-
-        {step === 4 && (
-          <div className="space-y-3">
-            <p className="text-sm text-[var(--brand-text-muted)]">
-              Carica le foto richieste. Quelle contrassegnate come <b>obbligatorie</b> servono per inviare la richiesta.
-            </p>
-            {slotFoto.length === 0 && (
-              <p className="text-sm text-[var(--brand-text-muted)]">Questo template non richiede foto.</p>
-            )}
-            {slotFoto.map((c) => (
-              <CampoFoto
-                key={c.chiave}
-                campo={c}
-                file={foto[c.chiave] ?? null}
-                disabilitato={inviando}
-                onChange={(f) =>
-                  setFoto((prev) => {
-                    const next = { ...prev };
-                    if (f) next[c.chiave] = f;
-                    else delete next[c.chiave];
-                    return next;
-                  })
-                }
-              />
-            ))}
-            {!esitoFoto.ok && (
-              <p className="text-xs font-medium text-[var(--danger)]">
-                Mancano: {esitoFoto.mancanti.join(', ')}
-              </p>
-            )}
-            {errore && <p className="text-sm font-medium text-[var(--danger)]">Errore: {errore}</p>}
-            <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setStep(3)} disabled={inviando} className="rounded-xl border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)] disabled:opacity-50">Indietro</button>
-              <button
-                type="button"
-                disabled={inviando || !esitoFoto.ok}
-                onClick={handleInvia}
-                className="flex-1 rounded-xl bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)] disabled:opacity-50"
+    <Dialog
+      open
+      onClose={onClose}
+      variant="sheet"
+      title="Nuovo intervento"
+      footer={azioni}
+      // Il foglio è a filo dello schermo: la barra azioni deve stare sopra la home bar (§7quater).
+      className="pb-[env(safe-area-inset-bottom)] sm:max-w-[480px] sm:pb-0"
+    >
+      {step === 1 && (
+        <div className="space-y-2">
+          <p className="text-sm font-semibold text-[var(--brand-text-muted)]">Committente</p>
+          <div className="grid grid-cols-2 gap-2">
+            {COMMITTENTI.map((c) => (
+              <Button
+                key={c.value}
+                size="touch"
+                variant={committente === c.value ? 'soft' : 'outline'}
+                aria-pressed={committente === c.value}
+                className={`w-full ${committente === c.value ? 'border border-[var(--brand-primary)]' : ''}`}
+                onClick={() => {
+                  setCommittente(c.value);
+                  setStep(2);
+                  setCercaFatta(false);
+                  const att = attivitaDefaultManuale(c.value);
+                  if (att) setAnagrafica((prev) => (String(prev.attivita ?? '').trim() ? prev : { ...prev, attivita: att }));
+                }}
               >
-                {inviando ? 'Invio…' : 'Invia richiesta'}
-              </button>
-            </div>
+                {c.label}
+              </Button>
+            ))}
           </div>
-        )}
-      </div>
-    </div>
+        </div>
+      )}
+
+      {passoCerca && (
+        <CercaMatricolaLimitazione
+          token={token}
+          voci={voci}
+          onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+          onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
+          onApriAssegnato={onApriAssegnato}
+          onIndietro={() => setStep(1)}
+        />
+      )}
+
+      {step === 2 && !passoCerca && (
+        <div className="grid grid-cols-1 gap-x-2 gap-y-2.5 min-[380px]:grid-cols-2">
+          {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
+              presente, per ogni committente, anche se l'anagrafica del template non prevede
+              `attivita` (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). */}
+          <div className="col-span-full min-w-0">
+            <label className="mb-1 block truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+              {etichettaAttivita}
+              <span className="text-[var(--danger)]"> *</span>
+            </label>
+            <Select
+              required
+              value={String(anagrafica.attivita ?? '')}
+              onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
+              // 16px minimi: sotto, iOS Safari zooma la pagina al focus del campo.
+              className="text-base"
+            >
+              <option value="">— scegli l&apos;attività —</option>
+              {opzioniAttivita.map((o) => (
+                <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
+                  {o.descrizione} — {o.gruppo}
+                </option>
+              ))}
+            </Select>
+          </div>
+          {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
+            <div key={c.chiave} className="min-w-0">
+              <label className="mb-1 block truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>
+              <Input
+                type="text"
+                value={anagrafica[c.chiave] ?? ''}
+                // DB pulito: l'anagrafica viene scritta SEMPRE in MAIUSCOLO. La conversione è
+                // "IME-safe" (maiuscoloDigitando): su Android non muta il testo mentre la
+                // tastiera compone la parola, così lo SPAZIO non cancella il campo. Il MAIUSCOLO
+                // resta garantito dal CSS `uppercase` qui e, definitivo, dal server prima del DB.
+                onChange={(e) => { const v = maiuscoloDigitando(e); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                onCompositionEnd={(e) => { const v = e.currentTarget.value.toUpperCase(); setAnagrafica((prev) => ({ ...prev, [c.chiave]: v })); }}
+                className="text-base uppercase"
+              />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {step === 3 && (
+        <div className="space-y-3.5">
+          {campiEsito.length === 0 && (
+            <p className="text-sm text-[var(--brand-text-muted)]">Nessun campo esito per questo committente: la richiesta verrà inviata per approvazione.</p>
+          )}
+          {campiEsito.filter((c) => c.tipo !== 'foto').map((campo) => (
+            <CampoInput key={campo.chiave} campo={campo} valore={risposte[campo.chiave]} disabilitato={inviando} onChange={(v) => setRisposte((prev) => ({ ...prev, [campo.chiave]: v }))} />
+          ))}
+        </div>
+      )}
+
+      {step === 4 && (
+        <div className="space-y-3">
+          <p className="text-sm text-[var(--brand-text-muted)]">
+            Carica le foto richieste. Quelle contrassegnate come <b>obbligatorie</b> servono per inviare la richiesta.
+          </p>
+          {slotFoto.length === 0 && (
+            <p className="text-sm text-[var(--brand-text-muted)]">Questo template non richiede foto.</p>
+          )}
+          {slotFoto.map((c) => (
+            <CampoFoto
+              key={c.chiave}
+              campo={c}
+              file={foto[c.chiave] ?? null}
+              disabilitato={inviando}
+              onChange={(f) =>
+                setFoto((prev) => {
+                  const next = { ...prev };
+                  if (f) next[c.chiave] = f;
+                  else delete next[c.chiave];
+                  return next;
+                })
+              }
+            />
+          ))}
+        </div>
+      )}
+    </Dialog>
   );
 }

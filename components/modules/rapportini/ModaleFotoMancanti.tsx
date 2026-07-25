@@ -1,6 +1,9 @@
+/* Hallmark · redesign: Cockpit-aligned · variante: campo (DESIGN.md §7quater) · tone: utilitarian · anchor hue: sapphire 260 */
 'use client';
 
+import { Camera, ChevronRight } from 'lucide-react';
 import Dialog from '@/components/ui/Dialog';
+import Button from '@/components/Button';
 import type { FotoMancanteVoce } from '@/utils/rapportini/fotoObbligatorieMancanti';
 
 /**
@@ -25,14 +28,17 @@ export function ModaleFotoMancanti({
       onClose={onChiudi}
       variant="sheet"
       title="Foto obbligatorie mancanti"
+      className="pb-[env(safe-area-inset-bottom)] sm:pb-0"
       footer={
         <>
-          <button type="button" onClick={onInviaComunque} className="rounded-[var(--radius-lg)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-4 py-3 font-bold text-[var(--brand-text-main)]">
+          {/* «Invia comunque» resta secondario: non distrugge dati (chiude il rapportino senza
+              le foto), ma è la scorciatoia — il primario è andare a scattarle. */}
+          <Button size="touch" variant="outline" className="shrink-0" onClick={onInviaComunque}>
             Invia comunque
-          </button>
-          <button type="button" onClick={() => onControlla(voci[0].index)} className="flex-1 rounded-[var(--radius-lg)] bg-[var(--brand-primary)] px-4 py-3 font-semibold text-[var(--on-primary)]">
+          </Button>
+          <Button size="touch" variant="primary" className="flex-1" onClick={() => onControlla(voci[0].index)}>
             Controlla foto
-          </button>
+          </Button>
         </>
       }
     >
@@ -45,16 +51,18 @@ export function ModaleFotoMancanti({
             <button
               type="button"
               onClick={() => onControlla(v.index)}
-              className="flex w-full items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--warning)]/50 bg-[var(--warning-soft)] px-3 py-2 text-left"
+              className="flex min-h-[48px] w-full items-center gap-2.5 rounded-[var(--radius-lg)] border border-[var(--warning)]/50 bg-[var(--warning-soft)] px-3 py-2.5 text-left transition active:bg-[var(--warning)]/25 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
-              <span aria-hidden className="text-base leading-none">📷</span>
+              {/* Icona di libreria, non emoji: l'emoji la disegna il font di sistema e cambia
+                  per versione di Android; così invece prende il token semantico (§7quater). */}
+              <Camera aria-hidden className="h-5 w-5 shrink-0 text-[var(--warning)]" strokeWidth={1.6} />
               <span className="min-w-0 flex-1">
-                <span className="block truncate text-sm font-bold text-[var(--brand-text-main)]">
+                <span className="block truncate text-sm font-semibold text-[var(--brand-text-main)]">
                   <span className="text-[var(--brand-text-muted)]">{v.index + 1}.</span> {v.titolo}
                 </span>
                 <span className="mt-0.5 block text-[13px] text-[var(--brand-text-muted)]">{v.tipi.join(', ')}</span>
               </span>
-              <svg viewBox="0 0 24 24" className="mt-1 h-4 w-4 shrink-0 text-[var(--brand-text-subtle)]" fill="none" stroke="currentColor" strokeWidth="2.2"><path d="M9 6l6 6-6 6" /></svg>
+              <ChevronRight aria-hidden className="h-5 w-5 shrink-0 text-[var(--brand-text-subtle)]" strokeWidth={1.6} />
             </button>
           </li>
         ))}

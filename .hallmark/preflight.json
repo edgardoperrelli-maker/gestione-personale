@@ -1,0 +1,32 @@
+{
+  "date": "2026-07-25",
+  "designSystem": {
+    "file": "DESIGN.md",
+    "managed": true,
+    "note": "Progetto system-managed: la diversificazione e' INVERTITA (le pagine condividono il sistema, non variano). Nessun tema di catalogo."
+  },
+  "fontStack": {
+    "display": "Geist (next/font/google)",
+    "body": "Geist",
+    "mono": "Geist Mono",
+    "source": "app/layout.tsx L2-L7 (--font-geist, --font-geist-mono)"
+  },
+  "palette": {
+    "format": "OKLCH via custom properties",
+    "source": "app/globals.css (:root = dark, html.light = light). Dal 25/07/2026 il tema scuro e' abbandonato: <html> porta sempre la classe light, il blocco :root resta ma non e' raggiungibile.",
+    "accent": "--brand-primary hue 260 (zaffiro)"
+  },
+  "motion": {
+    "stance": "motion-on",
+    "libs": ["framer-motion ^12.38.0"],
+    "reducedMotion": "components/layout/MotionProvider.tsx (MotionConfig reducedMotion=user, root layout)"
+  },
+  "spacing": {
+    "scale": "Tailwind v4 default (4pt)",
+    "radii": "--radius-sm 4 / --radius-md 6 / --radius-lg 10 / --radius-xl 14 (globals.css L309-L312)"
+  },
+  "framework": "Next.js ^15.5.9 (app router) + Tailwind v4 + React 19",
+  "icons": "lucide-react ^1.25.0 (moduli di navigazione via components/layout/moduleIcons.tsx)",
+  "preserve": ["token", "font stack", "scala raggi", "stance motion", "logica applicativa"],
+  "introduce": ["grammatica touch (portale operatore)", "primitivi al posto del markup ad-hoc", "icone vettoriali al posto delle emoji", "scala tipografica di campo"]
+}
