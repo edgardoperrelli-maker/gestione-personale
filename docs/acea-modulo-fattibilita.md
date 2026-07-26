@@ -364,9 +364,19 @@ Fase 1 **non si smonta nulla** di `tools/limitazioni-sync`: l'endpoint
 `/api/export/limitazioni-massive` resta in piedi, quindi una passata di ripopolamento del master è
 sempre possibile.
 
-**Fasi successive.** Automazione del download (a costo zero, da valutare), motore di assegnazione
-Playwright da perfezionare nei tempi, flusso di verifica indirizzi dal campo, convergenza dei motori
-rapportini, listino e consuntivazione alimentati dall'export.
+**Fase 2 — automazione dell'import.** Si parte solo a modulo consolidato: l'import manuale resta
+comunque la strada garantita, e un'automazione che si rompe deve restare un fastidio, non un blocco.
+
+**Fasi successive.** Motore di assegnazione Playwright da perfezionare nei tempi, flusso di verifica
+indirizzi dal campo, convergenza dei motori rapportini, listino e consuntivazione alimentati
+dall'export.
+
+### Formato dell'export
+
+Il formato è **confermato stabile** dal committente: il parser può assumere i tre marcatori
+documentati al §2.5 senza riconoscimento dinamico. La validazione all'import (contratto, fornitore,
+foglio, intestazione) resta comunque, insieme al guardrail sul troncamento a 40 caratteri: servono a
+far fallire l'import in modo rumoroso se qualcosa cambia, non a indovinare un formato nuovo.
 
 ---
 
@@ -386,11 +396,13 @@ rapportini, listino e consuntivazione alimentati dall'export.
 
 ## 11. Questioni aperte
 
-- **Automazione del download senza costi ricorrenti.** ACEA non richiede la rete aziendale e nessun
-  PC deve restare legato a Playwright. Le candidate da valutare: GitHub Actions su
-  `workflow_dispatch` (gratis entro i minuti del piano, ma ogni run riparte da un login SAP), un
-  container scale-to-zero su free tier, un runner che si spegne quando non serve. Il vincolo vero è
-  la latenza: il controllo delle attivazioni avviene ~10 volte al giorno e un giro da tre minuti non
-  è utilizzabile, mentre una sessione SAP calda scende a 20-40 secondi.
+- **Automazione del download senza costi ricorrenti** (Fase 2, da affrontare a modulo consolidato).
+  ACEA non richiede la rete aziendale e nessun PC deve restare legato a Playwright. Le candidate da
+  valutare: GitHub Actions su `workflow_dispatch` (gratis entro i minuti del piano, ma ogni run
+  riparte da un login SAP), un container scale-to-zero su free tier, un runner che si spegne quando
+  non serve. **Il vincolo che decide non è il prezzo, è la latenza**: il controllo delle attivazioni
+  avviene ~10 volte al giorno e un giro da tre minuti non lo usa nessuno, mentre una sessione SAP
+  mantenuta calda scende a 20-40 secondi. Nessuna delle candidate gratuite, allo stato, mantiene la
+  sessione fra un giro e l'altro.
 - **Motore di assegnazione Playwright**: esiste e funziona, va perfezionato nei tempi di esecuzione.
 - **Convergenza dei motori rapportini** dopo la stabilizzazione.
