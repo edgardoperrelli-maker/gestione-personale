@@ -17,6 +17,17 @@ import { describe, expect, it } from 'vitest';
 const RADICI = ['app', 'components'];
 const AMMESSE = new Set([11, 13]);
 
+/**
+ * ECCEZIONI DICHIARATE alla scala, legate al FILE che le usa (DESIGN.md §4).
+ * Legarle al file è il punto: un `text-[26px]` altrove continua a fallire, e
+ * l'eccezione non diventa un permesso generico per «numeri grandi a piacere».
+ */
+const ECCEZIONI: Record<string, number[]> = {
+  // Numero hero del KPI: tarato a mano con `leading-none` e `tracking-[-0.02em]`.
+  // A 24 perdeva peso contro la barra di tono. Confermato dal committente il 27/07.
+  'components/ui/KpiCard.tsx': [26],
+};
+
 function file(dir: string, out: string[] = []): string[] {
   for (const nome of readdirSync(dir)) {
     if (nome === 'node_modules' || nome.startsWith('.')) continue;
@@ -53,12 +64,26 @@ describe('scala tipografica (DESIGN.md §4)', () => {
     ).toEqual([]);
   });
 
-  it('gli unici gradini in pixel arbitrari sono 11 e 13', () => {
-    const fuoriScala = trovate.filter((t) => !AMMESSE.has(Number(t.valore)));
+  it('gli unici gradini in pixel arbitrari sono 11 e 13, più le eccezioni dichiarate', () => {
+    const fuoriScala = trovate.filter(
+      (t) => !AMMESSE.has(Number(t.valore)) && !(ECCEZIONI[t.file] ?? []).includes(Number(t.valore)),
+    );
     expect(
       fuoriScala.map((m) => `${m.file}:${m.riga} → ${m.valore}px`),
-      'fuori scala: usa le utility (text-xs 12 · text-sm 14 · text-base 16 · text-lg 18 · text-xl 20 · text-2xl 24) o i gradini 11/13',
+      'fuori scala: usa le utility (text-xs 12 · text-sm 14 · text-base 16 · text-lg 18 · text-xl 20 · text-2xl 24), i gradini 11/13, o dichiara l\'eccezione in ECCEZIONI + DESIGN.md §4',
     ).toEqual([]);
+  });
+
+  it('ogni eccezione dichiarata è ancora usata davvero', () => {
+    // Un'allowlist che nessuno ripulisce si trasforma in un permesso permanente:
+    // quando il valore sparisce dal file, l'eccezione deve sparire dall'elenco.
+    const orfane: string[] = [];
+    for (const [f, valori] of Object.entries(ECCEZIONI)) {
+      for (const v of valori) {
+        if (!trovate.some((t) => t.file === f && Number(t.valore) === v)) orfane.push(`${f} → ${v}px`);
+      }
+    }
+    expect(orfane, 'eccezione dichiarata ma non più presente nel file: rimuovila').toEqual([]);
   });
 
   it('la guardia sta davvero leggendo il codebase', () => {
