@@ -48,7 +48,7 @@ export default function AnnuncioSegnalazione({ open, onClose }: { open: boolean;
         <div className="flex items-start gap-3 border-b border-[var(--brand-border)] px-5 py-4">
           <div>
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
               style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
             >
               ✨ Novità

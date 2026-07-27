@@ -56,7 +56,7 @@ export default function TrendProduzioneSal({ dati }: { dati: DatiProduzione }) {
         </ResponsiveContainer>
       </div>
 
-      <h4 className="mb-1 mt-3 text-[12px] font-medium text-[var(--brand-text-muted)]">
+      <h4 className="mb-1 mt-3 text-xs font-medium text-[var(--brand-text-muted)]">
         Ritmo di produzione {settimanale ? '(per settimana)' : '(per giorno)'}
       </h4>
       <div style={{ width: '100%', height: 110 }}>

@@ -3,6 +3,14 @@
     "date": "2026-07-27",
     "scope": "sistema",
     "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed, tema unico)",
+    "enrichment": "none",
+    "brief": "SCALA TIPOGRAFICA riportata a norma §4. Censimento CORRETTO: non 40 punti da 10/11px come riportato prima, ma 89 text-[10px] + 31 text-[9px] + 4 display sparse (15,17,26) + 2 text-[12px]. Il conteggio precedente (40) guardava solo le righe che avevano ANCHE brand-text-subtle. PRECISAZIONE IMPORTANTE: text-[11px] e text-[13px] NON sono violazioni — §4 li sanziona come i due soli gradini intermedi, e il commento in Badge.tsx lo dice esplicitamente ('11px e non 10: 10px non esiste nel sistema'). Quindi le 100 occorrenze a 11px e le 62 a 13px restano: convertirle sarebbe stato un errore. Fatto: 10px->11px (89), 9px->11px (31, sono PIU piccole di quelle segnalate e altrettanto fuori scala), 12px->text-xs (2, reso identico, pura igiene), e le 4 display al gradino piu vicino — h3 15->text-base, input titolo 17->text-base, DetailDrawer 15->text-base, e il valore di KpiCard 26->text-2xl, l'unico con effetto visibile. Verificati prima di convertire i 6 contenitori a dimensione FISSA (h-4/h-5/min-w-[18px]+leading-[18px], marker di mappa con on-marker): il piu piccolo e 16px e una cifra a 11px ci sta; i marker sono px-2 py-0.5 flessibili. Nessuna occorrenza nel portale operatore. Risultato: restano SOLO 220 text-[11px] e 62 text-[13px]. Nuova guardia lib/design/scalaTipografica.test.ts: scandaglia app/ e components/, fallisce elencando file:riga, e ha un terzo test che verifica che il crawler stia davvero leggendo (>100 occorrenze) — senza, un filtro rotto farebbe passare a vuoto gli altri due. VERIFICATA a rovescio: reintrodotto un 10px in KpiCard, fallisce con 'components/ui/KpiCard.tsx:33 -> 10px'. §4 riscritta."
+  },
+  {
+    "date": "2026-07-27",
+    "scope": "sistema",
+    "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
     "theme": "DESIGN.md (system-managed, tema UNICO)",
     "enrichment": "none",
     "brief": "TEMA SCURO RIMOSSO (rovescia la scelta del 25/07, che li aveva lasciati dormienti). Struttura di partenza: globals.css apriva 4 blocchi — :root brand (scuro), :root territori (scuro), html.light territori, html.light brand — cioe DUE scale complete di cui una non disegnava nulla, da tenere allineate a mano. Rimosso non cancellando :root (senza la classe .light l'app avrebbe perso ogni colore) ma PROMUOVENDO i valori chiari a :root ed eliminando html.light: la scala e dichiarata una volta sola e non dipende piu da una classe su <html>. TRAPPOLA EVITATA, trovata confrontando gli insiemi di nomi prima di operare: --elevation-1/2/3 vivevano SOLO nel blocco scuro (sono indirezioni neutre verso --shadow-*, aggiunte il 25/07 per l'override @theme inline). Una fusione ingenua li avrebbe cancellati spegnendo silenziosamente ogni utility shadow-sm/md/lg nuda dell'app. Portati nel nuovo :root con il loro commento. VERIFICA: 176 nomi di token prima, 176 dopo, zero persi; 305 dichiarazioni -> 204, cioe -101 duplicati; CSS ricompilato con la Tailwind del progetto e valori effettivi identici (surface 1 0 0, text-muted 0.44, ecc.); comportamento di shadow-sm nudo confrontato prima/dopo = IDENTICO (rende il default Tailwind in entrambi i casi: condizione preesistente della sonda CLI, non introdotta qui). className='light' RESTA su <html>: mapcn (components/ui/map.tsx) legge quella classe prima di prefers-color-scheme, toglierla renderebbe la mappa scura su un OS in dark. La guardia lib/design/contrastoToken.test.ts passa da 2 blocchi-tema a 1, e asserisce che ne esista ESATTAMENTE uno: se qualcuno reintroducesse un secondo tema il test lo direbbe invece di controllarne uno a caso. DESIGN.md: §2 riscritta; colonna Dark tolta dalle tabelle token e stati; corrette 5 affermazioni diventate false (§1 'il dark e una variante', --on-primary 'tema-specifico', velo scanner 'identico nei due temi', razionale ombre, toggle TopBar)."
@@ -150,13 +158,5 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Assegnazione AI (/hub/assegnazione-ai) — allineamento al sistema Cockpit: glifi→lucide, modale territorio + annuncio→Dialog, breadcrumb→primitivo condiviso, #fff→--on-danger, raggi in scala, numeri mono, select→primitivo, icone coerenti nelle griglie. IA drill-down e logica invariate; niente API/driver"
-  },
-  {
-    "date": "2026-07-23",
-    "scope": "app",
-    "macrostructure": "Catalogue",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Riepilogo rapportini (/hub/mappa?vista=riepilogo) — bonifica dei 3 critical e degli 8 major dell'audit: scala tipografica, accento, primitivi, nome territorio, icone, mono tabulare, testa+sintesi, Dialog, focus, responsive, stamp"
   }
 ]

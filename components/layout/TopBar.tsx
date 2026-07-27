@@ -85,7 +85,7 @@ export default function TopBar({ userName, roleLabel = 'Operatore', isAdmin = fa
               <path d="m21 21-4.3-4.3" />
             </svg>
             <span className="min-w-0 flex-1 truncate text-left">Cerca moduli e viste</span>
-            <kbd className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--brand-text-muted)]">
+            <kbd className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--brand-text-muted)]">
               ⌘K
             </kbd>
           </button>

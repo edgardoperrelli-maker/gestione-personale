@@ -38,7 +38,7 @@ export default function OperatorCard({
         <div className="min-w-0 flex flex-1 items-center gap-1.5 pr-1">
           {a.reperibile && (
             <span
-              className="mt-0.5 shrink-0 rounded px-1 py-px text-[9px] font-bold leading-none"
+              className="mt-0.5 shrink-0 rounded px-1 py-px text-[11px] font-bold leading-none"
               style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
             >
               REP
@@ -62,7 +62,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onEdit(a);
             }}
-            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Modifica"
           >
             <Pencil size={12} aria-hidden />
@@ -73,7 +73,7 @@ export default function OperatorCard({
               e.stopPropagation();
               onDelete();
             }}
-            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[9px] font-medium text-[var(--danger)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="inline-flex items-center rounded chip-overlay px-1.5 py-px text-[11px] font-medium text-[var(--danger)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             title="Elimina"
           >
             <Trash2 size={12} aria-hidden />
@@ -81,7 +81,7 @@ export default function OperatorCard({
         </div>
       </div>
 
-      <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1 text-[10px] opacity-75">
+      <div className="mt-0.5 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1 text-[11px] opacity-75">
         {terr && <span className="font-medium">{terr}</span>}
         {terr && acts.length > 0 && <span className="opacity-50">|</span>}
         {acts.map((name, i) => (

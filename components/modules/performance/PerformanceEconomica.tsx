@@ -119,7 +119,7 @@ export default function PerformanceEconomica() {
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] text-[var(--brand-text-subtle)]">Allinea master:</span>
+          <span className="text-[11px] text-[var(--brand-text-subtle)]">Allinea master:</span>
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('dunning')}>Dunning</Button>
           <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
           <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
@@ -282,7 +282,7 @@ export default function PerformanceEconomica() {
                   </tbody>
                 </table>
                 {dati.auditTruncated && (
-                  <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">Elenco troncato: mostrate {num(dati.audit.length)} di {num(dati.auditTotale)} discrepanze.</p>
+                  <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">Elenco troncato: mostrate {num(dati.audit.length)} di {num(dati.auditTotale)} discrepanze.</p>
                 )}
               </div>
             )}

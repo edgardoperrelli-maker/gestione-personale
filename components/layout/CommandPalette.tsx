@@ -159,7 +159,7 @@ export default function CommandPalette({ open, onOpenChange, allowedModules }: C
                 className="w-full border-none bg-transparent py-3 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-subtle)] focus:outline-none"
                 style={{ border: 'none', boxShadow: 'none' }}
               />
-              <kbd className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--brand-border)] px-1.5 py-0.5 font-mono text-[10px] text-[var(--brand-text-subtle)]">
+              <kbd className="shrink-0 rounded-[var(--radius-sm)] border border-[var(--brand-border)] px-1.5 py-0.5 font-mono text-[11px] text-[var(--brand-text-subtle)]">
                 Esc
               </kbd>
             </div>

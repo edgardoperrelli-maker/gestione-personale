@@ -45,7 +45,7 @@ export default function SquadraPicker({
               className="inline-flex items-center gap-1.5 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2.5 py-1 text-xs text-[var(--brand-text-main)]"
             >
               {i === 0 && (
-                <span className="rounded-full bg-[var(--brand-primary-soft)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--primary-text)]">
+                <span className="rounded-full bg-[var(--brand-primary-soft)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--primary-text)]">
                   primario
                 </span>
               )}

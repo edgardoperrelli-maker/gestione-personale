@@ -1808,7 +1808,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const intera = isAssenzaIntera(a);
     return (
       <span
-        className="ml-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[9px] font-semibold"
+        className="ml-1 inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
         style={
           intera
             ? { backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }
@@ -3096,13 +3096,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 )}
 
                 {esecutoreWarnings.length > 0 && (
-                  <div className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2.5 py-1.5 text-[10px] text-[var(--warning)]">
+                  <div className="mt-2 rounded-lg border border-[var(--warning)]/40 bg-[var(--warning-soft)] px-2.5 py-1.5 text-[11px] text-[var(--warning)]">
                     ⚠ Esecutori non riconosciuti (distribuiti automaticamente): {esecutoreWarnings.join(', ')}
                   </div>
                 )}
 
                 {odlGiaPositivi.length > 0 && (
-                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[11px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                     ⛔ {odlGiaPositivi.length === 1 ? 'ODL già eseguito positivo — non affidabile, al salvataggio verrà escluso' : `${odlGiaPositivi.length} ODL già eseguiti positivi — non affidabili, al salvataggio verranno esclusi`} da rapportini e torre:
                     <ul className="mt-1 space-y-0.5">
                       {odlGiaPositivi.map((etichetta) => (
@@ -3113,13 +3113,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                 )}
 
                 {assenzaMsg && (
-                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[11px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                     {assenzaMsg}{' '}
                     <button type="button" className="underline" onClick={() => setAssenzaMsg(null)}>chiudi</button>
                   </div>
                 )}
                 {conflittiAssenza.length > 0 && (
-                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[10px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                  <div className="mt-2 rounded-lg border px-2.5 py-1.5 text-[11px]" style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                     ⚠ {conflittiAssenza.length} operator{conflittiAssenza.length === 1 ? 'e' : 'i'} ora assent{conflittiAssenza.length === 1 ? 'e' : 'i'} per il {planningDate}: {conflittiAssenza.map((o) => o.name).join(', ')}. Rivedi il piano.
                   </div>
                 )}
@@ -3489,9 +3489,9 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                         >
                           <span className="min-w-0 flex-1">
                             <span className="block truncate text-xs font-medium text-[var(--brand-text-main)]">{r.odl || r.indirizzo || r.taskId}</span>
-                            {r.indirizzo && <span className="block truncate text-[10px] text-[var(--brand-text-muted)]">{r.indirizzo}</span>}
+                            {r.indirizzo && <span className="block truncate text-[11px] text-[var(--brand-text-muted)]">{r.indirizzo}</span>}
                           </span>
-                          <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-1.5 py-0.5 text-[9px] font-semibold text-[var(--brand-text-muted)]">{r.opName.split(' ')[0]}</span>
+                          <span className="shrink-0 rounded-full bg-[var(--brand-surface-muted)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--brand-text-muted)]">{r.opName.split(' ')[0]}</span>
                         </button>
                       ))
                     )}
@@ -3526,7 +3526,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       <div className="min-w-0">
                         <span className="text-sm font-semibold">{op ?? 'Operatore'}</span>
                         {startAddress && (
-                          <div className="truncate text-[10px] text-[var(--brand-text-subtle)]">Partenza: {startAddress}</div>
+                          <div className="truncate text-[11px] text-[var(--brand-text-subtle)]">Partenza: {startAddress}</div>
                         )}
                       </div>
                       <span
@@ -3541,13 +3541,13 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           <button
                             type="button"
                             onClick={() => setMovingAllOpen((v) => !v)}
-                            className="rounded-md border border-[var(--brand-border)] px-2 py-0.5 text-[10px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
+                            className="rounded-md border border-[var(--brand-border)] px-2 py-0.5 text-[11px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]"
                           >
                             ⇄ Sposta tutti a…
                           </button>
                           {movingAllOpen && (
                             <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
-                              <span className="w-full text-[10px] text-[var(--brand-text-subtle)]">Sposta tutti gli interventi a:</span>
+                              <span className="w-full text-[11px] text-[var(--brand-text-subtle)]">Sposta tutti gli interventi a:</span>
                               {selectedOps.map((op, opSelIdx) => {
                                 if (op.id === distribution![activeOpIdx].staffId) return null;
                                 const count = distribution!.find((d) => d.staffId === op.id)?.tasks.length ?? 0;
@@ -3556,7 +3556,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                     key={op.id}
                                     type="button"
                                     onClick={() => moveAllTasks(activeOpIdx, op, opSelIdx)}
-                                    className="rounded-full px-2 py-0.5 text-[10px] font-semibold text-[var(--on-marker)] transition hover:opacity-80"
+                                    className="rounded-full px-2 py-0.5 text-[11px] font-semibold text-[var(--on-marker)] transition hover:opacity-80"
                                     style={{ backgroundColor: OP_COLORS[opSelIdx % OP_COLORS.length] }}
                                   >
                                     {op.name ?? 'Operatore'} ({count})
@@ -3580,7 +3580,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               } ${t.annullato ? 'line-through opacity-70 border-[var(--danger)]/40' : ''}`}
                             >
                               <div className="flex items-start gap-2">
-                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-[var(--on-marker)]" style={{ backgroundColor: color }}>
+                              <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold text-[var(--on-marker)]" style={{ backgroundColor: color }}>
                                 {idx + 1}
                               </span>
                               <div className="min-w-0 flex-1 text-xs">
@@ -3600,7 +3600,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               <button
                                 type="button"
                                 onClick={() => setMovingTaskId(isMoving ? null : t.id)}
-                                className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${isMoving ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'}`}
+                                className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium transition ${isMoving ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'}`}
                               >
                                 Sposta
                               </button>
@@ -3608,7 +3608,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 <button
                                   type="button"
                                   onClick={() => toggleAnnullaTask(t.id, activeOpIdx)}
-                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${t.annullato ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--danger)] hover:text-[var(--danger)]'}`}
+                                  className={`shrink-0 rounded border px-1.5 py-0.5 text-[11px] font-medium transition ${t.annullato ? 'border-[var(--danger)] bg-[var(--danger-soft)] text-[var(--danger)]' : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--danger)] hover:text-[var(--danger)]'}`}
                                 >
                                   {t.annullato ? 'Ripristina' : 'Annulla'}
                                 </button>
@@ -3617,7 +3617,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 <button
                                   type="button"
                                   onClick={() => eliminaTask(t.id, activeOpIdx)}
-                                  className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
+                                  className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[11px] font-medium text-[var(--brand-text-subtle)] transition hover:border-[var(--danger)] hover:bg-[var(--danger-soft)] hover:text-[var(--danger)]"
                                 >
                                   Elimina
                                 </button>
@@ -3626,7 +3626,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                             {/* Selettore operatore destinazione */}
                             {isMoving && (
                               <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--brand-border)] pt-1.5">
-                                <span className="text-[10px] text-[var(--brand-text-subtle)] w-full">Sposta a:</span>
+                                <span className="text-[11px] text-[var(--brand-text-subtle)] w-full">Sposta a:</span>
                                 {selectedOps.map((op, opSelIdx) => {
                                   if (op.id === distribution![activeOpIdx].staffId) return null;
                                   const ztl = getTaskZtl(t.cap, ztlZones);
@@ -3639,7 +3639,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                       onClick={() => !blocked && moveTask(t.id, activeOpIdx, op, opSelIdx)}
                                       disabled={blocked}
                                       title={blocked ? `${op.name ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}` : undefined}
-                                      className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[var(--on-marker)] transition ${blocked ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
+                                      className={`rounded-full px-2 py-0.5 text-[11px] font-semibold text-[var(--on-marker)] transition ${blocked ? 'opacity-30 cursor-not-allowed' : 'hover:opacity-80'}`}
                                       style={{ backgroundColor: OP_COLORS[opSelIdx % OP_COLORS.length] }}
                                     >
                                       {op.name ?? 'Operatore'} ({count}) {blocked ? '🔒' : ''}
@@ -3675,12 +3675,12 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                   className="flex cursor-pointer items-start gap-1.5"
                                   onClick={() => focusExcelTask(t.id)}
                                 >
-                                  <span className="mt-0.5 shrink-0 text-[9px] font-bold text-[var(--warning)]">{idx + 1}</span>
+                                  <span className="mt-0.5 shrink-0 text-[11px] font-bold text-[var(--warning)]">{idx + 1}</span>
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center gap-1">
                                       <span className="truncate font-medium">{t.odl || `Task ${idx + 1}`}</span>
                                       {isSelected && (
-                                        <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)]">
+                                        <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--warning)]">
                                           Selezionato
                                         </span>
                                       )}
@@ -3694,7 +3694,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                         e.stopPropagation();
                                         setMovingTaskId(isMoving ? null : t.id);
                                       }}
-                                      className={`rounded border px-1.5 py-0.5 text-[10px] font-medium transition ${
+                                      className={`rounded border px-1.5 py-0.5 text-[11px] font-medium transition ${
                                         isMoving
                                           ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
                                           : 'border-[var(--brand-border)] text-[var(--brand-text-subtle)] hover:border-[var(--brand-primary-border)] hover:text-[var(--brand-primary)]'
@@ -3708,7 +3708,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                         e.stopPropagation();
                                         openEdit(t);
                                       }}
-                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
+                                      className="rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[11px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
                                       title="Correggi indirizzo e rigenera coordinate"
                                     >
                                       Correggi
@@ -3717,7 +3717,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                 </div>
                                 {isMoving && (
                                   <div className="mt-1.5 flex flex-wrap gap-1 border-t border-[var(--warning)]/30 pt-1.5">
-                                    <span className="w-full text-[10px] text-[var(--warning)]">Sposta a:</span>
+                                    <span className="w-full text-[11px] text-[var(--warning)]">Sposta a:</span>
                                     {distribution!.map((d, di) => {
                                       const ztl = getTaskZtl(t.cap, ztlZones);
                                       const blocked = ztl !== null && !ztl.authorized_staff_ids.includes(d.staffId);
@@ -3732,7 +3732,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                                               ? `${d.op ?? 'Operatore'} non ha il permesso ZTL per ${ztl!.name}`
                                               : undefined
                                           }
-                                          className={`rounded-full px-2 py-0.5 text-[10px] font-semibold text-[var(--on-marker)] transition ${
+                                          className={`rounded-full px-2 py-0.5 text-[11px] font-semibold text-[var(--on-marker)] transition ${
                                             blocked ? 'cursor-not-allowed opacity-30' : 'hover:opacity-80'
                                           }`}
                                           style={{ backgroundColor: d.color }}
@@ -3768,7 +3768,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   const op = (task as Task & { _operatore?: string })._operatore;
                   return (
                     <div key={task.id} className="flex items-start gap-2 rounded-xl border border-[var(--brand-border)] p-2">
-                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[10px] font-bold text-[var(--on-primary)]">
+                      <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-[var(--brand-primary)] text-[11px] font-bold text-[var(--on-primary)]">
                         {idx + 1}
                       </span>
                       <div className="min-w-0">
@@ -3785,7 +3785,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           <div className="mt-0.5 flex items-center gap-2 text-xs">
                             <span>{row.day}</span>
                             {row.reperibile && (
-                              <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[10px] font-bold text-[var(--danger)]">REP</span>
+                              <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[11px] font-bold text-[var(--danger)]">REP</span>
                             )}
                           </div>
                         )}
@@ -3809,7 +3809,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   <button
                     type="button"
                     onClick={() => setExcelOnlyManualAction((value) => !value)}
-                    className={`rounded-full border px-2 py-0.5 text-[10px] font-semibold transition ${
+                    className={`rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                       excelOnlyManualAction
                         ? 'border-[var(--warning)]/40 bg-[var(--warning-soft)] text-[var(--warning)]'
                         : 'border-[var(--brand-border)] bg-[var(--brand-surface)] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/30 hover:text-[var(--warning)]'
@@ -3821,20 +3821,20 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     <button
                       type="button"
                       onClick={() => setExcelOnlyManualAction(false)}
-                      className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-border-strong)] hover:text-[var(--brand-text-main)]"
+                      className="rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-border-strong)] hover:text-[var(--brand-text-main)]"
                     >
                       Reset filtri
                     </button>
                   )}
                 </div>
                 <div className="space-y-1">
-                  <div className="text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Operatori coinvolti</div>
+                  <div className="text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-subtle)]">Operatori coinvolti</div>
                   {excelOperators.length > 0 ? (
                     <div className="flex flex-wrap gap-1">
                       {excelOperators.map((name) => (
                         <span
                           key={name}
-                          className="max-w-full truncate rounded-full border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[10px] font-semibold text-[var(--brand-primary)]"
+                          className="max-w-full truncate rounded-full border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--brand-primary)]"
                           title={name}
                         >
                           {name}
@@ -3842,7 +3842,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       ))}
                     </div>
                   ) : (
-                    <div className="text-[10px] text-[var(--brand-text-subtle)]">Nessun operatore selezionato.</div>
+                    <div className="text-[11px] text-[var(--brand-text-subtle)]">Nessun operatore selezionato.</div>
                   )}
                 </div>
               </div>
@@ -3869,7 +3869,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       {isEditing ? (
                         /* Form modifica indirizzo */
                         <div className="space-y-1.5">
-                          <div className="text-[10px] font-semibold text-[var(--brand-text-muted)] uppercase tracking-wide">Modifica indirizzo</div>
+                          <div className="text-[11px] font-semibold text-[var(--brand-text-muted)] uppercase tracking-wide">Modifica indirizzo</div>
                           <input
                             type="text"
                             value={editDraft.indirizzo}
@@ -3923,28 +3923,28 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                           className="flex cursor-pointer items-start gap-1.5"
                           onClick={() => focusExcelTask(t.id)}
                         >
-                          <span className="mt-0.5 shrink-0 text-[9px] font-bold text-[var(--warning)]">{idx + 1}</span>
+                          <span className="mt-0.5 shrink-0 text-[11px] font-bold text-[var(--warning)]">{idx + 1}</span>
                           <div className="min-w-0 flex-1">
                             <div className="flex items-center gap-1">
                               <span className="truncate font-medium">{op || t.odl || `Task ${idx + 1}`}</span>
                               {isSelected && (
-                                <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)]">
+                                <span className="shrink-0 rounded-full border border-[var(--warning)]/40 bg-[var(--brand-surface)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--warning)]">
                                   Selezionato
                                 </span>
                               )}
                               {hasCoords && (
-                                <span className="shrink-0 text-[9px] text-[var(--success)]">✓</span>
+                                <span className="shrink-0 text-[11px] text-[var(--success)]">✓</span>
                               )}
                               {(() => {
                                 const ztl = getTaskZtl(t.cap, ztlZones);
                                 return ztl ? (
-                                  <span className="shrink-0 rounded-full bg-[var(--warning-soft)] border border-[var(--warning)]/40 px-1.5 py-0.5 text-[9px] font-bold text-[var(--warning)] uppercase tracking-wide">
+                                  <span className="shrink-0 rounded-full bg-[var(--warning-soft)] border border-[var(--warning)]/40 px-1.5 py-0.5 text-[11px] font-bold text-[var(--warning)] uppercase tracking-wide">
                                     ZTL · {ztl.name}
                                   </span>
                                 ) : null;
                               })()}
                               {t.isAppointment && (
-                                <span className="shrink-0 rounded-full bg-[var(--brand-violet-soft)] border border-[var(--brand-violet)]/40 px-1.5 py-0.5 text-[9px] font-bold text-[var(--brand-violet)] uppercase tracking-wide">
+                                <span className="shrink-0 rounded-full bg-[var(--brand-violet-soft)] border border-[var(--brand-violet)]/40 px-1.5 py-0.5 text-[11px] font-bold text-[var(--brand-violet)] uppercase tracking-wide">
                                   APT
                                 </span>
                               )}
@@ -3957,7 +3957,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                               e.stopPropagation();
                               openEdit(t);
                             }}
-                            className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[10px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
+                            className="shrink-0 rounded border border-[var(--brand-border)] px-1.5 py-0.5 text-[11px] text-[var(--brand-text-muted)] hover:border-[var(--warning)]/40 hover:bg-[var(--warning-soft)] hover:text-[var(--warning)]"
                             title={hasCoords ? 'Correggi indirizzo e rigenera coordinate' : 'Modifica indirizzo e riprova'}
                           >
                             {hasCoords ? 'Correggi' : 'Modifica'}
@@ -3987,7 +3987,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                       <div className="mt-1 flex items-center gap-2 text-xs">
                         <span>{row.day}</span>
                         {row.reperibile && (
-                          <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[10px] font-bold text-[var(--danger)]">REP</span>
+                          <span className="rounded border border-[var(--danger)]/40 bg-[var(--danger-soft)] px-1 text-[11px] font-bold text-[var(--danger)]">REP</span>
                         )}
                       </div>
                     </div>
@@ -4014,7 +4014,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                     <div className="mt-0.5 text-[var(--brand-text-main)]">{t.indirizzo}</div>
                     <div className="text-[var(--brand-text-muted)]">{t.cap} {t.citta}</div>
                     {t.fascia_oraria && <div className="mt-0.5 text-[var(--brand-text-subtle)]">{t.fascia_oraria}</div>}
-                    {t.lat == null && <div className="mt-1 text-[10px] text-[var(--warning)]">⚠ Geocodifica in corso...</div>}
+                    {t.lat == null && <div className="mt-1 text-[11px] text-[var(--warning)]">⚠ Geocodifica in corso...</div>}
                   </div>
                 ))
               }

@@ -170,7 +170,7 @@ export default function DatePicker({
           </div>
 
           {/* Intestazioni giorni */}
-          <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
             {WEEKDAY_LABELS_IT.map((w) => (
               <div key={w} className="py-1">
                 {w}

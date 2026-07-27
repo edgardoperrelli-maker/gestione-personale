@@ -119,7 +119,7 @@ export function AnteprimaPianificazione({
                 {o.staffId ? iniziali(o.nome) : '?'}
                 {inErrore && (
                   <span
-                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[9px] font-bold leading-none tabular-nums"
+                    className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full px-1 font-mono text-[11px] font-bold leading-none tabular-nums"
                     style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)', boxShadow: '0 0 0 2px var(--brand-surface)' }}
                     aria-hidden
                   >
@@ -204,7 +204,7 @@ export function AnteprimaPianificazione({
                         <MapPin size={13} className="text-[var(--brand-text-subtle)]" aria-hidden />
                         <span className="font-semibold text-[var(--brand-text-main)]">{c.comune || '—'}</span>
                         <span
-                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-medium"
+                          className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-medium"
                           style={{ backgroundColor: cst.bg, color: cst.fg }}
                         >
                           <CstIcon size={11} aria-hidden /> {c.stato === 'conflitto' ? `già pianificato ${ddmm(o.data)}` : cst.label}
@@ -252,12 +252,12 @@ export function AnteprimaPianificazione({
                                 <td className="px-2 py-1.5">{r.indirizzo ?? '—'}</td>
                                 <td className="whitespace-nowrap px-2 py-1.5">
                                   {okLock && (
-                                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}>
+                                    <span className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--success-soft)', color: 'var(--success)' }}>
                                       <Check size={11} aria-hidden /> fatto
                                     </span>
                                   )}
                                   {err && (
-                                    <span title={er?.motivo ?? ''} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-semibold" style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)' }}>
+                                    <span title={er?.motivo ?? ''} className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[11px] font-semibold" style={{ backgroundColor: 'var(--danger)', color: 'var(--on-danger)' }}>
                                       <TriangleAlert size={11} aria-hidden />{er?.esito === 'non assegnato' ? 'non assegn.' : 'errore'}
                                     </span>
                                   )}

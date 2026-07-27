@@ -197,7 +197,7 @@ function Telefono({
             {!soloManuale && (
               <>
                 <RigaVoceCard riga={riga} onApri={() => {}} />
-                <p className="text-center text-[10px] text-[var(--brand-text-subtle)]">— aprendo la card —</p>
+                <p className="text-center text-[11px] text-[var(--brand-text-subtle)]">— aprendo la card —</p>
               </>
             )}
             <div className="rounded-[var(--radius-lg)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
@@ -232,7 +232,7 @@ function ChecklistVerifica({ campi, titoloCampi }: { campi: TemplateCampo[]; tit
         <div key={i} className="flex items-start gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs">
           <span
             aria-hidden
-            className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[10px] font-bold"
+            className="mt-0.5 grid h-4 w-4 shrink-0 place-items-center rounded-full text-[11px] font-bold"
             style={{ backgroundColor: v.ok ? 'var(--success-soft)' : 'var(--warning-soft)', color: v.ok ? 'var(--success)' : 'var(--warning)' }}
           >
             {v.ok ? '✓' : '!'}
@@ -833,9 +833,9 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                     <Dot tone={win ? 'ok' : 'warn'} />
                     <span className="truncate">{g.gruppo}</span>
                     {win && tagNatura(win).filter((n) => n !== 'manuale (+)').map((n) => (
-                      <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
+                      <span key={n} className="shrink-0 rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{n}</span>
                     ))}
-                    {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[10px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
+                    {condiviso && <span className="shrink-0 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-2 py-px text-[11px] font-medium text-[var(--brand-text-muted)]">condiviso</span>}
                   </span>
                   <span className="flex min-w-0 flex-wrap items-center gap-1.5">
                     {win ? (
@@ -939,7 +939,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
                 <button
                   type="button"
                   onClick={async () => { if (await impostaActive(t.id, true)) showFeedback('success', `«${t.nome}» riattivato`); }}
-                  className="rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] px-3 py-1 text-[12px] font-medium text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] px-3 py-1 text-xs font-medium text-[var(--brand-text-main)] transition hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
                   Riattiva
                 </button>
@@ -963,7 +963,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
   const avvioScoperta = gruppoVista && (
     <div className="rounded-[var(--radius-xl)] border-2 border-dashed border-[var(--brand-border-strong)] bg-[var(--brand-surface)] p-8 text-center">
       <div aria-hidden className="mx-auto mb-3 grid h-11 w-11 place-items-center rounded-xl bg-[var(--brand-primary-soft)] text-lg text-[var(--primary-text)]">＋</div>
-      <h3 className="text-[15px] font-semibold text-[var(--brand-text-main)]">Quali azioni deve fare l&apos;operatore?</h3>
+      <h3 className="text-base font-semibold text-[var(--brand-text-main)]">Quali azioni deve fare l&apos;operatore?</h3>
       <p className="mx-auto mt-1 max-w-[46ch] text-xs text-[var(--brand-text-muted)]">
         Oggi gli interventi di «{gruppoVista.gruppo}» arrivano al telefono <b className="font-semibold">senza azioni da compilare</b>.
         Parti da zero o duplica un flusso che assomiglia.
@@ -1001,7 +1001,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
             type="text"
             value={nome}
             onChange={(e) => setNome(e.target.value)}
-            className="min-w-[200px] flex-1 rounded-[var(--radius-md)] border border-transparent bg-transparent px-2.5 py-1.5 text-[17px] font-semibold text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] transition hover:bg-[var(--brand-surface-muted)] focus:border-[var(--brand-primary)] focus:bg-[var(--brand-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
+            className="min-w-[200px] flex-1 rounded-[var(--radius-md)] border border-transparent bg-transparent px-2.5 py-1.5 text-base font-semibold text-[var(--brand-text-main)] placeholder-[var(--brand-text-subtle)] transition hover:bg-[var(--brand-surface-muted)] focus:border-[var(--brand-primary)] focus:bg-[var(--brand-surface)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary-soft)]"
             placeholder="Nome del flusso (es. DUNNING)"
             aria-label="Nome del flusso"
           />
@@ -1022,7 +1022,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-[var(--brand-text-muted)]">
           <span>Si usa per: <b className="font-semibold text-[var(--primary-text)]">{contestoLabel}</b></span>
           {selectedTpl && tagNatura(selectedTpl).map((n) => (
-            <span key={n} className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[10px] font-semibold uppercase tracking-wide">{n}</span>
+            <span key={n} className="rounded border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-1.5 py-px text-[11px] font-semibold uppercase tracking-wide">{n}</span>
           ))}
           {altriFlussiDelGruppo.length > 0 && (
             <span className="flex items-center gap-1.5">
@@ -1068,9 +1068,9 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
               <div className="flex flex-wrap items-center gap-2">
                 <span className="flex shrink-0 flex-col">
                   <button type="button" onClick={() => moveCampo(idx, -1)} disabled={idx === 0} title="Sposta su"
-                    className="rounded-t-[var(--radius-sm)] border border-b-0 border-[var(--brand-border)] px-1.5 text-[10px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▲</button>
+                    className="rounded-t-[var(--radius-sm)] border border-b-0 border-[var(--brand-border)] px-1.5 text-[11px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▲</button>
                   <button type="button" onClick={() => moveCampo(idx, 1)} disabled={idx === campi.length - 1} title="Sposta giù"
-                    className="rounded-b-[var(--radius-sm)] border border-[var(--brand-border)] px-1.5 text-[10px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▼</button>
+                    className="rounded-b-[var(--radius-sm)] border border-[var(--brand-border)] px-1.5 text-[11px] leading-4 text-[var(--brand-text-muted)] transition hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▼</button>
                 </span>
                 <span className="w-4 shrink-0 text-right text-[11px] font-semibold text-[var(--brand-text-subtle)]">{idx + 1}</span>
                 <input

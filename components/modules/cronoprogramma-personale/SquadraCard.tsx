@@ -96,7 +96,7 @@ export default function SquadraCard({
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)' }}
         >
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
             <Link2 size={12} aria-hidden /> Aggiungi alla squadra
           </span>
         </div>
@@ -104,7 +104,7 @@ export default function SquadraCard({
 
       <div className="flex items-center justify-between gap-2 pl-1.5">
         <span
-          className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wide"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] font-bold uppercase tracking-wide"
           style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)', border: '1px solid var(--brand-primary-border)' }}
         >
           <Link2 size={12} aria-hidden /> Squadra <span className="font-mono tabular-nums">×{totale}</span>
@@ -112,7 +112,7 @@ export default function SquadraCard({
         <div className="flex items-center gap-1">
           {group.target != null && (
             <span
-              className="rounded-full px-1.5 py-px text-[9px] font-semibold"
+              className="rounded-full px-1.5 py-px text-[11px] font-semibold"
               style={
                 sotto
                   ? { color: 'var(--warning)', border: '1px solid var(--warning)' }
@@ -129,7 +129,7 @@ export default function SquadraCard({
               e.stopPropagation();
               onSciogli(group.squadraId);
             }}
-            className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[11px] font-medium opacity-0 transition-opacity focus-visible:opacity-100 group-hover:opacity-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             style={{ color: 'var(--danger)' }}
             title="Sciogli la squadra"
           >
@@ -169,7 +169,7 @@ export default function SquadraCard({
                 {capo ? <Star size={12} fill="currentColor" aria-hidden /> : <Star size={12} aria-hidden />}
               </button>
               {m.reperibile && (
-                <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold leading-none" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+                <span className="shrink-0 rounded px-1 py-px text-[11px] font-bold leading-none" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                   REP
                 </span>
               )}
@@ -180,7 +180,7 @@ export default function SquadraCard({
                 {`${m.staff?.display_name ?? '-'}${count != null && count > 0 ? ` (${count})` : ''}`}
               </span>
               {assente && (
-                <span className="shrink-0 rounded px-1 py-px text-[9px] font-bold leading-none" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
+                <span className="shrink-0 rounded px-1 py-px text-[11px] font-bold leading-none" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
                   assente
                 </span>
               )}
@@ -194,7 +194,7 @@ export default function SquadraCard({
                     e.stopPropagation();
                     onEditMembro(m);
                   }}
-                  className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   title="Modifica"
                 >
                   M
@@ -205,7 +205,7 @@ export default function SquadraCard({
                     e.stopPropagation();
                     onRimuoviMembro(group.squadraId, m.id);
                   }}
-                  className="inline-flex items-center rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[9px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="inline-flex items-center rounded-[var(--radius-sm)] chip-overlay px-1.5 py-px text-[11px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   style={{ color: 'var(--danger)' }}
                   title="Togli dalla squadra"
                 >
@@ -218,7 +218,7 @@ export default function SquadraCard({
       </div>
 
       {(terr || acts.length > 0 || cc) && (
-        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1.5 text-[10px] opacity-75">
+        <div className="mt-1 flex flex-wrap items-center gap-x-1 gap-y-0.5 pl-1.5 text-[11px] opacity-75">
           {terr && <span className="font-medium">{terr}</span>}
           {terr && acts.length > 0 && <span className="opacity-50">|</span>}
           {acts.map((name, i) => (
@@ -236,7 +236,7 @@ export default function SquadraCard({
       )}
 
       {incompleta && (
-        <div className="mx-1.5 mt-1 rounded-md px-2 py-0.5 text-[10px]" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
+        <div className="mx-1.5 mt-1 rounded-md px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
           Squadra incompleta — {presenti}/{totale} presenti
         </div>
       )}
