@@ -31,6 +31,15 @@ export type Props = {
   selezione: RowSelectionState;
   onSelezione: (s: RowSelectionState) => void;
   caricando?: boolean;
+  /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
+  editing?: {
+    /** Indice della colonna modificabile, o null se la colonna non lo è. */
+    indiceEditabile: (chiave: string) => number | null;
+    focus: { riga: number; colonna: number } | null;
+    celleSelezionate: Set<string>;
+    valoreLocale: (r: RigaTabella, chiave: string) => string | null;
+    onClickCella: (riga: number, colonna: number, shift: boolean) => void;
+  };
 };
 
 /** Chiave stabile di riga: la coppia, perché un ODL può avere più operazioni. */
@@ -46,7 +55,7 @@ export const chiaveRiga = (r: RigaTabella) => `${r.odl}|${r.numero_operazione}`;
  * prende un blocco di righe prima di scrivere esecutore e data.
  */
 export default function TabellaOrdini({
-  righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false,
+  righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
   const contenitore = useRef<HTMLDivElement>(null);
@@ -175,16 +184,36 @@ export default function TabellaOrdini({
                     />
                   </div>
                   {visibili.map((c) => {
-                    const testo = valoreCella(r, c.chiave);
+                    const iEdit = editing?.indiceEditabile(c.chiave) ?? null;
+                    const locale = editing?.valoreLocale(r, c.chiave) ?? null;
+                    const testo = locale ?? valoreCella(r, c.chiave);
                     const evidenzia = c.chiave === 'scadenza';
+                    const inFocus =
+                      iEdit !== null && editing?.focus?.riga === vi.index && editing.focus.colonna === iEdit;
+                    const inSelezione =
+                      iEdit !== null && editing?.celleSelezionate.has(`${vi.index}:${iEdit}`);
                     return (
                       <div
                         key={c.chiave}
                         style={{ width: c.larghezza }}
                         title={testo}
+                        onMouseDown={
+                          iEdit === null
+                            ? undefined
+                            : (e) => {
+                                e.preventDefault();
+                                editing?.onClickCella(vi.index, iEdit, e.shiftKey);
+                              }
+                        }
                         className={`shrink-0 truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
-                        }`}
+                        } ${iEdit !== null ? 'cursor-cell' : ''} ${
+                          inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
+                        } ${
+                          inFocus
+                            ? 'outline outline-2 -outline-offset-2 outline-[var(--brand-primary)]'
+                            : ''
+                        } ${locale ? 'italic' : ''}`}
                       >
                         {c.chiave === 'matricola' && r.sospetto_troncamento && (
                           <TriangleAlert

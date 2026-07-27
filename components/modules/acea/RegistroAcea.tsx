@@ -1,12 +1,13 @@
 'use client';
 
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RowSelectionState } from '@tanstack/react-table';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
-  COLONNE_DUNNING, COLONNE_MASSIVE, type DefColonna, type RigaTabella,
+  COLONNE_DUNNING, COLONNE_MASSIVE, dataIt, type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
+import { COLONNE_EDITABILI, useEditingGriglia, type Operatore } from './useEditingGriglia';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 import BarraAzioni from './BarraAzioni';
@@ -43,6 +44,43 @@ export default function RegistroAcea({
     () => righe.filter((r) => selezione[chiaveRiga(r)]),
     [righe, selezione],
   );
+
+  // Operatori: servono sia alla barra azioni sia alla validazione dei nomi incollati in griglia.
+  const [operatori, setOperatori] = useState<Operatore[]>([]);
+  useEffect(() => {
+    void (async () => {
+      try {
+        const res = await fetch('/api/admin/personale');
+        if (!res.ok) return;
+        const body = (await res.json()) as { rows?: Operatore[] } | Operatore[];
+        const rows = Array.isArray(body) ? body : (body.rows ?? []);
+        setOperatori(rows.filter((r) => r.id && r.display_name));
+      } catch {
+        /* senza elenco l'editing sui nomi non valida, ma la tabella resta usabile */
+      }
+    })();
+  }, []);
+
+  const editing = useEditingGriglia({
+    righe,
+    operatori,
+    onSalvato: () => ricarica(),
+    attivo: true,
+  });
+
+  const indiceEditabile = useCallback((chiave: string) => {
+    const i = COLONNE_EDITABILI.indexOf(chiave as (typeof COLONNE_EDITABILI)[number]);
+    return i >= 0 ? i : null;
+  }, []);
+
+  /** Valore non ancora confermato dal server, mostrato in corsivo finché non si ricarica. */
+  const valoreLocale = useCallback((r: RigaTabella, chiave: string): string | null => {
+    const loc = editing.locali.get(`${r.odl}|${r.numero_operazione}`);
+    if (!loc) return null;
+    if (chiave === 'pianificato_a') return loc.pianificato_a ?? null;
+    if (chiave === 'pianificato_il') return loc.pianificato_il ? dataIt(loc.pianificato_il) : null;
+    return null;
+  }, [editing.locali]);
 
   const esporta = useCallback(async () => {
     setEsportando(true);
@@ -108,7 +146,22 @@ export default function RegistroAcea({
         selezione={selezione}
         onSelezione={setSelezione}
         caricando={caricando}
+        editing={{
+          indiceEditabile,
+          focus: editing.focus,
+          celleSelezionate: editing.celleSelezionate,
+          valoreLocale,
+          onClickCella: editing.clickCella,
+        }}
       />
+
+      <p className="text-xs text-[var(--brand-text-muted)]">
+        Esecutore e Data pianificata si modificano direttamente in tabella: clicca una cella, usa le
+        frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
+        <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
+        da Excel. I campi ACEA non sono modificabili.
+        {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
+      </p>
 
       {!tutteCaricate && (
         <div className="flex justify-center">
