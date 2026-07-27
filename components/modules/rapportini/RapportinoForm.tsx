@@ -65,6 +65,8 @@ export type Voce = {
   accessibilita?: string;
   fascia_oraria?: string;
   coordinate?: string;
+  /** Calibro del misuratore da posare (commessa AcquaLatina, chiave info opt-in `diametro`). */
+  diametro?: string;
   notaUfficio?: string;
   /** Note "tramandate" dai precedenti interventi positivi sullo stesso impianto (sola lettura). */
   notePrecedenti?: NotaPrecedente[];

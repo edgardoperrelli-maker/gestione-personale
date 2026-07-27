@@ -83,6 +83,7 @@ type ColMap = {
   operatore: number | null;
   nominativo: number | null;
   matricola: number | null;
+  calibro: number | null;
   recapito: number | null;
   accessibilita: number | null;
   note: number | null;
@@ -116,6 +117,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       operatore: ATTGIORN_COL.OPERATORE,
       nominativo: ATTGIORN_COL.NOMINATIVO,
       matricola: ATTGIORN_COL.MATRICOLA,
+      calibro: null,
       recapito: ATTGIORN_COL.RECAPITO,
       accessibilita: ATTGIORN_COL.ACCESSIBILITA,
       note: null,
@@ -143,6 +145,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
         operatore: MASSIVA_COL.NOMINATIVO,
         nominativo: null,
         matricola: null,
+        calibro: null,
         recapito: null,
         accessibilita: null,
         note: null,
@@ -166,6 +169,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
       operatore: MASSIVA_COL.NOMINATIVO,
       nominativo: null,
       matricola: null,
+      calibro: null,
       recapito: null,
       accessibilita: null,
       note: null,
@@ -193,6 +197,7 @@ export function detectFormat(headerRow: unknown[]): ColMap | null {
     operatore: findCol(headers, [/^operatore$/, /^risorsa$/, /^tecnico$/, /^esecutore$/, /^addetto$/, /^nome (operatore|tecnico|risorsa)$/]),
     nominativo: findCol(headers, [/^nominativo$/, /^nominativo cliente$/, /^cliente$/]),
     matricola: findCol(headers, [/^matricola$/, /matricola/]),
+    calibro: findCol(headers, [/^calibro$/, /^diametro$/, /^dn$/]),
     recapito: null,
     accessibilita: null,
     note: findCol(headers, [/^note per operatore$/, /^note$/, /^nota$/, /^annotazioni$/]),
@@ -321,6 +326,7 @@ export async function parseExcelToTasks(file: File): Promise<Task[]> {
       fascia_oraria: colMap.fascia != null ? str(row[colMap.fascia]) : '',
       nominativo: colMap.nominativo != null ? str(row[colMap.nominativo]) : undefined,
       matricola: colMap.matricola != null ? str(row[colMap.matricola]) : undefined,
+      calibro: colMap.calibro != null ? (str(row[colMap.calibro]) || undefined) : undefined,
       recapito: colMap.recapito != null ? str(row[colMap.recapito]) : undefined,
       accessibilita: colMap.accessibilita != null ? str(row[colMap.accessibilita]) : undefined,
       note: colMap.note != null ? (str(row[colMap.note]) || undefined) : undefined,

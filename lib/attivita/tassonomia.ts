@@ -17,6 +17,13 @@ export function chiaveTassonomia(s: string | null | undefined): string {
   return normalizzaAttivita(s)?.key ?? '';
 }
 
+/**
+ * I committenti che hanno righe proprie in tassonomia, nell'ordine in cui `'altro'` li sonda.
+ * Aggiungere qui un committente nuovo è ciò che lo rende risolvibile dai giri misti e
+ * dall'import: senza, le sue attività resterebbero non classificate (gruppo null).
+ */
+export const COMMITTENTI_TASSONOMIA = ['acea', 'italgas', 'acqualatina'] as const;
+
 /** lim_massive è un marcatore di canale, non un committente: in tassonomia equivale ad acea. */
 export function committenteEquivalente(committente: string | null | undefined): string {
   const c = String(committente ?? '').trim().toLowerCase();
@@ -37,7 +44,8 @@ export function buildTassonomiaIndex(righe: TassonomiaRiga[]): Map<string, Tasso
 
 /**
  * Risolve (committente, descrizione) → riga di tassonomia, o null se sconosciuta.
- * 'altro' non ha righe proprie: prova acea poi italgas (accetta qualsiasi attività nota).
+ * 'altro' non ha righe proprie: sonda i COMMITTENTI_TASSONOMIA in ordine (accetta qualsiasi
+ * attività nota, a chiunque appartenga).
  *
  * `opts.allinea` (OPT-IN) applica gli alias (`allineaChiaveAttivita`) PRIMA del lookup, così
  * typo/duplicati risolvono alla forma canonica (stesso gruppo garantito). Due tier:
@@ -56,9 +64,11 @@ export function risolviGruppo(
   const c = committenteEquivalente(committente);
   const chiave = (cc: string) => (opts?.allinea ? allineaChiaveAttivita(cc, k, opts.allinea) : k);
   if (c === 'altro') {
-    return index.get(key('acea', chiave('acea')))
-      ?? index.get(key('italgas', chiave('italgas')))
-      ?? null;
+    for (const cc of COMMITTENTI_TASSONOMIA) {
+      const r = index.get(key(cc, chiave(cc)));
+      if (r) return r;
+    }
+    return null;
   }
   return index.get(key(c, chiave(c))) ?? null;
 }

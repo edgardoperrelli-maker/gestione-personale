@@ -128,3 +128,25 @@ describe('detectFormat — colonna attività', () => {
     expect(m?.attivita).toBe(5);
   });
 });
+
+describe('detectFormat — colonna CALIBRO (commessa AcquaLatina)', () => {
+  it('mappa la colonna CALIBRO del template ufficiale', () => {
+    const cm = detectFormat(['Indirizzo', 'CAP', 'Comune', 'CALIBRO']);
+    expect(cm?.calibro).toBe(3);
+  });
+
+  it('accetta anche gli header equivalenti DIAMETRO / DN', () => {
+    expect(detectFormat(['Indirizzo', 'CAP', 'Diametro'])?.calibro).toBe(2);
+    expect(detectFormat(['Indirizzo', 'DN'])?.calibro).toBe(1);
+  });
+
+  it('file senza la colonna → calibro null (nessun default imposto qui)', () => {
+    expect(detectFormat(['Indirizzo', 'CAP', 'Comune'])?.calibro).toBeNull();
+  });
+
+  it('non confonde CALIBRO con MATRICOLA', () => {
+    const cm = detectFormat(['Indirizzo', 'MATRICOLA', 'CALIBRO']);
+    expect(cm?.matricola).toBe(1);
+    expect(cm?.calibro).toBe(2);
+  });
+});

@@ -121,3 +121,41 @@ describe('taskToIntervento — stato annullato', () => {
     expect(taskToIntervento(baseTask(), ctxAnn).stato).toBe('assegnato');
   });
 });
+
+// ─── Calibro (commessa AcquaLatina) ──────────────────────────────────────────
+// Il default DN15 è una regola di capitolato della sola AcquaLatina: ACEA/Italgas
+// non hanno un diametro di capitolato e devono restare a null quando la cella è vuota.
+const INDICE_AL = buildTassonomiaIndex([
+  {
+    committente: 'acqualatina',
+    descrizione: 'Sostituzione misuratore',
+    descrizioneNorm: 'SOSTITUZIONE MISURATORE',
+    gruppo: 'SOSTITUZIONE MISURATORI',
+    attivo: true,
+  },
+]);
+
+describe('taskToIntervento — calibro', () => {
+  const taskAl = (over: Partial<Task> = {}): Task =>
+    baseTask({ attivita: 'Sostituzione misuratore', ...over });
+
+  it('AcquaLatina senza CALIBRO → default di capitolato DN15', () => {
+    const r = taskToIntervento(taskAl(), ctxAnn, INDICE_AL);
+    expect(r.committente).toBe('acqualatina');
+    expect(r.diametro).toBe('DN15');
+  });
+
+  it('AcquaLatina con CALIBRO compilato → vince quello dell\'ufficio', () => {
+    expect(taskToIntervento(taskAl({ calibro: 'DN20' }), ctxAnn, INDICE_AL).diametro).toBe('DN20');
+  });
+
+  it('committente diverso senza CALIBRO → null, nessun default DN15', () => {
+    const r = taskToIntervento(baseTask({ attivita: 'Sospensione' }), ctxAnn, INDICE);
+    expect(r.committente).toBe('acea');
+    expect(r.diametro).toBeNull();
+  });
+
+  it('committente diverso con CALIBRO → il valore passa comunque', () => {
+    expect(taskToIntervento(baseTask({ calibro: 'DN32' }), ctxAnn).diametro).toBe('DN32');
+  });
+});
