@@ -104,7 +104,7 @@ function StrisciaWeekend({ d, isToday, onEspandi }: { d: Date; isToday: boolean;
     >
       <span className="text-sm font-semibold text-[var(--brand-text-main)]">{d.getDate()}</span>
       <span
-        className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-muted)]"
+        className="text-[11px] font-semibold uppercase tracking-[0.1em] text-[var(--brand-text-muted)]"
         style={{ writingMode: 'vertical-rl' }}
       >
         {etichetta}
@@ -343,7 +343,7 @@ function SingoloCard({
       <OperatorCard a={a} onDelete={onDelete} onEdit={onEdit} taskCount={taskCount} />
       {/* Occhiello discoverabile a mouse fermo */}
       <div
-        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-[var(--shadow-sm)] group-hover/s:flex"
+        className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[11px] shadow-[var(--shadow-sm)] group-hover/s:flex"
         style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
       >
         <Link2 size={12} aria-hidden />
@@ -354,7 +354,7 @@ function SingoloCard({
           className="pointer-events-none absolute inset-0 z-20 flex items-center justify-center rounded-[var(--radius-lg)]"
           style={{ backgroundColor: 'var(--brand-primary-soft)', outline: '2px solid var(--brand-primary)', outlineOffset: '1px' }}
         >
-          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+          <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold shadow" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
             <Link2 size={12} aria-hidden /> Aggancia
           </span>
         </div>
@@ -553,7 +553,7 @@ function DayCell(props: {
             {d.getDate()}
           </span>
           {isItalyHoliday(d) && (
-            <span className="text-[10px] font-semibold text-[var(--danger)] uppercase tracking-wide">
+            <span className="text-[11px] font-semibold text-[var(--danger)] uppercase tracking-wide">
               Festivo
             </span>
           )}
@@ -567,7 +567,7 @@ function DayCell(props: {
             return (
               <span
                 title={`${unassigned} operator${unassigned === 1 ? 'e' : 'i'} senza assegnazione`}
-                className="inline-flex items-center gap-0.5 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[10px] font-semibold text-[var(--warning)]"
+                className="inline-flex items-center gap-0.5 rounded-full bg-[var(--warning-soft)] px-1.5 py-0.5 text-[11px] font-semibold text-[var(--warning)]"
               >
                 <AlertTriangle size={12} aria-hidden /> {unassigned}
               </span>
@@ -580,7 +580,7 @@ function DayCell(props: {
             const n = props.appointmentCountByIso?.[iso] ?? 0;
             if (n <= 0) return null;
             return (
-              <span className="text-[10px] font-semibold" style={{ color: 'var(--brand-primary)' }} title={`${n} appuntamenti`}>
+              <span className="text-[11px] font-semibold" style={{ color: 'var(--brand-primary)' }} title={`${n} appuntamenti`}>
                 {n} App.
               </span>
             );
@@ -683,7 +683,7 @@ function DayCell(props: {
                     >
                       <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
-                      <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
+                      <span className="text-[11px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
                         {g.terrName || 'Senza territorio'}{collapsed ? ` (${g.items.length})` : ''}
                       </span>
                     </button>
@@ -714,7 +714,7 @@ function DayCell(props: {
               >
                 <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
-                <span className="text-[9px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
+                <span className="text-[11px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
                   Magazzino ({inMagazzino.length})
                 </span>
               </button>
@@ -732,7 +732,7 @@ function DayCell(props: {
                       <span className="min-w-0 flex-1 truncate font-semibold uppercase tracking-tight">
                         {op.display_name}
                       </span>
-                      <span className="shrink-0 text-[9px] opacity-70">in magazzino</span>
+                      <span className="shrink-0 text-[11px] opacity-70">in magazzino</span>
                     </button>
                   ))}
                 </div>

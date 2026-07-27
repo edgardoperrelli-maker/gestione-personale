@@ -21,7 +21,7 @@ export default function CampanelloRichieste() {
       </svg>
       {count > 0 && (
         <span
-          className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-white"
+          className="absolute -right-1 -top-1 inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-[18px] text-white"
           style={{ backgroundColor: 'var(--danger)' }}
         >
           {count > 99 ? '99+' : count}

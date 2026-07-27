@@ -46,7 +46,7 @@ export function DetailDrawer({
         <div className="flex items-start gap-2">
           <div className="min-w-0 flex-1">
             {eyebrow && <div className="font-mono text-xs font-semibold text-[var(--primary-text)]">{eyebrow}</div>}
-            <h2 className="mt-0.5 truncate text-[15px] font-semibold tracking-[-0.01em] text-[var(--brand-text-main)]">{title}</h2>
+            <h2 className="mt-0.5 truncate text-base font-semibold tracking-[-0.01em] text-[var(--brand-text-main)]">{title}</h2>
             {meta && <div className="mt-1.5 text-xs text-[var(--brand-text-muted)]">{meta}</div>}
           </div>
           <button

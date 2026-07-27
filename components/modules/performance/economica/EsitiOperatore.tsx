@@ -98,7 +98,7 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
           </ResponsiveContainer>
         </div>
       )}
-      <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
+      <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
         Base = interventi ACEA assegnati nel periodo (positivi + negativi + mai lavorati). € = produzione del periodo.
       </p>
     </div>

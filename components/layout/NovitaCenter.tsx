@@ -118,7 +118,7 @@ export default function NovitaCenter() {
           </svg>
           {nuovi > 0 && (
             <span
-              className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[9px] font-bold"
+              className="absolute -right-0.5 -top-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full px-1 text-[11px] font-bold"
               style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}
             >
               {nuovi}
@@ -148,7 +148,7 @@ export default function NovitaCenter() {
                       {a.title}
                       {seen[a.key] === false && (
                         <span
-                          className="rounded-full px-1.5 py-px text-[9px] font-bold uppercase"
+                          className="rounded-full px-1.5 py-px text-[11px] font-bold uppercase"
                           style={{ backgroundColor: 'var(--brand-primary-soft)', color: 'var(--brand-primary)' }}
                         >
                           Nuovo

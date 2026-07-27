@@ -174,15 +174,15 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
       </div>
 
       <div className="flex flex-wrap items-end gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
-        <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
+        <label className="flex flex-col gap-0.5 text-[11px] text-[var(--brand-text-muted)]">
           Attività (manuale)
           <input type="text" value={nuovo.etichetta} onChange={(e) => setNuovo((n) => ({ ...n, etichetta: e.target.value }))} className={`${field} w-56`} placeholder="es. Sostituzione saracinesca" />
         </label>
-        <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
+        <label className="flex flex-col gap-0.5 text-[11px] text-[var(--brand-text-muted)]">
           Prezzo €
           <input type="number" step="0.01" value={nuovo.prezzo} onChange={(e) => setNuovo((n) => ({ ...n, prezzo: Number(e.target.value) }))} className={`${field} w-24`} />
         </label>
-        <label className="flex flex-col gap-0.5 text-[10px] text-[var(--brand-text-muted)]">
+        <label className="flex flex-col gap-0.5 text-[11px] text-[var(--brand-text-muted)]">
           Valido dal
           <input type="date" value={nuovo.valido_dal} onChange={(e) => setNuovo((n) => ({ ...n, valido_dal: e.target.value }))} className={field} />
         </label>

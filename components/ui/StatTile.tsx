@@ -40,7 +40,7 @@ export default function StatTile({
       >
         {value}
       </div>
-      {note && <div className="mt-0.5 text-[10px] text-[var(--brand-text-subtle)]">{note}</div>}
+      {note && <div className="mt-0.5 text-[11px] text-[var(--brand-text-subtle)]">{note}</div>}
     </div>
   );
 }

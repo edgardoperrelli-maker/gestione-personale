@@ -28,7 +28,7 @@ export default function AnnuncioConfrontoEsiti({ open, onClose }: { open: boolea
       <div className="space-y-6">
         <div className="space-y-2">
           <span
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide"
             style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--primary-text)' }}
           >
             <Sparkles size={11} aria-hidden /> Novità
@@ -82,7 +82,7 @@ export default function AnnuncioConfrontoEsiti({ open, onClose }: { open: boolea
 function Principio({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
-      <div className="text-[10px] font-semibold uppercase tracking-widest text-[var(--primary-text)]">{label}</div>
+      <div className="text-[11px] font-semibold uppercase tracking-widest text-[var(--primary-text)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
       <p className="mt-1 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>

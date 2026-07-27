@@ -72,7 +72,7 @@ export default function AppointmentDayCards({
                   <div className="flex items-center gap-1.5">
                     <span className="truncate font-semibold text-[var(--brand-text-main)]">{a.pdr}</span>
                     {a.fascia_oraria && (
-                      <span className="ml-auto shrink-0 font-mono text-[10px] tabular-nums text-[var(--brand-text-muted)]">{a.fascia_oraria}</span>
+                      <span className="ml-auto shrink-0 font-mono text-[11px] tabular-nums text-[var(--brand-text-muted)]">{a.fascia_oraria}</span>
                     )}
                   </div>
                   {(a.committente?.nome || a.appuntamento_territorio?.nome) && (

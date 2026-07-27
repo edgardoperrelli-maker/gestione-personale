@@ -618,7 +618,7 @@ export default function UtenzeClient() {
                       </span>
                     </span>
 
-                    <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="shrink-0 text-[10px]">
+                    <Badge variant={ROLE_BADGE_VARIANT[user.role]} className="shrink-0 text-[11px]">
                       {ASSIGNABLE_ROLE_LABELS[user.role]}
                     </Badge>
 

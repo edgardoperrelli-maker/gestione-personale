@@ -135,7 +135,7 @@ export default function CandeleSettimanali() {
           ))}
         </div>
       )}
-      <p className="mt-1 text-[10px] text-[var(--brand-text-subtle)]">
+      <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
         Altezza = interventi ACEA assegnati (positivi + negativi + mai lavorati) per giorno, NON normalizzata.
         € nel tooltip = produzione dedup per matricola.
       </p>

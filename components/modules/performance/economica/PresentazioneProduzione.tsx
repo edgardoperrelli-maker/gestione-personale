@@ -86,7 +86,7 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
             <section className="break-inside-avoid">
               <CandeleSettimanali />
             </section>
-            <p className="text-[10px] text-[var(--brand-text-subtle)]">
+            <p className="text-[11px] text-[var(--brand-text-subtle)]">
               Fonte: gestionale (interventi + snapshot master/portale/SAL ACEA). SAL = ordini pagati dal file
               ufficiale ACEA; Pre-SAL = ordini esitati (COMPLETATO, causale E%) non ancora in un SAL. Giornate-uomo =
               quota di interventi ACEA lavorati sul totale lavorato, nei soli giorni feriali lun–ven (sabato =

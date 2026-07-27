@@ -48,7 +48,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
         <div className="flex items-start gap-3 border-b border-[var(--brand-border)] px-5 py-4">
           <div>
             <span
-              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide"
+              className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold uppercase tracking-wide"
               style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
             >
               <Sparkles size={11} aria-hidden /> Novità
@@ -115,7 +115,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
                   <span className="font-semibold uppercase tracking-tight">Gallo V.</span>
                   <span className="ml-1 opacity-70">· ⛓</span>
                 </div>
-                <div className="mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
+                <div className="mb-1 inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-primary)', color: 'var(--on-primary)' }}>
                   ⛓ Aggiungi a squadra → 4/4
                 </div>
                 <SquadDemo
@@ -191,7 +191,7 @@ export default function AnnuncioSquadre({ open, onClose }: { open: boolean; onCl
 function Principio({ label, title, children }: { label: string; title: string; children: React.ReactNode }) {
   return (
     <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-bg)] p-3.5">
-      <div className="text-[10px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
+      <div className="text-[11px] font-bold uppercase tracking-widest text-[var(--brand-primary)]">{label}</div>
       <div className="mt-1 text-sm font-semibold text-[var(--brand-text-main)]">{title}</div>
       <p className="mt-1 text-xs leading-snug text-[var(--brand-text-muted)]">{children}</p>
     </div>
@@ -203,7 +203,7 @@ function SezioneTitolo({ children }: { children: React.ReactNode }) {
 }
 
 function Etichetta({ children }: { children: React.ReactNode }) {
-  return <div className="mb-1 text-[10px] font-bold uppercase tracking-wide text-[var(--brand-text-muted)]">{children}</div>;
+  return <div className="mb-1 text-[11px] font-bold uppercase tracking-wide text-[var(--brand-text-muted)]">{children}</div>;
 }
 
 function Voce({ t, children }: { t: string; children: React.ReactNode }) {
@@ -242,14 +242,14 @@ function SquadDemo({
       <span className="absolute left-0 top-0 h-full w-1 rounded-l-lg" style={{ backgroundColor: terr.band }} />
       <div className="mb-1 flex items-center justify-between gap-2 pl-1.5">
         <span
-          className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[9px] font-bold uppercase tracking-wide"
+          className="inline-flex items-center gap-1 rounded-full px-2 py-px text-[11px] font-bold uppercase tracking-wide"
           style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}
         >
           <Link2 size={12} aria-hidden /> Squadra ×{count}
         </span>
         {progress && (
           <span
-            className="rounded-full px-1.5 py-px text-[9px] font-semibold"
+            className="rounded-full px-1.5 py-px text-[11px] font-semibold"
             style={progressWarn ? { color: 'var(--warning)', border: '1px solid var(--warning)' } : { color: terr.tx, border: `1px solid ${terr.bd}` }}
           >
             {progress}
@@ -262,27 +262,27 @@ function SquadDemo({
           <div key={m.nome} className="relative flex items-center gap-1.5 py-0.5">
             <span className="absolute -left-[11px] top-1/2 h-1.5 w-1.5 -translate-y-1/2 rounded-full" style={{ backgroundColor: 'var(--brand-primary)', boxShadow: `0 0 0 2px ${terr.bg}` }} />
             {m.capo && (
-              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}>
+              <span className="rounded px-1 text-[11px] font-bold" style={{ backgroundColor: 'var(--brand-primary-soft)', border: '1px solid var(--brand-primary-border)', color: 'var(--brand-primary)' }}>
                 CAPO
               </span>
             )}
             {m.rep && (
-              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
+              <span className="rounded px-1 text-[11px] font-bold" style={{ backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}>
                 REP
               </span>
             )}
             <span className={`font-semibold uppercase tracking-tight ${m.assente ? 'line-through opacity-50' : ''}`}>{m.nome}</span>
             {m.assente && (
-              <span className="rounded px-1 text-[9px] font-bold" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
+              <span className="rounded px-1 text-[11px] font-bold" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
                 FERIE
               </span>
             )}
           </div>
         ))}
       </div>
-      <div className="mt-1 pl-1.5 text-[10px] opacity-75">{meta}</div>
+      <div className="mt-1 pl-1.5 text-[11px] opacity-75">{meta}</div>
       {incompleta && (
-        <div className="mx-1 mt-1 rounded-md px-2 py-0.5 text-[10px]" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
+        <div className="mx-1 mt-1 rounded-md px-2 py-0.5 text-[11px]" style={{ backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }}>
           {incompleta}
         </div>
       )}

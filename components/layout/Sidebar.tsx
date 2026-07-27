@@ -43,7 +43,7 @@ export default function Sidebar({
     n > 0 ? (
       <span
         aria-label={`${n} ${label}`}
-        className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[10px] font-bold leading-[18px] text-[var(--on-danger)] ${collapsed ? 'absolute right-1 top-1' : ''}`}
+        className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-bold leading-[18px] text-[var(--on-danger)] ${collapsed ? 'absolute right-1 top-1' : ''}`}
         style={{ backgroundColor: 'var(--status-ko)' }}
       >
         {n > 99 ? '99+' : n}
@@ -67,7 +67,7 @@ export default function Sidebar({
     />
   ) : (
     <span
-      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold"
+      className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[11px] font-semibold"
       style={{ backgroundColor: 'var(--status-ok-soft)', color: 'var(--status-ok)' }}
     >
       Novità
@@ -162,7 +162,7 @@ export default function Sidebar({
           {!collapsed && (
             <span className="flex min-w-0 flex-col leading-tight">
               <span className="truncate text-sm font-bold tracking-[0.04em]">PLENZICH</span>
-              <span className="truncate text-[9px] tracking-[0.12em] text-[var(--brand-text-subtle)]">DASHBOARD</span>
+              <span className="truncate text-[11px] tracking-[0.12em] text-[var(--brand-text-subtle)]">DASHBOARD</span>
             </span>
           )}
         </Link>
@@ -181,7 +181,7 @@ export default function Sidebar({
               {collapsed ? (
                 idx > 0 && <div className="mx-2 my-1 border-t" style={{ borderColor: 'var(--brand-border)' }} />
               ) : (
-                <p className="px-3 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-[var(--brand-text-subtle)]">
+                <p className="px-3 pt-3 pb-1 text-[11px] font-semibold uppercase tracking-wider text-[var(--brand-text-subtle)]">
                   {groupLabels[group]}
                 </p>
               )}
