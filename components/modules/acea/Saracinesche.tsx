@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Waves } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
+import Tabs from '@/components/Tabs';
 import StatTile from '@/components/ui/StatTile';
 import { dataIt } from '@/lib/acea/colonneTabella';
 import type { DichiarazioneClassificata, Famiglia, OrdineAperto } from '@/lib/acea/saracinesche';
@@ -78,21 +79,6 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
     );
   }, [dati, vista]);
 
-  const scheda = (v: Vista, etichetta: string, n: number) => (
-    <button
-      key={v}
-      type="button"
-      onClick={() => setVista(v)}
-      className={`rounded-[var(--radius-md)] px-3 py-1.5 text-xs font-medium ${
-        vista === v
-          ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-text-main)]'
-          : 'text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]'
-      }`}
-    >
-      {etichetta} <span className="font-mono tabular-nums">{n}</span>
-    </button>
-  );
-
   return (
     <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
@@ -118,7 +104,7 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
       {dati && (
         <>
           {!dati.attendibile && (
-            <p className="mt-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--brand-surface-muted)] px-3 py-2 text-xs text-[var(--brand-text-main)]">
+            <p className="mt-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2 text-xs text-[var(--brand-text-main)]">
               Nel registro non c&apos;è ancora nessun ordine di sostituzione saracinesca: la
               copertura non è calcolabile e «da richiedere» coincide con «fatte». Carica un export
               ACEA prima di usare questi numeri.
@@ -147,10 +133,18 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
             />
           </div>
 
-          <div className="mt-3 flex flex-wrap items-center gap-1">
-            {scheda('da_richiedere', 'Da richiedere', dati.daRichiedere)}
-            {scheda('da_esitare', 'Da esitare', dati.daEsitare)}
-            {scheda('fatte', 'Tutte le fatte', dati.fatte)}
+          {/* `Tabs` del sistema e non tre bottoni disegnati a mano: e` un filtro sullo stesso
+              dataset, esattamente il caso di DESIGN.md §7bis. */}
+          <div className="mt-3">
+            <Tabs
+              value={vista}
+              onValueChange={(v) => setVista(v as Vista)}
+              items={[
+                { value: 'da_richiedere', label: `Da richiedere ${dati.daRichiedere}` },
+                { value: 'da_esitare', label: `Da esitare ${dati.daEsitare}` },
+                { value: 'fatte', label: `Tutte le fatte ${dati.fatte}` },
+              ]}
+            />
           </div>
 
           <div className="mt-2 max-h-80 overflow-auto rounded-[var(--radius-md)] border border-[var(--brand-border)]">

@@ -122,7 +122,11 @@ function BloccoConfronto({
  * Il confronto col portale è quello che decide — è la stessa fonte da cui arriva l'export, letta
  * in modo indipendente dall'agente. Il confronto col master serve a capire la differenza, non a
  * validarla: quel file ha, nella colonna stato, gli stati ACEA insieme ai nostri, «DA CHIEDERE»,
- * celle vuote e 43 righe con `[object Object]`.
+ * celle vuote e righe con `[object Object]`.
+ *
+ * I conteggi mostrati arrivano tutti da `/api/acea/collaudo`. Nessun numero è scritto qui dentro:
+ * una cifra fissata nel testo resta ferma mentre i dati cambiano, e nessuno che la legge può sapere
+ * a quando risale.
  */
 export default function CollaudoClient() {
   const [rapporto, setRapporto] = useState<Rapporto | null>(null);
@@ -258,7 +262,7 @@ export default function CollaudoClient() {
               titolo="Modulo contro master"
               spiegazione={
                 'Serve a capire la differenza, non a validarla: nella colonna stato del master '
-                + 'convivono gli stati ACEA, i nostri, «DA CHIEDERE», celle vuote e 43 righe con '
+                + 'convivono gli stati ACEA, i nostri, «DA CHIEDERE», celle vuote e righe con '
                 + '[object Object]. Qui «aperto» vuol dire riga senza esito.'
               }
               c={r.master}

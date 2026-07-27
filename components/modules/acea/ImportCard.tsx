@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { Upload } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
@@ -39,6 +39,7 @@ export default function ImportCard({ onImportato }: { onImportato?: () => void }
   const [esito, setEsito] = useState<EsitoImport | null>(null);
   const [storico, setStorico] = useState<StoricoImport[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
+  const idFile = useId();
 
   const caricaStorico = useCallback(async () => {
     try {
@@ -103,7 +104,16 @@ export default function ImportCard({ onImportato }: { onImportato?: () => void }
       </div>
 
       <div className="flex flex-wrap items-center gap-2">
+        {/*
+          `<label>` collegata e non solo un `aria-label`: senza nome accessibile un input file viene
+          annunciato come «pulsante Scegli file» e basta, indistinguibile da qualunque altro nella
+          pagina. La label e` visivamente nascosta perche` il riquadro dice gia` cosa si carica.
+        */}
+        <label htmlFor={idFile} className="sr-only">
+          File xlsx dell&apos;export ACEA
+        </label>
         <input
+          id={idFile}
           ref={inputRef}
           type="file"
           accept=".xlsx"

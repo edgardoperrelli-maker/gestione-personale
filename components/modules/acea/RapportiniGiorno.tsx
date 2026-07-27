@@ -163,8 +163,10 @@ export default function RapportiniGiorno() {
         </div>
       )}
 
+      {/* Fondo `--warning-soft` e non `--brand-surface-muted`: un avviso deve leggersi come avviso
+          anche a colpo d'occhio, e il grigio neutro lo faceva sembrare una nota qualsiasi. */}
       {daRiaprire > 0 && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--brand-surface-muted)] px-3 py-2">
+        <div className="mt-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--warning)] bg-[var(--warning-soft)] px-3 py-2">
           <span className="text-xs text-[var(--brand-text-main)]">
             {daRiaprire === 1
               ? '1 operatore ha già consegnato il rapportino: gli interventi nuovi non sono stati aggiunti.'
