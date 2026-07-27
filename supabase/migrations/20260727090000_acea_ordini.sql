@@ -231,37 +231,39 @@ alter table public.acea_ordini_eventi enable row level security;
 alter table public.acea_impianti      enable row level security;
 alter table public.acea_import        enable row level security;
 
--- acea_ordini: sola lettura per authenticated. Il REVOKE dei privilegi di tabella è il gate vero
--- (una policy permissiva non basta a concedere UPDATE se il privilegio non c'è).
+-- ATTENZIONE ai default di Supabase: al ruolo `authenticated` sono concessi anche TRUNCATE,
+-- TRIGGER e REFERENCES. **TRUNCATE non è filtrato da RLS**: da solo basterebbe a svuotare il
+-- registro. Per questo si azzera TUTTO con `revoke all` e si riconcede solo il minimo, invece
+-- di revocare il solo trio insert/update/delete.
+revoke all on table public.acea_ordini from authenticated, anon;
 drop policy if exists acea_ordini_select_auth on public.acea_ordini;
 create policy acea_ordini_select_auth on public.acea_ordini
   for select to authenticated using (true);
-revoke insert, update, delete on public.acea_ordini from authenticated;
 grant select on public.acea_ordini to authenticated;
 
 -- change-log: sola lettura (lo scrive l'ingestione e le azioni server-side)
+revoke all on table public.acea_ordini_eventi from authenticated, anon;
 drop policy if exists acea_ordini_eventi_select_auth on public.acea_ordini_eventi;
 create policy acea_ordini_eventi_select_auth on public.acea_ordini_eventi
   for select to authenticated using (true);
-revoke insert, update, delete on public.acea_ordini_eventi from authenticated;
 grant select on public.acea_ordini_eventi to authenticated;
 
 -- impianti: lettura piena, scrittura consentita SOLO sulle colonne della verifica indirizzo.
 -- Privilegi di COLONNA: nativi in Postgres, nessun trigger necessario.
+revoke all on table public.acea_impianti from authenticated, anon;
 drop policy if exists acea_impianti_select_auth on public.acea_impianti;
 create policy acea_impianti_select_auth on public.acea_impianti
   for select to authenticated using (true);
 drop policy if exists acea_impianti_update_auth on public.acea_impianti;
 create policy acea_impianti_update_auth on public.acea_impianti
   for update to authenticated using (true) with check (true);
-revoke insert, update, delete on public.acea_impianti from authenticated;
 grant select on public.acea_impianti to authenticated;
 grant update (indirizzo_verificato, verificato_da, verificato_il, note_verifica)
   on public.acea_impianti to authenticated;
 
 -- import: sola lettura (il caricamento passa dalla route admin con service role)
+revoke all on table public.acea_import from authenticated, anon;
 drop policy if exists acea_import_select_auth on public.acea_import;
 create policy acea_import_select_auth on public.acea_import
   for select to authenticated using (true);
-revoke insert, update, delete on public.acea_import from authenticated;
 grant select on public.acea_import to authenticated;
