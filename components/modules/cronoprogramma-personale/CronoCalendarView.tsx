@@ -8,8 +8,15 @@ import type { Assignment, Staff } from '@/types';
 import type { DayRow, SortMode } from './types';
 import { getTerritoryStyle } from '@/lib/territoryColors';
 import { TIPO_META, labelDisponibilita, isAssenzaIntera, type Disponibilita } from '@/lib/disponibilita';
-import { loadCollapsed, saveCollapsed, ASSENZE_APERTE_KEY, WEEKEND_APERTO_KEY } from '@/lib/cronoCollapse';
-import { raggruppaSquadre } from './squadre';
+import {
+  chiaveTerritorio,
+  loadCollapsed,
+  saveCollapsed,
+  ASSENZE_APERTE_KEY,
+  MAGAZZINO,
+  WEEKEND_APERTO_KEY,
+} from '@/lib/cronoCollapse';
+import { membriPresenti, raggruppaSquadre } from './squadre';
 import SquadraCard from './SquadraCard';
 import {
   eqDate,
@@ -172,6 +179,8 @@ export default function CronoCalendarView({
   const dayMap = useMemo(() => indexDays(days), [days]);
   const todayIso = fmtDay(today);
 
+  // Le chiavi delle corsie territorio sono `giorno|territorio` (vedi cronoCollapse):
+  // un insieme solo, ma ogni voce vale per UNA cella, non per la riga di sette.
   const [collapsedTerritori, setCollapsedTerritori] = useState<Set<string>>(() => new Set(loadCollapsed()));
   const toggleTerritorio = (key: string) =>
     setCollapsedTerritori((prev) => {
@@ -665,67 +674,110 @@ function DayCell(props: {
             </div>
           );
         })()}
-        {sorted.length ? (
-          hasTerritoryGrouping ? (
-            (() => {
-              const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
-              const idx = new Map<string, number>();
-              for (const a of sorted) {
-                const key = a.territory?.id ?? '__none__';
-                if (!idx.has(key)) {
-                  idx.set(key, groups.length);
-                  groups.push({ terrName: a.territory?.name ?? '', terrId: a.territory?.id ?? null, items: [] });
-                }
-                groups[idx.get(key)!].items.push(a);
+        {(() => {
+          if (hasTerritoryGrouping) {
+            const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
+            const idx = new Map<string, number>();
+            for (const a of sorted) {
+              const key = a.territory?.id ?? '__none__';
+              if (!idx.has(key)) {
+                idx.set(key, groups.length);
+                groups.push({ terrName: a.territory?.name ?? '', terrId: a.territory?.id ?? null, items: [] });
               }
-              return groups.map((g) => {
+              groups[idx.get(key)!].items.push(a);
+            }
+            // Le card si costruiscono QUI, una volta sola, e la corsia che non ne ha
+            // nemmeno una sparisce: se i suoi assegnati sono tutti in assenza intera le
+            // loro card singole non si rendono, e resterebbe una testata che si apre sul
+            // vuoto. Un contenitore vuoto non è un dato. Gli assenti restano contati nel
+            // blocco in cima alla colonna, quindi non si perde nulla.
+            const corsie = groups
+              .map((g) => ({ ...g, cards: renderItems(g.items) }))
+              .filter((g) => g.cards.some(Boolean));
+            if (corsie.length) {
+              return corsie.map((g) => {
                 const s = getTerritoryStyle(g.terrName || null);
-                const key = g.terrId ?? '__none__';
+                // Chiave per GIORNO: comprimere PERUGIA di martedì lascia stare
+                // PERUGIA di mercoledì. Prima era il solo id e il clic valeva su
+                // tutta la settimana.
+                const key = chiaveTerritorio(iso, g.terrId);
                 const collapsed = props.collapsedTerritori?.has(key) ?? false;
+                const nome = g.terrName || 'Senza territorio';
+                // Il numero dice quante persone ci sono davvero, non quante righe
+                // esistono a DB: le card singole di chi è in assenza intera non
+                // vengono rese (restano nel blocco assenze), quindi contare le
+                // righe faceva promettere alla testata più gente di quanta se ne
+                // vedesse aprendo. Con degli assenti si mostra `presenti/totale`.
+                const { presenti, totale } = membriPresenti(g.items, absentIds);
+                const assenti = totale - presenti;
+                const conteggio = assenti > 0 ? `${presenti}/${totale}` : `${totale}`;
+                const dettaglio =
+                  assenti > 0
+                    ? `${totale} assegnat${totale === 1 ? 'o' : 'i'} · ${presenti} present${presenti === 1 ? 'e' : 'i'} · ${assenti} assent${assenti === 1 ? 'e' : 'i'}`
+                    : `${totale} operator${totale === 1 ? 'e' : 'i'}`;
                 return (
                   <div key={key}>
                     <button
                       type="button"
                       onClick={() => props.onToggleTerritorio?.(key)}
+                      aria-expanded={!collapsed}
                       className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-1.5 py-0.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                       style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
-                      title={collapsed ? 'Espandi territorio' : 'Comprimi territorio'}
+                      title={`${nome} — ${dettaglio}. ${collapsed ? 'Espandi' : 'Comprimi'} il territorio di questo giorno.`}
                     >
                       <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                       <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
-                      <span className="text-[11px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
-                        {g.terrName || 'Senza territorio'}{collapsed ? ` (${g.items.length})` : ''}
+                      <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide" style={{ color: s.text }}>
+                        {nome}
+                      </span>
+                      <span
+                        className="shrink-0 rounded-full px-1.5 font-mono text-[11px] font-bold tabular-nums"
+                        style={
+                          assenti > 0
+                            ? { backgroundColor: 'var(--warning-soft)', color: 'var(--warning)' }
+                            : { color: s.text, opacity: 0.75 }
+                        }
+                      >
+                        {conteggio}
                       </span>
                     </button>
-                    {!collapsed && <div className="space-y-1">{renderItems(g.items)}</div>}
+                    {!collapsed && <div className="space-y-1">{g.cards}</div>}
                   </div>
                 );
               });
-            })()
-          ) : (
-            <div className="space-y-1">{renderItems(sorted)}</div>
-          )
-        ) : inMagazzino.length ? null : (
-          <div className="text-xs opacity-50">-</div>
-        )}
+            }
+          } else {
+            const cards = renderItems(sorted);
+            if (cards.some(Boolean)) return <div className="space-y-1">{cards}</div>;
+          }
+          // Niente da mostrare: nessuna assegnazione, oppure solo assenti. Il trattino
+          // non compare se il magazzino sotto ha comunque qualcuno da elencare.
+          return inMagazzino.length ? null : <div className="text-xs opacity-50">-</div>;
+        })()}
 
         {inMagazzino.length > 0 && (() => {
           const s = getTerritoryStyle('MAGAZZINO');
-          const key = '__magazzino__';
+          // Anche il magazzino è una corsia di QUESTA giornata: la sua piega non
+          // deve seguire la stessa corsia negli altri sei giorni.
+          const key = chiaveTerritorio(iso, MAGAZZINO);
           const collapsed = props.collapsedTerritori?.has(key) ?? false;
           return (
             <div>
               <button
                 type="button"
                 onClick={() => props.onToggleTerritorio?.(key)}
-                className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-md px-1.5 py-0.5 text-left"
+                aria-expanded={!collapsed}
+                className="mb-1 flex w-full cursor-pointer items-center gap-1.5 rounded-[var(--radius-md)] px-1.5 py-0.5 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 style={{ backgroundColor: s.bg, border: `1px solid ${s.border}` }}
-                title={collapsed ? 'Espandi magazzino' : 'Comprimi magazzino'}
+                title={`Magazzino — ${inMagazzino.length} operator${inMagazzino.length === 1 ? 'e' : 'i'} senza assegnazione. ${collapsed ? 'Espandi' : 'Comprimi'} il magazzino di questo giorno.`}
               >
                 <span className="inline-flex items-center leading-none" style={{ color: s.text }}>{collapsed ? <ChevronRight size={12} aria-hidden /> : <ChevronDown size={12} aria-hidden />}</span>
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: s.band }} />
-                <span className="text-[11px] font-semibold uppercase tracking-wide truncate" style={{ color: s.text }}>
-                  Magazzino ({inMagazzino.length})
+                <span className="min-w-0 flex-1 truncate text-[11px] font-semibold uppercase tracking-wide" style={{ color: s.text }}>
+                  Magazzino
+                </span>
+                <span className="shrink-0 rounded-full px-1.5 font-mono text-[11px] font-bold tabular-nums" style={{ color: s.text, opacity: 0.75 }}>
+                  {inMagazzino.length}
                 </span>
               </button>
               {!collapsed && (

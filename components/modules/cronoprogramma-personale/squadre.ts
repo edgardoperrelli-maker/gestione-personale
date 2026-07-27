@@ -92,7 +92,9 @@ export function raggruppaSquadre(assegnazioni: Assignment[]): CellItem[] {
   return out;
 }
 
-/** Presenti/totale in una squadra, dato l'insieme degli staff in assenza intera quel giorno. */
+/** Presenti/totale su una lista di assegnazioni, dato l'insieme degli staff in assenza intera quel
+ *  giorno. Vale per i membri di una squadra e, allo stesso modo, per una corsia territorio intera
+ *  (la testata del territorio conta le persone davvero al lavoro, non le righe a DB). */
 export function membriPresenti(
   membri: Assignment[],
   assentiStaffIds: Set<string>,
