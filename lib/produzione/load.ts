@@ -200,7 +200,7 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
   const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows, salRows, comuniMassive] = await Promise.all([
     supabaseAdmin
-      .from('acea_listino')
+      .from('listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
       .eq('committente', 'acea'),
     caricaInterventiAcea(),

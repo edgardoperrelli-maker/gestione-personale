@@ -22,7 +22,7 @@ export async function GET(req: NextRequest) {
 
   let query = supabaseAdmin
     .from('appointments')
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, created_at, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, created_at, territories(id, name), committente:committenti(id, nome), appuntamento_territorio:contratto_territori(id, nome)')
     .order('data', { ascending: true })
     .order('fascia_oraria', { ascending: true });
 
@@ -83,7 +83,7 @@ export async function POST(req: NextRequest) {
       note: body.note ?? null,
       created_by: user.id,
     })
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:committenti(id, nome), appuntamento_territorio:contratto_territori(id, nome)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
@@ -129,7 +129,7 @@ export async function PATCH(req: NextRequest) {
     .from('appointments')
     .update(patch)
     .eq('id', id)
-    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:appuntamenti_committenti(id, nome), appuntamento_territorio:appuntamenti_territori(id, nome)')
+    .select('id, pdr, nome_cognome, indirizzo, cap, citta, lat, lng, data, fascia_oraria, tipo_intervento, territorio_id, committente_id, appuntamento_territorio_id, note, status, territories(id, name), committente:committenti(id, nome), appuntamento_territorio:contratto_territori(id, nome)')
     .single();
 
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });

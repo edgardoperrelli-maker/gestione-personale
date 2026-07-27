@@ -20,7 +20,7 @@ export async function GET() {
   const auth = await requireAdminPlus();
   if (auth instanceof NextResponse) return auth;
   const { data, error } = await supabaseAdmin
-    .from('acea_listino')
+    .from('listino')
     .select('id, committente, attivita, etichetta, voce, kpi, prezzo, valido_dal, valido_al, attivo, note')
     .eq('committente', 'acea')
     .not('attivita', 'is', null)
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'valido_al_non_valido' }, { status: 422 });
   }
   const { voce, kpi } = voceKpi(norm.etichetta);
-  const { error } = await supabaseAdmin.from('acea_listino').insert({
+  const { error } = await supabaseAdmin.from('listino').insert({
     committente: 'acea',
     attivita: norm.key,
     etichetta: norm.etichetta,
@@ -83,7 +83,7 @@ export async function PATCH(req: Request) {
   }
   if (b.attivo !== undefined) patch.attivo = b.attivo;
   if (b.note !== undefined) patch.note = b.note;
-  const { error } = await supabaseAdmin.from('acea_listino').update(patch).eq('id', b.id);
+  const { error } = await supabaseAdmin.from('listino').update(patch).eq('id', b.id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }
@@ -94,7 +94,7 @@ export async function DELETE(req: Request) {
   if (auth instanceof NextResponse) return auth;
   const id = new URL(req.url).searchParams.get('id');
   if (!id) return NextResponse.json({ error: 'id_mancante' }, { status: 422 });
-  const { error } = await supabaseAdmin.from('acea_listino').delete().eq('id', id);
+  const { error } = await supabaseAdmin.from('listino').delete().eq('id', id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   return NextResponse.json({ ok: true });
 }

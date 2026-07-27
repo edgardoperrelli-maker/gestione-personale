@@ -73,9 +73,9 @@ const MODULES: {
     icon: <Ban {...ICON_PROPS} />,
   },
   {
-    href: '/impostazioni/appuntamenti-committenti',
-    title: 'Committenti appuntamenti',
-    description: 'Committenti e territori degli appuntamenti (es. AcquaLatina → Terracina).',
+    href: '/impostazioni/contratti',
+    title: 'Contratti',
+    description: 'Commesse dei committenti: territori di copertura, prezzi e attività.',
     icon: <Building2 {...ICON_PROPS} />,
   },
   {

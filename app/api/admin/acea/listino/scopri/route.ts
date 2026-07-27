@@ -30,7 +30,7 @@ export async function POST() {
   try {
     const [canoniche, esistenti] = await Promise.all([
       attivitaCanonicheAcea(),
-      supabaseAdmin.from('acea_listino').select('attivita').eq('committente', 'acea').not('attivita', 'is', null),
+      supabaseAdmin.from('listino').select('attivita').eq('committente', 'acea').not('attivita', 'is', null),
     ]);
 
     const gia = new Set<string>();
@@ -62,7 +62,7 @@ export async function POST() {
     });
 
     if (righe.length > 0) {
-      const { error } = await supabaseAdmin.from('acea_listino').insert(righe);
+      const { error } = await supabaseAdmin.from('listino').insert(righe);
       if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     }
 

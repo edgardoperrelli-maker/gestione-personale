@@ -21,7 +21,7 @@ import MultiSelect from '@/components/ui/MultiSelect';
 import AppointmentDayCards from '@/components/modules/appuntamenti/AppointmentDayCards';
 import AppointmentModal, { type Appointment } from '@/components/modules/appuntamenti/AppointmentModal';
 import { addDays, fmtDay, startOfWeek } from '@/components/modules/cronoprogramma-personale/utils';
-import { committentiAttivi, territoriAttivi, type AppuntamentoCommittente } from '@/lib/appuntamenti/committenti';
+import { committentiAttivi, territoriDelCommittente, type Committente } from '@/lib/contratti/tipi';
 
 function parseDateParam(value: string | null): Date {
   if (value && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
@@ -37,7 +37,7 @@ function AppuntamentiInner() {
 
   const [anchor, setAnchor] = useState<Date>(() => startOfWeek(parseDateParam(searchParams.get('date'))));
   const [appointments, setAppointments] = useState<Appointment[]>([]);
-  const [committenti, setCommittenti] = useState<AppuntamentoCommittente[]>([]);
+  const [committenti, setCommittenti] = useState<Committente[]>([]);
   const [filtroCommittente, setFiltroCommittente] = useState('');
   const [filtroTerritori, setFiltroTerritori] = useState<string[]>([]); // [] = tutti
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
@@ -68,10 +68,10 @@ function AppuntamentiInner() {
       // Le tabelle possono non esistere finché la migrazione non è applicata:
       // in quel caso `data` è null e si resta con l'elenco vuoto.
       const { data } = await sb
-        .from('appuntamenti_committenti')
-        .select('id, nome, attivo, territori:appuntamenti_territori(id, committente_id, nome, attivo)')
+        .from('committenti')
+        .select('id, nome, codice, attivo, contratti(id, committente_id, nome, valido_dal, valido_al, attivo, note, territori:contratto_territori(id, contratto_id, nome, territory_id, attivo))')
         .order('nome', { ascending: true });
-      if (alive && data) setCommittenti(data as AppuntamentoCommittente[]);
+      if (alive && data) setCommittenti(data as Committente[]);
     })();
     return () => { alive = false; };
   }, [sb]);
@@ -84,7 +84,7 @@ function AppuntamentiInner() {
     const scope = filtroCommittente ? committentiSel.filter((c) => c.id === filtroCommittente) : committentiSel;
     const disambigua = !filtroCommittente && committentiSel.length > 1;
     return scope.flatMap((c) =>
-      territoriAttivi(c).map((t) => ({ value: t.id, label: disambigua ? `${c.nome} · ${t.nome}` : t.nome })),
+      territoriDelCommittente(c).map((t) => ({ value: t.id, label: disambigua ? `${c.nome} · ${t.nome}` : t.nome })),
     );
   }, [committentiSel, filtroCommittente]);
 
@@ -171,8 +171,8 @@ function AppuntamentiInner() {
 
       {committentiSel.length === 0 && (
         <div className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border)] px-4 py-3 text-sm text-[var(--brand-text-muted)]">
-          Nessun committente configurato. Aggiungi committenti e territori da{' '}
-          <a href="/impostazioni/appuntamenti-committenti" className="font-semibold text-[var(--primary-text)] hover:text-[var(--brand-primary)]">Impostazioni → Committenti appuntamenti</a>.
+          Nessun committente configurato. Aggiungi committenti, contratti e territori da{' '}
+          <a href="/impostazioni/contratti" className="font-semibold text-[var(--primary-text)] hover:text-[var(--brand-primary)]">Impostazioni → Contratti</a>.
         </div>
       )}
 
