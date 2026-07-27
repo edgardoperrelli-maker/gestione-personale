@@ -317,26 +317,36 @@ spegnimento del master.
 
 ## PARTE 6 — Rapportini
 
-### Task 6.1: `sincronizzaRapportiniAcea`
+### Task 6.1: `sincronizzaRapportiniAcea` ✅
 
-- [ ] Motore separato. Regola: **un rapportino per operatore per giorno**.
-      Cerca per `(staff_id, data)`; se non esiste lo crea sul territorio ACEA indipendentemente
-      dall'attività; se esiste vi **aggiunge** le voci con `origine = 'acea'`.
-- [ ] **Non cancella mai nulla.**
-- [ ] Le voci portano `template_id` e `campi_snapshot` del flusso della loro attività (meccanismo già
-      esistente per voce dal 20/07).
-- [ ] Rapportino già `inviato`: non si altera in silenzio. Il motore risponde
-      `{ esito: 'richiede_riapertura' }` e l'admin conferma.
-- [ ] Test: operatore senza rapportino → creato; con rapportino Italgas → voci aggiunte e **voci
-      Italgas intatte**; con rapportino inviato → nessuna modifica e richiesta di conferma; secondo
-      giro identico → nessuna voce duplicata.
+- [x] Motore separato (`lib/acea/sincronizzaRapportiniAcea.ts`). Regola: **un rapportino per
+      operatore per giorno**. Cerca per `(staff_id, data)` attraverso i piani; se non esiste lo crea
+      su un piano-contenitore di territorio ACEA indipendentemente dall'attività; se esiste vi
+      **aggiunge** le voci con `origine = 'acea'`.
+- [x] **Non cancella mai nulla.**
+- [x] Le voci portano `template_id` e `campi_snapshot` del flusso della loro attività (meccanismo già
+      esistente per voce dal 20/07), e `_nuovo` per evidenziarle all'operatore.
+- [x] Rapportino già `inviato`: non si altera in silenzio. Il motore risponde
+      `esito: 'richiede_riapertura'` e l'admin conferma. Se però non c'è nulla da aggiungere
+      risponde `nessuna_modifica`: nessuna riapertura per zero voci.
+- [x] Idempotente: `task_id = acea:<intervento_id>` più il confronto sull'ODL **di qualunque
+      origine** — durante la transizione il vecchio flusso da master genera voci `origine='task'`
+      sugli stessi ODL e senza quel controllo l'operatore vedrebbe l'intervento due volte.
+- [x] Gli interventi ACEA restano **senza `piano_id`**: legarli al contenitore li esporrebbe a
+      `ensureInterventiForPiano`, che cancella ciò che nei task del piano non trova.
+- [x] 27 test (`vociRapportino.test.ts`, `sincronizzaRapportiniAcea.test.ts`): operatore senza
+      rapportino → creato; con rapportino Italgas → voci aggiunte in coda e **voci Italgas intatte,
+      risposte comprese**; con rapportino inviato → nessuna modifica e richiesta di conferma; con
+      conferma → riaperto e aggiornato; secondo giro identico → nessuna voce duplicata; due
+      operatori → un solo piano-contenitore.
 
-### Task 6.2: conferma esplicita all'admin
+### Task 6.2: conferma esplicita all'admin ✅
 
-- [ ] `POST /api/acea/rapportini` restituisce, per operatore: creato / aggiunto a rapportino in
-      corso / richiede riapertura / nessuna modifica.
-- [ ] La UI mostra l'esito riga per riga. **Mai un silenzio**: è il difetto del motore attuale, dove
-      `skipInviati: true` scarta il lavoro senza avvisare nessuno.
+- [x] `POST /api/acea/rapportini` restituisce, per operatore: creato / aggiunto / richiede
+      riapertura / nessuna modifica, con conteggi e link al rapportino.
+- [x] `RapportiniGiorno` mostra l'esito riga per riga e offre «Riapri e aggiungi» con conferma.
+      **Mai un silenzio**: è il difetto del motore attuale, dove `skipInviati: true` scarta il
+      lavoro senza avvisare nessuno.
 
 ---
 

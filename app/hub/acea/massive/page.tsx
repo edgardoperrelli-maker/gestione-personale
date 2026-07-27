@@ -1,5 +1,6 @@
 import { AceaNav } from '@/components/modules/acea/AceaNav';
 import ContatoriAcea from '@/components/modules/acea/ContatoriAcea';
+import RapportiniGiorno from '@/components/modules/acea/RapportiniGiorno';
 import RegistroAcea from '@/components/modules/acea/RegistroAcea';
 
 export const dynamic = 'force-dynamic';
@@ -17,6 +18,7 @@ export default function AceaMassivePage() {
       <AceaNav attivo="massive" />
       <ContatoriAcea />
       <RegistroAcea famiglia="massive" />
+      <RapportiniGiorno />
     </div>
   );
 }

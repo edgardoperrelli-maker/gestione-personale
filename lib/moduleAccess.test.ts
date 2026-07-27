@@ -71,7 +71,9 @@ describe('normalizeAllowedModules (moduli requiresAdminRole forzati per gli admi
   it('input non-array → vuoto (poi invariante)', () => {
     expect(normalizeAllowedModules(undefined, 'operatore')).toEqual([]);
     // per gli admin TUTTI i moduli requiresAdminRole sono forzati (46663960)
-    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['assistenza', 'impostazioni']);
+    // L'elenco è volutamente esplicito: aggiungere `requiresAdminRole` a un modulo allarga
+    // l'accesso forzato di ogni admin e deve passare da qui.
+    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['acea', 'assistenza', 'impostazioni']);
   });
 });
 
