@@ -7,7 +7,6 @@ import {
   ChartColumn,
   ChartGantt,
   ClipboardCheck,
-  Droplets,
   Gauge,
   Headset,
   House,
@@ -17,6 +16,7 @@ import {
   Siren,
   Sparkles,
   Table,
+  Waves,
   Wrench,
 } from 'lucide-react';
 import type { AppModuleKey } from '@/lib/moduleAccess';
@@ -49,7 +49,9 @@ export const MODULE_ICONS: Record<AppModuleKey, ReactNode> = {
   live: <Activity {...ICON_PROPS} />,
   'lista-attesa': <ListTodo {...ICON_PROPS} />,
   appuntamenti: <CalendarClock {...ICON_PROPS} />,
-  acea: <Droplets {...ICON_PROPS} />,
+  // `Waves` e non `Droplets`: AcquaLatina è l'altra commessa idrica e tiene la goccia. Due
+  // committenti diversi con la stessa icona sarebbero indistinguibili nella sidebar.
+  acea: <Waves {...ICON_PROPS} />,
   misuratori: <Gauge {...ICON_PROPS} />,
   agente: <Bot {...ICON_PROPS} />,
   performance: <ChartColumn {...ICON_PROPS} />,
