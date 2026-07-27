@@ -94,7 +94,7 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
   );
 
   return (
-    <Card>
+    <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Waves size={18} className="text-[var(--brand-text-muted)]" aria-hidden="true" />
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Saracinesche</h2>

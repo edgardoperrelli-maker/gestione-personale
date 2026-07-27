@@ -206,7 +206,7 @@ export default function CollaudoClient() {
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Stato del registro</h2>
           <Button
@@ -241,7 +241,7 @@ export default function CollaudoClient() {
       </Card>
 
       {r && !registroVuoto && (
-        <Card>
+        <Card className="p-4">
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Confronto oggettivo</h2>
           <div className="mt-3 space-y-3">
             <BloccoConfronto
@@ -268,7 +268,7 @@ export default function CollaudoClient() {
         </Card>
       )}
 
-      <Card>
+      <Card className="p-4">
         <div className="flex flex-wrap items-center gap-2">
           <Link2 size={16} className="text-[var(--brand-text-muted)]" aria-hidden="true" />
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">
@@ -296,7 +296,7 @@ export default function CollaudoClient() {
         )}
       </Card>
 
-      <Card>
+      <Card className="p-4">
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">
           Cancelli di collaudo{' '}
           <span className="font-mono tabular-nums text-[var(--brand-text-muted)]">

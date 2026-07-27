@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import { Card } from '@/components/Card';
 import StatTile from '@/components/ui/StatTile';
 import Skeleton from '@/components/ui/Skeleton';
 
@@ -25,6 +26,11 @@ function oreDa(iso: string | undefined): number | null {
  *
  * L'età dell'ultimo import è in evidenza di proposito: con l'import manuale il rischio non è
  * un dato sbagliato, è un dato vecchio che nessuno sa essere vecchio.
+ *
+ * Le tessere stanno dentro una Card e non sul canvas della pagina: `StatTile` è un well senza bordo
+ * su `--brand-surface-muted`, e nel tema chiaro quel token vale esattamente quanto `--brand-bg`
+ * (`oklch(0.965 0.006 250)`, globals.css). Sul canvas i cinque riquadri sparivano — restavano solo
+ * le etichette a mezz'aria. Sopra `--brand-surface` (bianco) il well si vede come previsto.
  */
 export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number }) {
   const [dati, setDati] = useState<Riepilogo | null>(null);
@@ -47,13 +53,19 @@ export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number 
   useEffect(() => { void carica(); }, [carica, refreshKey]);
 
   if (errore) {
-    return <p className="text-sm text-[var(--brand-text-muted)]">{errore}</p>;
+    return (
+      <Card className="p-3">
+        <p className="text-sm text-[var(--brand-text-muted)]">{errore}</p>
+      </Card>
+    );
   }
   if (!dati) {
     return (
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-14" />)}
-      </div>
+      <Card className="p-3">
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+          {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-14" />)}
+        </div>
+      </Card>
     );
   }
 
@@ -61,7 +73,7 @@ export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number 
   const vecchio = ore !== null && ore >= 24;
 
   return (
-    <div className="space-y-2">
+    <Card className="space-y-2 p-3">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
         <StatTile label="Dunning aperti" value={dati.apertiDunning} />
         <StatTile label="Massive aperte" value={dati.apertiMassive} />
@@ -88,6 +100,6 @@ export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number 
           né matricola (attesi sulle rimozioni allacci abusivi).
         </p>
       )}
-    </div>
+    </Card>
   );
 }

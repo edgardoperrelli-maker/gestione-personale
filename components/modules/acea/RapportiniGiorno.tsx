@@ -95,7 +95,7 @@ export default function RapportiniGiorno() {
   const daRiaprire = risposta?.riepilogo.richiede_riapertura ?? 0;
 
   return (
-    <Card>
+    <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
         <ClipboardList size={18} className="text-[var(--brand-text-muted)]" aria-hidden="true" />
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">

@@ -87,7 +87,7 @@ export default function EsportaAcea({ famiglia }: { famiglia: Famiglia }) {
   }, [data, comune, famiglia]);
 
   return (
-    <Card>
+    <Card className="p-4">
       <div className="flex flex-wrap items-center gap-2">
         <FileSpreadsheet size={18} className="text-[var(--brand-text-muted)]" aria-hidden="true" />
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">Export</h2>
