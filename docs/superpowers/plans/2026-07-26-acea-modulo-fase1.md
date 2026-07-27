@@ -423,16 +423,35 @@ spegnimento del master.
 
 ## PARTE 9 — Export
 
-### Task 9.1: pianificato del giorno
+### Task 9.1: pianificato del giorno ✅
 
-- [ ] `GET /api/acea/export-pianificato?data=YYYY-MM-DD` → xlsx con ODL, operatore, comune,
-      indirizzo, attività: è il foglio che l'admin usa per assegnare a mano sul Cruscotto.
+- [x] `GET /api/acea/export-pianificato?data=YYYY-MM-DD[&famiglia=]` → xlsx con operatore, ODL,
+      operazione, attività, comune, indirizzo, CAP, impianto, matricola, stato ACEA.
+- [x] Ordinato **per operatore**, poi comune, poi indirizzo: sul Cruscotto si assegna una persona
+      alla volta, e un foglio ordinato per ODL costringerebbe a saltare avanti e indietro.
+- [x] Giorno senza pianificato → 404 con il messaggio, non un file vuoto da aprire per scoprirlo.
 
-### Task 9.2: master on-demand
+### Task 9.2: master on-demand ✅
 
-- [ ] `GET /api/acea/export-master` → xlsx con il **layout identico** al master (colonne da
-      `config.example.json`), generato dal registro. È la via d'uscita promessa quando il file si
-      spegne.
+- [x] `GET /api/acea/export-master?famiglia=[&comune=]` → xlsx col layout del master, generato dal
+      registro.
+- [x] **Massive**: le 21 intestazioni reali lette da `agente_file_colonne` il 27/07 — l'unione di
+      LABICO e ZAGAROLO, che non coincidono (`PREASSEGNAZIONE`/`ASSEGNATARIO` solo sul primo,
+      `Via`/`N. civico` solo sul secondo). L'agente risolve le colonne per nome: una in più è
+      innocua, una in meno romperebbe la lettura.
+- [x] **Dunning**: esattamente le colonne che `config.example.json` nomina, volutamente non
+      arricchite — serve a riavere il file com'era, non a farne uno migliore.
+- [x] Esito, saracinesca, sigillo e note passano dalla **stessa funzione pura** che alimenta
+      l'agente (`buildRigaLimMassive`): il file rigenerato dice quello che il file scritto
+      dall'agente direbbe, senza una seconda interpretazione destinata a divergere.
+- [x] `Odl saracinesca` — la colonna che l'ufficio compilava a mano — è **derivata** dall'ordine di
+      sostituzione sullo stesso impianto o matricola.
+- [x] L'indirizzo verificato dall'ufficio (`acea_impianti`) vince su quello ACEA: è la ragione per
+      cui quella colonna esiste.
+- [x] 25 test, di cui 8 **riaprono il file appena scritto**: le date restano date con formato
+      `dd/mm/yyyy` (scritte come testo, `new Date()` le rileggerebbe all'americana e un 27/07
+      diventerebbe non valido), i numeri restano numeri, gli ODL restano testo con gli zeri
+      iniziali, intestazione bloccata e filtro attivi.
 
 ---
 

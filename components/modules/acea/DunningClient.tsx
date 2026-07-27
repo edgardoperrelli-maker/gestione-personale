@@ -6,6 +6,7 @@ import ContatoriAcea from './ContatoriAcea';
 import RegistroAcea from './RegistroAcea';
 import RapportiniGiorno from './RapportiniGiorno';
 import Saracinesche from './Saracinesche';
+import EsportaAcea from './EsportaAcea';
 
 /**
  * Vista Dunning: import, contatori, registro degli ordini e rapportini del giorno.
@@ -25,6 +26,7 @@ export default function DunningClient() {
       <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
       <RegistroAcea famiglia="dunning" refreshKey={aggiornamenti} />
       <RapportiniGiorno />
+      <EsportaAcea famiglia="dunning" />
       <Saracinesche famiglia="dunning" />
     </div>
   );
