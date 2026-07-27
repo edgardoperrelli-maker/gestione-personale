@@ -31,7 +31,11 @@ export function KpiCard({
     <div className="relative overflow-hidden rounded-[var(--radius-xl)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-4 py-3.5 shadow-[var(--shadow-sm)]">
       <span className="absolute inset-y-0 left-0 w-1" style={{ backgroundColor: TONE_COLOR[tone] }} aria-hidden />
       <div className="text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--brand-text-muted)]">{label}</div>
-      <div className="mt-1 font-mono text-2xl font-semibold leading-none tracking-[-0.02em] text-[var(--brand-text-main)] tabular-nums">
+      {/* 26px è un'ECCEZIONE dichiarata alla scala (DESIGN.md §4): il numero hero del
+          KPI è tarato a mano insieme a `leading-none` e `tracking-[-0.02em]`, e a
+          `text-2xl` (24) perdeva peso contro la barra di tono. La guardia
+          `lib/design/scalaTipografica.test.ts` lo ammette SOLO in questo file. */}
+      <div className="mt-1 font-mono text-[26px] font-semibold leading-none tracking-[-0.02em] text-[var(--brand-text-main)] tabular-nums">
         {value}
       </div>
       {trend && <div className="mt-1.5 text-xs text-[var(--brand-text-muted)]">{trend}</div>}
