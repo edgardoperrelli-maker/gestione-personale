@@ -37,6 +37,7 @@ export default function ImportCard({ onImportato }: { onImportato?: () => void }
   const [file, setFile] = useState<File | null>(null);
   const [busy, setBusy] = useState(false);
   const [esito, setEsito] = useState<EsitoImport | null>(null);
+  const [interrotto, setInterrotto] = useState(false);
   const [storico, setStorico] = useState<StoricoImport[]>([]);
   const inputRef = useRef<HTMLInputElement>(null);
   const idFile = useId();
@@ -77,10 +78,20 @@ export default function ImportCard({ onImportato }: { onImportato?: () => void }
       if (!res.ok) {
         const dettagli = Array.isArray(body.dettagli) ? ` (${(body.dettagli as string[]).join(', ')})` : '';
         toast.error(`${String(body.error ?? 'Import non riuscito.')}${dettagli}`);
+        // Un import che fallisce a metà scrittura torna 500 CON il riepilogo di ciò che è già
+        // passato. Buttarlo via lasciava il registro modificato e l'utente convinto che non fosse
+        // successo nulla: si mostra, marcato come interrotto.
+        if (body.riepilogo) {
+          setEsito(body.riepilogo as unknown as EsitoImport);
+          setInterrotto(true);
+          await caricaStorico();
+          onImportato?.();
+        }
         return;
       }
 
       setEsito(body as unknown as EsitoImport);
+      setInterrotto(false);
       toast.success('Export importato.');
       setFile(null);
       if (inputRef.current) inputRef.current.value = '';
@@ -127,7 +138,7 @@ export default function ImportCard({ onImportato }: { onImportato?: () => void }
         </Button>
       </div>
 
-      {esito && <RiepilogoImport esito={esito} />}
+      {esito && <RiepilogoImport esito={esito} interrotto={interrotto} />}
 
       {storico.length > 0 && (
         <div>

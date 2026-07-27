@@ -4,6 +4,7 @@ import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useSta
 import { createPortal } from 'react-dom';
 import { Check, Filter, X } from 'lucide-react';
 import Button from '@/components/Button';
+import Tooltip from '@/components/ui/Tooltip';
 import type { FiltroColonna as DefFiltro } from '@/lib/acea/colonneTabella';
 import type { FiltriUI, ScadenzaFiltro } from '@/lib/acea/filtriOrdini';
 
@@ -202,7 +203,12 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
                     key={v}
                     className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs hover:bg-[var(--brand-surface-muted)]"
                   >
-                    <input type="checkbox" checked={spunte.has(v)} onChange={() => scambia(v)} />
+                    <input
+                      type="checkbox"
+                      checked={spunte.has(v)}
+                      onChange={() => scambia(v)}
+                      className="h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
+                    />
                     <span className="truncate text-[var(--brand-text-main)]" title={v}>{v}</span>
                   </label>
                 ))}
@@ -246,6 +252,7 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
                 name={`scadenza-${idPannello}`}
                 checked={scadenza === s.v}
                 onChange={() => setScadenza(s.v)}
+                className="h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
               />
               <span className="text-[var(--brand-text-main)]">{s.etichetta}</span>
             </label>
@@ -268,25 +275,30 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
     </div>
   );
 
+  const etichetta = attivo ? `Filtro ${intestazione} (attivo)` : `Filtra ${intestazione}`;
+
   return (
     <>
-      <button
-        ref={bottone}
-        type="button"
-        onClick={() => (aperto ? chiudi() : apri())}
-        aria-expanded={aperto}
-        aria-haspopup="dialog"
-        aria-controls={aperto ? idPannello : undefined}
-        aria-label={attivo ? `Filtro ${intestazione} (attivo)` : `Filtra ${intestazione}`}
-        title={attivo ? `${intestazione}: filtro attivo` : `Filtra ${intestazione}`}
-        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
-          attivo
-            ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
-            : 'text-[var(--brand-text-muted)] opacity-60 hover:bg-[var(--brand-surface)] hover:opacity-100'
-        }`}
-      >
-        <Filter size={12} aria-hidden="true" fill={attivo ? 'currentColor' : 'none'} />
-      </button>
+      {/* `Tooltip` e non l'attributo `title`: il nativo compare dopo un secondo, non compare mai col
+          focus da tastiera, e accanto a un `aria-label` fa annunciare il nome due volte. */}
+      <Tooltip testo={etichetta} posizione="sotto">
+        <button
+          ref={bottone}
+          type="button"
+          onClick={() => (aperto ? chiudi() : apri())}
+          aria-expanded={aperto}
+          aria-haspopup="dialog"
+          aria-controls={aperto ? idPannello : undefined}
+          aria-label={etichetta}
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-[var(--radius-sm)] transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+            attivo
+              ? 'bg-[var(--brand-primary-soft)] text-[var(--brand-primary)]'
+              : 'text-[var(--brand-text-muted)] opacity-60 hover:bg-[var(--brand-surface)] hover:opacity-100'
+          }`}
+        >
+          <Filter size={12} aria-hidden="true" fill={attivo ? 'currentColor' : 'none'} />
+        </button>
+      </Tooltip>
       {aperto && pos && typeof document !== 'undefined'
         && createPortal(contenuto, document.body)}
     </>

@@ -187,6 +187,20 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
       </p>
 
+      {/*
+        Regione live, solo per i lettori di schermo: a chi vede, conteggio e selezione sono già
+        scritti nella barra sopra la tabella, e ripeterli qui sarebbe rumore.
+
+        `role="status"` (che implica `aria-live="polite"`) montato SEMPRE, anche a contenuto vuoto:
+        una regione live inserita nel DOM nello stesso momento del testo spesso non viene
+        annunciata, perché il lettore deve già osservarla quando il contenuto cambia.
+      */}
+      <p role="status" className="sr-only">
+        {editing.salvando
+          ? 'Salvataggio in corso…'
+          : `${righe.length} righe caricate su ${totale}${selezionate.length > 0 ? `, ${selezionate.length} selezionate` : ''}.`}
+      </p>
+
       {!tutteCaricate && (
         <div className="flex justify-center">
           <Button variant="outline" size="sm" onClick={altre} loading={caricando}>

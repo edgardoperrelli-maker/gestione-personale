@@ -37,7 +37,20 @@ const data = (iso: string | null) => {
  * È il sostituto del CONFRONTA fatto in Excel: dice cosa è arrivato oggi. Per questo non si
  * limita a un "importato ✓" — senza i conteggi nessuno saprebbe se il file era quello giusto.
  */
-export default function RiepilogoImport({ esito }: { esito: EsitoImport }) {
+export default function RiepilogoImport({
+  esito,
+  interrotto = false,
+}: {
+  esito: EsitoImport;
+  /**
+   * L'import si è fermato a metà: le scritture già andate a segno RESTANO.
+   *
+   * Prima questo caso usciva come un solo toast «import non riuscito» e il riepilogo veniva
+   * buttato via — mentre il registro era già stato modificato. Chi legge «non riuscito» ricarica
+   * il file convinto che non sia successo niente, e non ha modo di sapere cosa c'è dentro.
+   */
+  interrotto?: boolean;
+}) {
   const perTipo = esito.avvisi.reduce<Record<string, number>>((acc, a) => {
     acc[a.tipo] = (acc[a.tipo] ?? 0) + 1;
     return acc;
@@ -45,13 +58,24 @@ export default function RiepilogoImport({ esito }: { esito: EsitoImport }) {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
-        <CheckCircle2 size={18} className="text-[var(--success)]" aria-hidden="true" />
-        <span>
-          Import completato — il file copre dal <strong>{data(esito.finestra.dal)}</strong> al{' '}
-          <strong>{data(esito.finestra.al)}</strong>
-        </span>
-      </div>
+      {interrotto ? (
+        <div className="flex items-start gap-2 rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3 text-sm text-[var(--brand-text-main)]">
+          <AlertTriangle size={18} className="mt-0.5 shrink-0 text-[var(--status-ko)]" aria-hidden="true" />
+          <span>
+            <strong>Import interrotto.</strong> Le scritture qui sotto sono già state applicate al
+            registro: quello che manca è il resto del file. Ricaricare lo stesso file è sicuro — le
+            righe già scritte risultano invariate.
+          </span>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 text-sm text-[var(--brand-text-main)]">
+          <CheckCircle2 size={18} className="text-[var(--status-ok)]" aria-hidden="true" />
+          <span>
+            Import completato — il file copre dal <strong>{data(esito.finestra.dal)}</strong> al{' '}
+            <strong>{data(esito.finestra.al)}</strong>
+          </span>
+        </div>
+      )}
 
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile label="Righe nel file" value={esito.righeFile} />

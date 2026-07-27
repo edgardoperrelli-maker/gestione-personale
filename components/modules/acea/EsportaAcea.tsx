@@ -57,7 +57,9 @@ export default function EsportaAcea({ famiglia }: { famiglia: Famiglia }) {
     if (famiglia !== 'massive') return;
     void (async () => {
       try {
-        const res = await fetch(`/api/acea/opzioni?famiglia=${famiglia}`);
+        // `campi=comuni`: qui serve una sola tendina, e ogni elenco costa una scansione del
+        // registro. Senza il parametro se ne facevano partire quattro per usarne una.
+        const res = await fetch(`/api/acea/opzioni?famiglia=${famiglia}&campi=comuni`);
         if (!res.ok) return;
         const body = (await res.json()) as { comuni?: string[] };
         setComuni(body.comuni ?? []);

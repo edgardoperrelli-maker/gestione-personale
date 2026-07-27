@@ -24,10 +24,12 @@ const ETICHETTA: Record<TipoEsito, string> = {
   nessuna_modifica: 'nessuna modifica',
 };
 
+// `--status-*`: nella colonna Esito il colore è l'informazione, non un aiuto alla lettura
+// (DESIGN.md §«Semantici e stato»).
 const TONO: Record<TipoEsito, string> = {
-  creato: 'text-[var(--success)]',
-  aggiunto: 'text-[var(--success)]',
-  richiede_riapertura: 'text-[var(--warning)]',
+  creato: 'text-[var(--status-ok)]',
+  aggiunto: 'text-[var(--status-ok)]',
+  richiede_riapertura: 'text-[var(--status-warn)]',
   nessuna_modifica: 'text-[var(--brand-text-muted)]',
 };
 

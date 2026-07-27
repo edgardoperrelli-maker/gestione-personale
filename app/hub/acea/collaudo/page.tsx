@@ -11,13 +11,15 @@ export const dynamic = 'force-dynamic';
  */
 export default function AceaCollaudoPage() {
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      {/* Stessa scala delle altre viste ACEA (`AceaNav`): era l'unica pagina del modulo a `text-2xl`
+          con un'altra crenatura, e affiancata alle sorelle si notava. */}
       <div>
         <Breadcrumb items={[{ label: 'ACEA', href: '/hub/acea' }, { label: 'Collaudo' }]} />
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
+        <h1 className="mt-1 text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">
           Collaudo e cut-over
         </h1>
-        <p className="mt-0.5 text-sm text-[var(--brand-text-muted)]">
+        <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">
           La prova che il modulo dice le stesse cose del Cruscotto, prima di spegnere il master.
         </p>
       </div>

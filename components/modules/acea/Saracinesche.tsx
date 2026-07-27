@@ -15,6 +15,8 @@ type Risposta = {
   daRichiedere: number;
   daEsitare: number;
   valoreDaRichiedere: number;
+  /** Tariffa unitaria: arriva dal server, non è scritta nella nota qui sotto. */
+  tariffa: number;
   ordiniSostituzioneNelRegistro: number;
   /** false quando il registro non ha ordini di sostituzione: la copertura non è calcolabile. */
   attendibile: boolean;
@@ -128,7 +130,7 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
             <StatTile
               label="Valore a rischio"
               value={dati.attendibile ? euro(dati.valoreDaRichiedere) : '—'}
-              note="91,12 € l'una"
+              note={`${dati.tariffa.toLocaleString('it-IT', { minimumFractionDigits: 2 })} € l'una`}
               tone={dati.attendibile && dati.daRichiedere > 0 ? 'danger' : 'neutral'}
             />
           </div>

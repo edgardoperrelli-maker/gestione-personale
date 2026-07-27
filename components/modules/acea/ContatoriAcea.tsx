@@ -7,6 +7,8 @@ import Skeleton from '@/components/ui/Skeleton';
 
 type Riepilogo = {
   oggi: string;
+  /** Orologio del server: l'età dell'import si misura su questo, non su quello del browser. */
+  adesso: string;
   apertiDunning: number;
   apertiMassive: number;
   scaduti: number;
@@ -15,10 +17,20 @@ type Riepilogo = {
   ultimoImport: { caricato_il: string; righe_totali: number; finestra_dal: string | null; finestra_al: string | null } | null;
 };
 
-/** Da quante ore il registro non viene aggiornato. Null se non è mai stato importato nulla. */
-function oreDa(iso: string | undefined): number | null {
+/**
+ * Da quante ore il registro non viene aggiornato. Null se non è mai stato importato nulla.
+ *
+ * Entrambi gli istanti vengono dal SERVER. Con `Date.now()` il conto misurava la distanza fra
+ * l'orologio del browser e quello del server: su una macchina indietro di qualche ora il contatore
+ * che deve gridare «questo dato è vecchio» diceva «un'ora fa». `Math.max(0, …)` perché un browser
+ * avanti darebbe ore negative.
+ */
+function oreDa(iso: string | undefined, adesso: string | undefined): number | null {
   if (!iso) return null;
-  return Math.floor((Date.now() - Date.parse(iso)) / 3_600_000);
+  const fine = adesso ? Date.parse(adesso) : Date.now();
+  const inizio = Date.parse(iso);
+  if (!Number.isFinite(fine) || !Number.isFinite(inizio)) return null;
+  return Math.max(0, Math.floor((fine - inizio) / 3_600_000));
 }
 
 /**
@@ -72,7 +84,7 @@ export default function ContatoriAcea() {
     );
   }
 
-  const ore = oreDa(dati.ultimoImport?.caricato_il);
+  const ore = oreDa(dati.ultimoImport?.caricato_il, dati.adesso);
   const vecchio = ore !== null && ore >= 24;
 
   return (

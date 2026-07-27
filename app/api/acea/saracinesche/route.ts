@@ -3,7 +3,9 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { caricaDichiarazioni, caricaOrdiniSostituzione } from '@/lib/acea/caricaSaracinesche';
-import { statiSaracinesche, valoreDaRichiedere, type Famiglia } from '@/lib/acea/saracinesche';
+import {
+  TARIFFA_SARACINESCA, statiSaracinesche, valoreDaRichiedere, type Famiglia,
+} from '@/lib/acea/saracinesche';
 
 export const runtime = 'nodejs';
 
@@ -41,6 +43,10 @@ export async function GET(req: Request) {
         daRichiedere: esito.daRichiedere,
         daEsitare: esito.daEsitare,
         valoreDaRichiedere: valoreDaRichiedere(esito.daRichiedere),
+        // La tariffa viaggia col dato invece di stare scritta nella nota del componente: e` il
+        // numero da cui dipende «valore a rischio», e cablata in due posti diverso finirebbe per
+        // divergere proprio quando il listino cambia.
+        tariffa: TARIFFA_SARACINESCA,
         ordiniSostituzioneNelRegistro: ordini.length,
         attendibile,
         dichiarazioni: esito.dichiarazioni,

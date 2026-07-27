@@ -25,11 +25,25 @@ async function distinti(colonna: string, famiglia: string | null): Promise<strin
   return [...valori].sort((a, b) => a.localeCompare(b, 'it'));
 }
 
+/** Elenchi disponibili e colonna del registro da cui ciascuno deriva. */
+const ELENCHI = {
+  comuni: 'comune',
+  attivita: 'attivita',
+  operatori: 'operatore_cognome',
+  stati: 'stato_desc',
+} as const;
+
+type ChiaveElenco = keyof typeof ELENCHI;
+
 /**
- * GET /api/acea/opzioni?famiglia=dunning|massive — valori per le tendine dei filtri.
+ * GET /api/acea/opzioni?famiglia=dunning|massive[&campi=comuni,stati] — valori per i filtri.
  *
  * Derivati dal registro, non da liste fisse: un comune o un'attività nuova compare da sola al
  * primo import che la contiene, senza toccare il codice.
+ *
+ * `campi` limita il lavoro: ogni elenco costa una scansione paginata dell'intero registro, e chi
+ * ha bisogno della sola tendina dei comuni (l'export del master) ne faceva partire quattro.
+ * Omesso, torna tutto — è quello che serve alla tabella.
  */
 export async function GET(req: Request) {
   const auth = await requireAdmin();
@@ -39,17 +53,21 @@ export async function GET(req: Request) {
     const fam = searchParams.get('famiglia');
     const famiglia = fam === 'dunning' || fam === 'massive' ? fam : null;
 
-    const [comuni, attivita, operatori, stati] = await Promise.all([
-      distinti('comune', famiglia),
-      distinti('attivita', famiglia),
-      distinti('operatore_cognome', famiglia),
-      distinti('stato_desc', famiglia),
-    ]);
+    const chiesti = (searchParams.get('campi') ?? '')
+      .split(',')
+      .map((c) => c.trim())
+      .filter((c): c is ChiaveElenco => c in ELENCHI);
+    const daServire: ChiaveElenco[] =
+      chiesti.length > 0 ? chiesti : (Object.keys(ELENCHI) as ChiaveElenco[]);
 
-    return NextResponse.json(
-      { comuni, attivita, operatori, stati },
-      { headers: { 'Cache-Control': 'no-store' } },
-    );
+    const valori = await Promise.all(daServire.map((c) => distinti(ELENCHI[c], famiglia)));
+
+    // Le chiavi non chieste tornano come array vuoti e non assenti: il client tipizza `Opzioni`
+    // come record completo, e un campo mancante diventerebbe `undefined` dentro una `.map`.
+    const risposta: Record<ChiaveElenco, string[]> = { comuni: [], attivita: [], operatori: [], stati: [] };
+    daServire.forEach((c, i) => { risposta[c] = valori[i]; });
+
+    return NextResponse.json(risposta, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Errore opzioni filtri.' },

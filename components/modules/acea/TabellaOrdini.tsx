@@ -30,10 +30,16 @@ const ALTEZZA_RIGA = 36;
  */
 const ALTEZZA_VISTA = 'clamp(320px, calc(100dvh - 22rem), 1400px)';
 
+/*
+  Token `--status-*` e non i semantici: qui il colore È l'informazione (scaduto / in scadenza),
+  non serve alla leggibilità di un testo lungo. È la distinzione di DESIGN.md §«Semantici e stato»,
+  quella che si sbaglia più spesso. I valori coincidono, il nome dichiara l'intento — e se un
+  giorno il rosso dei ritardi dovesse divergere dal rosso degli errori, questo punto è già giusto.
+*/
 const TONO_CLASSE: Record<TonoScadenza, string> = {
-  scaduto: 'text-[var(--danger)] font-semibold',
-  oggi: 'text-[var(--warning)] font-semibold',
-  vicino: 'text-[var(--warning)]',
+  scaduto: 'text-[var(--status-ko)] font-semibold',
+  oggi: 'text-[var(--status-warn)] font-semibold',
+  vicino: 'text-[var(--status-warn)]',
   lontano: '',
   nessuna: 'text-[var(--brand-text-muted)]',
 };
@@ -225,6 +231,7 @@ export default function TabellaOrdini({
               <input
                 type="checkbox"
                 aria-label="Seleziona tutte le righe caricate"
+                className="h-4 w-4 accent-[var(--brand-primary)]"
                 checked={tutteSelezionate}
                 onChange={(e) => {
                   const agg: RowSelectionState = {};
@@ -294,6 +301,7 @@ export default function TabellaOrdini({
                     <input
                       type="checkbox"
                       aria-label={`Seleziona ordine ${r.odl}`}
+                      className="h-4 w-4 accent-[var(--brand-primary)]"
                       checked={scelta}
                       onChange={() => clickRiga(vi.index, false)}
                       onClick={(e) => {
@@ -353,11 +361,18 @@ export default function TabellaOrdini({
                         } ${locale ? 'italic' : ''}`}
                       >
                         {c.chiave === 'matricola' && r.sospetto_troncamento && (
-                          <TriangleAlert
-                            size={12}
-                            aria-label="Matricola al limite dei 40 caratteri: da verificare"
-                            className="mr-1 inline text-[var(--warning)]"
-                          />
+                          <>
+                            {/* L'icona è decorativa e il testo la spiega: `aria-label` su un <svg>
+                                senza `role="img"` non viene annunciato da tutti i lettori. */}
+                            <TriangleAlert
+                              size={12}
+                              aria-hidden="true"
+                              className="mr-1 inline text-[var(--status-warn)]"
+                            />
+                            <span className="sr-only">
+                              Matricola al limite dei 40 caratteri: da verificare.{' '}
+                            </span>
+                          </>
                         )}
                         {testo}
                       </div>

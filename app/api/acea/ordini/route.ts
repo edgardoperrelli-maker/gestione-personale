@@ -185,7 +185,15 @@ export async function POST() {
       .maybeSingle();
 
     return NextResponse.json(
-      { oggi, apertiDunning, apertiMassive, scaduti, inScadenza, senzaMisuratore, ultimoImport: ultimo ?? null },
+      {
+        oggi,
+        // L'orologio del SERVER: l'età dell'ultimo import si calcolava su quello del browser, che
+        // può essere sfasato di ore. Su un contatore il cui scopo è dire «questo dato è vecchio»,
+        // un orologio sbagliato produce esattamente l'errore che il contatore dovrebbe impedire.
+        adesso: new Date().toISOString(),
+        apertiDunning, apertiMassive, scaduti, inScadenza, senzaMisuratore,
+        ultimoImport: ultimo ?? null,
+      },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {

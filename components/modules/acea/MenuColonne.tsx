@@ -3,6 +3,7 @@
 import { Download } from 'lucide-react';
 import Button from '@/components/Button';
 import MultiSelect from '@/components/ui/MultiSelect';
+import { toast } from '@/components/ui/Toast';
 import type { DefColonna } from '@/lib/acea/colonneTabella';
 
 type Props = {
@@ -35,8 +36,12 @@ export default function MenuColonne({ colonne, visibili, onChange, onEsporta, es
           values={colonne.filter((c) => visibili.has(c.chiave)).map((c) => c.chiave)}
           onChange={(v) => {
             // Almeno una colonna deve restare: una tabella vuota non è uno stato utile, e il
-            // «Nessuno» del primitivo ci arriverebbe in un click.
-            if (v.length === 0) return;
+            // «Nessuno» del primitivo ci arriverebbe in un click. Lo si DICE, invece di ignorare
+            // la spunta in silenzio lasciando credere a un comando rotto.
+            if (v.length === 0) {
+              toast.info('Almeno una colonna deve restare visibile.');
+              return;
+            }
             onChange(new Set(v));
           }}
         />

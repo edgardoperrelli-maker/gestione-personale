@@ -45,10 +45,12 @@ const CANCELLI = [
 
 const CHIAVE_LOCALE = 'acea-collaudo-cancelli';
 
+// Indicatori di stato: token `--status-*` (DESIGN.md §«Semantici e stato»). I tre glifi sono
+// DIVERSI di proposito — spunta, punto, punto esclamativo — così il semaforo non vive nel colore.
 const ICONA: Record<Semaforo, React.ReactNode> = {
-  verde: <CircleCheck size={16} className="text-[var(--success)]" aria-hidden="true" />,
-  giallo: <CircleDot size={16} className="text-[var(--warning)]" aria-hidden="true" />,
-  rosso: <CircleAlert size={16} className="text-[var(--danger)]" aria-hidden="true" />,
+  verde: <CircleCheck size={16} className="text-[var(--status-ok)]" aria-hidden="true" />,
+  giallo: <CircleDot size={16} className="text-[var(--status-warn)]" aria-hidden="true" />,
+  rosso: <CircleAlert size={16} className="text-[var(--status-ko)]" aria-hidden="true" />,
 };
 
 const dataOra = (iso: string) =>
@@ -319,7 +321,7 @@ export default function CollaudoClient() {
                   type="checkbox"
                   checked={fatti.has(c)}
                   onChange={() => spunta(c)}
-                  className="mt-0.5"
+                  className="mt-0.5 h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
                 />
                 <span className={fatti.has(c) ? 'text-[var(--brand-text-muted)] line-through' : ''}>
                   {c}
