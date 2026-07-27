@@ -342,23 +342,43 @@ spegnimento del master.
 
 ## PARTE 7 — Modulo e navigazione
 
-### Task 7.1: registrazione del modulo
+> **Anticipata rispetto all'ordine del piano** (parti 7 minima → 5): senza una pagina, l'import
+> della Parte 3 non era raggiungibile e il registro non si poteva popolare. La tabella nasce così
+> sopra qualcosa che già gira.
 
-- [ ] `APP_MODULES`: nuova voce `acea` (gruppo `pianificazione`, `requiresAdminRole: true`).
-      **Commit isolato**, nient'altro nel file (AGENTS.md §11.1).
-- [ ] `lib/appNavigation.ts` di conseguenza.
-- [ ] `misuratori` e `assegnazione-ai`: `assegnazione-ai` si ritira (ferma dal 29/06); `misuratori`
-      diventa una foglietta di `acea` mantenendo le rotte esistenti finché non si migra la UI.
+### Task 7.1: registrazione del modulo ✅
 
-### Task 7.2: fogliette
+- [x] `APP_MODULES`: voce `acea` (gruppo `pianificazione`, `adminOnly`, `requiresAdminRole`).
+      Commit isolato (`fb0d29c`), nient'altro nel file (AGENTS.md §11.1).
+- [x] `lib/appNavigation.ts` si aggiorna da solo: mappa `APP_MODULES`.
+- [x] Icona `acea` in `components/layout/moduleIcons.tsx`.
+- [ ] `agente`, `assegnazione-ai` e `misuratori` restano registrati: si ritirano al **cut-over**,
+      non prima — l'agente serve ancora come rete di ripopolamento del master.
 
-- [ ] `AceaNav` con `FogliettaCard` + `Breadcrumb` (pattern di casa, DESIGN.md §7bis, già usato da
-      `ListaAttesaNav`).
-- [ ] `/hub/acea` → Dunning · Limitazioni massive · Misuratori.
-- [ ] Dunning: import + tabella + azioni + export del pianificato.
+### Task 7.2: fogliette ✅ (minima)
+
+- [x] `AceaNav` con `FogliettaCard` + `Breadcrumb` (DESIGN.md §7bis, come `ListaAttesaNav`).
+- [x] `/hub/acea` → hub con contatori e le tre fogliette.
+- [x] `/hub/acea/dunning` → import funzionante + contatori che si aggiornano a fine import.
+- [x] `/hub/acea/massive` → contatori + segnaposto della tabella.
+- [x] Misuratori: foglietta che punta alla rotta esistente `/hub/misuratori` (spostamento reale
+      rimandato: la vista funziona, muoverla ora sarebbe solo churn).
+
+### Task 7.3: import nella UI ✅ (era il task 3.3)
+
+- [x] `ImportCard`: caricamento del file, 409 «già importato» con conferma esplicita via
+      `chiediConferma`, storico degli ultimi import.
+- [x] `RiepilogoImport`: finestra coperta, nuove / modificate / invariate / annullate rimosse /
+      non coperte, gli annullati che erano pianificati in rosso, gli avvisi di parsing raggruppati.
+- [x] `ContatoriAcea`: aperti per famiglia, oltre scadenza, in scadenza a 7 giorni, **età
+      dell'ultimo import** in evidenza — con l'import manuale il rischio non è il dato sbagliato,
+      è il dato vecchio che nessuno sa essere vecchio.
+
+### Task 7.4: da completare con la tabella
+
+- [ ] Dunning: tabella, azioni in blocco, export del pianificato.
 - [ ] Massive: tabella unica con **filtro comune**, righe extra dai rapportini, tasto «aggiorna
       stato» come scorciatoia all'import.
-- [ ] Misuratori: il modulo attuale, spostato senza modifiche funzionali.
 
 ---
 
