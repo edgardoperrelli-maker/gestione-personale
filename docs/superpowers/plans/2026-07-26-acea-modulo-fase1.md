@@ -457,14 +457,46 @@ spegnimento del master.
 
 ## PARTE 10 — Collaudo e cut-over
 
-- [ ] **Primo import con il filtro `Data pubblicazione ≥` portato il più indietro possibile**: 1.318
-      ODL esistono solo in `acea_master_snapshot` e non nell'export corrente.
-- [ ] Backfill `interventi.ordine_id`.
-- [ ] Confronto oggettivo: gli ODL aperti nel modulo devono coincidere con le righe non esitate nei
-      master.
-- [ ] Verifica dei cancelli di collaudo (Task 5.2, 5.3, 5.4) uno per uno.
+**Strumenti pronti** (`/hub/acea/collaudo`). Restano da eseguire i passi che richiedono il file vero.
+
+### Fatto
+
+- [x] `lib/acea/collaudo.ts` — confronto puro fra il registro e le fonti che sostituisce, 10 test.
+      Nessun troncamento silenzioso: gli scarti riportano il totale accanto agli esempi.
+- [x] `GET /api/acea/collaudo` — due confronti con pesi diversi:
+      **modulo ↔ Cruscotto** (`acea_portale_snapshot`) è quello che decide, perché è la stessa
+      fonte dell'export letta in modo indipendente dall'agente;
+      **modulo ↔ master** (`acea_master_snapshot`) serve a capire la differenza, non a validarla.
+- [x] `POST /api/acea/backfill-ordini` — collega gli interventi ACEA esistenti al registro per ODL
+      (prima operazione, deterministica). Idempotente: tocca solo quelli ancora scollegati.
+- [x] Pannello di collaudo con i due semafori, il backfill e i 13 cancelli da spuntare.
+- [x] **Correzione emersa dal collaudo**: `isAperto` passa dalla regola per appartenenza a quella
+      per esclusione (aperto = non completato e non annullato). Il 27/07 il Cruscotto mostrava 4
+      ordini «Iniziato», stato assente dall'export del 26/07: sarebbero stati trattati come chiusi
+      e spariti dal backlog in silenzio. Gli stati nuovi ora entrano come aperti **e** producono un
+      avviso `stato_ignoto` all'import.
+
+### Numeri di partenza, misurati il 27/07
+
+| misura | valore | a che serve |
+|---|---|---|
+| ODL sul Cruscotto (`acea_portale_snapshot`, letto alle 08:37) | 5.291 | il registro deve arrivarci |
+| di cui **aperti** | **1.732** | è il bersaglio del confronto dopo l'import |
+| ODL nel master e **non** sul Cruscotto | 1.353 | la ragione della finestra `Data pubblicazione ≥` più larga possibile |
+| ODL condivisi da master e Cruscotto | 5.130 | — |
+| di cui **concordi sullo stato** | 3.091 | il master non è un oracolo: su questa base non si valida niente |
+| interventi ACEA da collegare | 6.922 | copertura attesa del backfill |
+
+### Da eseguire con il file vero
+
+- [ ] **Primo import con il filtro `Data pubblicazione ≥` portato il più indietro possibile.**
+- [ ] Backfill `interventi.ordine_id` dal pannello.
+- [ ] Confronto col Cruscotto **verde**: nessun ODL assente dal modulo, nessuno stato discorde.
+      Un eccesso di ODL nel modulo è atteso ed è giallo, non rosso — è la finestra più larga.
+- [ ] Verifica dei cancelli (Task 5.2, 5.3, 5.4) uno per uno sui dati veri.
 - [ ] Preview → due giorni di prova con l'agente ancora attivo → abbandono del master.
-- [ ] L'agente resta installato: se serve, una passata ripopola i master.
+- [ ] L'agente resta installato: se serve, una passata ripopola i master. In alternativa il master
+      si rigenera dal modulo (Task 9.2).
 
 ---
 

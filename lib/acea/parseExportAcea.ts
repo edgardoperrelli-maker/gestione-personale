@@ -11,7 +11,7 @@
 import ExcelJS from 'exceljs';
 import { normalizzaMatricola, parseTestoOrdine } from './parseTestoOrdine';
 import { famigliaDaTipoOrdine } from './famiglia';
-import { isAperto, normalizzaStato } from './statiOrdine';
+import { isAperto, isStatoNoto, normalizzaStato } from './statiOrdine';
 import { scadenzaOrdine } from './scadenza';
 import { rigaHash } from './rigaHash';
 import {
@@ -127,6 +127,14 @@ export async function parseExportAcea(
     }
 
     const stato = normalizzaStato(g('Stato Operazione'));
+    // Uno stato mai visto entra come APERTO (vedi isAperto) ma non passa in silenzio: se ACEA ne
+    // introduce uno nuovo, va saputo al primo import e non tre settimane dopo.
+    if (stato !== '' && !isStatoNoto(stato)) {
+      avvisi.push({
+        odl, numero_operazione: numeroOperazione, tipo: 'stato_ignoto',
+        dettaglio: `Stato "${stato}" mai visto prima: la riga entra come aperta e va controllata.`,
+      });
+    }
     const dataCreazione = g('Data documento').trim();
 
     // Misuratore: la colonna quando c'è, altrimenti il testo dell'ordine (massive e saracinesche).

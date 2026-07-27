@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { famigliaDaTipoOrdine } from './famiglia';
-import { isAperto, isAnnullato, isCompletato, normalizzaStato, STATI_APERTI } from './statiOrdine';
+import {
+  isAperto, isApertoNoto, isAnnullato, isCompletato, isStatoNoto, normalizzaStato, STATI_APERTI,
+} from './statiOrdine';
 import { scadenzaOrdine, giorniResidui } from './scadenza';
 
 describe('famigliaDaTipoOrdine', () => {
@@ -51,7 +53,28 @@ describe('statiOrdine', () => {
     expect(normalizzaStato('  comp ')).toBe('COMP');
     expect(normalizzaStato(null)).toBe('');
     expect(isAperto('  dapi  ')).toBe(true);
-    expect(isAperto('sconosciuto')).toBe(false);
+  });
+
+  it('uno stato MAI VISTO entra come aperto, non sparisce', () => {
+    // Il 27/07/2026 il Cruscotto mostrava 4 ordini «Iniziato», stato assente dall'export del 26/07.
+    // Trattarlo come chiuso li avrebbe fatti sparire dal backlog senza un segnale.
+    expect(isAperto('INIZ')).toBe(true);
+    expect(isAperto('QUALUNQUE')).toBe(true);
+    // Ma resta riconoscibile come nuovo, così l'import lo segnala.
+    expect(isStatoNoto('INIZ')).toBe(false);
+    expect(isApertoNoto('INIZ')).toBe(false);
+    for (const s of STATI_APERTI) {
+      expect(isStatoNoto(s)).toBe(true);
+      expect(isApertoNoto(s)).toBe(true);
+    }
+    expect(isStatoNoto('COMP')).toBe(true);
+    expect(isStatoNoto('ANNL')).toBe(true);
+  });
+
+  it('uno stato assente non è aperto: è una riga malformata', () => {
+    expect(isAperto('')).toBe(false);
+    expect(isAperto(null)).toBe(false);
+    expect(isAperto('   ')).toBe(false);
   });
 });
 

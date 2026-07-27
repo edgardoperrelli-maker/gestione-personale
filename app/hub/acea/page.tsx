@@ -1,3 +1,4 @@
+import { ClipboardCheck } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import FogliettaCard from '@/components/ui/FogliettaCard';
 import { VISTE_ACEA } from '@/components/modules/acea/AceaNav';
@@ -31,6 +32,13 @@ export default function AceaHubPage() {
             icon={VISTE_ACEA[k].icon}
           />
         ))}
+        {/* Fuori dalle fogliette di proposito: si guarda prima del cut-over, non ogni giorno. */}
+        <FogliettaCard
+          href="/hub/acea/collaudo"
+          title="Collaudo"
+          description="Confronto col Cruscotto e cancelli prima di spegnere il master"
+          icon={<ClipboardCheck size={18} strokeWidth={1.75} />}
+        />
       </div>
     </div>
   );

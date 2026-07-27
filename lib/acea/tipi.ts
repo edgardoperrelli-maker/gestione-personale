@@ -91,6 +91,6 @@ export type RigaOrdineAcea = {
 export type AvvisoRiga = {
   odl: string;
   numero_operazione: string;
-  tipo: 'tipo_ordine_ignoto' | 'sospetto_troncamento' | 'misuratore_assente';
+  tipo: 'tipo_ordine_ignoto' | 'sospetto_troncamento' | 'misuratore_assente' | 'stato_ignoto';
   dettaglio: string;
 };

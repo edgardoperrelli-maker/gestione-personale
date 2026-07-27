@@ -104,6 +104,7 @@ export default function RiepilogoImport({ esito }: { esito: EsitoImport }) {
                 {tipo === 'misuratore_assente' && 'senza impianto né matricola (atteso sulle rimozioni abusive)'}
                 {tipo === 'sospetto_troncamento' && 'con la matricola al limite dei 40 caratteri del campo ACEA'}
                 {tipo === 'tipo_ordine_ignoto' && 'con un tipo di ordine non riconosciuto: entrate come dunning'}
+                {tipo === 'stato_ignoto' && 'con uno stato mai visto: entrate come aperte, da controllare'}
               </li>
             ))}
           </ul>
