@@ -1,6 +1,47 @@
 'use client';
 
 import { valoreCella, type DefColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
+import { PER_PAGINA_EXPORT, pagineExport } from '@/lib/acea/exportVista';
+
+/**
+ * Scarica **tutte** le righe che la query dei filtri seleziona, non solo quelle già scese.
+ *
+ * La tabella pagina a 300 righe su un registro da 5.000+, e chi esporta ha davanti la barra che
+ * dice «300 di 5.293». Costruire il foglio con le righe in memoria dava un file da 300 righe senza
+ * un avviso: un troncamento invisibile, dentro un file che poi vive per conto suo.
+ *
+ * Le richieste sono sequenziali di proposito: l'ordinamento del server è totale
+ * (scadenza, creazione, ODL, operazione), quindi le pagine si incastrano, e in fila non si scarica
+ * addosso al database undici query in parallelo per un comando che parte da un click.
+ *
+ * Se una pagina fallisce l'errore RISALE: meglio nessun file che un file a cui mancano in silenzio
+ * 500 righe di mezzo.
+ */
+export async function caricaTutteLeRighe(
+  query: string,
+  totale: number,
+  onProgresso?: (scaricate: number) => void,
+): Promise<RigaTabella[]> {
+  const tutte: RigaTabella[] = [];
+  for (const pagina of pagineExport(totale)) {
+    const p = new URLSearchParams(query);
+    p.set('pagina', String(pagina));
+    p.set('perPagina', String(PER_PAGINA_EXPORT));
+    const res = await fetch(`/api/acea/ordini?${p.toString()}`);
+    if (!res.ok) {
+      const b = (await res.json().catch(() => ({}))) as { error?: string };
+      throw new Error(b.error ?? `Export interrotto alla pagina ${pagina}: registro non disponibile.`);
+    }
+    const dati = (await res.json()) as { righe?: RigaTabella[] };
+    const righe = dati.righe ?? [];
+    tutte.push(...righe);
+    onProgresso?.(tutte.length);
+    // Pagina vuota prima del previsto: il registro è cambiato sotto (un import in corso). Ci si
+    // ferma su quello che c'è invece di ciclare a vuoto fino all'ultima pagina calcolata.
+    if (righe.length === 0) break;
+  }
+  return tutte;
+}
 
 /**
  * Esporta in xlsx **quello che si vede**: le righe filtrate e le colonne visibili, nell'ordine

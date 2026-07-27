@@ -12,6 +12,10 @@ type Props = {
   onChange: (v: Set<string>) => void;
   onEsporta: () => void;
   esportando?: boolean;
+  /** Nessuna riga da esportare: il comando resta visibile ma non produce un foglio di sole intestazioni. */
+  vuota?: boolean;
+  /** Avanzamento dello scaricamento, quando l'export deve andare oltre le righe già in memoria. */
+  nota?: string;
 };
 
 /**
@@ -24,7 +28,11 @@ type Props = {
  * `selezioneEsplicita` perché qui «vuoto» non vuol dire «nessun filtro, mostrale tutte»: vuol dire
  * una tabella senza colonne. È la semantica opt-in del primitivo, fatta esattamente per questo caso.
  */
-export default function MenuColonne({ colonne, visibili, onChange, onEsporta, esportando }: Props) {
+export default function MenuColonne({
+  colonne, visibili, onChange, onEsporta, esportando, vuota, nota,
+}: Props) {
+  const avviso = nota ?? (vuota ? 'nessuna riga da esportare' : null);
+
   return (
     <div className="flex items-center gap-2">
       <div className="w-52">
@@ -47,7 +55,25 @@ export default function MenuColonne({ colonne, visibili, onChange, onEsporta, es
         />
       </div>
 
-      <Button variant="outline" size="sm" onClick={onEsporta} loading={esportando}>
+      {/*
+        L'avanzamento sta ACCANTO al bottone e non dentro: l'export della vista intera sono più
+        richieste in fila e con la sola rotella si resta a guardare un pulsante che gira senza
+        sapere se sta finendo. Il conteggio è già annunciato dalla regione live della tabella,
+        quindi qui basta il testo.
+      */}
+      {avviso && (
+        <span className="text-xs tabular-nums text-[var(--brand-text-muted)]">{avviso}</span>
+      )}
+
+      {/* Il motivo del blocco è scritto accanto, non in un `title`: su un elemento disabilitato il
+          tooltip nativo spesso non compare proprio, perché non riceve eventi di puntatore. */}
+      <Button
+        variant="outline"
+        size="sm"
+        onClick={onEsporta}
+        loading={esportando}
+        disabled={vuota}
+      >
         <Download size={14} aria-hidden="true" />
         Esporta vista
       </Button>

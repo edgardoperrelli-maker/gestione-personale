@@ -100,6 +100,10 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
   return {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni,
     altre, ricarica,
+    // La query esce dal hook perché l'export deve poter rifare *la stessa* interrogazione fino in
+    // fondo. Ricostruirla dai filtri nel componente vorrebbe dire due costruttori di query da
+    // tenere allineati a mano, e il giorno che divergono l'export mente senza accorgersene.
+    query,
     perPagina: PER_PAGINA,
     tutteCaricate: righe.length >= totale,
   };

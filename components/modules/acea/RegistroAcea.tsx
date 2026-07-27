@@ -8,13 +8,17 @@ import { toast } from '@/components/ui/Toast';
 import {
   COLONNE_DUNNING, COLONNE_MASSIVE, dataIt, type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
+import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
+import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
 import { COLONNE_EDITABILI, useEditingGriglia, type Operatore } from './useEditingGriglia';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 import BarraAzioni from './BarraAzioni';
 import MenuColonne from './MenuColonne';
-import { esportaVista } from './esportaVista';
+import { caricaTutteLeRighe, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
+
+const numero = (n: number) => n.toLocaleString('it-IT');
 
 /** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso da Dunning e Massive. */
 export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'massive' }) {
@@ -24,10 +28,11 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   );
   const [selezione, setSelezione] = useState<RowSelectionState>({});
   const [esportando, setEsportando] = useState(false);
+  const [scaricate, setScaricate] = useState(0);
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica, perPagina,
+    ricarica, perPagina, query,
   } = useOrdiniAcea(famiglia);
 
   const colonneVisibili = useMemo(
@@ -74,17 +79,42 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     return null;
   }, [editing.locali]);
 
+  /**
+   * Export della vista.
+   *
+   * «Vista» sono i filtri, non la finestra di paginazione: chi ha davanti «300 di 5.293» e clicca
+   * Esporta si aspetta 5.293 righe. Prima ne usciva un file da 300, senza niente che lo dicesse —
+   * e un xlsx troncato in silenzio è peggio di un export che manca, perché ci si contano sopra le
+   * righe. Quindi si ripercorre la stessa query fino in fondo; se le righe sono già tutte in
+   * memoria si usa quello che c'è, senza rifare undici richieste.
+   */
   const esporta = useCallback(async () => {
+    if (totale > MAX_RIGHE_EXPORT) {
+      toast.error(
+        `La vista ha ${numero(totale)} righe: l'export ne regge ${numero(MAX_RIGHE_EXPORT)}. Restringi i filtri.`,
+      );
+      return;
+    }
     setEsportando(true);
+    setScaricate(tutteCaricate ? righe.length : 0);
     try {
-      const oggiCompatto = (oggi || new Date().toISOString().slice(0, 10)).replaceAll('-', '');
-      await esportaVista(righe, colonneVisibili, `acea-${famiglia}-${oggiCompatto}.xlsx`);
+      const tutte = tutteCaricate ? righe : await caricaTutteLeRighe(query, totale, setScaricate);
+      await esportaVista(
+        tutte,
+        colonneVisibili,
+        nomeFileExport({
+          famiglia,
+          stato: filtri.stato,
+          oggi,
+          filtrato: contaFiltriColonna(filtri) > 0 || filtri.cerca.trim() !== '',
+        }),
+      );
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Export non riuscito.');
     } finally {
       setEsportando(false);
     }
-  }, [righe, colonneVisibili, famiglia, oggi]);
+  }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
   if (errore) {
     /*
@@ -156,6 +186,12 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           onChange={setVisibili}
           onEsporta={() => void esporta()}
           esportando={esportando}
+          vuota={totale === 0}
+          nota={
+            esportando && !tutteCaricate
+              ? `${numero(scaricate)} di ${numero(totale)} righe`
+              : undefined
+          }
         />
       </div>
 
@@ -196,9 +232,10 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         annunciata, perché il lettore deve già osservarla quando il contenuto cambia.
       */}
       <p role="status" className="sr-only">
-        {editing.salvando
-          ? 'Salvataggio in corso…'
-          : `${righe.length} righe caricate su ${totale}${selezionate.length > 0 ? `, ${selezionate.length} selezionate` : ''}.`}
+        {editing.salvando && 'Salvataggio in corso…'}
+        {!editing.salvando && esportando && `Export in corso: ${scaricate} righe di ${totale}.`}
+        {!editing.salvando && !esportando
+          && `${righe.length} righe caricate su ${totale}${selezionate.length > 0 ? `, ${selezionate.length} selezionate` : ''}.`}
       </p>
 
       {!tutteCaricate && (
