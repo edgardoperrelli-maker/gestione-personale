@@ -33,7 +33,7 @@ type Risposta = {
  * caricate darebbe un risultato che sembra giusto ed è sbagliato, perché escluderebbe le 4.993
  * righe non ancora scese.
  */
-export function useOrdiniAcea(famiglia: 'dunning' | 'massive', refreshKey = 0) {
+export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
   const [filtri, setFiltri] = useState<FiltriUI>(filtriVuoti);
   const [righe, setRighe] = useState<RigaTabella[]>([]);
   const [totale, setTotale] = useState(0);
@@ -78,8 +78,8 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive', refreshKey = 0) {
     }
   }, [query]);
 
-  // Cambio filtri (o refresh esterno dopo un import): si riparte dalla prima pagina.
-  useEffect(() => { void carica(1, false); }, [carica, refreshKey]);
+  // Cambio filtri: si riparte dalla prima pagina.
+  useEffect(() => { void carica(1, false); }, [carica]);
 
   useEffect(() => {
     let vivo = true;
@@ -92,7 +92,7 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive', refreshKey = 0) {
       }
     })();
     return () => { vivo = false; };
-  }, [famiglia, refreshKey]);
+  }, [famiglia]);
 
   const altre = useCallback(() => { void carica(pagina + 1, true); }, [carica, pagina]);
   const ricarica = useCallback(() => { void carica(1, false); }, [carica]);

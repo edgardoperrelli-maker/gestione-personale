@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { confrontaOdl, semaforo, type OdlStato } from './collaudo';
+import { confrontaOdl, semaforo, ultimaRaccolta, type OdlStato } from './collaudo';
 
 const o = (odl: string, aperto: boolean): OdlStato => ({ odl, aperto });
 
@@ -73,5 +73,40 @@ describe('confrontaOdl', () => {
     const c = confrontaOdl([], []);
     expect(c).toMatchObject({ moduloTotale: 0, altraTotale: 0, inEntrambi: 0, concordi: 0 });
     expect(semaforo(c)).toBe('verde');
+  });
+});
+
+describe('ultimaRaccolta', () => {
+  // Lo snapshot arriva ordinato per ODL, non per data: prendere il primo elemento significava
+  // datare il confronto con l'ordine alfabeticamente primo.
+  it('prende il massimo, non il primo elemento', () => {
+    expect(ultimaRaccolta([
+      { raccolto_at: '2026-01-15T08:00:00Z' },   // ODL più basso, raccolta più vecchia
+      { raccolto_at: '2026-07-27T06:30:00Z' },
+      { raccolto_at: '2026-07-26T22:10:00Z' },
+    ])).toBe('2026-07-27T06:30:00Z');
+  });
+
+  it('null su snapshot vuoto', () => {
+    expect(ultimaRaccolta([])).toBeNull();
+  });
+
+  it('salta le date assenti senza perdere le altre', () => {
+    expect(ultimaRaccolta([
+      { raccolto_at: null },
+      { raccolto_at: '2026-07-27T06:30:00Z' },
+      { raccolto_at: null },
+    ])).toBe('2026-07-27T06:30:00Z');
+  });
+
+  it('null se nessuna riga ha una data', () => {
+    expect(ultimaRaccolta([{ raccolto_at: null }, { raccolto_at: null }])).toBeNull();
+  });
+
+  it('non si fa ingannare dall ordine di arrivo', () => {
+    const crescente = ultimaRaccolta([{ raccolto_at: '2026-01-01T00:00:00Z' }, { raccolto_at: '2026-12-31T23:59:59Z' }]);
+    const decrescente = ultimaRaccolta([{ raccolto_at: '2026-12-31T23:59:59Z' }, { raccolto_at: '2026-01-01T00:00:00Z' }]);
+    expect(crescente).toBe('2026-12-31T23:59:59Z');
+    expect(decrescente).toBe('2026-12-31T23:59:59Z');
   });
 });

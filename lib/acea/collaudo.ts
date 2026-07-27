@@ -122,3 +122,21 @@ export function semaforo(c: Confronto): 'verde' | 'giallo' | 'rosso' {
   if (c.soloModulo.totale > 0) return 'giallo';
   return 'verde';
 }
+
+/**
+ * L'istante dell'ULTIMA raccolta in uno snapshot del portale.
+ *
+ * Prima si leggeva `portale[0].raccolto_at`. Ma lo snapshot arriva ordinato per `odl`, quindi
+ * `[0]` è l'ordine primo in ordine alfabetico e la sua data non ha alcun rapporto con l'ultima
+ * lettura: bastava un ODL vecchio col numero più basso perché la pagina scrivesse «Lettura del
+ * <mesi fa>» accanto al confronto che decide se spegnere il master. Una data stantìa lì dentro fa
+ * fidare — o diffidare — di un confronto per il motivo sbagliato.
+ */
+export function ultimaRaccolta(righe: ReadonlyArray<{ raccolto_at: string | null }>): string | null {
+  let max: string | null = null;
+  for (const r of righe) {
+    // Confronto lessicografico: gli ISO-8601 in UTC si ordinano come stringhe.
+    if (r.raccolto_at && (max === null || r.raccolto_at > max)) max = r.raccolto_at;
+  }
+  return max;
+}

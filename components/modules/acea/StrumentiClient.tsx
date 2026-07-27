@@ -44,8 +44,12 @@ export default function StrumentiClient() {
           `key` sulla famiglia: export e saracinesche tengono stato interno legato alla famiglia
           (comuni caricati, vista selezionata). Senza il rimontaggio, passando a «massive» si
           vedrebbe per un istante il conteggio del dunning.
+
+          Il contatore degli import sta in ENTRAMBE le chiavi: la tendina dei comuni dell'export si
+          popola da `/api/acea/opzioni`, quindi un import che porta un comune nuovo lo lasciava
+          fuori finché non si cambiava pagina.
         */}
-        <EsportaAcea key={`export-${famiglia}`} famiglia={famiglia} />
+        <EsportaAcea key={`export-${famiglia}-${aggiornamenti}`} famiglia={famiglia} />
         <Saracinesche key={`saracinesche-${famiglia}-${aggiornamenti}`} famiglia={famiglia} />
       </div>
     </div>

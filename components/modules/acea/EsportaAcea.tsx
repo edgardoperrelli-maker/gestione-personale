@@ -103,11 +103,14 @@ export default function EsportaAcea({ famiglia }: { famiglia: Famiglia }) {
             aria-label="Giorno da esportare"
             className="h-9 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 text-sm text-[var(--brand-text-main)]"
           />
+          {/* `aria-label` distinti: due bottoni chiamati entrambi «Scarica» sono indistinguibili
+              nell'elenco dei comandi di uno screen reader. */}
           <Button
             variant="outline"
             size="sm"
             onClick={() => void esegui('pianificato')}
             loading={busy === 'pianificato'}
+            aria-label="Scarica il pianificato del giorno"
           >
             <Download size={14} aria-hidden="true" />
             Scarica
@@ -137,6 +140,7 @@ export default function EsportaAcea({ famiglia }: { famiglia: Famiglia }) {
             size="sm"
             onClick={() => void esegui('master')}
             loading={busy === 'master'}
+            aria-label="Scarica il master rigenerato dal registro"
           >
             <Download size={14} aria-hidden="true" />
             Scarica

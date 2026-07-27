@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   flexRender, getCoreRowModel, getSortedRowModel, useReactTable,
   type ColumnDef, type SortingState, type RowSelectionState,
@@ -11,6 +11,7 @@ import {
   valoreCella, tonoScadenza, type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
 import type { FiltriUI, Opzioni } from '@/lib/acea/filtriOrdini';
+import Skeleton from '@/components/ui/Skeleton';
 import FiltroColonna from './FiltroColonna';
 
 /** Altezza fissa di riga: serve al virtualizzatore per calcolare la finestra visibile. */
@@ -64,6 +65,9 @@ export type Props = {
 /** Chiave stabile di riga: la coppia, perché un ODL può avere più operazioni. */
 export const chiaveRiga = (r: RigaTabella) => `${r.odl}|${r.numero_operazione}`;
 
+/** Id di una cella modificabile: stesse coordinate del focus, così `aria-activedescendant` combacia. */
+const idCella = (riga: number, colonna: number) => `acea-cella-${riga}-${colonna}`;
+
 /**
  * Tabella del registro ordini.
  *
@@ -82,7 +86,10 @@ export default function TabellaOrdini({
   filtri, onFiltri, opzioni,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
+  /** Elemento che scorre: è lo `scrollElement` del virtualizzatore, deve restare quello esterno. */
   const contenitore = useRef<HTMLDivElement>(null);
+  /** Elemento con `role="grid"`: è questo a prendere il focus e a portare `aria-activedescendant`. */
+  const griglia = useRef<HTMLDivElement>(null);
   // Indice dell'ultima riga cliccata: base dello shift-click.
   const ultimaCliccata = useRef<number | null>(null);
 
@@ -121,6 +128,20 @@ export default function TabellaOrdini({
     overscan: 12,
   });
 
+  /*
+    Il cursore di cella deve restare in vista.
+
+    La lista è virtualizzata: fuori dalla finestra visibile la riga viene SMONTATA. Senza questo
+    effetto, tenendo premuta la freccia giù il contorno del cursore usciva dallo schermo e non
+    tornava più — e `aria-activedescendant` puntava a un id che nel DOM non esisteva più, quindi
+    anche l'annuncio spariva. Vale per chiunque usi la tastiera, non solo per gli screen reader.
+  */
+  const rigaFocus = editing?.focus?.riga;
+  useEffect(() => {
+    if (rigaFocus === undefined) return;
+    virtualizer.scrollToIndex(rigaFocus, { align: 'auto' });
+  }, [rigaFocus, virtualizer]);
+
   const clickRiga = (indice: number, shift: boolean) => {
     if (shift && ultimaCliccata.current !== null) {
       const [da, a] = [ultimaCliccata.current, indice].sort((x, y) => x - y);
@@ -154,32 +175,44 @@ export default function TabellaOrdini({
     <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
       <div
         ref={contenitore}
-        className="overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+        className="overflow-auto focus-within:outline-none"
         style={{ height: ALTEZZA_VISTA }}
-        // Le celle non sono focalizzabili (sono `div` dentro una lista virtualizzata: darle al
-        // tab significherebbe far tabulare 5.000 elementi). Il punto d'ingresso è il contenitore:
-        // ci si arriva col tab, e la prima freccia o l'Invio porta il cursore sulla prima cella
-        // modificabile. Prima si entrava SOLO col mouse, e senza mouse la pianificazione a griglia
-        // era irraggiungibile.
-        tabIndex={editing ? 0 : undefined}
-        aria-label={
-          editing
-            ? 'Registro ordini. Premi una freccia per entrare nella griglia modificabile, Esc per uscirne.'
-            : undefined
-        }
-        onKeyDown={(e) => {
-          if (!editing || editing.focus || rows.length === 0) return;
-          if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) {
-            e.preventDefault();
-            editing.onClickCella(0, 0, false);
-          }
-        }}
       >
-        {/* `+1`: nel conteggio ARIA la riga di intestazione è la riga 1, i dati partono da 2. */}
+        {/*
+          `tabIndex` e `role="grid"` sullo STESSO elemento: gli screen reader entrano in modalità
+          focus (e consegnano le frecce all'applicazione) solo se il nodo che riceve il focus è
+          quello che porta il ruolo. Tenendoli separati — ruolo qui, focus sul contenitore di
+          scorrimento — le frecce restavano alla navigazione del lettore.
+
+          Le celle non sono focalizzabili: sono div in una lista virtualizzata, darle al tab
+          significherebbe far tabulare 5.000 elementi. Il cursore di cella è quindi dichiarato con
+          `aria-activedescendant`, che è il modo previsto per una griglia a fuoco unico.
+
+          `+1` nei conteggi: nell'ARIA la riga di intestazione è la 1 e la colonna delle spunte è
+          la 1, quindi i dati partono da 2.
+        */}
         <div
+          ref={griglia}
           role="grid"
           aria-rowcount={rows.length + 1}
           aria-colcount={visibili.length + 1}
+          tabIndex={editing ? 0 : undefined}
+          aria-label={
+            editing
+              ? 'Registro ordini. Premi una freccia per entrare nella griglia modificabile, Esc per uscirne.'
+              : undefined
+          }
+          aria-activedescendant={
+            editing?.focus ? idCella(editing.focus.riga, editing.focus.colonna) : undefined
+          }
+          onKeyDown={(e) => {
+            if (!editing || editing.focus || rows.length === 0) return;
+            if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) {
+              e.preventDefault();
+              editing.onClickCella(0, 0, false);
+            }
+          }}
+          className="focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
           style={{ width: larghezzaTotale, minWidth: '100%' }}
         >
           {/* intestazione */}
@@ -207,6 +240,7 @@ export default function TabellaOrdini({
                 <div
                   key={h.id}
                   role="columnheader"
+                  aria-colindex={i + 2}
                   aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none'}
                   style={stileColonna(col?.larghezza ?? 120)}
                   className="flex items-center gap-0.5 pl-2 pr-1"
@@ -270,7 +304,7 @@ export default function TabellaOrdini({
                       }}
                     />
                   </div>
-                  {visibili.map((c) => {
+                  {visibili.map((c, iCol) => {
                     const iEdit = editing?.indiceEditabile(c.chiave) ?? null;
                     const locale = editing?.valoreLocale(r, c.chiave) ?? null;
                     const testo = locale ?? valoreCella(r, c.chiave);
@@ -283,6 +317,17 @@ export default function TabellaOrdini({
                       <div
                         key={c.chiave}
                         role="gridcell"
+                        // `+2`: la colonna 1 dell'ARIA è quella delle spunte.
+                        aria-colindex={iCol + 2}
+                        id={iEdit === null ? undefined : idCella(vi.index, iEdit)}
+                        aria-selected={iEdit === null ? undefined : Boolean(inSelezione)}
+                        // Una cella che contiene solo «Rossi» non dice su quale ordine si è: il
+                        // nome accessibile lega colonna, ODL e valore.
+                        aria-label={
+                          iEdit === null
+                            ? undefined
+                            : `${c.intestazione}, ODL ${r.odl} operazione ${r.numero_operazione}: ${testo || 'vuoto'}`
+                        }
                         style={stileColonna(c.larghezza)}
                         title={testo}
                         onMouseDown={
@@ -291,6 +336,10 @@ export default function TabellaOrdini({
                             : (e) => {
                                 e.preventDefault();
                                 editing?.onClickCella(vi.index, iEdit, e.shiftKey);
+                                // `preventDefault` impedisce il focus di default, che senza questa
+                                // riga restava sul `<body>`: il cursore ARIA non veniva letto e il
+                                // Tab successivo ripartiva dall'inizio del documento.
+                                griglia.current?.focus();
                               }
                         }
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
@@ -318,6 +367,14 @@ export default function TabellaOrdini({
               );
             })}
           </div>
+
+          {/* `caricando` non disegnava niente: al primo carico e a ogni cambio di filtro la
+              tabella restava un rettangolo bianco, indistinguibile da «nessun risultato». */}
+          {rows.length === 0 && caricando && (
+            <div className="space-y-1 p-2" aria-hidden="true">
+              {Array.from({ length: 8 }, (_, i) => <Skeleton key={i} className="h-8" />)}
+            </div>
+          )}
 
           {rows.length === 0 && !caricando && (
             <p className="px-4 py-8 text-center text-sm text-[var(--brand-text-muted)]">

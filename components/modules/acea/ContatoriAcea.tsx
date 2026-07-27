@@ -32,7 +32,7 @@ function oreDa(iso: string | undefined): number | null {
  * (`oklch(0.965 0.006 250)`, globals.css). Sul canvas i cinque riquadri sparivano — restavano solo
  * le etichette a mezz'aria. Sopra `--brand-surface` (bianco) il well si vede come previsto.
  */
-export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number }) {
+export default function ContatoriAcea() {
   const [dati, setDati] = useState<Riepilogo | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -40,17 +40,20 @@ export default function ContatoriAcea({ refreshKey = 0 }: { refreshKey?: number 
     try {
       const res = await fetch('/api/acea/ordini', { method: 'POST' });
       if (!res.ok) {
-        setErrore('Riepilogo non disponibile.');
+        // La causa il server l'ha gia` scritta: buttarla via lasciava l'utente con un messaggio
+        // generico e nessun modo di capire se fosse una sessione scaduta o un guasto.
+        const b = (await res.json().catch(() => ({}))) as { error?: string };
+        setErrore(b.error ?? 'Riepilogo non disponibile.');
         return;
       }
       setDati((await res.json()) as Riepilogo);
       setErrore(null);
-    } catch {
-      setErrore('Riepilogo non disponibile.');
+    } catch (e) {
+      setErrore(e instanceof Error ? e.message : 'Riepilogo non disponibile.');
     }
   }, []);
 
-  useEffect(() => { void carica(); }, [carica, refreshKey]);
+  useEffect(() => { void carica(); }, [carica]);
 
   if (errore) {
     return (

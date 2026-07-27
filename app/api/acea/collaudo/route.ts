@@ -2,7 +2,7 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
-import { confrontaOdl, semaforo, type OdlStato } from '@/lib/acea/collaudo';
+import { confrontaOdl, semaforo, ultimaRaccolta, type OdlStato } from '@/lib/acea/collaudo';
 import { COMMITTENTI_ACEA } from '@/lib/acea/vociRapportino';
 
 export const runtime = 'nodejs';
@@ -60,6 +60,8 @@ export async function GET() {
       aperto: !chiusiPortale.has(String(p.stato_norm ?? '').trim().toUpperCase()),
     }));
 
+    const raccoltoIl = ultimaRaccolta(portale);
+
     // Master: «non esitata» = colonna esito vuota. È il criterio del piano, ed è l'unico leggibile
     // su quella tabella.
     type Master = { odl: string; esito: string | null };
@@ -108,7 +110,7 @@ export async function GET() {
         portale: {
           ...cPortale,
           semaforo: semaforo(cPortale),
-          raccoltoIl: portale[0]?.raccolto_at ?? null,
+          raccoltoIl,
         },
         master: { ...cMaster, semaforo: semaforo(cMaster) },
       },

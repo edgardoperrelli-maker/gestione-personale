@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RowSelectionState } from '@tanstack/react-table';
+import { RefreshCw } from 'lucide-react';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
@@ -16,13 +17,7 @@ import { esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
 
 /** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso da Dunning e Massive. */
-export default function RegistroAcea({
-  famiglia,
-  refreshKey = 0,
-}: {
-  famiglia: 'dunning' | 'massive';
-  refreshKey?: number;
-}) {
+export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'massive' }) {
   const colonne: DefColonna[] = famiglia === 'dunning' ? COLONNE_DUNNING : COLONNE_MASSIVE;
   const [visibili, setVisibili] = useState<Set<string>>(
     () => new Set(colonne.filter((c) => c.predefinita).map((c) => c.chiave)),
@@ -32,8 +27,8 @@ export default function RegistroAcea({
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica,
-  } = useOrdiniAcea(famiglia, refreshKey);
+    ricarica, perPagina,
+  } = useOrdiniAcea(famiglia);
 
   const colonneVisibili = useMemo(
     () => colonne.filter((c) => visibili.has(c.chiave)),
@@ -61,12 +56,9 @@ export default function RegistroAcea({
     })();
   }, []);
 
-  const editing = useEditingGriglia({
-    righe,
-    operatori,
-    onSalvato: () => ricarica(),
-    attivo: true,
-  });
+  // `onSalvato: ricarica` e non `() => ricarica()`: una lambda nuova a ogni render fa riregistrare
+  // i tre listener globali di `useEditingGriglia` a ogni battuta.
+  const editing = useEditingGriglia({ righe, operatori, onSalvato: ricarica, attivo: true });
 
   const indiceEditabile = useCallback((chiave: string) => {
     const i = COLONNE_EDITABILI.indexOf(chiave as (typeof COLONNE_EDITABILI)[number]);
@@ -95,12 +87,31 @@ export default function RegistroAcea({
   }, [righe, colonneVisibili, famiglia, oggi]);
 
   if (errore) {
+    /*
+      Token di stato, non di superficie: `--brand-surface-muted` vale esattamente quanto
+      `--brand-bg` nel tema chiaro e questo blocco vive sul canvas, quindi il riquadro non si
+      vedeva — restava un testo a mezz'aria proprio nello stato peggiore della vista.
+
+      Il testo diceva «se il registro è vuoto, carica un export»: una causa impossibile. Questo
+      ramo si raggiunge solo se la lettura fallisce (500, o 401/403); un registro vuoto torna 200
+      con `righe: []` e finisce nello stato vuoto della tabella, non qui. E siccome l'early return
+      toglie di mezzo ogni comando della vista, senza «Riprova» l'unica via d'uscita era ricaricare
+      la pagina a mano.
+    */
     return (
-      <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-4">
+      <div
+        role="alert"
+        className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-4"
+      >
         <p className="text-sm text-[var(--brand-text-main)]">{errore}</p>
         <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
-          Se il registro è vuoto, carica un export dal Cruscotto ACEA.
+          La lettura del registro non è riuscita. Se si ripete, il problema è sul server: il
+          registro resta com&apos;è, non è andato perso nulla.
         </p>
+        <Button variant="outline" size="sm" onClick={ricarica} loading={caricando} className="mt-3">
+          <RefreshCw size={14} aria-hidden="true" />
+          Riprova
+        </Button>
       </div>
     );
   }
@@ -179,7 +190,7 @@ export default function RegistroAcea({
       {!tutteCaricate && (
         <div className="flex justify-center">
           <Button variant="outline" size="sm" onClick={altre} loading={caricando}>
-            Carica altre {Math.min(300, totale - righe.length)} righe
+            Carica altre {Math.min(perPagina, totale - righe.length)} righe
           </Button>
         </div>
       )}

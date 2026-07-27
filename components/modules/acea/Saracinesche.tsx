@@ -140,7 +140,12 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
               value={vista}
               onValueChange={(v) => setVista(v as Vista)}
               items={[
-                { value: 'da_richiedere', label: `Da richiedere ${dati.daRichiedere}` },
+                {
+                  // Senza ordini di sostituzione nel registro il conteggio non è calcolabile: il
+                  // riquadro sopra lo dice, e la linguetta non deve contraddirlo con un numero.
+                  value: 'da_richiedere',
+                  label: dati.attendibile ? `Da richiedere ${dati.daRichiedere}` : 'Da richiedere',
+                },
                 { value: 'da_esitare', label: `Da esitare ${dati.daEsitare}` },
                 { value: 'fatte', label: `Tutte le fatte ${dati.fatte}` },
               ]}

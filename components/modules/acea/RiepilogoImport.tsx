@@ -72,7 +72,7 @@ export default function RiepilogoImport({ esito }: { esito: EsitoImport }) {
       </div>
 
       {esito.annullatiPianificati.length > 0 && (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--brand-surface)] p-3">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--danger)]">
             <AlertTriangle size={16} aria-hidden="true" />
             {esito.annullatiPianificati.length} ordini annullati da ACEA erano pianificati
@@ -91,8 +91,11 @@ export default function RiepilogoImport({ esito }: { esito: EsitoImport }) {
         </div>
       )}
 
+      {/* Token di stato e non di superficie: il grigio neutro faceva leggere l'avviso come una nota
+          di contorno, col colore relegato all'icona. Stessa grammatica degli altri due avvisi del
+          modulo (RapportiniGiorno, Saracinesche). */}
       {esito.avvisi.length > 0 && (
-        <div className="rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-3">
+        <div className="rounded-[var(--radius-lg)] border border-[var(--warning)] bg-[var(--warning-soft)] p-3">
           <div className="flex items-center gap-2 text-sm font-semibold text-[var(--brand-text-main)]">
             <FileWarning size={16} className="text-[var(--warning)]" aria-hidden="true" />
             {esito.avvisi.length} righe da controllare
