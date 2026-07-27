@@ -1,7 +1,7 @@
 'use client';
 
 import { Plus } from 'lucide-react';
-import { coloreCommittente } from '@/lib/appuntamenti/committenti';
+import { coloreCommittente } from '@/lib/contratti/tipi';
 import { fmtDay } from '@/components/modules/cronoprogramma-personale/utils';
 import type { Appointment } from './AppointmentModal';
 

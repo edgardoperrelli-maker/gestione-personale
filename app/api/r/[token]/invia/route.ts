@@ -133,8 +133,12 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     matricola: string;
     pdr: string | null;
   }> = [];
+  // Registro AcquaLatina: stessa raccolta, tabella separata (i due committenti hanno
+  // cicli logistici e responsabili diversi). Niente `pdr`: un misuratore d'acqua non
+  // ha un punto di riconsegna gas.
+  const misuratoriAcqualatina: Array<Omit<(typeof misuratoriFermi)[number], 'pdr'>> = [];
 
-  // Pre-fetch committente per escludere interventi non-ACEA dal registro
+  // Pre-fetch committente per instradare ogni rimozione al registro del suo committente
   const interventoIds = ((voci ?? []) as Array<{ intervento_id: string | null }>)
     .map(v => v.intervento_id)
     .filter((id): id is string => !!id);
@@ -215,9 +219,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
       .neq('stato', 'annullato');
     if (patch.esito === 'eseguito_positivo') chiusiPositivi.push(v.intervento_id);
 
-    // Raccolta misuratori rimossi (esito positivo + matricola presente)
-    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim() && committenteMap.get(v.intervento_id) === 'acea' && isRimozioneTipo(tipoMap.get(v.intervento_id))) {
-      misuratoriFermi.push({
+    // Raccolta misuratori rimossi: esito positivo + matricola presente. Ogni rimozione
+    // va al registro del SUO committente — i due hanno cicli logistici distinti.
+    const committente = committenteMap.get(v.intervento_id);
+    if (patch.esito === 'eseguito_positivo' && v.matricola && v.matricola.trim()) {
+      const riga = {
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,
         odl:             v.odl ?? null,
@@ -228,8 +234,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
         indirizzo:       v.via ?? null,
         comune:          v.comune ?? null,
         matricola:       v.matricola.trim(),
-        pdr:             v.pdr ?? null,
-      });
+      };
+      // ACEA: solo le attività di rimozione — il suo catalogo ne ha molte altre, e le
+      // rimozioni di impianti ABUSIVI non devono entrare a magazzino.
+      if (committente === 'acea' && isRimozioneTipo(tipoMap.get(v.intervento_id))) {
+        misuratoriFermi.push({ ...riga, pdr: v.pdr ?? null });
+      }
+      // AcquaLatina: nessun gate sul tipo. La commessa ha UNA sola attività ed è già
+      // una sostituzione, quindi ogni voce eseguita è per definizione una rimozione.
+      if (committente === 'acqualatina') {
+        misuratoriAcqualatina.push(riga);
+      }
     }
   }
 
@@ -238,6 +253,11 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     await supabaseAdmin
       .from('misuratori_rimossi')
       .upsert(misuratoriFermi, { onConflict: 'intervento_id', ignoreDuplicates: true });
+  }
+  if (misuratoriAcqualatina.length > 0) {
+    await supabaseAdmin
+      .from('acqualatina_misuratori_rimossi')
+      .upsert(misuratoriAcqualatina, { onConflict: 'intervento_id', ignoreDuplicates: true });
   }
 
   // Sweep: i positivi appena registrati revocano le voci non compilate con lo stesso ODL

@@ -4,9 +4,9 @@ import { leggiRegistro } from '@/lib/misuratori/registro';
 
 export const runtime = 'nodejs';
 
-/** Registro misuratori rimossi ACEA. */
+/** Registro misuratori rimossi della commessa AcquaLatina. */
 export async function GET(req: Request) {
   const auth = await requireUser();
   if (auth instanceof NextResponse) return auth;
-  return leggiRegistro('misuratori_rimossi', req.url);
+  return leggiRegistro('acqualatina_misuratori_rimossi', req.url);
 }

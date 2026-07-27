@@ -7,13 +7,18 @@ import {
   partitionInfoCampi,
   titoloVoce,
   coordinateFromRaw,
+  diametroFromRaw,
 } from './infoCampi';
 
 describe('resolveInfoCampi', () => {
   it('snapshot vuoto → tutti gli 11 di default', () => {
     const r = resolveInfoCampi([]);
     expect(r).toHaveLength(11);
-    expect(r.map((c) => c.chiave)).toEqual(INFO_CAMPI_DISPONIBILI.filter((c) => c.chiave !== 'coordinate').map((c) => c.chiave));
+    // `coordinate` e `diametro` sono OPT-IN: fuori dal default, le aggiunge il template.
+    const OPT_IN = ['coordinate', 'diametro'];
+    expect(r.map((c) => c.chiave)).toEqual(
+      INFO_CAMPI_DISPONIBILI.filter((c) => !OPT_IN.includes(c.chiave)).map((c) => c.chiave),
+    );
     expect(r[1]).toMatchObject({ chiave: 'matricola', etichetta: 'MATRICOLA', ordine: 2 });
   });
 
@@ -130,5 +135,31 @@ describe('campo coordinate', () => {
   });
   it('valoreInfo legge coordinate dalla voce', () => {
     expect(valoreInfo({ coordinate: '41.85, 12.78' }, 'coordinate')).toBe('41.85, 12.78');
+  });
+});
+
+describe('diametroFromRaw', () => {
+  it('legge il calibro dal raw_json della voce', () => {
+    expect(diametroFromRaw({ calibro: 'DN20' })).toBe('DN20');
+    expect(diametroFromRaw({ calibro: '  DN25 ' })).toBe('DN25');
+  });
+
+  it('cella CALIBRO vuota → DN15, il default di capitolato AcquaLatina', () => {
+    expect(diametroFromRaw({ calibro: '' })).toBe('DN15');
+    expect(diametroFromRaw({})).toBe('DN15');
+    expect(diametroFromRaw(null)).toBe('DN15');
+    expect(diametroFromRaw(undefined)).toBe('DN15');
+  });
+});
+
+describe('diametro è opt-in come coordinate', () => {
+  it('non entra nel default, quindi le voci ACEA/Italgas non lo mostrano mai', () => {
+    expect(infoCampiDefault().some((c) => c.chiave === 'diametro')).toBe(false);
+    expect(INFO_CAMPI_DISPONIBILI.some((c) => c.chiave === 'diametro')).toBe(true);
+  });
+
+  it('un template che la richiede la ottiene', () => {
+    const r = resolveInfoCampi([{ chiave: 'diametro', etichetta: 'CALIBRO', ordine: 1 }]);
+    expect(r).toEqual([{ chiave: 'diametro', etichetta: 'CALIBRO', ordine: 1 }]);
   });
 });

@@ -29,3 +29,14 @@ describe('isHeaderTemplateUfficiale', () => {
     expect(isHeaderTemplateUfficiale([])).toBe(false);
   });
 });
+
+describe('colonna CALIBRO', () => {
+  it("fa parte dell'header ufficiale (la commessa AcquaLatina la pre-carica)", () => {
+    expect(COLONNE_TEMPLATE).toContain('CALIBRO');
+  });
+
+  it('un template scaricato PRIMA della colonna non è più accettato', () => {
+    const vecchio = [...COLONNE_TEMPLATE].filter((c) => c !== 'CALIBRO');
+    expect(isHeaderTemplateUfficiale(vecchio)).toBe(false);
+  });
+});

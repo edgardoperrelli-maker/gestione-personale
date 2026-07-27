@@ -3,7 +3,7 @@
 // dal parser client (utils/routing) senza trascinare ExcelJS nel bundle.
 
 export const COLONNE_TEMPLATE = [
-  'CO', 'MATRICOLA', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
+  'CO', 'MATRICOLA', 'CALIBRO', 'ODS/ODL', 'Indirizzo', 'CAP', 'COMUNE',
   'DESCRIZIONE ATTIVITÀ', "GRUPPO ATTIVITA'", 'COMMITTENTE',
   'Esecutore', 'Fascia Appuntamento/Blocco', 'PdR / Impianto', 'Nominativo',
   'Tempo Esecuzione', 'Num Risorse', 'Lat', 'Long', 'Note per operatore',

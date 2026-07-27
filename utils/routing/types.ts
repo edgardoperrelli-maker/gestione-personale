@@ -18,6 +18,9 @@ export interface Task {
   // Campi ATTGIORN
   nominativo?: string;
   matricola?: string;
+  /** Colonna CALIBRO del template import (commessa AcquaLatina): diametro del misuratore
+   *  da posare, pre-caricato dall'ufficio. Vuoto = DN15 (default di capitolato). */
+  calibro?: string;
   recapito?: string;
   accessibilita?: string;
   attivita?: string;

@@ -4,6 +4,7 @@
 
 import type { Task } from '@/utils/routing/types';
 import { risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { calibroConDefault, isAcqualatina } from '@/lib/acqualatina/contratto';
 
 export type InterventoContext = {
   committente: string;
@@ -25,6 +26,8 @@ export type InterventoDaMappa = {
   lng: number | null;
   fascia_oraria: string | null;
   matricola_contatore: string | null;
+  /** Calibro del misuratore (colonna CALIBRO del file). Valorizzato solo per AcquaLatina. */
+  diametro: string | null;
   intervento_tipo: string | null;
   gruppo_attivita: string | null;
   data: string;
@@ -52,8 +55,14 @@ export function taskToIntervento(
     ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia, { allinea: 'scrittura' })
       ?? risolviGruppo('altro', task.attivita, indiceTassonomia, { allinea: 'scrittura' })
     : null;
+  const committente = ris?.committente ?? ctx.committente;
+  // Il calibro è una regola della sola commessa AcquaLatina: il default DN15 non deve
+  // toccare ACEA/Italgas, che sul misuratore non hanno un diametro di capitolato.
+  const diametro = isAcqualatina(committente)
+    ? calibroConDefault(task.calibro)
+    : (task.calibro?.trim() || null);
   return {
-    committente: ris?.committente ?? ctx.committente,
+    committente,
     odl: (task.odl && task.odl.trim()) || null,
     pdr: task.pdr ?? null,
     nominativo: task.nominativo ?? null,
@@ -64,6 +73,7 @@ export function taskToIntervento(
     lng: task.lng ?? null,
     fascia_oraria: task.fascia_oraria ?? null,
     matricola_contatore: task.matricola ?? null,
+    diametro,
     intervento_tipo: ris ? ris.descrizione : (task.attivita ?? null),
     gruppo_attivita: ris ? ris.gruppo : null,
     data: ctx.data,

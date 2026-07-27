@@ -4,7 +4,7 @@ import { ServiceWorkerRegister } from '@/components/offline/ServiceWorkerRegiste
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
-import { coordinateFromRaw } from '@/utils/rapportini/infoCampi';
+import { coordinateFromRaw, diametroFromRaw } from '@/utils/rapportini/infoCampi';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
 import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
@@ -287,6 +287,7 @@ export default async function RapportinoPublicPage({
     fascia_oraria: v.fascia_oraria ?? undefined,
     risposte: (v.risposte ?? {}) as Record<string, unknown>,
     coordinate: coordinateFromRaw(v.raw_json),
+    diametro: diametroFromRaw(v.raw_json),
     notaUfficio: notaUfficioFromRaw(v.raw_json),
     notePrecedenti: notePrecedentiByVoce.get(v.id),
     nuovo: Boolean((v.raw_json as { _nuovo?: unknown } | null)?._nuovo),

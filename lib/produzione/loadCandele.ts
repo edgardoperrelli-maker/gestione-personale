@@ -63,7 +63,7 @@ export async function caricaCandeleSettimanali(
   to: string,
 ): Promise<{ from: string; to: string; operatori: CandelaOperatore[] }> {
   const [listinoRes, interventi, staffRes, alias, comuniMassive] = await Promise.all([
-    supabaseAdmin.from('acea_listino').select('id, attivita, prezzo, valido_dal, valido_al, attivo').eq('committente', 'acea'),
+    supabaseAdmin.from('listino').select('id, attivita, prezzo, valido_dal, valido_al, attivo').eq('committente', 'acea'),
     caricaInterventiSettimana(from, to),
     supabaseAdmin.from('staff').select('id, display_name'),
     caricaAliasAttivita(),

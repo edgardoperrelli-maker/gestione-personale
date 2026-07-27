@@ -1,7 +1,9 @@
+import { CALIBRO_DEFAULT } from '@/lib/acqualatina/contratto';
+
 export type InfoChiave =
   | 'nominativo' | 'matricola' | 'pdr' | 'odl' | 'via'
   | 'comune' | 'cap' | 'recapito' | 'attivita' | 'accessibilita' | 'fascia_oraria'
-  | 'coordinate';
+  | 'coordinate' | 'diametro';
 
 export interface TemplateInfoCampo {
   chiave: InfoChiave;
@@ -9,7 +11,8 @@ export interface TemplateInfoCampo {
   ordine: number;
 }
 
-/** I campi anagrafici selezionabili (12). `coordinate` è opt-in: NON nel default, va aggiunta dal template. */
+/** I campi anagrafici selezionabili (13). `coordinate` e `diametro` sono opt-in: NON nel
+ *  default, vanno aggiunte dal template. */
 export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: string }[] = [
   { chiave: 'nominativo', etichettaDefault: 'NOMINATIVO' },
   { chiave: 'matricola', etichettaDefault: 'MATRICOLA' },
@@ -23,6 +26,7 @@ export const INFO_CAMPI_DISPONIBILI: { chiave: InfoChiave; etichettaDefault: str
   { chiave: 'accessibilita', etichettaDefault: 'ACCESSIBILITA' },
   { chiave: 'fascia_oraria', etichettaDefault: 'FASCIA ORARIA' },
   { chiave: 'coordinate', etichettaDefault: 'COORDINATE' },
+  { chiave: 'diametro', etichettaDefault: 'CALIBRO' },
 ];
 
 const CHIAVI_NOTE = new Set<string>(INFO_CAMPI_DISPONIBILI.map((c) => c.chiave));
@@ -31,10 +35,10 @@ function defaultEtichetta(chiave: InfoChiave): string {
   return INFO_CAMPI_DISPONIBILI.find((c) => c.chiave === chiave)?.etichettaDefault ?? chiave;
 }
 
-/** Config di default = gli 11 campi storici. `coordinate` è opt-in: va aggiunta dal template. */
+/** Config di default = gli 11 campi storici. `coordinate` e `diametro` sono opt-in. */
 export function infoCampiDefault(): TemplateInfoCampo[] {
   return INFO_CAMPI_DISPONIBILI
-    .filter((c) => c.chiave !== 'coordinate')
+    .filter((c) => c.chiave !== 'coordinate' && c.chiave !== 'diametro')
     .map((c, i) => ({
       chiave: c.chiave,
       etichetta: c.etichettaDefault,
@@ -109,6 +113,20 @@ export function titoloVoce(
     if (v) return v;
   }
   return `Voce ${indice + 1}`;
+}
+
+/**
+ * Calibro del misuratore dal raw_json della voce (colonna CALIBRO del file di
+ * pianificazione, vedi `Task.calibro`), con il default di capitolato AcquaLatina quando
+ * la cella è vuota.
+ *
+ * Il default può stare qui — e non dietro un controllo sul committente — perché la chiave
+ * `diametro` è OPT-IN: solo il flusso AcquaLatina la mette nei suoi `info_campi`, quindi
+ * una voce ACEA/Italgas non la rende mai, esattamente come per `coordinate`.
+ */
+export function diametroFromRaw(raw: unknown): string {
+  const c = (raw as { calibro?: unknown } | null | undefined)?.calibro;
+  return String(c ?? '').trim() || CALIBRO_DEFAULT;
 }
 
 /** Estrae la coordinata committente ("lat, lng") dal raw_json di una voce, o undefined. */

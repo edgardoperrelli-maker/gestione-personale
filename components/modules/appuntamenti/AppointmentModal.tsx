@@ -11,9 +11,9 @@ import Textarea from '@/components/ui/Textarea';
 import {
   coloreCommittente,
   committentiAttivi,
-  territoriAttivi,
-  type AppuntamentoCommittente,
-} from '@/lib/appuntamenti/committenti';
+  territoriDelCommittente,
+  type Committente,
+} from '@/lib/contratti/tipi';
 
 type RefNome = { id: string; nome: string } | null;
 
@@ -44,7 +44,7 @@ type Props =
   | {
       mode: 'create';
       defaultDate?: string;
-      committenti: AppuntamentoCommittente[];
+      committenti: Committente[];
       onClose: () => void;
       onCreate: (appointment: Appointment) => void;
     };
@@ -118,7 +118,7 @@ function ViewMode({ appointment, onClose, onDelete }: { appointment: Appointment
 
 function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
   defaultDate?: string;
-  committenti: AppuntamentoCommittente[];
+  committenti: Committente[];
   onClose: () => void;
   onCreate: (appointment: Appointment) => void;
 }) {
@@ -137,7 +137,7 @@ function CreateMode({ defaultDate, committenti, onClose, onCreate }: {
 
   const committentiSel = useMemo(() => committentiAttivi(committenti), [committenti]);
   const territoriSel = useMemo(
-    () => territoriAttivi(committentiSel.find((c) => c.id === committenteId)),
+    () => territoriDelCommittente(committentiSel.find((c) => c.id === committenteId)),
     [committentiSel, committenteId],
   );
 
