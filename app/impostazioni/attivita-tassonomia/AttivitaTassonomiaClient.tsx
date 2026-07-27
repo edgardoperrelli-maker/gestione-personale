@@ -3,7 +3,12 @@
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-type Committente = 'acea' | 'italgas' | 'altro';
+/** Codice di runtime del committente: viene dal REGISTRO (`committenti`), non da un
+ *  elenco cablato. Aggiungere un committente in Contratti lo rende selezionabile qui. */
+type Committente = string;
+
+/** Voce del menu committente: codice di runtime + nome leggibile. */
+export type OpzioneCommittente = { codice: string; nome: string };
 
 type RigaTassonomia = {
   id: string;
@@ -17,22 +22,17 @@ type RigaTassonomia = {
 
 type Feedback = { type: 'success' | 'error'; text: string } | null;
 
-const COMMITTENTI_ORDER: Committente[] = ['acea', 'italgas', 'altro'];
-const COMMITTENTE_LABELS: Record<Committente, string> = {
-  acea: 'ACEA',
-  italgas: 'Italgas',
-  altro: 'Altro',
-};
-
 const NUOVO_GRUPPO = '__nuovo__';
 
-function committenteLabel(committente: string): string {
-  return COMMITTENTE_LABELS[committente as Committente] ?? committente;
+/** Nome leggibile dal registro; se un codice storico non c'è più, si mostra il codice. */
+function etichettaDa(opzioni: OpzioneCommittente[], committente: string): string {
+  return opzioni.find((o) => o.codice === committente)?.nome ?? committente;
 }
 
-function committenteIndex(committente: string): number {
-  const idx = COMMITTENTI_ORDER.indexOf(committente as Committente);
-  return idx === -1 ? COMMITTENTI_ORDER.length : idx;
+/** Posizione nell'ordine del registro; gli sconosciuti finiscono in fondo. */
+function indiceDa(opzioni: OpzioneCommittente[], committente: string): number {
+  const i = opzioni.findIndex((o) => o.codice === committente);
+  return i === -1 ? opzioni.length : i;
 }
 
 function usageLabel(utilizzo: number): string {
@@ -40,9 +40,9 @@ function usageLabel(utilizzo: number): string {
   return `${utilizzo.toLocaleString('it-IT')} interventi`;
 }
 
-function sortRows(rows: RigaTassonomia[]): RigaTassonomia[] {
+function sortRows(rows: RigaTassonomia[], opzioni: OpzioneCommittente[]): RigaTassonomia[] {
   return [...rows].sort((a, b) => {
-    const ci = committenteIndex(a.committente) - committenteIndex(b.committente);
+    const ci = indiceDa(opzioni, a.committente) - indiceDa(opzioni, b.committente);
     if (ci !== 0) return ci;
     const gi = a.gruppo.localeCompare(b.gruppo, 'it', { sensitivity: 'base' });
     if (gi !== 0) return gi;
@@ -53,8 +53,8 @@ function sortRows(rows: RigaTassonomia[]): RigaTassonomia[] {
 type GruppoGroup = { gruppo: string; rows: RigaTassonomia[] };
 type CommittenteGroup = { committente: string; label: string; groups: GruppoGroup[] };
 
-function buildGrouped(rows: RigaTassonomia[]): CommittenteGroup[] {
-  const sorted = sortRows(rows);
+function buildGrouped(rows: RigaTassonomia[], opzioni: OpzioneCommittente[]): CommittenteGroup[] {
+  const sorted = sortRows(rows, opzioni);
   const committenteMap = new Map<string, Map<string, RigaTassonomia[]>>();
   for (const row of sorted) {
     if (!committenteMap.has(row.committente)) committenteMap.set(row.committente, new Map());
@@ -63,15 +63,20 @@ function buildGrouped(rows: RigaTassonomia[]): CommittenteGroup[] {
     gruppoMap.get(row.gruppo)!.push(row);
   }
   return [...committenteMap.entries()]
-    .sort(([a], [b]) => committenteIndex(a) - committenteIndex(b))
+    .sort(([a], [b]) => indiceDa(opzioni, a) - indiceDa(opzioni, b))
     .map(([committente, gruppoMap]) => ({
       committente,
-      label: committenteLabel(committente),
+      label: etichettaDa(opzioni, committente),
       groups: [...gruppoMap.entries()].map(([gruppo, groupRows]) => ({ gruppo, rows: groupRows })),
     }));
 }
 
-export default function AttivitaTassonomiaClient() {
+export default function AttivitaTassonomiaClient({
+  committenti,
+}: {
+  /** Dal registro `committenti` + la voce «Altro», che è un catch-all e non un committente. */
+  committenti: OpzioneCommittente[];
+}) {
   const [rows, setRows] = useState<RigaTassonomia[]>([]);
   const [loading, setLoading] = useState(true);
   const [feedback, setFeedback] = useState<Feedback>(null);
@@ -80,7 +85,7 @@ export default function AttivitaTassonomiaClient() {
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [committenteFilter, setCommittenteFilter] = useState<'all' | Committente>('all');
 
-  const [newCommittente, setNewCommittente] = useState<Committente>('acea');
+  const [newCommittente, setNewCommittente] = useState<Committente>(committenti[0]?.codice ?? 'altro');
   const [newDescrizione, setNewDescrizione] = useState('');
   const [newGruppoSelect, setNewGruppoSelect] = useState('');
   const [newGruppoCustom, setNewGruppoCustom] = useState('');
@@ -150,7 +155,7 @@ export default function AttivitaTassonomiaClient() {
     return filtered;
   }, [rows, query, statusFilter, committenteFilter]);
 
-  const grouped = useMemo(() => buildGrouped(filteredRows), [filteredRows]);
+  const grouped = useMemo(() => buildGrouped(filteredRows, committenti), [filteredRows, committenti]);
 
   const gruppiPerCommittente = useMemo(() => {
     const map = new Map<string, Set<string>>();
@@ -298,9 +303,9 @@ export default function AttivitaTassonomiaClient() {
               }}
               className="w-full rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
             >
-              {COMMITTENTI_ORDER.map((c) => (
-                <option key={c} value={c}>
-                  {committenteLabel(c)}
+              {committenti.map((c) => (
+                <option key={c.codice} value={c.codice}>
+                  {c.nome}
                 </option>
               ))}
             </select>
@@ -332,7 +337,7 @@ export default function AttivitaTassonomiaClient() {
             >
               <option value="">Seleziona gruppo...</option>
               {gruppiPropri.length > 0 && (
-                <optgroup label={`Gruppi ${committenteLabel(newCommittente)}`}>
+                <optgroup label={`Gruppi ${etichettaDa(committenti, newCommittente)}`}>
                   {gruppiPropri.map((gruppo) => (
                     <option key={gruppo} value={gruppo}>
                       {gruppo}
@@ -420,9 +425,9 @@ export default function AttivitaTassonomiaClient() {
             className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm"
           >
             <option value="all">Tutti</option>
-            {COMMITTENTI_ORDER.map((c) => (
-              <option key={c} value={c}>
-                {committenteLabel(c)}
+            {committenti.map((c) => (
+              <option key={c.codice} value={c.codice}>
+                {c.nome}
               </option>
             ))}
           </select>
