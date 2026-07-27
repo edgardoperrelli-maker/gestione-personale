@@ -38,7 +38,29 @@ const FILTERS_EMPTY: Filters = {
   esecutore: '',
 };
 
-export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean }) {
+/** Il registro è lo stesso codice per ACEA e AcquaLatina: cambiano l'endpoint (le due
+ *  tabelle sono separate) e le funzioni che solo ACEA ha (il ricalcolo dalla
+ *  consuntivazione, la colonna PDR). Gli stati logistici sono invece identici. */
+export type RegistroProps = {
+  isAdminPlus: boolean;
+  /** Base REST del registro. Default: il registro ACEA. */
+  apiBase?: string;
+  titolo?: string;
+  sottotitolo?: string;
+  /** Ricalcolo dalla consuntivazione: esiste solo per ACEA. */
+  mostraRicalcola?: boolean;
+  /** Colonna PDR: un misuratore d'acqua non ha un punto di riconsegna gas. */
+  mostraPdr?: boolean;
+};
+
+export default function MisuratoriClient({
+  isAdminPlus,
+  apiBase = '/api/misuratori',
+  titolo = 'Misuratori Rimossi',
+  sottotitolo = 'Riconsegna dei misuratori rimossi, dal deposito al committente',
+  mostraRicalcola = true,
+  mostraPdr = true,
+}: RegistroProps) {
   const [rows, setRows]               = useState<MisuratoreRimosso[]>([]);
   const [filters, setFilters]         = useState<Filters>(FILTERS_EMPTY);
   const [statoFiltro, setStatoFiltro] = useState<StatoMisuratore | ''>('');
@@ -73,7 +95,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
       if (f.comune)     params.set('comune', f.comune);
       if (f.esecutore)  params.set('esecutore', f.esecutore);
 
-      const res = await fetch(`/api/misuratori?${params}`);
+      const res = await fetch(`${apiBase}?${params}`);
       if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Errore fetch');
       setRows(await res.json() as MisuratoreRimosso[]);
     } catch (e) {
@@ -81,7 +103,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [apiBase]);
 
   useEffect(() => { fetchData(filters); }, [fetchData, filters]);
 
@@ -92,7 +114,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
         prev.map(r => r.id === id ? { ...r, ...patch } : r)
       );
       try {
-        const res = await fetch(`/api/misuratori/${id}`, {
+        const res = await fetch(`${apiBase}/${id}`, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(patch),
@@ -107,13 +129,13 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
         await fetchData(filters);
       }
     },
-    [fetchData, filters]
+    [apiBase, fetchData, filters]
   );
 
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
-      const res = await fetch('/api/misuratori/sync', { method: 'POST' });
+      const res = await fetch(`${apiBase}/sync`, { method: 'POST' });
       const json = await res.json() as { ok?: boolean; inseriti?: number; rimossi?: number; aggiornati?: number; error?: string };
       if (json.ok) {
         await fetchData(filters);
@@ -135,7 +157,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
     } finally {
       setSyncing(false);
     }
-  }, [fetchData, filters]);
+  }, [apiBase, fetchData, filters]);
 
   const handleExportPdf = useCallback(() => {
     const pdfFilters: PdfFilters = {
@@ -159,14 +181,16 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
       {/* Testa di modulo (fissa) */}
       <ObjectHeader
-        title="Misuratori Rimossi"
-        sub="Riconsegna dei misuratori rimossi, dal deposito al committente"
+        title={titolo}
+        sub={sottotitolo}
         actions={
           <>
-            <Button variant="outline" size="sm" onClick={handleSync} loading={syncing}>
-              {!syncing && <RefreshCw className="h-4 w-4" aria-hidden />}
-              {syncing ? 'Ricalcolo…' : 'Ricalcola'}
-            </Button>
+            {mostraRicalcola && (
+              <Button variant="outline" size="sm" onClick={handleSync} loading={syncing}>
+                {!syncing && <RefreshCw className="h-4 w-4" aria-hidden />}
+                {syncing ? 'Ricalcolo…' : 'Ricalcola'}
+              </Button>
+            )}
             <Button
               variant="primary"
               size="sm"
@@ -279,7 +303,7 @@ export default function MisuratoriClient({ isAdminPlus }: { isAdminPlus: boolean
             Caricamento…
           </div>
         )}
-        <MisuratoriTabella rows={visibleRows} onPatch={handlePatch} isAdminPlus={isAdminPlus} />
+        <MisuratoriTabella rows={visibleRows} onPatch={handlePatch} isAdminPlus={isAdminPlus} mostraPdr={mostraPdr} />
       </div>
     </div>
   );

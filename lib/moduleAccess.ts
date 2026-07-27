@@ -22,6 +22,7 @@ export type AppModuleKey =
   | 'lista-attesa'
   | 'appuntamenti'
   | 'misuratori'
+  | 'acqualatina'
   | 'agente'
   | 'assegnazione-ai'
   | 'performance'
@@ -158,6 +159,16 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/misuratori'],
+    adminOnly: true,
+  },
+  {
+    key: 'acqualatina',
+    href: '/hub/acqualatina',
+    label: 'AcquaLatina',
+    description: 'Commessa AcquaLatina: registro misuratori rimossi',
+    section: 'modules',
+    group: 'operativita',
+    matchPrefixes: ['/hub/acqualatina'],
     adminOnly: true,
   },
   {

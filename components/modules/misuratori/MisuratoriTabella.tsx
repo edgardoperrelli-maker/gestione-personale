@@ -12,9 +12,11 @@ interface Props {
   onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string }) => Promise<void>;
   /** Solo admin_plus può riportare indietro lo stato; gli altri possono solo avanzarlo. */
   isAdminPlus: boolean;
+  /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
+  mostraPdr?: boolean;
 }
 
-export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props) {
+export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPdr = true }: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
   const [sortAsc, setSortAsc]         = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -81,7 +83,7 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
                 { key: null,              label: 'Indirizzo' },
                 { key: 'comune',          label: 'Comune' },
                 { key: null,              label: 'Matricola' },
-                { key: null,              label: 'PDR' },
+                ...(mostraPdr ? [{ key: null, label: 'PDR' }] : []),
                 { key: 'stato',           label: 'Stato' },
                 { key: null,              label: 'Note' },
               ] as Array<{ key: SortKey | null; label: string }>
@@ -113,7 +115,9 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus }: Props)
               <td className="max-w-[180px] truncate px-3 py-2" title={row.indirizzo ?? undefined}>{row.indirizzo ?? '—'}</td>
               <td className="whitespace-nowrap px-3 py-2">{row.comune ?? '—'}</td>
               <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.matricola}</td>
-              <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.pdr ?? '—'}</td>
+              {mostraPdr && (
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.pdr ?? '—'}</td>
+              )}
 
               {/* Dropdown stato inline */}
               <td className="whitespace-nowrap px-3 py-2">
