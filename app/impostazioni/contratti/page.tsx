@@ -1,89 +1,81 @@
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import ContrattiClient from './ContrattiClient';
-import type { Committente, RigaListino } from '@/lib/contratti/tipi';
-import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Landing del modulo Contratti — §7bis: le tre viste sono CONTESTI diversi
+ * (anagrafica / economico / operativo), quindi fogliette con route dedicata e non
+ * tre sezioni impilate in una pagina che scorre all'infinito.
+ */
+import Link from 'next/link';
+import { TriangleAlert } from 'lucide-react';
+import Breadcrumb from '@/components/ui/Breadcrumb';
+import ObjectHeader from '@/components/ui/ObjectHeader';
+import FogliettaCard from '@/components/ui/FogliettaCard';
+import { caricaCommittenti, caricaListino, caricaAttivitaPerCodice, contaSenzaFlusso } from '@/lib/contratti/dati';
+import { committentiAttivi, contrattiAttivi, statoContratto } from '@/lib/contratti/tipi';
+import { VISTE, ORDINE_VISTE } from './viste';
 
 export const dynamic = 'force-dynamic';
 
-/** Attività del committente (gruppo + descrizioni) con il flusso operatore che le copre. */
-export type AttivitaContratto = {
-  gruppo: string;
-  descrizioni: string[];
-  /** Nome del flusso di Azioni operatori agganciato al gruppo; null = nessuno. */
-  flusso: string | null;
-};
-
-type TassonomiaRiga = { committente: string; descrizione: string; gruppo: string; attivo: boolean };
-type TemplateRiga = { nome: string; gruppo_committente: string | null; gruppi_attivita: string[] | null; active: boolean };
-
-/**
- * Attività per codice committente. Le righe vengono da `attivita_tassonomia` — il
- * contratto non ne tiene copia: una sola fonte di verità per import e classificazione.
- */
-function attivitaPerCommittente(
-  tassonomia: TassonomiaRiga[],
-  templates: TemplateRiga[],
-): Map<string, AttivitaContratto[]> {
-  const out = new Map<string, Map<string, AttivitaContratto>>();
-  for (const r of tassonomia) {
-    if (!r.attivo) continue;
-    const perCodice = out.get(r.committente) ?? new Map<string, AttivitaContratto>();
-    const k = chiaveTassonomia(r.gruppo);
-    const nodo = perCodice.get(k) ?? { gruppo: r.gruppo, descrizioni: [], flusso: null };
-    nodo.descrizioni.push(r.descrizione);
-    perCodice.set(k, nodo);
-    out.set(r.committente, perCodice);
-  }
-  // Aggancio al flusso: stessa risoluzione della consolle Azioni operatori.
-  for (const [codice, gruppi] of out) {
-    for (const [k, nodo] of gruppi) {
-      const coperto = templates.find(
-        (t) => t.active && t.gruppo_committente === codice
-          && (t.gruppi_attivita ?? []).some((g) => chiaveTassonomia(g) === k),
-      );
-      nodo.flusso = coperto?.nome ?? null;
-      nodo.descrizioni.sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
-    }
-  }
-  return new Map(
-    [...out].map(([codice, gruppi]) => [
-      codice,
-      [...gruppi.values()].sort((a, b) => a.gruppo.localeCompare(b.gruppo, 'it', { sensitivity: 'base' })),
-    ]),
-  );
-}
 
 export default async function ContrattiPage() {
-  const [committentiRes, listinoRes, tassonomiaRes, templatesRes, territoriesRes] = await Promise.all([
-    // Embed delle relazioni FK: committenti → contratti → contratto_territori.
-    supabaseAdmin
-      .from('committenti')
-      .select(
-        'id, nome, codice, attivo, contratti(id, committente_id, nome, valido_dal, valido_al, attivo, note, territori:contratto_territori(id, contratto_id, nome, territory_id, attivo))',
-      )
-      .order('nome'),
-    supabaseAdmin
-      .from('listino')
-      .select('id, contratto_id, attivita, etichetta, azione_chiave, prezzo, valido_dal, valido_al, attivo, note')
-      .not('contratto_id', 'is', null)
-      .order('etichetta'),
-    supabaseAdmin.from('attivita_tassonomia').select('committente, descrizione, gruppo, attivo').range(0, 4999),
-    supabaseAdmin.from('rapportino_template').select('nome, gruppo_committente, gruppi_attivita, active'),
-    supabaseAdmin.from('territories').select('id, name').order('name'),
+  const [committenti, listino, attivitaPerCodice] = await Promise.all([
+    caricaCommittenti(),
+    caricaListino(),
+    caricaAttivitaPerCodice(),
   ]);
 
-  const attivita = attivitaPerCommittente(
-    (tassonomiaRes.data ?? []) as TassonomiaRiga[],
-    (templatesRes.data ?? []) as TemplateRiga[],
-  );
+  const oggi = new Date().toISOString().slice(0, 10);
+  const attivi = committentiAttivi(committenti);
+  const contratti = attivi.flatMap((c) => contrattiAttivi(c));
+  const inCorso = contratti.filter((k) => statoContratto(k, oggi) === 'in-corso').length;
+  const senzaFlusso = contaSenzaFlusso(attivitaPerCodice);
+  const attivitaTotali = Object.values(attivitaPerCodice).flat().length;
+
+  const conteggio: Record<string, number> = {
+    commesse: contratti.length,
+    prezzi: listino.length,
+    attivita: attivitaTotali,
+  };
 
   return (
-    <ContrattiClient
-      initial={(committentiRes.data ?? []) as unknown as Committente[]}
-      listino={(listinoRes.data ?? []) as RigaListino[]}
-      attivitaPerCodice={Object.fromEntries(attivita)}
-      territories={(territoriesRes.data ?? []) as { id: string; name: string }[]}
-      oggi={new Date().toISOString().slice(0, 10)}
-    />
+    <div className="space-y-4">
+      <Breadcrumb items={[{ label: 'Impostazioni', href: '/impostazioni' }, { label: 'Contratti' }]} />
+
+      <ObjectHeader
+        title="Contratti"
+        sub={
+          contratti.length === 0
+            ? 'Nessuna commessa aperta.'
+            : `${contratti.length} ${contratti.length === 1 ? 'contratto' : 'contratti'} · ${inCorso} in corso`
+        }
+      />
+
+      {senzaFlusso > 0 && (
+        <Link
+          href={VISTE.attivita.href}
+          className="flex items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--status-warn)]/40 bg-[var(--status-warn-soft)] px-4 py-3 text-sm text-[var(--brand-text-main)] transition hover:border-[var(--status-warn)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+        >
+          <TriangleAlert size={16} aria-hidden className="shrink-0 text-[var(--status-warn)]" />
+          <span>
+            {senzaFlusso === 1
+              ? "Un'attività a contratto non ha un flusso di azioni"
+              : `${senzaFlusso} attività a contratto non hanno un flusso di azioni`}
+            : gli operatori non saprebbero cosa compilare.
+          </span>
+        </Link>
+      )}
+
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        {ORDINE_VISTE.map((v) => (
+          <FogliettaCard
+            key={v}
+            href={VISTE[v].href}
+            title={VISTE[v].titolo}
+            description={VISTE[v].desc}
+            count={conteggio[v]}
+          />
+        ))}
+      </div>
+    </div>
   );
 }
