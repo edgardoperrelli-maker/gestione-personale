@@ -189,7 +189,7 @@ html.light {
   --brand-border-strong:  oklch(0.86 0.008 250);
 
   --brand-text-main:      oklch(0.27 0.02 255);
-  --brand-text-muted:     oklch(0.50 0.02 255);
+  --brand-text-muted:     oklch(0.44 0.02 255);
   --brand-text-subtle:    oklch(0.54 0.015 255);
 
   --kpi-rosso-bg:        oklch(0.42 0.14 260 / 0.10);

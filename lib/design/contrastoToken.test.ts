@@ -99,4 +99,22 @@ describe.each([
     expect(main).toBeGreaterThan(muted);
     expect(muted).toBeGreaterThan(subtle);
   });
+
+  it('i tre livelli restano VISIBILMENTE distinti, non solo ordinati', () => {
+    // L'ordine da solo non basta: dopo aver alzato `subtle` a norma i due livelli
+    // bassi distavano ΔL 0.04 — ordinati ma indistinguibili, cioè due livelli
+    // travestiti da tre. La distanza minima è 0.08 in L OKLCH (percettivamente
+    // ~uniforme). Alzare un token a norma senza guardare il vicino è il modo
+    // esatto in cui questa scala si è già schiacciata una volta.
+    const L = TESTO.map((t) => token.get(t)![0]);
+    for (let i = 1; i < L.length; i++) {
+      // Arrotondato: 0.70 - 0.62 vale 0.07999999999999996 in virgola mobile e
+      // fallirebbe una soglia secca su un valore che è esattamente 0.08.
+      const delta = Math.round(Math.abs(L[i] - L[i - 1]) * 1000) / 1000;
+      expect(
+        delta,
+        `${TESTO[i - 1]} e ${TESTO[i]} distano ΔL ${delta.toFixed(2)}: sotto 0.08 la gerarchia si schiaccia`,
+      ).toBeGreaterThanOrEqual(0.08);
+    }
+  });
 });
