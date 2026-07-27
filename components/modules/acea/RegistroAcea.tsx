@@ -9,6 +9,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
+import BarraAzioni from './BarraAzioni';
 import MenuColonne from './MenuColonne';
 import { esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
@@ -30,6 +31,7 @@ export default function RegistroAcea({
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
+    ricarica,
   } = useOrdiniAcea(famiglia, refreshKey);
 
   const colonneVisibili = useMemo(
@@ -80,9 +82,8 @@ export default function RegistroAcea({
 
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="text-xs text-[var(--brand-text-muted)]">
-          {selezionate.length > 0
-            ? `${selezionate.length} righe selezionate`
-            : 'Seleziona le righe da pianificare (shift-click per un intervallo)'}
+          {selezionate.length === 0 &&
+            'Seleziona le righe da pianificare (shift-click per un intervallo)'}
         </span>
         <MenuColonne
           colonne={colonne}
@@ -92,6 +93,12 @@ export default function RegistroAcea({
           esportando={esportando}
         />
       </div>
+
+      <BarraAzioni
+        chiavi={selezionate.map(chiaveRiga)}
+        onAnnullaSelezione={() => setSelezione({})}
+        onPianificato={ricarica}
+      />
 
       <TabellaOrdini
         righe={righe}
