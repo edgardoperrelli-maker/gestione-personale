@@ -1,3 +1,4 @@
+/* Hallmark · macrostructure: Workbench · design-system: DESIGN.md · vista: prezzi */
 import { caricaCommittenti, caricaListino } from '@/lib/contratti/dati';
 import { committentiAttivi } from '@/lib/contratti/tipi';
 import PrezziClient, { type ContrattoOpzione } from './PrezziClient';

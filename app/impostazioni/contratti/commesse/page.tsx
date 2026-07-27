@@ -1,3 +1,4 @@
+/* Hallmark · macrostructure: Workbench · design-system: DESIGN.md · vista: commesse */
 import { caricaCommittenti, caricaTerritoriMaster } from '@/lib/contratti/dati';
 import CommesseClient from './CommesseClient';
 

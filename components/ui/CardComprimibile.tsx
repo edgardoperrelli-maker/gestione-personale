@@ -1,3 +1,5 @@
+/* Hallmark · primitivo · design-system: DESIGN.md · pre-emit critique: P5 H5 E5 S5 R5 V4 */
+
 // Card comprimibile: chiusa di default, si apre al click sulla testa.
 // Costruita su <details>/<summary> nativi — così apertura, tastiera (Invio/Spazio),
 // screen reader e find-in-page funzionano SENZA stato client, e la card resta

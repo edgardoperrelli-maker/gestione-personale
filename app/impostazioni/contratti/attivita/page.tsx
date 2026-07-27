@@ -1,3 +1,12 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E5 S5 R5 V4
+ *
+ * Vista ATTIVITÀ del modulo Contratti (§7bis). SOLA LETTURA per scelta: le attività
+ * vivono in `attivita_tassonomia`, che ha già il suo modulo. Qui si vedono accanto al
+ * contratto insieme al flusso operatore che le copre — è la vista che fa saltare
+ * all'occhio l'attività a listino che nessun flusso sa compilare.
+ * Nessuno stato client: resta un server component.
+ */
 import Link from 'next/link';
 import { Workflow, TriangleAlert, ExternalLink } from 'lucide-react';
 import Badge from '@/components/Badge';
@@ -8,11 +17,6 @@ import ContrattiNav from '../ContrattiNav';
 
 export const dynamic = 'force-dynamic';
 
-// Vista ATTIVITÀ del modulo Contratti (§7bis). SOLA LETTURA per scelta: le attività
-// vivono in `attivita_tassonomia`, che ha già il suo modulo. Qui si vedono accanto al
-// contratto insieme al flusso operatore che le copre — è la vista che fa saltare
-// all'occhio l'attività a listino che nessun flusso sa compilare.
-// Nessuno stato client: resta un server component.
 
 export default async function AttivitaContrattoPage() {
   const [committenti, attivitaPerCodice] = await Promise.all([
@@ -62,7 +66,7 @@ export default async function AttivitaContrattoPage() {
               scorrevole="26rem"
               intestazione={
                 <>
-                  <span className="truncate text-sm font-semibold text-[var(--brand-text-main)]">{c.nome}</span>
+                  <span className="truncate text-sm font-semibold text-[var(--brand-text-main)]" title={c.nome}>{c.nome}</span>
                   {c.codice && (
                     <span className="font-mono text-xs text-[var(--brand-text-muted)]">{c.codice}</span>
                   )}
@@ -108,7 +112,7 @@ export default async function AttivitaContrattoPage() {
         </div>
       )}
 
-      <p className="text-xs text-[var(--brand-text-subtle)]">
+      <p className="text-xs text-[var(--brand-text-muted)]">
         Le attività si gestiscono in{' '}
         <Link href="/impostazioni/attivita-tassonomia" className="text-[var(--primary-text)] hover:underline">
           Tassonomia attività

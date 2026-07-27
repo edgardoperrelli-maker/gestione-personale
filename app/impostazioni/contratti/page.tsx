@@ -1,3 +1,10 @@
+/* Hallmark · genre: modern-minimal · macrostructure: Workbench · design-system: DESIGN.md
+ * designed-as-app · pre-emit critique: P5 H5 E4 S5 R5 V4
+ *
+ * Landing del modulo Contratti — §7bis: le tre viste sono CONTESTI diversi
+ * (anagrafica / economico / operativo), quindi fogliette con route dedicata e non
+ * tre sezioni impilate in una pagina che scorre all'infinito.
+ */
 import Link from 'next/link';
 import { TriangleAlert } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
@@ -9,9 +16,6 @@ import { VISTE, ORDINE_VISTE } from './viste';
 
 export const dynamic = 'force-dynamic';
 
-// Landing del modulo Contratti — §7bis: le tre viste sono CONTESTI diversi
-// (anagrafica / economico / operativo), quindi fogliette con route dedicata e non
-// tre sezioni impilate in una pagina che scorre all'infinito.
 
 export default async function ContrattiPage() {
   const [committenti, listino, attivitaPerCodice] = await Promise.all([

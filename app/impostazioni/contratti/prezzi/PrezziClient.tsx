@@ -193,7 +193,7 @@ export default function PrezziClient({
         </div>
       )}
 
-      <p className="text-xs text-[var(--brand-text-subtle)]">
+      <p className="text-xs text-[var(--brand-text-muted)]">
         Una tariffa per attività; le righe marcate <em>extra</em> si sommano quando l&apos;operatore
         spunta quell&apos;azione nel rapportino.
       </p>
@@ -272,7 +272,7 @@ function DialogNuovaTariffa({
           <span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Attività</span>
           <Input autoFocus value={etichetta} onChange={(e) => setEtichetta(e.target.value)} placeholder="es. Sostituzione misuratore" />
         </label>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="block">
             <span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Prezzo €</span>
             <Input type="number" step="0.01" min="0" value={prezzo} onChange={(e) => setPrezzo(e.target.value)} />
@@ -287,7 +287,7 @@ function DialogNuovaTariffa({
             Extra su azione <span className="font-normal">(facoltativo)</span>
           </span>
           <Input value={azione} onChange={(e) => setAzione(e.target.value)} placeholder="es. saracinesca" />
-          <span className="mt-1 block text-xs text-[var(--brand-text-subtle)]">
+          <span className="mt-1 block text-xs text-[var(--brand-text-muted)]">
             Chiave dell&apos;azione del rapportino che fa scattare l&apos;extra. Vuoto = tariffa della voce base.
           </span>
         </label>

@@ -205,7 +205,7 @@ export default function CommesseClient({
               intestazione={
                 <>
                   <span className="h-6 w-1.5 shrink-0 rounded-full" style={{ backgroundColor: coloreCommittente(c.id) }} aria-hidden />
-                  <span className="truncate text-sm font-semibold text-[var(--brand-text-main)]">{c.nome}</span>
+                  <span className="truncate text-sm font-semibold text-[var(--brand-text-main)]" title={c.nome}>{c.nome}</span>
                   {c.codice && (
                     <span
                       className="font-mono text-xs text-[var(--brand-text-muted)]"
@@ -320,7 +320,7 @@ export default function CommesseClient({
                             ))}
                           </ul>
                           <AggiungiTerritorio busy={busy} onAdd={(nome, reset) => aggiungiTerritorio(c, k, nome, reset)} />
-                          <p className="text-xs text-[var(--brand-text-subtle)]">
+                          <p className="text-xs text-[var(--brand-text-muted)]">
                             La tendina collega il comune al territorio di pianificazione di cronoprogramma e mappa.
                           </p>
                         </div>
