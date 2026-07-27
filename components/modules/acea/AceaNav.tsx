@@ -1,10 +1,15 @@
 // Header delle viste del modulo ACEA — pattern «foglietta» (DESIGN.md §7bis):
-// breadcrumb + titolo della vista corrente, FogliettaCard verso le viste gemelle.
-import { Droplets, Gauge, Waves } from 'lucide-react';
+// breadcrumb di rientro + titolo della vista corrente.
+//
+// Le FogliettaCard verso le viste gemelle NON stanno qui. §7bis le vuole sulla LANDING del modulo
+// (`/hub/acea`), che è il posto in cui si sceglie dove andare; ripeterle in cima a ogni vista figlia
+// costava ~120px sopra la tabella su ogni pagina, tutti i giorni, per una navigazione già raggiungibile
+// in un click dal breadcrumb. Su Dunning erano una delle ragioni per cui bisognava scorrere la
+// pagina per vedere la tabella che a sua volta scorreva.
+import { Droplets, Gauge, Waves, Wrench } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
-import FogliettaCard from '@/components/ui/FogliettaCard';
 
-export type VistaAcea = 'hub' | 'dunning' | 'massive' | 'misuratori';
+export type VistaAcea = 'hub' | 'dunning' | 'massive' | 'misuratori' | 'strumenti';
 
 const ICON = { size: 18, strokeWidth: 1.75 } as const;
 
@@ -12,7 +17,7 @@ export const VISTE_ACEA = {
   dunning: {
     titolo: 'Dunning',
     href: '/hub/acea/dunning',
-    desc: 'Import, pianificazione interventi e scadenze',
+    desc: 'Pianificazione degli interventi e scadenze',
     icon: <Droplets {...ICON} />,
   },
   massive: {
@@ -20,6 +25,12 @@ export const VISTE_ACEA = {
     href: '/hub/acea/massive',
     desc: 'Stato degli ordini per comune ed esiti dai rapportini',
     icon: <Waves {...ICON} />,
+  },
+  strumenti: {
+    titolo: 'Strumenti della commessa',
+    href: '/hub/acea/strumenti',
+    desc: 'Import, rapportini del giorno, export e saracinesche',
+    icon: <Wrench {...ICON} />,
   },
   misuratori: {
     titolo: 'Misuratori',
@@ -29,30 +40,16 @@ export const VISTE_ACEA = {
   },
 } as const;
 
-/** Breadcrumb + titolo della vista, con le fogliette verso le altre viste del modulo. */
+/** Breadcrumb di rientro + titolo della vista corrente. */
 export function AceaNav({ attivo }: { attivo: Exclude<VistaAcea, 'hub'> }) {
   const corrente = VISTE_ACEA[attivo];
-  const altre = (Object.keys(VISTE_ACEA) as Array<keyof typeof VISTE_ACEA>).filter((k) => k !== attivo);
   return (
-    <div className="space-y-4">
-      <div>
-        <Breadcrumb items={[{ label: 'ACEA', href: '/hub/acea' }, { label: corrente.titolo }]} />
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
-          {corrente.titolo}
-        </h1>
-        <p className="mt-0.5 text-sm text-[var(--brand-text-muted)]">{corrente.desc}</p>
-      </div>
-      <div className="grid gap-3 sm:grid-cols-2">
-        {altre.map((k) => (
-          <FogliettaCard
-            key={k}
-            href={VISTE_ACEA[k].href}
-            title={VISTE_ACEA[k].titolo}
-            description={VISTE_ACEA[k].desc}
-            icon={VISTE_ACEA[k].icon}
-          />
-        ))}
-      </div>
+    <div>
+      <Breadcrumb items={[{ label: 'ACEA', href: '/hub/acea' }, { label: corrente.titolo }]} />
+      <h1 className="mt-1 text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">
+        {corrente.titolo}
+      </h1>
+      <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">{corrente.desc}</p>
     </div>
   );
 }

@@ -106,23 +106,39 @@ export default function RegistroAcea({
   }
 
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <BarraFiltriAcea
-          filtri={filtri}
-          onChange={setFiltri}
-          opzioni={opzioni}
-          conScadenza={famiglia === 'dunning'}
-          totale={totale}
-          caricate={righe.length}
-        />
-      </div>
+    <div className="space-y-2">
+      <BarraFiltriAcea
+        filtri={filtri}
+        onChange={setFiltri}
+        colonne={colonne}
+        totale={totale}
+        caricate={righe.length}
+      />
 
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <span className="text-xs text-[var(--brand-text-muted)]">
-          {selezionate.length === 0 &&
-            'Seleziona le righe da pianificare (shift-click per un intervallo)'}
-        </span>
+      {/*
+        La barra azioni occupa SEMPRE la sua riga, anche senza selezione (allora ospita il
+        suggerimento). Prima entrava nel flusso solo a selezione fatta, spingendo la tabella verso
+        il basso di ~44px: il click successivo cadeva su una riga diversa da quella mirata.
+      */}
+      <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          {/*
+            Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel
+            suo stato interno e sparirebbe smontandola alla deselezione — proprio quando serve.
+            Si nasconde da sola quando non ha niente da dire.
+          */}
+          <BarraAzioni
+            chiavi={selezionate.map(chiaveRiga)}
+            onAnnullaSelezione={() => setSelezione({})}
+            onPianificato={ricarica}
+            operatori={operatori}
+          />
+          {selezionate.length === 0 && (
+            <span className="text-xs text-[var(--brand-text-muted)]">
+              Seleziona le righe da pianificare (shift-click per un intervallo)
+            </span>
+          )}
+        </div>
         <MenuColonne
           colonne={colonne}
           visibili={visibili}
@@ -132,12 +148,6 @@ export default function RegistroAcea({
         />
       </div>
 
-      <BarraAzioni
-        chiavi={selezionate.map(chiaveRiga)}
-        onAnnullaSelezione={() => setSelezione({})}
-        onPianificato={ricarica}
-      />
-
       <TabellaOrdini
         righe={righe}
         colonne={colonne}
@@ -146,6 +156,9 @@ export default function RegistroAcea({
         selezione={selezione}
         onSelezione={setSelezione}
         caricando={caricando}
+        filtri={filtri}
+        onFiltri={setFiltri}
+        opzioni={opzioni}
         editing={{
           indiceEditabile,
           focus: editing.focus,

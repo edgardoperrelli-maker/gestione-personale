@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import { CalendarCheck, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
@@ -20,6 +20,13 @@ type Props = {
   chiavi: string[];
   onAnnullaSelezione: () => void;
   onPianificato: () => void;
+  /**
+   * Operatori assegnabili, forniti dal registro.
+   *
+   * Non se li carica da sé: `RegistroAcea` chiede già `/api/admin/personale` per validare i nomi
+   * incollati in griglia, e una seconda chiamata identica arrivava a ogni montaggio.
+   */
+  operatori: Operatore[];
 };
 
 const oggiIso = () => new Date().toLocaleDateString('sv-SE');
@@ -30,26 +37,13 @@ const oggiIso = () => new Date().toLocaleDateString('sv-SE');
  * L'annullamento resta disponibile finché non si fa un'altra operazione: è la rete per il caso
  * "ho assegnato 200 righe alla persona sbagliata", che senza undo si ripara solo riga per riga.
  */
-export default function BarraAzioni({ chiavi, onAnnullaSelezione, onPianificato }: Props) {
-  const [operatori, setOperatori] = useState<Operatore[]>([]);
+export default function BarraAzioni({
+  chiavi, onAnnullaSelezione, onPianificato, operatori,
+}: Props) {
   const [staffId, setStaffId] = useState('');
   const [data, setData] = useState(oggiIso);
   const [busy, setBusy] = useState(false);
   const [ultima, setUltima] = useState<{ id: string; descrizione: string } | null>(null);
-
-  useEffect(() => {
-    void (async () => {
-      try {
-        const res = await fetch('/api/admin/personale');
-        if (!res.ok) return;
-        const body = (await res.json()) as { rows?: Operatore[] } | Operatore[];
-        const rows = Array.isArray(body) ? body : (body.rows ?? []);
-        setOperatori(rows.filter((r) => r.id && r.display_name));
-      } catch {
-        /* la tendina resta vuota: meglio di un errore bloccante */
-      }
-    })();
-  }, []);
 
   const pianifica = useCallback(async () => {
     if (!staffId || chiavi.length === 0) return;

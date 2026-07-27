@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   COLONNE_DUNNING, COLONNE_MASSIVE, dataIt, valoreCella, tonoScadenza, type RigaTabella,
 } from './colonneTabella';
+import { COLONNE_ELENCO, COLONNE_TESTO, OPZIONI_VUOTE } from './filtriOrdini';
 
 const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   odl: '912215286', numero_operazione: '0010', famiglia: 'massive', tipo_ordine: 'ASTR',
@@ -31,6 +32,51 @@ describe('definizione colonne', () => {
   it('nessuna chiave duplicata', () => {
     for (const set of [COLONNE_DUNNING, COLONNE_MASSIVE]) {
       expect(new Set(set.map((c) => c.chiave)).size).toBe(set.length);
+    }
+  });
+});
+
+// I filtri stanno nelle intestazioni (AutoFiltro di Excel) e si applicano lato server: il legame
+// fra la colonna cliccata e il campo interrogato vive solo qui, quindi va pinnato.
+describe('filtri di colonna', () => {
+  const tutte = [...COLONNE_DUNNING, ...COLONNE_MASSIVE];
+
+  it('ogni filtro punta a un campo che il server sa filtrare', () => {
+    for (const c of tutte) {
+      if (!c.filtro) continue;
+      if (c.filtro.tipo === 'elenco') expect(COLONNE_ELENCO).toContain(c.filtro.campo);
+      if (c.filtro.tipo === 'testo') expect(COLONNE_TESTO).toContain(c.filtro.campo);
+    }
+  });
+
+  it('ogni filtro a elenco pesca da un elenco di opzioni che esiste', () => {
+    for (const c of tutte) {
+      if (c.filtro?.tipo !== 'elenco') continue;
+      expect(Object.keys(OPZIONI_VUOTE)).toContain(c.filtro.opzioni);
+    }
+  });
+
+  // La regola di onestà: la pianificazione è nostra e arriva da una join fatta DOPO la query
+  // principale, quindi non è filtrabile lato server. Un imbuto su queste colonne filtrerebbe solo
+  // le righe caricate, lasciando un conteggio che non corrisponde a niente.
+  it('le colonne della pianificazione non espongono un imbuto', () => {
+    for (const c of tutte) {
+      if (c.chiave === 'pianificato_a' || c.chiave === 'pianificato_il') {
+        expect(c.filtro).toBeUndefined();
+      }
+    }
+  });
+
+  it('la scadenza ha il filtro semantico, e solo dove la colonna esiste', () => {
+    expect(COLONNE_DUNNING.find((c) => c.chiave === 'scadenza')?.filtro)
+      .toEqual({ tipo: 'scadenza' });
+    expect(COLONNE_MASSIVE.some((c) => c.filtro?.tipo === 'scadenza')).toBe(false);
+  });
+
+  it('la stessa colonna filtra lo stesso campo nelle due viste', () => {
+    for (const d of COLONNE_DUNNING) {
+      const m = COLONNE_MASSIVE.find((c) => c.chiave === d.chiave);
+      if (m) expect(m.filtro).toEqual(d.filtro);
     }
   });
 });

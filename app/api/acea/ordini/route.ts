@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import {
+  COLONNE_ELENCO, COLONNE_TESTO,
   leggiFiltri, soglieScadenza, intervalloPagina, espressioneRicerca,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
@@ -27,8 +28,15 @@ type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: str
 /**
  * GET /api/acea/ordini — registro filtrato e paginato.
  *
- * Query: famiglia, stato (tutti|aperti|chiusi), comune, attivita, operatore,
- * scadenza (tutte|scaduti|in_scadenza|senza_scadenza), entroGiorni, cerca, pagina, perPagina.
+ * Query: famiglia, stato (tutti|aperti|chiusi), scadenza (tutte|scaduti|in_scadenza|senza_scadenza),
+ * entroGiorni, cerca, pagina, perPagina, più i filtri di colonna:
+ * - a elenco, ripetibili (`comune=ROMA&comune=TIVOLI`): comune, attivita, stato_desc,
+ *   operatore_cognome — in OR fra i valori della stessa colonna, in AND fra colonne diverse;
+ * - a testo «contiene»: odl, matricola_norm, impianto, via.
+ *
+ * I filtri di colonna si applicano QUI e non sul client: la tabella carica 300 righe per volta su
+ * un registro da 5.000+, quindi filtrare il caricato mostrerebbe un sottoinsieme di un
+ * sottoinsieme, con un conteggio che non corrisponde a niente.
  *
  * Ogni riga porta la PIANIFICAZIONE agganciata (esecutore e giorno dagli `interventi`): il
  * registro resta lo specchio immutabile di ACEA, il nostro lavoro vive altrove e si unisce qui
@@ -50,9 +58,17 @@ export async function GET(req: Request) {
     if (f.famiglia) q = q.eq('famiglia', f.famiglia);
     if (f.stato === 'aperti') q = q.eq('aperto', true);
     if (f.stato === 'chiusi') q = q.eq('aperto', false);
-    if (f.comune) q = q.eq('comune', f.comune);
-    if (f.attivita) q = q.eq('attivita', f.attivita);
-    if (f.operatore) q = q.eq('operatore_cognome', f.operatore);
+
+    // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
+    // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
+    for (const c of COLONNE_ELENCO) {
+      const valori = f.elenchi[c];
+      if (valori.length > 0) q = q.in(c, valori);
+    }
+    for (const c of COLONNE_TESTO) {
+      const t = f.testi[c];
+      if (t) q = q.ilike(c, `*${t}*`);
+    }
 
     const soglie = soglieScadenza(f, oggi);
     if (soglie.tipo === 'scaduti') q = q.lt('scadenza', soglie.prima);

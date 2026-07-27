@@ -4,16 +4,67 @@
 // La parte che merita test è quella delle scadenze: tradurre "scaduti" e "in scadenza entro N
 // giorni" in soglie di data, senza slittamenti di fuso e senza includere le massive (che non
 // scadono mai). Il resto dei filtri è passaggio diretto di valori.
+//
+// Dal 2026-07-27 i filtri vivono nelle intestazioni della tabella, come l'AutoFiltro di Excel:
+// - colonne "a elenco" (`COLONNE_ELENCO`): si spuntano più valori, in OR fra loro;
+// - colonne "a testo" (`COLONNE_TESTO`): un «contiene» sulla colonna.
+// Fra colonne diverse i criteri sono sempre in AND, come in Excel.
+//
+// I valori delle spunte NON si ricavano dalle righe caricate: la tabella è paginata (300 righe su
+// 5.000+), quindi un elenco costruito dal caricato mostrerebbe solo una parte dei comuni e
+// filtrerebbe su un insieme che l'utente non vede. Arrivano da `/api/acea/opzioni`, che li legge
+// sull'intero registro, e il filtro si applica lato server.
 
 export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi';
 export type ScadenzaFiltro = 'tutte' | 'scaduti' | 'in_scadenza' | 'senza_scadenza';
 
+/** Etichette del filtro scadenza. Una sola fonte: le usano il menu, le pill e i test. */
+export const ETICHETTE_SCADENZA: Record<ScadenzaFiltro, string> = {
+  tutte: 'Qualsiasi scadenza',
+  scaduti: 'Oltre la scadenza',
+  in_scadenza: 'In scadenza (7 gg)',
+  senza_scadenza: 'Senza scadenza',
+};
+
+/** Etichette del segmented sopra la tabella. */
+export const ETICHETTE_STATO: Record<StatoFiltro, string> = {
+  aperti: 'Da lavorare',
+  chiusi: 'Chiusi',
+  tutti: 'Tutti',
+};
+
+/**
+ * Colonne filtrabili con un elenco di valori spuntabili.
+ *
+ * Sono le colonne a bassa cardinalità: i comuni sono ~60, le attività una ventina, gli stati una
+ * manciata. Su ODL o matricola un elenco di 5.000 voci sarebbe inutilizzabile — quelle stanno in
+ * `COLONNE_TESTO`.
+ */
+export const COLONNE_ELENCO = ['comune', 'attivita', 'stato_desc', 'operatore_cognome'] as const;
+export type ColonnaElenco = (typeof COLONNE_ELENCO)[number];
+
+/** Colonne filtrabili per «contiene». `matricola_norm` e non `matricola`: la ricerca è sul normalizzato. */
+export const COLONNE_TESTO = ['odl', 'matricola_norm', 'impianto', 'via'] as const;
+export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
+
+/**
+ * Elenchi di valori distinti serviti da `/api/acea/opzioni`, uno per colonna a elenco.
+ *
+ * Sono calcolati sull'INTERO registro, non sulle righe caricate: è la differenza fra un filtro che
+ * dice la verità e uno che offre solo i comuni capitati nelle prime 300 righe.
+ */
+export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati';
+export type Opzioni = Record<ChiaveOpzioni, string[]>;
+
+export const OPZIONI_VUOTE: Opzioni = { comuni: [], attivita: [], operatori: [], stati: [] };
+
 export type FiltriOrdini = {
   famiglia: 'dunning' | 'massive' | null;
   stato: StatoFiltro;
-  comune: string | null;
-  attivita: string | null;
-  operatore: string | null;
+  /** Valori spuntati per colonna. Array vuoto = nessun filtro su quella colonna. */
+  elenchi: Record<ColonnaElenco, string[]>;
+  /** Termine «contiene» per colonna, già ripulito. `null` = nessun filtro. */
+  testi: Record<ColonnaTesto, string | null>;
   scadenza: ScadenzaFiltro;
   /** Finestra per "in scadenza": giorni da oggi (default 7). */
   entroGiorni: number;
@@ -32,6 +83,8 @@ export type SoglieScadenza =
 
 const MAX_PER_PAGINA = 500;
 const DEFAULT_PER_PAGINA = 100;
+/** Tetto ai valori spuntabili per colonna: oltre, la URL diventa impraticabile. */
+const MAX_VALORI_ELENCO = 200;
 const GIORNO_MS = 86_400_000;
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -50,17 +103,46 @@ const intero = (v: string | null | undefined, def: number, min: number, max: num
   return Math.min(Math.max(n, min), max);
 };
 
+/**
+ * Termine per un filtro «contiene», ripulito dai jolly.
+ *
+ * `*` e `%` sono i jolly di `ilike`: lasciarli passare significherebbe che un utente che cerca il
+ * carattere `%` in un indirizzo ottiene invece «qualsiasi cosa». Si sostituiscono con spazio, come
+ * già si fa con i caratteri di sintassi nella ricerca libera.
+ */
+export function terminoContiene(v: string | null | undefined): string | null {
+  const s = String(v ?? '').replace(/[%*]/g, ' ').trim();
+  return s === '' ? null : s;
+}
+
+/** Valori distinti e non vuoti di un parametro ripetuto, nell'ordine di arrivo. */
+function elenco(params: URLSearchParams, chiave: string): string[] {
+  const visti = new Set<string>();
+  for (const grezzo of params.getAll(chiave)) {
+    const v = testo(grezzo);
+    if (v !== null) visti.add(v);
+    if (visti.size >= MAX_VALORI_ELENCO) break;
+  }
+  return [...visti];
+}
+
 /** Legge e normalizza i parametri: valori ignoti cadono sui default, mai errori. */
 export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
   const famiglia = params.get('famiglia');
   const stato = params.get('stato');
   const scadenza = params.get('scadenza');
+
+  const elenchi = {} as Record<ColonnaElenco, string[]>;
+  for (const c of COLONNE_ELENCO) elenchi[c] = elenco(params, c);
+
+  const testi = {} as Record<ColonnaTesto, string | null>;
+  for (const c of COLONNE_TESTO) testi[c] = terminoContiene(params.get(c));
+
   return {
     famiglia: famiglia === 'dunning' || famiglia === 'massive' ? famiglia : null,
     stato: stato === 'aperti' || stato === 'chiusi' ? stato : 'tutti',
-    comune: testo(params.get('comune')),
-    attivita: testo(params.get('attivita')),
-    operatore: testo(params.get('operatore')),
+    elenchi,
+    testi,
     scadenza:
       scadenza === 'scaduti' || scadenza === 'in_scadenza' || scadenza === 'senza_scadenza'
         ? scadenza
@@ -70,6 +152,13 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
     pagina: intero(params.get('pagina'), 1, 1, 100_000),
     perPagina: intero(params.get('perPagina'), DEFAULT_PER_PAGINA, 1, MAX_PER_PAGINA),
   };
+}
+
+/** Quante colonne hanno un filtro attivo (per il conteggio nella barra e i test). */
+export function colonneFiltrate(f: FiltriOrdini): number {
+  const conElenco = COLONNE_ELENCO.filter((c) => f.elenchi[c].length > 0).length;
+  const conTesto = COLONNE_TESTO.filter((c) => f.testi[c] !== null).length;
+  return conElenco + conTesto + (f.scadenza === 'tutte' ? 0 : 1);
 }
 
 /**
@@ -96,6 +185,80 @@ export function soglieScadenza(f: FiltriOrdini, oggi: string): SoglieScadenza {
 export function intervalloPagina(f: FiltriOrdini): { da: number; a: number } {
   const da = (f.pagina - 1) * f.perPagina;
   return { da, a: da + f.perPagina - 1 };
+}
+
+// ---------------------------------------------------------------------------
+// Lato client: stato dei filtri e costruzione della query.
+//
+// Vive qui e non nel hook perché è la parte che, sbagliata, fa sparire un filtro in SILENZIO — la
+// tabella mostrerebbe righe plausibili e nessuno se ne accorgerebbe. Pura, quindi testabile.
+// ---------------------------------------------------------------------------
+
+export type FiltriUI = {
+  /** Segmented sopra la tabella: si lavora sull'aperto, lo storico è a un click. */
+  stato: StatoFiltro;
+  /** Filtro dell'intestazione «Scadenza» (semantico, non un intervallo di date). */
+  scadenza: ScadenzaFiltro;
+  /** Ricerca libera: attraversa più colonne, quindi sta nella barra e non in un'intestazione. */
+  cerca: string;
+  elenchi: Record<ColonnaElenco, string[]>;
+  testi: Record<ColonnaTesto, string>;
+};
+
+/**
+ * Filtri iniziali. È una FUNZIONE e non una costante: `elenchi` e `testi` sono oggetti annidati e
+ * una costante condivisa finirebbe mutata da chi la usa come base con lo spread.
+ */
+export function filtriVuoti(): FiltriUI {
+  const elenchi = {} as Record<ColonnaElenco, string[]>;
+  for (const c of COLONNE_ELENCO) elenchi[c] = [];
+  const testi = {} as Record<ColonnaTesto, string>;
+  for (const c of COLONNE_TESTO) testi[c] = '';
+  return {
+    stato: 'aperti', // si lavora sull'aperto: lo storico è a un click, ma non è la vista di default
+    scadenza: 'tutte',
+    cerca: '',
+    elenchi,
+    testi,
+  };
+}
+
+/** Parametri per `GET /api/acea/ordini`. I valori vuoti non compaiono: URL corte e leggibili. */
+export function parametriQuery(
+  f: FiltriUI,
+  famiglia: 'dunning' | 'massive',
+  perPagina: number,
+): URLSearchParams {
+  const p = new URLSearchParams({ famiglia, perPagina: String(perPagina) });
+  if (f.stato !== 'tutti') p.set('stato', f.stato);
+  if (f.scadenza !== 'tutte') p.set('scadenza', f.scadenza);
+  if (f.cerca.trim()) p.set('cerca', f.cerca.trim());
+  for (const c of COLONNE_ELENCO) {
+    // `append` e non `set`: è il parametro ripetuto a rappresentare le spunte multiple.
+    for (const v of f.elenchi[c]) p.append(c, v);
+  }
+  for (const c of COLONNE_TESTO) {
+    const t = f.testi[c].trim();
+    if (t) p.set(c, t);
+  }
+  return p;
+}
+
+/** Quanti filtri di colonna sono attivi (per la barra e il pulsante «azzera»). */
+export function contaFiltriColonna(f: FiltriUI): number {
+  return (
+    COLONNE_ELENCO.filter((c) => f.elenchi[c].length > 0).length
+    + COLONNE_TESTO.filter((c) => f.testi[c].trim() !== '').length
+    + (f.scadenza === 'tutte' ? 0 : 1)
+  );
+}
+
+/** `true` se qualcosa è diverso dallo stato iniziale: decide se mostrare «Azzera». */
+export function haFiltriAttivi(f: FiltriUI): boolean {
+  const iniziale = filtriVuoti();
+  return (
+    contaFiltriColonna(f) > 0 || f.cerca.trim() !== '' || f.stato !== iniziale.stato
+  );
 }
 
 /** Espressione `or` di PostgREST per la ricerca libera. `null` se non c'è nulla da cercare. */

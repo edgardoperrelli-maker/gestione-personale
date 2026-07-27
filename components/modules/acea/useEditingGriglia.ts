@@ -3,8 +3,8 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from '@/components/ui/Toast';
 import {
-  calcolaIncolla, celleDi, daSaltare, normalizzaIntervallo, parseBloccoIncollato, spostaFocus,
-  validaData, validaOperatore,
+  calcolaIncolla, celleDi, daSaltare, eventoDiUnCampo, normalizzaIntervallo, parseBloccoIncollato,
+  spostaFocus, validaData, validaOperatore,
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
 import type { RigaTabella } from '@/lib/acea/colonneTabella';
@@ -152,11 +152,19 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
     return out.join('\n');
   }, [selezione, locali]);
 
-  // Tastiera e clipboard sono globali: si attivano solo quando la griglia ha un focus.
+  /**
+   * Tastiera e appunti sono globali — le celle non sono elementi focalizzabili, quindi l'ascolto
+   * non può stare su di esse — ma si fermano sulla soglia di qualunque campo di testo.
+   *
+   * Senza questo filtro, con una cella selezionata la griglia si prendeva le frecce, il Ctrl+C e il
+   * Ctrl+V di ogni campo della pagina: nella ricerca del registro il cursore non si muoveva, e un
+   * incolla in un filtro di colonna finiva dentro la tabella.
+   */
   useEffect(() => {
     if (!attivo || !focus) return;
 
     const tasti = (e: KeyboardEvent) => {
+      if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
       const dirs: Record<string, 'su' | 'giu' | 'sinistra' | 'destra'> = {
         ArrowUp: 'su', ArrowDown: 'giu', ArrowLeft: 'sinistra', ArrowRight: 'destra',
       };
@@ -173,6 +181,7 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
     };
 
     const copia = (e: ClipboardEvent) => {
+      if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
       const testo = testoSelezione();
       if (!testo) return;
       e.preventDefault();
@@ -180,6 +189,7 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
     };
 
     const incolla = (e: ClipboardEvent) => {
+      if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
       const testo = e.clipboardData?.getData('text/plain') ?? '';
       if (!testo) return;
       e.preventDefault();

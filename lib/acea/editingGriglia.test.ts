@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   normalizzaIntervallo, celleDi, spostaFocus, parseBloccoIncollato, calcolaIncolla,
-  validaData, validaOperatore, daSaltare,
+  validaData, validaOperatore, daSaltare, eventoDiUnCampo,
 } from './editingGriglia';
 
 describe('intervalli', () => {
@@ -180,5 +180,41 @@ describe('validaOperatore', () => {
 
   it('cella vuota: si salta', () => {
     expect(daSaltare(validaOperatore('', operatori))).toBe(true);
+  });
+});
+
+// La griglia ascolta keydown/copy/paste su `window` perché le celle non sono focalizzabili. Il
+// filtro sul bersaglio è ciò che le impedisce di rubare i tasti a ogni campo della pagina — e con i
+// filtri nelle intestazioni (pannelli in portale, con dentro delle input) è diventato indispensabile.
+describe('eventoDiUnCampo', () => {
+  /** Finto bersaglio: `closest` risponde se il selettore contiene uno dei ruoli dichiarati. */
+  const bersaglio = (ruoli: string[], contentEditable = false) => ({
+    isContentEditable: contentEditable,
+    closest: (sel: string) => (ruoli.some((r) => sel.includes(r)) ? {} : null),
+  });
+
+  it('lascia passare gli eventi nati fuori dai campi', () => {
+    expect(eventoDiUnCampo(bersaglio([]))).toBe(false);
+  });
+
+  it('ferma gli eventi di input, textarea e select', () => {
+    expect(eventoDiUnCampo(bersaglio(['input']))).toBe(true);
+    expect(eventoDiUnCampo(bersaglio(['textarea']))).toBe(true);
+    expect(eventoDiUnCampo(bersaglio(['select']))).toBe(true);
+  });
+
+  // Il pannello di un filtro di colonna è in portale: fuori dall'albero della tabella, dentro window.
+  it('ferma gli eventi nati dentro un dialogo', () => {
+    expect(eventoDiUnCampo(bersaglio(['[role="dialog"]']))).toBe(true);
+  });
+
+  it('ferma gli eventi di un elemento contenteditable', () => {
+    expect(eventoDiUnCampo(bersaglio([], true))).toBe(true);
+  });
+
+  it('non esplode su bersagli assenti o senza closest', () => {
+    expect(eventoDiUnCampo(null)).toBe(false);
+    expect(eventoDiUnCampo({})).toBe(false);
+    expect(eventoDiUnCampo({ isContentEditable: false })).toBe(false);
   });
 });

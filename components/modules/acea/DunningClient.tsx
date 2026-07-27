@@ -1,33 +1,25 @@
 'use client';
 
-import { useState } from 'react';
-import ImportCard from './ImportCard';
 import ContatoriAcea from './ContatoriAcea';
 import RegistroAcea from './RegistroAcea';
-import RapportiniGiorno from './RapportiniGiorno';
-import Saracinesche from './Saracinesche';
-import EsportaAcea from './EsportaAcea';
 
 /**
- * Vista Dunning: import, contatori, registro degli ordini e rapportini del giorno.
+ * Vista Dunning: contatori di testa e registro degli ordini. Nient'altro.
  *
- * Import e tabella condividono `aggiornamenti`: a fine import contatori e registro si ricaricano
- * senza che l'utente debba ricordarsi di aggiornare la pagina.
+ * Fino al ridisegno del 2026-07-27 questa pagina impilava sei blocchi — contatori, import, registro,
+ * rapportini, export, saracinesche — per un'altezza di oltre due schermi. La tabella, che è il
+ * lavoro, stava in mezzo e scorreva dentro una pagina che scorreva: per pianificare si scorreva
+ * verso il basso, e per generare i rapportini si scorreva oltre la tabella.
  *
- * I rapportini stanno in fondo perché è l'ultimo passo della giornata: si pianifica in tabella e
- * poi si genera. La card lavora sul giorno, non sulla famiglia — un operatore con dunning e
- * limitazioni massive lo stesso giorno ha comunque un rapportino solo.
+ * Import, rapportini, export e saracinesche vivono ora in `/hub/acea/strumenti`: si aprono a inizio
+ * e a fine giornata, non mentre si assegna. Qui resta una pagina che sta in uno schermo, dove
+ * l'unica cosa che scorre è la tabella.
  */
 export default function DunningClient() {
-  const [aggiornamenti, setAggiornamenti] = useState(0);
   return (
-    <div className="space-y-4">
-      <ContatoriAcea refreshKey={aggiornamenti} />
-      <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
-      <RegistroAcea famiglia="dunning" refreshKey={aggiornamenti} />
-      <RapportiniGiorno />
-      <EsportaAcea famiglia="dunning" />
-      <Saracinesche famiglia="dunning" />
+    <div className="space-y-3">
+      <ContatoriAcea />
+      <RegistroAcea famiglia="dunning" />
     </div>
   );
 }

@@ -1,24 +1,27 @@
 import { ClipboardCheck } from 'lucide-react';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import FogliettaCard from '@/components/ui/FogliettaCard';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 import { VISTE_ACEA } from '@/components/modules/acea/AceaNav';
 import ContatoriAcea from '@/components/modules/acea/ContatoriAcea';
 
 export const dynamic = 'force-dynamic';
 
-/** Hub del modulo ACEA: le tre viste della commessa più i contatori di testa. */
+/**
+ * Hub del modulo ACEA: i contatori di testa e le viste della commessa.
+ *
+ * È la testa di modulo, quindi `ObjectHeader` e non un titolo su misura (DESIGN.md §3). Le
+ * FogliettaCard stanno QUI e solo qui: è la pagina in cui si sceglie dove andare, e ripeterle in
+ * cima a ogni vista figlia rubava spazio alla tabella su ogni schermata.
+ */
 export default function AceaHubPage() {
   return (
-    <div className="space-y-6">
-      <div>
-        <Breadcrumb items={[{ label: 'ACEA' }]} />
-        <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
-          Commessa ACEA
-        </h1>
-        <p className="mt-0.5 text-sm text-[var(--brand-text-muted)]">
-          Registro degli ordini dal Cruscotto, pianificazione e limitazioni massive.
-        </p>
-      </div>
+    <div className="space-y-4">
+      <Breadcrumb items={[{ label: 'ACEA' }]} />
+      <ObjectHeader
+        title="Commessa ACEA"
+        sub="Registro degli ordini dal Cruscotto, pianificazione e limitazioni massive."
+      />
 
       <ContatoriAcea />
 

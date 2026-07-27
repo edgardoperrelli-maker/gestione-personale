@@ -207,3 +207,34 @@ export function validaOperatore(
 export function daSaltare(e: EsitoValore): e is ValoreSaltato {
   return e.ok === true && 'salta' in e && e.salta === true;
 }
+
+/**
+ * Bersaglio minimo di un evento, per decidere se la griglia deve ignorarlo.
+ *
+ * Tipo strutturale e non `EventTarget`: così il predicato resta puro e testabile senza DOM.
+ */
+export type BersaglioEvento = {
+  isContentEditable?: boolean;
+  closest?: (selettore: string) => unknown;
+} | null;
+
+/** Selettore degli elementi che "possiedono" tastiera e appunti quando hanno il focus. */
+const CAMPI_PROPRI = 'input, textarea, select, [contenteditable="true"], [role="dialog"]';
+
+/**
+ * `true` se l'evento è nato dentro un campo che deve tenersi i propri tasti.
+ *
+ * La griglia ascolta `keydown`, `copy` e `paste` su `window`, perché le celle non sono elementi
+ * focalizzabili. Senza questo filtro, con una cella selezionata l'ascolto globale si prendeva le
+ * frecce, il Ctrl+C e il Ctrl+V di QUALUNQUE campo della pagina: scrivere in una casella di ricerca
+ * significava non poter muovere il cursore, e un incolla nel filtro finiva nella tabella.
+ *
+ * Vale anche per `[role="dialog"]`: il pannello di un filtro di colonna è un dialogo in portale,
+ * quindi fuori dall'albero della tabella ma non fuori da `window`.
+ */
+export function eventoDiUnCampo(bersaglio: BersaglioEvento): boolean {
+  if (!bersaglio) return false;
+  if (bersaglio.isContentEditable === true) return true;
+  if (typeof bersaglio.closest !== 'function') return false;
+  return Boolean(bersaglio.closest(CAMPI_PROPRI));
+}

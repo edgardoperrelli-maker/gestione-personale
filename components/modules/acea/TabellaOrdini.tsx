@@ -10,10 +10,24 @@ import { ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert } from 'lucide-react'
 import {
   valoreCella, tonoScadenza, type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
+import type { FiltriUI, Opzioni } from '@/lib/acea/filtriOrdini';
+import FiltroColonna from './FiltroColonna';
 
 /** Altezza fissa di riga: serve al virtualizzatore per calcolare la finestra visibile. */
 const ALTEZZA_RIGA = 36;
-const ALTEZZA_VISTA = 560;
+
+/**
+ * Altezza della vista: quanto resta dello schermo, non un numero fisso.
+ *
+ * Era `560px`. Con la testa di pagina, i contatori e la barra filtri sopra, su un portatile da
+ * 768px di altezza restavano fuori sia le ultime righe sia il piede della tabella: si scorreva la
+ * PAGINA per raggiungere una tabella che a sua volta scorreva. Il doppio scorrimento è il motivo
+ * per cui la vista sembrava non finire mai.
+ *
+ * `dvh` e non `vh`: su mobile la barra dell'indirizzo che si ritrae cambia `vh` e la tabella
+ * "salta". Il minimo di 320px tiene comunque una decina di righe sui portatili bassi.
+ */
+const ALTEZZA_VISTA = 'clamp(320px, calc(100dvh - 22rem), 1400px)';
 
 const TONO_CLASSE: Record<TonoScadenza, string> = {
   scaduto: 'text-[var(--danger)] font-semibold',
@@ -31,6 +45,11 @@ export type Props = {
   selezione: RowSelectionState;
   onSelezione: (s: RowSelectionState) => void;
   caricando?: boolean;
+  /** Filtri delle intestazioni. Assenti = tabella senza imbuti (nessun uso oggi, ma il tipo lo dice). */
+  filtri?: FiltriUI;
+  onFiltri?: (f: FiltriUI) => void;
+  /** Valori distinti dell'intero registro, per i filtri a elenco. */
+  opzioni?: Opzioni;
   /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
   editing?: {
     /** Indice della colonna modificabile, o null se la colonna non lo è. */
@@ -53,9 +72,14 @@ export const chiaveRiga = (r: RigaTabella) => `${r.odl}|${r.numero_operazione}`;
  *
  * La selezione multipla supporta shift-click sull'intervallo, che è il gesto con cui in Excel si
  * prende un blocco di righe prima di scrivere esecutore e data.
+ *
+ * Ogni intestazione porta l'ordinamento a sinistra e l'imbuto del filtro a destra. L'imbuto NON
+ * filtra le righe caricate: manda i criteri al server (vedi `FiltroColonna`), perché a schermo
+ * ci sono 300 righe di 5.000 e filtrare il caricato darebbe un conteggio che non vuol dire nulla.
  */
 export default function TabellaOrdini({
   righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
+  filtri, onFiltri, opzioni,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
   const contenitore = useRef<HTMLDivElement>(null);
@@ -115,13 +139,56 @@ export default function TabellaOrdini({
   const tutteSelezionate = rows.length > 0 && rows.every((r) => selezione[r.id]);
   const larghezzaTotale = visibili.reduce((s, c) => s + c.larghezza, 0) + 40;
 
+  /**
+   * Le colonne non hanno più una larghezza fissa ma una BASE che possono superare.
+   *
+   * Con `width` fisso più `minWidth: '100%'` sul contenitore, quando le colonne visibili sommavano
+   * meno della finestra restava una fascia vuota a destra — e con la larghezza fissa le colonne
+   * lunghe (Attività, Indirizzo) troncavano anche quando lo spazio c'era. `flex: 1 1 <base>` con
+   * `minWidth: <base>` risolve entrambi: sotto la base non si scende mai, sopra si distribuisce
+   * quello che avanza.
+   */
+  const stileColonna = (larghezza: number) => ({ flex: `1 1 ${larghezza}px`, minWidth: larghezza });
+
   return (
     <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
-      <div ref={contenitore} className="overflow-auto" style={{ height: ALTEZZA_VISTA }}>
-        <div style={{ width: larghezzaTotale, minWidth: '100%' }}>
+      <div
+        ref={contenitore}
+        className="overflow-auto focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]"
+        style={{ height: ALTEZZA_VISTA }}
+        // Le celle non sono focalizzabili (sono `div` dentro una lista virtualizzata: darle al
+        // tab significherebbe far tabulare 5.000 elementi). Il punto d'ingresso è il contenitore:
+        // ci si arriva col tab, e la prima freccia o l'Invio porta il cursore sulla prima cella
+        // modificabile. Prima si entrava SOLO col mouse, e senza mouse la pianificazione a griglia
+        // era irraggiungibile.
+        tabIndex={editing ? 0 : undefined}
+        aria-label={
+          editing
+            ? 'Registro ordini. Premi una freccia per entrare nella griglia modificabile, Esc per uscirne.'
+            : undefined
+        }
+        onKeyDown={(e) => {
+          if (!editing || editing.focus || rows.length === 0) return;
+          if (e.key === 'Enter' || e.key === ' ' || e.key.startsWith('Arrow')) {
+            e.preventDefault();
+            editing.onClickCella(0, 0, false);
+          }
+        }}
+      >
+        {/* `+1`: nel conteggio ARIA la riga di intestazione è la riga 1, i dati partono da 2. */}
+        <div
+          role="grid"
+          aria-rowcount={rows.length + 1}
+          aria-colcount={visibili.length + 1}
+          style={{ width: larghezzaTotale, minWidth: '100%' }}
+        >
           {/* intestazione */}
-          <div className="sticky top-0 z-10 flex border-b border-[var(--brand-border-strong)] bg-[var(--brand-surface-muted)] text-xs font-semibold text-[var(--brand-text-muted)]">
-            <div className="flex w-10 shrink-0 items-center justify-center">
+          <div
+            role="row"
+            aria-rowindex={1}
+            className="sticky top-0 z-10 flex border-b border-[var(--brand-border-strong)] bg-[var(--brand-surface-muted)] text-xs font-semibold text-[var(--brand-text-muted)]"
+          >
+            <div className="flex w-10 shrink-0 items-center justify-center" role="columnheader">
               <input
                 type="checkbox"
                 aria-label="Seleziona tutte le righe caricate"
@@ -134,28 +201,45 @@ export default function TabellaOrdini({
               />
             </div>
             {table.getHeaderGroups()[0]?.headers.map((h, i) => {
+              const col = visibili[i];
               const dir = h.column.getIsSorted();
               return (
-                <button
+                <div
                   key={h.id}
-                  type="button"
-                  onClick={h.column.getToggleSortingHandler()}
-                  style={{ width: visibili[i]?.larghezza }}
-                  className="flex shrink-0 items-center gap-1 px-2 py-2 text-left hover:text-[var(--brand-text-main)]"
+                  role="columnheader"
+                  aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none'}
+                  style={stileColonna(col?.larghezza ?? 120)}
+                  className="flex items-center gap-0.5 pl-2 pr-1"
                 >
-                  <span className="truncate">
-                    {flexRender(h.column.columnDef.header, h.getContext())}
-                  </span>
-                  {dir === 'asc' && <ArrowUp size={12} aria-hidden="true" />}
-                  {dir === 'desc' && <ArrowDown size={12} aria-hidden="true" />}
-                  {!dir && <ChevronsUpDown size={12} aria-hidden="true" className="opacity-40" />}
-                </button>
+                  <button
+                    type="button"
+                    onClick={h.column.getToggleSortingHandler()}
+                    title={`Ordina per ${col?.intestazione ?? ''}`}
+                    className="flex min-w-0 flex-1 items-center gap-1 rounded-[var(--radius-sm)] py-2 text-left hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  >
+                    <span className="truncate">
+                      {flexRender(h.column.columnDef.header, h.getContext())}
+                    </span>
+                    {dir === 'asc' && <ArrowUp size={12} aria-hidden="true" />}
+                    {dir === 'desc' && <ArrowDown size={12} aria-hidden="true" />}
+                    {!dir && <ChevronsUpDown size={12} aria-hidden="true" className="opacity-40" />}
+                  </button>
+                  {col?.filtro && filtri && onFiltri && (
+                    <FiltroColonna
+                      intestazione={col.intestazione}
+                      filtro={col.filtro}
+                      filtri={filtri}
+                      onChange={onFiltri}
+                      valori={col.filtro.tipo === 'elenco' ? (opzioni?.[col.filtro.opzioni] ?? []) : []}
+                    />
+                  )}
+                </div>
               );
             })}
           </div>
 
-          {/* corpo virtualizzato */}
-          <div style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
+          {/* corpo virtualizzato — `rowgroup` perché fra `grid` e `row` non può esserci un div nudo */}
+          <div role="rowgroup" style={{ height: virtualizer.getTotalSize(), position: 'relative' }}>
             {virtualizer.getVirtualItems().map((vi) => {
               const row = rows[vi.index];
               const r = row.original;
@@ -164,12 +248,15 @@ export default function TabellaOrdini({
               return (
                 <div
                   key={row.id}
+                  role="row"
+                  aria-rowindex={vi.index + 2}
+                  aria-selected={scelta}
                   className={`absolute left-0 flex w-full border-b border-[var(--brand-border)] text-sm ${
                     scelta ? 'bg-[var(--brand-primary-soft)]' : 'hover:bg-[var(--brand-surface-muted)]'
                   }`}
                   style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
                 >
-                  <div className="flex w-10 shrink-0 items-center justify-center">
+                  <div className="flex w-10 shrink-0 items-center justify-center" role="gridcell">
                     <input
                       type="checkbox"
                       aria-label={`Seleziona ordine ${r.odl}`}
@@ -195,7 +282,8 @@ export default function TabellaOrdini({
                     return (
                       <div
                         key={c.chiave}
-                        style={{ width: c.larghezza }}
+                        role="gridcell"
+                        style={stileColonna(c.larghezza)}
                         title={testo}
                         onMouseDown={
                           iEdit === null
@@ -205,7 +293,7 @@ export default function TabellaOrdini({
                                 editing?.onClickCella(vi.index, iEdit, e.shiftKey);
                               }
                         }
-                        className={`shrink-0 truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
+                        className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
                         } ${iEdit !== null ? 'cursor-cell' : ''} ${
                           inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
