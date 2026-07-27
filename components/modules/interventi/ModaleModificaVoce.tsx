@@ -10,11 +10,17 @@ import Textarea from '@/components/ui/Textarea';
 import { ANAGRAFICA_COLONNE, ANAGRAFICA_LABEL } from '@/lib/interventi/storico/modifica';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
+type Staff = { id: string; display_name: string };
+
 type EditorData = {
   anagrafica: Record<string, string | null>;
   risposte: Record<string, unknown>;
   campi: TemplateCampo[];
+  /** Esecutore corrente = staff del rapportino padre (è da lì che lo legge lo storico). */
+  esecutore?: { staffId: string | null; nome: string | null; data: string | null };
 };
+
+const fmtGiorno = (iso: string | null) => (iso ? iso.split('-').reverse().join('/') : '');
 
 function CampoInput({ campo, valore, onChange }: { campo: TemplateCampo; valore: unknown; onChange: (v: unknown) => void }) {
   if (campo.tipo === 'crocetta') {
@@ -52,15 +58,21 @@ function CampoInput({ campo, valore, onChange }: { campo: TemplateCampo; valore:
 }
 
 export default function ModaleModificaVoce({
-  voceId, onClose, onSaved,
+  voceId, staff, puoCambiareEsecutore, onClose, onSaved,
 }: {
   voceId: string;
+  staff: Staff[];
+  /** Solo gli Admin Plus riassegnano l'intervento a un altro operatore. */
+  puoCambiareEsecutore: boolean;
   onClose: () => void;
   onSaved: () => void;
 }) {
   const [anagrafica, setAnagrafica] = useState<Record<string, string>>({});
   const [risposte, setRisposte] = useState<Record<string, unknown>>({});
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
+  const [esecutoreId, setEsecutoreId] = useState('');
+  const [esecutoreIniziale, setEsecutoreIniziale] = useState('');
+  const [giorno, setGiorno] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -83,6 +95,10 @@ export default function ModaleModificaVoce({
         setAnagrafica(a);
         setRisposte({ ...(data.risposte ?? {}) });
         setCampi(Array.isArray(data.campi) ? data.campi : []);
+        const corrente = data.esecutore?.staffId ?? '';
+        setEsecutoreId(corrente);
+        setEsecutoreIniziale(corrente);
+        setGiorno(data.esecutore?.data ?? null);
       } catch (e) {
         if (alive) setError(e instanceof Error ? e.message : 'Errore caricamento.');
       } finally {
@@ -96,10 +112,11 @@ export default function ModaleModificaVoce({
     setSaving(true);
     setError(null);
     try {
+      const cambiaEsecutore = puoCambiareEsecutore && esecutoreId && esecutoreId !== esecutoreIniziale;
       const res = await fetch(`/api/admin/interventi/storico/voce/${voceId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ anagrafica, risposte }),
+        body: JSON.stringify({ anagrafica, risposte, ...(cambiaEsecutore ? { esecutoreId } : {}) }),
       });
       if (!res.ok) {
         const b = (await res.json().catch(() => ({}))) as { error?: string };
@@ -129,6 +146,22 @@ export default function ModaleModificaVoce({
         </div>
       ) : (
         <div className="space-y-5">
+          {puoCambiareEsecutore && (
+            <section>
+              <h3 className="mb-2 text-xs font-semibold text-[var(--brand-text-muted)]">Esecutore</h3>
+              <Select value={esecutoreId} onChange={(e) => setEsecutoreId(e.target.value)}>
+                {esecutoreId === '' && <option value="">—</option>}
+                {staff.map((s) => (<option key={s.id} value={s.id}>{s.display_name}</option>))}
+              </Select>
+              {esecutoreId !== esecutoreIniziale && (
+                <p className="mt-2 text-xs text-[var(--brand-text-muted)]">
+                  L&apos;intervento passa nel rapportino{giorno ? ` del ${fmtGiorno(giorno)}` : ''} del nuovo
+                  operatore. Se non ne ha uno, viene creato.
+                </p>
+              )}
+            </section>
+          )}
+
           <section>
             <h3 className="mb-2 text-xs font-semibold text-[var(--brand-text-muted)]">Anagrafica</h3>
             <div className="grid gap-3 sm:grid-cols-2">

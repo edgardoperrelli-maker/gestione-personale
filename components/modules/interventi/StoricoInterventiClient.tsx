@@ -386,6 +386,8 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
       {puoModificare && modificaVoceId && (
         <ModaleModificaVoce
           voceId={modificaVoceId}
+          staff={staff}
+          puoCambiareEsecutore={isAdminPlus}
           onClose={() => setModificaVoceId(null)}
           onSaved={() => { void carica(filtri, page); }}
         />
