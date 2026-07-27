@@ -31,10 +31,12 @@ describe('token dei territori dichiarati in globals.css', () => {
   });
 
   // Il senso del colore è distinguere: due territori con la stessa banda sono due
-  // territori che a colpo d'occhio sono lo stesso territorio.
-  it('nessun territorio mappato condivide la banda con un altro', () => {
+  // territori che a colpo d'occhio sono lo stesso territorio. Il `fallback` è nel
+  // conto perché la collisione c'è già stata — valeva l'ardesia di LAZIO CENTRO,
+  // quindi un territorio creato domani sarebbe nato travestito da quello.
+  it('nessuna banda è condivisa da due corsie, fallback compreso', () => {
     const perBanda = new Map<string, string[]>();
-    for (const slug of SLUGS) {
+    for (const slug of [...SLUGS, 'fallback']) {
       const banda = token(slug, 'band')!.toUpperCase();
       perBanda.set(banda, [...(perBanda.get(banda) ?? []), slug]);
     }

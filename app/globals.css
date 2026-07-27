@@ -188,7 +188,12 @@
      così la corsia di chi non ha assegnazione resta leggibile senza reclamare attenzione — e non si
      confonde più con l'ardesia FREDDA di LAZIO CENTRO. */
   --terr-magazzino-band:#78716C; --terr-magazzino-text:#44403C; --terr-magazzino-bg:rgba(120,113,108,0.10); --terr-magazzino-bd:rgba(120,113,108,0.32);
-  --terr-fallback-band:#475569; --terr-fallback-text:#334155; --terr-fallback-bg:rgba(100,116,139,0.09); --terr-fallback-bd:rgba(100,116,139,0.30);
+  /* Il fallback aveva ESATTAMENTE l'ardesia di LAZIO CENTRO: un territorio creato domani sarebbe
+     nato indistinguibile da uno che vale 828 assegnazioni. Ora è grafite: dei tre grigi in gioco è
+     il più scuro e l'unico senza tinta — niente tinta è proprio ciò che significa, un territorio a
+     cui nessuno ha ancora dato un colore. Resta il più tenue di fondo (0.09/0.30, non 0.10/0.32):
+     non è l'identità di un posto, è la sua assenza. */
+  --terr-fallback-band:#3F3F46; --terr-fallback-text:#18181B; --terr-fallback-bg:rgba(82,82,91,0.09); --terr-fallback-bd:rgba(82,82,91,0.30);
 }
 
 @theme inline {
