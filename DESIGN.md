@@ -9,7 +9,7 @@
 Stile **console direzionale, pulita e leggibile** (evoluzione 2026-07-22 del "sobrio enterprise"; identità "Aurea neon" abbandonata da tempo). Direzione E+ scelta dal committente: mockup canonico in [`docs/design/mockup-cockpit.html`](docs/design/mockup-cockpit.html), spec `docs/superpowers/specs/2026-07-22-redesign-cockpit.md`.
 
 Principi:
-1. **Light-first su canvas.** Il contenuto vive su un **canvas grigio freddo**; le card sono bianche. Il dark è una variante sobria, non il default.
+1. **Light-first su canvas.** Il contenuto vive su un **canvas grigio freddo**; le card sono bianche. Dal 2026-07-27 è l'unico tema (§2).
 2. **Un solo accento zaffiro** (blu profondo, hue 260). Porta il peso di azioni primarie, link, stato attivo. Tutto il resto è grigio freddo neutro.
 2bis. **I numeri comandano.** Dove i motori espongono già dei contatori, il modulo apre con card-KPI (barra colorata a sinistra, valore mono tabulare). Mai inventare metriche.
 3. **Profondità piatta.** Niente glow/gradienti. La profondità nasce da *bordo 1px + ombra tenue*.
@@ -17,13 +17,13 @@ Principi:
 5. **Semantici calmi** (success/warning/danger), usati col contagocce.
 6. **Focus sempre visibile** (ring blu) e contrasti AA.
 
-## 2. Tema — **solo chiaro** (dal 2026-07-25)
+## 2. Tema — **unico, chiaro** (scuro rimosso il 2026-07-27)
 
 - **L'app è chiara e sola.** `<html className="light">` è scritta staticamente in [`app/layout.tsx`](app/layout.tsx): niente script inline, niente `localStorage`, niente lampo di tema al primo paint. Il **selettore di tema è stato rimosso** dal TopBar — un interruttore con una sola posizione è peggio di nessun interruttore. Anche `themeColor` (barra browser/PWA) ha un solo valore.
-- **I valori scuri restano in `globals.css` (`:root`), dormienti.** Non sono stati cancellati: i token non si rimuovono (regola sotto), la rimozione sarebbe irreversibile, e riaccendere il dark resterebbe possibile togliendo la classe. Ma **nessuna schermata li usa**, quindi non vanno più verificati né mantenuti allineati: quando cambi un valore, quello che conta è il blocco `html.light`.
-- **Dove scrivere i valori**: `html.light` per ciò che si vede. Il blocco `:root` serve ancora come *fallback* (se `.light` mancasse, l'app resterebbe leggibile invece di perdere ogni colore), quindi un token nuovo va comunque dichiarato in entrambi — ma il valore che disegna è quello light.
-- **Mai rimuovere o rinominare un token esistente**: si cambia solo il *valore*; i nuovi token sono **additivi**. Vale ancora, ed è la ragione per cui i valori dark sono rimasti.
-- I componenti **mapcn** ([`components/ui/map.tsx`](components/ui/map.tsx)) risolvono il tema per conto proprio, ma leggono la classe `.light` esplicita sull'`<html>` prima di ricadere su `prefers-color-scheme`: seguono l'app, e non diventano scuri se il sistema operativo è in dark.
+- **I valori scuri non esistono più.** Dal 25/07 al 27/07 erano rimasti dormienti in un blocco `:root` che `html.light` ridefiniva per intero: due scale da tenere allineate di cui una non disegnava nulla. Il 27/07 sono stati **rimossi** e i valori chiari **promossi a `:root`**. Conseguenza pratica: la scala è dichiarata **una volta sola**, e non dipende più dalla presenza di una classe su `<html>` — se `.light` sparisse, l'app resterebbe identica.
+- **Dove scrivere i valori**: in `:root`, e basta. Non esiste più un secondo blocco da tenere in sincronia.
+- **Mai rimuovere o rinominare un token esistente**: si cambia solo il *valore*; i nuovi token sono **additivi**. La rimozione del 27/07 non è un'eccezione a questa regola — sono stati tolti dei **valori duplicati**, non dei token: ogni nome dichiarato prima è dichiarato anche dopo (verificato token per token, `--elevation-1/2/3` compresi, che vivevano solo nel blocco scuro e sarebbero spariti in una fusione ingenua spegnendo ogni `shadow-*` nudo).
+- I componenti **mapcn** ([`components/ui/map.tsx`](components/ui/map.tsx)) risolvono il tema per conto proprio e sanno ancora ragionare su chiaro/scuro. Leggono la classe `.light` esplicita sull'`<html>` prima di ricadere su `prefers-color-scheme`: **è per questo che la classe resta**, anche se il CSS non ne ha più bisogno. Toglierla renderebbe la mappa scura su un sistema operativo in dark.
 
 ## 3. Colore (token)
 
@@ -31,24 +31,23 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 ### Superfici e testo
 
-| Token | Light | Dark | Uso |
-|---|---|---|---|
-| `--app-bg` / `--brand-bg` | `0.965 0.006 250` (canvas) | `0.20 0.012 255` | sfondo pagina (canvas, le card bianche ci galleggiano sopra) |
-| `--brand-surface` (`--card-bg`) | `1 0 0` (bianco) | `0.24 0.014 255` | card, superfici, input |
-| `--brand-surface-muted` | `0.965 0.006 250` | `0.225 0.013 255` | header tabella, zebra, hover |
-| `--brand-border` | `0.92 0.006 250` | `0.32 0.012 255` | bordo standard 1px |
-| `--brand-border-strong` | `0.86 0.008 250` | `0.40 0.012 255` | divisori marcati, bordo bottoni secondary |
-| `--brand-text-main` | `0.27 0.02 255` | `0.94 0.006 255` | testo principale |
-| `--brand-text-muted` | `0.44 0.02 255` | `0.70 0.012 255` | testo secondario, label |
-| `--brand-text-subtle` | `0.54 0.015 255` | `0.62 0.012 255` | placeholder, caption |
+| Token | Valore | Uso |
+|---|---|---|
+| `--app-bg` / `--brand-bg` | `0.965 0.006 250` (canvas) | sfondo pagina (canvas, le card bianche ci galleggiano sopra) |
+| `--brand-surface` (`--card-bg`) | `1 0 0` (bianco) | card, superfici, input |
+| `--brand-surface-muted` | `0.965 0.006 250` | header tabella, zebra, hover |
+| `--brand-border` | `0.92 0.006 250` | bordo standard 1px |
+| `--brand-border-strong` | `0.86 0.008 250` | divisori marcati, bordo bottoni secondary |
+| `--brand-text-main` | `0.27 0.02 255` | testo principale |
+| `--brand-text-muted` | `0.44 0.02 255` | testo secondario, label |
+| `--brand-text-subtle` | `0.54 0.015 255` | placeholder, caption |
 
 > ♿ **La scala di testo è vincolata dal contrasto, non dal gusto.** Tutti e tre i token di testo
 > devono rendere ≥ **4,5:1** (WCAG AA, testo normale) su **ognuna** delle tre superfici — e la
 > superficie peggiore è `--brand-surface-muted`, non il bianco. La soglia è 4,5 e non 3 perché
 > l'esonero "testo grande" parte da 24px, mentre questi token vestono testo da 10 a 16px.
 > Il 2026-07-27 `--brand-text-subtle` è passato da `0.62` a `0.54` nel chiaro (rendeva **3,29:1**
-> sulla superficie muted, sotto soglia su 116 usi non decorativi) e da `0.56` a `0.62` nello scuro
-> dormiente. Nello stesso intervento `--brand-text-muted` è sceso da `0.50` a `0.44`: alzare solo
+> sulla superficie muted, sotto soglia su 116 usi non decorativi). Nello stesso intervento `--brand-text-muted` è sceso da `0.50` a `0.44`: alzare solo
 > `subtle` lo aveva portato a ΔL 0.04 da `muted`, cioè **due livelli travestiti da tre**.
 > Misure attuali sul caso peggiore: main 13,6:1 · muted 7,0:1 · subtle 4,6:1.
 > La guardia è [`lib/design/contrastoToken.test.ts`](lib/design/contrastoToken.test.ts), che legge
@@ -71,27 +70,27 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 
 ### Accento zaffiro
 
-| Token | Light | Dark | Uso |
-|---|---|---|---|
-| `--brand-primary` | `0.42 0.14 260` | `0.66 0.15 260` | fill primario, link, attivo |
-| `--brand-primary-hover` | `0.35 0.12 260` | `0.72 0.15 260` | hover primario |
-| `--brand-primary-soft` | `…/0.10` | `…/0.18` | sfondo chip/nav attiva |
-| `--primary-text` | `0.40 0.14 260` | `0.80 0.12 260` | **testo-accento** su soft/surface |
-| `--on-primary` | `1 0 0` (bianco) | `0.20 0.012 255` (scuro) | **testo su fill accentato** (vedi nota WCAG) |
+| Token | Valore | Uso |
+|---|---|---|
+| `--brand-primary` | `0.42 0.14 260` | fill primario, link, attivo |
+| `--brand-primary-hover` | `0.35 0.12 260` | hover primario |
+| `--brand-primary-soft` | `…/0.10` | sfondo chip/nav attiva |
+| `--primary-text` | `0.40 0.14 260` | **testo-accento** su soft/surface |
+| `--on-primary` | `1 0 0` (bianco) | **testo su fill accentato** (vedi nota WCAG) |
 
-> ⚠️ **`--on-primary` è tema-specifico**: bianco in light, scuro in dark. È il fix WCAG (testo bianco su blu chiaro in dark fallirebbe 2.7:1). Usalo per il testo di QUALSIASI bottone/badge a fondo pieno accentato (primary/success/warning/danger) — **mai** `text-white` o un colore fisso.
+> ⚠️ **`--on-primary` è il testo sui fondi pieni accentati** (primary/success/warning/danger): oggi vale bianco. Nato tema-specifico — in dark era scuro, perché bianco su blu chiaro rendeva 2,7:1 — resta un token e non una costante, così un domani il valore cambia in un punto solo. Usalo sempre: **mai** `text-white` né un colore fisso.
 
 ### Semantici e stato
 
 `--success` `--warning` `--danger` `--info` (+ varianti `-soft` a bassa alpha). Per i **pallini/indicatori di stato** usa i token dedicati (uguali ai semantici ma con nome d'intento):
 
-| Stato | Token | = | Light | Dark |
-|---|---|---|---|---|
-| ok / fatto / approvato | `--status-ok` | success | `0.50 0.13 150` | `0.74 0.15 150` |
-| ko / non fatto / rifiutato | `--status-ko` | danger | `0.52 0.20 25` | `0.72 0.17 25` |
-| warn / in attesa | `--status-warn` | warning | `0.52 0.11 70` | `0.80 0.13 75` |
-| in corso / progress | `--status-progress` | primary | `0.42 0.14 260` | `0.66 0.15 260` |
-| idle / neutro / offline | `--status-idle` | grigio | `0.62 0.015 255` | `0.55 0.012 255` |
+| Stato | Token | = | Valore |
+|---|---|---|---|
+| ok / fatto / approvato | `--status-ok` | success | `0.50 0.13 150` |
+| ko / non fatto / rifiutato | `--status-ko` | danger | `0.52 0.20 25` |
+| warn / in attesa | `--status-warn` | warning | `0.52 0.11 70` |
+| in corso / progress | `--status-progress` | primary | `0.42 0.14 260` |
+| idle / neutro / offline | `--status-idle` | grigio | `0.62 0.015 255` |
 
 (+ `-soft` per i fondi; + `--on-danger`/`--on-warning` per il testo sui fill pieni.)
 
@@ -103,7 +102,7 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 - `--overlay`: fondo semitrasparente di modali/drawer.
 - `--on-marker`: testo leggibile sui marker mappa colorati (MapLibre, marker DOM).
 - `--phone-bezel` / `--phone-screen`: cornice e schermo dell'anteprima-telefono (Azioni operatori). Il bezel resta scuro in entrambi i temi (è un device), lo schermo segue `--brand-bg`.
-- `--scanner-veil` / `--scanner-chip` / `--on-scanner`: visore dello scanner barcode del portale operatore ([`ScannerMisuratore.tsx`](components/modules/rapportini/risanamento/ScannerMisuratore.tsx)). Stessa logica del bezel: **valori identici in light e dark**, perché sotto c'è l'immagine della fotocamera e non una superficie del tema — schiarire il velo in light spegnerebbe il visore. Usali al posto di `bg-black/90` + `text-white`.
+- `--scanner-veil` / `--scanner-chip` / `--on-scanner`: visore dello scanner barcode del portale operatore ([`ScannerMisuratore.tsx`](components/modules/rapportini/risanamento/ScannerMisuratore.tsx)). Stessa logica del bezel: valori fissi, perché sotto c'è l'immagine della fotocamera e non una superficie del tema — schiarirli spegnerebbe il visore. (Erano identici nei due temi anche prima della rimozione del dark, per la stessa ragione.) Usali al posto di `bg-black/90` + `text-white`.
 - ⚠️ **`--warning-fg` non esiste** (e non va creato). Se lo trovi scritto come `var(--warning-fg,#92400e)` stai leggendo un hex cablato che ignora il tema: il testo su fondo `--warning-soft` va su **`--brand-text-main`**; `--on-warning` è solo per il fill *pieno*.
 - `--chip-overlay-bd` / `--chip-overlay-bg`: velo dei bottoncini sulle card operatore (Cronoprogramma, Mappa), il cui fondo è **dinamico** — è il colore del territorio. Si invertono col tema: su scuro il bordo schiarisce e il fondo scurisce, su chiaro il contrario, perché un bordo bianco su card chiara sparirebbe. Usali al posto di `border-white/20` + `bg-black/20`.
 - Decorativi desaturati `--brand-gold` / `--brand-magenta` / `--brand-green` / `--brand-violet`: **da evitare come accenti** (esistono per retro-compatibilità). Niente oro/magenta neon.
@@ -125,7 +124,7 @@ Ogni modulo apre con [`ObjectHeader`](components/ui/ObjectHeader.tsx) — titolo
 - **Raggi** (token in `@theme`): `--radius-sm` 4 · `--radius-md` 6 · `--radius-lg` 10 · `--radius-xl` 14. Card a `lg`/`xl`, input/bottoni a `md`, pill/badge pieni (`rounded-full`). Usa `rounded-[var(--radius-md)]` ecc.
 - **Ombre — elevazione a 3 livelli** (valori a doppio strato ambient+key, redesign premium 2026-07-22): livello 1 superfici in flusso (card, tabelle) = bordo 1px + `--shadow-sm`; livello 2 sovrapposti (popover, dropdown, datepicker) = `--shadow-md`; livello 3 modali/drawer = `--shadow-lg` + `--overlay`. **Mai glow.**
 - ✅ **`shadow-sm` nudo ORA è `--shadow-sm`** (risolto il 2026-07-25). Le tre utility sono ridefinite in `@theme inline` verso gli alias additivi `--elevation-1/2/3`, che puntano ai token: l'utility nuda e `shadow-[var(--shadow-sm)]` rendono **identiche**, e seguono il tema. Entrambe le forme sono valide; la nuda è più leggibile.
-  <br>*Perché serviva l'indirezione*: Tailwind v4 **inlinea il proprio default** nell'utility (emette valori letterali, non `var(--shadow-sm)`), quindi la definizione in `:root` non la raggiungeva. Prima del fix, in dark le utility nude rendevano alpha ~0.1 contro lo 0.32–0.40 del token: **card piatte contro il canvas**, su 48 occorrenze in 18 file (i moduli Impostazioni, Mappa e i controlli mapcn). `--shadow-sm: var(--shadow-sm)` sarebbe stato circolare: da qui gli alias.
+  <br>*Perché serviva l'indirezione*: Tailwind v4 **inlinea il proprio default** nell'utility (emette valori letterali, non `var(--shadow-sm)`), quindi la definizione in `:root` non la raggiungeva. Prima del fix le utility nude rendevano alpha ~0.1 contro lo 0.32–0.40 del token — nel tema scuro di allora, **card piatte contro il canvas** — su 48 occorrenze in 18 file (i moduli Impostazioni, Mappa e i controlli mapcn). `--shadow-sm: var(--shadow-sm)` sarebbe stato circolare: da qui gli alias.
   <br>⚠️ Se aggiungi un livello di elevazione, definiscilo in **entrambi** i blocchi tema *e* aggiungi l'alias `--elevation-N` + la riga in `@theme inline`, altrimenti l'utility nuda torna silenziosamente al default Tailwind.
 - **Densità bilanciata**: tabelle/liste **compatte** (righe ~32–36px, padding ridotto, header sticky su `--brand-surface-muted`); form/dettaglio/modali **ariosi**.
 - **Motion**: framer-motion (`lib/animations.ts`, `PageTransitionWrapper`). Sobrio: hover lift ~1px, durate 150–200ms; overlay (Dialog, drawer, dropdown, palette) con enter/exit via `AnimatePresence` (enter 150–200ms, exit più rapido). `prefers-reduced-motion` è garantito globalmente da `components/layout/MotionProvider.tsx` (`MotionConfig reducedMotion="user"` nel root layout) — i transform collassano, resta l'opacità. Non aggiungere animazioni dove non ci sono.

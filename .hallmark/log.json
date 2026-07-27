@@ -3,6 +3,14 @@
     "date": "2026-07-27",
     "scope": "sistema",
     "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed, tema UNICO)",
+    "enrichment": "none",
+    "brief": "TEMA SCURO RIMOSSO (rovescia la scelta del 25/07, che li aveva lasciati dormienti). Struttura di partenza: globals.css apriva 4 blocchi — :root brand (scuro), :root territori (scuro), html.light territori, html.light brand — cioe DUE scale complete di cui una non disegnava nulla, da tenere allineate a mano. Rimosso non cancellando :root (senza la classe .light l'app avrebbe perso ogni colore) ma PROMUOVENDO i valori chiari a :root ed eliminando html.light: la scala e dichiarata una volta sola e non dipende piu da una classe su <html>. TRAPPOLA EVITATA, trovata confrontando gli insiemi di nomi prima di operare: --elevation-1/2/3 vivevano SOLO nel blocco scuro (sono indirezioni neutre verso --shadow-*, aggiunte il 25/07 per l'override @theme inline). Una fusione ingenua li avrebbe cancellati spegnendo silenziosamente ogni utility shadow-sm/md/lg nuda dell'app. Portati nel nuovo :root con il loro commento. VERIFICA: 176 nomi di token prima, 176 dopo, zero persi; 305 dichiarazioni -> 204, cioe -101 duplicati; CSS ricompilato con la Tailwind del progetto e valori effettivi identici (surface 1 0 0, text-muted 0.44, ecc.); comportamento di shadow-sm nudo confrontato prima/dopo = IDENTICO (rende il default Tailwind in entrambi i casi: condizione preesistente della sonda CLI, non introdotta qui). className='light' RESTA su <html>: mapcn (components/ui/map.tsx) legge quella classe prima di prefers-color-scheme, toglierla renderebbe la mappa scura su un OS in dark. La guardia lib/design/contrastoToken.test.ts passa da 2 blocchi-tema a 1, e asserisce che ne esista ESATTAMENTE uno: se qualcuno reintroducesse un secondo tema il test lo direbbe invece di controllarne uno a caso. DESIGN.md: §2 riscritta; colonna Dark tolta dalle tabelle token e stati; corrette 5 affermazioni diventate false (§1 'il dark e una variante', --on-primary 'tema-specifico', velo scanner 'identico nei due temi', razionale ombre, toggle TopBar)."
+  },
+  {
+    "date": "2026-07-27",
+    "scope": "sistema",
+    "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
     "theme": "DESIGN.md (system-managed, solo chiaro)",
     "enrichment": "none",
     "brief": "CONTRASTO della scala di testo, chiuso al TOKEN e non nei call-site. --brand-text-subtle valeva oklch(0.62 0.015 255) e rendeva 3,64:1 su bianco e 3,29:1 sulla superficie muted (il caso peggiore, non il bianco): sotto la soglia AA di 4,5:1 per il testo normale. Ampiezza reale misurata: 139 occorrenze del token, 116 NON decorative, distribuite su 10px/11px/text-xs/text-sm/text-base — tutte sotto soglia. La soglia e 4,5 e non 3 perche l'esonero 'testo grande' parte da 24px e questi token vestono testo da 10 a 16px. Risolto cambiando il VALORE del token (chiaro 0.62->0.54 = 4,57:1 sul caso peggiore; scuro dormiente 0.56->0.62 = 4,52:1) invece dei 116 call-site: una modifica sola, gerarchia preservata, nessun file di modulo toccato. Scelto 0.54 e non 0.55 perche 0.55 passa su bianco (4,85) ma NON su muted (4,38). Verificati i 3 usi del token come SFONDO (ExportAssignmentsDialog bottone disabilitato, 2 pallini di stato): li scurire agisce al contrario, ma il testo bianco sul bottone passa da 3,64:1 a 5,06:1 — migliora. Nessun passaggio a recharts/maplibre, dove var() non si risolve. Nuova guardia lib/design/contrastoToken.test.ts: legge i token da globals.css, converte OKLCH->sRGB e calcola il contrasto di ogni token di testo su ognuna delle 3 superfici, nei due temi. VERIFICATA a rovescio: rimesso il valore vecchio, il test fallisce con '3.29:1, sotto AA 4.5:1'. §3 di DESIGN.md riscritta con la regola, le misure e la CONSEGUENZA APERTA: nel chiaro muted (0.50) e subtle (0.54) distano ora dL 0.04, quindi la gerarchia a tre livelli di colore e schiacciata a due — se ne servono tre distinti va portato muted a ~0.44 oppure dichiarato che il terzo livello si porta con peso e dimensione. Decisione NON presa: va fatta in DESIGN.md, non nei moduli."
@@ -150,13 +158,5 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Riepilogo rapportini (/hub/mappa?vista=riepilogo) — bonifica dei 3 critical e degli 8 major dell'audit: scala tipografica, accento, primitivi, nome territorio, icone, mono tabulare, testa+sintesi, Dialog, focus, responsive, stamp"
-  },
-  {
-    "date": "2026-07-23",
-    "scope": "app",
-    "macrostructure": "Workbench",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Pianificazione (/hub/mappa?vista=pianifica) — testa di modulo standard, gerarchia dei comandi, ordine testa→fasi→lavoro, proporzioni per fase"
   }
 ]

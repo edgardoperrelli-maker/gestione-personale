@@ -18,12 +18,16 @@ const CSS = readFileSync(resolve(__dirname, '../../app/globals.css'), 'utf8');
 type Oklch = [number, number, number];
 
 /**
- * I due blocchi-tema, trovati per CONTENUTO e non per selettore: il file dichiara
- * `:root` e `html.light` più volte (sidebar, brand), quindi ancorarsi al selettore
- * pescherebbe il blocco sbagliato. Si prendono i blocchi che dichiarano davvero la
- * scala di testo, e si distinguono dalla luminosità della superficie.
+ * Il blocco che dichiara la scala di testo, trovato per CONTENUTO e non per selettore:
+ * `globals.css` apre `:root` più volte (brand, territori), quindi ancorarsi al selettore
+ * pescherebbe il blocco sbagliato.
+ *
+ * Dal 2026-07-27 il tema è UNO solo (DESIGN.md §2): il blocco atteso è esattamente uno.
+ * L'asserzione sul conteggio non è pedanteria — se qualcuno reintroducesse un secondo
+ * blocco-tema, questo test lo direbbe subito invece di controllarne silenziosamente uno
+ * a caso dei due.
  */
-function blocchiTema(): { chiaro: Map<string, Oklch>; scuro: Map<string, Oklch> } {
+function bloccoTema(): Map<string, Oklch> {
   const trovati: Map<string, Oklch>[] = [];
   for (const m of CSS.matchAll(/^[^\s@][^{]*\{([\s\S]*?)^\}/gm)) {
     const token = new Map<string, Oklch>();
@@ -32,14 +36,12 @@ function blocchiTema(): { chiaro: Map<string, Oklch>; scuro: Map<string, Oklch> 
     }
     if (token.has('--brand-text-subtle') && token.has('--brand-surface')) trovati.push(token);
   }
-  expect(trovati, 'attesi esattamente 2 blocchi-tema con la scala di testo').toHaveLength(2);
-  const chiaro = trovati.find((t) => t.get('--brand-surface')![0] > 0.5);
-  const scuro = trovati.find((t) => t.get('--brand-surface')![0] <= 0.5);
-  expect(chiaro && scuro, 'un tema chiaro e uno scuro').toBeTruthy();
-  return { chiaro: chiaro!, scuro: scuro! };
+  expect(trovati, 'atteso UN solo blocco-tema con la scala di testo (§2: tema unico)').toHaveLength(1);
+  expect(trovati[0].get('--brand-surface')![0], 'il tema unico è quello chiaro').toBeGreaterThan(0.5);
+  return trovati[0];
 }
 
-const TEMI = blocchiTema();
+const TEMA = bloccoTema();
 
 /** OKLCH → sRGB (0–1). Conversione standard via LMS. */
 function oklchToSrgb([L, C, H]: Oklch): [number, number, number] {
@@ -74,10 +76,8 @@ const AA_TESTO_NORMALE = 4.5;
 const TESTO = ['--brand-text-main', '--brand-text-muted', '--brand-text-subtle'];
 const SUPERFICI = ['--brand-bg', '--brand-surface', '--brand-surface-muted'];
 
-describe.each([
-  ['tema chiaro (in uso)', TEMI.chiaro],
-  ['tema scuro (dormiente, §2)', TEMI.scuro],
-])('contrasto dei token di testo — %s', (_nome, token) => {
+describe('contrasto dei token di testo — tema unico', () => {
+  const token = TEMA;
 
   it.each(TESTO)('%s passa AA su ogni superficie di modulo', (nomeTesto) => {
     const testo = token.get(nomeTesto);
