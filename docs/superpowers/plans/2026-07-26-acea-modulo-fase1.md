@@ -394,14 +394,30 @@ spegnimento del master.
 
 ## PARTE 8 — Saracinesche
 
-### Task 8.1: stati derivati
+### Task 8.1: stati derivati ✅
 
-- [ ] `lib/acea/saracinesche.ts` — puro, nessuna tabella nuova:
+- [x] `lib/acea/saracinesche.ts` — puro, nessuna tabella nuova:
       **fatte** (saracinesca `SI` nel rapportino) · **da esitare** (ordine di sostituzione aperto) ·
       **da richiedere** (nessun ordine sull'impianto/matricola).
-- [ ] Aggancio per matricola normalizzata, per impianto quando disponibile.
-- [ ] Vale per Dunning **e** Massive: filtro presente in entrambe le fogliette.
-- [ ] Verifica sui dati reali: i tre numeri devono avvicinarsi a **791 / 80 / 634**.
+- [x] Aggancio per impianto, e per matricola normalizzata quando l'impianto non si conosce: le due
+      parti non sono simmetriche (il registro ha quasi sempre l'impianto, il rapportino la
+      matricola), quindi basta UNA chiave in comune.
+- [x] `fatte` conta i **misuratori**, non le voci: la stessa saracinesca si paga una volta sola.
+- [x] Vale per Dunning **e** Massive: filtro presente in entrambe le fogliette. Il filtro si applica
+      **dopo** l'aggancio — filtrare gli ordini a monte mostrerebbe come «da richiedere»
+      saracinesche già coperte da un ordine dell'altra famiglia.
+- [x] Un ordine aperto si mostra sotto la famiglia della saracinesca che copre, non sotto la
+      propria: nato da un dunning, va cercato fra i dunning anche se come tipo è una ASTR.
+- [x] `attendibile: false` quando il registro non ha ordini di sostituzione: senza import
+      «da richiedere» coinciderebbe con «fatte» e mostrerebbe decine di migliaia di euro di falso
+      allarme. La UI lo dice e nasconde i due numeri.
+- [x] 22 test puri + collaudo sul DB di produzione (tre ordini sintetici, poi rimossi):
+      matricola esatta → coperta · matricola scritta diversamente (`2020-15213481`) → coperta,
+      la normalizzazione regge · attività diversa sulla stessa matricola → **resta da richiedere**.
+- [ ] Verifica sui dati reali dei tre numeri (**791 / 80 / 634**): misurabile solo dopo il primo
+      import vero. Oggi il lato dichiarazioni misura **800 fatte** (730 massive + 70 dunning,
+      04/06 → 27/07) contro le 791 dello studio del 25/07 — due giorni di lavoro in più, coerente.
+      Copertura e da-richiedere restano da verificare col registro pieno.
 
 ---
 

@@ -43,6 +43,12 @@ const RE_MISURATORE =
 
 const VUOTO: EstrazioneMisuratore = { impianto: null, matricola: null, sospettoTroncamento: false };
 
+/** Matricola normalizzata per gli aggancî: maiuscolo, solo A-Z0-9 (26 forme di scrittura note). */
+export function normalizzaMatricola(m: string | null | undefined): string | null {
+  const v = String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  return v === '' ? null : v;
+}
+
 /** Estrae impianto e matricola dal testo dell'ordine. Non lancia mai: testo ignoto → tutto null. */
 export function parseTestoOrdine(testo: string | null | undefined): EstrazioneMisuratore {
   const s = String(testo ?? '').trim();

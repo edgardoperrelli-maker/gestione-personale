@@ -9,7 +9,7 @@
 // non ricavabile o un sospetto troncamento producono un avviso e la riga entra comunque.
 
 import ExcelJS from 'exceljs';
-import { parseTestoOrdine } from './parseTestoOrdine';
+import { normalizzaMatricola, parseTestoOrdine } from './parseTestoOrdine';
 import { famigliaDaTipoOrdine } from './famiglia';
 import { isAperto, normalizzaStato } from './statiOrdine';
 import { scadenzaOrdine } from './scadenza';
@@ -18,6 +18,10 @@ import {
   FOGLIO_ATTESO, validaIntestazione, validaProvenienza, type EsitoValidazione,
 } from './colonneExport';
 import type { AvvisoRiga, RigaOrdineAcea } from './tipi';
+
+// Ri-esportata: vive in parseTestoOrdine (modulo puro e leggero) perché serve anche a chi non può
+// tirarsi dietro exceljs — l'aggancio delle saracinesche gira anche nel bundle del client.
+export { normalizzaMatricola } from './parseTestoOrdine';
 
 export type EsitoParse =
   | {
@@ -58,12 +62,6 @@ const t = (s: string): string | null => {
   const v = s.trim();
   return v === '' ? null : v;
 };
-
-/** Matricola normalizzata per gli aggancî: maiuscolo, solo A-Z0-9 (26 forme di scrittura note). */
-export function normalizzaMatricola(m: string | null | undefined): string | null {
-  const v = String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  return v === '' ? null : v;
-}
 
 /** Numero da cella: null se vuota o non numerica. */
 function numero(s: string): number | null {
