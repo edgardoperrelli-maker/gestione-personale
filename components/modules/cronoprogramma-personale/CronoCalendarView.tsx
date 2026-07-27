@@ -341,7 +341,10 @@ function SingoloCard({
       }}
     >
       <OperatorCard a={a} onDelete={onDelete} onEdit={onEdit} taskCount={taskCount} />
-      {/* Occhiello discoverabile a mouse fermo */}
+      {/* Occhiello discoverabile a mouse fermo. Sporge di 4px oltre l'angolo della
+          card (`-right-1 -top-1`): il contenitore che scorre deve tenere almeno
+          altrettanto padding su quei due lati, altrimenti lo ritaglia — vedi il
+          `pr-2 pt-1` della colonna. */}
       <div
         className="pointer-events-none absolute -right-1 -top-1 z-10 hidden h-5 w-5 items-center justify-center rounded-full border text-[10px] shadow-[var(--shadow-sm)] group-hover/s:flex"
         style={{ backgroundColor: 'var(--brand-primary-soft)', borderColor: 'var(--brand-primary-border)', color: 'var(--brand-primary)' }}
@@ -599,8 +602,15 @@ function DayCell(props: {
       {/* Ogni colonna scorre DENTRO DI SÉ invece di allungare la pagina: con
           tutti i territori estesi si arrivava a ~1500px per colonna e a crescere
           era il documento, portandosi via l'intestazione dei giorni. Il tetto è
-          legato all'altezza della finestra, così la vista resta a schermo. */}
-      <div ref={autoScroll.ref} className="mt-2 max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto pr-0.5">
+          legato all'altezza della finestra, così la vista resta a schermo.
+
+          Il padding NON è decorativo: `overflow-y-auto` da solo porta l'asse X a
+          `auto` (regola CSS: se un asse non è `visible`, l'altro smette di esserlo),
+          quindi qui dentro tutto viene ritagliato sui due bordi. L'occhiello delle
+          card singole sporge di 4px in alto e a destra (vedi SingoloCard): senza
+          questo spazio veniva tagliato a metà contro la scrollbar e la sporgenza
+          faceva comparire una scrollbar orizzontale fantasma a ogni hover. */}
+      <div ref={autoScroll.ref} className="mt-2 max-h-[calc(100dvh-20rem)] space-y-2 overflow-y-auto pr-2 pt-1">
         {(() => {
           const dayAssenze = assenzeByDay?.[iso] ?? [];
           if (!dayAssenze.length) return null;
