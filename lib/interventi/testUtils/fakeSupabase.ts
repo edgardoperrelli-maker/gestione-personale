@@ -59,7 +59,15 @@ export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } =
         failVociPending = null; // consuma: il retry (intervento_id null) passa
         return { then: (resolve: (v: unknown) => void) => resolve({ error: { message } }) };
       }
-      const inserted = arr.map((r) => { const row: Row = { ...r, id: (r.id as string | undefined) ?? genId() }; (tables[this.table] ??= []).push(row); return row; });
+      const inserted = arr.map((r) => {
+        const row: Row = { ...r, id: (r.id as string | undefined) ?? genId() };
+        // Default di colonna replicati dal DB: `rapportino_voci.origine` default 'task'
+        // (migration 20260727091000). Senza questo, le voci inserite dal motore non
+        // verrebbero ritrovate dal filtro `.eq('origine','task')` del giro successivo.
+        if (this.table === 'rapportino_voci' && row.origine === undefined) row.origine = 'task';
+        (tables[this.table] ??= []).push(row);
+        return row;
+      });
       return {
         select: () => ({ single: async () => ({ data: { id: inserted[0].id }, error: null }) }),
         then: (resolve: (v: unknown) => void) => resolve({ error: null }),
