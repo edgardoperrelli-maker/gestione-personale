@@ -16,6 +16,8 @@
     "@serwist/next": "^9.5.11",
     "@supabase/auth-helpers-nextjs": "0.10.0",
     "@supabase/supabase-js": "2.75.1",
+    "@tanstack/react-table": "^8.21.3",
+    "@tanstack/react-virtual": "^3.14.8",
     "@zxing/browser": "^0.2.0",
     "barcode-detector": "^3.2.0",
     "clsx": "^2.1.1",

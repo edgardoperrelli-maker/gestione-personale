@@ -3,13 +3,13 @@
 import { useState } from 'react';
 import ImportCard from './ImportCard';
 import ContatoriAcea from './ContatoriAcea';
+import RegistroAcea from './RegistroAcea';
 
 /**
- * Vista Dunning: import e contatori.
+ * Vista Dunning: import, contatori e registro degli ordini.
  *
- * La tabella di pianificazione arriva qui sopra (parte 5 del piano). Per ora la pagina serve a
- * caricare l'export e vedere il registro popolarsi: i contatori si aggiornano a fine import
- * senza ricaricare la pagina.
+ * Import e tabella condividono `aggiornamenti`: a fine import contatori e registro si ricaricano
+ * senza che l'utente debba ricordarsi di aggiornare la pagina.
  */
 export default function DunningClient() {
   const [aggiornamenti, setAggiornamenti] = useState(0);
@@ -17,10 +17,7 @@ export default function DunningClient() {
     <div className="space-y-4">
       <ContatoriAcea refreshKey={aggiornamenti} />
       <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
-      <p className="text-xs text-[var(--brand-text-muted)]">
-        La tabella di pianificazione con filtri, selezione multipla e assegnazione in blocco è in
-        arrivo in questa pagina.
-      </p>
+      <RegistroAcea famiglia="dunning" refreshKey={aggiornamenti} />
     </div>
   );
 }
