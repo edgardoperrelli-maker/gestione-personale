@@ -177,6 +177,17 @@
   --terr-perugia-band:#BE123C; --terr-perugia-text:#881337; --terr-perugia-bg:rgba(225,29,72,0.10); --terr-perugia-bd:rgba(225,29,72,0.32);
   --terr-laziocentro-band:#475569; --terr-laziocentro-text:#334155; --terr-laziocentro-bg:rgba(100,116,139,0.10); --terr-laziocentro-bd:rgba(100,116,139,0.32);
   --terr-napoli-band:#A21CAF; --terr-napoli-text:#701A75; --terr-napoli-bg:rgba(192,38,211,0.10); --terr-napoli-bd:rgba(192,38,211,0.32);
+  /* Aggiunti il 2026-07-27: erano gli ultimi quattro territori a cadere sul fallback, e cadendoci
+     insieme diventavano indistinguibili fra loro E da LAZIO CENTRO, che ha esattamente la tinta del
+     fallback. ACEA da sola vale 280 assegnazioni. Tinte scelte sui vuoti della ruota già in uso
+     (arancio, verde, cielo, viola, rosa, ardesia, fucsia): foglia di tè, indaco, oliva. */
+  --terr-acea-band:#0F766E; --terr-acea-text:#134E4A; --terr-acea-bg:rgba(13,148,136,0.10); --terr-acea-bd:rgba(13,148,136,0.32);
+  --terr-acqualatina-band:#4338CA; --terr-acqualatina-text:#312E81; --terr-acqualatina-bg:rgba(79,70,229,0.10); --terr-acqualatina-bd:rgba(79,70,229,0.32);
+  --terr-milano-band:#4D7C0F; --terr-milano-text:#365314; --terr-milano-bg:rgba(101,163,13,0.10); --terr-milano-bd:rgba(101,163,13,0.32);
+  /* MAGAZZINO non è un posto dove si lavora: è il grigio CALDO, più tenue delle tinte territorio,
+     così la corsia di chi non ha assegnazione resta leggibile senza reclamare attenzione — e non si
+     confonde più con l'ardesia FREDDA di LAZIO CENTRO. */
+  --terr-magazzino-band:#78716C; --terr-magazzino-text:#44403C; --terr-magazzino-bg:rgba(120,113,108,0.10); --terr-magazzino-bd:rgba(120,113,108,0.32);
   --terr-fallback-band:#475569; --terr-fallback-text:#334155; --terr-fallback-bg:rgba(100,116,139,0.09); --terr-fallback-bd:rgba(100,116,139,0.30);
 }
 

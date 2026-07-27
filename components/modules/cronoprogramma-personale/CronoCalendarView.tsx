@@ -674,20 +674,28 @@ function DayCell(props: {
             </div>
           );
         })()}
-        {sorted.length ? (
-          hasTerritoryGrouping ? (
-            (() => {
-              const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
-              const idx = new Map<string, number>();
-              for (const a of sorted) {
-                const key = a.territory?.id ?? '__none__';
-                if (!idx.has(key)) {
-                  idx.set(key, groups.length);
-                  groups.push({ terrName: a.territory?.name ?? '', terrId: a.territory?.id ?? null, items: [] });
-                }
-                groups[idx.get(key)!].items.push(a);
+        {(() => {
+          if (hasTerritoryGrouping) {
+            const groups: { terrName: string; terrId: string | null; items: Assignment[] }[] = [];
+            const idx = new Map<string, number>();
+            for (const a of sorted) {
+              const key = a.territory?.id ?? '__none__';
+              if (!idx.has(key)) {
+                idx.set(key, groups.length);
+                groups.push({ terrName: a.territory?.name ?? '', terrId: a.territory?.id ?? null, items: [] });
               }
-              return groups.map((g) => {
+              groups[idx.get(key)!].items.push(a);
+            }
+            // Le card si costruiscono QUI, una volta sola, e la corsia che non ne ha
+            // nemmeno una sparisce: se i suoi assegnati sono tutti in assenza intera le
+            // loro card singole non si rendono, e resterebbe una testata che si apre sul
+            // vuoto. Un contenitore vuoto non è un dato. Gli assenti restano contati nel
+            // blocco in cima alla colonna, quindi non si perde nulla.
+            const corsie = groups
+              .map((g) => ({ ...g, cards: renderItems(g.items) }))
+              .filter((g) => g.cards.some(Boolean));
+            if (corsie.length) {
+              return corsie.map((g) => {
                 const s = getTerritoryStyle(g.terrName || null);
                 // Chiave per GIORNO: comprimere PERUGIA di martedì lascia stare
                 // PERUGIA di mercoledì. Prima era il solo id e il clic valeva su
@@ -733,30 +741,19 @@ function DayCell(props: {
                         {conteggio}
                       </span>
                     </button>
-                    {!collapsed &&
-                      (() => {
-                        // Una corsia i cui unici operatori sono tutti in assenza intera si aprirebbe
-                        // su NIENTE (le loro card singole non si rendono): letta così sembra un guasto.
-                        // Meglio dirlo — il territorio è pianificato, la gente quel giorno non c'è.
-                        const cards = renderItems(g.items);
-                        return cards.some(Boolean) ? (
-                          <div className="space-y-1">{cards}</div>
-                        ) : (
-                          <div className="px-1.5 py-0.5 text-[11px] italic text-[var(--brand-text-muted)]">
-                            Nessuno al lavoro — {totale === 1 ? "l'unico assegnato è assente" : 'tutti gli assegnati sono assenti'}
-                          </div>
-                        );
-                      })()}
+                    {!collapsed && <div className="space-y-1">{g.cards}</div>}
                   </div>
                 );
               });
-            })()
-          ) : (
-            <div className="space-y-1">{renderItems(sorted)}</div>
-          )
-        ) : inMagazzino.length ? null : (
-          <div className="text-xs opacity-50">-</div>
-        )}
+            }
+          } else {
+            const cards = renderItems(sorted);
+            if (cards.some(Boolean)) return <div className="space-y-1">{cards}</div>;
+          }
+          // Niente da mostrare: nessuna assegnazione, oppure solo assenti. Il trattino
+          // non compare se il magazzino sotto ha comunque qualcuno da elencare.
+          return inMagazzino.length ? null : <div className="text-xs opacity-50">-</div>;
+        })()}
 
         {inMagazzino.length > 0 && (() => {
           const s = getTerritoryStyle('MAGAZZINO');
