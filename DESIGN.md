@@ -40,7 +40,24 @@ Valori reali in OKLCH. Usali sempre via `var(--token)` (o le utility Tailwind `b
 | `--brand-border-strong` | `0.86 0.008 250` | `0.40 0.012 255` | divisori marcati, bordo bottoni secondary |
 | `--brand-text-main` | `0.27 0.02 255` | `0.94 0.006 255` | testo principale |
 | `--brand-text-muted` | `0.50 0.02 255` | `0.70 0.012 255` | testo secondario, label |
-| `--brand-text-subtle` | `0.62 0.015 255` | `0.56 0.012 255` | placeholder, caption |
+| `--brand-text-subtle` | `0.54 0.015 255` | `0.62 0.012 255` | placeholder, caption |
+
+> ♿ **La scala di testo è vincolata dal contrasto, non dal gusto.** Tutti e tre i token di testo
+> devono rendere ≥ **4,5:1** (WCAG AA, testo normale) su **ognuna** delle tre superfici — e la
+> superficie peggiore è `--brand-surface-muted`, non il bianco. La soglia è 4,5 e non 3 perché
+> l'esonero "testo grande" parte da 24px, mentre questi token vestono testo da 10 a 16px.
+> Il 2026-07-27 `--brand-text-subtle` è passato da `0.62` a `0.54` nel chiaro (rendeva **3,29:1**
+> sulla superficie muted, sotto soglia su 116 usi non decorativi) e da `0.56` a `0.62` nello scuro
+> dormiente. Misure attuali sul caso peggiore: main 13,6:1 · muted 5,4:1 · subtle 4,6:1.
+> La guardia è [`lib/design/contrastoToken.test.ts`](lib/design/contrastoToken.test.ts), che legge
+> i token da `globals.css` e calcola il contrasto: **cambiare un valore fuori soglia fa fallire i test**.
+> Le icone puramente decorative (`aria-hidden`) non sono coperte: non veicolano informazione.
+>
+> ⚠️ **Conseguenza aperta:** nel chiaro `muted` (0.50) e `subtle` (0.54) distano ora ΔL 0.04 —
+> la gerarchia a tre livelli di *colore* è di fatto schiacciata a due. Se servono tre livelli
+> davvero distinti, la mossa è portare `muted` a ~0.44 (resta ampiamente sopra soglia) oppure
+> dichiarare in questa sezione che il terzo livello si porta con **peso e dimensione**, non col
+> colore. Decisione non presa: va fatta qui, non nei singoli moduli.
 
 > Le utility `bg-background` / `bg-muted` / `bg-popover` / `border-border` (convenzione shadcn, usate da [`components/ui/map.tsx`](components/ui/map.tsx) e dai primitivi mapcn) **sono** questi stessi token: `@theme` mappa `--color-background` → `--brand-surface`, `--color-muted` → `--brand-surface-muted`, `--color-border` → `--brand-border`. Non sono un secondo sistema di colore, e non vanno bonificate.
 

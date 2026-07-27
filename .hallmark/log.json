@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-07-27",
+    "scope": "sistema",
+    "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed, solo chiaro)",
+    "enrichment": "none",
+    "brief": "CONTRASTO della scala di testo, chiuso al TOKEN e non nei call-site. --brand-text-subtle valeva oklch(0.62 0.015 255) e rendeva 3,64:1 su bianco e 3,29:1 sulla superficie muted (il caso peggiore, non il bianco): sotto la soglia AA di 4,5:1 per il testo normale. Ampiezza reale misurata: 139 occorrenze del token, 116 NON decorative, distribuite su 10px/11px/text-xs/text-sm/text-base — tutte sotto soglia. La soglia e 4,5 e non 3 perche l'esonero 'testo grande' parte da 24px e questi token vestono testo da 10 a 16px. Risolto cambiando il VALORE del token (chiaro 0.62->0.54 = 4,57:1 sul caso peggiore; scuro dormiente 0.56->0.62 = 4,52:1) invece dei 116 call-site: una modifica sola, gerarchia preservata, nessun file di modulo toccato. Scelto 0.54 e non 0.55 perche 0.55 passa su bianco (4,85) ma NON su muted (4,38). Verificati i 3 usi del token come SFONDO (ExportAssignmentsDialog bottone disabilitato, 2 pallini di stato): li scurire agisce al contrario, ma il testo bianco sul bottone passa da 3,64:1 a 5,06:1 — migliora. Nessun passaggio a recharts/maplibre, dove var() non si risolve. Nuova guardia lib/design/contrastoToken.test.ts: legge i token da globals.css, converte OKLCH->sRGB e calcola il contrasto di ogni token di testo su ognuna delle 3 superfici, nei due temi. VERIFICATA a rovescio: rimesso il valore vecchio, il test fallisce con '3.29:1, sotto AA 4.5:1'. §3 di DESIGN.md riscritta con la regola, le misure e la CONSEGUENZA APERTA: nel chiaro muted (0.50) e subtle (0.54) distano ora dL 0.04, quindi la gerarchia a tre livelli di colore e schiacciata a due — se ne servono tre distinti va portato muted a ~0.44 oppure dichiarato che il terzo livello si porta con peso e dimensione. Decisione NON presa: va fatta in DESIGN.md, non nei moduli."
+  },
+  {
+    "date": "2026-07-27",
     "scope": "app",
     "macrostructure": "Workbench",
     "theme": "DESIGN.md (system-managed, solo chiaro)",
@@ -150,13 +158,5 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Pianificazione (/hub/mappa?vista=pianifica) — testa di modulo standard, gerarchia dei comandi, ordine testa→fasi→lavoro, proporzioni per fase"
-  },
-  {
-    "date": "2026-07-25",
-    "scope": "app",
-    "macrostructure": "Workbench",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Cornice di pagina — la shell diventa l'unico proprietario del bordo: 56px per lato (32 shell + 24 modulo) -> 20px, cap max-w-6xl/7xl rimossi da 13 moduli, shell a max-w-[2560px], launcher a 5 colonne oltre 2000px. Emendato DESIGN.md §8 (contenitore + trappola dei breakpoint misti)."
   }
 ]

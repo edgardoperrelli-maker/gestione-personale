@@ -32,7 +32,7 @@
 
   --brand-text-main:      oklch(0.94 0.006 255);
   --brand-text-muted:     oklch(0.70 0.012 255);
-  --brand-text-subtle:    oklch(0.56 0.012 255);
+  --brand-text-subtle:    oklch(0.62 0.012 255);
 
   --kpi-rosso-bg:        oklch(0.66 0.15 260 / 0.16);
   --kpi-rosso-text:      oklch(0.80 0.12 260);
@@ -190,7 +190,7 @@ html.light {
 
   --brand-text-main:      oklch(0.27 0.02 255);
   --brand-text-muted:     oklch(0.50 0.02 255);
-  --brand-text-subtle:    oklch(0.62 0.015 255);
+  --brand-text-subtle:    oklch(0.54 0.015 255);
 
   --kpi-rosso-bg:        oklch(0.42 0.14 260 / 0.10);
   --kpi-rosso-text:      oklch(0.40 0.14 260);
