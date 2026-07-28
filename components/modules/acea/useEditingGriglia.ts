@@ -7,7 +7,7 @@ import {
   spostaFocus, validaData, validaOperatore,
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
-import type { RigaTabella } from '@/lib/acea/colonneTabella';
+import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
 
 export type Operatore = { id: string; display_name: string };
 
@@ -20,22 +20,37 @@ export type ValoreLocale = { pianificato_a?: string | null; pianificato_il?: str
 type Props = {
   righe: RigaTabella[];
   operatori: Operatore[];
+  /**
+   * Le colonne A SCHERMO, nell'ordine in cui si vedono.
+   *
+   * La griglia si estende su TUTTE, non sulle sole modificabili: un ODL, una matricola o un
+   * indirizzo si devono poter selezionare e copiare come in Excel — e` il gesto con cui si porta
+   * fuori un elenco da incollare in una mail o in un foglio. Prima i campi ACEA non erano nemmeno
+   * celle: niente focus, niente selezione, niente Ctrl+C.
+   *
+   * L'ordine e` quello scelto dall'utente (le colonne si trascinano), quindi va passato: un
+   * intervallo copiato deve uscire nell'ordine in cui si vede, non in quello di definizione.
+   */
+  colonneVisibili: ChiaveColonna[];
   /** Chiamata dopo un salvataggio andato a buon fine, per ricaricare i dati veri. */
   onSalvato: (operazioneId: string | null) => void;
   attivo: boolean;
 };
 
 /**
- * Editing a griglia sulle due colonne modificabili.
+ * Griglia alla Excel sulla tabella: ci si muove ovunque, si scrive in due colonne.
  *
- * Il modello indicizza SOLO le colonne modificabili: il focus si muove fra Esecutore e Data, mai
- * sui campi ACEA, che sono immutabili per principio e non offrono nemmeno il focus.
+ * SELEZIONE E COPIA su tutte le colonne a schermo; SCRITTURA solo su Esecutore e Data pianificata.
+ * I campi ACEA restano immutabili per principio — il registro e` lo specchio di ACEA — ma leggerli
+ * e portarseli via e` un'altra cosa, e prima non si poteva: non essendo celle non avevano focus,
+ * quindi niente selezione e niente Ctrl+C. Un incolla che cade su una colonna ACEA viene saltato
+ * e detto, non applicato in silenzio.
  *
  * La persistenza è ottimistica con rollback: la cella mostra subito il valore nuovo, la scrittura
  * parte, e se fallisce il valore torna indietro con un avviso. In Excel si scrive e basta; qui
  * ogni cella è una chiamata di rete che può fallire, e l'utente deve vedere cosa non è passato.
  */
-export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props) {
+export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato, attivo }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
   const [locali, setLocali] = useState<Map<string, ValoreLocale>>(new Map());
@@ -43,9 +58,19 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
   const righeRef = useRef(righe);
   righeRef.current = righe;
 
+  const colonneRef = useRef(colonneVisibili);
+  colonneRef.current = colonneVisibili;
+
   const limiti = useMemo(
-    () => ({ righe: righe.length, colonne: COLONNE_EDITABILI.length }),
-    [righe.length],
+    () => ({ righe: righe.length, colonne: colonneVisibili.length }),
+    [righe.length, colonneVisibili.length],
+  );
+
+  /** `true` se su quella colonna si puo` SCRIVERE. Muoversi e copiare si puo` ovunque. */
+  const editabile = useCallback(
+    (chiave: string): chiave is ColonnaEditabile =>
+      (COLONNE_EDITABILI as string[]).includes(chiave),
+    [],
   );
 
   // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso.
@@ -64,10 +89,17 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
     const nuoviLocali = new Map(locali);
     const errori: string[] = [];
 
+    let saltate = 0;
     for (const s of scritture) {
       const chiave = chiaveDi(s.riga);
       if (!chiave) continue;
-      const colonna = COLONNE_EDITABILI[s.colonna];
+      const colonna = colonneRef.current[s.colonna];
+      // I campi ACEA non si scrivono: il registro e` il suo specchio. Si contano e si dicono,
+      // invece di lasciar credere che l'incolla sia passato tutto.
+      if (!colonna || !editabile(colonna)) {
+        saltate += 1;
+        continue;
+      }
       if (colonna === 'pianificato_a') {
         const e = validaOperatore(s.valore, operatori);
         if (daSaltare(e)) continue;
@@ -84,6 +116,11 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
       }
     }
 
+    if (saltate > 0) {
+      toast.info(
+        `${saltate} ${saltate === 1 ? 'cella' : 'celle'} su colonne ACEA: non modificabili, saltate.`,
+      );
+    }
     if (errori.length > 0) {
       const unici = [...new Set(errori)];
       toast.error(unici.length > 2 ? `${unici.slice(0, 2).join('; ')} e altri ${unici.length - 2}` : unici.join('; '));
@@ -127,7 +164,7 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
     } finally {
       setSalvando(false);
     }
-  }, [locali, operatori, chiaveDi, onSalvato]);
+  }, [locali, operatori, chiaveDi, onSalvato, editabile]);
 
   /** Testo della selezione corrente, nel formato che Excel si aspetta (TAB + a capo). */
   const testoSelezione = useCallback((): string => {
@@ -141,11 +178,17 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
       const loc = locali.get(chiave);
       const celle: string[] = [];
       for (let c = n.da.colonna; c <= n.a.colonna; c++) {
-        const col = COLONNE_EDITABILI[c];
-        const v = col === 'pianificato_a'
-          ? (loc?.pianificato_a ?? riga.pianificato_a ?? '')
-          : (loc?.pianificato_il ?? riga.pianificato_il ?? '');
-        celle.push(v);
+        const col = colonneRef.current[c];
+        if (!col) continue;
+        if (col === 'pianificato_a') celle.push(loc?.pianificato_a ?? riga.pianificato_a ?? '');
+        else if (col === 'pianificato_il') celle.push(loc?.pianificato_il ?? riga.pianificato_il ?? '');
+        else {
+          // Le colonne ACEA escono con il testo che si VEDE — indirizzo composto, stato in
+          // chiaro, date all'italiana — perche` e` quello che chi copia si aspetta di incollare.
+          // Il trattino dei vuoti no: in un foglio va una cella vuota, non un carattere.
+          const v = valoreCella(riga, col);
+          celle.push(v === '—' ? '' : v);
+        }
       }
       out.push(celle.join('\t'));
     }
@@ -225,6 +268,6 @@ export function useEditingGriglia({ righe, operatori, onSalvato, attivo }: Props
 
   return {
     focus, selezione, celleSelezionate, locali, salvando,
-    clickCella, applica, setFocus,
+    clickCella, applica, setFocus, editabile,
   };
 }

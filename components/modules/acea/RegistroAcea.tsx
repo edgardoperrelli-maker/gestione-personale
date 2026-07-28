@@ -10,7 +10,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
-import { COLONNE_EDITABILI, useEditingGriglia, type Operatore } from './useEditingGriglia';
+import { useEditingGriglia, type Operatore } from './useEditingGriglia';
 import { useLayoutTabella } from './useLayoutTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
@@ -68,12 +68,25 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
   // `onSalvato: ricarica` e non `() => ricarica()`: una lambda nuova a ogni render fa riregistrare
   // i tre listener globali di `useEditingGriglia` a ogni battuta.
-  const editing = useEditingGriglia({ righe, operatori, onSalvato: ricarica, attivo: true });
+  const chiaviVisibili = useMemo(() => colonneVisibili.map((c) => c.chiave), [colonneVisibili]);
+  const editing = useEditingGriglia({
+    righe, operatori, colonneVisibili: chiaviVisibili, onSalvato: ricarica, attivo: true,
+  });
 
-  const indiceEditabile = useCallback((chiave: string) => {
-    const i = COLONNE_EDITABILI.indexOf(chiave as (typeof COLONNE_EDITABILI)[number]);
-    return i >= 0 ? i : null;
-  }, []);
+  /**
+   * La posizione della colonna nella griglia: ORA e` la posizione a schermo, per tutte.
+   *
+   * Prima era l'indice fra le sole due modificabili, e i campi ACEA non avevano cella: niente
+   * focus, niente selezione, niente copia. Ora ci si muove ovunque e si copia ovunque — a
+   * scrivere restano solo Esecutore e Data.
+   */
+  const indiceColonna = useCallback(
+    (chiave: string) => {
+      const i = chiaviVisibili.indexOf(chiave as (typeof chiaviVisibili)[number]);
+      return i >= 0 ? i : null;
+    },
+    [chiaviVisibili],
+  );
 
   /** Valore non ancora confermato dal server, mostrato in corsivo finché non si ricarica. */
   const valoreLocale = useCallback((r: RigaTabella, chiave: string): string | null => {
@@ -298,7 +311,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         opzioni={opzioni}
         comandiColonne={comandi}
         editing={{
-          indiceEditabile,
+          indiceColonna,
+          editabile: editing.editabile,
           focus: editing.focus,
           celleSelezionate: editing.celleSelezionate,
           valoreLocale,
@@ -310,7 +324,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         Esecutore e Data pianificata si modificano direttamente in tabella: clicca una cella, usa le
         frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. I campi ACEA non sono modificabili. Le colonne si trascinano per riordinarle e si
+        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi; a
+        modificarsi restano solo Esecutore e Data. Le colonne si trascinano per riordinarle e si
         tirano dal bordo per la larghezza (doppio click sul bordo per rimetterla com&apos;era).
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
       </p>

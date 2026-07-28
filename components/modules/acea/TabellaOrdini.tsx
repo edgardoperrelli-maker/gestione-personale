@@ -71,8 +71,10 @@ export type Props = {
   comandiColonne?: ComandiColonne;
   /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
   editing?: {
-    /** Indice della colonna modificabile, o null se la colonna non lo è. */
-    indiceEditabile: (chiave: string) => number | null;
+    /** Posizione della colonna nella griglia (tutte quelle a schermo), o null se non c'è. */
+    indiceColonna: (chiave: string) => number | null;
+    /** `true` solo dove si può SCRIVERE: muoversi e copiare si può ovunque. */
+    editabile: (chiave: string) => boolean;
     focus: { riga: number; colonna: number } | null;
     celleSelezionate: Set<string>;
     valoreLocale: (r: RigaTabella, chiave: string) => string | null;
@@ -448,7 +450,10 @@ export default function TabellaOrdini({
                     />
                   </div>
                   {visibili.map((c, iCol) => {
-                    const iEdit = editing?.indiceEditabile(c.chiave) ?? null;
+                    // Ogni colonna e` una cella della griglia: selezionabile e copiabile. La
+                    // scrittura resta sulle due, ed e` `scrivibile` a dirlo.
+                    const iEdit = editing?.indiceColonna(c.chiave) ?? null;
+                    const scrivibile = editing?.editabile(c.chiave) ?? false;
                     const locale = editing?.valoreLocale(r, c.chiave) ?? null;
                     const testo = locale ?? valoreCella(r, c.chiave);
                     const evidenzia = c.chiave === 'scadenza';
@@ -496,7 +501,7 @@ export default function TabellaOrdini({
                         }
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
-                        } ${iEdit !== null ? 'cursor-cell' : ''} ${
+                        } ${scrivibile ? 'cursor-cell' : ''} ${
                           inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
                         } ${
                           inFocus
