@@ -21,11 +21,15 @@ const CHUNK = 200;
 /**
  * Identificativi per richiesta quando si risolvono gli interventi.
  *
- * Più alto di `CHUNK` perché qui si manda solo una lista di uuid e si riceve una colonna: il costo
- * è la latenza di andata e ritorno, non il payload. A 200 servivano una dozzina di richieste per
- * un dato che ne richiede due.
+ * NON si alza per fare meno richieste: la lista di uuid finisce nella URL, e un uuid sono 37
+ * caratteri. A 900 la richiesta superava i 33 KB e veniva rifiutata prima ancora di arrivare a
+ * PostgREST — un `Bad Request` nudo, senza dettaglio, che ha portato giù la lettura dell'intero
+ * registro. 200 stanno in ~7 KB, sotto il limite di qualunque proxy.
+ *
+ * Il risparmio di andate e ritorno si prende altrove: proiettando le colonne (payload) e tenendo
+ * il risultato in memoria per un minuto, non allungando la URL.
  */
-const CHUNK_ID = 900;
+const CHUNK_ID = 200;
 
 /**
  * Le dichiarazioni cambiano solo quando un operatore chiude un rapportino: non a ogni pagina.
