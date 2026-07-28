@@ -7,8 +7,8 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import {
-  assegnaGruppi, ereditaGruppi,
-  type Donatore, type PuntoOrdine, type PuntoSenzaCoord,
+  approssimata, assegnaGruppi, ereditaGruppi,
+  type Donatore, type Precisione, type PuntoOrdine, type PuntoSenzaCoord,
 } from './microaree';
 
 /** Pagina delle scansioni interne: non esce dal server, puo` essere ampia. */
@@ -50,22 +50,27 @@ export type EsitoGruppi = { microaree: number; senzaGruppo: number; stimati: num
 export async function ricalcolaGruppi(): Promise<EsitoGruppi> {
   const punti: PuntoOrdine[] = [];
   const anagrafica = new Map<string, { comune: string | null; cap: string | null }>();
+  /** Righe con coordinate VERE ma grossolane: hanno un gruppo, ma non e` misurato. */
+  const grossolane = new Set<string>();
 
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('acea_ordini')
-      .select('odl, numero_operazione, comune, cap, lat, lng')
+      .select('odl, numero_operazione, comune, cap, lat, lng, geocodifica_precisione')
       .order('odl', { ascending: true })
       .order('numero_operazione', { ascending: true })
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as Array<{
       odl: string; numero_operazione: string; comune: string | null; cap: string | null;
-      lat: number | null; lng: number | null;
+      lat: number | null; lng: number | null; geocodifica_precisione: Precisione | null;
     }>;
     for (const r of blocco) {
       const chiave = `${r.odl}|${r.numero_operazione}`;
       anagrafica.set(chiave, { comune: r.comune, cap: r.cap });
+      // Un punto preso sulla via o sul comune fa cadere la riga nella cella giusta, ma non dice
+      // dove sta il misuratore: il gruppo che ne nasce e` una STIMA, e si mostra come tale.
+      if (approssimata(r.geocodifica_precisione)) grossolane.add(chiave);
       punti.push({
         chiave,
         comune: r.comune,
@@ -76,8 +81,18 @@ export async function ricalcolaGruppi(): Promise<EsitoGruppi> {
   }
 
   const gruppi = assegnaGruppi(punti);
-  for (const [n, odls] of odlPerNumero(gruppi.perRiga)) {
+  // Due passate distinte: i gruppi da coordinata esatta e quelli da coordinata grossolana. Scrivere
+  // tutto come misurato metterebbe senza tilde righe che stanno nella cella per approssimazione.
+  const esatte = new Map<string, number>();
+  const stimateDaPunto = new Map<string, number>();
+  for (const [chiave, n] of gruppi.perRiga) {
+    (grossolane.has(chiave) ? stimateDaPunto : esatte).set(chiave, n);
+  }
+  for (const [n, odls] of odlPerNumero(esatte)) {
     await scriviGruppo([...new Set(odls)], n, false);
+  }
+  for (const [n, odls] of odlPerNumero(stimateDaPunto)) {
+    await scriviGruppo([...new Set(odls)], n, true);
   }
 
   // Chi resta senza: gli si presta il gruppo dominante della sua zona.
@@ -96,5 +111,9 @@ export async function ricalcolaGruppi(): Promise<EsitoGruppi> {
     await scriviGruppo([...new Set(odls)], n, true);
   }
 
-  return { microaree: gruppi.totale, senzaGruppo: gruppi.senzaGruppo, stimati: prestati.size };
+  return {
+    microaree: gruppi.totale,
+    senzaGruppo: gruppi.senzaGruppo,
+    stimati: prestati.size + stimateDaPunto.size,
+  };
 }

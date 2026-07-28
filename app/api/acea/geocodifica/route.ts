@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { geocodeIndirizzoServer } from '@/lib/interventi/geocodeServer';
-import { dentroLazio } from '@/lib/acea/microaree';
+import { dentroLazio, ripieghiFuoriRegione, type Precisione } from '@/lib/acea/microaree';
 import { ricalcolaGruppi } from '@/lib/acea/gruppiServer';
 
 export const runtime = 'nodejs';
@@ -47,22 +47,49 @@ const chiaveDi = (r: RigaDaGeocodificare) =>
  * esce dal Lazio la riga resta senza gruppo, marcata `fuori_regione`. Senza gruppo si vede; con un
  * gruppo sbagliato no.
  */
+type EsitoCoord = {
+  lat: number;
+  lng: number;
+  esito: 'ok' | 'non_trovato' | 'fuori_regione';
+  precisione: Precisione | null;
+};
+
 async function coordinateInLazio(
-  indirizzo: string,
+  via: string,
+  civico: string,
   cap: string,
   comune: string,
-): Promise<{ lat: number; lng: number; esito: 'ok' | 'non_trovato' | 'fuori_regione' }> {
-  const primo = await geocodeIndirizzoServer(indirizzo, cap, comune);
-  if (primo && dentroLazio(primo)) return { ...primo, esito: 'ok' };
+): Promise<EsitoCoord> {
+  const completo = [via, civico].filter(Boolean).join(' ').trim();
 
+  const primo = await geocodeIndirizzoServer(completo, cap, comune);
+  if (primo && dentroLazio(primo)) return { ...primo, esito: 'ok', precisione: 'civico' };
+
+  // Il provider ha risposto, ma altrove: si rifà la stessa domanda ancorandola al territorio.
   if (primo) {
-    // Il provider ha risposto, ma altrove: si rifà la domanda ancorandola al territorio.
-    const secondo = await geocodeIndirizzoServer(indirizzo, cap, `${comune}, Lazio`);
-    if (secondo && dentroLazio(secondo)) return { ...secondo, esito: 'ok' };
-    return { lat: primo.lat, lng: primo.lng, esito: 'fuori_regione' };
+    const ancorato = await geocodeIndirizzoServer(completo, cap, `${comune}, Lazio`);
+    if (ancorato && dentroLazio(ancorato)) {
+      return { ...ancorato, esito: 'ok', precisione: 'civico' };
+    }
   }
 
-  return { lat: 0, lng: 0, esito: 'non_trovato' };
+  /*
+    Ancora fuori: si chiede MENO.
+
+    A Roma la via senza civico (il comune sarebbe 1.285 km², un punto solo per l'Eur e Prima Porta);
+    fuori Roma direttamente il comune, che è un punto sicuro dentro i suoi confini e fa ereditare
+    la microarea giusta. Le regole stanno in `ripieghiFuoriRegione`, pure e testate.
+
+    Il punto che ne esce è VERO ma grossolano: si segna la precisione, e il gruppo che ne nasce si
+    mostra come stimato — «da queste parti», non «a 2 km da qui».
+  */
+  for (const t of ripieghiFuoriRegione(via, cap, comune)) {
+    const r = await geocodeIndirizzoServer(t.indirizzo, t.indirizzo === '' ? '' : cap, t.citta);
+    if (r && dentroLazio(r)) return { ...r, esito: 'ok', precisione: t.precisione };
+  }
+
+  if (primo) return { lat: primo.lat, lng: primo.lng, esito: 'fuori_regione', precisione: null };
+  return { lat: 0, lng: 0, esito: 'non_trovato', precisione: null };
 }
 
 /** GET — a che punto è la geocodifica. */
@@ -143,13 +170,14 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const esito = await coordinateInLazio(indirizzo, r.cap ?? '', r.comune);
+      const esito = await coordinateInLazio(r.via ?? '', r.civico ?? '', r.cap ?? '', r.comune);
       await supabaseAdmin
         .from('acea_ordini')
         .update({
           lat: esito.esito === 'ok' ? esito.lat : null,
           lng: esito.esito === 'ok' ? esito.lng : null,
           geocodifica_esito: esito.esito,
+          geocodifica_precisione: esito.precisione,
           geocodifica_at: adesso,
           geocodifica_chiave: chiaveDi(r),
         })

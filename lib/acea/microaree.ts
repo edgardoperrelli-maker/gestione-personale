@@ -201,3 +201,62 @@ export function ereditaGruppi(
   }
   return prestati;
 }
+
+/**
+ * Quanto è preciso il punto che abbiamo per una riga.
+ *
+ * Non è un dettaglio contabile: decide se il gruppo è MISURATO o STIMATO. Un punto preso sul
+ * centro del comune non dice dove sta il misuratore, dice in quale comune sta — e un gruppo
+ * costruito su quello va letto come «da queste parti», non come «a 2 km da qui».
+ */
+export type Precisione = 'civico' | 'via' | 'comune';
+
+/** Un tentativo di geocodifica: cosa chiedere ai provider, e quanto varrà la risposta. */
+export type Tentativo = { indirizzo: string; citta: string; precisione: Precisione };
+
+/** `true` per il comune che non si può trattare come un punto solo. */
+export const eRomaComune = (comune: string | null | undefined): boolean =>
+  (comune ?? '').trim().toUpperCase() === 'ROMA';
+
+/**
+ * I ripieghi da provare quando l'indirizzo completo cade FUORI dal Lazio.
+ *
+ * Un risultato fuori regione è quasi sempre un omonimo: «VIA ROMA 1» esiste ovunque, e il civico
+ * è la parte che più facilmente porta il provider sulla via sbagliata di un'altra città. Invece di
+ * arrendersi si chiede meno, e si ancora al territorio.
+ *
+ * **Fuori Roma si scende al COMUNE.** Se il nome della via ha portato altrove, richiederla senza
+ * civico la porterebbe altrove uguale: tanto vale prendere il comune, che è un punto sicuro dentro
+ * i suoi confini e fa ereditare la microarea giusta. Per un comune di provincia, che sta dentro un
+ * giro, quella zona è comunque l'informazione utile.
+ *
+ * **A Roma NO, si scende alla VIA.** Il comune di Roma è 1.285 km²: un punto solo per tutta la
+ * città metterebbe insieme l'Eur e Prima Porta in una microarea inventata, che è peggio del non
+ * sapere. La via senza civico invece è precisa a poche centinaia di metri — dentro la cella da
+ * 2 km è quasi sempre lo stesso posto.
+ *
+ * Se anche il ripiego esce dal Lazio la riga resta senza coordinate: a Roma ci pensa comunque
+ * l'eredità dal CAP, che è più onesta di un punto piantato sul Colosseo.
+ */
+export function ripieghiFuoriRegione(
+  via: string | null,
+  cap: string | null,
+  comune: string | null,
+): Tentativo[] {
+  const v = (via ?? '').trim();
+  const c = (comune ?? '').trim();
+  if (c === '') return [];
+
+  // «, Lazio» in coda: è l'ancora che impedisce al provider di riproporre l'omonimo di un'altra
+  // regione, e senza di essa il ripiego rischierebbe di ripetere lo stesso errore.
+  const citta = `${c}, Lazio`;
+
+  if (eRomaComune(c)) {
+    return v === '' ? [] : [{ indirizzo: v, citta, precisione: 'via' }];
+  }
+  return [{ indirizzo: '', citta, precisione: 'comune' }];
+}
+
+/** `true` se il punto è troppo grossolano per dire «a 2 km da qui». */
+export const approssimata = (p: Precisione | null | undefined): boolean =>
+  p !== null && p !== undefined && p !== 'civico';

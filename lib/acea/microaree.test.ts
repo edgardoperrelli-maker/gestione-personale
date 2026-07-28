@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LATO_LAT, LATO_LNG, RIQUADRO_LAZIO, assegnaGruppi, cella, dentroLazio, ereditaGruppi,
-  type PuntoOrdine,
+  LATO_LAT, LATO_LNG, RIQUADRO_LAZIO, approssimata, assegnaGruppi, cella, dentroLazio,
+  ereditaGruppi, ripieghiFuoriRegione, type PuntoOrdine,
 } from './microaree';
 
 const ROMA_CENTRO = { lat: 41.8933, lng: 12.4829 };
@@ -245,5 +245,58 @@ describe('ereditaGruppi', () => {
     );
     expect(g.get('a')).toBe(7);
     expect(g.get('b')).toBe(7);
+  });
+});
+
+describe('ripieghiFuoriRegione', () => {
+  // Il comune di Roma è 1.285 km²: un punto solo per tutta la città metterebbe insieme l'Eur e
+  // Prima Porta in una microarea inventata, che è peggio del non sapere.
+  it('a Roma scende alla VIA, non al comune', () => {
+    const t = ripieghiFuoriRegione('VIA TIBURTINA', '00159', 'ROMA');
+    expect(t).toEqual([{ indirizzo: 'VIA TIBURTINA', citta: 'ROMA, Lazio', precisione: 'via' }]);
+  });
+
+  // Fuori Roma il nome della via ha gia` portato altrove: richiederla senza civico la porterebbe
+  // altrove uguale. Il comune e` un punto sicuro dentro i suoi confini.
+  it('fuori Roma scende al COMUNE', () => {
+    const t = ripieghiFuoriRegione('VIA ROMA', '00019', 'TIVOLI');
+    expect(t).toEqual([{ indirizzo: '', citta: 'TIVOLI, Lazio', precisione: 'comune' }]);
+  });
+
+  // Senza l'ancora regionale il ripiego rischierebbe di ripetere lo stesso errore che sta
+  // correggendo.
+  it('ancora sempre al Lazio', () => {
+    for (const c of ['ROMA', 'TIVOLI', 'FORMELLO']) {
+      for (const t of ripieghiFuoriRegione('VIA ALFA', '00100', c)) {
+        expect(t.citta).toContain('Lazio');
+      }
+    }
+  });
+
+  it('senza comune non c’e` ripiego da tentare', () => {
+    expect(ripieghiFuoriRegione('VIA ALFA', '00100', null)).toEqual([]);
+    expect(ripieghiFuoriRegione('VIA ALFA', '00100', '  ')).toEqual([]);
+  });
+
+  it('a Roma senza via non c’e` niente da chiedere', () => {
+    // Il ripiego romano E` la via: senza, chiedere «ROMA» pianterebbe il punto sul centro.
+    expect(ripieghiFuoriRegione(null, '00159', 'ROMA')).toEqual([]);
+    expect(ripieghiFuoriRegione('', '00159', 'ROMA')).toEqual([]);
+  });
+
+  it('non si fa confondere da maiuscole e spazi', () => {
+    expect(ripieghiFuoriRegione('via alfa', '00100', '  roma ')[0]?.precisione).toBe('via');
+  });
+});
+
+describe('approssimata', () => {
+  // E` questa a decidere la tilde: un punto sul comune dice «da queste parti», non «a 2 km da qui».
+  it('solo il civico e` preciso', () => {
+    expect(approssimata('civico')).toBe(false);
+    expect(approssimata('via')).toBe(true);
+    expect(approssimata('comune')).toBe(true);
+  });
+  it('senza precisione non e` approssimata: non e` proprio geocodificata', () => {
+    expect(approssimata(null)).toBe(false);
   });
 });
