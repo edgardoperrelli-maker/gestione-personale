@@ -4,20 +4,56 @@
 const NOMINATIM_URL = 'https://nominatim.openstreetmap.org/search';
 const PHOTON_URL = 'https://photon.komoot.io/api';
 const USER_AGENT = 'gestione-personale-app';
-const RATE_LIMIT_MS = 1000;
 
 export type Coordinates = { lat: number; lng: number };
 type NominatimResult = { lat: string; lon: string };
 type PhotonResponse = { features?: Array<{ geometry?: { coordinates?: number[] } }> };
 
-// Coda seriale GLOBALE per processo: tutte le geocodifiche (client o server) passano
-// di qui a 1 req/sec. È intenzionale — rispetta la usage policy di Nominatim (≤1 req/sec
-// per IP). Lato server (route/worker) significa throughput max 1 indirizzo/sec per processo:
-// per questo la rotta lavora a blocchi e l'avanzamento è persistito (vedi spec geocoding §5).
-let queue: Promise<void> = Promise.resolve();
+/*
+  Rate limit: UNA CODA PER PROVIDER, non una sola per tutti.
+
+  Il limite di 1 richiesta al secondo è di Nominatim, e vale PER SERVIZIO: è la sua usage policy,
+  legata al suo IP e alle sue macchine. Photon è un altro servizio, su un altro host, con un'altra
+  policy — metterlo in fila dietro Nominatim non rispetta niente, paga soltanto una penale che
+  nessuno ha chiesto. Su un indirizzo che arriva fino a Photon erano due secondi di attesa buttati.
+
+  Le pause restano un secondo su entrambe le code: la fretta qui si paga con un IP limitato, che è
+  molto peggio della lentezza. Il guadagno viene dal NON sommarle, non dall'accorciarle.
+
+  Seconda cosa, ed è la più importante: **la pausa la paga il PROSSIMO, non chi ha appena finito.**
+  Prima la promessa restituita si risolveva solo dopo il secondo di attesa, quindi chi aspettava un
+  indirizzo pagava anche la pausa che serviva a proteggere la chiamata SUCCESSIVA — e sull'ultima
+  della cascata quella pausa non proteggeva proprio niente. Ora la coda avanza dopo la pausa, ma
+  il chiamante riceve la risposta appena c'è. La distanza fra due richieste allo stesso provider
+  resta di un secondo pieno, che è il vincolo vero.
+*/
+const RATE_LIMIT_MS = 1000;
+const code = new Map<string, Promise<unknown>>();
 
 function delay(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Accoda `operazione` sulla coda di `provider` e la esegue quando tocca a lei.
+ *
+ * Esportata perché il comportamento delle code è una cosa che si deve poter verificare: che due
+ * chiamate allo stesso provider restino distanziate, che due provider diversi non si aspettino a
+ * vicenda, e che una chiamata fallita non pianti la coda per tutte quelle dopo.
+ */
+export function inCoda<T>(
+  provider: string,
+  operazione: () => Promise<T>,
+  pausaMs: number = RATE_LIMIT_MS,
+): Promise<T> {
+  const precedente = code.get(provider) ?? Promise.resolve();
+  const eseguito = precedente.then(operazione);
+  // `then(pausa, pausa)`: anche una chiamata ANDATA MALE deve far scattare l'attesa e lasciare la
+  // coda pulita. Senza il ramo d'errore, un fetch che esplode propagherebbe il rifiuto lungo tutta
+  // la catena e ogni richiesta successiva a quel provider morirebbe con l'errore della prima.
+  const pausa = () => delay(pausaMs);
+  code.set(provider, eseguito.then(pausa, pausa));
+  return eseguito;
 }
 function collapseSpaces(value: string): string {
   return value.replace(/\s+/g, ' ').trim();
@@ -58,20 +94,9 @@ function parsePhotonResponse(data: PhotonResponse): Coordinates | null {
   const lat = Number(coordinates[1]);
   return isValidCoordinates(lat, lng) ? { lat, lng } : null;
 }
-function runSerial<T>(operation: () => Promise<T>): Promise<T> {
-  const run = queue.then(async () => {
-    try {
-      return await operation();
-    } finally {
-      await delay(RATE_LIMIT_MS);
-    }
-  });
-  queue = run.then(() => undefined, () => undefined);
-  return run;
-}
 async function fetchNominatim(params: URLSearchParams): Promise<Coordinates | null> {
   try {
-    return await runSerial(async () => {
+    return await inCoda('nominatim', async () => {
       const response = await fetch(`${NOMINATIM_URL}?${params.toString()}`, { headers: { 'User-Agent': USER_AGENT } });
       if (!response.ok) {
         console.warn(`[geocoding] Nominatim HTTP ${response.status}`);
@@ -88,7 +113,7 @@ async function fetchNominatim(params: URLSearchParams): Promise<Coordinates | nu
 async function fetchPhoton(query: string): Promise<Coordinates | null> {
   try {
     const params = new URLSearchParams({ q: query, limit: '1' });
-    return await runSerial(async () => {
+    return await inCoda('photon', async () => {
       const response = await fetch(`${PHOTON_URL}?${params.toString()}`, { headers: { 'User-Agent': USER_AGENT } });
       if (!response.ok) {
         console.warn(`[geocoding] Photon HTTP ${response.status}`);
@@ -106,7 +131,11 @@ async function fetchPhoton(query: string): Promise<Coordinates | null> {
 /**
  * Risolve le coordinate di un indirizzo interrogando i provider in cascata
  * (Nominatim strutturato → free-text con/senza CAP → Photon con/senza CAP).
- * Nessuna cache: la cache (client o server) è gestita dai wrapper. Rate-limit 1/sec.
+ * Nessuna cache: la cache (client o server) è gestita dai wrapper.
+ *
+ * Rate-limit 1/sec PER PROVIDER: i passaggi restano in sequenza — il secondo si fa solo se il
+ * primo non ha risposto — ma quando la cascata passa da Nominatim a Photon non paga l'attesa
+ * dell'altro servizio. Sul registro ACEA la cascata arriva spesso in fondo, ed è lì che si vede.
  */
 export async function resolveCoordsFromProviders(
   indirizzo: string,
