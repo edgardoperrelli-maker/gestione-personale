@@ -35,6 +35,12 @@ export type RigaTabella = {
   microarea: number | null;
   /** `true` se il gruppo e` PRESTATO dal CAP/comune e non calcolato dalle proprie coordinate. */
   microarea_stimata?: boolean;
+  /**
+   * `true` se questo ODL porta più operazioni, e quindi il numero operazione serve a distinguerle.
+   * Lo calcola il server sulle righe della pagina: il client non può saperlo da solo, perché le due
+   * righe di uno stesso ODL potrebbero cadere su pagine diverse.
+   */
+  odl_multiplo?: boolean;
   impianto: string | null;
   matricola: string | null;
   valore_netto: number | null;
@@ -247,10 +253,19 @@ export function dataIt(iso: string | null | undefined): string {
 export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
   switch (c) {
     case 'odl':
-      // L'operazione si mostra solo quando serve distinguere: sui pochi ordini a più operazioni.
-      return r.numero_operazione && r.numero_operazione !== '0010'
-        ? `${r.odl}/${r.numero_operazione}`
-        : r.odl;
+      /*
+        Il numero operazione si mostra SOLO sugli ODL che ne hanno davvero più d'una.
+
+        Prima la condizione era «diverso da 0010», dando per scontato che 0010 fosse l'operazione
+        di default e il resto l'eccezione. Vale per le massive, dove 0010 sono tutte e 2.759 le
+        righe. Non vale per il dunning, dove 0010 non compare MAI: lì il numero dice a che punto
+        della sequenza di sollecito sta l'ordine (0190, 0120, 0210…), non che ce ne sia più d'uno.
+        Il risultato era un suffisso su tutte le 2.335 righe dunning per distinguerne 3.
+
+        Un ODL che compare una volta sola si scrive nudo: è così che lo si cerca su ACEA, e così
+        che lo si legge al telefono.
+      */
+      return r.odl_multiplo && r.numero_operazione ? `${r.odl}/${r.numero_operazione}` : r.odl;
     case 'indirizzo':
       return [r.via, r.civico].filter(Boolean).join(' ') || '—';
     case 'stato':
