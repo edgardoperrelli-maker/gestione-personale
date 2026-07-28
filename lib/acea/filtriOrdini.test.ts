@@ -8,7 +8,9 @@ import {
 
 const q = (s: string) => leggiFiltri(new URLSearchParams(s));
 
-const ELENCHI_VUOTI = { comune: [], attivita: [], stato_desc: [], operatore_cognome: [], cap: [] };
+const ELENCHI_VUOTI = {
+  comune: [], attivita: [], stato_desc: [], operatore_cognome: [], cap: [], microarea: [],
+};
 const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null };
 
 describe('leggiFiltri', () => {
@@ -67,10 +69,13 @@ describe('leggiFiltri — colonne a elenco', () => {
   });
 
   it('colonne diverse restano indipendenti', () => {
-    const f = q('comune=ROMA&attivita=DUNNING&operatore_cognome=ROSSI&stato_desc=Iniziato&cap=00139');
+    const f = q('comune=ROMA&attivita=DUNNING&operatore_cognome=ROSSI&stato_desc=Iniziato&cap=00139&microarea=12');
     expect(f.elenchi).toEqual({
       comune: ['ROMA'], attivita: ['DUNNING'],
       operatore_cognome: ['ROSSI'], stato_desc: ['Iniziato'], cap: ['00139'],
+      // Il gruppo e` un intero in banca dati ma viaggia come stringa nella URL, come ogni altra
+      // spunta: e` Postgres a convertirlo, e `in('microarea', ['12'])` resta un `in` di uno.
+      microarea: ['12'],
     });
   });
 
@@ -365,5 +370,53 @@ describe('filtri di pianificazione', () => {
     };
     // Esecutore (spunte + «non assegnato») è UN imbuto; Data pianificata (stato + giorno) è l'altro.
     expect(contaFiltriColonna(f)).toBe(2);
+  });
+});
+
+/*
+  L'INVARIANTE che tiene onesta la tabella: ogni filtro di colonna deve diventare un parametro
+  della query, cioe` deve essere applicato da Postgres sull'intero registro.
+
+  A schermo ci sono 300 righe di 5.000+. Un filtro applicato al caricato mostrerebbe un
+  sottoinsieme di un sottoinsieme, con un conteggio che non corrisponde a niente: «12 di 871»
+  quando i risultati veri sono 400. E` il difetto piu` facile da introdurre senza accorgersene —
+  basta una riga di `.filter()` nel componente — e il piu` difficile da vedere guardando lo
+  schermo, perche` una tabella filtrata male sembra una tabella filtrata bene.
+*/
+describe('ogni filtro di colonna arriva al server', () => {
+  it('le colonne a elenco emettono il loro parametro', () => {
+    for (const c of COLONNE_ELENCO) {
+      const f = filtriVuoti();
+      f.elenchi[c] = ['X'];
+      expect(parametriQuery(f, 'dunning', 300).getAll(c)).toEqual(['X']);
+    }
+  });
+
+  it('le colonne a testo emettono il loro parametro', () => {
+    for (const c of COLONNE_TESTO) {
+      const f = filtriVuoti();
+      f.testi[c] = 'abc';
+      expect(parametriQuery(f, 'dunning', 300).get(c)).toBe('abc');
+    }
+  });
+
+  it('scadenza e pianificazione emettono i loro', () => {
+    const f = filtriVuoti();
+    f.scadenza = 'scaduti';
+    f.pianificazione.senzaEsecutore = true;
+    f.pianificazione.pianificazione = 'non_pianificati';
+    const qs = parametriQuery(f, 'dunning', 300);
+    expect(qs.get('scadenza')).toBe('scaduti');
+    expect(qs.get('senzaEsecutore')).toBe('1');
+    expect(qs.get('pianificazione')).toBe('non_pianificati');
+  });
+
+  it('il gruppo e` una colonna del registro, quindi filtra come le altre', () => {
+    // `microarea` e` un intero in banca dati ma una spunta come tutte le altre: e` importante che
+    // stia in COLONNE_ELENCO e non in una scorciatoia lato client, o filtrerebbe le 300 righe.
+    expect(COLONNE_ELENCO).toContain('microarea');
+    const f = filtriVuoti();
+    f.elenchi.microarea = ['12', '13'];
+    expect(parametriQuery(f, 'dunning', 300).getAll('microarea')).toEqual(['12', '13']);
   });
 });

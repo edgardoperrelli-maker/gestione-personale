@@ -97,6 +97,7 @@ const F = {
   impianto: { tipo: 'testo', campo: 'impianto' },
   comune: { tipo: 'elenco', campo: 'comune', opzioni: 'comuni' },
   cap: { tipo: 'elenco', campo: 'cap', opzioni: 'cap' },
+  gruppo: { tipo: 'elenco', campo: 'microarea', opzioni: 'gruppi' },
   attivita: { tipo: 'elenco', campo: 'attivita', opzioni: 'attivita' },
   stato: { tipo: 'elenco', campo: 'stato_desc', opzioni: 'stati' },
   operatore: { tipo: 'elenco', campo: 'operatore_cognome', opzioni: 'operatori' },
@@ -119,7 +120,7 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // Il gruppo viene dalle COORDINATE, non dal CAP: a Roma un CAP e` largo chilometri, e due
   // misuratori con lo stesso CAP possono essere a mezz'ora l'uno dall'altro. Ordinando per questa
   // colonna le righe da fare nello stesso giro finiscono una sotto l'altra.
-  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76 },
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76, filtro: F.gruppo },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
@@ -146,7 +147,7 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
-  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76 },
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76, filtro: F.gruppo },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
@@ -269,10 +270,16 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
     case 'gruppo':
       // Un trattino e non uno zero: «non ancora geocodificato» non e` un gruppo, e uno zero
       // finirebbe ordinato insieme ai gruppi veri come se fosse una zona.
-      if (r.microarea === null || r.microarea === undefined) return '—';
-      // La tilde distingue il gruppo PRESTATO da quello misurato: «da queste parti» non e` «a 2 km
-      // da qui», e chi monta un giro su un numero prestato deve saperlo.
-      return r.microarea_stimata ? `~${r.microarea}` : String(r.microarea);
+      /*
+        Il numero NUDO, come l'ODL. La tilde davanti ai gruppi stimati sporcava il valore: un
+        numero che si legge, si cerca e si detta non deve portarsi dietro un segno che poi va
+        tolto a mano.
+
+        La distinzione fra gruppo misurato e gruppo prestato non sparisce, cambia canale: la cella
+        stimata si disegna smorzata, con la spiegazione nel tooltip (vedi `TabellaOrdini`). Lo
+        stile dice «attenzione» senza entrare nel dato.
+      */
+      return r.microarea === null || r.microarea === undefined ? '—' : String(r.microarea);
     case 'valore_netto':
       return r.valore_netto === null ? '—' : r.valore_netto.toFixed(2);
     case 'data_creazione':

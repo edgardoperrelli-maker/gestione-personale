@@ -406,6 +406,10 @@ export default function TabellaOrdini({
                     const locale = editing?.valoreLocale(r, c.chiave) ?? null;
                     const testo = locale ?? valoreCella(r, c.chiave);
                     const evidenzia = c.chiave === 'scadenza';
+                    // Il gruppo PRESTATO dal CAP/comune, non calcolato dalle coordinate della
+                    // riga. Si smorza invece di marcare il numero: chi legge «162» deve poterlo
+                    // dettare com'e`, ma chi ci monta sopra un giro deve vedere che e` una stima.
+                    const gruppoStimato = c.chiave === 'gruppo' && r.microarea_stimata === true;
                     const inFocus =
                       iEdit !== null && editing?.focus?.riga === vi.index && editing.focus.colonna === iEdit;
                     const inSelezione =
@@ -426,7 +430,12 @@ export default function TabellaOrdini({
                             : `${c.intestazione}, ODL ${r.odl} operazione ${r.numero_operazione}: ${testo || 'vuoto'}`
                         }
                         style={stileColonna(c)}
-                        title={testo}
+                        title={
+                          gruppoStimato
+                            ? `Gruppo ${testo} stimato dal ${r.comune?.toUpperCase() === 'ROMA' ? 'CAP' : 'comune'}: `
+                              + 'questo ordine non e` ancora geocodificato, quindi la zona e` approssimata.'
+                            : testo
+                        }
                         onMouseDown={
                           iEdit === null
                             ? undefined
@@ -447,7 +456,9 @@ export default function TabellaOrdini({
                           inFocus
                             ? 'outline outline-2 -outline-offset-2 outline-[var(--brand-primary)]'
                             : ''
-                        } ${locale ? 'italic' : ''}`}
+                        } ${locale ? 'italic' : ''} ${
+                          gruppoStimato ? 'italic text-[var(--brand-text-muted)]' : ''
+                        }`}
                       >
                         {c.chiave === 'matricola' && r.sospetto_troncamento && (
                           <>

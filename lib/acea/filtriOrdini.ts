@@ -44,7 +44,9 @@ export const ETICHETTE_STATO: Record<StatoFiltro, string> = {
  * i tre CAP confinanti su cui mandare una squadra è il gesto vero. Un «contiene» permetterebbe un
  * CAP alla volta e nasconderebbe quali esistono davvero nel registro.
  */
-export const COLONNE_ELENCO = ['comune', 'attivita', 'stato_desc', 'operatore_cognome', 'cap'] as const;
+export const COLONNE_ELENCO = [
+  'comune', 'attivita', 'stato_desc', 'operatore_cognome', 'cap', 'microarea',
+] as const;
 export type ColonnaElenco = (typeof COLONNE_ELENCO)[number];
 
 /** Colonne filtrabili per «contiene». `matricola_norm` e non `matricola`: la ricerca è sul normalizzato. */
@@ -62,11 +64,12 @@ export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
  * sul posto. Due elenchi diversi che si somigliano nel nome: il primo viene dal registro, il
  * secondo dall'anagrafica del personale.
  */
-export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati' | 'cap' | 'esecutori';
+export type ChiaveOpzioni =
+  | 'comuni' | 'attivita' | 'operatori' | 'stati' | 'cap' | 'esecutori' | 'gruppi';
 export type Opzioni = Record<ChiaveOpzioni, string[]>;
 
 export const OPZIONI_VUOTE: Opzioni = {
-  comuni: [], attivita: [], operatori: [], stati: [], cap: [], esecutori: [],
+  comuni: [], attivita: [], operatori: [], stati: [], cap: [], esecutori: [], gruppi: [],
 };
 
 /**

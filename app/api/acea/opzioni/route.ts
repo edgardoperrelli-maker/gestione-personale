@@ -19,10 +19,17 @@ async function distinti(colonna: string, famiglia: string | null): Promise<strin
     for (const r of righe) {
       const v = r[colonna];
       if (typeof v === 'string' && v.trim() !== '') valori.add(v);
+      // I gruppi sono interi, non testo: senza questo ramo l'elenco tornerebbe vuoto.
+      else if (typeof v === 'number' && Number.isFinite(v)) valori.add(String(v));
     }
     if (righe.length < PAGINA) break;
   }
-  return [...valori].sort((a, b) => a.localeCompare(b, 'it'));
+  // I valori tutti numerici si ordinano da NUMERI: alfabeticamente il gruppo 10 verrebbe prima
+  // del 9, e un elenco di zone che salta all'indietro non si riesce a scorrere.
+  const elenco = [...valori];
+  return elenco.every((v) => /^\d+$/.test(v))
+    ? elenco.sort((a, b) => Number(a) - Number(b))
+    : elenco.sort((a, b) => a.localeCompare(b, 'it'));
 }
 
 /** Elenchi disponibili e colonna del registro da cui ciascuno deriva. */
@@ -32,6 +39,7 @@ const ELENCHI = {
   operatori: 'operatore_cognome',
   stati: 'stato_desc',
   cap: 'cap',
+  gruppi: 'microarea',
 } as const;
 
 type ChiaveElenco = keyof typeof ELENCHI;
@@ -109,7 +117,7 @@ export async function GET(req: Request) {
     // Le chiavi non chieste tornano come array vuoti e non assenti: il client tipizza `Opzioni`
     // come record completo, e un campo mancante diventerebbe `undefined` dentro una `.map`.
     const risposta: Record<ChiaveOpzione, string[]> = {
-      comuni: [], attivita: [], operatori: [], stati: [], cap: [], esecutori: [],
+      comuni: [], attivita: [], operatori: [], stati: [], cap: [], gruppi: [], esecutori: [],
     };
     daServire.forEach((c, i) => { risposta[c] = valori[i]; });
 
