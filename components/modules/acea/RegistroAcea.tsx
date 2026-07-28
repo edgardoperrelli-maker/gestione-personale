@@ -11,6 +11,7 @@ import {
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
 import { COLONNE_EDITABILI, useEditingGriglia, type Operatore } from './useEditingGriglia';
+import { useLayoutTabella } from './useLayoutTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 import BarraAzioni from './BarraAzioni';
@@ -22,9 +23,12 @@ const numero = (n: number) => n.toLocaleString('it-IT');
 
 /** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso da Dunning e Massive. */
 export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'massive' }) {
-  const colonne: DefColonna[] = famiglia === 'dunning' ? COLONNE_DUNNING : COLONNE_MASSIVE;
+  const definizione: DefColonna[] = famiglia === 'dunning' ? COLONNE_DUNNING : COLONNE_MASSIVE;
+  // `colonne` è la definizione RIORDINATA come l'ha lasciata l'utente. Da qui in giù nessuno deve
+  // più preoccuparsi dell'ordine: tabella, pill dei filtri, menu colonne ed export leggono questa.
+  const { ordinate: colonne, personalizzato, azzera, comandi } = useLayoutTabella(famiglia, definizione);
   const [visibili, setVisibili] = useState<Set<string>>(
-    () => new Set(colonne.filter((c) => c.predefinita).map((c) => c.chiave)),
+    () => new Set(definizione.filter((c) => c.predefinita).map((c) => c.chiave)),
   );
   const [selezione, setSelezione] = useState<RowSelectionState>({});
   const [esportando, setEsportando] = useState(false);
@@ -271,6 +275,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             onEsporta={() => void esporta()}
             esportando={esportando}
             vuota={totale === 0}
+            onAzzeraLayout={personalizzato ? azzera : undefined}
             nota={
               esportando && !tutteCaricate
                 ? `${numero(scaricate)} di ${numero(totale)} righe`
@@ -291,6 +296,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         filtri={filtri}
         onFiltri={setFiltri}
         opzioni={opzioni}
+        comandiColonne={comandi}
         editing={{
           indiceEditabile,
           focus: editing.focus,
@@ -304,7 +310,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         Esecutore e Data pianificata si modificano direttamente in tabella: clicca una cella, usa le
         frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. I campi ACEA non sono modificabili.
+        da Excel. I campi ACEA non sono modificabili. Le colonne si trascinano per riordinarle e si
+        tirano dal bordo per la larghezza (doppio click sul bordo per rimetterla com&apos;era).
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
       </p>
 

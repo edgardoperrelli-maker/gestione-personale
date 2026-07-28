@@ -1,6 +1,6 @@
 'use client';
 
-import { Download } from 'lucide-react';
+import { Download, RotateCcw } from 'lucide-react';
 import Button from '@/components/Button';
 import MultiSelect from '@/components/ui/MultiSelect';
 import { toast } from '@/components/ui/Toast';
@@ -16,6 +16,8 @@ type Props = {
   vuota?: boolean;
   /** Avanzamento dello scaricamento, quando l'export deve andare oltre le righe già in memoria. */
   nota?: string;
+  /** Presente solo se l'utente ha spostato o ridimensionato qualcosa: rimette tutto com'era. */
+  onAzzeraLayout?: () => void;
 };
 
 /**
@@ -29,7 +31,7 @@ type Props = {
  * una tabella senza colonne. È la semantica opt-in del primitivo, fatta esattamente per questo caso.
  */
 export default function MenuColonne({
-  colonne, visibili, onChange, onEsporta, esportando, vuota, nota,
+  colonne, visibili, onChange, onEsporta, esportando, vuota, nota, onAzzeraLayout,
 }: Props) {
   const avviso = nota ?? (vuota ? 'nessuna riga da esportare' : null);
 
@@ -63,6 +65,18 @@ export default function MenuColonne({
       */}
       {avviso && (
         <span className="text-xs tabular-nums text-[var(--brand-text-muted)]">{avviso}</span>
+      )}
+
+      {/*
+        Compare solo quando c'è qualcosa da rimettere a posto. Serve perché ordine e larghezze
+        sopravvivono al ricaricamento: senza una via d'uscita, una colonna trascinata per sbaglio
+        fuori vista resterebbe lì domani, e la tabella sembrerebbe rotta senza motivo apparente.
+      */}
+      {onAzzeraLayout && (
+        <Button variant="ghost" size="sm" onClick={onAzzeraLayout}>
+          <RotateCcw size={14} aria-hidden="true" />
+          Ripristina colonne
+        </Button>
       )}
 
       {/* Il motivo del blocco è scritto accanto, non in un `title`: su un elemento disabilitato il

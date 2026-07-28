@@ -13,6 +13,8 @@ import {
 import type { FiltriUI, Opzioni } from '@/lib/acea/filtriOrdini';
 import Skeleton from '@/components/ui/Skeleton';
 import FiltroColonna from './FiltroColonna';
+import ManigliaColonna from './ManigliaColonna';
+import type { ComandiColonne } from './useLayoutTabella';
 
 /** Altezza fissa di riga: serve al virtualizzatore per calcolare la finestra visibile. */
 const ALTEZZA_RIGA = 36;
@@ -61,6 +63,11 @@ export type Props = {
   onFiltri?: (f: FiltriUI) => void;
   /** Valori distinti dell'intero registro, per i filtri a elenco. */
   opzioni?: Opzioni;
+  /**
+   * Colonne mobili: larghezze e ordine decisi dall'utente. Assente = colonne fisse come da
+   * definizione (nessun uso oggi, ma la tabella deve poter vivere senza).
+   */
+  comandiColonne?: ComandiColonne;
   /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
   editing?: {
     /** Indice della colonna modificabile, o null se la colonna non lo è. */
@@ -93,9 +100,13 @@ const idCella = (riga: number, colonna: number) => `acea-cella-${riga}-${colonna
  */
 export default function TabellaOrdini({
   righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
-  filtri, onFiltri, opzioni,
+  filtri, onFiltri, opzioni, comandiColonne,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
+  /** Colonna in trascinamento. In un ref e non in stato: cambia a ogni `dragover`, non si disegna. */
+  const trascinata = useRef<string | null>(null);
+  /** Durante il ridimensionamento il trascinamento va spento, o il browser prova a fare entrambi. */
+  const [ridimensionando, setRidimensionando] = useState(false);
   /** Elemento che scorre: è lo `scrollElement` del virtualizzatore, deve restare quello esterno. */
   const contenitore = useRef<HTMLDivElement>(null);
   /** Elemento con `role="grid"`: è questo a prendere il focus e a portare `aria-activedescendant`. */
@@ -168,18 +179,30 @@ export default function TabellaOrdini({
   };
 
   const tutteSelezionate = rows.length > 0 && rows.every((r) => selezione[r.id]);
-  const larghezzaTotale = visibili.reduce((s, c) => s + c.larghezza, 0) + 40;
+
+  /** Larghezza in vigore: quella scelta dall'utente se c'è, altrimenti la base della definizione. */
+  const larghezzaDi = (c: DefColonna) => comandiColonne?.larghezza?.(c.chiave) ?? c.larghezza;
+  const larghezzaTotale = visibili.reduce((s, c) => s + larghezzaDi(c), 0) + 40;
 
   /**
-   * Le colonne non hanno più una larghezza fissa ma una BASE che possono superare.
+   * Le colonne non hanno una larghezza fissa ma una BASE che possono superare.
    *
    * Con `width` fisso più `minWidth: '100%'` sul contenitore, quando le colonne visibili sommavano
    * meno della finestra restava una fascia vuota a destra — e con la larghezza fissa le colonne
    * lunghe (Attività, Indirizzo) troncavano anche quando lo spazio c'era. `flex: 1 1 <base>` con
    * `minWidth: <base>` risolve entrambi: sotto la base non si scende mai, sopra si distribuisce
    * quello che avanza.
+   *
+   * Una larghezza scelta A MANO smette invece di crescere (`flex: 0 0`): lasciarla elastica
+   * significherebbe vederla saltare a un'altra misura nell'istante in cui si rilascia il mouse,
+   * perché la distribuzione dello spazio residuo la riallargherebbe. Sembrerebbe un comando rotto.
    */
-  const stileColonna = (larghezza: number) => ({ flex: `1 1 ${larghezza}px`, minWidth: larghezza });
+  const stileColonna = (c: DefColonna) => {
+    const w = larghezzaDi(c);
+    return comandiColonne?.personalizzata?.(c.chiave)
+      ? { flex: `0 0 ${w}px`, width: w, minWidth: w }
+      : { flex: `1 1 ${w}px`, minWidth: w };
+  };
 
   /*
     `min-h-0`: un figlio flex ha `min-height: auto` di default e senza si rifiuterebbe di
@@ -259,13 +282,52 @@ export default function TabellaOrdini({
                   role="columnheader"
                   aria-colindex={i + 2}
                   aria-sort={dir === 'asc' ? 'ascending' : dir === 'desc' ? 'descending' : 'none'}
-                  style={stileColonna(col?.larghezza ?? 120)}
-                  className="flex items-center gap-0.5 pl-2 pr-1"
+                  style={col ? stileColonna(col) : undefined}
+                  /*
+                    L'intera intestazione è l'appiglio del trascinamento, non una maniglia
+                    dedicata: un'icona in più su ogni colonna, tutti i giorni, per un gesto che
+                    in ogni foglio di calcolo si fa afferrando l'intestazione. Il click sul
+                    titolo continua a ordinare — click e trascinamento sono gesti distinti.
+                  */
+                  draggable={Boolean(comandiColonne) && !ridimensionando}
+                  onDragStart={(e) => {
+                    if (!col) return;
+                    trascinata.current = col.chiave;
+                    e.dataTransfer.effectAllowed = 'move';
+                    e.dataTransfer.setData('text/plain', col.chiave);
+                  }}
+                  onDragOver={(e) => {
+                    if (trascinata.current && col && trascinata.current !== col.chiave) {
+                      // Senza `preventDefault` il browser rifiuta il rilascio: è la riga che
+                      // dichiara «qui si può lasciare».
+                      e.preventDefault();
+                      e.dataTransfer.dropEffect = 'move';
+                    }
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    const da = trascinata.current ?? e.dataTransfer.getData('text/plain');
+                    if (da && col) comandiColonne?.onSposta(da, col.chiave);
+                    trascinata.current = null;
+                  }}
+                  onDragEnd={() => { trascinata.current = null; }}
+                  className={`relative flex items-center gap-0.5 pl-2 pr-1 ${
+                    comandiColonne ? 'cursor-grab active:cursor-grabbing' : ''
+                  }`}
                 >
                   <button
                     type="button"
                     onClick={h.column.getToggleSortingHandler()}
                     title={`Ordina per ${col?.intestazione ?? ''}`}
+                    // Riordino da tastiera: senza, spostare una colonna resterebbe un gesto da
+                    // solo mouse. Dichiarato in `aria-keyshortcuts`, che è il posto in cui uno
+                    // screen reader lo va a leggere.
+                    aria-keyshortcuts={comandiColonne ? 'Control+ArrowLeft Control+ArrowRight' : undefined}
+                    onKeyDown={(e) => {
+                      if (!comandiColonne || !col || !e.ctrlKey) return;
+                      if (e.key === 'ArrowLeft') { e.preventDefault(); comandiColonne.onSpostaDi(col.chiave, -1); }
+                      else if (e.key === 'ArrowRight') { e.preventDefault(); comandiColonne.onSpostaDi(col.chiave, 1); }
+                    }}
                     className="flex min-w-0 flex-1 items-center gap-1 rounded-[var(--radius-sm)] py-2 text-left hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   >
                     <span className="truncate">
@@ -282,6 +344,17 @@ export default function TabellaOrdini({
                       filtri={filtri}
                       onChange={onFiltri}
                       valori={col.filtro.tipo === 'elenco' ? (opzioni?.[col.filtro.opzioni] ?? []) : []}
+                    />
+                  )}
+                  {comandiColonne && col && (
+                    <ManigliaColonna
+                      chiave={col.chiave}
+                      intestazione={col.intestazione}
+                      larghezza={larghezzaDi(col)}
+                      onLarghezza={comandiColonne.onLarghezza}
+                      onAzzera={comandiColonne.onAzzeraLarghezza}
+                      onInizio={() => setRidimensionando(true)}
+                      onFine={() => setRidimensionando(false)}
                     />
                   )}
                 </div>
@@ -346,7 +419,7 @@ export default function TabellaOrdini({
                             ? undefined
                             : `${c.intestazione}, ODL ${r.odl} operazione ${r.numero_operazione}: ${testo || 'vuoto'}`
                         }
-                        style={stileColonna(c.larghezza)}
+                        style={stileColonna(c)}
                         title={testo}
                         onMouseDown={
                           iEdit === null
