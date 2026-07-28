@@ -19,7 +19,14 @@ type Props = {
   caricate: number;
 };
 
-const STATI: StatoFiltro[] = ['aperti', 'chiusi', 'tutti'];
+/**
+ * Le schede, nell'ordine in cui si usano.
+ *
+ * `saracinesche` sta in fondo perche` non e` uno stato dell'ordine come gli altri tre: e` un
+ * sottoinsieme che attraversa aperti e chiusi. Sta comunque in questa fila perche` e` cosi` che ci
+ * si arriva — si cambia vista, non si compone un filtro.
+ */
+const STATI: StatoFiltro[] = ['aperti', 'chiusi', 'tutti', 'saracinesche'];
 
 /**
  * Barra sopra la tabella: quello che i filtri di colonna NON possono fare.

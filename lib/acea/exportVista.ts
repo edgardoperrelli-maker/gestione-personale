@@ -9,6 +9,8 @@
 // Quindi l'export ripercorre la query dei filtri fino in fondo. Le due decisioni che vale la pena
 // tenere pure e testabili sono queste: quante pagine servono, e come si chiama il file.
 
+import type { StatoFiltro } from './filtriOrdini';
+
 /** Righe per richiesta durante l'export: è il tetto che `/api/acea/ordini` accetta. */
 export const PER_PAGINA_EXPORT = 500;
 
@@ -31,7 +33,7 @@ export function pagineExport(totale: number, perPagina: number = PER_PAGINA_EXPO
 export type NomeExport = {
   famiglia: 'dunning' | 'massive';
   /** Stato del segmented: è parte di cosa c'è dentro il file, non un dettaglio della vista. */
-  stato: 'tutti' | 'aperti' | 'chiusi';
+  stato: StatoFiltro;
   /** Giorno del registro ('YYYY-MM-DD'), preso dal server. */
   oggi: string;
   /** Almeno un filtro di colonna o una ricerca libera attiva. */

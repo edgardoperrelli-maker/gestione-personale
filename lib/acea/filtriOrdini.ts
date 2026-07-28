@@ -15,7 +15,15 @@
 // filtrerebbe su un insieme che l'utente non vede. Arrivano da `/api/acea/opzioni`, che li legge
 // sull'intero registro, e il filtro si applica lato server.
 
-export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi';
+/**
+ * Le schede sopra la tabella.
+ *
+ * `saracinesche` non è uno stato dell'ordine come gli altri tre: è un SOTTOINSIEME, gli ordini su
+ * cui risulta sostituita una saracinesca. Sta nella stessa fila perché è così che ci si arriva —
+ * si cambia vista, non si compone un filtro — ma attraversa aperti e chiusi, e il dato che la
+ * definisce non vive nemmeno nel registro (sta in `acea_master_snapshot`).
+ */
+export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi' | 'saracinesche';
 export type ScadenzaFiltro = 'tutte' | 'scaduti' | 'in_scadenza' | 'senza_scadenza';
 
 /** Etichette del filtro scadenza. Una sola fonte: le usano il menu, le pill e i test. */
@@ -31,6 +39,7 @@ export const ETICHETTE_STATO: Record<StatoFiltro, string> = {
   aperti: 'Da lavorare',
   chiusi: 'Chiusi',
   tutti: 'Tutti',
+  saracinesche: 'Sostituzione saracinesca',
 };
 
 /**
@@ -127,6 +136,17 @@ export function filtriPianificazioneAttivi(p: FiltriPianificazione): boolean {
   );
 }
 
+/**
+ * `true` se la richiesta chiede qualcosa che NON sta in `acea_ordini`, e quindi va incrociato.
+ *
+ * Sono tre dati nostri, non di ACEA: esecutore e giorno pianificato (in `interventi`) e la
+ * saracinesca sostituita (in `acea_master_snapshot`). Postgres non può filtrarli dentro la query
+ * sul registro, e passargli la lista degli ODL sarebbe una URL da decine di migliaia di caratteri.
+ */
+export function serveIncrocio(f: FiltriOrdini): boolean {
+  return filtriPianificazioneAttivi(f.pianificazione) || f.stato === 'saracinesche';
+}
+
 /** Criteri di data derivati dal filtro scadenza, pronti per la query. */
 export type SoglieScadenza =
   | { tipo: 'nessuna' }
@@ -200,7 +220,8 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
 
   return {
     famiglia: famiglia === 'dunning' || famiglia === 'massive' ? famiglia : null,
-    stato: stato === 'aperti' || stato === 'chiusi' ? stato : 'tutti',
+    stato:
+      stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' ? stato : 'tutti',
     elenchi,
     testi,
     scadenza:

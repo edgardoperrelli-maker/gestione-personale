@@ -12,7 +12,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   esito_positivo: null, via: 'VIA ALFA', civico: '108', cap: '00039', comune: 'ZAGAROLO', microarea: null,
   impianto: '4003635716', matricola: '201215053510', valore_netto: 25.46,
   escludi_consuntivazione: false, codice_sla: 'NSLA', priorita_testo: null, centro_lavoro: null,
-  sospetto_troncamento: false, pianificato_il: null, pianificato_a: null, stato_intervento: null,
+  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
   ...over,
 });
 
@@ -22,6 +22,9 @@ describe('definizione colonne', () => {
     expect(pred).toEqual([
       'odl', 'attivita', 'matricola', 'indirizzo', 'comune', 'cap', 'gruppo', 'stato',
       'data_creazione', 'scadenza', 'pianificato_a', 'pianificato_il',
+      // Dove risulta una saracinesca sostituita DEVE esistere l'ordine che la registra: senza, il
+      // lavoro e` stato fatto e non verra` mai pagato. Le due colonne esistono per mostrare il buco.
+      'saracinesca', 'odl_saracinesca',
     ]);
   });
 
@@ -168,5 +171,31 @@ describe('tonoScadenza', () => {
 
   it('le massive non hanno tono: non scadono', () => {
     expect(tonoScadenza(riga({ scadenza: null }), oggi)).toBe('nessuna');
+  });
+});
+
+describe('saracinesche', () => {
+  const riga2 = (over: Partial<RigaTabella> = {}) => riga(over);
+
+  // Riempire la colonna di «NO» renderebbe illeggibile l'unico valore che conta: la manciata di
+  // ordini su cui c'e` una sostituzione da fatturare.
+  it('scrive solo il SI: il NO e il vuoto dicono la stessa cosa a chi guarda', () => {
+    expect(valoreCella(riga2({ saracinesca: 'SI' }), 'saracinesca')).toBe('SI');
+    expect(valoreCella(riga2({ saracinesca: 'si' }), 'saracinesca')).toBe('SI');
+    expect(valoreCella(riga2({ saracinesca: 'NO' }), 'saracinesca')).toBe('—');
+    expect(valoreCella(riga2({ saracinesca: null }), 'saracinesca')).toBe('—');
+  });
+
+  it('l’ODL della saracinesca si mostra quando c’e`', () => {
+    expect(valoreCella(riga2({ odl_saracinesca: '912999111' }), 'odl_saracinesca')).toBe('912999111');
+    expect(valoreCella(riga2({ odl_saracinesca: null }), 'odl_saracinesca')).toBe('—');
+  });
+
+  // Il caso che la colonna esiste per mostrare: sostituzione dichiarata, nessun ordine che la
+  // registri. 91,12 € di lavoro fatto che non verra` mai pagato.
+  it('mostra la sostituzione senza ordine, che e` il buco da vedere', () => {
+    const r = riga2({ saracinesca: 'SI', odl_saracinesca: null });
+    expect(valoreCella(r, 'saracinesca')).toBe('SI');
+    expect(valoreCella(r, 'odl_saracinesca')).toBe('—');
   });
 });

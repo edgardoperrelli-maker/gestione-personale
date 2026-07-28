@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import {
   COLONNE_ELENCO, COLONNE_TESTO,
   leggiFiltri, soglieScadenza, intervalloPagina, espressioneRicerca,
-  filtriPianificazioneAttivi, type FiltriOrdini, type FiltriPianificazione,
+  serveIncrocio, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 
@@ -56,6 +56,8 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   if (f.famiglia) q = q.eq('famiglia', f.famiglia);
   if (f.stato === 'aperti') q = q.eq('aperto', true);
   if (f.stato === 'chiusi') q = q.eq('aperto', false);
+  // `saracinesche` non restringe qui: e` un sottoinsieme che attraversa aperti e chiusi, e il dato
+  // che lo definisce sta in `acea_master_snapshot`. Lo applica il percorso di incrocio.
 
   // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
   // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
@@ -130,6 +132,29 @@ async function indicePianificazione(): Promise<Map<string, { staff: Set<string>;
 }
 
 /**
+ * Gli ODL su cui il master dichiara una saracinesca sostituita.
+ *
+ * Vengono da `acea_master_snapshot`, dove `odl` è unico: è la colonna che sul foglio si compilava a
+ * mano. Sono poche centinaia, quindi ci stanno in memoria — ma NON in una URL, ed è il motivo per
+ * cui anche questa scheda passa dall'incrocio invece che da un `in()`.
+ */
+async function odlConSaracinesca(): Promise<Set<string>> {
+  const insieme = new Set<string>();
+  for (let offset = 0; ; offset += PAGINA_SCAN) {
+    const { data, error } = await supabaseAdmin
+      .from('acea_master_snapshot')
+      .select('odl')
+      .eq('saracinesca', 'SI')
+      .range(offset, offset + PAGINA_SCAN - 1);
+    if (error) throw error;
+    const blocco = (data ?? []) as Array<{ odl: string | null }>;
+    for (const r of blocco) if (r.odl) insieme.add(r.odl);
+    if (blocco.length < PAGINA_SCAN) break;
+  }
+  return insieme;
+}
+
+/**
  * Il predicato dei due filtri di pianificazione, per un singolo ODL.
  *
  * Dentro la stessa colonna i criteri sono in OR (le spunte di un AutoFiltro lo sono sempre: gli
@@ -172,7 +197,7 @@ export async function GET(req: Request) {
     let righe: OrdineRow[];
     let totale: number;
 
-    if (!filtriPianificazioneAttivi(f.pianificazione)) {
+    if (!serveIncrocio(f)) {
       // Percorso normale: una sola interrogazione paginata, il conteggio lo fa Postgres.
       const { data, error, count } = await queryRegistro(COLONNE, f, oggi).range(da, a);
       if (error) throw error;
@@ -192,7 +217,11 @@ export async function GET(req: Request) {
         mostrerebbe «12 di 871» quando i non pianificati sono 400. Si paga solo quando uno dei due
         filtri è acceso — la vista normale resta una query sola.
       */
-      const [chiavi, indice] = await Promise.all([scansionaChiavi(f, oggi), indicePianificazione()]);
+      const [chiavi, indice, saracinesche] = await Promise.all([
+        scansionaChiavi(f, oggi),
+        indicePianificazione(),
+        f.stato === 'saracinesche' ? odlConSaracinesca() : Promise.resolve(new Set<string>()),
+      ]);
 
       // Nomi scelti → staff_id. Il filtro parla di persone, il registro di identificativi.
       const staffScelti = new Set<string>();
@@ -205,7 +234,10 @@ export async function GET(req: Request) {
         for (const s of (staff ?? []) as Array<{ id: string }>) staffScelti.add(s.id);
       }
 
-      const passate = chiavi.filter((k) => passaPianificazione(k.odl, f.pianificazione, indice, staffScelti));
+      const passate = chiavi.filter(
+        (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
+          && passaPianificazione(k.odl, f.pianificazione, indice, staffScelti),
+      );
       totale = passate.length;
 
       const pagina = passate.slice(da, a + 1);
@@ -254,6 +286,20 @@ export async function GET(req: Request) {
       }
     }
 
+    // Saracinesca e suo ODL, per le sole righe della pagina. Come la pianificazione: il registro
+    // resta lo specchio di ACEA, il dato nostro sta altrove e si unisce qui in lettura.
+    const master = new Map<string, { saracinesca: string | null; odl_saracinesca: string | null }>();
+    for (let i = 0; i < odlPagina.length; i += 200) {
+      const { data: snap, error: eSnap } = await supabaseAdmin
+        .from('acea_master_snapshot')
+        .select('odl, saracinesca, odl_saracinesca')
+        .in('odl', odlPagina.slice(i, i + 200));
+      if (eSnap) throw eSnap;
+      for (const m of (snap ?? []) as Array<{ odl: string; saracinesca: string | null; odl_saracinesca: string | null }>) {
+        master.set(m.odl, { saracinesca: m.saracinesca, odl_saracinesca: m.odl_saracinesca });
+      }
+    }
+
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella.
     const staffIds = [...new Set([...pianificazione.values()].map((p) => p.staff_id).filter(Boolean))] as string[];
     const nomi = new Map<string, string>();
@@ -264,8 +310,11 @@ export async function GET(req: Request) {
 
     const conPianificazione = righe.map((r) => {
       const p = pianificazione.get(r.odl);
+      const m = master.get(r.odl);
       return {
         ...r,
+        saracinesca: m?.saracinesca ?? null,
+        odl_saracinesca: m?.odl_saracinesca ?? null,
         pianificato_il: p?.data ?? null,
         pianificato_a: p?.staff_id ? (nomi.get(p.staff_id) ?? p.staff_id) : null,
         stato_intervento: p?.stato ?? null,

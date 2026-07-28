@@ -43,6 +43,13 @@ export type RigaTabella = {
   priorita_testo: string | null;
   centro_lavoro: string | null;
   sospetto_troncamento: boolean;
+  /**
+   * Dal master (`acea_master_snapshot`): 'SI' se su questo ordine e` stata sostituita una
+   * saracinesca. Non e` dato ACEA — e` una dichiarazione nostra, e vale 91,12 € l'una.
+   */
+  saracinesca: string | null;
+  /** L'ODL con cui la sostituzione e` stata richiesta ad ACEA. Senza, il lavoro non viene pagato. */
+  odl_saracinesca: string | null;
   // dalla pianificazione (join in lettura, non è dato ACEA)
   pianificato_il: string | null;
   pianificato_a: string | null;
@@ -53,7 +60,8 @@ export type ChiaveColonna =
   | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'gruppo' | 'stato'
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
-  | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al';
+  | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
+  | 'saracinesca' | 'odl_saracinesca';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -126,6 +134,11 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  // Saracinesca sostituita, e l'ODL con cui e` stata richiesta ad ACEA. Dove risulta una
+  // sostituzione DEVE esistere l'ordine che la registra: senza, il lavoro e` stato fatto e non
+  // verra` mai pagato (91,12 € l'una). La colonna esiste per far vedere quel buco.
+  { chiave: 'saracinesca', intestazione: 'Saracinesca', predefinita: true, larghezza: 100 },
+  { chiave: 'odl_saracinesca', intestazione: 'ODL saracinesca', predefinita: true, mono: true, larghezza: 130 },
   // attivabili
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: false, mono: true, larghezza: 120, filtro: F.impianto },
   { chiave: 'famiglia', intestazione: 'Famiglia', predefinita: false, larghezza: 100 },
@@ -280,6 +293,13 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
         stile dice «attenzione» senza entrare nel dato.
       */
       return r.microarea === null || r.microarea === undefined ? '—' : String(r.microarea);
+    case 'saracinesca':
+      // Solo il «SI» si scrive: il «NO» e il vuoto dicono la stessa cosa a chi guarda la colonna
+      // (nessuna saracinesca da fatturare), e riempirla di NO renderebbe illeggibile l'unico
+      // valore che conta.
+      return (r.saracinesca ?? '').toUpperCase() === 'SI' ? 'SI' : '—';
+    case 'odl_saracinesca':
+      return r.odl_saracinesca || '—';
     case 'valore_netto':
       return r.valore_netto === null ? '—' : r.valore_netto.toFixed(2);
     case 'data_creazione':

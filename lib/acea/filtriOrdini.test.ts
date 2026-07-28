@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   COLONNE_ELENCO, COLONNE_TESTO, colonneFiltrate, contaFiltriColonna, espressioneRicerca,
   filtriPianificazioneAttivi, filtriVuoti, haFiltriAttivi, intervalloPagina, leggiFiltri,
-  parametriQuery, soglieScadenza,
+  parametriQuery, serveIncrocio, soglieScadenza,
   terminoContiene,
 } from './filtriOrdini';
 
@@ -418,5 +418,35 @@ describe('ogni filtro di colonna arriva al server', () => {
     const f = filtriVuoti();
     f.elenchi.microarea = ['12', '13'];
     expect(parametriQuery(f, 'dunning', 300).getAll('microarea')).toEqual(['12', '13']);
+  });
+});
+
+describe('scheda «Sostituzione saracinesca»', () => {
+  it('e` uno stato leggibile dalla URL come gli altri tre', () => {
+    expect(q('stato=saracinesche').stato).toBe('saracinesche');
+    expect(parametriQuery({ ...filtriVuoti(), stato: 'saracinesche' }, 'dunning', 300).get('stato'))
+      .toBe('saracinesche');
+  });
+
+  /*
+    La scheda va incrociata, non filtrata da Postgres: la saracinesca sta in
+    `acea_master_snapshot`, non in `acea_ordini`. Se `serveIncrocio` non la riconoscesse, la route
+    prenderebbe il percorso normale e la scheda mostrerebbe TUTTO il registro invece del
+    sottoinsieme — un errore che a schermo sembra una scheda che funziona, con solo il conteggio
+    fuori posto.
+  */
+  it('accende l’incrocio, altrimenti la scheda mostrerebbe tutto il registro', () => {
+    expect(serveIncrocio(q('stato=saracinesche'))).toBe(true);
+    expect(serveIncrocio(q('stato=aperti'))).toBe(false);
+    expect(serveIncrocio(q(''))).toBe(false);
+  });
+
+  it('l’incrocio si accende anche per i filtri di pianificazione', () => {
+    expect(serveIncrocio(q('senzaEsecutore=1'))).toBe(true);
+    expect(serveIncrocio(q('stato=saracinesche&esecutore=ROSSI'))).toBe(true);
+  });
+
+  it('un valore ignoto resta «tutti», non diventa una scheda inesistente', () => {
+    expect(q('stato=saracinesca').stato).toBe('tutti');
   });
 });
