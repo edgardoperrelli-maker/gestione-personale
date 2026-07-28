@@ -28,12 +28,26 @@ export type EstrazioneMisuratore = {
   impianto: string | null;
   /** Matricola del misuratore, nella forma grezza dell'export (26 varianti note). */
   matricola: string | null;
-  /** true se il testo è al limite dei 40 caratteri e la matricola potrebbe essere tagliata. */
+  /** true se il testo e` vicino al limite del campo e la matricola potrebbe essere tagliata. */
   sospettoTroncamento: boolean;
 };
 
 /** Lunghezza massima del campo "Testo breve Ordine" in SAP. */
 const MAX_TESTO = 40;
+
+/**
+ * Margine di sicurezza sotto il limite del campo.
+ *
+ * La soglia esatta dei 40 caratteri e` la prova CERTA che SAP ha tagliato. Ma un testo di 34
+ * caratteri con la matricola a fine stringa e` sospetto lo stesso: il campo puo` essere stato
+ * composto piu` corto e comunque troncato a monte, oppure la matricola puo` essere finita al
+ * bordo per un separatore mangiato. Fermarsi ai 40 esatti lascia passare quei casi.
+ *
+ * Dieci caratteri di margine allargano la rete: una riga segnalata a torto si controlla in dieci
+ * secondi e si scarta, una matricola tagliata che non viene segnalata diventa un misuratore
+ * agganciato all'impianto sbagliato — o non agganciato affatto.
+ */
+const MARGINE_TRONCAMENTO = 10;
 
 // impianto = 10 cifre iniziali; poi uno dei tre marcatori; poi la matricola fino al separatore.
 // La classe della matricola esclude `_` di proposito: è il separatore che chiude il token
@@ -64,6 +78,6 @@ export function parseTestoOrdine(testo: string | null | undefined): EstrazioneMi
   return {
     impianto,
     matricola,
-    sospettoTroncamento: s.length >= MAX_TESTO && finisceInFondo,
+    sospettoTroncamento: s.length >= MAX_TESTO - MARGINE_TRONCAMENTO && finisceInFondo,
   };
 }
