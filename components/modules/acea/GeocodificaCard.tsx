@@ -51,17 +51,40 @@ async function blocco(url: string): Promise<Esito> {
  * Il gruppo in tabella nasce dalle COORDINATE, non dal CAP: a Roma un CAP è largo chilometri, e
  * due misuratori con lo stesso CAP possono stare a mezz'ora l'uno dall'altro.
  *
- * Il server lavora a BLOCCHI perché Nominatim consente una richiesta al secondo e un blocco deve
- * stare nel minuto di `maxDuration`; il pulsante però macina da sé, richiamandolo finché il
- * contatore non arriva a zero. Gli indirizzi già visti escono dalla cache e non costano niente,
- * quindi i blocchi successivi sono molto più rapidi del primo.
+ * Il server lavora a BLOCCHI perché la funzione ha un minuto di vita e i provider vanno a una
+ * richiesta al secondo; il pulsante però macina da sé, richiamandolo finché il contatore non
+ * arriva a zero. Il blocco si chiude a TEMPO, non a conteggio: quanti indirizzi ci stiano dipende
+ * da cosa capita in coda, perché uno già visto esce dalla cache in un decimo di secondo e uno da
+ * rincorrere ne costa quindici.
+ *
+ * È un giro lungo — sul registro vero sono ore, non minuti — e gira dal browser: la pagina va
+ * lasciata aperta. Per questo il tempo che resta si mostra sul ritmo MISURATO e non su una media
+ * ottimista: chi legge «~27 min» chiude il portatile a metà.
  *
  * I numeri di gruppo si assegnano SOLO a registro completo: rinumerare a metà darebbe numeri che
  * cambiano a ogni blocco, cioè inservibili per dire a qualcuno «fai il 12».
  */
-/** Stima grossolana del tempo che resta: i provider vanno a ~1 indirizzo al secondo. */
-function quantoManca(righe: number): string {
-  const min = Math.round(righe / 60);
+/**
+ * Quanto costa un indirizzo nuovo, misurato sul registro vero: **~6 secondi**, non uno.
+ *
+ * Il secondo era il rate limit di Nominatim, cioè il costo di UNA richiesta — ma un indirizzo non
+ * ne fa una. La cascata prova Nominatim strutturato, poi il testo libero col CAP, poi senza, poi
+ * Photon: quando le prime rispondono «niente» si arriva alla quarta, e sono quattro secondi di
+ * attesa più la rete. Sui 1.213 indirizzi ancora da risolvere la media misurata è 5,8 s.
+ *
+ * Serve come punto di partenza: appena il ciclo gira, `ritmoMisurato` prende il suo posto.
+ */
+const SECONDI_PER_INDIRIZZO = 6;
+
+/**
+ * Il tempo che resta.
+ *
+ * Una stima ottimista di cinque volte non è un dettaglio estetico: dice «~27 min» per un lavoro da
+ * due ore e mezza, e chi legge chiude il portatile a metà — poi trova il registro a pezzi e pensa
+ * che il pulsante sia rotto. Meglio un numero grande e vero.
+ */
+function quantoManca(righe: number, secondiPerRiga = SECONDI_PER_INDIRIZZO): string {
+  const min = Math.round((righe * secondiPerRiga) / 60);
   if (min < 1) return 'meno di un minuto';
   if (min < 60) return `~${min} min`;
   return `~${Math.floor(min / 60)}h ${min % 60}min`;
@@ -71,6 +94,10 @@ export default function GeocodificaCard() {
   const [stato, setStato] = useState<Stato | null>(null);
   const [busy, setBusy] = useState<'macina' | 'gruppi' | null>(null);
   const [risolti, setRisolti] = useState(0);
+  // Secondi per indirizzo osservati DA QUESTO giro. La media a tavolino vale finché non si hanno
+  // dati veri: gli indirizzi ripetuti escono dalla cache in un decimo di secondo e quelli rincorsi
+  // ne costano quindici, quindi il ritmo dipende da cosa capita in coda, non da una costante.
+  const [ritmo, setRitmo] = useState<number | null>(null);
   // `ref` e non `state`: il ciclo la legge a ogni giro, e uno state catturato nella closure
   // resterebbe al valore che aveva quando il ciclo è partito — il tasto Ferma non farebbe niente.
   const fermare = useRef(false);
@@ -111,6 +138,8 @@ export default function GeocodificaCard() {
     fermare.current = false;
     setBusy('macina');
     setRisolti(0);
+    setRitmo(null);
+    const avvio = Date.now();
     let fatti = 0;
     let precedenti = Number.POSITIVE_INFINITY;
     let inciampi = 0;
@@ -135,6 +164,7 @@ export default function GeocodificaCard() {
 
         fatti += body.geocodificati;
         setRisolti(fatti);
+        if (fatti > 0) setRitmo((Date.now() - avvio) / 1000 / fatti);
         // Il contatore si aggiorna a ogni blocco invece che alla fine: su un giro da un quarto
         // d'ora, un riquadro fermo sembra un riquadro rotto.
         setStato((s) => (s ? { ...s, daFare: body.rimaste } : s));
@@ -171,6 +201,7 @@ export default function GeocodificaCard() {
   }, [carica]);
 
   const daFare = stato?.daFare ?? 0;
+  const stima = quantoManca(daFare, ritmo ?? SECONDI_PER_INDIRIZZO);
 
   return (
     <Card className="space-y-3 p-4">
@@ -227,7 +258,7 @@ export default function GeocodificaCard() {
               role="status"
               aria-live="polite"
             >
-              {risolti} risolti, ne restano {daFare} ({quantoManca(daFare)})
+              {risolti} risolti, ne restano {daFare} ({stima})
             </span>
           </>
         ) : (
@@ -239,7 +270,7 @@ export default function GeocodificaCard() {
               disabled={daFare === 0 || busy !== null}
             >
               <Play size={14} aria-hidden="true" />
-              {daFare > 0 ? `Geocodifica ${daFare} indirizzi (${quantoManca(daFare)})` : 'Tutto geocodificato'}
+              {daFare > 0 ? `Geocodifica ${daFare} indirizzi (${stima})` : 'Tutto geocodificato'}
             </Button>
             <Button
               variant="outline"
