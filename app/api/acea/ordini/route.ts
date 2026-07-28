@@ -388,14 +388,23 @@ export async function GET(req: Request) {
       }
     }
 
-    // La DICHIARAZIONE di sostituzione: viene dal RAPPORTINO dell'operatore che c'e` stato, non
-    // dalla colonna del vecchio foglio master — che dice SI anche su attivita` dove una
-    // saracinesca non e` contemplata, e con cui questa vista si riempiva di righe estranee.
-    const dichiarati = await odlConSaracinescaDichiarata(supabaseAdmin);
+    /*
+      Le due letture della saracinesca sono DECORAZIONI: se falliscono, la tabella deve caricarsi
+      lo stesso senza quelle colonne.
 
-    // L'ORDINE di sostituzione, dal registro: quello che ACEA ha davvero generato, con il suo
-    // stato. E` l'informazione che dice se il lavoro verra` pagato — la dichiarazione da sola no.
-    const sostituzioni = await indiceSostituzioni();
+      Prima erano fatali, e una di loro ha portato giu` l'intero registro: la pagina mostrava
+      «Errore lettura registro ACEA» per un dato che sta in due colonne accessorie. Il registro e`
+      il motivo per cui si apre questa schermata; la saracinesca e` un di piu` — degradarla in
+      silenzio-con-log e` giusto, farci cadere tutto no.
+    */
+    const dichiarati = await odlConSaracinescaDichiarata(supabaseAdmin).catch((e) => {
+      console.error('[acea/ordini] dichiarazioni saracinesca non lette:', e);
+      return new Set<string>();
+    });
+    const sostituzioni = await indiceSostituzioni().catch((e) => {
+      console.error('[acea/ordini] ordini di sostituzione non letti:', e);
+      return new Map<string, Sostituzione>();
+    });
 
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella.
     const staffIds = [...new Set([...pianificazione.values()].map((p) => p.staff_id).filter(Boolean))] as string[];
