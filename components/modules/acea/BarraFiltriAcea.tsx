@@ -25,8 +25,12 @@ type Props = {
  * `saracinesche` sta in fondo perche` non e` uno stato dell'ordine come gli altri tre: e` un
  * sottoinsieme che attraversa aperti e chiusi. Sta comunque in questa fila perche` e` cosi` che ci
  * si arriva — si cambia vista, non si compone un filtro.
+ *
+ * `riaperture` e` un sottoinsieme anche lei, ma sta SUBITO DOPO «Da lavorare» e non in fondo:
+ * e` la scheda del lavoro che scade domani, e la fila si legge da sinistra. Metterla accanto alle
+ * saracinesche l'avrebbe archiviata fra le viste di controllo, che e` il contrario del punto.
  */
-const STATI: StatoFiltro[] = ['aperti', 'chiusi', 'tutti', 'saracinesche'];
+const STATI: StatoFiltro[] = ['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche'];
 
 /**
  * Barra sopra la tabella: quello che i filtri di colonna NON possono fare.

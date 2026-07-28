@@ -62,6 +62,13 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   if (f.stato === 'chiusi') q = q.eq('aperto', false);
   // `saracinesche` non restringe qui: e` un sottoinsieme che attraversa aperti e chiusi, e il dato
   // che lo definisce sta in `acea_master_snapshot`. Lo applica il percorso di incrocio.
+  //
+  // `riaperture` invece e` un sottoinsieme che il registro conosce da se`: `riapertura` e` una
+  // colonna generata da `codice_sla`, quindi si filtra qui e non costa un incrocio. Attraversa
+  // aperti e chiusi come le saracinesche — chi controlla il lavoro fatto ha bisogno anche di
+  // quelle chiuse — ma l'ordinamento della scheda mette le APERTE in cima, che sono le uniche che
+  // possono ancora sfuggire.
+  if (f.stato === 'riaperture') q = q.eq('riapertura', true);
 
   // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
   // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
@@ -95,7 +102,32 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
     // `nullsFirst: false` sempre: le righe senza valore stanno in fondo in entrambi i versi, che è
     // dove uno se le aspetta. In cima somiglierebbero a un risultato.
     q = q.order(scelto.campo, { ascending: f.verso === 'asc', nullsFirst: false });
+  } else if (f.stato === 'riaperture') {
+    // Dentro la scheda sono riaperture tutte quante: metterle «in cima» non vorrebbe dire niente.
+    // Il criterio che serve lì è un altro — le APERTE per prime, perché sono le sole che possono
+    // ancora sfuggire; le chiuse restano sotto, per chi controlla il lavoro fatto.
+    q = q.order('aperto', { ascending: false })
+      .order('scadenza', { ascending: true, nullsFirst: false })
+      .order('data_creazione', { ascending: true });
   } else {
+    /*
+      Le RIAPERTURE in cima — dove ha senso.
+
+      Ordinare per scadenza porta in cima il più VECCHIO, che non è il più urgente: una limitazione
+      di maggio è scaduta da due mesi e sta sopra una riapertura nata oggi, che scade domani. Con
+      un giorno di cardine contro quattordici, le riaperture finivano alle righe 491-548 di 924 —
+      misurato sul registro, non temuto.
+
+      Due limiti, entrambi voluti:
+
+      - sta nel ramo `else`, quindi vale per l'ordinamento PREDEFINITO e sparisce appena si clicca
+        un'intestazione. Un ordinamento chiesto dall'utente che tiene comunque righe inchiodate in
+        cima non è un ordinamento, è una tabella che mente su cosa sta mostrando;
+      - NON si applica ai «Chiusi». Lì le riaperture sono 452 su 466 e nessuna può più sfuggire:
+        portarle in cima non segnalerebbe un'urgenza, seppellirebbe le chiusure recenti — cioè
+        esattamente quello che si va a cercare in quella scheda.
+    */
+    if (f.stato !== 'chiusi') q = q.order('riapertura', { ascending: false });
     q = q.order('scadenza', { ascending: true, nullsFirst: false })
       .order('data_creazione', { ascending: true });
   }

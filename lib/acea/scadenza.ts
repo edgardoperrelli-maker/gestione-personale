@@ -19,8 +19,31 @@ import type { Famiglia } from './famiglia';
 const GIORNI_ATTIVAZIONE = 1;
 /** Giorni concessi al resto del dunning (soglia interna). */
 const GIORNI_DUNNING = 14;
-/** Codici SLA delle attivazioni. */
-const SLA_ATTIVAZIONE = new Set(['RIAT', 'REVO']);
+/**
+ * I codici SLA delle riaperture, dette anche attivazioni.
+ *
+ * Sono la stessa cosa con due nomi: `RIAT` è la riattivazione della fornitura, `REVO` la revoca
+ * della disattivazione. In cantiere si dice «riaprire» — si riapre il flusso a chi ha pagato — e
+ * in contratto si dice «attivazione»; il registro le porta entrambe sotto `ARMO`, «Ripristino da
+ * morosità», con le attività «Riattivazione fornitura» e «Regolarizzazione flusso idrico».
+ *
+ * Esportati perché sono la definizione di un SOTTOINSIEME che si guarda a parte, non solo il modo
+ * di calcolare una scadenza: la scheda «Riaperture» e l'ordinamento predefinito devono chiedersi
+ * la stessa domanda che se la chiede questo file, e non una copia che può divergere.
+ */
+export const SLA_RIAPERTURA = ['RIAT', 'REVO'] as const;
+const SLA_ATTIVAZIONE = new Set<string>(SLA_RIAPERTURA);
+
+/**
+ * `true` se l'ordine è una riapertura.
+ *
+ * È la riga che non deve sfuggire: ha un giorno di tempo — il cardine contrattuale ACEA — contro
+ * i quattordici del resto del dunning, e arriva dall'import in mezzo a centinaia di limitazioni
+ * vecchie che scadono prima solo perché sono state create prima.
+ */
+export function eRiapertura(codiceSla: string | null | undefined): boolean {
+  return SLA_ATTIVAZIONE.has(String(codiceSla ?? '').trim().toUpperCase());
+}
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 

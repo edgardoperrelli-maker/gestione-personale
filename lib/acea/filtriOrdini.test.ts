@@ -454,6 +454,36 @@ describe('scheda «Sostituzione saracinesca»', () => {
   });
 });
 
+describe('scheda «Riaperture»', () => {
+  it('e` uno stato leggibile dalla URL, e ci torna', () => {
+    expect(q('stato=riaperture').stato).toBe('riaperture');
+    expect(parametriQuery({ ...filtriVuoti(), stato: 'riaperture' }, 'dunning', 300).get('stato'))
+      .toBe('riaperture');
+  });
+
+  /*
+    La differenza con le saracinesche, ed e` la ragione per cui questa scheda costa niente.
+
+    La saracinesca vive in `acea_master_snapshot` e va incrociata. La riapertura invece e` una
+    colonna generata da `codice_sla` DENTRO `acea_ordini`: Postgres la filtra e la ordina da solo,
+    con un indice parziale sopra. Se `serveIncrocio` la accendesse per sbaglio, la scheda
+    funzionerebbe lo stesso — ma pagando un incrocio su tutto il registro per un dato che sta gia`
+    nella riga, e nessuno se ne accorgerebbe guardando lo schermo.
+  */
+  it('NON accende l’incrocio: la riapertura e` una colonna del registro', () => {
+    expect(serveIncrocio(q('stato=riaperture'))).toBe(false);
+  });
+
+  // Resta un sottoinsieme, non uno stato: i filtri di pianificazione la incrociano come le altre.
+  it('si combina con i filtri di pianificazione', () => {
+    expect(serveIncrocio(q('stato=riaperture&esecutore=ROSSI'))).toBe(true);
+  });
+
+  it('«riaperture» al singolare non e` una scheda: cade su «tutti»', () => {
+    expect(q('stato=riapertura').stato).toBe('tutti');
+  });
+});
+
 /*
   L'ordinamento e` l'ALTRO asse della stessa onesta` dei filtri.
 

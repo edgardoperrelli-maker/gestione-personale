@@ -22,8 +22,18 @@
  * cui risulta sostituita una saracinesca. Sta nella stessa fila perché è così che ci si arriva —
  * si cambia vista, non si compone un filtro — ma attraversa aperti e chiusi, e il dato che la
  * definisce non vive nemmeno nel registro (sta in `acea_master_snapshot`).
+ *
+ * `riaperture` è anch'essa un sottoinsieme, e c'è per un motivo misurato: le riaperture aperte
+ * sono 14 su 924 ordini di dunning aperti, e nell'ordinamento predefinito cadono alle righe
+ * 491-548 — in mezzo alla tabella. Hanno UN giorno di tempo contro i quattordici del resto, ma
+ * ordinare per scadenza mette in cima il più VECCHIO, non il più urgente: una limitazione di
+ * maggio scaduta da due mesi sta sopra una riapertura che scade domani.
+ *
+ * Questa scheda è il modo di richiamarle a colpo sicuro. L'altra metà del rimedio sta
+ * nell'ordinamento predefinito, che ora le porta in cima da solo (vedi `queryRegistro`): la
+ * scheda serve a chi le cerca, l'ordinamento a chi non sa di doverle cercare.
  */
-export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi' | 'saracinesche';
+export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi' | 'saracinesche' | 'riaperture';
 export type ScadenzaFiltro = 'tutte' | 'scaduti' | 'in_scadenza' | 'senza_scadenza';
 
 /** Etichette del filtro scadenza. Una sola fonte: le usano il menu, le pill e i test. */
@@ -40,6 +50,7 @@ export const ETICHETTE_STATO: Record<StatoFiltro, string> = {
   chiusi: 'Chiusi',
   tutti: 'Tutti',
   saracinesche: 'Sostituzione saracinesca',
+  riaperture: 'Riaperture',
 };
 
 /**
@@ -293,7 +304,9 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
   return {
     famiglia: famiglia === 'dunning' || famiglia === 'massive' ? famiglia : null,
     stato:
-      stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' ? stato : 'tutti',
+      stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' || stato === 'riaperture'
+        ? stato
+        : 'tutti',
     elenchi,
     testi,
     scadenza:
