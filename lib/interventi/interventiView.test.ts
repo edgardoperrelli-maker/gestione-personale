@@ -1,23 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { parseInterventiFilters, labelStato, badgeGeocode } from './interventiView';
+import { labelStato } from './interventiView';
 
-describe('parseInterventiFilters', () => {
-  it('usa i default (oggi + tutti) con param vuoti', () => {
-    expect(parseInterventiFilters({}, '2026-06-02')).toEqual({
-      data: '2026-06-02', committente: 'tutti', stato: 'tutti', geocode: 'tutti',
-    });
-  });
-  it('accetta valori validi', () => {
-    expect(
-      parseInterventiFilters({ data: '2026-05-01', committente: 'acea', stato: 'assegnato', geocode: 'failed' }, '2026-06-02'),
-    ).toEqual({ data: '2026-05-01', committente: 'acea', stato: 'assegnato', geocode: 'failed' });
-  });
-  it('ricade su tutti per valori non riconosciuti e su oggi per data malformata', () => {
-    expect(
-      parseInterventiFilters({ data: '01-05-2026', committente: 'pippo', stato: 'x', geocode: 'y' }, '2026-06-02'),
-    ).toEqual({ data: '2026-06-02', committente: 'tutti', stato: 'tutti', geocode: 'tutti' });
-  });
-});
+// Le suite di `parseInterventiFilters` e `badgeGeocode` sono state rimosse col codice
+// che coprivano (2026-07-27): erano gli unici importatori rimasti di quelle funzioni,
+// cioè un test che teneva in vita ciò che doveva sorvegliare.
 
 describe('labelStato', () => {
   it('mappa gli stati noti', () => {
@@ -27,18 +13,5 @@ describe('labelStato', () => {
   it('gestisce null e sconosciuti', () => {
     expect(labelStato(null)).toBe('—');
     expect(labelStato('boh')).toBe('boh');
-  });
-});
-
-describe('badgeGeocode', () => {
-  it('ok → success', () => {
-    expect(badgeGeocode('ok')).toEqual({ label: 'Geocodificato', tone: 'success' });
-  });
-  it('failed → danger', () => {
-    expect(badgeGeocode('failed')).toEqual({ label: 'Da correggere', tone: 'danger' });
-  });
-  it('pending/null → muted', () => {
-    expect(badgeGeocode('pending')).toEqual({ label: 'In attesa', tone: 'muted' });
-    expect(badgeGeocode(null)).toEqual({ label: 'In attesa', tone: 'muted' });
   });
 });
