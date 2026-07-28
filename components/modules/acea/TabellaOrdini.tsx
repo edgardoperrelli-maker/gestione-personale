@@ -57,6 +57,11 @@ export type Props = {
   onFiltri?: (f: FiltriUI) => void;
   /** Valori distinti dell'intero registro, per i filtri a elenco. */
   opzioni?: Opzioni;
+  /**
+   * Vista ingrandita: la tabella prende tutta l'altezza che il contenitore le lascia invece della
+   * sua quota di pagina. Il contenitore deve essere un `flex flex-col` con un'altezza definita.
+   */
+  ingrandita?: boolean;
   /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
   editing?: {
     /** Indice della colonna modificabile, o null se la colonna non lo è. */
@@ -89,7 +94,7 @@ const idCella = (riga: number, colonna: number) => `acea-cella-${riga}-${colonna
  */
 export default function TabellaOrdini({
   righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
-  filtri, onFiltri, opzioni,
+  filtri, onFiltri, opzioni, ingrandita = false,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
   /** Elemento che scorre: è lo `scrollElement` del virtualizzatore, deve restare quello esterno. */
@@ -178,11 +183,18 @@ export default function TabellaOrdini({
   const stileColonna = (larghezza: number) => ({ flex: `1 1 ${larghezza}px`, minWidth: larghezza });
 
   return (
-    <div className="overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div
+      className={`overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] ${
+        // Ingrandita l'altezza non si calcola: si prende quella che avanza. `min-h-0` perché un
+        // figlio flex ha `min-height: auto` di default e si rifiuterebbe di rimpicciolirsi sotto
+        // il contenuto — con 5.000 righe virtualizzate significa traboccare fuori dallo schermo.
+        ingrandita ? 'flex min-h-0 flex-1' : ''
+      }`}
+    >
       <div
         ref={contenitore}
-        className="overflow-auto focus-within:outline-none"
-        style={{ height: ALTEZZA_VISTA }}
+        className={`overflow-auto focus-within:outline-none ${ingrandita ? 'w-full' : ''}`}
+        style={{ height: ingrandita ? '100%' : ALTEZZA_VISTA }}
       >
         {/*
           `tabIndex` e `role="grid"` sullo STESSO elemento: gli screen reader entrano in modalità

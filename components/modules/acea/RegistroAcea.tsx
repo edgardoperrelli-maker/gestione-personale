@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { RefreshCw } from 'lucide-react';
+import { Maximize2, Minimize2, RefreshCw } from 'lucide-react';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
@@ -29,6 +29,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   const [selezione, setSelezione] = useState<RowSelectionState>({});
   const [esportando, setEsportando] = useState(false);
   const [scaricate, setScaricate] = useState(0);
+  const [ingrandita, setIngrandita] = useState(false);
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
@@ -78,6 +79,46 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     if (chiave === 'pianificato_il') return loc.pianificato_il ? dataIt(loc.pianificato_il) : null;
     return null;
   }, [editing.locali]);
+
+  /*
+    Vista ingrandita.
+
+    Non è la Fullscreen API del browser, ed è una scelta: in fullscreen nativo viene disegnato solo
+    il sottoalbero dell'elemento a schermo pieno, e i filtri di colonna (portale su `document.body`),
+    i toast e le conferme vivono TUTTI fuori da quel sottoalbero. Ne uscirebbe una tabella grande
+    con gli imbuti morti e i messaggi invisibili — l'opposto di quello che serve. Un riquadro
+    `fixed inset-0` resta invece dentro il documento: sopra ci si posano ancora popover (z-50),
+    conferme (z-50) e toast (z-90), e sotto restano testa e sidebar (z-40). La mappa può permettersi
+    il fullscreen nativo perché non ha nulla in portale.
+
+    ⚠️ Il `fixed` si riferisce al viewport solo se NESSUN antenato ha `transform`, `filter`,
+    `perspective`, `contain` o `will-change`: un antenato trasformato diventa lui il riferimento e
+    il riquadro coprirebbe la sola area del contenuto, lasciando fuori sidebar e testa. Qui sopra
+    c'è `PageTransitionWrapper` (`app/hub/layout.tsx`), che anima `y: 6 → 0`. Verificato nel
+    sorgente di `motion-dom` (`buildTransform`): a valori di default restituisce la stringa `none`,
+    e `transform: none` non crea containing block. Vale finché quella transizione resta su valori
+    che tornano a zero — se un domani ci si mette uno `scale` a riposo, questo riquadro si rompe.
+  */
+  useEffect(() => {
+    if (!ingrandita) return undefined;
+    const precedente = document.body.style.overflow;
+    document.body.style.overflow = 'hidden';
+    return () => { document.body.style.overflow = precedente; };
+  }, [ingrandita]);
+
+  const cursoreAttivo = editing.focus !== null;
+  useEffect(() => {
+    if (!ingrandita) return undefined;
+    const esc = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // Quell'Esc è di chi lo sta già usando: il cursore di cella per uscire dalla griglia, il
+      // pannello di un filtro per chiudersi (che ferma la propagazione prima di arrivare qui).
+      if (cursoreAttivo) return;
+      setIngrandita(false);
+    };
+    window.addEventListener('keydown', esc);
+    return () => window.removeEventListener('keydown', esc);
+  }, [ingrandita, cursoreAttivo]);
 
   /**
    * Export della vista.
@@ -147,7 +188,32 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   }
 
   return (
-    <div className="space-y-2">
+    <div
+      className={
+        ingrandita
+          // `z-[45]`: sopra la testa della shell (z-40), sotto tutto ciò che deve poter comparire
+          // SOPRA la tabella — pannelli dei filtri e conferme (z-50), palette (z-70), toast (z-90).
+          ? 'fixed inset-0 z-[45] flex flex-col gap-2 bg-[var(--brand-bg)] p-3'
+          : 'space-y-2'
+      }
+    >
+      {/*
+        Ingrandita, la tabella copre la testa di pagina e la sidebar: senza una riga di identità si
+        resta davanti a una griglia di numeri senza sapere di che vista è. Non è una testa di
+        modulo (DESIGN.md §3 — quella è l'`ObjectHeader` della pagina, che qui è coperto): è
+        l'etichetta di uno stato temporaneo, e dice anche come uscirne.
+      */}
+      {ingrandita && (
+        <div className="flex items-baseline justify-between gap-2">
+          <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">
+            {famiglia === 'dunning' ? 'Dunning' : 'Limitazioni massive'} — registro ordini
+          </h2>
+          <span className="text-xs text-[var(--brand-text-muted)]">
+            <kbd>Esc</kbd> per tornare alla pagina
+          </span>
+        </div>
+      )}
+
       <BarraFiltriAcea
         filtri={filtri}
         onChange={setFiltri}
@@ -180,19 +246,36 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             </span>
           )}
         </div>
-        <MenuColonne
-          colonne={colonne}
-          visibili={visibili}
-          onChange={setVisibili}
-          onEsporta={() => void esporta()}
-          esportando={esportando}
-          vuota={totale === 0}
-          nota={
-            esportando && !tutteCaricate
-              ? `${numero(scaricate)} di ${numero(totale)} righe`
-              : undefined
-          }
-        />
+        <div className="flex items-center gap-2">
+          {/*
+            Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
+            focus gli resta addosso in entrambi gli stati, quindi non serve spostarlo a mano né
+            riportarlo indietro all'uscita.
+
+            Niente `aria-pressed`: l'etichetta cambia e dice già cosa farà il prossimo click, e
+            sommare le due cose fa annunciare «Riduci, premuto», che si contraddice.
+          */}
+          <Button variant="outline" size="sm" onClick={() => setIngrandita((v) => !v)}>
+            {ingrandita
+              ? <Minimize2 size={14} aria-hidden="true" />
+              : <Maximize2 size={14} aria-hidden="true" />}
+            {ingrandita ? 'Riduci' : 'Ingrandisci'}
+          </Button>
+
+          <MenuColonne
+            colonne={colonne}
+            visibili={visibili}
+            onChange={setVisibili}
+            onEsporta={() => void esporta()}
+            esportando={esportando}
+            vuota={totale === 0}
+            nota={
+              esportando && !tutteCaricate
+                ? `${numero(scaricate)} di ${numero(totale)} righe`
+                : undefined
+            }
+          />
+        </div>
       </div>
 
       <TabellaOrdini
@@ -206,6 +289,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         filtri={filtri}
         onFiltri={setFiltri}
         opzioni={opzioni}
+        ingrandita={ingrandita}
         editing={{
           indiceEditabile,
           focus: editing.focus,
