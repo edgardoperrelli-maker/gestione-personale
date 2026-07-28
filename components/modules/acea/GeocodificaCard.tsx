@@ -21,6 +21,31 @@ type Stato = {
 type Esito = { geocodificati: number; rimaste: number; microaree: number; senzaGruppo: number; stimati: number };
 
 /**
+ * Un blocco, con la risposta letta senza dare per scontato che sia JSON.
+ *
+ * Quando il server viene troncato a metà (timeout della funzione, gateway che molla) la risposta è
+ * una pagina HTML, e `res.json()` esplode con un «Unexpected token <» che non dice niente a chi lo
+ * legge. Qui il testo si prende grezzo e si prova a interpretarlo: se non è JSON, il messaggio
+ * dice cos'è successo davvero.
+ */
+async function blocco(url: string): Promise<Esito> {
+  const res = await fetch(url, { method: 'POST' });
+  const testo = await res.text();
+  let body: (Esito & { error?: string }) | null = null;
+  try {
+    body = JSON.parse(testo) as Esito & { error?: string };
+  } catch {
+    throw new Error(
+      res.ok
+        ? 'Il server ha risposto qualcosa che non è un blocco di geocodifica.'
+        : `Il blocco si è interrotto (HTTP ${res.status}).`,
+    );
+  }
+  if (!res.ok) throw new Error(body?.error ?? 'Geocodifica non riuscita.');
+  return body;
+}
+
+/**
  * Geocodifica del registro e numerazione delle microaree.
  *
  * Il gruppo in tabella nasce dalle COORDINATE, non dal CAP: a Roma un CAP è largo chilometri, e
@@ -71,12 +96,16 @@ export default function GeocodificaCard() {
    * Un blocco solo copre ~40 indirizzi, quanto sta nel minuto di `maxDuration` a una richiesta al
    * secondo: per 949 righe sarebbero due dozzine di clic. Il ciclo li fa da sé.
    *
-   * Due salvagenti, perché è un ciclo che chiama la rete:
+   * Tre salvagenti, perché è un ciclo che chiama la rete:
    * - **Ferma**, che l'utente può premere in qualunque momento (il blocco in corso finisce, il
    *   successivo non parte);
    * - **avanzamento obbligato**: se dopo un blocco le righe rimaste non sono DIMINUITE, il ciclo
    *   si interrompe da solo. Senza, una riga che non si riesce a marcare terrebbe il ciclo a
    *   martellare l'endpoint per sempre.
+   * - **un secondo tentativo**, e uno solo. Un giro da mezz'ora buttato per un singolo blocco
+   *   andato storto è uno spreco che si ripara con un ritentativo; ritentare all'infinito invece
+   *   trasformerebbe un guasto vero in un martellamento silenzioso. Il conto si azzera dopo ogni
+   *   blocco riuscito, perché due inciampi lontani fra loro non sono un guasto.
    */
   const macina = useCallback(async () => {
     fermare.current = false;
@@ -84,6 +113,7 @@ export default function GeocodificaCard() {
     setRisolti(0);
     let fatti = 0;
     let precedenti = Number.POSITIVE_INFINITY;
+    let inciampi = 0;
 
     try {
       for (;;) {
@@ -92,9 +122,16 @@ export default function GeocodificaCard() {
           break;
         }
 
-        const res = await fetch(ENDPOINT, { method: 'POST' });
-        const body = (await res.json()) as Esito & { error?: string };
-        if (!res.ok) throw new Error(body.error ?? 'Geocodifica non riuscita.');
+        let body: Esito;
+        try {
+          body = await blocco(ENDPOINT);
+          inciampi = 0;
+        } catch (e) {
+          inciampi += 1;
+          if (inciampi > 1) throw e;
+          toast.info('Un blocco non è andato a buon fine: riprovo una volta.');
+          continue;
+        }
 
         fatti += body.geocodificati;
         setRisolti(fatti);
@@ -123,9 +160,7 @@ export default function GeocodificaCard() {
   const rinumera = useCallback(async () => {
     setBusy('gruppi');
     try {
-      const res = await fetch(`${ENDPOINT}?azione=gruppi`, { method: 'POST' });
-      const body = (await res.json()) as Esito & { error?: string };
-      if (!res.ok) throw new Error(body.error ?? 'Rinumerazione non riuscita.');
+      const body = await blocco(`${ENDPOINT}?azione=gruppi`);
       toast.success(`${body.microaree} microaree, ${body.stimati} gruppi stimati.`);
       await carica();
     } catch (e) {

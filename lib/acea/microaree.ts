@@ -211,8 +211,14 @@ export function ereditaGruppi(
  */
 export type Precisione = 'civico' | 'via' | 'comune';
 
-/** Un tentativo di geocodifica: cosa chiedere ai provider, e quanto varrà la risposta. */
-export type Tentativo = { indirizzo: string; citta: string; precisione: Precisione };
+/**
+ * Un tentativo di geocodifica: cosa chiedere ai provider, e quanto varrà la risposta.
+ *
+ * `indirizzo` non è mai vuoto, ed è un vincolo del destinatario, non un vezzo: i provider
+ * rifiutano una richiesta senza indirizzo e rispondono `null` prima ancora di uscire in rete.
+ * Un ripiego con l'indirizzo vuoto non è «meno preciso», è un ripiego che non viene MAI tentato.
+ */
+export type Tentativo = { indirizzo: string; cap: string; citta: string; precisione: Precisione };
 
 /** `true` per il comune che non si può trattare come un punto solo. */
 export const eRomaComune = (comune: string | null | undefined): boolean =>
@@ -237,6 +243,11 @@ export const eRomaComune = (comune: string | null | undefined): boolean =>
  *
  * Se anche il ripiego esce dal Lazio la riga resta senza coordinate: a Roma ci pensa comunque
  * l'eredità dal CAP, che è più onesta di un punto piantato sul Colosseo.
+ *
+ * **Il CAP viaggia col tentativo, e sul comune non viaggia.** Chiedere il comune restringendolo a
+ * un CAP è una contraddizione: il CAP è la zona che stiamo rinunciando a conoscere, e passarlo
+ * riporterebbe il provider a cercare una precisione che gli abbiamo appena tolto — o a non
+ * trovare nulla. Sulla via romana invece il CAP resta, perché lì distingue le omonimie interne.
  */
 export function ripieghiFuoriRegione(
   via: string | null,
@@ -252,9 +263,12 @@ export function ripieghiFuoriRegione(
   const citta = `${c}, Lazio`;
 
   if (eRomaComune(c)) {
-    return v === '' ? [] : [{ indirizzo: v, citta, precisione: 'via' }];
+    return v === '' ? [] : [{ indirizzo: v, cap: (cap ?? '').trim(), citta, precisione: 'via' }];
   }
-  return [{ indirizzo: '', citta, precisione: 'comune' }];
+  // Il comune finisce ANCHE nello slot indirizzo: è la sola domanda che i provider accettano
+  // quando non resta altro da chiedere. Ne esce una chiave di cache sola per tutto il comune,
+  // quindi il ripiego costa una chiamata la prima volta e zero tutte le successive.
+  return [{ indirizzo: c, cap: '', citta, precisione: 'comune' }];
 }
 
 /** `true` se il punto è troppo grossolano per dire «a 2 km da qui». */

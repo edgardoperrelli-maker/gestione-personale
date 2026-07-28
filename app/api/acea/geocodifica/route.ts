@@ -10,14 +10,26 @@ export const runtime = 'nodejs';
 export const maxDuration = 60;
 
 /**
- * Quanti indirizzi per chiamata.
+ * Il blocco si chiude a TEMPO, non a conteggio.
  *
- * Nominatim consente 1 richiesta al secondo per IP (è la sua usage policy, e la coda seriale di
- * `geocodingCore` la rispetta): 40 indirizzi sono ~40 secondi, dentro il minuto di `maxDuration`.
- * Gli indirizzi già visti escono dalla cache e non contano, quindi in pratica un blocco ne copre
- * molti di più. Il pulsante si ripreme finché il contatore non arriva a zero.
+ * Il conteggio fisso era una scommessa sul costo del singolo indirizzo, e la scommessa è persa in
+ * partenza: un indirizzo che si risolve al primo colpo costa UNA richiesta, uno che va rincorso ne
+ * costa fino a quindici — cinque per il tentativo pieno, cinque per quello ancorato al Lazio,
+ * cinque per il ripiego — e Nominatim ne concede una al secondo. Quaranta indirizzi «facili»
+ * riempiono già quasi tutto il minuto di `maxDuration`; ne bastano due difficili per sfondarlo.
+ *
+ * Sfondarlo non è lento, è ROTTO: la funzione viene troncata, il browser riceve un 504 che non è
+ * JSON, il ciclo lo prende per errore e si ferma. Le righe già scritte restano — ogni riga si
+ * salva da sé dentro il giro — ma l'utente si ritrova un avviso rosso e deve ripremere, e su 1.600
+ * indirizzi sarebbero decine di ripartenze a mano. Cioè esattamente il contrario di «macina da sé».
+ *
+ * A tempo, invece, il blocco è sempre una risposta valida: ne fa quanti ne stanno, dice quante ne
+ * restano, e il ciclo prosegue. `BUDGET_MS` sta sotto il minuto per lasciare spazio al conteggio
+ * finale e alla risposta; `PER_BLOCCO` non è più una quota ma solo il tetto di righe da leggere,
+ * largo abbastanza da non restare a corto quando la cache le sta servendo tutte a raffica.
  */
-const PER_BLOCCO = 40;
+const BUDGET_MS = 45_000;
+const PER_BLOCCO = 150;
 
 type RigaDaGeocodificare = {
   odl: string;
@@ -84,7 +96,7 @@ async function coordinateInLazio(
     mostra come stimato — «da queste parti», non «a 2 km da qui».
   */
   for (const t of ripieghiFuoriRegione(via, cap, comune)) {
-    const r = await geocodeIndirizzoServer(t.indirizzo, t.indirizzo === '' ? '' : cap, t.citta);
+    const r = await geocodeIndirizzoServer(t.indirizzo, t.cap, t.citta);
     if (r && dentroLazio(r)) return { ...r, esito: 'ok', precisione: t.precisione };
   }
 
@@ -153,9 +165,17 @@ export async function POST(req: Request) {
     if (error) throw error;
 
     const righe = (data ?? []) as RigaDaGeocodificare[];
+    const iniziato = Date.now();
     let fatte = 0;
+    let trattate = 0;
 
     for (const r of righe) {
+      // Sempre almeno una riga, anche se il budget è già esaurito: un blocco che non chiude
+      // NIENTE lascia il contatore fermo, e il ciclo del browser lo legge come «non avanza» e si
+      // arrende. Una riga per blocco è lentissimo, ma è pur sempre avanti.
+      if (trattate > 0 && Date.now() - iniziato > BUDGET_MS) break;
+      trattate += 1;
+
       const indirizzo = indirizzoDi(r);
       const adesso = new Date().toISOString();
 

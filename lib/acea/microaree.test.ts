@@ -253,14 +253,50 @@ describe('ripieghiFuoriRegione', () => {
   // Prima Porta in una microarea inventata, che è peggio del non sapere.
   it('a Roma scende alla VIA, non al comune', () => {
     const t = ripieghiFuoriRegione('VIA TIBURTINA', '00159', 'ROMA');
-    expect(t).toEqual([{ indirizzo: 'VIA TIBURTINA', citta: 'ROMA, Lazio', precisione: 'via' }]);
+    expect(t).toEqual([
+      { indirizzo: 'VIA TIBURTINA', cap: '00159', citta: 'ROMA, Lazio', precisione: 'via' },
+    ]);
   });
 
   // Fuori Roma il nome della via ha gia` portato altrove: richiederla senza civico la porterebbe
   // altrove uguale. Il comune e` un punto sicuro dentro i suoi confini.
   it('fuori Roma scende al COMUNE', () => {
     const t = ripieghiFuoriRegione('VIA ROMA', '00019', 'TIVOLI');
-    expect(t).toEqual([{ indirizzo: '', citta: 'TIVOLI, Lazio', precisione: 'comune' }]);
+    expect(t).toEqual([
+      { indirizzo: 'TIVOLI', cap: '', citta: 'TIVOLI, Lazio', precisione: 'comune' },
+    ]);
+  });
+
+  /*
+    La regressione che questo blocco esiste per impedire.
+
+    Il ripiego sul comune nasceva con l'indirizzo VUOTO — sembrava giusto («non chiedo la via»),
+    ed era invece un ripiego morto: i provider rifiutano una richiesta senza indirizzo e tornano
+    `null` prima di uscire in rete. Ogni riga fuori Roma che finiva altrove restava senza gruppo
+    pur avendo un ripiego scritto, testato e mai eseguito.
+
+    L'asserzione non e` sulla forma del testo ma sul CONTRATTO col destinatario: qualunque
+    tentativo torni questa funzione, dev'essere una domanda che i provider accettano.
+  */
+  it('nessun tentativo esce con l’indirizzo vuoto: i provider lo rifiuterebbero', () => {
+    const casi: Array<[string | null, string | null, string | null]> = [
+      ['VIA ROMA', '00019', 'TIVOLI'],
+      ['VIA TIBURTINA', '00159', 'ROMA'],
+      [null, '00019', 'TIVOLI'],
+      ['', '', 'FORMELLO'],
+      ['  ', null, 'CIVITAVECCHIA'],
+    ];
+    for (const [via, cap, comune] of casi) {
+      for (const t of ripieghiFuoriRegione(via, cap, comune)) {
+        expect(t.indirizzo.trim()).not.toBe('');
+      }
+    }
+  });
+
+  // Il CAP e` la zona a cui stiamo rinunciando: ripassarlo chiederebbe al provider la precisione
+  // che gli abbiamo appena tolto.
+  it('il ripiego sul comune non porta con se` il CAP', () => {
+    expect(ripieghiFuoriRegione('VIA ROMA', '00019', 'TIVOLI')[0]?.cap).toBe('');
   });
 
   // Senza l'ancora regionale il ripiego rischierebbe di ripetere lo stesso errore che sta
