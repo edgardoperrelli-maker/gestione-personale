@@ -113,6 +113,7 @@ const F = {
   matricola: { tipo: 'testo', campo: 'matricola_norm' },
   indirizzo: { tipo: 'testo', campo: 'via' },
   impianto: { tipo: 'testo', campo: 'impianto' },
+  note: { tipo: 'testo', campo: 'note' },
   comune: { tipo: 'elenco', campo: 'comune', opzioni: 'comuni' },
   cap: { tipo: 'elenco', campo: 'cap', opzioni: 'cap' },
   gruppo: { tipo: 'elenco', campo: 'microarea', opzioni: 'gruppi' },
@@ -148,7 +149,7 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // sostituzione DEVE esistere l'ordine che la registra: senza, il lavoro e` stato fatto e non
   // verra` mai pagato (91,12 € l'una). La colonna esiste per far vedere quel buco.
   // Nota dell'ufficio: si scrive qui e arriva all'operatore nel rapportino.
-  { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 220 },
+  { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 220, filtro: F.note },
   // Le tre delle saracinesche NON sono predefinite nella vista normale: li` non servono, e tre
   // colonne quasi sempre vuote rubano spazio a quelle che si guardano tutti i giorni. Restano
   // attivabili, e nella scheda «Sostituzione saracinesca» tornano a schermo da sole.

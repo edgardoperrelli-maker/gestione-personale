@@ -11,7 +11,7 @@ const q = (s: string) => leggiFiltri(new URLSearchParams(s));
 const ELENCHI_VUOTI = {
   comune: [], attivita: [], stato_desc: [], operatore_cognome: [], cap: [], microarea: [],
 };
-const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null };
+const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null, note: null };
 
 describe('leggiFiltri', () => {
   it('senza parametri applica i default', () => {
@@ -515,5 +515,28 @@ describe('ordinamento sul registro intero', () => {
     for (const c of ['saracinesca', 'odl_saracinesca', 'stato_saracinesca']) {
       expect(ordinabile(c)).toBe(false);
     }
+  });
+});
+
+describe('la colonna Note si filtra e si ordina', () => {
+  it('il «contiene» arriva al server come tutti gli altri', () => {
+    expect(q('note=citofonare').testi.note).toBe('citofonare');
+    const f = filtriVuoti();
+    f.testi.note = 'cane in giardino';
+    expect(parametriQuery(f, 'dunning', 300).get('note')).toBe('cane in giardino');
+  });
+
+  /*
+    Ordinare per nota e` il modo per rispondere a «quali righe ho annotato».
+
+    Il «contiene» da solo non ci arriva: non si puo` cercare il testo di una nota che non si
+    ricorda. I vuoti stanno in fondo in entrambi i versi (vale per ogni colonna), quindi in ordine
+    crescente le righe annotate vengono tutte prima.
+  */
+  it('e` ordinabile, e da Postgres', () => {
+    expect(ordinabile('note')).toBe(true);
+    expect(ORDINAMENTI.note).toEqual({ tipo: 'registro', campo: 'note' });
+    // Niente incrocio: e` una colonna del registro, quindi la query resta una sola.
+    expect(serveIncrocio(q('ordina=note'))).toBe(false);
   });
 });

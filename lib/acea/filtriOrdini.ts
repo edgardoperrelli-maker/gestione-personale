@@ -59,7 +59,7 @@ export const COLONNE_ELENCO = [
 export type ColonnaElenco = (typeof COLONNE_ELENCO)[number];
 
 /** Colonne filtrabili per «contiene». `matricola_norm` e non `matricola`: la ricerca è sul normalizzato. */
-export const COLONNE_TESTO = ['odl', 'matricola_norm', 'impianto', 'via'] as const;
+export const COLONNE_TESTO = ['odl', 'matricola_norm', 'impianto', 'via', 'note'] as const;
 export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
 
 /**
@@ -195,6 +195,15 @@ export const ORDINAMENTI = {
   priorita_testo: { tipo: 'registro', campo: 'priorita_testo' },
   centro_lavoro: { tipo: 'registro', campo: 'centro_lavoro' },
   cardine_al: { tipo: 'registro', campo: 'cardine_al' },
+  /*
+    Ordinare per nota porta in cima le righe che ce l'hanno.
+
+    `nullsFirst: false` vale per tutte le colonne, quindi in ordine crescente le note vengono
+    prima e i vuoti in fondo: e` il modo piu` diretto per rispondere a «quali righe ho annotato»,
+    che il filtro «contiene» da solo non copre — non si puo` cercare il testo di una nota che non
+    si ricorda.
+  */
+  note: { tipo: 'registro', campo: 'note' },
   // Dagli `interventi`: si ordinano dopo l'incrocio, non da Postgres.
   pianificato_a: { tipo: 'incrocio' },
   pianificato_il: { tipo: 'incrocio' },
