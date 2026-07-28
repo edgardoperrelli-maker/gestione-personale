@@ -229,24 +229,7 @@ export async function GET(req: Request) {
       }
     }
 
-    // Quali ODL della pagina portano PIÙ operazioni. Si chiede al registro e non si guarda la
-    // pagina: le due righe di uno stesso ODL possono cadere su pagine diverse, e in quel caso
-    // entrambe sembrerebbero uniche. Sono pochissimi (3 su 5.094), ma il suffisso `/0190` deve
-    // comparire esattamente dove distingue qualcosa.
     const odlPagina = [...new Set(righe.map((r) => r.odl))];
-    const odlMultipli = new Set<string>();
-    for (let i = 0; i < odlPagina.length; i += 200) {
-      const { data: doppi, error: eDoppi } = await supabaseAdmin
-        .from('acea_ordini')
-        .select('odl, numero_operazione')
-        .in('odl', odlPagina.slice(i, i + 200));
-      if (eDoppi) throw eDoppi;
-      const visti = new Set<string>();
-      for (const d of (doppi ?? []) as Array<{ odl: string }>) {
-        if (visti.has(d.odl)) odlMultipli.add(d.odl);
-        else visti.add(d.odl);
-      }
-    }
 
     // Pianificazione da mostrare: solo per gli ODL della pagina corrente (non per tutto il
     // registro). Anche nel percorso di incrocio si rilegge da qui, perché serve pure lo `stato`
@@ -283,7 +266,6 @@ export async function GET(req: Request) {
       const p = pianificazione.get(r.odl);
       return {
         ...r,
-        odl_multiplo: odlMultipli.has(r.odl),
         pianificato_il: p?.data ?? null,
         pianificato_a: p?.staff_id ? (nomi.get(p.staff_id) ?? p.staff_id) : null,
         stato_intervento: p?.stato ?? null,

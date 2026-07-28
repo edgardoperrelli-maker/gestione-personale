@@ -115,15 +115,12 @@ describe('dataIt', () => {
 });
 
 describe('valoreCella', () => {
-  it('mostra il numero operazione solo sugli ODL che ne hanno davvero piu` d\'una', () => {
-    // La regola NON e` «diverso da 0010». Nel dunning 0010 non compare mai — il numero dice a che
-    // punto della sequenza di sollecito sta l'ordine (0190, 0120, 0210…) — quindi quel test
-    // appiccicava un suffisso a tutte le 2.335 righe dunning per distinguerne 3.
+  it('l’ODL si mostra NUDO: il numero operazione non gli si concatena mai', () => {
+    // E` il numero con cui l'ordine si cerca su ACEA, si copia, si legge al telefono. Qualunque
+    // cosa gli si attacchi va poi tolta a mano da chi lo incolla altrove.
     expect(valoreCella(riga({ numero_operazione: '0190' }), 'odl')).toBe('912215286');
     expect(valoreCella(riga({ numero_operazione: '0010' }), 'odl')).toBe('912215286');
-    // Solo dove il server ha visto piu` operazioni sullo stesso ODL il suffisso serve.
-    expect(valoreCella(riga({ numero_operazione: '0190', odl_multiplo: true }), 'odl'))
-      .toBe('912215286/0190');
+    expect(valoreCella(riga({ numero_operazione: '0050' }), 'odl')).toBe('912215286');
   });
 
   it('compone l\'indirizzo da via e civico', () => {
