@@ -18,6 +18,25 @@ import { COMMITTENTI_ACEA } from '@/lib/acea/vociRapportino';
 
 const PAGE = 1000;
 const CHUNK = 200;
+/**
+ * Identificativi per richiesta quando si risolvono gli interventi.
+ *
+ * Più alto di `CHUNK` perché qui si manda solo una lista di uuid e si riceve una colonna: il costo
+ * è la latenza di andata e ritorno, non il payload. A 200 servivano una dozzina di richieste per
+ * un dato che ne richiede due.
+ */
+const CHUNK_ID = 900;
+
+/**
+ * Le dichiarazioni cambiano solo quando un operatore chiude un rapportino: non a ogni pagina.
+ *
+ * Senza questa memoria ogni caricamento della tabella rifaceva l'intero giro — scansione dei
+ * rapportini più la risoluzione degli interventi — per un insieme che resta identico per ore. Un
+ * minuto di ritardo su una spunta «SI» non cambia nessuna decisione; venti richieste in più a
+ * ogni pagina si vedono tutte.
+ */
+const TTL_CACHE_MS = 60_000;
+let cache: { odl: Set<string>; quando: number } | null = null;
 
 /** Le due chiavi con cui i template salvano la saracinesca (storicamente divergenti). */
 const CHIAVI = ['sostituzione_valvola', 'sost_valvola'] as const;
@@ -55,7 +74,37 @@ async function vociConChiave(db: SupabaseClient, chiave: (typeof CHIAVI)[number]
  * copia invecchiata, e usarlo riempiva la vista di righe che con le saracinesche non c'entrano.
  */
 export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<Set<string>> {
-  const voci = (await Promise.all(CHIAVI.map((k) => vociConChiave(db, k)))).flat();
+  const ora = Date.now();
+  if (cache && ora - cache.quando < TTL_CACHE_MS) return cache.odl;
+
+  /*
+    Si scaricano SOLO i due valori estratti, non l'oggetto `risposte` intero.
+
+    `risposte` pesa ~1,2 KB a riga e la tabella ne ha 11.000: chiederla tutta per leggerne due
+    campi voleva dire trascinarsi megabyte di JSON a ogni caricamento della tabella. Con la
+    proiezione il payload scende a poche decine di byte per riga.
+  */
+  const voci: VoceRow[] = [];
+  for (const chiave of CHIAVI) {
+    for (let offset = 0; ; offset += PAGE) {
+      const { data, error } = await db
+        .from('rapportino_voci')
+        .select(`intervento_id, sostituzione_valvola:risposte->${CHIAVI[0]}, sost_valvola:risposte->${CHIAVI[1]}`)
+        .not(`risposte->>${chiave}`, 'is', null)
+        .order('id', { ascending: true })
+        .range(offset, offset + PAGE - 1);
+      if (error) throw error;
+      const rows = (data ?? []) as unknown as Array<{
+        intervento_id: string | null; sostituzione_valvola: unknown; sost_valvola: unknown;
+      }>;
+      voci.push(...rows.map((r) => ({
+        intervento_id: r.intervento_id,
+        risposte: { sostituzione_valvola: r.sostituzione_valvola, sost_valvola: r.sost_valvola },
+      })));
+      if (rows.length < PAGE) break;
+    }
+  }
+
   const ids = [...new Set(
     voci
       .filter((v) => v.intervento_id
@@ -63,8 +112,9 @@ export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<S
           .toUpperCase() === 'SI')
       .map((v) => v.intervento_id as string),
   )];
+
   const odl = new Set<string>();
-  for (let i = 0; i < ids.length; i += CHUNK) {
+  for (let i = 0; i < ids.length; i += CHUNK_ID) {
     const { data, error } = await db
       .from('interventi')
       .select('odl')
@@ -73,10 +123,12 @@ export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<S
       .eq('stato', 'completato')
       .not('odl', 'is', null)
       .in('committente', [...COMMITTENTI_ACEA])
-      .in('id', ids.slice(i, i + CHUNK));
+      .in('id', ids.slice(i, i + CHUNK_ID));
     if (error) throw error;
     for (const r of (data ?? []) as Array<{ odl: string | null }>) if (r.odl) odl.add(r.odl);
   }
+
+  cache = { odl, quando: ora };
   return odl;
 }
 

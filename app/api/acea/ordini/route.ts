@@ -9,7 +9,7 @@ import {
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import {
-  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata,
+  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 
@@ -171,12 +171,35 @@ type Sostituzione = { odl: string; stato: string | null; aperto: boolean };
  * simmetriche — la sostituzione porta quasi sempre l'impianto, la limitazione spesso solo la
  * matricola — e pretendere che coincidano entrambe perderebbe la maggior parte dei collegamenti.
  */
+let cacheSostituzioni: { indice: Map<string, Sostituzione>; quando: number } | null = null;
+
+/**
+ * Gli ordini di sostituzione cambiano solo a import: non a ogni pagina della tabella.
+ *
+ * Come per le dichiarazioni, un minuto di ritardo su questo elenco non cambia nessuna decisione,
+ * mentre rifarne la scansione a ogni caricamento si sente tutto.
+ */
+const TTL_SOSTITUZIONI_MS = 60_000;
+
 async function indiceSostituzioni(): Promise<Map<string, Sostituzione>> {
+  const ora = Date.now();
+  if (cacheSostituzioni && ora - cacheSostituzioni.quando < TTL_SOSTITUZIONI_MS) {
+    return cacheSostituzioni.indice;
+  }
+
   const indice = new Map<string, Sostituzione>();
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('acea_ordini')
       .select('odl, attivita, impianto, matricola, stato_desc, stato, aperto')
+      /*
+        Il filtro sull'attivita` lo fa POSTGRES, non il ciclo qui sotto.
+
+        Prima si scaricava tutto il registro — 5.227 righe in sei richieste — per tenerne 267.
+        Il predicato TS resta come rete (i frammenti sono gli stessi), ma la selezione grossa la
+        fa la banca dati, che ha un indice apposta.
+      */
+      .or(FRAMMENTI_SARACINESCA.map((k: string) => `attivita.ilike.*${k}*`).join(','))
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as Array<{
@@ -193,6 +216,7 @@ async function indiceSostituzioni(): Promise<Map<string, Sostituzione>> {
     }
     if (blocco.length < PAGINA_SCAN) break;
   }
+  cacheSostituzioni = { indice, quando: ora };
   return indice;
 }
 

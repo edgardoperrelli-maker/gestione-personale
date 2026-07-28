@@ -41,9 +41,19 @@ export function saracinescaContemplata(attivita: string | null | undefined): boo
   return !String(attivita ?? '').toUpperCase().includes('RIMOZ');
 }
 
+/**
+ * I frammenti che riconoscono un'attività di sostituzione.
+ *
+ * Esportati perché servono in DUE posti: questo predicato e il filtro SQL che seleziona gli ordini
+ * di sostituzione senza scaricare tutto il registro. Ricopiarli avrebbe voluto dire due elenchi
+ * che prima o poi divergono, e una query che seleziona un insieme diverso da quello che il codice
+ * poi riconosce.
+ */
+export const FRAMMENTI_SARACINESCA = ['SARACINESC', 'VALVOL'] as const;
+
 export function isAttivitaSaracinesca(attivita: string | null | undefined): boolean {
   const s = String(attivita ?? '').toUpperCase();
-  return s.includes('SARACINESC') || s.includes('VALVOL');
+  return FRAMMENTI_SARACINESCA.some((k) => s.includes(k));
 }
 
 /** Un misuratore, come lo si conosce da una delle due parti. */

@@ -428,10 +428,21 @@ export default function TabellaOrdini({
                   style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
                 >
                   <div className="flex w-10 shrink-0 items-center justify-center" role="gridcell">
+                    {/*
+                      La `label` riempie tutta la cella, e non e` cosmetica.
+
+                      Il quadratino e` 16px in una cella da 40: cliccando appena fuori non
+                      succedeva niente, e su una riga gia` spuntata sembrava bloccata — il click
+                      per toglierla cadeva a vuoto e la spunta restava. Con la label il bersaglio
+                      e` l'intera cella, e il browser inoltra il click al checkbox, quindi il
+                      gestore resta UNO SOLO: raddoppiarlo rimetterebbe due toggle sullo stesso
+                      gesto, che si annullano a vicenda.
+                    */}
+                    <label className="flex h-full w-full cursor-pointer items-center justify-center">
                     <input
                       type="checkbox"
                       aria-label={`Seleziona ordine ${r.odl}`}
-                      className="h-4 w-4 accent-[var(--brand-primary)]"
+                      className="h-4 w-4 cursor-pointer accent-[var(--brand-primary)]"
                       checked={scelta}
                       /*
                         Tutto nel `click`, niente nel `change`.
@@ -448,6 +459,7 @@ export default function TabellaOrdini({
                         clickRiga(vi.index, e.shiftKey);
                       }}
                     />
+                    </label>
                   </div>
                   {visibili.map((c, iCol) => {
                     // Ogni colonna e` una cella della griglia: selezionabile e copiabile. La
