@@ -2,15 +2,15 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import {
-  flexRender, getCoreRowModel, getSortedRowModel, useReactTable,
-  type ColumnDef, type SortingState, type RowSelectionState,
+  flexRender, getCoreRowModel, useReactTable,
+  type ColumnDef, type RowSelectionState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert } from 'lucide-react';
 import {
   valoreCella, tonoScadenza, type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
-import type { FiltriUI, Opzioni } from '@/lib/acea/filtriOrdini';
+import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
 import Skeleton from '@/components/ui/Skeleton';
 import FiltroColonna from './FiltroColonna';
@@ -103,7 +103,6 @@ export default function TabellaOrdini({
   righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
   filtri, onFiltri, opzioni, comandiColonne,
 }: Props) {
-  const [ordinamento, setOrdinamento] = useState<SortingState>([]);
   /** Colonna in trascinamento. In un ref e non in stato: cambia a ogni `dragover`, non si disegna. */
   const trascinata = useRef<string | null>(null);
   /** Durante il ridimensionamento il trascinamento va spento, o il browser prova a fare entrambi. */
@@ -133,13 +132,20 @@ export default function TabellaOrdini({
   const table = useReactTable({
     data: righe,
     columns,
-    state: { sorting: ordinamento, rowSelection: selezione },
-    onSortingChange: setOrdinamento,
+    state: { rowSelection: selezione },
     onRowSelectionChange: (agg) => onSelezione(typeof agg === 'function' ? agg(selezione) : agg),
     getRowId: (r) => chiaveRiga(r),
     enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
-    getSortedRowModel: getSortedRowModel(),
+    /*
+      NESSUN `getSortedRowModel`: l'ordinamento non si fa piu` qui.
+
+      Ordinava le sole righe SCESE — 300 su 5.000+ — quindi «il primo gruppo» era il primo delle
+      righe capitate a schermo, non del registro. Stesso difetto dei filtri, sull'altro asse, e
+      altrettanto invisibile: una tabella ordinata male sembra una tabella ordinata bene.
+      Ora la colonna cliccata diventa un criterio della query (vedi `ORDINAMENTI`), e le righe
+      arrivano gia` nell'ordine giusto.
+    */
   });
 
   const rows = table.getRowModel().rows;
@@ -280,7 +286,12 @@ export default function TabellaOrdini({
             </div>
             {table.getHeaderGroups()[0]?.headers.map((h, i) => {
               const col = visibili[i];
-              const dir = h.column.getIsSorted();
+              // L'ordinamento e` quello dei FILTRI, cioe` della query: la freccia mostra come e`
+              // ordinato il registro, non come sono ordinate le righe scese.
+              const ordinabileQui = col ? ordinabile(col.chiave) : false;
+              const dir = filtri && ordinabileQui && filtri.ordina === col?.chiave
+                ? filtri.verso
+                : false;
               return (
                 <div
                   key={h.id}
@@ -322,8 +333,25 @@ export default function TabellaOrdini({
                 >
                   <button
                     type="button"
-                    onClick={h.column.getToggleSortingHandler()}
-                    title={`Ordina per ${col?.intestazione ?? ''}`}
+                    disabled={!ordinabileQui}
+                    onClick={() => {
+                      // La guardia `ordinabile` e` anche un type guard: sotto, `col.chiave` e`
+                      // ristretta alle sole colonne che il server sa ordinare.
+                      if (!col || !filtri || !onFiltri || !ordinabile(col.chiave)) return;
+                      // Terzo click: si torna all'ordine canonico. Senza, una volta ordinato non si
+                      // potrebbe piu` tornare alla vista di partenza se non ricaricando.
+                      const gia = filtri.ordina === col.chiave;
+                      onFiltri({
+                        ...filtri,
+                        ordina: gia && filtri.verso === 'desc' ? null : col.chiave,
+                        verso: gia && filtri.verso === 'asc' ? 'desc' : 'asc',
+                      });
+                    }}
+                    title={
+                      ordinabileQui
+                        ? `Ordina per ${col?.intestazione ?? ''} (tutto il registro)`
+                        : `${col?.intestazione ?? ''}: ordinamento non disponibile sul registro intero`
+                    }
                     // Riordino da tastiera: senza, spostare una colonna resterebbe un gesto da
                     // solo mouse. Dichiarato in `aria-keyshortcuts`, che è il posto in cui uno
                     // screen reader lo va a leggere.
@@ -333,14 +361,20 @@ export default function TabellaOrdini({
                       if (e.key === 'ArrowLeft') { e.preventDefault(); comandiColonne.onSpostaDi(col.chiave, -1); }
                       else if (e.key === 'ArrowRight') { e.preventDefault(); comandiColonne.onSpostaDi(col.chiave, 1); }
                     }}
-                    className="flex min-w-0 flex-1 items-center gap-1 rounded-[var(--radius-sm)] py-2 text-left hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    className={`flex min-w-0 flex-1 items-center gap-1 rounded-[var(--radius-sm)] py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                      ordinabileQui ? 'hover:text-[var(--brand-text-main)]' : 'cursor-default'
+                    }`}
                   >
                     <span className="truncate">
                       {flexRender(h.column.columnDef.header, h.getContext())}
                     </span>
                     {dir === 'asc' && <ArrowUp size={12} aria-hidden="true" />}
                     {dir === 'desc' && <ArrowDown size={12} aria-hidden="true" />}
-                    {!dir && <ChevronsUpDown size={12} aria-hidden="true" className="opacity-40" />}
+                    {/* Nessuna doppia freccia sulle colonne non ordinabili: sarebbe un comando
+                        disegnato che non fa niente. */}
+                    {!dir && ordinabileQui && (
+                      <ChevronsUpDown size={12} aria-hidden="true" className="opacity-40" />
+                    )}
                   </button>
                   {col?.filtro && filtri && onFiltri && (
                     <FiltroColonna

@@ -119,6 +119,9 @@ export type FiltriOrdini = {
   /** Ricerca libera su ODL, matricola, impianto, indirizzo. */
   cerca: string | null;
   pianificazione: FiltriPianificazione;
+  /** Colonna su cui ordinare. `null` = ordinamento canonico (scadenza, poi creazione). */
+  ordina: ChiaveOrdinamento | null;
+  verso: Verso;
   pagina: number;
   perPagina: number;
 };
@@ -144,7 +147,67 @@ export function filtriPianificazioneAttivi(p: FiltriPianificazione): boolean {
  * sul registro, e passargli la lista degli ODL sarebbe una URL da decine di migliaia di caratteri.
  */
 export function serveIncrocio(f: FiltriOrdini): boolean {
-  return filtriPianificazioneAttivi(f.pianificazione) || f.stato === 'saracinesche';
+  return (
+    filtriPianificazioneAttivi(f.pianificazione)
+    || f.stato === 'saracinesche'
+    || ordinamentoDaIncrociare(f)
+  );
+}
+
+/**
+ * Come si ordina ogni colonna, e chi lo sa fare.
+ *
+ * Stessa disciplina dei filtri: l'ordinamento si applica all'INTERO registro, non alle 300 righe
+ * scese. Ordinare il caricato mostrerebbe «il primo gruppo» delle righe che sono capitate a
+ * schermo, non del registro — e non c'e` niente, guardando la tabella, che lo denunci.
+ *
+ * - `registro`: Postgres sa ordinarlo, e` una colonna di `acea_ordini`;
+ * - `incrocio`: il dato vive altrove (`interventi`), quindi si ordina in memoria dopo aver
+ *   incrociato — lo stesso percorso che gia` serve ai filtri di pianificazione.
+ *
+ * Una colonna ASSENTE da questa mappa non e` ordinabile, e la tabella non ne disegna il comando.
+ * Le tre delle saracinesche stanno fuori di proposito: derivano da un aggancio per impianto o
+ * matricola che non e` una colonna ne` un indice, e ordinarci sopra costerebbe piu` di quanto
+ * valga in una vista da 76 righe.
+ */
+export type OrdinamentoColonna =
+  | { tipo: 'registro'; campo: string }
+  | { tipo: 'incrocio' };
+
+export const ORDINAMENTI = {
+  odl: { tipo: 'registro', campo: 'odl' },
+  attivita: { tipo: 'registro', campo: 'attivita' },
+  matricola: { tipo: 'registro', campo: 'matricola_norm' },
+  indirizzo: { tipo: 'registro', campo: 'via' },
+  comune: { tipo: 'registro', campo: 'comune' },
+  cap: { tipo: 'registro', campo: 'cap' },
+  gruppo: { tipo: 'registro', campo: 'microarea' },
+  stato: { tipo: 'registro', campo: 'stato_desc' },
+  data_creazione: { tipo: 'registro', campo: 'data_creazione' },
+  scadenza: { tipo: 'registro', campo: 'scadenza' },
+  impianto: { tipo: 'registro', campo: 'impianto' },
+  famiglia: { tipo: 'registro', campo: 'famiglia' },
+  tipo_ordine: { tipo: 'registro', campo: 'tipo_ordine' },
+  operatore_cognome: { tipo: 'registro', campo: 'operatore_cognome' },
+  esito: { tipo: 'registro', campo: 'causale_desc' },
+  valore_netto: { tipo: 'registro', campo: 'valore_netto' },
+  codice_sla: { tipo: 'registro', campo: 'codice_sla' },
+  priorita_testo: { tipo: 'registro', campo: 'priorita_testo' },
+  centro_lavoro: { tipo: 'registro', campo: 'centro_lavoro' },
+  cardine_al: { tipo: 'registro', campo: 'cardine_al' },
+  // Dagli `interventi`: si ordinano dopo l'incrocio, non da Postgres.
+  pianificato_a: { tipo: 'incrocio' },
+  pianificato_il: { tipo: 'incrocio' },
+} as const satisfies Record<string, OrdinamentoColonna>;
+
+export type ChiaveOrdinamento = keyof typeof ORDINAMENTI;
+export type Verso = 'asc' | 'desc';
+
+export const ordinabile = (chiave: string): chiave is ChiaveOrdinamento => chiave in ORDINAMENTI;
+
+/** `true` se l'ordinamento chiesto non lo puo` fare Postgres e serve l'incrocio. */
+export function ordinamentoDaIncrociare(f: FiltriOrdini): boolean {
+  return f.ordina !== null && ORDINAMENTI[f.ordina].tipo === 'incrocio';
 }
 
 /** Criteri di data derivati dal filtro scadenza, pronti per la query. */
@@ -237,6 +300,8 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
         pian === 'non_pianificati' || pian === 'pianificati' ? pian : 'tutte',
       giorno: giornoIso(params.get('giornoPianificato')),
     },
+    ordina: ordinabile(params.get('ordina') ?? '') ? (params.get('ordina') as ChiaveOrdinamento) : null,
+    verso: params.get('verso') === 'desc' ? 'desc' : 'asc',
     pagina: intero(params.get('pagina'), 1, 1, 100_000),
     perPagina: intero(params.get('perPagina'), DEFAULT_PER_PAGINA, 1, MAX_PER_PAGINA),
   };
@@ -293,6 +358,8 @@ export type FiltriUI = {
   testi: Record<ColonnaTesto, string>;
   /** Le due colonne che non vengono da ACEA: esecutore e giorno pianificato. */
   pianificazione: FiltriPianificazione;
+  ordina: ChiaveOrdinamento | null;
+  verso: Verso;
 };
 
 /**
@@ -311,6 +378,8 @@ export function filtriVuoti(): FiltriUI {
     elenchi,
     testi,
     pianificazione: { esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null },
+    ordina: null,
+    verso: 'asc',
   };
 }
 
@@ -337,6 +406,10 @@ export function parametriQuery(
   if (pi.senzaEsecutore) p.set('senzaEsecutore', '1');
   if (pi.pianificazione !== 'tutte') p.set('pianificazione', pi.pianificazione);
   if (pi.giorno) p.set('giornoPianificato', pi.giorno);
+  if (f.ordina) {
+    p.set('ordina', f.ordina);
+    p.set('verso', f.verso);
+  }
   return p;
 }
 

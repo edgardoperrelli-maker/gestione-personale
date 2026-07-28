@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   COLONNE_ELENCO, COLONNE_TESTO, colonneFiltrate, contaFiltriColonna, espressioneRicerca,
   filtriPianificazioneAttivi, filtriVuoti, haFiltriAttivi, intervalloPagina, leggiFiltri,
-  parametriQuery, serveIncrocio, soglieScadenza,
+  ordinabile, ORDINAMENTI, parametriQuery, serveIncrocio, soglieScadenza,
   terminoContiene,
 } from './filtriOrdini';
 
@@ -21,6 +21,9 @@ describe('leggiFiltri', () => {
       pianificazione: {
         esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null,
       },
+      // `null` e non una colonna qualsiasi: senza ordinamento chiesto vale quello canonico
+      // (scadenza, poi creazione), che e` l'ordine in cui si lavora la giornata.
+      ordina: null, verso: 'asc',
     });
   });
 
@@ -448,5 +451,69 @@ describe('scheda «Sostituzione saracinesca»', () => {
 
   it('un valore ignoto resta «tutti», non diventa una scheda inesistente', () => {
     expect(q('stato=saracinesca').stato).toBe('tutti');
+  });
+});
+
+/*
+  L'ordinamento e` l'ALTRO asse della stessa onesta` dei filtri.
+
+  Ordinava le sole righe scese — 300 su 5.000+ — quindi «il primo gruppo» era il primo delle righe
+  capitate a schermo, non del registro. Invisibile guardando la tabella: una tabella ordinata male
+  sembra una tabella ordinata bene, e chi monta un giro sul «primo gruppo» parte dal posto
+  sbagliato senza avere niente che glielo dica.
+*/
+describe('ordinamento sul registro intero', () => {
+  it('la colonna scelta e il verso arrivano al server', () => {
+    const f = filtriVuoti();
+    f.ordina = 'gruppo';
+    f.verso = 'desc';
+    const qs = parametriQuery(f, 'dunning', 300);
+    expect(qs.get('ordina')).toBe('gruppo');
+    expect(qs.get('verso')).toBe('desc');
+  });
+
+  it('senza ordinamento non si sporca la query', () => {
+    const qs = parametriQuery(filtriVuoti(), 'dunning', 300);
+    expect(qs.has('ordina')).toBe(false);
+    expect(qs.has('verso')).toBe(false);
+  });
+
+  it('il server rilegge quello che il client ha scritto', () => {
+    expect(q('ordina=scadenza&verso=desc')).toMatchObject({ ordina: 'scadenza', verso: 'desc' });
+    expect(q('ordina=gruppo').verso).toBe('asc');
+  });
+
+  // Una colonna inventata nella URL non deve diventare un `.order()` su un campo inesistente:
+  // Postgres rifiuterebbe la query e la tabella resterebbe vuota senza dire perche`.
+  it('una colonna ignota cade sull’ordine canonico', () => {
+    expect(q('ordina=pippo').ordina).toBeNull();
+    expect(q('ordina=lat').ordina).toBeNull();
+    expect(q('verso=diagonale').verso).toBe('asc');
+  });
+
+  it('ogni colonna ordinabile del registro punta a un campo, quelle incrociate no', () => {
+    for (const [chiave, spec] of Object.entries(ORDINAMENTI)) {
+      if (spec.tipo === 'registro') expect(spec.campo).toBeTruthy();
+      else expect(spec).toEqual({ tipo: 'incrocio' });
+      expect(ordinabile(chiave)).toBe(true);
+    }
+  });
+
+  // Le due colonne della pianificazione vivono in `interventi`: Postgres non le vede, quindi
+  // ordinarle richiede lo stesso incrocio dei loro filtri. Se `serveIncrocio` non le riconoscesse,
+  // la route prenderebbe il percorso normale e l'ordinamento verrebbe semplicemente ignorato.
+  it('ordinare per esecutore o per giorno accende l’incrocio', () => {
+    expect(serveIncrocio(q('ordina=pianificato_a'))).toBe(true);
+    expect(serveIncrocio(q('ordina=pianificato_il'))).toBe(true);
+    expect(serveIncrocio(q('ordina=gruppo'))).toBe(false);
+    expect(serveIncrocio(q('ordina=scadenza'))).toBe(false);
+  });
+
+  it('le colonne non ordinabili restano fuori dalla mappa, non ci finiscono a meta`', () => {
+    // Le tre delle saracinesche derivano da un aggancio per impianto o matricola che non e` una
+    // colonna: meglio nessun comando che un comando che ordina solo il caricato.
+    for (const c of ['saracinesca', 'odl_saracinesca', 'stato_saracinesca']) {
+      expect(ordinabile(c)).toBe(false);
+    }
   });
 });

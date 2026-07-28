@@ -5,7 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import {
   COLONNE_ELENCO, COLONNE_TESTO,
   leggiFiltri, soglieScadenza, intervalloPagina, espressioneRicerca,
-  serveIncrocio, type FiltriOrdini, type FiltriPianificazione,
+  serveIncrocio, ORDINAMENTI, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import { chiaviAggancio, isAttivitaSaracinesca } from '@/lib/acea/saracinesche';
@@ -79,14 +79,24 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   const ricerca = espressioneRicerca(f);
   if (ricerca) q = q.or(ricerca);
 
-  // L'ordinamento è TOTALE (la coppia odl+operazione è unica): senza, due pagine successive
-  // potrebbero ripetere o saltare righe, perché Postgres non garantisce un ordine stabile fra
-  // query diverse a parità di chiave di ordinamento.
-  return q
-    .order('scadenza', { ascending: true, nullsFirst: false })
-    .order('data_creazione', { ascending: true })
-    .order('odl', { ascending: true })
-    .order('numero_operazione', { ascending: true });
+  /*
+    L'ordinamento CHIESTO dall'utente viene prima; quello canonico resta sotto come spareggio.
+
+    Deve restare TOTALE (la coppia odl+operazione è unica): senza un criterio che distingue ogni
+    riga, due pagine successive potrebbero ripetere o saltare righe, perché Postgres non garantisce
+    un ordine stabile fra query diverse a parità di chiave. Su un ordinamento per gruppo — dove
+    centinaia di righe condividono lo stesso valore — sarebbe successo di sicuro.
+  */
+  const scelto = f.ordina === null ? null : ORDINAMENTI[f.ordina];
+  if (scelto?.tipo === 'registro') {
+    // `nullsFirst: false` sempre: le righe senza valore stanno in fondo in entrambi i versi, che è
+    // dove uno se le aspetta. In cima somiglierebbero a un risultato.
+    q = q.order(scelto.campo, { ascending: f.verso === 'asc', nullsFirst: false });
+  } else {
+    q = q.order('scadenza', { ascending: true, nullsFirst: false })
+      .order('data_creazione', { ascending: true });
+  }
+  return q.order('odl', { ascending: true }).order('numero_operazione', { ascending: true });
 }
 
 type Chiave = { odl: string; numero_operazione: string };
@@ -130,6 +140,17 @@ async function indicePianificazione(): Promise<Map<string, { staff: Set<string>;
     if (blocco.length < PAGINA_SCAN) break;
   }
   return indice;
+}
+
+/** `staff_id` → nome, per ordinare per esecutore con quello che si LEGGE, non con un uuid. */
+async function nomiStaff(): Promise<Map<string, string>> {
+  const nomi = new Map<string, string>();
+  const { data, error } = await supabaseAdmin.from('staff').select('id, display_name');
+  if (error) throw error;
+  for (const s of (data ?? []) as Array<{ id: string; display_name: string | null }>) {
+    if (s.display_name) nomi.set(s.id, s.display_name);
+  }
+  return nomi;
 }
 
 /** L'ordine ACEA di sostituzione che copre un misuratore. */
@@ -275,10 +296,44 @@ export async function GET(req: Request) {
         for (const s of (staff ?? []) as Array<{ id: string }>) staffScelti.add(s.id);
       }
 
-      const passate = chiavi.filter(
+      let passate = chiavi.filter(
         (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
           && passaPianificazione(k.odl, f.pianificazione, indice, staffScelti),
       );
+      /*
+        Ordinamento delle due colonne che non stanno nel registro.
+
+        Si fa QUI, sull'insieme completo delle chiavi che hanno passato i filtri, e non sulla
+        pagina: ordinare la pagina mostrerebbe «il primo esecutore» delle 300 righe scese invece
+        che del registro — lo stesso difetto che i filtri hanno gia` evitato.
+      */
+      const scelto = f.ordina === null ? null : ORDINAMENTI[f.ordina];
+      if (scelto?.tipo === 'incrocio') {
+        const nomi = await nomiStaff();
+        const valore = (odl: string): string => {
+          const v = indice.get(odl);
+          if (!v) return '';
+          if (f.ordina === 'pianificato_il') {
+            // Il giorno PIÙ RECENTE, come la colonna che si vede: ordinare su un altro
+            // intervento dello stesso ODL darebbe una tabella che non segue la sua colonna.
+            return [...v.giorni].sort().at(-1) ?? '';
+          }
+          return [...v.staff].map((id) => nomi.get(id) ?? '').sort()[0] ?? '';
+        };
+        const segno = f.verso === 'asc' ? 1 : -1;
+        passate = [...passate].sort((a, b) => {
+          const va = valore(a.odl);
+          const vb = valore(b.odl);
+          // I vuoti in fondo in ENTRAMBI i versi: «non pianificato» non e` un valore piccolo,
+          // e` un valore assente, e in cima somiglierebbe a un risultato.
+          if (va === '' && vb !== '') return 1;
+          if (vb === '' && va !== '') return -1;
+          if (va !== vb) return va.localeCompare(vb, 'it') * segno;
+          // Spareggio stabile, o la paginazione ripeterebbe righe.
+          return a.odl.localeCompare(b.odl) || a.numero_operazione.localeCompare(b.numero_operazione);
+        });
+      }
+
       totale = passate.length;
 
       const pagina = passate.slice(da, a + 1);
