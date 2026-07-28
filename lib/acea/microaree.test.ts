@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  LATO_LAT, LATO_LNG, RIQUADRO_LAZIO, assegnaGruppi, cella, dentroLazio, type PuntoOrdine,
+  LATO_LAT, LATO_LNG, RIQUADRO_LAZIO, assegnaGruppi, cella, dentroLazio, ereditaGruppi,
+  type PuntoOrdine,
 } from './microaree';
 
 const ROMA_CENTRO = { lat: 41.8933, lng: 12.4829 };
@@ -152,5 +153,97 @@ describe('assegnaGruppi', () => {
 
   it('senza punti non inventa gruppi', () => {
     expect(assegnaGruppi([])).toEqual({ perRiga: new Map(), totale: 0, senzaGruppo: 0 });
+  });
+});
+
+describe('ereditaGruppi', () => {
+  const orfano = (chiave: string, comune: string | null, cap: string | null) => ({ chiave, comune, cap });
+
+  // A Roma il comune non dice niente: 1.285 km², un solo gruppo manderebbe la stessa squadra
+  // dall'Eur a Prima Porta. Il CAP è l'unico appiglio più fine che ACEA ci dà.
+  it('a Roma presta per CAP', () => {
+    const g = ereditaGruppi(
+      [orfano('nuovo', 'ROMA', '00139')],
+      [
+        { comune: 'ROMA', cap: '00139', gruppo: 7 },
+        { comune: 'ROMA', cap: '00185', gruppo: 99 },
+      ],
+    );
+    expect(g.get('nuovo')).toBe(7);
+  });
+
+  // Fuori Roma i comuni stanno dentro un giro, e un CAP ne copre spesso più d'uno: prestare per
+  // comune è insieme più semplice e più preciso.
+  it('fuori Roma presta per comune, ignorando il CAP', () => {
+    const g = ereditaGruppi(
+      [orfano('nuovo', 'TIVOLI', '99999')],
+      [
+        { comune: 'TIVOLI', cap: '00019', gruppo: 12 },
+        { comune: 'ZAGAROLO', cap: '00039', gruppo: 40 },
+      ],
+    );
+    expect(g.get('nuovo')).toBe(12);
+  });
+
+  it('vince il gruppo con più righe: la zona dove quel CAP si concentra davvero', () => {
+    const g = ereditaGruppi(
+      [orfano('nuovo', 'ROMA', '00139')],
+      [
+        { comune: 'ROMA', cap: '00139', gruppo: 5 },
+        { comune: 'ROMA', cap: '00139', gruppo: 8 },
+        { comune: 'ROMA', cap: '00139', gruppo: 8 },
+      ],
+    );
+    expect(g.get('nuovo')).toBe(8);
+  });
+
+  it('a parità vince il numero più basso, non l’ordine di arrivo', () => {
+    const donatori = [
+      { comune: 'TIVOLI', cap: '00019', gruppo: 30 },
+      { comune: 'TIVOLI', cap: '00019', gruppo: 11 },
+    ];
+    expect(ereditaGruppi([orfano('a', 'TIVOLI', null)], donatori).get('a')).toBe(11);
+    expect(ereditaGruppi([orfano('a', 'TIVOLI', null)], [...donatori].reverse()).get('a')).toBe(11);
+  });
+
+  // Meglio «—» che un numero inventato: un gruppo preso da un insieme vuoto manderebbe una squadra
+  // in un posto scelto a caso.
+  it('senza donatori non presta niente', () => {
+    expect(ereditaGruppi([orfano('nuovo', 'FRASCATI', '00044')], []).has('nuovo')).toBe(false);
+    expect(
+      ereditaGruppi([orfano('nuovo', 'ROMA', '00139')], [{ comune: 'ROMA', cap: '00185', gruppo: 3 }])
+        .has('nuovo'),
+    ).toBe(false);
+  });
+
+  it('un CAP mancante a Roma non pesca dal mucchio', () => {
+    // Senza CAP, a Roma, non c'è una zona: prestare un gruppo qualsiasi della città sarebbe peggio
+    // che non prestarne nessuno.
+    const g = ereditaGruppi(
+      [orfano('nuovo', 'ROMA', null)],
+      [{ comune: 'ROMA', cap: '00139', gruppo: 7 }],
+    );
+    expect(g.has('nuovo')).toBe(false);
+  });
+
+  it('non si fa confondere da maiuscole e spazi', () => {
+    const g = ereditaGruppi(
+      [orfano('a', '  tivoli ', null), orfano('b', 'roma', '00139')],
+      [
+        { comune: 'TIVOLI', cap: '00019', gruppo: 12 },
+        { comune: 'ROMA', cap: '00139', gruppo: 7 },
+      ],
+    );
+    expect(g.get('a')).toBe(12);
+    expect(g.get('b')).toBe(7);
+  });
+
+  it('presta a tutti gli orfani della stessa zona lo stesso numero', () => {
+    const g = ereditaGruppi(
+      [orfano('a', 'ROMA', '00139'), orfano('b', 'ROMA', '00139')],
+      [{ comune: 'ROMA', cap: '00139', gruppo: 7 }],
+    );
+    expect(g.get('a')).toBe(7);
+    expect(g.get('b')).toBe(7);
   });
 });

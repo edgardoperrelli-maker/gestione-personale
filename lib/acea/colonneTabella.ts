@@ -33,6 +33,8 @@ export type RigaTabella = {
   comune: string | null;
   /** Numero di microarea dalle coordinate. `null` finché la geocodifica non è passata. */
   microarea: number | null;
+  /** `true` se il gruppo e` PRESTATO dal CAP/comune e non calcolato dalle proprie coordinate. */
+  microarea_stimata?: boolean;
   impianto: string | null;
   matricola: string | null;
   valore_netto: number | null;
@@ -260,7 +262,10 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
     case 'gruppo':
       // Un trattino e non uno zero: «non ancora geocodificato» non e` un gruppo, e uno zero
       // finirebbe ordinato insieme ai gruppi veri come se fosse una zona.
-      return r.microarea === null || r.microarea === undefined ? '—' : String(r.microarea);
+      if (r.microarea === null || r.microarea === undefined) return '—';
+      // La tilde distingue il gruppo PRESTATO da quello misurato: «da queste parti» non e` «a 2 km
+      // da qui», e chi monta un giro su un numero prestato deve saperlo.
+      return r.microarea_stimata ? `~${r.microarea}` : String(r.microarea);
     case 'valore_netto':
       return r.valore_netto === null ? '—' : r.valore_netto.toFixed(2);
     case 'data_creazione':

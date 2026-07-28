@@ -131,3 +131,73 @@ export function assegnaGruppi(punti: readonly PuntoOrdine[]): Gruppi {
 
   return { perRiga, totale: aree.length, senzaGruppo };
 }
+
+/** Righe da geocodificare: quelle che un gruppo se lo devono far prestare. */
+export type PuntoSenzaCoord = { chiave: string; comune: string | null; cap: string | null };
+
+/** Righe che il gruppo ce l'hanno per davvero, e possono prestarlo. */
+export type Donatore = { comune: string | null; cap: string | null; gruppo: number };
+
+const eRoma = (comune: string | null) => (comune ?? '').trim().toUpperCase() === 'ROMA';
+
+/**
+ * Il gruppo PRESTATO a chi non ha ancora le coordinate: dal CAP a Roma, dal comune altrove.
+ *
+ * Serve a ogni import. Un ordine appena arrivato non ha coordinate finché la geocodifica non passa,
+ * e i provider gratuiti vanno a una richiesta al secondo: senza prestito, le righe nuove
+ * resterebbero senza zona proprio nei giorni in cui le si deve pianificare — che è quando servono.
+ *
+ * **Perché due regole diverse.** A Roma il comune non dice niente: sono 1.285 km² e un solo gruppo
+ * per tutta la città manderebbe la stessa squadra dall'Eur a Prima Porta. Il CAP lì è il taglio più
+ * fine che ACEA ci dà, e resta l'unico appiglio. Fuori Roma è il contrario: i comuni sono piccoli
+ * abbastanza da stare in un giro, e il CAP spesso ne copre più d'uno, quindi prestare per comune è
+ * insieme più semplice e più preciso.
+ *
+ * Fra i candidati vince quello con più righe — la zona dove quel CAP (o quel comune) si concentra
+ * davvero — e a parità il numero più basso, per non far dipendere il risultato dall'ordine di
+ * arrivo dei dati.
+ *
+ * Resta un numero PRESTATO, non misurato: dice «da queste parti», non «a 2 km da qui». Va tenuto
+ * distinto da quello vero, e infatti in tabella si mostra con la tilde (`~12`).
+ */
+export function ereditaGruppi(
+  orfani: readonly PuntoSenzaCoord[],
+  donatori: readonly Donatore[],
+): Map<string, number> {
+  // Da chiave di prestito a «quante righe per ciascun gruppo».
+  const conteggi = new Map<string, Map<number, number>>();
+  for (const d of donatori) {
+    const chiave = eRoma(d.comune)
+      ? `CAP|${(d.cap ?? '').trim()}`
+      : `COMUNE|${(d.comune ?? '').trim().toUpperCase()}`;
+    if (chiave === 'CAP|' || chiave === 'COMUNE|') continue;
+    const perGruppo = conteggi.get(chiave) ?? new Map<number, number>();
+    perGruppo.set(d.gruppo, (perGruppo.get(d.gruppo) ?? 0) + 1);
+    conteggi.set(chiave, perGruppo);
+  }
+
+  // Il gruppo dominante di ogni chiave: più righe, e a parità il numero più basso.
+  const dominante = new Map<string, number>();
+  for (const [chiave, perGruppo] of conteggi) {
+    let scelto = -1;
+    let quante = -1;
+    for (const [gruppo, n] of perGruppo) {
+      if (n > quante || (n === quante && gruppo < scelto)) {
+        scelto = gruppo;
+        quante = n;
+      }
+    }
+    if (scelto >= 0) dominante.set(chiave, scelto);
+  }
+
+  const prestati = new Map<string, number>();
+  for (const o of orfani) {
+    const chiave = eRoma(o.comune)
+      ? `CAP|${(o.cap ?? '').trim()}`
+      : `COMUNE|${(o.comune ?? '').trim().toUpperCase()}`;
+    const g = dominante.get(chiave);
+    // Nessun donatore: nessun prestito. Meglio «—» che un numero inventato da un insieme vuoto.
+    if (g !== undefined) prestati.set(o.chiave, g);
+  }
+  return prestati;
+}

@@ -15,9 +15,10 @@ type Stato = {
   fuoriRegione: number;
   nonTrovati: number;
   conGruppo: number;
+  stimati: number;
 };
 
-type Esito = { geocodificati: number; rimaste: number; microaree: number; senzaGruppo: number };
+type Esito = { geocodificati: number; rimaste: number; microaree: number; senzaGruppo: number; stimati: number };
 
 /**
  * Geocodifica del registro e numerazione delle microaree.
@@ -82,10 +83,11 @@ export default function GeocodificaCard() {
       </div>
 
       {stato && (
-        <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-          <StatTile label="Con gruppo" value={stato.conGruppo} size="sm" tone="ok" />
+        <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
+          <StatTile label="Gruppo misurato" value={stato.conGruppo} size="sm" tone="ok" />
+          {/* Prestato dal CAP/comune: una zona approssimata, mostrata in tabella con la tilde. */}
+          <StatTile label="Gruppo stimato (~)" value={stato.stimati} size="sm" />
           <StatTile label="Da geocodificare" value={stato.daFare} size="sm" tone={daFare > 0 ? 'warn' : 'neutral'} />
-          <StatTile label="Indirizzo non trovato" value={stato.nonTrovati} size="sm" />
           <StatTile
             label="Fuori dal Lazio"
             value={stato.fuoriRegione}

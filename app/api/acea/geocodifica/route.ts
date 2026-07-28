@@ -3,12 +3,11 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { geocodeIndirizzoServer } from '@/lib/interventi/geocodeServer';
-import { assegnaGruppi, dentroLazio, type PuntoOrdine } from '@/lib/acea/microaree';
+import { dentroLazio } from '@/lib/acea/microaree';
+import { ricalcolaGruppi } from '@/lib/acea/gruppiServer';
 
 export const runtime = 'nodejs';
 export const maxDuration = 60;
-
-const PAGINA_SCAN = 1000;
 
 /**
  * Quanti indirizzi per chiamata.
@@ -66,61 +65,6 @@ async function coordinateInLazio(
   return { lat: 0, lng: 0, esito: 'non_trovato' };
 }
 
-/** Ricalcola i numeri di microarea su TUTTO il registro e li scrive. */
-async function ricalcolaGruppi(): Promise<{ microaree: number; senzaGruppo: number }> {
-  const punti: PuntoOrdine[] = [];
-  const perChiave = new Map<string, { odl: string; numero_operazione: string }>();
-
-  for (let offset = 0; ; offset += PAGINA_SCAN) {
-    const { data, error } = await supabaseAdmin
-      .from('acea_ordini')
-      .select('odl, numero_operazione, comune, lat, lng')
-      .order('odl', { ascending: true })
-      .order('numero_operazione', { ascending: true })
-      .range(offset, offset + PAGINA_SCAN - 1);
-    if (error) throw error;
-    const blocco = (data ?? []) as Array<{
-      odl: string; numero_operazione: string; comune: string | null;
-      lat: number | null; lng: number | null;
-    }>;
-    for (const r of blocco) {
-      const chiave = `${r.odl}|${r.numero_operazione}`;
-      perChiave.set(chiave, { odl: r.odl, numero_operazione: r.numero_operazione });
-      punti.push({
-        chiave,
-        comune: r.comune,
-        coord: r.lat !== null && r.lng !== null ? { lat: r.lat, lng: r.lng } : null,
-      });
-    }
-    if (blocco.length < PAGINA_SCAN) break;
-  }
-
-  const gruppi = assegnaGruppi(punti);
-
-  // Si scrive riga per riga solo dove il numero è definito; le altre restano a `null`, che è già
-  // il loro valore. Un `update` per riga sarebbe lentissimo: si raggruppa per numero e si aggiorna
-  // un gruppo alla volta con un `or` sulle chiavi.
-  const perNumero = new Map<number, string[]>();
-  for (const [chiave, n] of gruppi.perRiga) {
-    const elenco = perNumero.get(n);
-    if (elenco) elenco.push(chiave);
-    else perNumero.set(n, [chiave]);
-  }
-
-  for (const [n, chiavi] of perNumero) {
-    const odls = [...new Set(chiavi.map((k) => k.split('|')[0]))];
-    for (let i = 0; i < odls.length; i += 200) {
-      const { error } = await supabaseAdmin
-        .from('acea_ordini')
-        .update({ microarea: n })
-        .in('odl', odls.slice(i, i + 200));
-      if (error) throw error;
-    }
-  }
-
-  return { microaree: gruppi.totale, senzaGruppo: gruppi.senzaGruppo };
-}
-
 /** GET — a che punto è la geocodifica. */
 export async function GET() {
   const auth = await requireAdmin();
@@ -135,16 +79,17 @@ export async function GET() {
       return supabaseAdmin.from('acea_ordini').select('odl', { count: 'exact', head: true });
     }
 
-    const [totale, daFare, fuoriRegione, nonTrovati, conGruppo] = await Promise.all([
+    const [totale, daFare, fuoriRegione, nonTrovati, conGruppo, stimati] = await Promise.all([
       conta((q) => q),
       conta((q) => q.is('geocodifica_esito', null)),
       conta((q) => q.eq('geocodifica_esito', 'fuori_regione')),
       conta((q) => q.eq('geocodifica_esito', 'non_trovato')),
-      conta((q) => q.not('microarea', 'is', null)),
+      conta((q) => q.not('microarea', 'is', null).eq('microarea_stimata', false)),
+      conta((q) => q.eq('microarea_stimata', true)),
     ]);
 
     return NextResponse.json(
-      { totale, daFare, fuoriRegione, nonTrovati, conGruppo },
+      { totale, daFare, fuoriRegione, nonTrovati, conGruppo, stimati },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {
@@ -222,7 +167,7 @@ export async function POST(req: Request) {
     // darebbe numeri che cambiano a ogni blocco, cioè inutilizzabili.
     const gruppi = (rimaste ?? 0) === 0
       ? await ricalcolaGruppi()
-      : { microaree: 0, senzaGruppo: 0 };
+      : { microaree: 0, senzaGruppo: 0, stimati: 0 };
 
     return NextResponse.json({ geocodificati: fatte, rimaste: rimaste ?? 0, ...gruppi });
   } catch (e) {

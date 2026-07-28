@@ -6,6 +6,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { parseExportAcea } from '@/lib/acea/parseExportAcea';
 import { riconciliaImport, type AnnullatoPianificato } from '@/lib/acea/riconciliaImport';
 import { applicaImport } from '@/lib/acea/applicaImport';
+import { ricalcolaGruppi, type EsitoGruppi } from '@/lib/acea/gruppiServer';
 import { isAnnullato } from '@/lib/acea/statiOrdine';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
 
@@ -140,6 +141,20 @@ export async function POST(req: Request) {
     // 5) Scrittura.
     const scritture = await applicaImport(supabaseAdmin, piano, importId);
 
+    // 5-bis) Microaree: gli ordini nuovi arrivano senza coordinate, e geocodificarli richiede
+    // minuti (un indirizzo al secondo). Il ricalcolo presta loro il gruppo del CAP — a Roma — o del
+    // comune, così una riga appena importata ha già una zona invece di restare a «—» proprio nei
+    // giorni in cui la si pianifica. Il numero prestato resta marcato come stimato.
+    //
+    // Best-effort come l'archiviazione: un import scritto correttamente non deve fallire perché la
+    // rinumerazione è andata storta. Il pulsante negli Strumenti la rifà quando serve.
+    let gruppi: EsitoGruppi | null = null;
+    try {
+      gruppi = await ricalcolaGruppi();
+    } catch (e) {
+      console.warn('[acea/import] ricalcolo microaree non riuscito:', e);
+    }
+
     // 6) Archiviazione dell'originale: best-effort, non deve invalidare un import riuscito.
     let storagePath: string | null = null;
     try {
@@ -168,6 +183,7 @@ export async function POST(req: Request) {
       avvisi: parse.avvisi,
       scritture,
       archiviato: storagePath !== null,
+      microaree: gruppi,
     };
 
     await supabaseAdmin
