@@ -15,9 +15,13 @@ import { describe, expect, it } from 'vitest';
 // una schermata non la conosce. La guardia sta sulla SORGENTE, non sui nomi: elencare
 // «deve esserci acqualatina» non servirebbe al prossimo committente.
 
-const dir = resolve(__dirname, '../../app/impostazioni/attivita-tassonomia');
-const PAGE = readFileSync(resolve(dir, 'page.tsx'), 'utf8');
-const CLIENT = readFileSync(resolve(dir, 'AttivitaTassonomiaClient.tsx'), 'utf8');
+const radice = resolve(__dirname, '../..');
+const leggi = (p: string) => readFileSync(resolve(radice, p), 'utf8');
+
+const PAGE = leggi('app/impostazioni/attivita-tassonomia/page.tsx');
+const CLIENT = leggi('app/impostazioni/attivita-tassonomia/AttivitaTassonomiaClient.tsx');
+const INTERVENTI_PAGE = leggi('app/hub/interventi/page.tsx');
+const STORICO_FILTRI = leggi('components/modules/interventi/StoricoFiltri.tsx');
 
 describe('Tassonomia attività — i committenti vengono dal registro', () => {
   it('la pagina li carica da `lib/contratti/dati`', () => {
@@ -48,5 +52,33 @@ describe('Tassonomia attività — i committenti vengono dal registro', () => {
     // Senza codice non possono comparire su `attivita_tassonomia`: offrirli sarebbe
     // un menu che produce righe che il CHECK del database rifiuta.
     expect(PAGE).toMatch(/\.filter\(\(c\) => c\.codice\)/);
+  });
+});
+
+describe('Storico interventi — anche il filtro committente viene dal registro', () => {
+  it('la pagina carica i committenti da `lib/contratti/dati`', () => {
+    expect(INTERVENTI_PAGE).toMatch(/from '@\/lib\/contratti\/dati'/);
+    expect(INTERVENTI_PAGE).toMatch(/caricaCommittenti\(\)/);
+    expect(INTERVENTI_PAGE).toMatch(/committenti=\{committenti\}/);
+  });
+
+  it('il pannello filtri non porta più un elenco cablato', () => {
+    // Era `const COMMITTENTI = [{ value: 'acea' }, { value: 'italgas' }, { value: 'altro' }]`.
+    expect(STORICO_FILTRI).not.toMatch(/const COMMITTENTI\s*=/);
+    expect(STORICO_FILTRI).not.toMatch(/value: 'italgas'/);
+    expect(STORICO_FILTRI).toMatch(/committenti: \{ value: string; label: string \}\[\]/);
+  });
+
+  it('«Altro» resta selezionabile: è un valore scritto davvero su `interventi`', () => {
+    // Diverso dal caso tassonomia: qui non è solo un catch-all di risoluzione, è un
+    // codice che sta sulle righe. Toglierlo renderebbe quelle righe non isolabili.
+    expect(INTERVENTI_PAGE).toMatch(/value: 'altro'/);
+  });
+
+  it('il filtro regge qualunque codice: la sola equivalenza è lim_massive → acea', () => {
+    // È ciò che rende sufficiente aggiungere l'opzione, senza toccare la query:
+    // `filtraRighe` confronta con `committenteEquivalente`, che non collassa gli altri.
+    const equivalenza = leggi('lib/attivita/tassonomia.ts');
+    expect(equivalenza).toMatch(/c === 'lim_massive' \? 'acea' : c/);
   });
 });

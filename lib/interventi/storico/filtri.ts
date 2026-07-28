@@ -12,7 +12,8 @@ export type FiltriStorico = {
   esecutori: string[];
   /** Gruppi attività della tassonomia (es. 'DUNNING'): vuoto = tutti. */
   gruppi: string[];
-  /** Committenti ('acea'|'italgas'|'altro'; lim_massive equivale ad acea): vuoto = tutti. */
+  /** Codici committente da includere; vuoto = tutti. Non è un elenco chiuso: le opzioni
+   *  vengono dal registro `committenti`, e lim_massive equivale ad acea. */
   committenti: string[];
   /** Territori/contratti (nomi da `territories`, es. 'LAZIO EST'): vuoto = tutti. */
   territori: string[];

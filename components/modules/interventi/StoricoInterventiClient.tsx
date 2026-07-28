@@ -72,7 +72,7 @@ function filtriToParams(f: StatoFiltriUI): URLSearchParams {
   return params;
 }
 
-export default function StoricoInterventiClient({ staff, gruppi, territori, isAdminPlus, puoModificare }: { staff: Staff[]; gruppi: string[]; territori: string[]; isAdminPlus: boolean; puoModificare: boolean }) {
+export default function StoricoInterventiClient({ staff, gruppi, territori, committenti, isAdminPlus, puoModificare }: { staff: Staff[]; gruppi: string[]; territori: string[]; committenti: { value: string; label: string }[]; isAdminPlus: boolean; puoModificare: boolean }) {
   const [filtri, setFiltri] = useState<StatoFiltriUI>(FILTRI_VUOTI);
   const [fotoVoceId, setFotoVoceId] = useState<string | null>(null);
   const [modificaVoceId, setModificaVoceId] = useState<string | null>(null);
@@ -258,6 +258,7 @@ export default function StoricoInterventiClient({ staff, gruppi, territori, isAd
         staff={staff}
         gruppi={gruppi}
         territori={territori}
+        committenti={committenti}
         onApplica={applica}
         onPulisci={pulisci}
         onEsporta={esporta}
