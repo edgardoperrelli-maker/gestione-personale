@@ -93,4 +93,12 @@ export type AvvisoRiga = {
   numero_operazione: string;
   tipo: 'tipo_ordine_ignoto' | 'sospetto_troncamento' | 'misuratore_assente' | 'stato_ignoto';
   dettaglio: string;
+  /**
+   * In quale dei due registri e` finita la riga.
+   *
+   * Serve a poterci ANDARE: un avviso che dice «6 righe da controllare» senza dire quali, e senza
+   * un modo di raggiungerle, e` un numero che si legge e si dimentica. Le due viste sono separate,
+   * quindi senza famiglia il link non saprebbe dove mandare.
+   */
+  famiglia: 'dunning' | 'massive';
 };

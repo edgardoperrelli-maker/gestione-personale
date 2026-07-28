@@ -261,3 +261,56 @@ describe('parseExportAcea — validazione del file', () => {
     if (!e.ok) expect(e.motivo).toMatch(/non leggibile/i);
   });
 });
+
+/*
+  Ogni avviso deve poter essere RAGGIUNTO, non solo contato.
+
+  Il riquadro dell'import diceva «13 righe da controllare» e si fermava lì: nessun elenco, nessun
+  modo di arrivarci. Un numero così si legge, si annuisce, e le righe restano dove sono.
+  Ora ogni avviso porta l'ODL e la famiglia, e diventa un link al registro giusto — senza
+  `famiglia` quel link non saprebbe dove mandare, visto che le due viste sono separate.
+*/
+describe('gli avvisi si possono raggiungere', () => {
+  const HEADER = ['Ordine', 'Numero Operazione', 'Stato Operazione', 'Tipo di ordine',
+    'Operazione testo breve', 'Data documento', 'Contratto', 'Fornitore', 'Testo breve Ordine'];
+
+  async function conRighe(righe: unknown[][]): Promise<Buffer> {
+    const wb = new ExcelJS.Workbook();
+    const ws = wb.addWorksheet('Esportazione SAPUI5');
+    ws.addRow(HEADER);
+    for (const r of righe) ws.addRow(r);
+    return Buffer.from(await wb.xlsx.writeBuffer());
+  }
+
+  it('un avviso porta l’ODL e il registro in cui cercarlo', async () => {
+    // Riga senza impianto né matricola: fa scattare `misuratore_assente`.
+    const buf = await conRighe([
+      ['957000001', '0190', 'DAPI', 'ALIM', 'Limitazione flusso idrico', '2026-07-01', '3600002158', '25617', ''],
+    ]);
+    const e = await parseExportAcea(buf);
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    expect(e.avvisi.length).toBeGreaterThan(0);
+    for (const a of e.avvisi) {
+      expect(a.odl).toBe('957000001');
+      expect(['dunning', 'massive']).toContain(a.famiglia);
+    }
+  });
+
+  it('la famiglia dell’avviso e` quella della riga a cui si riferisce', async () => {
+    const buf = await conRighe([
+      ['957000001', '0190', 'DAPI', 'ALIM', 'Limitazione flusso idrico', '2026-07-01', '3600002158', '25617', ''],
+      ['912000002', '0010', 'DAPI', 'ASTR', 'Limitazione Massiva su Impianto', '2026-07-01', '3600002158', '25617', ''],
+    ]);
+    const e = await parseExportAcea(buf);
+    expect(e.ok).toBe(true);
+    if (!e.ok) return;
+    const perChiave = new Map(e.righe.map((r) => [`${r.odl}|${r.numero_operazione}`, r.famiglia]));
+    for (const a of e.avvisi) {
+      const attesa = perChiave.get(`${a.odl}|${a.numero_operazione}`);
+      // Un link che manda sull'altro registro non trova niente, e sembra un avviso su una riga
+      // che non esiste.
+      if (attesa) expect(a.famiglia).toBe(attesa);
+    }
+  });
+});

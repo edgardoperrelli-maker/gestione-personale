@@ -121,7 +121,7 @@ export async function parseExportAcea(
     const { famiglia, riconosciuto } = famigliaDaTipoOrdine(tipoOrdine);
     if (!riconosciuto) {
       avvisi.push({
-        odl, numero_operazione: numeroOperazione, tipo: 'tipo_ordine_ignoto',
+        odl, numero_operazione: numeroOperazione, tipo: 'tipo_ordine_ignoto', famiglia,
         dettaglio: `Tipo di ordine "${tipoOrdine ?? ''}" non riconosciuto: la riga entra come dunning.`,
       });
     }
@@ -131,7 +131,7 @@ export async function parseExportAcea(
     // introduce uno nuovo, va saputo al primo import e non tre settimane dopo.
     if (stato !== '' && !isStatoNoto(stato)) {
       avvisi.push({
-        odl, numero_operazione: numeroOperazione, tipo: 'stato_ignoto',
+        odl, numero_operazione: numeroOperazione, tipo: 'stato_ignoto', famiglia,
         dettaglio: `Stato "${stato}" mai visto prima: la riga entra come aperta e va controllata.`,
       });
     }
@@ -148,13 +148,13 @@ export async function parseExportAcea(
 
     if (dalTesto.sospettoTroncamento) {
       avvisi.push({
-        odl, numero_operazione: numeroOperazione, tipo: 'sospetto_troncamento',
+        odl, numero_operazione: numeroOperazione, tipo: 'sospetto_troncamento', famiglia,
         dettaglio: `Il testo dell'ordine è al limite dei 40 caratteri: la matricola "${dalTesto.matricola ?? ''}" potrebbe essere tagliata.`,
       });
     }
     if (!matricola && !impianto) {
       avvisi.push({
-        odl, numero_operazione: numeroOperazione, tipo: 'misuratore_assente',
+        odl, numero_operazione: numeroOperazione, tipo: 'misuratore_assente', famiglia,
         dettaglio: 'Nessun impianto né matricola ricavabile (atteso sulle rimozioni allacci abusivi).',
       });
     }

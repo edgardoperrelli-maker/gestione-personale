@@ -9,6 +9,8 @@ export type AvvisoImport = {
   numero_operazione: string;
   tipo: string;
   dettaglio: string;
+  /** Quale dei due registri contiene la riga: senza, il link non saprebbe dove mandare. */
+  famiglia: 'dunning' | 'massive';
 };
 
 export type EsitoImport = {
@@ -51,8 +53,10 @@ export default function RiepilogoImport({
    */
   interrotto?: boolean;
 }) {
-  const perTipo = esito.avvisi.reduce<Record<string, number>>((acc, a) => {
-    acc[a.tipo] = (acc[a.tipo] ?? 0) + 1;
+  // Raggruppate per tipo tenendo le RIGHE, non il solo conteggio: e` la differenza fra un numero
+  // che si legge e un elenco su cui si puo` lavorare.
+  const perTipo = esito.avvisi.reduce<Record<string, AvvisoImport[]>>((acc, a) => {
+    (acc[a.tipo] ??= []).push(a);
     return acc;
   }, {});
 
@@ -124,14 +128,47 @@ export default function RiepilogoImport({
             <FileWarning size={16} className="text-[var(--warning)]" aria-hidden="true" />
             {esito.avvisi.length} righe da controllare
           </div>
-          <ul className="mt-2 space-y-0.5 text-xs text-[var(--brand-text-muted)]">
-            {Object.entries(perTipo).map(([tipo, n]) => (
+          {/*
+            Ogni tipo si APRE sui suoi ODL, e ogni ODL e` un link al registro che lo contiene.
+
+            Prima il riquadro contava e basta: «6 con uno stato mai visto» senza dire quali, e senza
+            un modo di raggiungerle. Un numero cosi` si legge, si annuisce e si dimentica — e le
+            righe da controllare restano lì. Gli ODL c'erano gia` tutti negli avvisi: mancava solo
+            di mostrarli.
+
+            `<details>` e non uno stato React: e` chiusura e apertura native, funzionano da tastiera
+            e con i lettori di schermo senza che ci sia niente da tenere in piedi.
+          */}
+          <ul className="mt-2 space-y-1 text-xs text-[var(--brand-text-muted)]">
+            {Object.entries(perTipo).map(([tipo, righe]) => (
               <li key={tipo}>
-                <span className="font-mono tabular-nums">{n}</span>{' '}
-                {tipo === 'misuratore_assente' && 'senza impianto né matricola (atteso sulle rimozioni abusive)'}
-                {tipo === 'sospetto_troncamento' && 'con la matricola al limite dei 40 caratteri del campo ACEA'}
-                {tipo === 'tipo_ordine_ignoto' && 'con un tipo di ordine non riconosciuto: entrate come dunning'}
-                {tipo === 'stato_ignoto' && 'con uno stato mai visto: entrate come aperte, da controllare'}
+                <details>
+                  <summary className="cursor-pointer rounded-[var(--radius-sm)] marker:text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
+                    <span className="font-mono tabular-nums">{righe.length}</span>{' '}
+                    {tipo === 'misuratore_assente' && 'senza impianto né matricola (atteso sulle rimozioni abusive)'}
+                    {tipo === 'sospetto_troncamento' && 'con la matricola al limite dei 40 caratteri del campo ACEA'}
+                    {tipo === 'tipo_ordine_ignoto' && 'con un tipo di ordine non riconosciuto: entrate come dunning'}
+                    {tipo === 'stato_ignoto' && 'con uno stato mai visto: entrate come aperte, da controllare'}
+                  </summary>
+                  <ul className="ml-4 mt-1 space-y-0.5">
+                    {righe.map((a) => (
+                      <li key={`${a.odl}|${a.numero_operazione}`}>
+                        {/*
+                          La ricerca libera del registro cerca anche per ODL: portarci l'utente con
+                          la riga gia` isolata gli risparmia di copiare il numero e incollarlo.
+                        */}
+                        <a
+                          href={`/hub/acea/${a.famiglia}?cerca=${encodeURIComponent(a.odl)}`}
+                          className="font-mono tabular-nums text-[var(--brand-primary)] underline-offset-2 hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                          title={a.dettaglio}
+                        >
+                          {a.odl}
+                        </a>
+                        <span className="ml-2 text-[var(--brand-text-muted)]">{a.dettaglio}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </details>
               </li>
             ))}
           </ul>

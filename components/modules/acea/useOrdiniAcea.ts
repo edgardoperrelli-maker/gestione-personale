@@ -1,6 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import type { RigaTabella } from '@/lib/acea/colonneTabella';
 import {
   OPZIONI_VUOTE, filtriVuoti, parametriQuery,
@@ -34,7 +35,26 @@ type Risposta = {
  * righe non ancora scese.
  */
 export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
-  const [filtri, setFiltri] = useState<FiltriUI>(filtriVuoti);
+  const params = useSearchParams();
+  /*
+    `?cerca=<odl>` nella URL apre il registro gia` su quella riga.
+
+    Serve ai link che arrivano da fuori — oggi dagli avvisi dell'import, che segnalano righe da
+    controllare: senza questa lettura il link atterrava sul registro intatto, e sembrava un link
+    rotto pur essendo l'indirizzo giusto.
+
+    Insieme alla ricerca si passa a «Tutti»: una riga segnalata puo` benissimo essere chiusa, e
+    atterrare su «Da lavorare» con una ricerca che non trova niente e` peggio che non linkarla.
+  */
+  const [filtri, setFiltri] = useState<FiltriUI>(() => {
+    const iniziali = filtriVuoti();
+    const cerca = params?.get('cerca')?.trim();
+    if (cerca) {
+      iniziali.cerca = cerca;
+      iniziali.stato = 'tutti';
+    }
+    return iniziali;
+  });
   const [righe, setRighe] = useState<RigaTabella[]>([]);
   const [totale, setTotale] = useState(0);
   const [oggi, setOggi] = useState('');
