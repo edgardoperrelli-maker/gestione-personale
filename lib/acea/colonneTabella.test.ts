@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  COLONNE_DUNNING, COLONNE_MASSIVE, dataIt, valoreCella, tonoScadenza, type RigaTabella,
+  COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt, valoreCella, tonoScadenza,
+  type RigaTabella,
 } from './colonneTabella';
 import { COLONNE_ELENCO, COLONNE_TESTO, OPZIONI_VUOTE } from './filtriOrdini';
 
@@ -216,5 +217,43 @@ describe('saracinesche', () => {
     const r = riga2({ saracinesca: 'SI', odl_saracinesca: null });
     expect(valoreCella(r, 'saracinesca')).toBe('SI');
     expect(valoreCella(r, 'odl_saracinesca')).toBe('—');
+  });
+});
+
+describe('colonnePerStato', () => {
+  // Il difetto che questa funzione toglie: nella scheda saracinesche si leggeva la prima colonna
+  // credendo di leggere l'ordine di sostituzione, e invece era quello della limitazione — che e`
+  // chiusa da mesi e non dice niente su quando verra` pagata la saracinesca.
+  it('nella scheda saracinesche l’ODL e` quello della SOSTITUZIONE', () => {
+    const c = colonnePerStato(COLONNE_DUNNING, true);
+    expect(c[0].chiave).toBe('odl_saracinesca');
+    expect(c[0].intestazione).toBe('ODL');
+  });
+
+  it('il numero della limitazione resta, ma non si chiama piu` «ODL»', () => {
+    const c = colonnePerStato(COLONNE_DUNNING, true);
+    const lim = c.find((x) => x.chiave === 'odl');
+    expect(lim?.intestazione).toBe('ODL limitazione');
+  });
+
+  it('nessuna colonna si perde e nessuna si duplica', () => {
+    const c = colonnePerStato(COLONNE_DUNNING, true);
+    expect(c).toHaveLength(COLONNE_DUNNING.length);
+    expect(new Set(c.map((x) => x.chiave)).size).toBe(c.length);
+  });
+
+  // Le chiavi restano le stesse: larghezze e ordine salvati dall'utente continuano a corrispondere
+  // invece di azzerarsi ogni volta che si cambia scheda.
+  it('le chiavi restano quelle, cambiano solo ordine ed etichette', () => {
+    const c = colonnePerStato(COLONNE_DUNNING, true);
+    expect(new Set(c.map((x) => x.chiave))).toEqual(new Set(COLONNE_DUNNING.map((x) => x.chiave)));
+  });
+
+  it('fuori da quella scheda non tocca niente', () => {
+    expect(colonnePerStato(COLONNE_DUNNING, false)).toBe(COLONNE_DUNNING);
+  });
+
+  it('su una vista senza la colonna sostituzione non inventa nulla', () => {
+    expect(colonnePerStato(COLONNE_MASSIVE, true)).toBe(COLONNE_MASSIVE);
   });
 });

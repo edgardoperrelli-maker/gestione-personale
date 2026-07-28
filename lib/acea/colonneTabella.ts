@@ -344,3 +344,28 @@ export function tonoScadenza(r: RigaTabella, oggi: string): TonoScadenza {
   );
   return giorni <= 3 ? 'vicino' : 'lontano';
 }
+
+/**
+ * Le colonne adattate alla scheda che si sta guardando.
+ *
+ * Nella scheda «Sostituzione saracinesca» l'ODL che conta è quello dell'ordine di SOSTITUZIONE:
+ * è il numero che si cerca su ACEA per sapere se la richiesta è partita e a che punto sta. Il
+ * numero della limitazione resta a schermo — serve a ritrovare la riga e il lavoro su cui la
+ * saracinesca è stata cambiata — ma smette di chiamarsi «ODL», perché era quello a ingannare: si
+ * leggeva la prima colonna credendo di leggere la sostituzione.
+ *
+ * Cambiano SOLO ordine ed etichette: le chiavi restano quelle: le larghezze e l'ordine salvati
+ * dall'utente continuano a corrispondere invece di azzerarsi cambiando scheda.
+ */
+export function colonnePerStato(colonne: DefColonna[], saracinesche: boolean): DefColonna[] {
+  if (!saracinesche) return colonne;
+
+  const sostituzione = colonne.find((c) => c.chiave === 'odl_saracinesca');
+  if (!sostituzione) return colonne;
+
+  const resto = colonne
+    .filter((c) => c.chiave !== 'odl_saracinesca')
+    .map((c) => (c.chiave === 'odl' ? { ...c, intestazione: 'ODL limitazione' } : c));
+
+  return [{ ...sostituzione, intestazione: 'ODL', predefinita: true }, ...resto];
+}

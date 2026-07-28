@@ -6,7 +6,8 @@ import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-r
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
-  COLONNE_DUNNING, COLONNE_MASSIVE, dataIt, type DefColonna, type RigaTabella,
+  COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
+  type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
@@ -40,9 +41,20 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     ricarica, perPagina, query,
   } = useOrdiniAcea(famiglia);
 
+  /*
+    Le colonne ADATTATE alla scheda: nella «Sostituzione saracinesca» l'ODL che conta e` quello
+    dell'ordine di sostituzione, e il numero della limitazione — chiuso da mesi — smette di
+    chiamarsi «ODL». Era quello a ingannare: si leggeva la prima colonna credendo di leggere la
+    sostituzione.
+  */
+  const colonneVista = useMemo(
+    () => colonnePerStato(colonne, filtri.stato === 'saracinesche'),
+    [colonne, filtri.stato],
+  );
+
   const colonneVisibili = useMemo(
-    () => colonne.filter((c) => visibili.has(c.chiave)),
-    [colonne, visibili],
+    () => colonneVista.filter((c) => visibili.has(c.chiave)),
+    [colonneVista, visibili],
   );
 
   const selezionate: RigaTabella[] = useMemo(
@@ -236,7 +248,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
       <BarraFiltriAcea
         filtri={filtri}
         onChange={setFiltri}
-        colonne={colonne}
+        colonne={colonneVista}
         totale={totale}
         caricate={righe.length}
       />
@@ -307,7 +319,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           </Button>
 
           <MenuColonne
-            colonne={colonne}
+            colonne={colonneVista}
             visibili={visibili}
             onChange={setVisibili}
             onEsporta={() => void esporta()}
@@ -325,7 +337,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
       <TabellaOrdini
         righe={righe}
-        colonne={colonne}
+        colonne={colonneVista}
         colonneVisibili={visibili}
         oggi={oggi}
         selezione={selezione}
