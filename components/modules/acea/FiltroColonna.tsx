@@ -6,7 +6,12 @@ import { Check, Filter, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Tooltip from '@/components/ui/Tooltip';
 import type { FiltroColonna as DefFiltro } from '@/lib/acea/colonneTabella';
-import type { FiltriUI, ScadenzaFiltro } from '@/lib/acea/filtriOrdini';
+import {
+  ETICHETTE_PIANIFICAZIONE,
+  type FiltriUI, type PianificazioneFiltro, type ScadenzaFiltro,
+} from '@/lib/acea/filtriOrdini';
+
+const PIANIFICAZIONI: PianificazioneFiltro[] = ['tutte', 'non_pianificati', 'pianificati'];
 
 const LARGHEZZA = 264;
 /** Margine dal bordo del viewport quando il pannello finisce fuori a destra. */
@@ -32,6 +37,12 @@ type Props = {
 export function colonnaFiltra(filtro: DefFiltro, f: FiltriUI): boolean {
   if (filtro.tipo === 'elenco') return f.elenchi[filtro.campo].length > 0;
   if (filtro.tipo === 'testo') return f.testi[filtro.campo].trim() !== '';
+  if (filtro.tipo === 'esecutore') {
+    return f.pianificazione.esecutori.length > 0 || f.pianificazione.senzaEsecutore;
+  }
+  if (filtro.tipo === 'data_pianificata') {
+    return f.pianificazione.pianificazione !== 'tutte' || f.pianificazione.giorno !== null;
+  }
   return f.scadenza !== 'tutte';
 }
 
@@ -59,6 +70,9 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
   const [testo, setTesto] = useState('');
   const [scadenza, setScadenza] = useState<ScadenzaFiltro>('tutte');
   const [cercaValore, setCercaValore] = useState('');
+  const [senzaEsec, setSenzaEsec] = useState(false);
+  const [pian, setPian] = useState<PianificazioneFiltro>('tutte');
+  const [giorno, setGiorno] = useState('');
 
   const attivo = colonnaFiltra(filtro, filtri);
 
@@ -66,6 +80,14 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
     if (filtro.tipo === 'elenco') setSpunte(new Set(filtri.elenchi[filtro.campo]));
     if (filtro.tipo === 'testo') setTesto(filtri.testi[filtro.campo]);
     if (filtro.tipo === 'scadenza') setScadenza(filtri.scadenza);
+    if (filtro.tipo === 'esecutore') {
+      setSpunte(new Set(filtri.pianificazione.esecutori));
+      setSenzaEsec(filtri.pianificazione.senzaEsecutore);
+    }
+    if (filtro.tipo === 'data_pianificata') {
+      setPian(filtri.pianificazione.pianificazione);
+      setGiorno(filtri.pianificazione.giorno ?? '');
+    }
     setCercaValore('');
     setAperto(true);
   }, [filtro, filtri]);
@@ -111,31 +133,48 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
     return q === '' ? valori : valori.filter((v) => v.toLowerCase().includes(q));
   }, [valori, cercaValore]);
 
+  const bozza = useCallback((): FiltriUI => ({
+    ...filtri,
+    elenchi: { ...filtri.elenchi },
+    testi: { ...filtri.testi },
+    pianificazione: { ...filtri.pianificazione },
+  }), [filtri]);
+
   const applica = useCallback(() => {
-    const agg: FiltriUI = {
-      ...filtri,
-      elenchi: { ...filtri.elenchi },
-      testi: { ...filtri.testi },
-    };
+    const agg = bozza();
     if (filtro.tipo === 'elenco') agg.elenchi[filtro.campo] = [...spunte];
     if (filtro.tipo === 'testo') agg.testi[filtro.campo] = testo;
     if (filtro.tipo === 'scadenza') agg.scadenza = scadenza;
+    if (filtro.tipo === 'esecutore') {
+      agg.pianificazione.esecutori = [...spunte];
+      agg.pianificazione.senzaEsecutore = senzaEsec;
+    }
+    if (filtro.tipo === 'data_pianificata') {
+      agg.pianificazione.pianificazione = pian;
+      // Un giorno preciso non ha senso su «non pianificati»: la combinazione non tornerebbe mai
+      // nulla, e chi la imposta crede di aver ristretto, non di aver svuotato.
+      agg.pianificazione.giorno = pian === 'non_pianificati' || giorno === '' ? null : giorno;
+    }
     onChange(agg);
     chiudi();
-  }, [filtri, filtro, spunte, testo, scadenza, onChange, chiudi]);
+  }, [bozza, filtro, spunte, testo, scadenza, senzaEsec, pian, giorno, onChange, chiudi]);
 
   const azzera = useCallback(() => {
-    const agg: FiltriUI = {
-      ...filtri,
-      elenchi: { ...filtri.elenchi },
-      testi: { ...filtri.testi },
-    };
+    const agg = bozza();
     if (filtro.tipo === 'elenco') agg.elenchi[filtro.campo] = [];
     if (filtro.tipo === 'testo') agg.testi[filtro.campo] = '';
     if (filtro.tipo === 'scadenza') agg.scadenza = 'tutte';
+    if (filtro.tipo === 'esecutore') {
+      agg.pianificazione.esecutori = [];
+      agg.pianificazione.senzaEsecutore = false;
+    }
+    if (filtro.tipo === 'data_pianificata') {
+      agg.pianificazione.pianificazione = 'tutte';
+      agg.pianificazione.giorno = null;
+    }
     onChange(agg);
     chiudi();
-  }, [filtri, filtro, onChange, chiudi]);
+  }, [bozza, filtro, onChange, chiudi]);
 
   const scambia = (v: string) => {
     setSpunte((prec) => {
@@ -237,6 +276,110 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
           <p className="mt-1 px-1 text-[11px] text-[var(--brand-text-muted)]">
             Cerca su tutto il registro, non solo sulle righe già caricate.
           </p>
+        </>
+      )}
+
+      {filtro.tipo === 'esecutore' && (
+        <>
+          {/*
+            «Non assegnato» sta nella stessa lista delle persone, in cima: nell'AutoFiltro di Excel
+            le spunte di una colonna sono in OR, e qui vale lo stesso — «gli ordini di ROSSI oppure
+            quelli che non ha ancora nessuno» è la domanda vera di chi sta distribuendo il lavoro.
+          */}
+          <label className="mb-1 flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs hover:bg-[var(--brand-surface-muted)]">
+            <input
+              type="checkbox"
+              checked={senzaEsec}
+              onChange={() => setSenzaEsec((v) => !v)}
+              className="h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
+            />
+            <span className="font-medium text-[var(--brand-text-main)]">Non assegnato</span>
+          </label>
+
+          {valori.length > 0 && (
+            <>
+              <input
+                type="search"
+                value={cercaValore}
+                onChange={(e) => setCercaValore(e.target.value)}
+                placeholder="Cerca un esecutore"
+                aria-label="Cerca fra gli esecutori"
+                className="mb-1.5 h-8 w-full rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 text-xs text-[var(--brand-text-main)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+              />
+              <div className="max-h-48 overflow-auto border-t border-[var(--brand-border)] pt-1">
+                {visibili.map((v) => (
+                  <label
+                    key={v}
+                    className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-1.5 py-1 text-xs hover:bg-[var(--brand-surface-muted)]"
+                  >
+                    <input
+                      type="checkbox"
+                      checked={spunte.has(v)}
+                      onChange={() => scambia(v)}
+                      className="h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
+                    />
+                    <span className="truncate text-[var(--brand-text-main)]">{v}</span>
+                  </label>
+                ))}
+                {visibili.length === 0 && (
+                  <p className="px-1.5 py-3 text-xs text-[var(--brand-text-muted)]">
+                    Nessun esecutore con questo nome.
+                  </p>
+                )}
+              </div>
+            </>
+          )}
+          {valori.length === 0 && (
+            <p className="px-1 py-2 text-[11px] text-[var(--brand-text-muted)]">
+              Nessun intervento assegnato finora: c&apos;è solo «Non assegnato».
+            </p>
+          )}
+        </>
+      )}
+
+      {filtro.tipo === 'data_pianificata' && (
+        <>
+          <div role="radiogroup" aria-label="Pianificazione">
+            {PIANIFICAZIONI.map((s) => (
+              <label
+                key={s}
+                className="flex cursor-pointer items-center gap-2 rounded-[var(--radius-sm)] px-1.5 py-1.5 text-xs hover:bg-[var(--brand-surface-muted)]"
+              >
+                <input
+                  type="radio"
+                  name={`pian-${idPannello}`}
+                  checked={pian === s}
+                  onChange={() => setPian(s)}
+                  className="h-4 w-4 shrink-0 accent-[var(--brand-primary)]"
+                />
+                <span className="text-[var(--brand-text-main)]">{ETICHETTE_PIANIFICAZIONE[s]}</span>
+              </label>
+            ))}
+          </div>
+
+          {/*
+            Il giorno si spegne su «non pianificati»: un ordine senza pianificazione non può avere
+            una data, e la combinazione tornerebbe sempre zero righe. Disabilitato e spiegato,
+            invece che accettato e poi ignorato.
+          */}
+          <div className="mt-1.5 border-t border-[var(--brand-border)] pt-2">
+            <label className="block px-1 text-[11px] text-[var(--brand-text-muted)]" htmlFor={`giorno-${idPannello}`}>
+              Un giorno preciso
+            </label>
+            <input
+              id={`giorno-${idPannello}`}
+              type="date"
+              value={giorno}
+              disabled={pian === 'non_pianificati'}
+              onChange={(e) => setGiorno(e.target.value)}
+              className="mt-1 h-8 w-full rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 text-xs text-[var(--brand-text-main)] disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
+            />
+            {pian === 'non_pianificati' && (
+              <p className="mt-1 px-1 text-[11px] text-[var(--brand-text-muted)]">
+                Un ordine non pianificato non ha una data.
+              </p>
+            )}
+          </div>
         </>
       )}
 

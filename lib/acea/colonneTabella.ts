@@ -6,7 +6,7 @@
 // disponibile come colonna attivabile, non a schermo di default.
 
 import {
-  ETICHETTE_SCADENZA,
+  ETICHETTE_PIANIFICAZIONE, ETICHETTE_SCADENZA,
   type ChiaveOpzioni, type ColonnaElenco, type ColonnaTesto, type FiltriUI,
 } from './filtriOrdini';
 
@@ -57,15 +57,22 @@ export type ChiaveColonna =
  * `campo` è il nome della colonna nel registro, cioè il parametro della query: il legame fra
  * l'intestazione cliccata e il filtro applicato dal server sta qui e in nessun altro posto.
  *
- * Le colonne SENZA `filtro` non mostrano l'imbuto, e questo è voluto: `pianificato_a` e
- * `pianificato_il` arrivano da una join fatta dopo la query principale (la pianificazione è nostra,
- * non di ACEA), quindi non sono filtrabili lato server. Disegnare un imbuto che filtra solo le 300
- * righe caricate direbbe una bugia sul conteggio.
+ * Le colonne SENZA `filtro` non mostrano l'imbuto, e questo resta voluto: un imbuto che filtrasse
+ * le sole 300 righe caricate direbbe una bugia sul conteggio.
+ *
+ * `pianificato_a` e `pianificato_il` sono il caso di confine. Non stanno nel registro — la
+ * pianificazione è nostra e vive in `interventi` — quindi a lungo NON hanno avuto l'imbuto, perché
+ * l'unico modo di disegnarlo sarebbe stato quello disonesto. Ora ce l'hanno per davvero: la route
+ * incrocia registro e interventi e impagina l'incrocio, quindi il conteggio resta quello vero.
  */
 export type FiltroColonna =
   | { tipo: 'elenco'; campo: ColonnaElenco; opzioni: ChiaveOpzioni }
   | { tipo: 'testo'; campo: ColonnaTesto }
-  | { tipo: 'scadenza' };
+  | { tipo: 'scadenza' }
+  // I due della PIANIFICAZIONE. Non portano un `campo` del registro perché non ne hanno uno: il
+  // dato vive in `interventi` e il server lo incrocia (vedi `app/api/acea/ordini/route.ts`).
+  | { tipo: 'esecutore' }
+  | { tipo: 'data_pianificata' };
 
 export type DefColonna = {
   chiave: ChiaveColonna;
@@ -90,6 +97,8 @@ const F = {
   stato: { tipo: 'elenco', campo: 'stato_desc', opzioni: 'stati' },
   operatore: { tipo: 'elenco', campo: 'operatore_cognome', opzioni: 'operatori' },
   scadenza: { tipo: 'scadenza' },
+  esecutore: { tipo: 'esecutore' },
+  dataPianificata: { tipo: 'data_pianificata' },
 } as const satisfies Record<string, FiltroColonna>;
 
 /** Colonne della vista Dunning (pianificazione). */
@@ -106,8 +115,8 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
-  { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140 },
-  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120 },
+  { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
   // attivabili
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: false, mono: true, larghezza: 120, filtro: F.impianto },
   { chiave: 'famiglia', intestazione: 'Famiglia', predefinita: false, larghezza: 100 },
@@ -130,8 +139,8 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
-  { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140 },
-  { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120 },
+  { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
+  { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
   { chiave: 'esito', intestazione: 'Esito', predefinita: true, larghezza: 200 },
   { chiave: 'attivita', intestazione: 'Attività', predefinita: false, larghezza: 210, filtro: F.attivita },
   { chiave: 'valore_netto', intestazione: 'Valore', predefinita: false, mono: true, larghezza: 90 },
@@ -171,7 +180,21 @@ export function pillFiltri(colonne: DefColonna[], f: FiltriUI): PillFiltro[] {
       const t = f.testi[c.filtro.campo].trim();
       if (t === '') continue;
       pill.push({ chiave: c.chiave, intestazione: c.intestazione, descrizione: `contiene ${t}` });
-    } else if (f.scadenza !== 'tutte') {
+    } else if (c.filtro.tipo === 'esecutore') {
+      const { esecutori, senzaEsecutore } = f.pianificazione;
+      if (esecutori.length === 0 && !senzaEsecutore) continue;
+      const parti = senzaEsecutore ? ['non assegnato'] : [];
+      if (esecutori.length > MAX_VALORI_IN_PILL) parti.push(`${esecutori.length} operatori`);
+      else parti.push(...esecutori);
+      pill.push({ chiave: c.chiave, intestazione: c.intestazione, descrizione: parti.join(', ') });
+    } else if (c.filtro.tipo === 'data_pianificata') {
+      const { pianificazione, giorno } = f.pianificazione;
+      if (pianificazione === 'tutte' && !giorno) continue;
+      const parti: string[] = [];
+      if (pianificazione !== 'tutte') parti.push(ETICHETTE_PIANIFICAZIONE[pianificazione].toLowerCase());
+      if (giorno) parti.push(`il ${dataIt(giorno)}`);
+      pill.push({ chiave: c.chiave, intestazione: c.intestazione, descrizione: parti.join(', ') });
+    } else if (c.filtro.tipo === 'scadenza' && f.scadenza !== 'tutte') {
       pill.push({
         chiave: c.chiave,
         intestazione: c.intestazione,
@@ -186,10 +209,21 @@ export function pillFiltri(colonne: DefColonna[], f: FiltriUI): PillFiltro[] {
 export function senzaFiltroColonna(colonne: DefColonna[], f: FiltriUI, chiave: ChiaveColonna): FiltriUI {
   const c = colonne.find((x) => x.chiave === chiave);
   if (!c?.filtro) return f;
-  const agg: FiltriUI = { ...f, elenchi: { ...f.elenchi }, testi: { ...f.testi } };
+  const agg: FiltriUI = {
+    ...f,
+    elenchi: { ...f.elenchi },
+    testi: { ...f.testi },
+    pianificazione: { ...f.pianificazione },
+  };
   if (c.filtro.tipo === 'elenco') agg.elenchi[c.filtro.campo] = [];
   else if (c.filtro.tipo === 'testo') agg.testi[c.filtro.campo] = '';
-  else agg.scadenza = 'tutte';
+  else if (c.filtro.tipo === 'esecutore') {
+    agg.pianificazione.esecutori = [];
+    agg.pianificazione.senzaEsecutore = false;
+  } else if (c.filtro.tipo === 'data_pianificata') {
+    agg.pianificazione.pianificazione = 'tutte';
+    agg.pianificazione.giorno = null;
+  } else agg.scadenza = 'tutte';
   return agg;
 }
 

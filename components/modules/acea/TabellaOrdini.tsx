@@ -343,7 +343,13 @@ export default function TabellaOrdini({
                       filtro={col.filtro}
                       filtri={filtri}
                       onChange={onFiltri}
-                      valori={col.filtro.tipo === 'elenco' ? (opzioni?.[col.filtro.opzioni] ?? []) : []}
+                      valori={
+                        col.filtro.tipo === 'elenco'
+                          ? (opzioni?.[col.filtro.opzioni] ?? [])
+                          : col.filtro.tipo === 'esecutore'
+                            ? (opzioni?.esecutori ?? [])
+                            : []
+                      }
                     />
                   )}
                   {comandiColonne && col && (

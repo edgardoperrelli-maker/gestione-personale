@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import {
   COLONNE_ELENCO, COLONNE_TESTO, colonneFiltrate, contaFiltriColonna, espressioneRicerca,
-  filtriVuoti, haFiltriAttivi, intervalloPagina, leggiFiltri, parametriQuery, soglieScadenza,
+  filtriPianificazioneAttivi, filtriVuoti, haFiltriAttivi, intervalloPagina, leggiFiltri,
+  parametriQuery, soglieScadenza,
   terminoContiene,
 } from './filtriOrdini';
 
@@ -15,6 +16,9 @@ describe('leggiFiltri', () => {
     expect(q('')).toEqual({
       famiglia: null, stato: 'tutti', elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
       scadenza: 'tutte', entroGiorni: 7, cerca: null, pagina: 1, perPagina: 100,
+      pianificazione: {
+        esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null,
+      },
     });
   });
 
@@ -299,5 +303,67 @@ describe('espressioneRicerca', () => {
   it('null quando non c\'è nulla da cercare', () => {
     expect(espressioneRicerca(q(''))).toBeNull();
     expect(espressioneRicerca(q('cerca=' + encodeURIComponent('(),')))).toBeNull();
+  });
+});
+
+// I due filtri che non vivono nel registro: esecutore e giorno pianificato stanno in `interventi`,
+// e sono l'interruttore che decide se la route fa una query sola o l'incrocio. Sbagliare
+// `filtriPianificazioneAttivi` costa in un verso una tabella lenta senza motivo, nell'altro un
+// filtro che l'utente imposta e che non viene applicato — e il conteggio non lo denuncerebbe.
+describe('filtri di pianificazione', () => {
+  const p = (s: string) => leggiFiltri(new URLSearchParams(s)).pianificazione;
+
+  it('senza criteri non è attivo', () => {
+    expect(filtriPianificazioneAttivi(p(''))).toBe(false);
+    expect(filtriPianificazioneAttivi(p('comune=ROMA&cerca=via'))).toBe(false);
+  });
+
+  it.each([
+    ['un esecutore', 'esecutore=ROSSI MARIO'],
+    ['non assegnato', 'senzaEsecutore=1'],
+    ['non pianificati', 'pianificazione=non_pianificati'],
+    ['già pianificati', 'pianificazione=pianificati'],
+    ['un giorno', 'giornoPianificato=2026-07-28'],
+  ])('con %s è attivo', (_caso, qs) => {
+    expect(filtriPianificazioneAttivi(p(qs))).toBe(true);
+  });
+
+  it('legge più esecutori come spunte multiple', () => {
+    expect(p('esecutore=ROSSI&esecutore=BIANCHI').esecutori).toEqual(['ROSSI', 'BIANCHI']);
+  });
+
+  it('un giorno malformato non è un filtro', () => {
+    // Cadere su `null` e non su una data storta: una data che Postgres rifiuta farebbe fallire la
+    // query, e una che accetta ma non è quella voluta svuoterebbe la tabella senza spiegazioni.
+    expect(p('giornoPianificato=28/07/2026').giorno).toBeNull();
+    expect(p('giornoPianificato=domani').giorno).toBeNull();
+    expect(p('giornoPianificato=2026-07-28').giorno).toBe('2026-07-28');
+  });
+
+  it('un valore ignoto di `pianificazione` cade sul default', () => {
+    expect(p('pianificazione=boh').pianificazione).toBe('tutte');
+  });
+
+  it('la query rifà i parametri che ha letto', () => {
+    const f = filtriVuoti();
+    f.pianificazione = {
+      esecutori: ['ROSSI', 'BIANCHI'], senzaEsecutore: true,
+      pianificazione: 'pianificati', giorno: '2026-07-28',
+    };
+    const qs = parametriQuery(f, 'dunning', 300);
+    expect(qs.getAll('esecutore')).toEqual(['ROSSI', 'BIANCHI']);
+    expect(qs.get('senzaEsecutore')).toBe('1');
+    expect(qs.get('pianificazione')).toBe('pianificati');
+    expect(qs.get('giornoPianificato')).toBe('2026-07-28');
+  });
+
+  it('le due colonne contano un filtro ciascuna, non uno per criterio', () => {
+    const f = filtriVuoti();
+    f.pianificazione = {
+      esecutori: ['ROSSI'], senzaEsecutore: true,
+      pianificazione: 'pianificati', giorno: '2026-07-28',
+    };
+    // Esecutore (spunte + «non assegnato») è UN imbuto; Data pianificata (stato + giorno) è l'altro.
+    expect(contaFiltriColonna(f)).toBe(2);
   });
 });

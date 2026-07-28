@@ -56,13 +56,23 @@ describe('filtri di colonna', () => {
     }
   });
 
-  // La regola di onestà: la pianificazione è nostra e arriva da una join fatta DOPO la query
-  // principale, quindi non è filtrabile lato server. Un imbuto su queste colonne filtrerebbe solo
-  // le righe caricate, lasciando un conteggio che non corrisponde a niente.
-  it('le colonne della pianificazione non espongono un imbuto', () => {
+  // Le due colonne della pianificazione hanno un imbuto di tipo PROPRIO, senza `campo`: il dato non
+  // sta nel registro (è nostro, vive in `interventi`), e il server lo incrocia. Il tipo dedicato è
+  // ciò che impedisce di trattarle come una colonna qualsiasi e mandare al server un filtro su una
+  // colonna che non esiste — che tornerebbe zero righe senza dire perché.
+  it('le colonne della pianificazione hanno un imbuto tutto loro', () => {
+    const perChiave = (k: string) => tutte.find((c) => c.chiave === k)?.filtro;
+    expect(perChiave('pianificato_a')).toEqual({ tipo: 'esecutore' });
+    expect(perChiave('pianificato_il')).toEqual({ tipo: 'data_pianificata' });
+  });
+
+  // La regola di onestà resta: un filtro che punta a una colonna del registro DEVE essere una
+  // colonna che il server sa filtrare. Le due della pianificazione sono l'eccezione dichiarata,
+  // non una scappatoia — e non portano `campo` proprio per non poterla usare per sbaglio.
+  it('nessun filtro con `campo` punta a una colonna inesistente', () => {
     for (const c of tutte) {
-      if (c.chiave === 'pianificato_a' || c.chiave === 'pianificato_il') {
-        expect(c.filtro).toBeUndefined();
+      if (c.filtro?.tipo === 'esecutore' || c.filtro?.tipo === 'data_pianificata') {
+        expect(c.filtro).not.toHaveProperty('campo');
       }
     }
   });

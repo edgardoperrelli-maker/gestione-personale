@@ -57,10 +57,42 @@ export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
  * Sono calcolati sull'INTERO registro, non sulle righe caricate: è la differenza fra un filtro che
  * dice la verità e uno che offre solo i comuni capitati nelle prime 300 righe.
  */
-export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati' | 'cap';
+/**
+ * `operatori` è l'operatore ACEA scritto nell'export; `esecutori` è il NOSTRO, quello che mandiamo
+ * sul posto. Due elenchi diversi che si somigliano nel nome: il primo viene dal registro, il
+ * secondo dall'anagrafica del personale.
+ */
+export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati' | 'cap' | 'esecutori';
 export type Opzioni = Record<ChiaveOpzioni, string[]>;
 
-export const OPZIONI_VUOTE: Opzioni = { comuni: [], attivita: [], operatori: [], stati: [], cap: [] };
+export const OPZIONI_VUOTE: Opzioni = {
+  comuni: [], attivita: [], operatori: [], stati: [], cap: [], esecutori: [],
+};
+
+/**
+ * Filtri sulla PIANIFICAZIONE, cioè sulle due colonne che non vengono da ACEA.
+ *
+ * Esecutore e Data pianificata non stanno nel registro: vivono in `interventi` e si agganciano in
+ * lettura. Sono quindi gli unici filtri che il server non può passare direttamente a Postgres su
+ * `acea_ordini` — vedi il percorso di incrocio in `app/api/acea/ordini/route.ts`.
+ */
+export type PianificazioneFiltro = 'tutte' | 'non_pianificati' | 'pianificati';
+
+export const ETICHETTE_PIANIFICAZIONE: Record<PianificazioneFiltro, string> = {
+  tutte: 'Qualsiasi',
+  non_pianificati: 'Non pianificati',
+  pianificati: 'Già pianificati',
+};
+
+export type FiltriPianificazione = {
+  /** `display_name` degli operatori spuntati. */
+  esecutori: string[];
+  /** «Non assegnato»: nessun intervento con un esecutore. */
+  senzaEsecutore: boolean;
+  pianificazione: PianificazioneFiltro;
+  /** Giorno preciso ('YYYY-MM-DD'), o `null`. */
+  giorno: string | null;
+};
 
 export type FiltriOrdini = {
   famiglia: 'dunning' | 'massive' | null;
@@ -74,9 +106,23 @@ export type FiltriOrdini = {
   entroGiorni: number;
   /** Ricerca libera su ODL, matricola, impianto, indirizzo. */
   cerca: string | null;
+  pianificazione: FiltriPianificazione;
   pagina: number;
   perPagina: number;
 };
+
+/**
+ * `true` se almeno un criterio tocca la pianificazione.
+ *
+ * È l'interruttore che decide quale percorso prende la route: senza, la query resta una sola
+ * interrogazione paginata su `acea_ordini`; con, serve incrociare `interventi` e impaginare
+ * l'incrocio. Il percorso caro si paga solo quando lo si chiede.
+ */
+export function filtriPianificazioneAttivi(p: FiltriPianificazione): boolean {
+  return (
+    p.esecutori.length > 0 || p.senzaEsecutore || p.pianificazione !== 'tutte' || p.giorno !== null
+  );
+}
 
 /** Criteri di data derivati dal filtro scadenza, pronti per la query. */
 export type SoglieScadenza =
@@ -130,11 +176,18 @@ function elenco(params: URLSearchParams, chiave: string): string[] {
   return [...visti];
 }
 
+/** Data ISO valida, o `null`. Un giorno storto non deve svuotare la tabella in silenzio. */
+const giornoIso = (v: string | null | undefined): string | null => {
+  const s = testo(v);
+  return s !== null && ISO.test(s) ? s : null;
+};
+
 /** Legge e normalizza i parametri: valori ignoti cadono sui default, mai errori. */
 export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
   const famiglia = params.get('famiglia');
   const stato = params.get('stato');
   const scadenza = params.get('scadenza');
+  const pian = params.get('pianificazione');
 
   const elenchi = {} as Record<ColonnaElenco, string[]>;
   for (const c of COLONNE_ELENCO) elenchi[c] = elenco(params, c);
@@ -153,6 +206,13 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
         : 'tutte',
     entroGiorni: intero(params.get('entroGiorni'), 7, 1, 60),
     cerca: testo(params.get('cerca')),
+    pianificazione: {
+      esecutori: elenco(params, 'esecutore'),
+      senzaEsecutore: params.get('senzaEsecutore') === '1',
+      pianificazione:
+        pian === 'non_pianificati' || pian === 'pianificati' ? pian : 'tutte',
+      giorno: giornoIso(params.get('giornoPianificato')),
+    },
     pagina: intero(params.get('pagina'), 1, 1, 100_000),
     perPagina: intero(params.get('perPagina'), DEFAULT_PER_PAGINA, 1, MAX_PER_PAGINA),
   };
@@ -207,6 +267,8 @@ export type FiltriUI = {
   cerca: string;
   elenchi: Record<ColonnaElenco, string[]>;
   testi: Record<ColonnaTesto, string>;
+  /** Le due colonne che non vengono da ACEA: esecutore e giorno pianificato. */
+  pianificazione: FiltriPianificazione;
 };
 
 /**
@@ -224,6 +286,7 @@ export function filtriVuoti(): FiltriUI {
     cerca: '',
     elenchi,
     testi,
+    pianificazione: { esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null },
   };
 }
 
@@ -245,15 +308,25 @@ export function parametriQuery(
     const t = f.testi[c].trim();
     if (t) p.set(c, t);
   }
+  const pi = f.pianificazione;
+  for (const e of pi.esecutori) p.append('esecutore', e);
+  if (pi.senzaEsecutore) p.set('senzaEsecutore', '1');
+  if (pi.pianificazione !== 'tutte') p.set('pianificazione', pi.pianificazione);
+  if (pi.giorno) p.set('giornoPianificato', pi.giorno);
   return p;
 }
 
 /** Quanti filtri di colonna sono attivi (per la barra e il pulsante «azzera»). */
 export function contaFiltriColonna(f: FiltriUI): number {
+  const pi = f.pianificazione;
   return (
     COLONNE_ELENCO.filter((c) => f.elenchi[c].length > 0).length
     + COLONNE_TESTO.filter((c) => f.testi[c].trim() !== '').length
     + (f.scadenza === 'tutte' ? 0 : 1)
+    // Le due colonne della pianificazione contano UNA ciascuna, non una per criterio: nella
+    // colonna Esecutore convivono le spunte e «Non assegnato», e sono lo stesso imbuto.
+    + (pi.esecutori.length > 0 || pi.senzaEsecutore ? 1 : 0)
+    + (pi.pianificazione !== 'tutte' || pi.giorno !== null ? 1 : 0)
   );
 }
 
