@@ -14,7 +14,8 @@ export type RigaStorico = {
   esecutore: string | null;
   via: string | null;
   gruppoAttivita: string | null;
-  /** Committente EFFETTIVO ('acea'|'italgas'|'altro'; lim_massive → acea) dall'intervento collegato, null se non collegato. */
+  /** Committente EFFETTIVO dall'intervento collegato (lim_massive → acea, il resto
+   *  invariato), null se non collegato. */
   committente: string | null;
   /** Gruppo della tassonomia attività (es. 'DUNNING'), risolto da intervento collegato o da (committente, attivita). */
   gruppo: string | null;

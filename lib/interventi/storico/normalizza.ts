@@ -37,7 +37,9 @@ function intOf(i: InterventoEmbed | InterventoEmbed[] | null | undefined): Inter
   return Array.isArray(i) ? (i[0] ?? null) : i;
 }
 
-/** Committente effettivo normalizzato ('acea'|'italgas'|'altro'; lim_massive → acea), null se assente. */
+/** Committente effettivo dell'intervento, normalizzato: l'UNICA equivalenza è
+ *  lim_massive → acea; ogni altro codice passa invariato (acqualatina compreso).
+ *  null se assente. */
 function committenteRiga(raw: string | null | undefined): string | null {
   const c = nz(raw);
   return c ? committenteEquivalente(c) : null;

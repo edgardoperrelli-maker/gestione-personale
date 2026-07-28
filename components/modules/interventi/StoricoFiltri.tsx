@@ -35,12 +35,6 @@ const SI_NO = [
   { key: 'rgStop', label: 'RG stop' },
 ] as const;
 
-const COMMITTENTI = [
-  { value: 'acea', label: 'Acea' },
-  { value: 'italgas', label: 'Italgas' },
-  { value: 'altro', label: 'Altro' },
-];
-
 const fmtGiorno = (iso: string) => iso.split('-').reverse().join('/');
 
 /** Range rapidi (innesto SupplyHub): Oggi / Questa settimana / Questo mese, fuso Europe/Rome. */
@@ -63,13 +57,16 @@ const compatta = (labels: string[]) =>
   labels.length <= 1 ? labels[0] ?? '' : `${labels[0]} +${labels.length - 1}`;
 
 export default function StoricoFiltri({
-  filtri, setFiltri, staff, gruppi, territori, onApplica, onPulisci, onEsporta, onPatch, loading,
+  filtri, setFiltri, staff, gruppi, territori, committenti, onApplica, onPulisci, onEsporta, onPatch, loading,
 }: {
   filtri: StatoFiltriUI;
   setFiltri: (f: StatoFiltriUI) => void;
   staff: Staff[];
   /** Gruppi attività della tassonomia (opzioni del filtro multi). */
   gruppi: string[];
+  /** Committenti dal REGISTRO (`committenti`) + «Altro»: mai una lista cablata qui,
+   *  altrimenti una commessa nuova resta invisibile al filtro. */
+  committenti: { value: string; label: string }[];
   /** Nomi dei territori/contratti (opzioni del filtro multi). */
   territori: string[];
   onApplica: () => void;
@@ -97,7 +94,7 @@ export default function StoricoFiltri({
   if (filtri.comune.trim()) pills.push({ label: `Comune: ${filtri.comune.trim()}`, patch: { comune: '' } });
   if (filtri.gruppi.length) pills.push({ label: `Gruppo: ${compatta(filtri.gruppi)}`, patch: { gruppi: [] } });
   if (filtri.committenti.length) {
-    const nomi = filtri.committenti.map((v) => COMMITTENTI.find((c) => c.value === v)?.label ?? v);
+    const nomi = filtri.committenti.map((v) => committenti.find((c) => c.value === v)?.label ?? v);
     pills.push({ label: `Committente: ${compatta(nomi)}`, patch: { committenti: [] } });
   }
   if (filtri.territori.length) pills.push({ label: `Territorio: ${compatta(filtri.territori)}`, patch: { territori: [] } });
@@ -179,7 +176,7 @@ export default function StoricoFiltri({
             <MultiSelect
               label="Committente"
               ariaLabel="Committente"
-              options={COMMITTENTI}
+              options={committenti}
               values={filtri.committenti}
               onChange={(committenti) => set({ committenti })}
             />

@@ -5,6 +5,8 @@ import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
 import { canManageUsers, resolveAssignableRole, canEditStorico } from '@/lib/moduleAccess';
 import StoricoInterventiClient from '@/components/modules/interventi/StoricoInterventiClient';
 import RiconciliazioneBanner from '@/components/modules/interventi/RiconciliazioneBanner';
+import { caricaCommittenti } from '@/lib/contratti/dati';
+import { committentiAttivi } from '@/lib/contratti/tipi';
 
 export const dynamic = 'force-dynamic';
 
@@ -48,10 +50,21 @@ export default async function InterventiPage() {
     ((terrRows ?? []) as Array<{ name: string | null }>).map((t) => (t.name ?? '').trim()).filter(Boolean),
   )];
 
+  // Opzioni del filtro "Committente": dal REGISTRO (`committenti`, modulo Contratti) e
+  // non da una lista cablata — apri una commessa e diventa filtrabile qui.
+  // «Altro» non sta nel registro ma È un valore realmente scritto su `interventi`, quindi
+  // resta un'opzione (in fondo): senza, quelle righe non sarebbero isolabili.
+  const committenti = [
+    ...committentiAttivi(await caricaCommittenti())
+      .filter((c) => c.codice)
+      .map((c) => ({ value: c.codice as string, label: c.nome })),
+    { value: 'altro', label: 'Altro' },
+  ];
+
   return (
     <div className="space-y-4">
       {isAdminPlus && <RiconciliazioneBanner />}
-      <StoricoInterventiClient staff={staff} gruppi={gruppi} territori={territori} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
+      <StoricoInterventiClient staff={staff} gruppi={gruppi} territori={territori} committenti={committenti} isAdminPlus={isAdminPlus} puoModificare={puoModificare} />
     </div>
   );
 }
