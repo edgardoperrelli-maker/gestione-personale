@@ -31,6 +31,7 @@ const ELENCHI = {
   attivita: 'attivita',
   operatori: 'operatore_cognome',
   stati: 'stato_desc',
+  cap: 'cap',
 } as const;
 
 type ChiaveElenco = keyof typeof ELENCHI;
@@ -64,7 +65,9 @@ export async function GET(req: Request) {
 
     // Le chiavi non chieste tornano come array vuoti e non assenti: il client tipizza `Opzioni`
     // come record completo, e un campo mancante diventerebbe `undefined` dentro una `.map`.
-    const risposta: Record<ChiaveElenco, string[]> = { comuni: [], attivita: [], operatori: [], stati: [] };
+    const risposta: Record<ChiaveElenco, string[]> = {
+      comuni: [], attivita: [], operatori: [], stati: [], cap: [],
+    };
     daServire.forEach((c, i) => { risposta[c] = valori[i]; });
 
     return NextResponse.json(risposta, { headers: { 'Cache-Control': 'no-store' } });

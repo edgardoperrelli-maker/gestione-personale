@@ -7,7 +7,7 @@ import {
 
 const q = (s: string) => leggiFiltri(new URLSearchParams(s));
 
-const ELENCHI_VUOTI = { comune: [], attivita: [], stato_desc: [], operatore_cognome: [] };
+const ELENCHI_VUOTI = { comune: [], attivita: [], stato_desc: [], operatore_cognome: [], cap: [] };
 const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null };
 
 describe('leggiFiltri', () => {
@@ -63,10 +63,10 @@ describe('leggiFiltri — colonne a elenco', () => {
   });
 
   it('colonne diverse restano indipendenti', () => {
-    const f = q('comune=ROMA&attivita=DUNNING&operatore_cognome=ROSSI&stato_desc=Iniziato');
+    const f = q('comune=ROMA&attivita=DUNNING&operatore_cognome=ROSSI&stato_desc=Iniziato&cap=00139');
     expect(f.elenchi).toEqual({
       comune: ['ROMA'], attivita: ['DUNNING'],
-      operatore_cognome: ['ROSSI'], stato_desc: ['Iniziato'],
+      operatore_cognome: ['ROSSI'], stato_desc: ['Iniziato'], cap: ['00139'],
     });
   });
 

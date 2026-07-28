@@ -14,10 +14,13 @@ import RegistroAcea from './RegistroAcea';
  * Import, rapportini, export e saracinesche vivono ora in `/hub/acea/strumenti`: si aprono a inizio
  * e a fine giornata, non mentre si assegna. Qui resta una pagina che sta in uno schermo, dove
  * l'unica cosa che scorre è la tabella.
+ *
+ * `min-h-0` sull'anello intermedio: senza, un figlio flex non scende sotto l'altezza del proprio
+ * contenuto, e la catena che porta l'altezza dello schermo fino alla tabella si spezza qui.
  */
 export default function DunningClient() {
   return (
-    <div className="space-y-3">
+    <div className="flex min-h-0 flex-1 flex-col gap-2">
       <ContatoriAcea />
       <RegistroAcea famiglia="dunning" />
     </div>

@@ -39,8 +39,12 @@ export const ETICHETTE_STATO: Record<StatoFiltro, string> = {
  * Sono le colonne a bassa cardinalità: i comuni sono ~60, le attività una ventina, gli stati una
  * manciata. Su ODL o matricola un elenco di 5.000 voci sarebbe inutilizzabile — quelle stanno in
  * `COLONNE_TESTO`.
+ *
+ * Il CAP è a elenco e non a testo benché sia un codice: serve a pianificare per zona, e spuntare
+ * i tre CAP confinanti su cui mandare una squadra è il gesto vero. Un «contiene» permetterebbe un
+ * CAP alla volta e nasconderebbe quali esistono davvero nel registro.
  */
-export const COLONNE_ELENCO = ['comune', 'attivita', 'stato_desc', 'operatore_cognome'] as const;
+export const COLONNE_ELENCO = ['comune', 'attivita', 'stato_desc', 'operatore_cognome', 'cap'] as const;
 export type ColonnaElenco = (typeof COLONNE_ELENCO)[number];
 
 /** Colonne filtrabili per «contiene». `matricola_norm` e non `matricola`: la ricerca è sul normalizzato. */
@@ -53,10 +57,10 @@ export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
  * Sono calcolati sull'INTERO registro, non sulle righe caricate: è la differenza fra un filtro che
  * dice la verità e uno che offre solo i comuni capitati nelle prime 300 righe.
  */
-export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati';
+export type ChiaveOpzioni = 'comuni' | 'attivita' | 'operatori' | 'stati' | 'cap';
 export type Opzioni = Record<ChiaveOpzioni, string[]>;
 
-export const OPZIONI_VUOTE: Opzioni = { comuni: [], attivita: [], operatori: [], stati: [] };
+export const OPZIONI_VUOTE: Opzioni = { comuni: [], attivita: [], operatori: [], stati: [], cap: [] };
 
 export type FiltriOrdini = {
   famiglia: 'dunning' | 'massive' | null;

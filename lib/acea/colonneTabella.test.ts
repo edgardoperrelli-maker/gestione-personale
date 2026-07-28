@@ -9,7 +9,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   attivita: 'Limitazione Massiva su Impianto', stato: 'DAPI', stato_desc: 'Intervento Richiesto',
   aperto: true, data_creazione: '2026-05-22', cardine_al: '2026-10-30', scadenza: null,
   data_completamento: null, operatore_cognome: null, causale: null, causale_desc: null,
-  esito_positivo: null, via: 'VIA ALFA', civico: '108', comune: 'ZAGAROLO',
+  esito_positivo: null, via: 'VIA ALFA', civico: '108', cap: '00039', comune: 'ZAGAROLO',
   impianto: '4003635716', matricola: '201215053510', valore_netto: 25.46,
   escludi_consuntivazione: false, codice_sla: 'NSLA', priorita_testo: null, centro_lavoro: null,
   sospetto_troncamento: false, pianificato_il: null, pianificato_a: null, stato_intervento: null,
@@ -20,7 +20,7 @@ describe('definizione colonne', () => {
   it('la vista dunning mostra di default le colonne del master più la scadenza', () => {
     const pred = COLONNE_DUNNING.filter((c) => c.predefinita).map((c) => c.chiave);
     expect(pred).toEqual([
-      'odl', 'attivita', 'matricola', 'indirizzo', 'comune', 'stato',
+      'odl', 'attivita', 'matricola', 'indirizzo', 'comune', 'cap', 'stato',
       'data_creazione', 'scadenza', 'pianificato_a', 'pianificato_il',
     ]);
   });
@@ -71,6 +71,18 @@ describe('filtri di colonna', () => {
     expect(COLONNE_DUNNING.find((c) => c.chiave === 'scadenza')?.filtro)
       .toEqual({ tipo: 'scadenza' });
     expect(COLONNE_MASSIVE.some((c) => c.filtro?.tipo === 'scadenza')).toBe(false);
+  });
+
+  // Il CAP è il taglio più fine che ACEA dà sul territorio, ed è quello su cui si decide dove
+  // mandare una squadra: «Roma» non dice quanto sono distanti due misuratori, «Roma 00139» sì.
+  it('il CAP c’è in entrambe le viste, di default e con l’elenco dei valori', () => {
+    for (const colonne of [COLONNE_DUNNING, COLONNE_MASSIVE]) {
+      const cap = colonne.find((c) => c.chiave === 'cap');
+      expect(cap?.predefinita).toBe(true);
+      // A elenco e non a testo: si spuntano i CAP confinanti su cui mandare la squadra, e si vede
+      // quali esistono davvero nel registro invece di indovinarli uno alla volta.
+      expect(cap?.filtro).toEqual({ tipo: 'elenco', campo: 'cap', opzioni: 'cap' });
+    }
   });
 
   it('la stessa colonna filtra lo stesso campo nelle due viste', () => {

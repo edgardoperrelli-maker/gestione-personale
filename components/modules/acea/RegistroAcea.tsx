@@ -194,7 +194,9 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           // `z-[45]`: sopra la testa della shell (z-40), sotto tutto ciò che deve poter comparire
           // SOPRA la tabella — pannelli dei filtri e conferme (z-50), palette (z-70), toast (z-90).
           ? 'fixed inset-0 z-[45] flex flex-col gap-2 bg-[var(--brand-bg)] p-3'
-          : 'space-y-2'
+          // In pagina è l'anello finale della catena flex che parte da `h-[calc(100dvh-6rem)]`:
+          // la tabella qui sotto prende l'altezza che avanza invece di scontarla da sé.
+          : 'flex min-h-0 flex-1 flex-col gap-2'
       }
     >
       {/*
@@ -289,7 +291,6 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         filtri={filtri}
         onFiltri={setFiltri}
         opzioni={opzioni}
-        ingrandita={ingrandita}
         editing={{
           indiceEditabile,
           focus: editing.focus,

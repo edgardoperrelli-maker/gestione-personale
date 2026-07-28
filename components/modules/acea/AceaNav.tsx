@@ -46,10 +46,17 @@ export function AceaNav({ attivo }: { attivo: Exclude<VistaAcea, 'hub'> }) {
   return (
     <div>
       <Breadcrumb items={[{ label: 'ACEA', href: '/hub/acea' }, { label: corrente.titolo }]} />
-      <h1 className="mt-1 text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">
-        {corrente.titolo}
-      </h1>
-      <p className="mt-0.5 text-xs text-[var(--brand-text-muted)]">{corrente.desc}</p>
+      {/*
+        Titolo e sottotitolo sulla STESSA riga di base, non impilati: sopra la tabella ogni riga di
+        testa è una riga di dati in meno, e la descrizione da sola valeva ~18px su ogni vista, tutti
+        i giorni. Su schermo stretto va a capo da sé e si torna alla forma di prima.
+      */}
+      <div className="mt-1 flex flex-wrap items-baseline gap-x-2">
+        <h1 className="text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">
+          {corrente.titolo}
+        </h1>
+        <p className="text-xs text-[var(--brand-text-muted)]">{corrente.desc}</p>
+      </div>
     </div>
   );
 }

@@ -29,6 +29,7 @@ export type RigaTabella = {
   esito_positivo: boolean | null;
   via: string | null;
   civico: string | null;
+  cap: string | null;
   comune: string | null;
   impianto: string | null;
   matricola: string | null;
@@ -45,7 +46,7 @@ export type RigaTabella = {
 };
 
 export type ChiaveColonna =
-  | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'stato'
+  | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'stato'
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al';
@@ -84,6 +85,7 @@ const F = {
   indirizzo: { tipo: 'testo', campo: 'via' },
   impianto: { tipo: 'testo', campo: 'impianto' },
   comune: { tipo: 'elenco', campo: 'comune', opzioni: 'comuni' },
+  cap: { tipo: 'elenco', campo: 'cap', opzioni: 'cap' },
   attivita: { tipo: 'elenco', campo: 'attivita', opzioni: 'attivita' },
   stato: { tipo: 'elenco', campo: 'stato_desc', opzioni: 'stati' },
   operatore: { tipo: 'elenco', campo: 'operatore_cognome', opzioni: 'operatori' },
@@ -97,6 +99,10 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 130, filtro: F.matricola },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 140, filtro: F.comune },
+  // Il CAP è il taglio più fine che ACEA ci dà sul territorio: è la zona su cui si decide dove
+  // mandare una squadra. Predefinita perché senza si pianifica per comune, e un comune come Roma
+  // non dice nulla su quanto sono distanti due misuratori.
+  { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
@@ -122,6 +128,7 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 140, filtro: F.matricola },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
+  { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140 },
   { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120 },

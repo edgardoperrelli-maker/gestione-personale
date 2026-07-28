@@ -69,16 +69,16 @@ export default function ContatoriAcea() {
 
   if (errore) {
     return (
-      <Card className="p-3">
+      <Card className="p-2.5">
         <p className="text-sm text-[var(--brand-text-muted)]">{errore}</p>
       </Card>
     );
   }
   if (!dati) {
     return (
-      <Card className="p-3">
+      <Card className="p-2.5">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-          {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-14" />)}
+          {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[62px]" />)}
         </div>
       </Card>
     );
@@ -87,24 +87,35 @@ export default function ContatoriAcea() {
   const ore = oreDa(dati.ultimoImport?.caricato_il, dati.adesso);
   const vecchio = ore !== null && ore >= 24;
 
+  /*
+    Contatori in taglia `sm`.
+
+    Sono un promemoria a colpo d'occhio, non il lavoro: il lavoro è la tabella sotto, e ogni pixel
+    speso qui è una riga di ordini in meno a schermo. `size="sm"` è la leva già prevista dal
+    primitivo (valore a `text-base` invece di `text-lg`) — non si tocca `StatTile`, che è condiviso
+    con altri sedici moduli.
+  */
   return (
-    <Card className="space-y-2 p-3">
+    <Card className="space-y-1.5 p-2.5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
-        <StatTile label="Dunning aperti" value={dati.apertiDunning} />
-        <StatTile label="Massive aperte" value={dati.apertiMassive} />
+        <StatTile label="Dunning aperti" value={dati.apertiDunning} size="sm" />
+        <StatTile label="Massive aperte" value={dati.apertiMassive} size="sm" />
         <StatTile
           label="Oltre la scadenza"
           value={dati.scaduti}
+          size="sm"
           tone={dati.scaduti > 0 ? 'danger' : 'ok'}
         />
         <StatTile
           label="In scadenza (7 gg)"
           value={dati.inScadenza}
+          size="sm"
           tone={dati.inScadenza > 0 ? 'warn' : 'neutral'}
         />
         <StatTile
           label="Ultimo import"
           value={ore === null ? 'mai' : ore === 0 ? 'ora' : `${ore} h fa`}
+          size="sm"
           tone={ore === null || vecchio ? 'warn' : 'ok'}
           note={dati.ultimoImport ? `${dati.ultimoImport.righe_totali} righe` : 'nessun export caricato'}
         />

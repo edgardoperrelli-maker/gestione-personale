@@ -15,8 +15,9 @@ export const dynamic = 'force-dynamic';
  * famiglie, e tenerli in fondo a questa pagina significava ripeterli identici sotto due tabelle.
  */
 export default function AceaMassivePage() {
+  // Modulo a schermo pieno, come Dunning: vedi il commento in `dunning/page.tsx`.
   return (
-    <div className="space-y-3">
+    <div className="flex h-[calc(100dvh-6rem)] flex-col gap-2">
       <AceaNav attivo="massive" />
       <ContatoriAcea />
       <RegistroAcea famiglia="massive" />

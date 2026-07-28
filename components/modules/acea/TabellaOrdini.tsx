@@ -18,17 +18,21 @@ import FiltroColonna from './FiltroColonna';
 const ALTEZZA_RIGA = 36;
 
 /**
- * Altezza della vista: quanto resta dello schermo, non un numero fisso.
+ * Altezza minima della vista, e tetto di sicurezza.
  *
- * Era `560px`. Con la testa di pagina, i contatori e la barra filtri sopra, su un portatile da
- * 768px di altezza restavano fuori sia le ultime righe sia il piede della tabella: si scorreva la
- * PAGINA per raggiungere una tabella che a sua volta scorreva. Il doppio scorrimento è il motivo
- * per cui la vista sembrava non finire mai.
+ * L'altezza vera non si calcola più: la tabella è l'ultimo anello di una catena flex che parte da
+ * `h-[calc(100dvh-6rem)]` sulla pagina, quindi prende quello che avanza. Prima la scontava da sé
+ * (`clamp(320px, calc(100dvh - 22rem), 1400px)`) e quel `22rem` era un numero da tenere allineato a
+ * mano con testa, contatori e barre: era corto di un'ottantina di pixel, e la pagina scorreva per
+ * mostrare una tabella che a sua volta scorreva.
  *
- * `dvh` e non `vh`: su mobile la barra dell'indirizzo che si ritrae cambia `vh` e la tabella
- * "salta". Il minimo di 320px tiene comunque una decina di righe sui portatili bassi.
+ * `MAX` è una rete, non un layout: se un domani un antenato perde il suo `min-h-0`, `height: 100%`
+ * si risolve su un genitore ad altezza automatica e la tabella crescerebbe quanto le sue 5.000
+ * righe virtualizzate — cioè decine di migliaia di pixel. Con il tetto il guasto resta una tabella
+ * alta uno schermo: visibile, e non una pagina che non finisce più.
  */
-const ALTEZZA_VISTA = 'clamp(320px, calc(100dvh - 22rem), 1400px)';
+const ALTEZZA_MIN = 240;
+const ALTEZZA_MAX = '100dvh';
 
 /*
   Token `--status-*` e non i semantici: qui il colore È l'informazione (scaduto / in scadenza),
@@ -57,11 +61,6 @@ export type Props = {
   onFiltri?: (f: FiltriUI) => void;
   /** Valori distinti dell'intero registro, per i filtri a elenco. */
   opzioni?: Opzioni;
-  /**
-   * Vista ingrandita: la tabella prende tutta l'altezza che il contenitore le lascia invece della
-   * sua quota di pagina. Il contenitore deve essere un `flex flex-col` con un'altezza definita.
-   */
-  ingrandita?: boolean;
   /** Editing a griglia sulle sole colonne modificabili. Assente = tabella in sola lettura. */
   editing?: {
     /** Indice della colonna modificabile, o null se la colonna non lo è. */
@@ -94,7 +93,7 @@ const idCella = (riga: number, colonna: number) => `acea-cella-${riga}-${colonna
  */
 export default function TabellaOrdini({
   righe, colonne, colonneVisibili, oggi, selezione, onSelezione, caricando = false, editing,
-  filtri, onFiltri, opzioni, ingrandita = false,
+  filtri, onFiltri, opzioni,
 }: Props) {
   const [ordinamento, setOrdinamento] = useState<SortingState>([]);
   /** Elemento che scorre: è lo `scrollElement` del virtualizzatore, deve restare quello esterno. */
@@ -182,19 +181,18 @@ export default function TabellaOrdini({
    */
   const stileColonna = (larghezza: number) => ({ flex: `1 1 ${larghezza}px`, minWidth: larghezza });
 
+  /*
+    `min-h-0`: un figlio flex ha `min-height: auto` di default e senza si rifiuterebbe di
+    rimpicciolirsi sotto il proprio contenuto — con 5.000 righe virtualizzate significa traboccare
+    fuori dallo schermo invece di scorrere. Vale su OGNI anello della catena, da qui fino alla
+    pagina.
+  */
   return (
-    <div
-      className={`overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] ${
-        // Ingrandita l'altezza non si calcola: si prende quella che avanza. `min-h-0` perché un
-        // figlio flex ha `min-height: auto` di default e si rifiuterebbe di rimpicciolirsi sotto
-        // il contenuto — con 5.000 righe virtualizzate significa traboccare fuori dallo schermo.
-        ingrandita ? 'flex min-h-0 flex-1' : ''
-      }`}
-    >
+    <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
       <div
         ref={contenitore}
-        className={`overflow-auto focus-within:outline-none ${ingrandita ? 'w-full' : ''}`}
-        style={{ height: ingrandita ? '100%' : ALTEZZA_VISTA }}
+        className="w-full overflow-auto focus-within:outline-none"
+        style={{ height: '100%', minHeight: ALTEZZA_MIN, maxHeight: ALTEZZA_MAX }}
       >
         {/*
           `tabIndex` e `role="grid"` sullo STESSO elemento: gli screen reader entrano in modalità
