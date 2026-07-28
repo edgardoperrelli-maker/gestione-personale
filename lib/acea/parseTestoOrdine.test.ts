@@ -109,25 +109,19 @@ describe('parseTestoOrdine — guardrail sul troncamento a 40 caratteri', () => 
   });
 
   /*
-    IL MARGINE. La soglia esatta dei 40 e` la prova certa che SAP ha tagliato, ma un testo di 38
-    con la matricola a fine stringa e` sospetto lo stesso. Da qui i 10 caratteri di margine: si
-    segnala da 30 in su.
+    LA SOGLIA NON SI ABBASSA "per sicurezza". Provato, misurato, scartato.
 
-    Il compromesso e` voluto e va nella direzione giusta: una riga segnalata a torto si controlla
-    in dieci secondi e si scarta, una matricola tagliata che NON viene segnalata diventa un
-    misuratore agganciato all'impianto sbagliato — o non agganciato affatto.
+    Allargare la rete a 30 aggiunge 93 righe, TUTTE `SOST_SARAC_SER_` (prefisso 26 caratteri) con
+    testi fra 32 e 38: stanno sotto il limite del campo, quindi SAP non ha tagliato niente. È un
+    fatto strutturale, non una probabilità — e nessuna delle 93 ha un completamento altrove nel
+    registro.
+
+    Novantatré falsi allarmi non rendono più sicuro un elenco «da controllare»: lo rendono un
+    elenco che si smette di guardare.
   */
-  it('segnala anche sotto i 40, dentro il margine di sicurezza', () => {
+  it('un testo sotto il limite del campo NON e` sospetto, per quanto la matricola sia in fondo', () => {
     const t = '4000308907_SOST_SARAC_SER_202415647231';
-    expect(t.length).toBe(38);   // sotto il limite del campo, ma dentro il margine
-    expect(parseTestoOrdine(t).sospettoTroncamento).toBe(true);
-  });
-
-  it('non segnala i testi davvero corti: li` non c’e` niente da temere', () => {
-    // 25 caratteri: nessun taglio plausibile, e segnalarli sarebbe solo rumore che fa perdere
-    // fiducia nell'elenco «da controllare».
-    const t = '4000308907_LIM_MAS_202415';
-    expect(t.length).toBe(25);
+    expect(t.length).toBe(38);   // 38 < 40: qui SAP non ha tagliato niente
     expect(parseTestoOrdine(t).sospettoTroncamento).toBe(false);
   });
 });

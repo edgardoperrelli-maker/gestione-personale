@@ -13,9 +13,25 @@
 //
 // DUE TRAPPOLE DOCUMENTATE:
 //  1. Il campo SAP è troncato a 40 caratteri. `LEN`/`LENT`/`LENTE_M`/`LENTE_MM_` non sono
-//     suffissi diversi: sono la parola "LENTE" tagliata. La matricola sta PRIMA del suffisso e
-//     nell'export attuale non risulta mai troncata, ma il margine è di 16 caratteri — oltre,
-//     verrebbe tagliata. Da qui `sospettoTroncamento`, che segnala senza bloccare.
+//     suffissi diversi: sono la parola "LENTE" tagliata.
+//
+//     LA MATRICOLA ORA RISULTA TAGLIATA DAVVERO, e questo commento diceva il contrario. Con il
+//     marcatore `LIM_MASS_MATR_` il prefisso è esattamente 25 caratteri (`<impianto 10>` + 15):
+//     restano 15 caratteri per la matricola, ma le seriali SETA/WTTS ne hanno 16 — verificato su
+//     990 occorrenze su 990 fra colonna Matricola dell'export, `interventi` e master snapshot,
+//     con ZERO occorrenze a 15. 25+16=41 > 40: il sedicesimo carattere non entra.
+//
+//     Nell'export di oggi sono 126 righe, e la prova indipendente è la collisione: 125 righe
+//     massive portano solo 54 matricole distinte su 125 impianti (2,31 righe per matricola contro
+//     1,00 del gruppo sano), e `SETA07122500630` compare su OTTO impianti diversi. Sono otto
+//     misuratori schiacciati sullo stesso prefisso.
+//
+//     Il marcatore corto `LIM_MASS_` (9 caratteri) lascia spazio a sufficienza e la stessa
+//     famiglia di seriale ci sta intera: il problema è il marcatore, non il misuratore.
+//
+//     Da qui `sospettoTroncamento`, che segnala senza bloccare — e da qui l'avvertenza che
+//     `matricola_norm` su quelle righe NON è una chiave: ombreggia fino a otto misuratori, e un
+//     join ci va in fan-out.
 //  2. Il marcatore NON identifica l'attività: 173 delle 267 saracinesche usano `LIM_MAS_MATR_`.
 //     L'attività si legge SOLO da "Operazione testo breve".
 //
@@ -33,21 +49,19 @@ export type EstrazioneMisuratore = {
 };
 
 /** Lunghezza massima del campo "Testo breve Ordine" in SAP. */
-const MAX_TESTO = 40;
+/*
+  Il limite del campo SAP, e la soglia del sospetto. NON si abbassa "per sicurezza".
 
-/**
- * Margine di sicurezza sotto il limite del campo.
- *
- * La soglia esatta dei 40 caratteri e` la prova CERTA che SAP ha tagliato. Ma un testo di 34
- * caratteri con la matricola a fine stringa e` sospetto lo stesso: il campo puo` essere stato
- * composto piu` corto e comunque troncato a monte, oppure la matricola puo` essere finita al
- * bordo per un separatore mangiato. Fermarsi ai 40 esatti lascia passare quei casi.
- *
- * Dieci caratteri di margine allargano la rete: una riga segnalata a torto si controlla in dieci
- * secondi e si scarta, una matricola tagliata che non viene segnalata diventa un misuratore
- * agganciato all'impianto sbagliato — o non agganciato affatto.
- */
-const MARGINE_TRONCAMENTO = 10;
+  Sembra prudente allargare la rete qualche carattere sotto i 40. È stato provato, misurato, e
+  scartato: le 93 righe che si aggiungerebbero fra 30 e 39 sono TUTTE `SOST_SARAC_SER_`, il cui
+  prefisso è 26 caratteri, e stanno sotto il limite del campo — quindi SAP non ha tagliato niente.
+  È un fatto strutturale, non una probabilità. Le loro lunghezze coincidono con quelle delle
+  saracinesche integre, e nessuna ha un completamento altrove nel registro.
+
+  Novantatré falsi allarmi in un elenco «da controllare» non lo rendono più sicuro: lo rendono un
+  elenco che si smette di guardare. Il sospetto vale solo AL limite, dove il taglio è certo.
+*/
+const MAX_TESTO = 40;
 
 // impianto = 10 cifre iniziali; poi uno dei tre marcatori; poi la matricola fino al separatore.
 // La classe della matricola esclude `_` di proposito: è il separatore che chiude il token
@@ -78,6 +92,6 @@ export function parseTestoOrdine(testo: string | null | undefined): EstrazioneMi
   return {
     impianto,
     matricola,
-    sospettoTroncamento: s.length >= MAX_TESTO - MARGINE_TRONCAMENTO && finisceInFondo,
+    sospettoTroncamento: s.length >= MAX_TESTO && finisceInFondo,
   };
 }
