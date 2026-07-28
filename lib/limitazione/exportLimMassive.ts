@@ -113,13 +113,35 @@ export function saracinescaPulita(v: string | null | undefined): string {
  * primo valore valido tra le due chiavi. Senza questa normalizzazione l'export scartava le
  * valvole salvate come booleano (viste "SI" nello storico ma perse dall'agente).
  */
+/**
+ * La dichiarazione di saracinesca sostituita, dalle due chiavi con cui i template l'hanno salvata.
+ *
+ * Le due chiavi NON sono due nomi della stessa domanda, e trattarle allo stesso modo era un errore:
+ *
+ * - `sostituzione_valvola` è la domanda vera. Vale `SI` su 817 ODL, `NO` su 273. Qui una spunta
+ *   booleana `true` è una risposta affermativa a tutti gli effetti, e va letta come SI.
+ *
+ * - `sost_valvola` è un campo FOTO. Sui dati reali: 314 voci, di cui 309 percorsi di immagine
+ *   (`blob-locale:…`, `rapportini/…jpg`) e 5 booleani sbandati. Zero risposte testuali, mai.
+ *
+ * Quei 5 booleani facevano passare per «saracinesca sostituita» cinque ordini di rimozione
+ * misuratore e sospensione fornitura — attività dove una saracinesca non è nemmeno contemplata — e
+ * su tutti e cinque la domanda vera era rimasta senza risposta. Un elenco di lavoro da fatturare
+ * che contiene lavoro mai fatto è peggio di un elenco corto: ci si va a discutere con ACEA.
+ *
+ * Quindi il booleano vale solo sulla chiave che porta davvero la risposta. Sull'altra si accetta
+ * solo un testo pulito — che oggi non compare mai, ed è esattamente il punto.
+ */
 export function valoreSaracinesca(sostituzioneValvola: unknown, sostValvola: unknown): string {
-  const norm = (raw: unknown): string => {
+  const daRisposta = (raw: unknown): string => {
     if (raw === true) return 'SI';
     if (typeof raw === 'string') return saracinescaPulita(raw);
     return '';
   };
-  return norm(sostituzioneValvola) || norm(sostValvola);
+  const daCampoFoto = (raw: unknown): string =>
+    (typeof raw === 'string' ? saracinescaPulita(raw) : '');
+
+  return daRisposta(sostituzioneValvola) || daCampoFoto(sostValvola);
 }
 
 /** True se la categoria della voce è "NESSUN PASSAGGIO" (spazi/maiuscole indifferenti). */

@@ -8,7 +8,9 @@ import {
   serveIncrocio, ORDINAMENTI, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
-import { chiaviAggancio, isAttivitaSaracinesca } from '@/lib/acea/saracinesche';
+import {
+  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata,
+} from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 
 export const runtime = 'nodejs';
@@ -100,13 +102,13 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   return q.order('odl', { ascending: true }).order('numero_operazione', { ascending: true });
 }
 
-type Chiave = { odl: string; numero_operazione: string };
+type Chiave = { odl: string; numero_operazione: string; attivita: string | null };
 
 /** Tutte le chiavi che passano i criteri ACEA, nell'ordine della tabella. */
 async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]> {
   const chiavi: Chiave[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
-    const { data, error } = await queryRegistro('odl, numero_operazione', f, oggi)
+    const { data, error } = await queryRegistro('odl, numero_operazione, attivita', f, oggi)
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as unknown as Chiave[];
@@ -388,7 +390,10 @@ export async function GET(req: Request) {
         .find(Boolean);
       return {
         ...r,
-        saracinesca: dichiarati.has(r.odl) ? 'SI' : null,
+        saracinesca:
+          dichiarati.has(r.odl) && saracinescaContemplata(r.attivita as string | null)
+            ? 'SI'
+            : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
         pianificato_il: p?.data ?? null,

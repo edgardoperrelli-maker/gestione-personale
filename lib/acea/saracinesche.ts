@@ -23,6 +23,24 @@ import { normalizzaMatricola } from './parseTestoOrdine';
  * massive, e il marcatore nel testo dell'ordine non aiuta — 173 delle 267 saracinesche usano
  * `LIM_MAS_MATR_`, il marcatore delle massive.
  */
+/**
+ * `true` se su quell'attività una saracinesca si può davvero sostituire.
+ *
+ * Sulle RIMOZIONI no, e il motivo è fisico: se il misuratore o l'allaccio vengono portati via, non
+ * resta niente su cui montare una valvola. Nel registro sono «Rimozione misuratore per morosità»
+ * (108 ordini), «Rimozione impianto abusivo» (31) e una «Rimozione ctr». Su tutte le altre —
+ * limitazioni, sospensioni, regolarizzazioni, riattivazioni — la sostituzione è contemplata.
+ *
+ * Serve perché la dichiarazione arriva dal rapportino, e il rapportino la chiede anche dove non ha
+ * senso: sui dati reali ci sono 10 ODL di rimozione misuratore con un SI esplicito. Non sono
+ * booleani sbandati, sono risposte date — quindi o il template mostra la domanda dove non
+ * dovrebbe, o sono spunte per errore. In entrambi i casi non sono lavoro fatturabile, e lasciarle
+ * in un elenco «da fatturare» significa portarle a un tavolo con ACEA.
+ */
+export function saracinescaContemplata(attivita: string | null | undefined): boolean {
+  return !String(attivita ?? '').toUpperCase().includes('RIMOZ');
+}
+
 export function isAttivitaSaracinesca(attivita: string | null | undefined): boolean {
   const s = String(attivita ?? '').toUpperCase();
   return s.includes('SARACINESC') || s.includes('VALVOL');

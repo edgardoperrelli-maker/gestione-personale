@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  chiaviAggancio, isAttivitaSaracinesca, statiSaracinesche, valoreDaRichiedere,
+  chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, statiSaracinesche,
+  valoreDaRichiedere,
   type Dichiarazione, type OrdineSostituzione,
 } from './saracinesche';
 
@@ -235,5 +236,37 @@ describe('la dichiarazione viene dal rapportino, non dal foglio', () => {
     expect(isAttivitaSaracinesca('Limitazione flusso idrico')).toBe(false);
     expect(isAttivitaSaracinesca('Sostituzione saracinesca')).toBe(true);
     expect(isAttivitaSaracinesca('SOSTITUZIONE VALVOLA A SFERA')).toBe(true);
+  });
+});
+
+describe('saracinescaContemplata', () => {
+  // Se il misuratore o l'allaccio vengono portati via, non resta niente su cui montare una valvola.
+  it.each([
+    'Rimozione misuratore per morosità',
+    'Rimozione impianto abusivo',
+    'Rimozione ctr 2042551',
+    'RIMOZIONE MISURATORE',
+  ])('su «%s» non è contemplata', (a) => {
+    expect(saracinescaContemplata(a)).toBe(false);
+  });
+
+  // Su tutto il resto la sostituzione ci sta: limitazioni, sospensioni, regolarizzazioni,
+  // riattivazioni. Escluderne una per eccesso di zelo nasconderebbe lavoro davvero fatturabile.
+  it.each([
+    'Limitazione flusso idrico',
+    'Limitazione Massiva su Impianto',
+    'Sospensione fornitura',
+    'Regolarizzazione flusso idrico',
+    'Riattivazione fornitura',
+  ])('su «%s» è contemplata', (a) => {
+    expect(saracinescaContemplata(a)).toBe(true);
+  });
+
+  it('un’attività sconosciuta si considera contemplata', () => {
+    // Nel dubbio si mostra: una riga di troppo si vede e si scarta, una riga in meno e` lavoro
+    // che nessuno va a reclamare.
+    expect(saracinescaContemplata('Attività nuova mai vista')).toBe(true);
+    expect(saracinescaContemplata(null)).toBe(true);
+    expect(saracinescaContemplata('')).toBe(true);
   });
 });
