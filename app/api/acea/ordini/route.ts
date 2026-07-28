@@ -437,6 +437,14 @@ export async function GET(req: Request) {
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {
+    /*
+      L'errore va anche nei LOG, non solo nella risposta.
+
+      Finiva solo nel corpo JSON: dal browser si vedeva «Errore lettura registro ACEA» e basta, e
+      per capire cosa fosse davvero non restava che indovinare guardando il diff. Un percorso
+      d'errore che non lascia traccia costa piu` di quanto costi scriverlo.
+    */
+    console.error('[acea/ordini] lettura fallita:', e);
     return NextResponse.json(
       { error: e instanceof Error ? e.message : 'Errore lettura registro ACEA.' },
       { status: 500 },
