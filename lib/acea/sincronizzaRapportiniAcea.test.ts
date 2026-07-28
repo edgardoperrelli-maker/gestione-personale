@@ -257,3 +257,25 @@ describe('sincronizzaRapportiniAcea', () => {
     expect(tables.rapportini).toHaveLength(0);
   });
 });
+
+/*
+  L'AGGANCIO fra la colonna «Note» della tabella e il rapportino dell'operatore.
+
+  La nota scritta sul registro deve finire in `raw_json.note`: e` la chiave che
+  `notaUfficioFromRaw` legge per disegnare il banner «Nota dall'ufficio» in cima alla card. Un
+  nome diverso avrebbe voluto dire un secondo motore di note accanto a quello che esisteva gia`.
+
+  Se questo si rompe, la nota si scrive e non arriva a nessuno: il caso peggiore, perche` chi la
+  scrive crede di aver avvisato l'operatore.
+*/
+describe('la nota dell’ufficio arriva al rapportino', () => {
+  it('viaggia nella chiave che il rapportino legge davvero', async () => {
+    const { notaUfficioFromRaw } = await import('@/utils/rapportini/notaUfficio');
+    // Il contratto in due righe: come la scriviamo, e come viene riletta.
+    expect(notaUfficioFromRaw({ _acea: true, note: 'Citofonare interno 4' }))
+      .toBe('Citofonare interno 4');
+    // Senza nota il banner non deve comparire: `raw_json` senza la chiave.
+    expect(notaUfficioFromRaw({ _acea: true })).toBeUndefined();
+    expect(notaUfficioFromRaw({ _acea: true, note: '   ' })).toBeUndefined();
+  });
+});

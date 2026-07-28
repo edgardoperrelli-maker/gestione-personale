@@ -55,6 +55,11 @@ export type RigaTabella = {
   odl_saracinesca: string | null;
   /** Lo stato di QUELL'ordine, non della limitazione: dice se la sostituzione e` gia` esitata. */
   stato_saracinesca: string | null;
+  /**
+   * Nota dell'ufficio. Si scrive qui in tabella e arriva all'operatore dentro il rapportino, nel
+   * banner «Nota dall'ufficio» — non e` un promemoria interno, e` un messaggio a chi va sul posto.
+   */
+  note: string | null;
   // dalla pianificazione (join in lettura, non è dato ACEA)
   pianificato_il: string | null;
   pianificato_a: string | null;
@@ -66,7 +71,7 @@ export type ChiaveColonna =
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
-  | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca';
+  | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -142,9 +147,14 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // Saracinesca sostituita, e l'ODL con cui e` stata richiesta ad ACEA. Dove risulta una
   // sostituzione DEVE esistere l'ordine che la registra: senza, il lavoro e` stato fatto e non
   // verra` mai pagato (91,12 € l'una). La colonna esiste per far vedere quel buco.
-  { chiave: 'saracinesca', intestazione: 'Saracinesca', predefinita: true, larghezza: 100 },
-  { chiave: 'odl_saracinesca', intestazione: 'ODL sostituzione', predefinita: true, mono: true, larghezza: 130 },
-  { chiave: 'stato_saracinesca', intestazione: 'Stato sostituzione', predefinita: true, larghezza: 140 },
+  // Nota dell'ufficio: si scrive qui e arriva all'operatore nel rapportino.
+  { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 220 },
+  // Le tre delle saracinesche NON sono predefinite nella vista normale: li` non servono, e tre
+  // colonne quasi sempre vuote rubano spazio a quelle che si guardano tutti i giorni. Restano
+  // attivabili, e nella scheda «Sostituzione saracinesca» tornano a schermo da sole.
+  { chiave: 'saracinesca', intestazione: 'Saracinesca', predefinita: false, larghezza: 100 },
+  { chiave: 'odl_saracinesca', intestazione: 'ODL sostituzione', predefinita: false, mono: true, larghezza: 130 },
+  { chiave: 'stato_saracinesca', intestazione: 'Stato sostituzione', predefinita: false, larghezza: 140 },
   // attivabili
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: false, mono: true, larghezza: 120, filtro: F.impianto },
   { chiave: 'famiglia', intestazione: 'Famiglia', predefinita: false, larghezza: 100 },
@@ -299,6 +309,8 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
         stile dice «attenzione» senza entrare nel dato.
       */
       return r.microarea === null || r.microarea === undefined ? '—' : String(r.microarea);
+    case 'note':
+      return r.note || '';
     case 'saracinesca':
       // Solo il «SI» si scrive: il «NO» e il vuoto dicono la stessa cosa a chi guarda la colonna
       // (nessuna saracinesca da fatturare), e riempirla di NO renderebbe illeggibile l'unico
@@ -367,5 +379,12 @@ export function colonnePerStato(colonne: DefColonna[], saracinesche: boolean): D
     .filter((c) => c.chiave !== 'odl_saracinesca')
     .map((c) => (c.chiave === 'odl' ? { ...c, intestazione: 'ODL limitazione' } : c));
 
-  return [{ ...sostituzione, intestazione: 'ODL', predefinita: true }, ...resto];
+  return [
+    { ...sostituzione, intestazione: 'ODL', predefinita: true },
+    // Nella loro scheda le colonne della saracinesca tornano a schermo: e` l'unico posto in cui
+    // sono il motivo per cui si sta guardando la tabella.
+    ...resto.map((c) => (c.chiave === 'saracinesca' || c.chiave === 'stato_saracinesca'
+      ? { ...c, predefinita: true }
+      : c)),
+  ];
 }

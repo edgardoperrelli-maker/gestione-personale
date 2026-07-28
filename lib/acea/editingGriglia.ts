@@ -15,7 +15,7 @@ export type Cella = { riga: number; colonna: number };
 export type Intervallo = { da: Cella; a: Cella };
 
 /** Colonne modificabili, nell'ordine in cui compaiono nella vista. */
-export type ColonnaEditabile = 'pianificato_a' | 'pianificato_il';
+export type ColonnaEditabile = 'pianificato_a' | 'pianificato_il' | 'note';
 
 export type Direzione = 'su' | 'giu' | 'sinistra' | 'destra';
 

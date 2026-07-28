@@ -306,8 +306,29 @@ export async function sincronizzaRapportiniAcea(
 
     // `_nuovo` accende l'evidenza nella pagina dell'operatore: una voce comparsa su un rapportino
     // che aveva già in mano non deve passare inosservata.
+    /*
+      Le note dell'ufficio scritte sul registro, per gli ODL che stanno entrando nel rapportino.
+
+      È l'aggancio fra la colonna «Note» della tabella e il banner «Nota dall'ufficio» che
+      l'operatore si trova in cima alla card: la nota viaggia dentro `raw_json.note`, che è dove
+      `notaUfficioFromRaw` la va a cercare. Nessun motore nuovo — quello esisteva già, mancava
+      solo chi ci scrivesse dentro.
+    */
+    const notePerOdl = new Map<string, string>();
+    const odlDaAggiungere = [...new Set(daAggiungere.map((i) => i.odl).filter(Boolean))] as string[];
+    for (let i = 0; i < odlDaAggiungere.length; i += 200) {
+      const { data: conNota } = await db
+        .from('acea_ordini')
+        .select('odl, note')
+        .in('odl', odlDaAggiungere.slice(i, i + 200));
+      for (const r of (conNota ?? []) as Array<{ odl: string; note: string | null }>) {
+        if (r.note && r.note.trim() !== '') notePerOdl.set(r.odl, r.note);
+      }
+    }
+
     const righe = daAggiungere.map((i, k) => {
       const f = flussoPerIntervento(i);
+      const nota = i.odl ? notePerOdl.get(i.odl) : undefined;
       return {
         rapportino_id: rapportinoId,
         intervento_id: i.id,
@@ -330,6 +351,9 @@ export async function sincronizzaRapportiniAcea(
           odl: i.odl,
           gruppo_attivita: i.gruppo_attivita,
           committente: i.committente,
+          // `note` e non un nome nostro: e` la chiave che `notaUfficioFromRaw` legge, la stessa
+          // che usano gli altri committenti. Cambiarla avrebbe voluto dire un secondo motore.
+          ...(nota ? { note: nota } : {}),
         },
         ...(flussi.length > 0
           ? { template_id: f?.id ?? null, campi_snapshot: (f?.campi as TemplateCampo[] | undefined) ?? null }

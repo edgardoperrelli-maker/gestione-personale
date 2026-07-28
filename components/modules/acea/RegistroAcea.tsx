@@ -104,6 +104,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   const valoreLocale = useCallback((r: RigaTabella, chiave: string): string | null => {
     const loc = editing.locali.get(`${r.odl}|${r.numero_operazione}`);
     if (!loc) return null;
+    if (chiave === 'note') return loc.note ?? null;
     if (chiave === 'pianificato_a') return loc.pianificato_a ?? null;
     if (chiave === 'pianificato_il') return loc.pianificato_il ? dataIt(loc.pianificato_il) : null;
     return null;
@@ -358,11 +359,11 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
       />
 
       <p className="text-xs text-[var(--brand-text-muted)]">
-        Esecutore e Data pianificata si modificano direttamente in tabella: clicca una cella, usa le
+        Esecutore, Data pianificata e Note si modificano direttamente in tabella: clicca una cella, usa le
         frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi; a
-        modificarsi restano solo Esecutore e Data. Le colonne si trascinano per riordinarle e si
+        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi. La nota
+        scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si trascinano per riordinarle e si
         tirano dal bordo per la larghezza (doppio click sul bordo per rimetterla com&apos;era).
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
       </p>

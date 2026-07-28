@@ -13,7 +13,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   esito_positivo: null, via: 'VIA ALFA', civico: '108', cap: '00039', comune: 'ZAGAROLO', microarea: null,
   impianto: '4003635716', matricola: '201215053510', valore_netto: 25.46,
   escludi_consuntivazione: false, codice_sla: 'NSLA', priorita_testo: null, centro_lavoro: null,
-  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, stato_saracinesca: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
+  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, stato_saracinesca: null, note: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
   ...over,
 });
 
@@ -23,9 +23,8 @@ describe('definizione colonne', () => {
     expect(pred).toEqual([
       'odl', 'attivita', 'matricola', 'indirizzo', 'comune', 'cap', 'gruppo', 'stato',
       'data_creazione', 'scadenza', 'pianificato_a', 'pianificato_il',
-      // Dove risulta una saracinesca sostituita DEVE esistere l'ordine che la registra: senza, il
-      // lavoro e` stato fatto e non verra` mai pagato. Le due colonne esistono per mostrare il buco.
-      'saracinesca', 'odl_saracinesca', 'stato_saracinesca',
+      // La nota dell'ufficio: si scrive qui e arriva all'operatore nel rapportino.
+      'note',
     ]);
   });
 
@@ -224,6 +223,21 @@ describe('colonnePerStato', () => {
   // Il difetto che questa funzione toglie: nella scheda saracinesche si leggeva la prima colonna
   // credendo di leggere l'ordine di sostituzione, e invece era quello della limitazione — che e`
   // chiusa da mesi e non dice niente su quando verra` pagata la saracinesca.
+  it('nella vista normale le colonne della saracinesca non rubano spazio', () => {
+    // Tre colonne quasi sempre vuote toglierebbero larghezza a quelle che si guardano tutti i
+    // giorni. Restano attivabili: chi le vuole se le accende.
+    for (const k of ['saracinesca', 'odl_saracinesca', 'stato_saracinesca']) {
+      expect(COLONNE_DUNNING.find((c) => c.chiave === k)?.predefinita).toBe(false);
+    }
+  });
+
+  it('nella loro scheda tornano a schermo da sole', () => {
+    const c = colonnePerStato(COLONNE_DUNNING, true);
+    for (const k of ['odl_saracinesca', 'saracinesca', 'stato_saracinesca']) {
+      expect(c.find((x) => x.chiave === k)?.predefinita).toBe(true);
+    }
+  });
+
   it('nella scheda saracinesche l’ODL e` quello della SOSTITUZIONE', () => {
     const c = colonnePerStato(COLONNE_DUNNING, true);
     expect(c[0].chiave).toBe('odl_saracinesca');

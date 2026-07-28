@@ -31,7 +31,7 @@ const COLONNE = [
   'via', 'civico', 'cap', 'comune', 'provincia', 'microarea', 'microarea_stimata',
   'impianto', 'matricola', 'matricola_norm', 'sospetto_troncamento',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
-  'testo_ordine', 'centro_lavoro',
+  'testo_ordine', 'centro_lavoro', 'note',
 ].join(', ');
 
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };

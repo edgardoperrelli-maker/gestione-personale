@@ -11,11 +11,21 @@ import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/co
 
 export type Operatore = { id: string; display_name: string };
 
+/**
+ * Quanto puo` essere lunga una nota.
+ *
+ * Non e` una regola di dominio, e` una difesa: incollare mezzo documento in una cella renderebbe
+ * illeggibile il rapportino dell'operatore, che quella nota se la trova in cima alla card.
+ */
+const MAX_NOTA = 500;
+
 /** Colonne modificabili, nell'ordine in cui compaiono in tabella. */
-export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il'];
+export const COLONNE_EDITABILI: ColonnaEditabile[] = ['pianificato_a', 'pianificato_il', 'note'];
 
 /** Valore mostrato in una cella modificabile, tenendo conto delle modifiche non ancora salvate. */
-export type ValoreLocale = { pianificato_a?: string | null; pianificato_il?: string | null };
+export type ValoreLocale = {
+  pianificato_a?: string | null; pianificato_il?: string | null; note?: string | null;
+};
 
 type Props = {
   righe: RigaTabella[];
@@ -85,7 +95,7 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
     if (scritture.length === 0) return;
 
-    const perChiave = new Map<string, { staffId?: string; data?: string }>();
+    const perChiave = new Map<string, { staffId?: string; data?: string; nota?: string }>();
     const nuoviLocali = new Map(locali);
     const errori: string[] = [];
 
@@ -100,7 +110,14 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
         saltate += 1;
         continue;
       }
-      if (colonna === 'pianificato_a') {
+      if (colonna === 'note') {
+        // Testo libero: nessuna validazione se non il taglio. Una nota e` un messaggio a chi va
+        // sul posto, non un campo strutturato — l'unica cosa da impedire e` un incolla enorme che
+        // renderebbe illeggibile il rapportino.
+        const testo = s.valore.slice(0, MAX_NOTA);
+        perChiave.set(chiave, { ...perChiave.get(chiave), nota: testo });
+        nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), note: testo });
+      } else if (colonna === 'pianificato_a') {
         const e = validaOperatore(s.valore, operatori);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }

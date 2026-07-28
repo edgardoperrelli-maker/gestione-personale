@@ -16,6 +16,14 @@ type Modifica = {
   chiave: string;            // `odl|numero_operazione`
   staffId?: string | null;   // assente = invariato
   data?: string | null;      // assente = invariato
+  /**
+   * Nota dell'ufficio. Assente = invariata; stringa vuota = cancellata.
+   *
+   * Va su `acea_ordini` e non su `interventi` come le altre due, perché si deve poter scrivere
+   * PRIMA che l'ordine sia pianificato: è il momento in cui si annota «citofonare interno 4»,
+   * cioè mentre si guarda la riga, non dopo averla assegnata.
+   */
+  nota?: string | null;
 };
 
 type Corpo = { modifiche?: Modifica[] };
@@ -42,6 +50,33 @@ export async function POST(req: Request) {
     }
 
     const odlTutti = [...new Set(lista.map((m) => m.chiave.split('|')[0]))];
+
+    /*
+      Le NOTE si scrivono subito e per conto loro: non sono pianificazione, non creano interventi,
+      non hanno invarianti da rispettare. Tenerle in questo percorso — e non in una rotta a sé —
+      serve a far passare un incolla misto (esecutore, data e note insieme) come una richiesta
+      sola, che è come l'utente lo vive.
+    */
+    let noteScritte = 0;
+    for (const m of lista) {
+      if (m.nota === undefined) continue;
+      const [odl, operazione] = m.chiave.split('|');
+      const { error } = await supabaseAdmin
+        .from('acea_ordini')
+        // Vuoto = cancellata: `null` e non stringa vuota, così «senza nota» ha una forma sola.
+        .update({ note: (m.nota ?? '').trim() === '' ? null : m.nota })
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione);
+      if (error) throw error;
+      noteScritte += 1;
+    }
+    // Solo note: non c'è pianificazione da toccare, e si evita di aprire un'operazione annullabile
+    // vuota che comparirebbe nello storico come se avesse spostato qualcosa.
+    if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
+      return NextResponse.json({
+        operazioneId: null, creati: 0, aggiornati: noteScritte, rifiutate: [],
+      });
+    }
 
     // Registro e interventi correnti: si decide sul dato del server, non su quello del client.
     const ordiniPerChiave = new Map<string, OrdineDaPianificare>();
