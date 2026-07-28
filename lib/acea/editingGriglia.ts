@@ -190,6 +190,15 @@ export function validaOperatore(
 ): EsitoValore {
   const s = String(v ?? '').trim().replace(/\s+/g, ' ');
   if (s === '') return { ok: true, salta: true };
+  /*
+    Elenco vuoto: non e` il nome a essere sbagliato, e` che non abbiamo nessun nome con cui
+    confrontarlo. Dirlo cambia tutto — «operatore non trovato» manda a cercare un errore di
+    battitura che non c'e`, ed e` successo davvero: l'elenco arrivava vuoto perche` l'endpoint non
+    aveva un GET, e il nome respinto era quello COPIATO dalla cella accanto.
+  */
+  if (operatori.length === 0) {
+    return { ok: false, motivo: 'elenco operatori non disponibile: ricarica la pagina' };
+  }
   const norm = (x: string) => x.trim().replace(/\s+/g, ' ').toUpperCase();
   const esatti = operatori.filter((o) => norm(o.display_name) === norm(s));
   if (esatti.length === 1) return { ok: true, valore: esatti[0].id };

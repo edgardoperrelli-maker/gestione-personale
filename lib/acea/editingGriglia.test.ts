@@ -218,3 +218,35 @@ describe('eventoDiUnCampo', () => {
     expect(eventoDiUnCampo({ isContentEditable: false })).toBe(false);
   });
 });
+
+describe('validaOperatore — elenco non caricato', () => {
+  /*
+    Il caso che ha fatto perdere tempo: l'endpoint degli operatori non aveva un GET, il client
+    riceveva 405, controllava `res.ok` e lasciava l'elenco vuoto senza dire niente. Ogni nome
+    incollato tornava «operatore non trovato» — compreso quello copiato dalla cella accanto, che
+    e` proprio il gesto che fa sospettare tutt'altro (nome e cognome invertiti, maiuscole...).
+
+    Con l'elenco vuoto il messaggio deve dire che manca l'ELENCO, non che manca il nome.
+  */
+  it('dice che manca l’elenco, non che manca il nome', () => {
+    const e = validaOperatore('LIBERATORI ADRIANO', []);
+    expect(e.ok).toBe(false);
+    if (!e.ok) {
+      expect(e.motivo).toMatch(/elenco/i);
+      expect(e.motivo).not.toMatch(/non trovato/i);
+    }
+  });
+
+  it('una cella vuota resta saltata anche senza elenco', () => {
+    // Svuotare una cella non ha bisogno dell'anagrafica: e` una cancellazione.
+    expect(daSaltare(validaOperatore('', []))).toBe(true);
+  });
+
+  it('con l’elenco carico il nome esatto passa', () => {
+    const op = [{ id: 'x', display_name: 'LIBERATORI ADRIANO' }];
+    const e = validaOperatore('LIBERATORI ADRIANO', op);
+    expect(e).toEqual({ ok: true, valore: 'x' });
+    // E il giro chiuso: quello che la tabella MOSTRA si deve poter reincollare.
+    expect(validaOperatore('  liberatori   adriano ', op)).toEqual({ ok: true, valore: 'x' });
+  });
+});
