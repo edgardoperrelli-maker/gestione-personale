@@ -24,7 +24,7 @@ const COLONNE = [
   'data_creazione', 'cardine_al', 'scadenza', 'data_completamento',
   'operatore_cognome', 'operatore_nome',
   'causale', 'causale_desc', 'esito_positivo',
-  'via', 'civico', 'cap', 'comune', 'provincia',
+  'via', 'civico', 'cap', 'comune', 'provincia', 'microarea',
   'impianto', 'matricola', 'matricola_norm', 'sospetto_troncamento',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro',

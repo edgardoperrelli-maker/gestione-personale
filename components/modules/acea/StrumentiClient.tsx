@@ -5,6 +5,7 @@ import Tabs from '@/components/Tabs';
 import type { Famiglia } from '@/lib/acea/saracinesche';
 import ImportCard from './ImportCard';
 import RapportiniGiorno from './RapportiniGiorno';
+import GeocodificaCard from './GeocodificaCard';
 import EsportaAcea from './EsportaAcea';
 import Saracinesche from './Saracinesche';
 
@@ -33,6 +34,7 @@ export default function StrumentiClient() {
     <div className="space-y-4">
       <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
       <RapportiniGiorno />
+      <GeocodificaCard />
 
       <div className="space-y-3">
         <Tabs

@@ -31,6 +31,8 @@ export type RigaTabella = {
   civico: string | null;
   cap: string | null;
   comune: string | null;
+  /** Numero di microarea dalle coordinate. `null` finché la geocodifica non è passata. */
+  microarea: number | null;
   impianto: string | null;
   matricola: string | null;
   valore_netto: number | null;
@@ -46,7 +48,7 @@ export type RigaTabella = {
 };
 
 export type ChiaveColonna =
-  | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'stato'
+  | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'gruppo' | 'stato'
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al';
@@ -112,6 +114,10 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // mandare una squadra. Predefinita perché senza si pianifica per comune, e un comune come Roma
   // non dice nulla su quanto sono distanti due misuratori.
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
+  // Il gruppo viene dalle COORDINATE, non dal CAP: a Roma un CAP e` largo chilometri, e due
+  // misuratori con lo stesso CAP possono essere a mezz'ora l'uno dall'altro. Ordinando per questa
+  // colonna le righe da fare nello stesso giro finiscono una sotto l'altra.
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76 },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
@@ -138,6 +144,7 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76 },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
@@ -250,6 +257,10 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
       if (r.esito_positivo === null) return '—';
       return r.causale_desc ?? r.causale ?? (r.esito_positivo ? 'Eseguito' : 'Non eseguito');
     }
+    case 'gruppo':
+      // Un trattino e non uno zero: «non ancora geocodificato» non e` un gruppo, e uno zero
+      // finirebbe ordinato insieme ai gruppi veri come se fosse una zona.
+      return r.microarea === null || r.microarea === undefined ? '—' : String(r.microarea);
     case 'valore_netto':
       return r.valore_netto === null ? '—' : r.valore_netto.toFixed(2);
     case 'data_creazione':
