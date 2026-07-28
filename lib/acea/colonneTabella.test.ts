@@ -12,7 +12,7 @@ const riga = (over: Partial<RigaTabella> = {}): RigaTabella => ({
   esito_positivo: null, via: 'VIA ALFA', civico: '108', cap: '00039', comune: 'ZAGAROLO', microarea: null,
   impianto: '4003635716', matricola: '201215053510', valore_netto: 25.46,
   escludi_consuntivazione: false, codice_sla: 'NSLA', priorita_testo: null, centro_lavoro: null,
-  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
+  sospetto_troncamento: false, saracinesca: null, odl_saracinesca: null, stato_saracinesca: null, pianificato_il: null, pianificato_a: null, stato_intervento: null,
   ...over,
 });
 
@@ -24,7 +24,7 @@ describe('definizione colonne', () => {
       'data_creazione', 'scadenza', 'pianificato_a', 'pianificato_il',
       // Dove risulta una saracinesca sostituita DEVE esistere l'ordine che la registra: senza, il
       // lavoro e` stato fatto e non verra` mai pagato. Le due colonne esistono per mostrare il buco.
-      'saracinesca', 'odl_saracinesca',
+      'saracinesca', 'odl_saracinesca', 'stato_saracinesca',
     ]);
   });
 
@@ -186,9 +186,28 @@ describe('saracinesche', () => {
     expect(valoreCella(riga2({ saracinesca: null }), 'saracinesca')).toBe('—');
   });
 
-  it('l’ODL della saracinesca si mostra quando c’e`', () => {
-    expect(valoreCella(riga2({ odl_saracinesca: '912999111' }), 'odl_saracinesca')).toBe('912999111');
-    expect(valoreCella(riga2({ odl_saracinesca: null }), 'odl_saracinesca')).toBe('—');
+  /*
+    L'ODL e lo stato sono quelli dell'ordine di SOSTITUZIONE, non della limitazione su cui si e`
+    intervenuti. E` la distinzione che conta: la limitazione e` chiusa da mesi, ma se ACEA non ha
+    generato l'ordine della saracinesca quel lavoro non verra` mai pagato. Guardare lo stato
+    sbagliato fa sembrare a posto una riga che non lo e`.
+  */
+  it('l’ODL e lo stato sono quelli dell’ordine di sostituzione', () => {
+    const r = riga2({
+      odl: '957275989', stato_desc: 'completato',
+      odl_saracinesca: '912999111', stato_saracinesca: 'Intervento Richiesto',
+    });
+    expect(valoreCella(r, 'odl_saracinesca')).toBe('912999111');
+    expect(valoreCella(r, 'stato_saracinesca')).toBe('Intervento Richiesto');
+    // La limitazione resta quella che e`: le due informazioni non si confondono.
+    expect(valoreCella(r, 'odl')).toBe('957275989');
+    expect(valoreCella(r, 'stato')).toBe('completato');
+  });
+
+  it('senza ordine di sostituzione non c’e` stato da mostrare', () => {
+    const r = riga2({ saracinesca: 'SI', odl_saracinesca: null, stato_saracinesca: null });
+    expect(valoreCella(r, 'odl_saracinesca')).toBe('—');
+    expect(valoreCella(r, 'stato_saracinesca')).toBe('—');
   });
 
   // Il caso che la colonna esiste per mostrare: sostituzione dichiarata, nessun ordine che la

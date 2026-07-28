@@ -11,6 +11,7 @@ import {
   valoreCella, tonoScadenza, type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
 import type { FiltriUI, Opzioni } from '@/lib/acea/filtriOrdini';
+import { selezionaRighe } from '@/lib/acea/selezioneRighe';
 import Skeleton from '@/components/ui/Skeleton';
 import FiltroColonna from './FiltroColonna';
 import ManigliaColonna from './ManigliaColonna';
@@ -163,19 +164,23 @@ export default function TabellaOrdini({
     virtualizer.scrollToIndex(rigaFocus, { align: 'auto' });
   }, [rigaFocus, virtualizer]);
 
+  /**
+   * Un click sulla spunta di una riga, con o senza shift.
+   *
+   * La regola sta in `selezionaRighe` e non qui: e` logica di dominio, e si e` gia` rotta una volta
+   * (vedi il commento in quel file). Questo resta il solo punto che la invoca, ed e` invocato UNA
+   * volta per click.
+   */
   const clickRiga = (indice: number, shift: boolean) => {
-    if (shift && ultimaCliccata.current !== null) {
-      const [da, a] = [ultimaCliccata.current, indice].sort((x, y) => x - y);
-      const agg: RowSelectionState = { ...selezione };
-      for (let i = da; i <= a; i++) agg[rows[i].id] = true;
-      onSelezione(agg);
-      return;
-    }
-    ultimaCliccata.current = indice;
-    const agg: RowSelectionState = { ...selezione };
-    if (agg[rows[indice].id]) delete agg[rows[indice].id];
-    else agg[rows[indice].id] = true;
-    onSelezione(agg);
+    const esito = selezionaRighe(
+      selezione,
+      rows.map((r) => r.id),
+      indice,
+      shift,
+      ultimaCliccata.current,
+    );
+    ultimaCliccata.current = esito.ancora;
+    onSelezione(esito.selezione);
   };
 
   const tutteSelezionate = rows.length > 0 && rows.every((r) => selezione[r.id]);
@@ -392,12 +397,19 @@ export default function TabellaOrdini({
                       aria-label={`Seleziona ordine ${r.odl}`}
                       className="h-4 w-4 accent-[var(--brand-primary)]"
                       checked={scelta}
-                      onChange={() => clickRiga(vi.index, false)}
+                      /*
+                        Tutto nel `click`, niente nel `change`.
+
+                        React ricava l'evento `change` di un checkbox DAL CLICK, e `preventDefault()`
+                        non lo sopprime: tenendo un gestore su ciascuno, uno shift-click ne faceva
+                        partire due, che ricostruivano la selezione dallo stesso stato di render e
+                        si sovrascrivevano a vicenda — l'intervallo spariva e restava il toggle.
+                        La spunta e` controllata da `checked`, quindi il toggle nativo non serve.
+                      */
+                      onChange={() => { /* la selezione la decide il click */ }}
                       onClick={(e) => {
-                        if (e.shiftKey) {
-                          e.preventDefault();
-                          clickRiga(vi.index, true);
-                        }
+                        e.preventDefault();
+                        clickRiga(vi.index, e.shiftKey);
                       }}
                     />
                   </div>

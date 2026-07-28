@@ -8,6 +8,7 @@ import {
   serveIncrocio, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
+import { chiaviAggancio, isAttivitaSaracinesca } from '@/lib/acea/saracinesche';
 
 export const runtime = 'nodejs';
 
@@ -125,6 +126,46 @@ async function indicePianificazione(): Promise<Map<string, { staff: Set<string>;
       if (it.staff_id) v.staff.add(it.staff_id);
       if (it.data) v.giorni.add(it.data);
       indice.set(it.odl, v);
+    }
+    if (blocco.length < PAGINA_SCAN) break;
+  }
+  return indice;
+}
+
+/** L'ordine ACEA di sostituzione che copre un misuratore. */
+type Sostituzione = { odl: string; stato: string | null; aperto: boolean };
+
+/**
+ * Gli ordini ACEA di SOSTITUZIONE saracinesca, indicizzati per impianto e per matricola.
+ *
+ * Sono l'ordine vero, quello che ACEA ha generato e che verrà pagato — non la colonna del master
+ * compilata a mano. Nel registro sono 267, tutti in famiglia `massive` (sono ASTR): entrano
+ * comodamente in memoria, quindi si caricano una volta per richiesta invece di interrogare il
+ * registro riga per riga.
+ *
+ * L'aggancio è per impianto O per matricola, con `chiaviAggancio`: le due parti non sono
+ * simmetriche — la sostituzione porta quasi sempre l'impianto, la limitazione spesso solo la
+ * matricola — e pretendere che coincidano entrambe perderebbe la maggior parte dei collegamenti.
+ */
+async function indiceSostituzioni(): Promise<Map<string, Sostituzione>> {
+  const indice = new Map<string, Sostituzione>();
+  for (let offset = 0; ; offset += PAGINA_SCAN) {
+    const { data, error } = await supabaseAdmin
+      .from('acea_ordini')
+      .select('odl, attivita, impianto, matricola, stato_desc, stato, aperto')
+      .range(offset, offset + PAGINA_SCAN - 1);
+    if (error) throw error;
+    const blocco = (data ?? []) as Array<{
+      odl: string; attivita: string | null; impianto: string | null; matricola: string | null;
+      stato_desc: string | null; stato: string | null; aperto: boolean;
+    }>;
+    for (const o of blocco) {
+      if (!isAttivitaSaracinesca(o.attivita)) continue;
+      const v: Sostituzione = { odl: o.odl, stato: o.stato_desc ?? o.stato, aperto: o.aperto };
+      // Su entrambe le chiavi: chi cerca conosce l'una o l'altra, non per forza tutte e due.
+      for (const k of chiaviAggancio({ impianto: o.impianto, matricola: o.matricola })) {
+        if (!indice.has(k)) indice.set(k, v);
+      }
     }
     if (blocco.length < PAGINA_SCAN) break;
   }
@@ -286,19 +327,22 @@ export async function GET(req: Request) {
       }
     }
 
-    // Saracinesca e suo ODL, per le sole righe della pagina. Come la pianificazione: il registro
-    // resta lo specchio di ACEA, il dato nostro sta altrove e si unisce qui in lettura.
-    const master = new Map<string, { saracinesca: string | null; odl_saracinesca: string | null }>();
+    // La DICHIARAZIONE di sostituzione, dal master: «qui e` stata cambiata una saracinesca».
+    const master = new Map<string, string | null>();
     for (let i = 0; i < odlPagina.length; i += 200) {
       const { data: snap, error: eSnap } = await supabaseAdmin
         .from('acea_master_snapshot')
-        .select('odl, saracinesca, odl_saracinesca')
+        .select('odl, saracinesca')
         .in('odl', odlPagina.slice(i, i + 200));
       if (eSnap) throw eSnap;
-      for (const m of (snap ?? []) as Array<{ odl: string; saracinesca: string | null; odl_saracinesca: string | null }>) {
-        master.set(m.odl, { saracinesca: m.saracinesca, odl_saracinesca: m.odl_saracinesca });
+      for (const m of (snap ?? []) as Array<{ odl: string; saracinesca: string | null }>) {
+        master.set(m.odl, m.saracinesca);
       }
     }
+
+    // L'ORDINE di sostituzione, dal registro: quello che ACEA ha davvero generato, con il suo
+    // stato. E` l'informazione che dice se il lavoro verra` pagato — la dichiarazione da sola no.
+    const sostituzioni = await indiceSostituzioni();
 
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella.
     const staffIds = [...new Set([...pianificazione.values()].map((p) => p.staff_id).filter(Boolean))] as string[];
@@ -310,11 +354,16 @@ export async function GET(req: Request) {
 
     const conPianificazione = righe.map((r) => {
       const p = pianificazione.get(r.odl);
-      const m = master.get(r.odl);
+      // L'ordine di sostituzione si cerca per impianto O per matricola, non per ODL: la
+      // sostituzione e` un ordine SUO, con un numero diverso da quello della limitazione.
+      const sost = chiaviAggancio({ impianto: r.impianto as string | null, matricola: r.matricola as string | null })
+        .map((k) => sostituzioni.get(k))
+        .find(Boolean);
       return {
         ...r,
-        saracinesca: m?.saracinesca ?? null,
-        odl_saracinesca: m?.odl_saracinesca ?? null,
+        saracinesca: master.get(r.odl) ?? null,
+        odl_saracinesca: sost?.odl ?? null,
+        stato_saracinesca: sost?.stato ?? null,
         pianificato_il: p?.data ?? null,
         pianificato_a: p?.staff_id ? (nomi.get(p.staff_id) ?? p.staff_id) : null,
         stato_intervento: p?.stato ?? null,

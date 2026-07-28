@@ -113,9 +113,20 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
       if (!pannello.current?.contains(t) && !bottone.current?.contains(t)) setAperto(false);
     };
     const tasto = (e: KeyboardEvent) => { if (e.key === 'Escape') { e.stopPropagation(); chiudi(); } };
-    // In cattura: lo scroll che conta è quello del contenitore della tabella, non quello di window.
-    // Il pannello è ancorato a un rettangolo che scorrendo non vale più, quindi si chiude.
-    const scorre = () => setAperto(false);
+    /*
+      In cattura: lo scroll che conta è quello del contenitore della tabella, non quello di window.
+      Il pannello è ancorato a un rettangolo che scorrendo non vale più, quindi si chiude.
+
+      MA lo scroll DENTRO il pannello non lo chiude. L'ascoltatore in cattura vedeva anche lo
+      scorrimento della lista dei valori — che è il gesto principale su un elenco di 244 gruppi o
+      60 comuni — e il filtro si richiudeva appena si provava a scorrerlo, o appena si prendeva la
+      sua barra di scorrimento. Il pannello si muove col suo contenuto: non c'è nessun ancoraggio
+      da invalidare.
+    */
+    const scorre = (e: Event) => {
+      if (pannello.current?.contains(e.target as Node)) return;
+      setAperto(false);
+    };
     document.addEventListener('mousedown', fuori);
     document.addEventListener('keydown', tasto);
     window.addEventListener('scroll', scorre, true);

@@ -48,8 +48,13 @@ export type RigaTabella = {
    * saracinesca. Non e` dato ACEA — e` una dichiarazione nostra, e vale 91,12 € l'una.
    */
   saracinesca: string | null;
-  /** L'ODL con cui la sostituzione e` stata richiesta ad ACEA. Senza, il lavoro non viene pagato. */
+  /**
+   * L'ODL dell'ordine ACEA di SOSTITUZIONE — quello vero, generato da ACEA per quella matricola,
+   * non il numero della limitazione su cui si e` intervenuti. Senza, il lavoro non viene pagato.
+   */
   odl_saracinesca: string | null;
+  /** Lo stato di QUELL'ordine, non della limitazione: dice se la sostituzione e` gia` esitata. */
+  stato_saracinesca: string | null;
   // dalla pianificazione (join in lettura, non è dato ACEA)
   pianificato_il: string | null;
   pianificato_a: string | null;
@@ -61,7 +66,7 @@ export type ChiaveColonna =
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
-  | 'saracinesca' | 'odl_saracinesca';
+  | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -138,7 +143,8 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // sostituzione DEVE esistere l'ordine che la registra: senza, il lavoro e` stato fatto e non
   // verra` mai pagato (91,12 € l'una). La colonna esiste per far vedere quel buco.
   { chiave: 'saracinesca', intestazione: 'Saracinesca', predefinita: true, larghezza: 100 },
-  { chiave: 'odl_saracinesca', intestazione: 'ODL saracinesca', predefinita: true, mono: true, larghezza: 130 },
+  { chiave: 'odl_saracinesca', intestazione: 'ODL sostituzione', predefinita: true, mono: true, larghezza: 130 },
+  { chiave: 'stato_saracinesca', intestazione: 'Stato sostituzione', predefinita: true, larghezza: 140 },
   // attivabili
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: false, mono: true, larghezza: 120, filtro: F.impianto },
   { chiave: 'famiglia', intestazione: 'Famiglia', predefinita: false, larghezza: 100 },
@@ -300,6 +306,10 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
       return (r.saracinesca ?? '').toUpperCase() === 'SI' ? 'SI' : '—';
     case 'odl_saracinesca':
       return r.odl_saracinesca || '—';
+    case 'stato_saracinesca':
+      // Lo stato dell'ordine di SOSTITUZIONE. Senza ordine non c'e` stato: il trattino qui vuol
+      // dire «ACEA non l'ha ancora generato», che e` un'informazione, non un buco.
+      return r.stato_saracinesca || '—';
     case 'valore_netto':
       return r.valore_netto === null ? '—' : r.valore_netto.toFixed(2);
     case 'data_creazione':
