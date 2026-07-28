@@ -9,6 +9,7 @@ import {
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import { chiaviAggancio, isAttivitaSaracinesca } from '@/lib/acea/saracinesche';
+import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 
 export const runtime = 'nodejs';
 
@@ -194,29 +195,6 @@ async function indiceSostituzioni(): Promise<Map<string, Sostituzione>> {
 }
 
 /**
- * Gli ODL su cui il master dichiara una saracinesca sostituita.
- *
- * Vengono da `acea_master_snapshot`, dove `odl` è unico: è la colonna che sul foglio si compilava a
- * mano. Sono poche centinaia, quindi ci stanno in memoria — ma NON in una URL, ed è il motivo per
- * cui anche questa scheda passa dall'incrocio invece che da un `in()`.
- */
-async function odlConSaracinesca(): Promise<Set<string>> {
-  const insieme = new Set<string>();
-  for (let offset = 0; ; offset += PAGINA_SCAN) {
-    const { data, error } = await supabaseAdmin
-      .from('acea_master_snapshot')
-      .select('odl')
-      .eq('saracinesca', 'SI')
-      .range(offset, offset + PAGINA_SCAN - 1);
-    if (error) throw error;
-    const blocco = (data ?? []) as Array<{ odl: string | null }>;
-    for (const r of blocco) if (r.odl) insieme.add(r.odl);
-    if (blocco.length < PAGINA_SCAN) break;
-  }
-  return insieme;
-}
-
-/**
  * Il predicato dei due filtri di pianificazione, per un singolo ODL.
  *
  * Dentro la stessa colonna i criteri sono in OR (le spunte di un AutoFiltro lo sono sempre: gli
@@ -282,7 +260,9 @@ export async function GET(req: Request) {
       const [chiavi, indice, saracinesche] = await Promise.all([
         scansionaChiavi(f, oggi),
         indicePianificazione(),
-        f.stato === 'saracinesche' ? odlConSaracinesca() : Promise.resolve(new Set<string>()),
+        f.stato === 'saracinesche'
+          ? odlConSaracinescaDichiarata(supabaseAdmin)
+          : Promise.resolve(new Set<string>()),
       ]);
 
       // Nomi scelti → staff_id. Il filtro parla di persone, il registro di identificativi.
@@ -382,18 +362,10 @@ export async function GET(req: Request) {
       }
     }
 
-    // La DICHIARAZIONE di sostituzione, dal master: «qui e` stata cambiata una saracinesca».
-    const master = new Map<string, string | null>();
-    for (let i = 0; i < odlPagina.length; i += 200) {
-      const { data: snap, error: eSnap } = await supabaseAdmin
-        .from('acea_master_snapshot')
-        .select('odl, saracinesca')
-        .in('odl', odlPagina.slice(i, i + 200));
-      if (eSnap) throw eSnap;
-      for (const m of (snap ?? []) as Array<{ odl: string; saracinesca: string | null }>) {
-        master.set(m.odl, m.saracinesca);
-      }
-    }
+    // La DICHIARAZIONE di sostituzione: viene dal RAPPORTINO dell'operatore che c'e` stato, non
+    // dalla colonna del vecchio foglio master — che dice SI anche su attivita` dove una
+    // saracinesca non e` contemplata, e con cui questa vista si riempiva di righe estranee.
+    const dichiarati = await odlConSaracinescaDichiarata(supabaseAdmin);
 
     // L'ORDINE di sostituzione, dal registro: quello che ACEA ha davvero generato, con il suo
     // stato. E` l'informazione che dice se il lavoro verra` pagato — la dichiarazione da sola no.
@@ -416,7 +388,7 @@ export async function GET(req: Request) {
         .find(Boolean);
       return {
         ...r,
-        saracinesca: master.get(r.odl) ?? null,
+        saracinesca: dichiarati.has(r.odl) ? 'SI' : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
         pianificato_il: p?.data ?? null,

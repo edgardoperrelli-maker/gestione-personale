@@ -41,6 +41,45 @@ async function vociConChiave(db: SupabaseClient, chiave: (typeof CHIAVI)[number]
   return out;
 }
 
+/**
+ * I soli ODL su cui un operatore ha DICHIARATO una saracinesca sostituita.
+ *
+ * Versione leggera di `caricaDichiarazioni` per chi deve solo sapere «questo ODL ce l'ha o no»:
+ * la tabella del registro lo chiede a ogni pagina, e ricostruire nomi e agganci al registro
+ * sarebbe lavoro buttato.
+ *
+ * La FONTE è questa e non `acea_master_snapshot.saracinesca`. Quella colonna è la fotografia del
+ * vecchio foglio compilato a mano, e non concorda: dice SI su ordini dove una saracinesca non è
+ * nemmeno contemplata — «Rimozione misuratore per morosità» — mentre l'operatore, nel rapportino,
+ * non ha dichiarato niente. Il rapportino è la dichiarazione di chi c'è stato; il foglio è una
+ * copia invecchiata, e usarlo riempiva la vista di righe che con le saracinesche non c'entrano.
+ */
+export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<Set<string>> {
+  const voci = (await Promise.all(CHIAVI.map((k) => vociConChiave(db, k)))).flat();
+  const ids = [...new Set(
+    voci
+      .filter((v) => v.intervento_id
+        && valoreSaracinesca(v.risposte?.['sostituzione_valvola'], v.risposte?.['sost_valvola'])
+          .toUpperCase() === 'SI')
+      .map((v) => v.intervento_id as string),
+  )];
+  const odl = new Set<string>();
+  for (let i = 0; i < ids.length; i += CHUNK) {
+    const { data, error } = await db
+      .from('interventi')
+      .select('odl')
+      // Solo interventi COMPLETATI: una dichiarazione su un intervento ancora aperto non è un
+      // lavoro fatto, è un lavoro previsto.
+      .eq('stato', 'completato')
+      .not('odl', 'is', null)
+      .in('committente', [...COMMITTENTI_ACEA])
+      .in('id', ids.slice(i, i + CHUNK));
+    if (error) throw error;
+    for (const r of (data ?? []) as Array<{ odl: string | null }>) if (r.odl) odl.add(r.odl);
+  }
+  return odl;
+}
+
 /** Famiglia di ripiego per una dichiarazione il cui ODL non è (ancora) nel registro. */
 function famigliaDaGruppo(gruppo: string | null): Famiglia {
   return String(gruppo ?? '').toUpperCase().includes('MASSIV') ? 'massive' : 'dunning';

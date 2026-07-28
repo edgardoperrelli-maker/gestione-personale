@@ -32,8 +32,17 @@ export default function StrumentiClient() {
 
   return (
     <div className="space-y-4">
-      <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
-      <RapportiniGiorno />
+      {/*
+        `id` e `scroll-mt`: le scorciatoie dal registro atterrano SU questa card, non in cima alla
+        pagina. Il margine di scroll tiene conto dell'intestazione fissa, altrimenti il titolo
+        della card finirebbe sotto la barra e sembrerebbe di essere atterrati sul posto sbagliato.
+      */}
+      <div id="import" className="scroll-mt-24">
+        <ImportCard onImportato={() => setAggiornamenti((n) => n + 1)} />
+      </div>
+      <div id="rapportini" className="scroll-mt-24">
+        <RapportiniGiorno />
+      </div>
       <GeocodificaCard />
 
       <div className="space-y-3">

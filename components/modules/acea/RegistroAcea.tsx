@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { RowSelectionState } from '@tanstack/react-table';
-import { Maximize2, Minimize2, RefreshCw } from 'lucide-react';
+import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-react';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
@@ -266,6 +266,31 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/*
+            Scorciatoie, non doppioni: i due motori vivono negli Strumenti della commessa e restano
+            li`. Da qui ci si arriva in un click perche` sono le due cose che si fanno GUARDANDO il
+            registro — si importa l'export nuovo e si generano i rapportini del giorno — e passare
+            dal menu ogni volta e` un giro che non serve.
+
+            `<a>` e non un pulsante con `router.push`: e` una navigazione, quindi deve poter essere
+            aperta in una scheda nuova col click centrale o col Ctrl, che e` esattamente cio` che
+            si vuole quando si sta lavorando su una tabella e non la si vuole perdere.
+          */}
+          <a
+            href="/hub/acea/strumenti#import"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            <Upload size={14} aria-hidden="true" />
+            Importa export
+          </a>
+          <a
+            href="/hub/acea/strumenti#rapportini"
+            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+          >
+            <ClipboardList size={14} aria-hidden="true" />
+            Rapportini
+          </a>
+
           {/*
             Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
             focus gli resta addosso in entrambi gli stati, quindi non serve spostarlo a mano né

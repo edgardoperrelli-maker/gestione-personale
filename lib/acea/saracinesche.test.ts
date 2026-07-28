@@ -212,3 +212,28 @@ describe('valoreDaRichiedere', () => {
     expect(valoreDaRichiedere(0)).toBe(0);
   });
 });
+
+/*
+  LA FONTE della dichiarazione, che è dove si è sbagliato.
+
+  `acea_master_snapshot.saracinesca` è la fotografia del vecchio foglio compilato a mano, e NON
+  concorda con la realtà: dice SI su ordini dove una saracinesca non è nemmeno contemplata —
+  «Rimozione misuratore per morosità» — mentre nel rapportino l'operatore non ha dichiarato niente.
+  Su 957275989 diceva SI e la dichiarazione viva non esisteva.
+
+  Usandolo, la vista si riempiva di righe che con le saracinesche non c'entrano: un elenco che
+  sembra un elenco di lavoro da fatturare e non lo è. La dichiarazione valida è UNA: quella di chi
+  c'è stato, nel rapportino, su un intervento completato.
+*/
+describe('la dichiarazione viene dal rapportino, non dal foglio', () => {
+  it('l’attività dell’ordine non basta a dire che c’è una saracinesca', () => {
+    // Il riconoscimento per attività serve a trovare gli ORDINI DI SOSTITUZIONE nel registro, che
+    // è un'altra cosa dalla dichiarazione: un ordine di rimozione misuratore non è né l'uno né
+    // l'altra, e nessuna delle due funzioni deve farlo passare.
+    expect(isAttivitaSaracinesca('Rimozione misuratore per morosità')).toBe(false);
+    expect(isAttivitaSaracinesca('Sospensione fornitura')).toBe(false);
+    expect(isAttivitaSaracinesca('Limitazione flusso idrico')).toBe(false);
+    expect(isAttivitaSaracinesca('Sostituzione saracinesca')).toBe(true);
+    expect(isAttivitaSaracinesca('SOSTITUZIONE VALVOLA A SFERA')).toBe(true);
+  });
+});
