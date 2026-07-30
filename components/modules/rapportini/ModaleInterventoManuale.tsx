@@ -5,7 +5,7 @@ import { useMemo, useState } from 'react';
 import Dialog from '@/components/ui/Dialog';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
-import Select from '@/components/ui/Select';
+import { SelettoreAttivitaTassonomia } from './SelettoreAttivitaTassonomia';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from './CampoInput';
@@ -262,29 +262,16 @@ export function ModaleInterventoManuale({
 
       {step === 2 && !passoCerca && (
         <div className="grid grid-cols-1 gap-x-2 gap-y-2.5 min-[380px]:grid-cols-2">
-          {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
-              presente, per ogni committente, anche se l'anagrafica del template non prevede
-              `attivita` (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). */}
-          <div className="col-span-full min-w-0">
-            <label className="mb-1 block truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-              {etichettaAttivita}
-              <span className="text-[var(--danger)]"> *</span>
-            </label>
-            <Select
-              required
-              value={String(anagrafica.attivita ?? '')}
-              onChange={(e) => setAnagrafica((prev) => ({ ...prev, attivita: e.target.value }))}
-              // 16px minimi: sotto, iOS Safari zooma la pagina al focus del campo.
-              className="text-base"
-            >
-              <option value="">— scegli l&apos;attività —</option>
-              {opzioniAttivita.map((o) => (
-                <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
-                  {o.descrizione} — {o.gruppo}
-                </option>
-              ))}
-            </Select>
-          </div>
+          {/* Attività: campo di TASSONOMIA, non di template — la cascata è SEMPRE presente,
+              per ogni committente, anche se l'anagrafica del template non prevede `attivita`
+              (spec §7: senza, l'obbligo client/server sarebbe insoddisfacibile). Prima il
+              GRUPPO, poi il dettaglio del solo gruppo scelto: niente più scelte fuori catalogo. */}
+          <SelettoreAttivitaTassonomia
+            opzioni={opzioniAttivita}
+            valore={String(anagrafica.attivita ?? '')}
+            onChange={(attivita) => setAnagrafica((prev) => ({ ...prev, attivita }))}
+            etichettaAttivita={etichettaAttivita}
+          />
           {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
             <div key={c.chiave} className="min-w-0">
               <label className="mb-1 block truncate text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">{c.etichetta}</label>

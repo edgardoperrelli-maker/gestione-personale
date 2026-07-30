@@ -15,6 +15,7 @@ import { Ban, TriangleAlert } from 'lucide-react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { CampoInput } from '@/components/modules/rapportini/CampoInput';
+import { SelettoreAttivitaTassonomia } from '@/components/modules/rapportini/SelettoreAttivitaTassonomia';
 import { anagraficaCampi } from '@/lib/interventi/manuali/anagraficaCampi';
 import { etichettaCommittente } from '@/lib/interventi/manuali/etichettaCommittente';
 import { formatDataIt, formatDataOraIt, formatOraIt } from '@/lib/interventi/manuali/formatDataIt';
@@ -26,7 +27,6 @@ import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { opzioniAttivitaManuale } from '@/lib/interventi/manuali/opzioniAttivitaManuale';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
-import Select from '@/components/ui/Select';
 
 type DuplicatoMatricola = {
   id: string;
@@ -136,28 +136,18 @@ export function PannelloRevisioneRichiesta({
 
       {/* Anagrafica compatta: 2 colonne */}
       <div className="grid grid-cols-2 gap-x-2 gap-y-2">
-        {/* Descrizione attività: campo di TASSONOMIA, non di template — la select è SEMPRE
-            presente, anche se l'anagrafica del template non prevede `attivita` (spec §7:
-            senza, il check bloccante in approvazione sarebbe insoddisfacibile). */}
-        <div className="col-span-2 min-w-0">
-          <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-            {etichettaAttivita}
-            <span className="text-[var(--danger)]"> *</span>
-          </label>
-          <Select
-            required
-            value={anagrafica.attivita ?? ''}
-            onChange={(e) => setAnagrafica((p) => ({ ...p, attivita: e.target.value }))}
-            className="py-1.5 text-xs"
-          >
-            <option value="">— scegli l&apos;attività —</option>
-            {opzioniAttivita.map((o) => (
-              <option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>
-                {o.descrizione} — {o.gruppo}
-              </option>
-            ))}
-          </Select>
-        </div>
+        {/* Attività: campo di TASSONOMIA, non di template — la cascata è SEMPRE presente,
+            anche se l'anagrafica del template non prevede `attivita` (spec §7: senza, il
+            check bloccante in approvazione sarebbe insoddisfacibile). Prima il GRUPPO, poi
+            il dettaglio del solo gruppo scelto, come nel "+" dell'operatore. */}
+        <SelettoreAttivitaTassonomia
+          opzioni={opzioniAttivita}
+          valore={String(anagrafica.attivita ?? '')}
+          onChange={(attivita) => setAnagrafica((p) => ({ ...p, attivita }))}
+          etichettaAttivita={etichettaAttivita}
+          compatto
+          wrapperClassName="col-span-2 min-w-0"
+        />
         {campiAnag.filter((c) => c.chiave !== 'attivita').map((c) => (
           <div key={c.chiave} className="min-w-0">
             <label className="mb-0.5 block truncate text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
