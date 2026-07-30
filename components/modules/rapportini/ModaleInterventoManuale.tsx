@@ -63,8 +63,10 @@ export function ModaleInterventoManuale({
   voci: VoceMatricola[];
   onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
-  /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync. */
-  onCreata: (stato: 'inviata' | 'in-coda') => void;
+  /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync.
+   *  `soloRichiesta` = era una richiesta di assegnazione, non un intervento già eseguito:
+   *  il rapportino non deve ricaricarsi, così se ne possono mandare altre di fila. */
+  onCreata: (stato: 'inviata' | 'in-coda', soloRichiesta: boolean) => void;
   /** Pre-compilazione (task-via): committente pre-selezionato, anagrafica iniziale, link al task padre. */
   committenteIniziale?: CommittenteManuale;
   anagraficaIniziale?: AnagraficaManuale;
@@ -141,7 +143,7 @@ export function ModaleInterventoManuale({
       const online = typeof navigator === 'undefined' || navigator.onLine !== false;
       void sincronizzaToken(token);
       setInviando(false);
-      onCreata(online ? 'inviata' : 'in-coda');
+      onCreata(online ? 'inviata' : 'in-coda', soloRichiesta);
       return;
     }
 
@@ -158,7 +160,7 @@ export function ModaleInterventoManuale({
         const j = (await res.json().catch(() => ({}))) as { error?: string; dettaglio?: string; mancanti?: string[] };
         throw new Error(messaggioErroreManuale(j, res.status));
       }
-      onCreata('inviata');
+      onCreata('inviata', soloRichiesta);
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Invio non riuscito');
     } finally {

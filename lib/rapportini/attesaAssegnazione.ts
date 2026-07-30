@@ -1,9 +1,14 @@
-// PURA: cosa è cambiato fra lo stato di approvazione delle voci che il tablet ha a schermo
-// e quello che dice il server.
+// PURA: cosa è cambiato fra quello che il tablet sa e quello che dice il server, sulle
+// richieste di assegnazione in sospeso.
 //
-// L'operatore AcquaLatina scansiona la matricola ed è FERMO sul posto: finché l'ufficio non
-// gliela assegna, la sua voce è sospesa e lui non può lavorare. Questa funzione decide quando
-// dirgli «puoi andare» — e, cosa altrettanto importante, quando NON disturbarlo.
+// L'operatore AcquaLatina può mandare PIÙ richieste di fila — scansiona tre contatori dello
+// stesso stabile e le chiede tutte insieme, così in ufficio arrivano in blocco. Poi resta
+// fermo ad aspettare. Questa funzione decide quando dirgli «puoi andare» e su quali.
+//
+// Il confronto è contro l'insieme delle voci GIÀ NOTE come decise, non contro lo stato
+// iniziale della pagina: una richiesta creata dopo il caricamento non esisteva a schermo, e
+// confrontandola con l'inizio non verrebbe mai annunciata. Regge anche il caso stretto di una
+// voce nata e approvata fra due giri di controllo.
 
 export type VoceStato = { id: string; approvazione_stato?: string | null };
 
@@ -12,37 +17,46 @@ export function inAttesa<T extends VoceStato>(voci: T[]): T[] {
   return (voci ?? []).filter((v) => v.approvazione_stato === 'in_attesa');
 }
 
-export type Novita =
-  /** Almeno una voce è passata da sospesa ad approvata: l'operatore può iniziare. */
-  | { tipo: 'assegnate'; ids: string[] }
-  /** Almeno una è stata rifiutata: va detto, ma non è un via libera. */
-  | { tipo: 'rifiutate'; ids: string[] }
-  | { tipo: 'nessuna' };
+/** Id delle voci già decise (approvate o rifiutate): la base del confronto. */
+export function idDecisi(voci: VoceStato[]): Set<string> {
+  const s = new Set<string>();
+  for (const v of voci ?? []) {
+    if (v.approvazione_stato === 'approvato' || v.approvazione_stato === 'rifiutato') s.add(v.id);
+  }
+  return s;
+}
+
+export type Novita = {
+  /** Voci passate ad approvato e non ancora annunciate: l'operatore può lavorarci. */
+  assegnate: string[];
+  /** Voci rifiutate e non ancora annunciate. */
+  rifiutate: string[];
+  /** Quante restano sospese lato server: è il numero da mostrare a chi aspetta. */
+  ancoraInAttesa: number;
+};
 
 /**
- * Confronto fra lo stato a schermo e quello del server.
+ * Novità rispetto a `giaNoti` (gli id già decisi e già annunciati).
  *
- * Le approvazioni hanno la precedenza sui rifiuti: se nello stesso giro arrivano entrambi,
- * la notizia che sblocca il lavoro è quella che serve a chi è fermo davanti a un contatore.
- * Una voce sparita lato server non è una novità — è una voce cancellata dall'ufficio, e non
- * c'è niente da annunciare all'operatore.
+ * Non «consuma» niente: chi chiama aggiorna `giaNoti` con quello che ha annunciato, così la
+ * stessa notizia non si ripete a ogni giro.
  */
-export function novitaAssegnazione(
-  aSchermo: VoceStato[],
-  dalServer: VoceStato[],
-): Novita {
-  const prima = new Map((aSchermo ?? []).map((v) => [v.id, v.approvazione_stato ?? null]));
+export function novitaAssegnazione(giaNoti: Set<string>, dalServer: VoceStato[]): Novita {
   const assegnate: string[] = [];
   const rifiutate: string[] = [];
+  let ancoraInAttesa = 0;
 
   for (const v of dalServer ?? []) {
-    // Interessano solo le voci che il tablet vedeva SOSPESE: tutto il resto è già noto.
-    if (prima.get(v.id) !== 'in_attesa') continue;
+    if (v.approvazione_stato === 'in_attesa') { ancoraInAttesa++; continue; }
+    if (giaNoti.has(v.id)) continue;
     if (v.approvazione_stato === 'approvato') assegnate.push(v.id);
     else if (v.approvazione_stato === 'rifiutato') rifiutate.push(v.id);
   }
 
-  if (assegnate.length > 0) return { tipo: 'assegnate', ids: assegnate };
-  if (rifiutate.length > 0) return { tipo: 'rifiutate', ids: rifiutate };
-  return { tipo: 'nessuna' };
+  return { assegnate, rifiutate, ancoraInAttesa };
+}
+
+/** True se c'è qualcosa da dire all'operatore. */
+export function haNovita(n: Novita): boolean {
+  return n.assegnate.length > 0 || n.rifiutate.length > 0;
 }
