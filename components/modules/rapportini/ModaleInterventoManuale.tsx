@@ -20,6 +20,7 @@ import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefa
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
+import { CercaMatricolaAcqualatina } from './acqualatina/CercaMatricolaAcqualatina';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { accodaManuale } from '@/lib/offline/persistManuale';
@@ -31,6 +32,7 @@ import { opzioniAttivitaManuale } from '@/lib/interventi/manuali/opzioniAttivita
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
   { value: 'lim_massive', label: 'Limitazioni massive' },
+  { value: 'acqualatina', label: 'AcquaLatina' },
   { value: 'altro', label: 'Altro' },
 ];
 
@@ -158,10 +160,16 @@ export function ModaleInterventoManuale({
     }
   };
 
-  // Il passo "cerca matricola" (limitazioni massive) porta la propria navigazione dentro
-  // `CercaMatricolaLimitazione`: lì il footer della Dialog resta vuoto, altrimenti ci
-  // sarebbero due "Indietro" con due significati diversi.
-  const passoCerca = step === 2 && committente === 'lim_massive' && !cercaFatta;
+  // Il passo "cerca matricola" porta la propria navigazione dentro il componente di ricerca:
+  // lì il footer della Dialog resta vuoto, altrimenti ci sarebbero due "Indietro" con due
+  // significati diversi.
+  //
+  // Due componenti e non uno con un flag: ACEA e AcquaLatina hanno la SEMANTICA OPPOSTA sul
+  // non censito (là avviso morbido con "inserisci a mano", qui blocco). Vedi
+  // CercaMatricolaAcqualatina.
+  const passoCercaAcea = step === 2 && committente === 'lim_massive' && !cercaFatta;
+  const passoCercaAcqua = step === 2 && committente === 'acqualatina' && !cercaFatta;
+  const passoCerca = passoCercaAcea || passoCercaAcqua;
 
   // Azioni di passo nel `footer` del primitivo: barra fissa in fondo al foglio, il corpo
   // scrolla sotto (prima scorrevano insieme e su schermo corto l'"Avanti" finiva fuori vista).
@@ -249,11 +257,24 @@ export function ModaleInterventoManuale({
         </div>
       )}
 
-      {passoCerca && (
+      {passoCercaAcea && (
         <CercaMatricolaLimitazione
           token={token}
           voci={voci}
           onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+          onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
+          onApriAssegnato={onApriAssegnato}
+          onIndietro={() => setStep(1)}
+        />
+      )}
+
+      {passoCercaAcqua && (
+        <CercaMatricolaAcqualatina
+          token={token}
+          voci={voci}
+          onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+          // `onManuale` qui NON è la scorciatoia di ACEA: lo espone solo il ramo
+          // offline-senza-censimento, dove non si sa e quindi non si blocca.
           onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
           onApriAssegnato={onApriAssegnato}
           onIndietro={() => setStep(1)}
