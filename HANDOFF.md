@@ -86,6 +86,20 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   già scritto. La conferma passa dal `display_name` dentro `applica` → `validaOperatore`, così
   menu, incolla e barra non possono divergere.
 - [x] **Migration applicata in produzione** — vedi Not Yet Done (spuntata).
+- [x] **Retention sull'archivio import** — gli xlsx del bucket `acea-import` si potano a 180
+  giorni tenendo comunque gli ultimi 30 file; corre a valle di ogni import, best-effort, prima il
+  bucket e poi `storage_path=null` (l'ordine inverso lascerebbe orfani). Metadati e change-log
+  restano per sempre. Lib pura: `lib/acea/retentionArchivio.ts`.
+- [x] **Assegnabili = chi fa DUNNING quel giorno** — `operatoriPerGiorno` filtra il tabellone per
+  ATTIVITÀ (nome contenente «DUNNING», su `activity_id` E dentro `activity_ids`), non per
+  territorio: Liberatori su LAZIO EST col dunning fra le attività multiple compare, Napoli sul
+  risanamento no. Vale per menu barra, menu in cella e rifiuti server (messaggi aggiornati).
+  Verificato sui dati veri di produzione prima di scrivere il filtro.
+- [x] **«Sul rapportino» dalla selezione** — le righe spuntate si caricano dritte sul rapportino
+  del loro esecutore per il loro giorno, senza passare dagli Strumenti: bottone in barra, conferma
+  con riepilogo per (operatore, giorno), gestione di 409 righe-a-metà e riaperture con conferme.
+  Stesso motore (`/api/acea/rapportini` con `staffIds`), additivo e idempotente. Lib pura:
+  `lib/acea/caricaSuRapportino.ts` (`gruppiPerRapportino`).
 
 ## Not Yet Done
 

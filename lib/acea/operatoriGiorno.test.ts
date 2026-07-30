@@ -4,7 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
   Fake minimo di Supabase: regge la sola catena usata da `operatoriGiorno.ts`
   (`from(t).select(...).in(col, valori)` atteso). Le righe di `assignments` arrivano già nella
   forma che il join produce — il fake non sa fare join, e non è quello che questi test provano:
-  qui si provano il dedup, le due sottrazioni delle assenze e il rifiuto fuori finestra.
+  qui si provano il filtro per attività DUNNING, il dedup, le sottrazioni delle assenze e il
+  rifiuto fuori finestra.
 */
 type Riga = Record<string, unknown>;
 const tabelle: Record<string, Riga[]> = {};
@@ -29,8 +30,27 @@ const VENERDI = '2026-07-31';
 const SABATO = '2026-08-01';
 const LUNEDI = '2026-08-03';
 
+/** Attività di tabellone: il dunning e le altre. Nomi come in produzione. */
+const ATT = {
+  dunning: 'act-dunning',
+  clientela: 'act-clientela',
+  risanamento: 'act-risanamento',
+  ferie: 'act-ferie',
+};
+
+/**
+ * Riga di tabellone. Il DEFAULT fa dunning (attività singola): è il caso della squadra ACEA,
+ * e tiene corti i test che provano altro.
+ */
 const assegna = (day_id: string, id: string, nome: string, extra: Riga = {}): Riga => ({
-  day_id, staff_id: id, staff: { id, display_name: nome }, territory: null, activity: null, ...extra,
+  day_id,
+  staff_id: id,
+  activity_id: ATT.dunning,
+  activity_ids: [ATT.dunning],
+  staff: { id, display_name: nome },
+  territory: null,
+  activity: { name: 'DUNNING' },
+  ...extra,
 });
 
 beforeEach(() => {
@@ -42,38 +62,87 @@ beforeEach(() => {
   ];
   tabelle.assignments = [];
   tabelle.disponibilita_operatore = [];
+  tabelle.activities = [
+    { id: ATT.dunning, name: 'DUNNING' },
+    { id: ATT.clientela, name: 'CLIENTELA' },
+    { id: ATT.risanamento, name: 'RISANAMENTO COLONNE' },
+    { id: ATT.ferie, name: 'Ferie' },
+  ];
 });
 
-describe('operatoriPerGiorno', () => {
-  it('rende i nomi in tabellone, ordinati, con il territorio', () => {
+describe('operatoriPerGiorno — solo chi fa DUNNING', () => {
+  it('rende i nomi in tabellone col dunning, ordinati, con il territorio', () => {
     tabelle.assignments = [
-      assegna('g1', 's2', 'PRATESI MARCO', { territory: { name: 'LAZIO EST' } }),
-      assegna('g1', 's1', 'CIARALLO ANNA', { territory: { name: 'LAZIO CENTRO' } }),
+      assegna('g1', 's2', 'PRATESI MARCO', { territory: { name: 'ACEA' } }),
+      assegna('g1', 's1', 'CIARALLO ANNA', { territory: { name: 'ACEA' } }),
     ];
     return operatoriPerGiorno([GIOVEDI]).then((m) => {
       expect(m.get(GIOVEDI)).toEqual([
-        { id: 's1', display_name: 'CIARALLO ANNA', territorio: 'LAZIO CENTRO' },
-        { id: 's2', display_name: 'PRATESI MARCO', territorio: 'LAZIO EST' },
+        { id: 's1', display_name: 'CIARALLO ANNA', territorio: 'ACEA' },
+        { id: 's2', display_name: 'PRATESI MARCO', territorio: 'ACEA' },
       ]);
+    });
+  });
+
+  it('chi è su un ALTRO territorio ma ha il dunning fra le attività multiple COMPARE', () => {
+    // Il caso per cui il filtro è per ATTIVITÀ e non per territorio: Lazio Est su CLIENTELA,
+    // col dunning aggiunto per saturare la giornata.
+    tabelle.assignments = [
+      assegna('g1', 's1', 'LIBERATORI ADRIANO', {
+        territory: { name: 'LAZIO EST' },
+        activity_id: ATT.clientela,
+        activity: { name: 'CLIENTELA' },
+        activity_ids: [ATT.clientela, ATT.dunning],
+      }),
+    ];
+    return operatoriPerGiorno([GIOVEDI]).then((m) => {
+      expect(m.get(GIOVEDI)).toEqual([
+        { id: 's1', display_name: 'LIBERATORI ADRIANO', territorio: 'LAZIO EST' },
+      ]);
+    });
+  });
+
+  it('chi NON ha il dunning da nessuna parte non compare, qualunque territorio abbia', () => {
+    tabelle.assignments = [
+      assegna('g1', 's1', 'ARCANGELI DAVIDE', {
+        territory: { name: 'NAPOLI' },
+        activity_id: ATT.risanamento,
+        activity: { name: 'RISANAMENTO COLONNE' },
+        activity_ids: [ATT.risanamento],
+      }),
+      assegna('g1', 's2', 'FERRARA LUCA', {
+        territory: { name: 'FIRENZE' },
+        activity_id: ATT.clientela,
+        activity: { name: 'CLIENTELA' },
+        activity_ids: [ATT.clientela],
+      }),
+    ];
+    return operatoriPerGiorno([GIOVEDI]).then((m) => {
+      expect(m.get(GIOVEDI)).toEqual([]);
+    });
+  });
+
+  it('una riga di tabellone senza NESSUNA attività non è dunning', () => {
+    tabelle.assignments = [
+      assegna('g1', 's1', 'GIOSI VITTORIO', {
+        territory: { name: 'ACQUA LATINA' },
+        activity_id: null,
+        activity: null,
+        activity_ids: [],
+      }),
+    ];
+    return operatoriPerGiorno([GIOVEDI]).then((m) => {
+      expect(m.get(GIOVEDI)).toEqual([]);
     });
   });
 
   it('una persona con più righe nello stesso giorno compare una volta sola', async () => {
     tabelle.assignments = [
       assegna('g1', 's1', 'CIARALLO ANNA'),
-      assegna('g1', 's1', 'CIARALLO ANNA', { activity: { name: 'Limitazioni' } }),
+      assegna('g1', 's1', 'CIARALLO ANNA'),
     ];
     const m = await operatoriPerGiorno([GIOVEDI]);
     expect(m.get(GIOVEDI)).toHaveLength(1);
-  });
-
-  it('chi è a tabellone come assenza (vecchia forma) non è assegnabile', async () => {
-    tabelle.assignments = [
-      assegna('g1', 's1', 'CIARALLO ANNA', { activity: { name: 'Ferie' } }),
-      assegna('g1', 's2', 'PRATESI MARCO'),
-    ];
-    const m = await operatoriPerGiorno([GIOVEDI]);
-    expect(m.get(GIOVEDI)?.map((o) => o.id)).toEqual(['s2']);
   });
 
   it('l’assenza INTERA toglie dall’elenco, quella PARZIALE no', async () => {
@@ -105,7 +174,7 @@ describe('operatoriPerGiorno', () => {
 // Il controllo sta sul server e non solo nel menu: la griglia accetta un incolla da Excel, e una
 // regola applicata alla sola UI si aggira con Ctrl+V.
 describe('controllaAssegnazioni', () => {
-  it('passa la coppia giusta: giorno in finestra, operatore in tabellone', async () => {
+  it('passa la coppia giusta: giorno in finestra, operatore col dunning in tabellone', async () => {
     tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
     const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.size).toBe(0);
@@ -126,6 +195,31 @@ describe('controllaAssegnazioni', () => {
     expect(m.get('2026-09-15|s1')).toBe(
       'martedì 15/09 è fuori finestra: si programma solo per venerdì 31/07 o sabato 01/08',
     );
+  });
+
+  it('rifiuta chi in tabellone c’è ma SENZA dunning: il motivo dice l’attività, non il refuso', async () => {
+    tabelle.assignments = [
+      assegna('g2', 's1', 'CIARALLO ANNA'),
+      assegna('g2', 's9', 'FERRARA LUCA', {
+        activity_id: ATT.clientela, activity: { name: 'CLIENTELA' }, activity_ids: [ATT.clientela],
+      }),
+    ];
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's9', dataScritta: true }], VENERDI);
+    expect(m.get(`${VENERDI}|s9`)).toBe('operatore senza attività DUNNING in cronoprogramma per venerdì 31/07');
+  });
+
+  it('tabellone senza nessuno sul dunning: lo dice', async () => {
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
+    expect(m.get(`${VENERDI}|s1`)).toBe(
+      'nessun operatore con attività DUNNING in cronoprogramma per venerdì 31/07',
+    );
+  });
+
+  it('chi è in tabellone ma in ferie intere quel giorno viene rifiutato', async () => {
+    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
+    tabelle.disponibilita_operatore = [{ staff_id: 's1', data: VENERDI, ora_da: null, ora_a: null }];
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
+    expect(m.get(`${VENERDI}|s1`)).toMatch(/nessun operatore con attività DUNNING/);
   });
 
   /*
@@ -153,32 +247,14 @@ describe('controllaAssegnazioni', () => {
       expect(m.get('2026-07-20|s9')).toMatch(/fuori finestra/);
     });
 
-    it('dentro la finestra il cronoprogramma vale comunque, anche senza riscrivere la data', async () => {
+    it('dentro la finestra il tabellone vale comunque, anche senza riscrivere la data', async () => {
       tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
       const m = await controllaAssegnazioni(
         [{ data: VENERDI, staffId: 's9', dataScritta: false }],
         VENERDI,
       );
-      expect(m.get(`${VENERDI}|s9`)).toMatch(/non in cronoprogramma/);
+      expect(m.get(`${VENERDI}|s9`)).toMatch(/senza attività DUNNING|nessun operatore/);
     });
-  });
-
-  it('rifiuta chi quel giorno non è in tabellone, pur essendo giorno buono', async () => {
-    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's9', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s9`)).toBe('operatore non in cronoprogramma per venerdì 31/07');
-  });
-
-  it('tabellone vuoto: lo dice, invece di far cercare un operatore che non c’entra', async () => {
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s1`)).toBe('nessun operatore in cronoprogramma per venerdì 31/07');
-  });
-
-  it('chi è in tabellone ma in ferie intere quel giorno viene rifiutato', async () => {
-    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
-    tabelle.disponibilita_operatore = [{ staff_id: 's1', data: VENERDI, ora_da: null, ora_a: null }];
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s1`)).toMatch(/nessun operatore in cronoprogramma/);
   });
 
   it('nessuna coppia: nessuna lettura e nessun rifiuto', async () => {

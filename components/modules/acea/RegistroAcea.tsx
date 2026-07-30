@@ -10,6 +10,7 @@ import {
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
+import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import { useEditingGriglia, type Operatore } from './useEditingGriglia';
@@ -128,6 +129,12 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     })();
     return () => { vivo = false; };
   }, []);
+
+  /** Le spunte raggruppate per (esecutore, giorno): il piano del bottone «Sul rapportino». */
+  const pianoCarico = useMemo(
+    () => gruppiPerRapportino(selezionate, operatoriTutti),
+    [selezionate, operatoriTutti],
+  );
 
   /** Assegnabili nel giorno scelto: è questo elenco che finisce nel menu della barra azioni. */
   const operatoriDelGiorno = useMemo(
@@ -352,6 +359,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             giorno={giorno}
             onGiorno={setGiorno}
             onCopiaRighe={editing.copiaRigheSpuntate}
+            pianoCarico={pianoCarico}
+            onCaricato={ricarica}
           />
           {selezionate.length === 0 && (
             <span className="text-xs text-[var(--brand-text-muted)]">
@@ -464,17 +473,19 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
         da Excel. <strong>Doppio click sulla Data pianificata</strong> (o <kbd>Invio</kbd> sulla
         cella) apre il calendario, e la data si scrive anche a mano.{' '}
-        <strong>Un click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi è in
-        cronoprogramma nella finestra di lavoro: si sceglie da lì, niente testo libero (doppio
-        click per cambiare un nome già scritto).{' '}
+        <strong>Un click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi ha
+        l&apos;attività DUNNING in cronoprogramma nella finestra di lavoro — qualunque sia il suo
+        territorio: si sceglie da lì, niente testo libero (doppio click per cambiare un nome già
+        scritto).{' '}
         <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
         <strong>Con delle righe spuntate</strong>, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su tutte —
         una data o un nome copiati con il cursore si incollano su quaranta spunte in un colpo,
         senza passare da «Pianifica» — e <kbd>Ctrl</kbd>+<kbd>C</kbd> senza un cursore attivo le
         porta via intere (il comando «Copia righe» lo fa sempre). Si programma solo per{' '}
         {giorni.length > 0 ? giorni.map((g) => g.esteso).join(' o ') : 'oggi o il giorno lavorativo successivo'},
-        e i nomi assegnabili sono quelli in <a href="/dashboard" className="underline">cronoprogramma</a>{' '}
-        per quel giorno. La nota scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si
+        e i nomi assegnabili sono quelli con l&apos;attività DUNNING in{' '}
+        <a href="/dashboard" className="underline">cronoprogramma</a> per quel giorno, di
+        qualunque territorio. La nota scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si
         trascinano per riordinarle e si tirano dal bordo per la larghezza (doppio click sul bordo per
         rimetterla com&apos;era).
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}

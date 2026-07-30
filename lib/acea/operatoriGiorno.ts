@@ -6,11 +6,15 @@ import { giorniProgrammabili, giornoEsteso, spiegaFinestra } from './giorniProgr
 /**
  * Chi si può mandare su un ordine ACEA in un dato giorno.
  *
- * Non è l'anagrafica del personale: è il CRONOPROGRAMMA. Chi programma ACEA la mattina deve vedere
- * i nomi che qualcun altro ha già messo in tabellone per oggi e per domani — sono le persone che
- * quel giorno ci sono davvero. L'elenco completo degli attivi conteneva anche chi è in ferie, chi
- * è su un'altra commessa e chi non è ancora stato messo in tabellone: trenta nomi da cui sceglierne
- * otto, e nessun modo di sapere quali otto se non chiedendo.
+ * Non è l'anagrafica del personale: è il CRONOPROGRAMMA, e non tutto il cronoprogramma — solo chi
+ * quel giorno ha l'ATTIVITÀ DI DUNNING in tabellone. Il tabellone intero conteneva Firenze,
+ * Napoli e Perugia su tutt'altre commesse: trenta nomi da cui sceglierne quattro, e nessun modo
+ * di sapere quali quattro se non chiedendo.
+ *
+ * Il criterio è l'attività, NON il territorio, ed è il punto: chi sta su LAZIO CENTRO o LAZIO EST
+ * con il dunning aggiunto alle sue attività (`activity_ids`) deve comparire — è chi «prende
+ * qualche intervento di dunning per saturare la giornata». Filtrare per territorio ACEA lo
+ * avrebbe nascosto.
  */
 export type OperatoreGiorno = {
   id: string;
@@ -29,12 +33,29 @@ export type GiornoConOperatori = {
 type RigaAssegnazione = {
   day_id: string;
   staff_id: string | null;
+  activity_id: string | null;
+  /** Attività multiple della riga di tabellone (gruppi attività): il dunning spesso sta qui. */
+  activity_ids: string[] | null;
   staff: { id?: string; display_name?: string } | Array<{ id?: string; display_name?: string }> | null;
   territory: { name?: string } | Array<{ name?: string }> | null;
   activity: { name?: string } | Array<{ name?: string }> | null;
 };
 
 const primo = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
+
+/**
+ * Frammenti di nome che rendono un'attività di tabellone «di dunning».
+ *
+ * Per NOME e non per id: l'id è un uuid di produzione e cablarlo qui legherebbe il codice a un
+ * database. Oggi l'attività si chiama «DUNNING»; se un domani se ne aggiunge una («ACEA
+ * DUNNING», …) basta che il nome contenga il frammento.
+ */
+const ATTIVITA_DUNNING = ['DUNNING'];
+
+const eNomeDunning = (nome: string | null | undefined): boolean => {
+  const n = String(nome ?? '').toUpperCase();
+  return ATTIVITA_DUNNING.some((f) => n.includes(f));
+};
 
 /**
  * Gli operatori in cronoprogramma per ciascuna delle date richieste.
@@ -67,9 +88,36 @@ export async function operatoriPerGiorno(
 
   const { data: righe, error } = await supabaseAdmin
     .from('assignments')
-    .select('day_id, staff_id, staff:staff_id ( id, display_name ), territory:territory_id ( name ), activity:activity_id ( name )')
+    .select('day_id, staff_id, activity_id, activity_ids, staff:staff_id ( id, display_name ), territory:territory_id ( name ), activity:activity_id ( name )')
     .in('day_id', [...dataDelGiorno.keys()]);
   if (error) throw error;
+
+  /*
+    I nomi delle attività citate dalle righe, per decidere chi fa dunning.
+
+    Il join `activity:activity_id` copre solo l'attività SINGOLA: il dunning di chi satura la
+    giornata sta in `activity_ids`, che è un array di uuid senza join. Si risolvono per nome con
+    una lettura sola, mirata agli id davvero citati.
+  */
+  const idAttivita = new Set<string>();
+  for (const r of (righe ?? []) as RigaAssegnazione[]) {
+    if (r.activity_id) idAttivita.add(r.activity_id);
+    for (const id of r.activity_ids ?? []) if (id) idAttivita.add(id);
+  }
+  const nomiAttivita = new Map<string, string>();
+  if (idAttivita.size > 0) {
+    const { data: attivita, error: eAtt } = await supabaseAdmin
+      .from('activities')
+      .select('id, name')
+      .in('id', [...idAttivita]);
+    if (eAtt) throw eAtt;
+    for (const a of (attivita ?? []) as Array<{ id: string; name: string | null }>) {
+      nomiAttivita.set(a.id, a.name ?? '');
+    }
+  }
+  const faDunning = (r: RigaAssegnazione): boolean =>
+    (r.activity_id !== null && eNomeDunning(nomiAttivita.get(r.activity_id)))
+    || (r.activity_ids ?? []).some((id) => eNomeDunning(nomiAttivita.get(id)));
 
   // Assenze intere del periodo: una sola lettura per tutte le date richieste.
   const assenti = new Set<string>();
@@ -87,6 +135,8 @@ export async function operatoriPerGiorno(
   for (const r of (righe ?? []) as RigaAssegnazione[]) {
     const data = dataDelGiorno.get(r.day_id);
     if (!data || !r.staff_id) continue;
+    // Solo chi fa DUNNING quel giorno: attività singola o una delle sue attività multiple.
+    if (!faDunning(r)) continue;
     if (assenti.has(`${data}|${r.staff_id}`)) continue;
     if (isNomeAttivitaAssenza(primo(r.activity)?.name)) continue;
     const chiave = `${data}|${r.staff_id}`;
@@ -171,8 +221,8 @@ export async function controllaAssegnazioni(
       motivi.set(
         chiave,
         lista.length === 0
-          ? `nessun operatore in cronoprogramma per ${giornoEsteso(a.data)}`
-          : `operatore non in cronoprogramma per ${giornoEsteso(a.data)}`,
+          ? `nessun operatore con attività DUNNING in cronoprogramma per ${giornoEsteso(a.data)}`
+          : `operatore senza attività DUNNING in cronoprogramma per ${giornoEsteso(a.data)}`,
       );
     }
   }

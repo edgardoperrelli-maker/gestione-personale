@@ -1,11 +1,15 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, Undo2, X } from 'lucide-react';
+import { CalendarCheck, ClipboardCopy, ClipboardList, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
+import { chiediConferma } from '@/components/ui/chiediConferma';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
+import type { PianoCarico } from '@/lib/acea/caricaSuRapportino';
+import { giornoEsteso } from '@/lib/acea/giorniProgrammabili';
+import type { EsitoOperatore, TipoEsito } from '@/lib/acea/vociRapportino';
 
 type Operatore = {
   id: string;
@@ -40,6 +44,15 @@ type Props = {
   onGiorno: (data: string) => void;
   /** Copia negli appunti le righe spuntate. Torna `false` se non c'era niente da copiare. */
   onCopiaRighe: () => Promise<boolean>;
+  /**
+   * Il piano di carico sul rapportino: le righe spuntate raggruppate per (esecutore, giorno).
+   *
+   * Lo calcola il registro (`gruppiPerRapportino`) perché servono le righe intere e l'anagrafica
+   * attivi; qui arriva già deciso — la barra deve solo dirlo e premere.
+   */
+  pianoCarico: PianoCarico;
+  /** Dopo un carico riuscito: ricarica la tabella (gli stati intervento possono muoversi). */
+  onCaricato: () => void;
 };
 
 /**
@@ -54,10 +67,112 @@ type Props = {
  */
 export default function BarraAzioni({
   chiavi, onAnnullaSelezione, onPianificato, operatori, giorni, giorno, onGiorno, onCopiaRighe,
+  pianoCarico, onCaricato,
 }: Props) {
   const [staffId, setStaffId] = useState('');
   const [busy, setBusy] = useState(false);
   const [ultima, setUltima] = useState<{ id: string; descrizione: string } | null>(null);
+
+  /**
+   * Carica le righe spuntate sul rapportino del loro esecutore, per il loro giorno.
+   *
+   * È la scorciatoia del gesto «queste righe vanno SUBITO sul rapportino di oggi di X», che
+   * prima passava dagli Strumenti. Il motore è lo stesso (`/api/acea/rapportini` con `staffIds`):
+   * un rapportino per operatore per giorno, additivo, idempotente — quindi il rapportino di X
+   * riceve TUTTI i suoi interventi ACEA di quel giorno, e ripremere non duplica niente.
+   */
+  const caricaSuRapportino = useCallback(async () => {
+    const { gruppi, nonPronte } = pianoCarico;
+    if (gruppi.length === 0) {
+      toast.error('Nessuna riga selezionata è pianificata: servono esecutore e data.');
+      return;
+    }
+    if (nonPronte > 0) {
+      toast.error(
+        `${nonPronte} ${nonPronte === 1 ? 'riga selezionata non è pianificata' : 'righe selezionate non sono pianificate'}: completa esecutore e data, o deselezionale.`,
+      );
+      return;
+    }
+    const elenco = gruppi
+      .map((g) => `${g.righe} ${g.righe === 1 ? 'intervento' : 'interventi'} → ${g.nome}, ${giornoEsteso(g.data)}`)
+      .join(' · ');
+    const ok = await chiediConferma({
+      title: gruppi.length === 1
+        ? `Caricare sul rapportino di ${gruppi[0].nome}?`
+        : `Caricare su ${gruppi.length} rapportini?`,
+      message:
+        `${elenco}. Ogni rapportino riceve tutti gli interventi ACEA pianificati per quell'operatore `
+        + 'in quel giorno; ricaricare non duplica niente.',
+      confirmLabel: 'Carica',
+    });
+    if (!ok) return;
+
+    setBusy(true);
+    try {
+      for (const g of gruppi) {
+        const chiama = (extra: Record<string, boolean>) => fetch('/api/acea/rapportini', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ data: g.data, staffIds: [g.staffId], ...extra }),
+        });
+        let res = await chiama({});
+        let body = (await res.json()) as {
+          esiti?: EsitoOperatore[]; error?: string; incomplete?: string[];
+        };
+        // Righe a metà su quel giorno: il cancello del motore. Si chiede, come negli Strumenti.
+        if (res.status === 409 && body.incomplete) {
+          const n = body.incomplete.length;
+          const procedi = await chiediConferma({
+            title: `${n} ${n === 1 ? 'ordine è programmato' : 'ordini sono programmati'} per ${giornoEsteso(g.data)} senza esecutore`,
+            message: 'Non entreranno in nessun rapportino finché non hanno anche l\'esecutore. Caricare lo stesso senza di loro?',
+            confirmLabel: 'Carica senza di loro',
+          });
+          if (!procedi) continue;
+          res = await chiama({ confermaIncomplete: true });
+          body = (await res.json()) as typeof body;
+        }
+        if (!res.ok) {
+          toast.error(body.error ?? `Carico non riuscito per ${g.nome}.`);
+          continue;
+        }
+        const esito = (body.esiti ?? []).find((e) => e.staff_id === g.staffId);
+        if (esito?.esito === 'richiede_riapertura') {
+          const riapri = await chiediConferma({
+            title: `${g.nome} ha già consegnato il rapportino di ${giornoEsteso(g.data)}`,
+            message: 'Riaprirlo per 48 ore e aggiungere gli interventi? Quanto già compilato resta com\'è.',
+            confirmLabel: 'Riapri e aggiungi',
+          });
+          if (riapri) {
+            res = await chiama({ confermaIncomplete: true, confermaRiaperture: true });
+            body = (await res.json()) as typeof body;
+            if (!res.ok) {
+              toast.error(body.error ?? `Riapertura non riuscita per ${g.nome}.`);
+              continue;
+            }
+          } else {
+            continue;
+          }
+        }
+        const finale = (body.esiti ?? []).find((e) => e.staff_id === g.staffId);
+        const ETICHETTA: Record<TipoEsito, string> = {
+          creato: 'rapportino creato',
+          aggiunto: 'aggiunto al rapportino',
+          richiede_riapertura: 'già consegnato',
+          nessuna_modifica: 'era già tutto a bordo',
+        };
+        toast.success(
+          finale
+            ? `${g.nome}, ${giornoEsteso(g.data)}: ${ETICHETTA[finale.esito]}${finale.voci_aggiunte > 0 ? ` (+${finale.voci_aggiunte} voci)` : ''}`
+            : `${g.nome}, ${giornoEsteso(g.data)}: nessun intervento da caricare`,
+        );
+      }
+      onCaricato();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Carico sul rapportino non riuscito.');
+    } finally {
+      setBusy(false);
+    }
+  }, [pianoCarico, onCaricato]);
 
   /*
     Cambiando giorno cambia il tabellone, e con esso chi è assegnabile.
@@ -186,7 +301,7 @@ export default function BarraAzioni({
             disabled={operatori.length === 0}
           >
             <option value="">
-              {operatori.length === 0 ? 'Nessuno in cronoprogramma' : 'Assegna a…'}
+              {operatori.length === 0 ? 'Nessuno su DUNNING in tabellone' : 'Assegna a…'}
             </option>
             {/*
               Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
@@ -214,6 +329,18 @@ export default function BarraAzioni({
             Copia righe
           </Button>
 
+          {/*
+            Le righe spuntate, dritte sul rapportino del loro esecutore: senza passare dagli
+            Strumenti. Compare solo quando fra le spunte c'è almeno una riga pianificata — su
+            righe nude non c'è nessun rapportino su cui caricare.
+          */}
+          {pianoCarico.gruppi.length > 0 && (
+            <Button variant="outline" size="sm" onClick={() => void caricaSuRapportino()} loading={busy}>
+              <ClipboardList size={14} aria-hidden="true" />
+              Sul rapportino
+            </Button>
+          )}
+
           <Button variant="ghost" size="sm" onClick={onAnnullaSelezione}>
             <X size={14} aria-hidden="true" />
             Deseleziona
@@ -221,7 +348,7 @@ export default function BarraAzioni({
 
           {operatori.length === 0 && giornoScelto && (
             <span className="text-xs text-[var(--brand-text-muted)]">
-              Nessun operatore in cronoprogramma per {giornoScelto.esteso}:{' '}
+              Nessun operatore con attività DUNNING in cronoprogramma per {giornoScelto.esteso}:{' '}
               <a href="/dashboard" className="underline">compila il tabellone</a>.
             </span>
           )}

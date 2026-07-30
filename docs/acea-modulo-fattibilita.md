@@ -181,7 +181,7 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 20 | Cut-over | Preview, due giorni di prova, poi abbandono del master. L'agente resta come rete |
 | 21 | Appunti | Le **righe spuntate** sono un bersaglio degli appunti: si copiano intere e ci si incolla sopra, senza passare dalla barra di assegnazione |
 | 22 | Finestra | Si programma solo per **oggi e il prossimo giorno lavorativo**. Il sabato è lavorativo, la domenica no. Applicata anche sul server |
-| 23 | Assegnabili | Gli operatori proponibili sono quelli **in cronoprogramma** per quel giorno, meno le assenze intere — non l'anagrafica del personale |
+| 23 | Assegnabili | Gli operatori proponibili sono quelli in cronoprogramma **con l'attività DUNNING** per quel giorno (singola o fra le multiple), meno le assenze intere — il criterio è l'attività, **non il territorio**: chi sta su Lazio Centro/Est col dunning aggiunto per saturare la giornata compare |
 | 24 | Ven/sab | Venerdì e sabato passano **solo le attivazioni** (`RIAT`/`REVO`): hanno un giorno di cardine, il resto aspetta il lunedì |
 | 25 | Riassegnazione | Cambiare il **solo esecutore** su un intervento vecchio e non eseguito è sempre concesso: la finestra vincola chi SCEGLIE un giorno, non chi lo eredita |
 | 26 | Riga a metà | Solo esecutore o sola data si scrivono come **appunto** su `acea_ordini`; il motore rapportini si rifiuta di generare un giorno che ne contiene, finché non lo si conferma |
@@ -191,7 +191,9 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 30 | Annullati | Un intervento **annullato** non assegna, non pianifica e non si mostra: badge, filtro «Non assegnato» e colonna Esecutore usano la stessa definizione |
 | 31 | Conteggi schede | **Provati e tolti**: cinque numeri sempre accesi sui tasti erano rumore, e il rumore copre l'allarme. Sui tasti resta solo il triangolo (dec. 29) |
 | 32 | Editor data | La Data pianificata si scrive anche **a mano o dal calendario** (doppio click / Invio sulla cella); nella **copia** il cursore di cella batte le spunte, nell'**incolla** vincono le spunte |
-| 33 | Menu esecutore | Su una cella Esecutore **vuota**, un click apre il **menu di chi è in cronoprogramma** (per giorno della finestra): si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto |
+| 33 | Menu esecutore | Su una cella Esecutore **vuota**, un click apre il **menu di chi fa DUNNING quel giorno** (per giorno della finestra): si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto |
+| 34 | Retention archivio | Gli xlsx nel bucket `acea-import` si potano a **180 giorni**, tenendo comunque gli **ultimi 30 file**; metadati e change-log restano per sempre. La potatura corre a valle di ogni import, best-effort |
+| 35 | Sul rapportino | Le righe spuntate si caricano **direttamente sul rapportino** del loro esecutore per il loro giorno («Sul rapportino» in barra): stesso motore degli Strumenti (`staffIds`+`data`), additivo e idempotente |
 
 ---
 

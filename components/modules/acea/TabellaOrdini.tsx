@@ -551,7 +551,9 @@ export default function TabellaOrdini({
                             className="h-full w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1 text-sm text-[var(--brand-text-main)] focus:outline-none"
                           >
                             <option value="" disabled>
-                              {vuoto ? 'Nessuno in cronoprogramma: compila il tabellone' : 'Scegli operatore…'}
+                              {vuoto
+                                ? 'Nessuno su DUNNING in tabellone: compilalo nel cronoprogramma'
+                                : 'Scegli operatore…'}
                             </option>
                             {editing.operatoriFinestra.map((g) => (
                               g.operatori.length > 0 && (
