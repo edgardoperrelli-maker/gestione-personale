@@ -11,6 +11,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
+import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import { useEditingGriglia, type Operatore } from './useEditingGriglia';
 import { useLayoutTabella } from './useLayoutTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
@@ -62,27 +63,103 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     [righe, selezione],
   );
 
-  // Operatori: servono sia alla barra azioni sia alla validazione dei nomi incollati in griglia.
-  const [operatori, setOperatori] = useState<Operatore[]>([]);
+  /*
+    Chi si può programmare, e quando.
+
+    L'elenco NON è più l'anagrafica del personale: sono i nomi che il Cronoprogramma porta in
+    tabellone per oggi e per il prossimo giorno lavorativo. Chi programma ACEA la mattina deve
+    vedere le persone che quel giorno ci sono davvero — l'elenco completo degli attivi conteneva
+    anche chi è in ferie e chi sta su un'altra commessa, e non c'era modo di distinguerli se non
+    chiedendo. «Oggi» lo decide il server, in fuso Europe/Rome: con l'orologio del browser un PC
+    con la data sbagliata proporrebbe due giorni che il server poi rifiuta.
+  */
+  const [giorni, setGiorni] = useState<GiornoProgrammabile[]>([]);
+  const [operatoriPerGiorno, setOperatoriPerGiorno] = useState<Record<string, Operatore[]>>({});
+  const [giorno, setGiorno] = useState('');
+  // Solo per distinguere i rifiuti: «BIANCHI non è in cronoprogramma» invece di «non trovato».
+  const [operatoriTutti, setOperatoriTutti] = useState<Operatore[]>([]);
+
   useEffect(() => {
+    let vivo = true;
+    void (async () => {
+      try {
+        const res = await fetch('/api/acea/operatori');
+        if (!res.ok || !vivo) return;
+        const body = (await res.json()) as {
+          giorni: Array<GiornoProgrammabile & { operatori: Operatore[] }>;
+        };
+        const elenco = body.giorni ?? [];
+        setGiorni(elenco.map(({ data, etichetta, esteso }) => ({ data, etichetta, esteso })));
+        setOperatoriPerGiorno(Object.fromEntries(elenco.map((g) => [g.data, g.operatori])));
+        // Il giorno scelto si imposta una volta sola: se l'utente ha già scelto «domani» e nel
+        // frattempo qualcosa ricarica la finestra, riportarlo a oggi gli cambierebbe il bersaglio
+        // sotto le mani.
+        setGiorno((g) => (g && elenco.some((x) => x.data === g) ? g : (elenco[0]?.data ?? '')));
+      } catch {
+        /* senza finestra l'assegnazione resta ferma, ma la tabella si legge e si copia lo stesso */
+      }
+    })();
+    return () => { vivo = false; };
+  }, []);
+
+  useEffect(() => {
+    let vivo = true;
     void (async () => {
       try {
         const res = await fetch('/api/admin/personale');
-        if (!res.ok) return;
+        if (!res.ok || !vivo) return;
         const body = (await res.json()) as { rows?: Operatore[] } | Operatore[];
         const rows = Array.isArray(body) ? body : (body.rows ?? []);
-        setOperatori(rows.filter((r) => r.id && r.display_name));
+        setOperatoriTutti(rows.filter((r) => r.id && r.display_name));
       } catch {
-        /* senza elenco l'editing sui nomi non valida, ma la tabella resta usabile */
+        /* senza anagrafica il rifiuto resta «operatore non trovato»: meno preciso, non sbagliato */
       }
     })();
+    return () => { vivo = false; };
   }, []);
+
+  /** Assegnabili nel giorno scelto: è questo elenco che finisce nel menu della barra azioni. */
+  const operatoriDelGiorno = useMemo(
+    () => operatoriPerGiorno[giorno] ?? [],
+    [operatoriPerGiorno, giorno],
+  );
+
+  /*
+    In griglia si valida sull'UNIONE dei due giorni.
+
+    Un incolla può portare due date diverse nella stessa colonna: rifiutare qui il nome giusto
+    dell'altro giorno sarebbe un falso allarme, e il controllo giorno per giorno lo fa comunque il
+    server — che è l'unico a saperlo per certo.
+  */
+  const operatoriAssegnabili = useMemo(() => {
+    const visti = new Map<string, Operatore>();
+    for (const lista of Object.values(operatoriPerGiorno)) {
+      for (const o of lista) visti.set(o.id, o);
+    }
+    return [...visti.values()];
+  }, [operatoriPerGiorno]);
+
+  /** Indici delle righe spuntate, in ordine di tabella: è il bersaglio di copia e incolla. */
+  const righeSpuntate = useMemo(
+    () => righe.reduce<number[]>((acc, r, i) => {
+      if (selezione[chiaveRiga(r)]) acc.push(i);
+      return acc;
+    }, []),
+    [righe, selezione],
+  );
 
   // `onSalvato: ricarica` e non `() => ricarica()`: una lambda nuova a ogni render fa riregistrare
   // i tre listener globali di `useEditingGriglia` a ogni battuta.
   const chiaviVisibili = useMemo(() => colonneVisibili.map((c) => c.chiave), [colonneVisibili]);
   const editing = useEditingGriglia({
-    righe, operatori, colonneVisibili: chiaviVisibili, onSalvato: ricarica, attivo: true,
+    righe,
+    operatori: operatoriAssegnabili,
+    operatoriTutti,
+    giorni,
+    righeSpuntate,
+    colonneVisibili: chiaviVisibili,
+    onSalvato: ricarica,
+    attivo: true,
   });
 
   /**
@@ -270,11 +347,15 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             chiavi={selezionate.map(chiaveRiga)}
             onAnnullaSelezione={() => setSelezione({})}
             onPianificato={ricarica}
-            operatori={operatori}
+            operatori={operatoriDelGiorno}
+            giorni={giorni}
+            giorno={giorno}
+            onGiorno={setGiorno}
+            onCopiaRighe={editing.copiaRigheSpuntate}
           />
           {selezionate.length === 0 && (
             <span className="text-xs text-[var(--brand-text-muted)]">
-              Seleziona le righe da pianificare (shift-click per un intervallo)
+              Seleziona le righe da pianificare o da copiare (shift-click per un intervallo)
             </span>
           )}
         </div>
@@ -362,9 +443,16 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         Esecutore, Data pianificata e Note si modificano direttamente in tabella: clicca una cella, usa le
         frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi. La nota
-        scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si trascinano per riordinarle e si
-        tirano dal bordo per la larghezza (doppio click sul bordo per rimetterla com&apos;era).
+        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
+        <strong>Con delle righe spuntate</strong> le scorciatoie lavorano sulle righe intere:{' '}
+        <kbd>Ctrl</kbd>+<kbd>C</kbd> le porta via tutte, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su
+        tutte — un nome incollato su quaranta spunte le assegna in un colpo, senza passare da
+        «Pianifica». Si programma solo per{' '}
+        {giorni.length > 0 ? giorni.map((g) => g.esteso).join(' o ') : 'oggi o il giorno lavorativo successivo'},
+        e i nomi assegnabili sono quelli in <a href="/dashboard" className="underline">cronoprogramma</a>{' '}
+        per quel giorno. La nota scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si
+        trascinano per riordinarle e si tirano dal bordo per la larghezza (doppio click sul bordo per
+        rimetterla com&apos;era).
         {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
       </p>
 

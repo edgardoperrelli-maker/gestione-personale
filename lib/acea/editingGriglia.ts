@@ -161,8 +161,16 @@ export type EsitoValore = ValoreAccettato | ValoreSaltato | ValoreRifiutato;
  * Accetta 'YYYY-MM-DD', 'dd/MM/yyyy' e 'dd-MM-yyyy' — i formati che escono da Excel e quelli che
  * si digitano. Una cella vuota NON cancella: un incolla con celle vuote svuoterebbe la
  * pianificazione senza che nessuno l'abbia chiesto.
+ *
+ * `giorni`, se passato, è la finestra programmabile (oggi + prossimo feriale): una data fuori
+ * finestra viene RIFIUTATA con l'elenco di quelle buone. Senza il controllo qui, la regola
+ * varrebbe solo per il menu della barra azioni e basterebbe un incolla da Excel per aggirarla —
+ * cioè esattamente il gesto che questo modulo esiste per rendere comodo.
  */
-export function validaData(v: string): EsitoValore {
+export function validaData(
+  v: string,
+  giorni?: readonly { data: string; esteso: string }[],
+): EsitoValore {
   const s = String(v ?? '').trim();
   if (s === '') return { ok: true, salta: true };
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -176,17 +184,43 @@ export function validaData(v: string): EsitoValore {
   if (d.getUTCFullYear() !== y || d.getUTCMonth() !== m - 1 || d.getUTCDate() !== g) {
     return { ok: false, motivo: `"${s}" non è una data valida` };
   }
-  return { ok: true, valore: `${y}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}` };
+  const valore = `${y}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
+  if (giorni && giorni.length > 0 && !giorni.some((x) => x.data === valore)) {
+    return {
+      ok: false,
+      motivo: `${s}: si programma solo per ${giorni.map((x) => x.esteso).join(' o ')}`,
+    };
+  }
+  return { ok: true, valore };
 }
 
+export type Nominativo = { id: string; display_name: string };
+
 /**
- * Risolve un nome operatore su quelli esistenti.
+ * Chi c'è nel cronoprogramma di quel giorno, e chi invece esiste ma non c'è.
+ *
+ * Serve solo a distinguere i due rifiuti: senza, un nome giusto di una persona che quel giorno
+ * non è in cronoprogramma tornava «operatore non trovato», che manda a cercare un errore di
+ * battitura inesistente invece del cronoprogramma da compilare.
+ */
+export type FuoriCronoprogramma = {
+  /** Tutti gli operatori attivi, cronoprogramma o meno. */
+  operatori: readonly Nominativo[];
+  /** Il giorno di cui si parla, per esteso: «giovedì 30/07». */
+  giorno: string;
+};
+
+const normNome = (x: string) => x.trim().replace(/\s+/g, ' ').toUpperCase();
+
+/**
+ * Risolve un nome operatore su quelli ASSEGNABILI (il cronoprogramma del giorno scelto).
  * Confronto senza maiuscole e senza spazi doppi, così "de rossi" trova "DE ROSSI"; ambiguo se più
  * di un operatore corrisponde — meglio fermarsi che assegnare alla persona sbagliata.
  */
 export function validaOperatore(
   v: string,
-  operatori: readonly { id: string; display_name: string }[],
+  operatori: readonly Nominativo[],
+  fuori?: FuoriCronoprogramma,
 ): EsitoValore {
   const s = String(v ?? '').trim().replace(/\s+/g, ' ');
   if (s === '') return { ok: true, salta: true };
@@ -195,17 +229,37 @@ export function validaOperatore(
     confrontarlo. Dirlo cambia tutto — «operatore non trovato» manda a cercare un errore di
     battitura che non c'e`, ed e` successo davvero: l'elenco arrivava vuoto perche` l'endpoint non
     aveva un GET, e il nome respinto era quello COPIATO dalla cella accanto.
+
+    Da quando gli assegnabili sono quelli del cronoprogramma, l'elenco vuoto ha una seconda causa
+    — e molto piu` frequente della prima: quel giorno non c'e` ancora nessuno in cronoprogramma.
   */
   if (operatori.length === 0) {
-    return { ok: false, motivo: 'elenco operatori non disponibile: ricarica la pagina' };
+    return {
+      ok: false,
+      motivo: fuori
+        ? `nessun operatore in cronoprogramma per ${fuori.giorno}`
+        : 'elenco operatori non disponibile: ricarica la pagina',
+    };
   }
-  const norm = (x: string) => x.trim().replace(/\s+/g, ' ').toUpperCase();
-  const esatti = operatori.filter((o) => norm(o.display_name) === norm(s));
+  const esatti = operatori.filter((o) => normNome(o.display_name) === normNome(s));
   if (esatti.length === 1) return { ok: true, valore: esatti[0].id };
   if (esatti.length > 1) return { ok: false, motivo: `"${s}" corrisponde a più operatori` };
-  const parziali = operatori.filter((o) => norm(o.display_name).startsWith(norm(s)));
+  const parziali = operatori.filter((o) => normNome(o.display_name).startsWith(normNome(s)));
   if (parziali.length === 1) return { ok: true, valore: parziali[0].id };
   if (parziali.length > 1) return { ok: false, motivo: `"${s}" è ambiguo` };
+
+  // Nessuno fra gli assegnabili: prima di dire «non trovato», si guarda se la persona esiste
+  // comunque. Sono due problemi diversi e si risolvono in due posti diversi — uno è un refuso,
+  // l'altro è il cronoprogramma da compilare.
+  if (fuori) {
+    const altrove = fuori.operatori.filter(
+      (o) => normNome(o.display_name) === normNome(s) || normNome(o.display_name).startsWith(normNome(s)),
+    );
+    if (altrove.length > 0) {
+      const nome = altrove.length === 1 ? altrove[0].display_name : s;
+      return { ok: false, motivo: `${nome} non è in cronoprogramma per ${fuori.giorno}` };
+    }
+  }
   return { ok: false, motivo: `operatore "${s}" non trovato` };
 }
 

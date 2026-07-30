@@ -7,9 +7,16 @@ import {
   spostaFocus, validaData, validaOperatore,
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
+import { incollaSuRighe, testoRighe } from '@/lib/acea/righeAppunti';
+import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
 
-export type Operatore = { id: string; display_name: string };
+export type Operatore = {
+  id: string;
+  display_name: string;
+  /** Territorio del cronoprogramma, quando c'è: serve a scegliere l'operatore più vicino. */
+  territorio?: string | null;
+};
 
 /**
  * Quanto puo` essere lunga una nota.
@@ -29,7 +36,20 @@ export type ValoreLocale = {
 
 type Props = {
   righe: RigaTabella[];
+  /**
+   * Operatori ASSEGNABILI: quelli in cronoprogramma nella finestra programmabile, non l'anagrafica.
+   *
+   * L'elenco completo degli attivi conteneva anche chi e` in ferie e chi sta su un'altra commessa:
+   * un nome incollato veniva accettato anche se quel giorno la persona non c'era.
+   */
   operatori: Operatore[];
+  /**
+   * Tutti gli operatori attivi, solo per DISTINGUERE i rifiuti: un nome giusto di chi non e` in
+   * tabellone non e` un refuso, ed e` un problema che si risolve nel Cronoprogramma.
+   */
+  operatoriTutti?: Operatore[];
+  /** Finestra programmabile (oggi + prossimo feriale): una data fuori finestra viene rifiutata. */
+  giorni?: GiornoProgrammabile[];
   /**
    * Le colonne A SCHERMO, nell'ordine in cui si vedono.
    *
@@ -42,25 +62,38 @@ type Props = {
    * intervallo copiato deve uscire nell'ordine in cui si vede, non in quello di definizione.
    */
   colonneVisibili: ChiaveColonna[];
+  /**
+   * Indici delle righe SPUNTATE, in ordine di tabella.
+   *
+   * Sono le righe della colonna delle spunte, quella che finora serviva solo alla barra
+   * «Pianifica». Da qui si copiano e ci si incolla sopra: e` la meta` che mancava.
+   */
+  righeSpuntate?: number[];
   /** Chiamata dopo un salvataggio andato a buon fine, per ricaricare i dati veri. */
   onSalvato: (operazioneId: string | null) => void;
   attivo: boolean;
 };
 
 /**
- * Griglia alla Excel sulla tabella: ci si muove ovunque, si scrive in due colonne.
+ * Griglia alla Excel sulla tabella: ci si muove ovunque, si scrive in tre colonne.
  *
- * SELEZIONE E COPIA su tutte le colonne a schermo; SCRITTURA solo su Esecutore e Data pianificata.
- * I campi ACEA restano immutabili per principio — il registro e` lo specchio di ACEA — ma leggerli
- * e portarseli via e` un'altra cosa, e prima non si poteva: non essendo celle non avevano focus,
- * quindi niente selezione e niente Ctrl+C. Un incolla che cade su una colonna ACEA viene saltato
- * e detto, non applicato in silenzio.
+ * SELEZIONE E COPIA su tutte le colonne a schermo; SCRITTURA solo su Esecutore, Data pianificata e
+ * Note. I campi ACEA restano immutabili per principio — il registro e` lo specchio di ACEA — ma
+ * leggerli e portarseli via e` un'altra cosa, e prima non si poteva: non essendo celle non avevano
+ * focus, quindi niente selezione e niente Ctrl+C. Un incolla che cade su una colonna ACEA viene
+ * saltato e detto, non applicato in silenzio.
+ *
+ * Le RIGHE SPUNTATE sono il secondo bersaglio degli appunti, ed e` quello che toglie di mezzo la
+ * barra di assegnazione: con delle righe spuntate, Ctrl+C copia quelle righe intere e Ctrl+V
+ * scrive su tutte — un nome incollato su quaranta spunte le assegna tutte, senza aprire niente.
  *
  * La persistenza è ottimistica con rollback: la cella mostra subito il valore nuovo, la scrittura
  * parte, e se fallisce il valore torna indietro con un avviso. In Excel si scrive e basta; qui
  * ogni cella è una chiamata di rete che può fallire, e l'utente deve vedere cosa non è passato.
  */
-export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato, attivo }: Props) {
+export function useEditingGriglia({
+  righe, operatori, operatoriTutti, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo,
+}: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
   const [locali, setLocali] = useState<Map<string, ValoreLocale>>(new Map());
@@ -70,6 +103,10 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
 
   const colonneRef = useRef(colonneVisibili);
   colonneRef.current = colonneVisibili;
+
+  const spuntate = useMemo(() => righeSpuntate ?? [], [righeSpuntate]);
+  const spuntateRef = useRef(spuntate);
+  spuntateRef.current = spuntate;
 
   const limiti = useMemo(
     () => ({ righe: righe.length, colonne: colonneVisibili.length }),
@@ -83,6 +120,20 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
     [],
   );
 
+  /**
+   * Dove finisce un incolla sulle righe spuntate quando nessuna cella ha il focus.
+   *
+   * L'Esecutore, se c'e`: e` la colonna che si incolla nel 90% dei casi, ed e` quella che rende
+   * il gesto completo — si spuntano le righe e si incolla un nome, senza altri click.
+   */
+  const colonnaPredefinita = useMemo(() => {
+    for (const chiave of COLONNE_EDITABILI) {
+      const i = colonneVisibili.indexOf(chiave);
+      if (i >= 0) return i;
+    }
+    return null;
+  }, [colonneVisibili]);
+
   // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso.
   useEffect(() => { setLocali(new Map()); }, [righe]);
 
@@ -90,6 +141,21 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
     const r = righeRef.current[i];
     return r ? `${r.odl}|${r.numero_operazione}` : null;
   }, []);
+
+  /**
+   * Chi si puo` nominare, e come si dice di no a chi non si puo`.
+   *
+   * L'elenco assegnabile e` l'UNIONE dei giorni della finestra, non il solo giorno scelto: un
+   * incolla puo` portare due date diverse nella stessa colonna, e rifiutare lato client il nome
+   * giusto dell'altro giorno sarebbe un falso allarme. Il controllo giorno per giorno lo fa il
+   * server, che e` l'unico a saperlo per certo.
+   */
+  const fuoriCrono = useMemo(() => {
+    if (!operatoriTutti || operatoriTutti.length === 0 || !giorni || giorni.length === 0) {
+      return undefined;
+    }
+    return { operatori: operatoriTutti, giorno: giorni.map((g) => g.esteso).join(' né per ') };
+  }, [operatoriTutti, giorni]);
 
   /** Applica le scritture: valida, mostra subito, poi salva. */
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
@@ -118,14 +184,14 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
         perChiave.set(chiave, { ...perChiave.get(chiave), nota: testo });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), note: testo });
       } else if (colonna === 'pianificato_a') {
-        const e = validaOperatore(s.valore, operatori);
+        const e = validaOperatore(s.valore, operatori, fuoriCrono);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
         perChiave.set(chiave, { ...perChiave.get(chiave), staffId: e.valore });
         const nome = operatori.find((o) => o.id === e.valore)?.display_name ?? s.valore;
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), pianificato_a: nome });
       } else {
-        const e = validaData(s.valore);
+        const e = validaData(s.valore, giorni);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
         perChiave.set(chiave, { ...perChiave.get(chiave), data: e.valore });
@@ -181,36 +247,61 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
     } finally {
       setSalvando(false);
     }
-  }, [locali, operatori, chiaveDi, onSalvato, editabile]);
+  }, [locali, operatori, fuoriCrono, giorni, chiaveDi, onSalvato, editabile]);
 
-  /** Testo della selezione corrente, nel formato che Excel si aspetta (TAB + a capo). */
+  /**
+   * Il testo di una cella come esce negli appunti.
+   *
+   * Le colonne ACEA escono con il testo che si VEDE — indirizzo composto, stato in chiaro, date
+   * all'italiana — perche` e` quello che chi copia si aspetta di incollare. Il trattino dei vuoti
+   * no: in un foglio va una cella vuota, non un carattere.
+   */
+  const valoreDaCopiare = useCallback((riga: number, colonna: string): string => {
+    const r = righeRef.current[riga];
+    if (!r) return '';
+    const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
+    if (colonna === 'pianificato_a') return loc?.pianificato_a ?? r.pianificato_a ?? '';
+    if (colonna === 'pianificato_il') return loc?.pianificato_il ?? r.pianificato_il ?? '';
+    const v = valoreCella(r, colonna as ChiaveColonna);
+    return v === '—' ? '' : v;
+  }, [locali]);
+
+  /** Testo della selezione di celle corrente, nel formato che Excel si aspetta (TAB + a capo). */
   const testoSelezione = useCallback((): string => {
     if (!selezione) return '';
     const n = normalizzaIntervallo(selezione);
-    const out: string[] = [];
-    for (let r = n.da.riga; r <= n.a.riga; r++) {
-      const riga = righeRef.current[r];
-      if (!riga) continue;
-      const chiave = `${riga.odl}|${riga.numero_operazione}`;
-      const loc = locali.get(chiave);
-      const celle: string[] = [];
-      for (let c = n.da.colonna; c <= n.a.colonna; c++) {
-        const col = colonneRef.current[c];
-        if (!col) continue;
-        if (col === 'pianificato_a') celle.push(loc?.pianificato_a ?? riga.pianificato_a ?? '');
-        else if (col === 'pianificato_il') celle.push(loc?.pianificato_il ?? riga.pianificato_il ?? '');
-        else {
-          // Le colonne ACEA escono con il testo che si VEDE — indirizzo composto, stato in
-          // chiaro, date all'italiana — perche` e` quello che chi copia si aspetta di incollare.
-          // Il trattino dei vuoti no: in un foglio va una cella vuota, non un carattere.
-          const v = valoreCella(riga, col);
-          celle.push(v === '—' ? '' : v);
-        }
-      }
-      out.push(celle.join('\t'));
+    const indici: number[] = [];
+    for (let r = n.da.riga; r <= n.a.riga; r++) indici.push(r);
+    const colonne = colonneRef.current.slice(n.da.colonna, n.a.colonna + 1);
+    return testoRighe(indici, colonne, valoreDaCopiare);
+  }, [selezione, valoreDaCopiare]);
+
+  /** Testo delle righe SPUNTATE: tutte le colonne a schermo, nell'ordine in cui si vedono. */
+  const testoRigheSpuntate = useCallback(
+    (): string => testoRighe(spuntate, colonneRef.current, valoreDaCopiare),
+    [spuntate, valoreDaCopiare],
+  );
+
+  /**
+   * Copia le righe spuntate negli appunti da un comando, non da Ctrl+C.
+   *
+   * Serve perche` la scorciatoia da sola non si trova: la barra dice «40 righe selezionate» e non
+   * c'e` niente che dica che si possono portare via. `writeText` puo` fallire (permesso negato,
+   * contesto non sicuro) e in quel caso lo si dice, invece di lasciare gli appunti com'erano.
+   */
+  const copiaRigheSpuntate = useCallback(async (): Promise<boolean> => {
+    const testo = testoRigheSpuntate();
+    if (!testo) return false;
+    try {
+      await navigator.clipboard.writeText(testo);
+      const n = spuntateRef.current.length;
+      toast.success(`${n} ${n === 1 ? 'riga copiata' : 'righe copiate'} negli appunti`);
+      return true;
+    } catch {
+      toast.error('Copia non riuscita: usa Ctrl+C con le righe selezionate.');
+      return false;
     }
-    return out.join('\n');
-  }, [selezione, locali]);
+  }, [testoRigheSpuntate]);
 
   /**
    * Tastiera e appunti sono globali — le celle non sono elementi focalizzabili, quindi l'ascolto
@@ -219,11 +310,17 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
    * Senza questo filtro, con una cella selezionata la griglia si prendeva le frecce, il Ctrl+C e il
    * Ctrl+V di ogni campo della pagina: nella ricerca del registro il cursore non si muoveva, e un
    * incolla in un filtro di colonna finiva dentro la tabella.
+   *
+   * L'ascolto parte anche SENZA cursore di cella, se ci sono righe spuntate: chi spunta quaranta
+   * righe e preme Ctrl+C non ha nessun motivo di aver cliccato prima una cella, e prima non
+   * succedeva niente.
    */
   useEffect(() => {
-    if (!attivo || !focus) return;
+    if (!attivo) return;
+    if (!focus && spuntate.length === 0) return;
 
     const tasti = (e: KeyboardEvent) => {
+      if (!focus) return;
       if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
       const dirs: Record<string, 'su' | 'giu' | 'sinistra' | 'destra'> = {
         ArrowUp: 'su', ArrowDown: 'giu', ArrowLeft: 'sinistra', ArrowRight: 'destra',
@@ -242,7 +339,9 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
 
     const copia = (e: ClipboardEvent) => {
       if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
-      const testo = testoSelezione();
+      // Le spunte battono il cursore di cella: sono il gesto visibile — righe evidenziate e
+      // conteggio nella barra — mentre il cursore è un contorno sottile su una cella sola.
+      const testo = spuntate.length > 0 ? testoRigheSpuntate() : testoSelezione();
       if (!testo) return;
       e.preventDefault();
       e.clipboardData?.setData('text/plain', testo);
@@ -252,8 +351,25 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
       if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
       const testo = e.clipboardData?.getData('text/plain') ?? '';
       if (!testo) return;
-      e.preventDefault();
       const blocco = parseBloccoIncollato(testo);
+
+      if (spuntate.length > 0) {
+        const colonna = focus?.colonna ?? colonnaPredefinita;
+        if (colonna === null) return;      // nessuna colonna scrivibile a schermo: niente da fare
+        e.preventDefault();
+        const esito = incollaSuRighe(blocco, spuntate, colonna, limiti);
+        if (esito.righeIgnorate > 0) {
+          toast.info(`${esito.righeIgnorate} righe incollate oltre le righe selezionate: ignorate`);
+        }
+        if (esito.righeNonCoperte > 0) {
+          toast.info(`${esito.righeNonCoperte} righe selezionate senza dati nel blocco: lasciate com'erano`);
+        }
+        void applica(esito.scritture);
+        return;
+      }
+
+      if (!focus) return;
+      e.preventDefault();
       const sel = selezione ?? { da: focus, a: focus };
       const esito = calcolaIncolla(blocco, sel, limiti);
       if (esito.righeIgnorate > 0) {
@@ -270,7 +386,10 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
       window.removeEventListener('copy', copia);
       window.removeEventListener('paste', incolla);
     };
-  }, [attivo, focus, selezione, limiti, applica, testoSelezione]);
+  }, [
+    attivo, focus, selezione, limiti, applica, testoSelezione,
+    spuntate, testoRigheSpuntate, colonnaPredefinita,
+  ]);
 
   const celleSelezionate = useMemo(() => {
     if (!selezione) return new Set<string>();
@@ -285,6 +404,6 @@ export function useEditingGriglia({ righe, operatori, colonneVisibili, onSalvato
 
   return {
     focus, selezione, celleSelezionate, locali, salvando,
-    clickCella, applica, setFocus, editabile,
+    clickCella, applica, setFocus, editabile, copiaRigheSpuntate,
   };
 }

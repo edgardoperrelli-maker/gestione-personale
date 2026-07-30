@@ -179,6 +179,9 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 18 | Riporto | Il riporto dei rapportini è un join, non una scrittura |
 | 19 | Scadenza | Dunning: creazione + 14 gg, `RIAT`/`REVO` 1 gg. **Le massive non scadono** |
 | 20 | Cut-over | Preview, due giorni di prova, poi abbandono del master. L'agente resta come rete |
+| 21 | Appunti | Le **righe spuntate** sono un bersaglio degli appunti: si copiano intere e ci si incolla sopra, senza passare dalla barra di assegnazione |
+| 22 | Finestra | Si programma solo per **oggi e il prossimo giorno lavorativo** (di venerdì: lunedì). Applicata anche sul server, non solo nel menu |
+| 23 | Assegnabili | Gli operatori proponibili sono quelli **in cronoprogramma** per quel giorno, meno le assenze intere — non l'anagrafica del personale |
 
 ---
 
@@ -288,6 +291,33 @@ blocco (assegna operatore e giorno) · editing di cella con copia/incolla di blo
 colonne visibili · conteggio delle righe filtrate · evidenziazione degli scaduti · export xlsx della
 vista filtrata · annullamento dell'ultima azione in blocco. Nessun trascinamento: il popolamento
 multiplo si fa con copia/incolla.
+
+**Due selezioni, due bersagli degli appunti.** Il cursore di cella copia e incolla un rettangolo,
+come in Excel. Le **spunte di riga** — quelle che finora servivano solo alla barra «Pianifica» —
+sono l'altro bersaglio: con delle righe spuntate, `Ctrl+C` copia quelle righe intere su tutte le
+colonne a schermo, e `Ctrl+V` scrive su tutte. Un nome incollato su quaranta spunte le assegna in
+un colpo, senza aprire la barra di assegnazione; un comando «Copia righe» nella barra fa lo stesso
+per chi la scorciatoia non la cerca. Le spunte battono il cursore: sono il gesto visibile — righe
+evidenziate e conteggio in barra — mentre il cursore è un contorno su una cella sola.
+
+### Finestra di programmazione e operatori assegnabili
+
+Si programma per **oggi e il prossimo giorno lavorativo**, e per nessun altro giorno: di venerdì,
+sabato e domenica il secondo giorno è il lunedì. Il campo data libero è sostituito da un menu di due
+voci, e la finestra è applicata anche sul server (`/api/acea/pianifica` e `/api/acea/celle`) —
+altrimenti basterebbe un incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste
+per rendere comodo.
+
+Gli operatori proponibili sono quelli **in cronoprogramma** per il giorno scelto, non l'anagrafica
+del personale: sono le persone che quel giorno ci sono davvero. Si sottraggono chi è a tabellone con
+un'attività di tipo assenza e chi ha un'assenza **intera** in `disponibilita_operatore` — le assenze
+parziali no, chi c'è mezza giornata un ordine lo può fare. Accanto al nome compare il territorio del
+tabellone, perché il primo passo della mattina è «assegnazione in base all'operatore più vicino».
+
+Se il tabellone di quel giorno è vuoto, il menu lo dice e rimanda al Cronoprogramma invece di
+mostrare un elenco vuoto senza spiegazione; e un nome incollato che esiste ma non è a tabellone
+viene rifiutato con «non è in cronoprogramma per <giorno>», non con «operatore non trovato» — sono
+due problemi diversi e si risolvono in due posti diversi.
 
 Design: sistema esistente (`DESIGN.md`), nessuno stile proprio.
 

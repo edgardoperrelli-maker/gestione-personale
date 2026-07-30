@@ -148,6 +148,35 @@ describe('validaData', () => {
   });
 });
 
+// La finestra programmabile non può valere solo per il menu della barra azioni: basterebbe un
+// incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste per rendere comodo.
+describe('validaData — finestra programmabile', () => {
+  const giorni = [
+    { data: '2026-07-31', esteso: 'venerdì 31/07' },
+    { data: '2026-08-03', esteso: 'lunedì 03/08' },
+  ];
+
+  it('accetta i giorni della finestra, in ISO e all’italiana', () => {
+    expect(validaData('2026-07-31', giorni)).toEqual({ ok: true, valore: '2026-07-31' });
+    expect(validaData('03/08/2026', giorni)).toEqual({ ok: true, valore: '2026-08-03' });
+  });
+
+  it('rifiuta una data fuori finestra dicendo quali sono i giorni buoni', () => {
+    const e = validaData('01/08/2026', giorni);   // il sabato in mezzo
+    expect(e.ok).toBe(false);
+    if (!e.ok) expect(e.motivo).toBe('01/08/2026: si programma solo per venerdì 31/07 o lunedì 03/08');
+  });
+
+  it('senza finestra si comporta come prima: qualunque data valida passa', () => {
+    expect(validaData('2026-09-15')).toEqual({ ok: true, valore: '2026-09-15' });
+    expect(validaData('2026-09-15', [])).toEqual({ ok: true, valore: '2026-09-15' });
+  });
+
+  it('la cella vuota resta un salto anche con la finestra attiva', () => {
+    expect(daSaltare(validaData('', giorni))).toBe(true);
+  });
+});
+
 describe('validaOperatore', () => {
   const operatori = [
     { id: 's1', display_name: 'DE ROSSI ANNA' },
@@ -180,6 +209,42 @@ describe('validaOperatore', () => {
 
   it('cella vuota: si salta', () => {
     expect(daSaltare(validaOperatore('', operatori))).toBe(true);
+  });
+});
+
+// Da quando gli assegnabili sono i soli operatori in cronoprogramma per il giorno scelto, «non
+// trovato» copriva due problemi diversi: un refuso e un cronoprogramma da compilare. Si risolvono
+// in due posti diversi, quindi vanno detti in due modi diversi.
+describe('validaOperatore — chi non è in cronoprogramma', () => {
+  const inCrono = [{ id: 's1', display_name: 'DE ROSSI ANNA' }];
+  const fuori = {
+    operatori: [
+      { id: 's1', display_name: 'DE ROSSI ANNA' },
+      { id: 's2', display_name: 'BIANCHI LUIGI' },
+    ],
+    giorno: 'giovedì 30/07',
+  };
+
+  it('chi è in cronoprogramma si assegna come sempre', () => {
+    expect(validaOperatore('DE ROSSI ANNA', inCrono, fuori)).toEqual({ ok: true, valore: 's1' });
+  });
+
+  it('chi esiste ma non è in cronoprogramma lo dice, con nome e giorno', () => {
+    const e = validaOperatore('BIANCHI LUIGI', inCrono, fuori);
+    expect(e.ok).toBe(false);
+    if (!e.ok) expect(e.motivo).toBe('BIANCHI LUIGI non è in cronoprogramma per giovedì 30/07');
+  });
+
+  it('un nome che non esiste proprio resta «non trovato»', () => {
+    const e = validaOperatore('VERDI', inCrono, fuori);
+    expect(e.ok).toBe(false);
+    if (!e.ok) expect(e.motivo).toMatch(/non trovato/i);
+  });
+
+  it('cronoprogramma vuoto: lo dice, invece di mandare a cercare un refuso', () => {
+    const e = validaOperatore('DE ROSSI ANNA', [], fuori);
+    expect(e.ok).toBe(false);
+    if (!e.ok) expect(e.motivo).toBe('nessun operatore in cronoprogramma per giovedì 30/07');
   });
 });
 

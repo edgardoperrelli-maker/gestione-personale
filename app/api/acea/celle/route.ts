@@ -8,6 +8,8 @@ import {
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
+import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { partiRoma } from '@/lib/agente/orarioRoma';
 
 export const runtime = 'nodejs';
 
@@ -137,6 +139,28 @@ export async function POST(req: Request) {
     let creati = 0;
     let aggiornati = 0;
 
+    /*
+      Prima passata: lo STATO FINALE di ogni riga, senza scrivere niente.
+
+      Serve a chiedere la finestra e il cronoprogramma una volta sola invece che riga per riga —
+      un incolla può portare centinaia di righe, e un controllo dentro il ciclo sarebbe una lettura
+      del tabellone per ciascuna. Si controlla lo stato FINALE e non solo ciò che è stato scritto:
+      cambiare il solo esecutore su una riga pianificata la settimana scorsa la lascerebbe altrimenti
+      fuori finestra, ed è proprio la scrittura che questa regola vuole impedire.
+    */
+    const finali = new Map<string, { data: string; staffId: string }>();
+    for (const m of lista) {
+      const ordine = ordiniPerChiave.get(m.chiave);
+      if (!ordine) continue;
+      const aperti = (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato !== 'annullato');
+      const corrente = [...aperti].sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
+      const data = m.data ?? corrente?.data ?? null;
+      const staffId = m.staffId ?? corrente?.staff_id ?? null;
+      if (data && staffId) finali.set(m.chiave, { data, staffId });
+    }
+    const oggi = partiRoma(new Date()).oggi;
+    const motiviFinestra = await controllaAssegnazioni([...finali.values()], oggi);
+
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
       if (!ordine) {
@@ -144,15 +168,19 @@ export async function POST(req: Request) {
         continue;
       }
       const apertiSuOdl = (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato !== 'annullato');
-      const corrente = [...apertiSuOdl].sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
 
-      // Valori finali: quello che arriva, oppure quello che c'è già.
-      const dataFinale = m.data ?? corrente?.data ?? null;
-      const staffFinale = m.staffId ?? corrente?.staff_id ?? null;
-      if (!dataFinale || !staffFinale) {
+      const finale = finali.get(m.chiave);
+      if (!finale) {
         // Una cella sola su una riga mai pianificata non basta a creare l'intervento: servono
         // entrambi. Non è un errore, è una riga incompleta — si dice e si va avanti.
         rifiutate.push({ chiave: m.chiave, motivo: 'servono sia operatore sia data' });
+        continue;
+      }
+      const { data: dataFinale, staffId: staffFinale } = finale;
+
+      const fuoriFinestra = motiviFinestra.get(`${dataFinale}|${staffFinale}`);
+      if (fuoriFinestra) {
+        rifiutate.push({ chiave: m.chiave, motivo: fuoriFinestra });
         continue;
       }
 

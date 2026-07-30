@@ -9,6 +9,8 @@ import {
 import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
+import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { partiRoma } from '@/lib/agente/orarioRoma';
 
 export const runtime = 'nodejs';
 
@@ -43,6 +45,20 @@ export async function POST(req: Request) {
     }
     if (!staffId) {
       return NextResponse.json({ error: 'Operatore mancante.' }, { status: 400 });
+    }
+
+    /*
+      0) La finestra e il cronoprogramma, prima di toccare qualunque cosa.
+
+      Si programma solo per oggi e per il prossimo giorno lavorativo, e solo su chi quel giorno è
+      in tabellone. Il controllo sta qui e non solo nel menu perché la stessa scrittura si può
+      chiedere incollando da Excel — e una regola che vale solo per il menu è decorativa.
+    */
+    const oggi = partiRoma(new Date()).oggi;
+    const motivi = await controllaAssegnazioni([{ data, staffId }], oggi);
+    const rifiuto = motivi.get(`${data}|${staffId}`);
+    if (rifiuto) {
+      return NextResponse.json({ error: rifiuto.replace(/^./, (c) => c.toUpperCase()) }, { status: 400 });
     }
 
     // 1) Ordini selezionati, letti dal registro (non dal client: il client potrebbe avere una
