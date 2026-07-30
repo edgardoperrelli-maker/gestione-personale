@@ -4,13 +4,15 @@
 
 **Goal:** dal campo l'operatore AcquaLatina cerca una matricola col tasto `+`. Se il misuratore è nel master del committente il cambio parte e il rapportino si autopopola; se non c'è, l'esecuzione **si blocca** con l'invito a contattare l'ufficio. La richiesta approvata dal backoffice resta **da assegnare** finché l'assegnazione manuale sul sistema AcquaLatina non viene registrata con una spunta massiva.
 
-**Architecture:** il censimento AcquaLatina **non è una tabella nuova**: sono le righe `template_master_righe` dei file caricati da `/impostazioni/template-master` con `template_master.committente='acqualatina'` e `attivo=true`. Il lookup si usa **al contrario** rispetto a com'è nato (là ODL → riga, qui matricola → ODL), quindi serve un indice su `matricola` e una funzione pura nuova per il verdetto. Il verdetto ha quattro gradini e la sua logica sta tutta in `lib/acqualatina/lookupMaster.ts`, cosí la stessa funzione decide online (server) e offline (cache IndexedDB). Lo stato «da assegnare» è una **colonna**, non uno stato: `interventi_manuali.assegnato_committente_at`.
+**Architecture:** il censimento AcquaLatina **non è una tabella nuova**: sono le righe `template_master_righe` dei file caricati da `/impostazioni/template-master` con `template_master.committente='acqualatina'` e `attivo=true`. Il lookup si usa **al contrario** rispetto a com'è nato (là ODL → riga, qui matricola → ODL), quindi serve un indice su `matricola` e una funzione pura nuova per il verdetto. Il verdetto ha quattro gradini e la sua logica sta tutta in `lib/acqualatina/lookupMaster.ts`, cosí la stessa funzione decide online (server) e offline (cache IndexedDB).
+
+Il censimento si scarica **all'apertura del link**, non al passo di ricerca, dietro una **modale con barra di avanzamento**; il perimetro è il **committente del flusso** del rapportino, scelto dall'ufficio alla creazione del piano — così un operatore Italgas non si porta in cache il master ACEA. Lo stato «da assegnare» è una **colonna**, non uno stato: `interventi_manuali.assegnato_committente_at`.
 
 **Tech Stack:** Next.js (route handler `runtime='nodejs'`, `supabaseAdmin`), React client components, IndexedDB (`lib/offline/*`), ExcelJS per l'export, Vitest.
 
 ---
 
-## Decisioni prese (interviste 1–9)
+## Decisioni prese (interviste 1–12)
 
 | # | Decisione | Conseguenza |
 |---|---|---|
@@ -23,8 +25,13 @@
 | 7 | Autofill completo dal master: matricola, ODL, via, comune, CAP; calibro **DN15** di default; attività dal gruppo | Nessun campo nuovo: coincide con l'anagrafica del template AcquaLatina |
 | 8 | Il `+` offre **AcquaLatina** come quarto committente | `CommittenteManuale` cresce di un valore |
 | 9 | «Da assegnare» è una **colonna** (`assegnato_committente_at`), non uno stato | `interventi.stato='da_assegnare'` esiste ma su un altro asse: `OPEN_STATES` lo conta come lavoro **aperto** |
+| 10 | Il censimento si scarica **all'apertura del link** dietro una modale con barra. Controllo di versione **sempre e silenzioso**; modale **solo se c'è qualcosa da scaricare** | Il controllo costa 2 query e ~40 byte; la modale così dice sempre una cosa vera e la barra ha sempre lavoro da mostrare |
+| 11 | Il perimetro vive sul **flusso** (`rapportino_template.gruppo_committente` + `gruppi_attivita`), scelto alla creazione del piano. **Nessuna colonna nuova** su `rapportini` | Un CHECK in DB tiene coerente la coppia; la UI della mappa deve mandare `opts.templateId`, che oggi non manda |
+| 12 | Perimetro **per committente**, non per comune | 8.000 righe ACEA ≈ 250 KB compressi, una volta per dispositivo. Stringere per comune indebolirebbe il blocco della decisione 5: se la cache è un sottoinsieme, «non c'è in cache» non vuol più dire «non c'è nel master» |
 
 L'intervento continua a nascere **dentro l'approvazione**, con `stato:'completato'`: fra approvazione e spunta sta in Storico e nei KPI come completato (confermato).
+
+**Scelta di implementazione (non richiedeva decisione, la annoto):** la barra mostra un progresso **vero** perché il download è **paginato dal client** (1000 righe per pagina) e il totale si conosce prima di iniziare. È il solo modo per avere un `done/total` onesto: la route oggi risponde con un JSON unico, e su quello una barra sarebbe un'animazione di cortesia.
 
 ---
 
@@ -37,6 +44,8 @@ L'intervento continua a nascere **dentro l'approvazione**, con `stato:'completat
 - `app/api/r/[token]/censimento-master/route.ts` — proiezione completa per la cache offline.
 - `lib/offline/censimentoMaster.ts` — cache IndexedDB (chiave `'acqualatina'`).
 - `components/modules/rapportini/acqualatina/CercaMatricolaAcqualatina.tsx` — passo di ricerca.
+- `components/modules/rapportini/CensimentoGate.tsx` — la modale all'apertura del link, con barra.
+- `lib/rapportini/perimetroCensimento.ts` (+`.test.ts`) — flusso → committente del censimento (PURA).
 - `app/api/admin/interventi-manuali/da-assegnare/route.ts` — export XLSX + spunta massiva.
 - `supabase/migrations/20260730180000_acqualatina_lookup_matricola.sql`.
 
@@ -45,12 +54,16 @@ L'intervento continua a nascere **dentro l'approvazione**, con `stato:'completat
 - `lib/interventi/manuali/attivitaPerCommittente.ts` — default `SOSTITUZIONE MISURATORI`.
 - `lib/interventi/manuali/anagraficaValida.ts` — AcquaLatina come `lim_massive` (la matricola basta).
 - `components/modules/rapportini/ModaleInterventoManuale.tsx` — quarto committente, passo ricerca.
+- `components/modules/rapportini/RapportinoForm.tsx` — monta `CensimentoGate`.
+- `app/r/[token]/page.tsx` — `gruppo_committente` nella select del template (già presente) → prop.
+- `app/api/r/[token]/censimento/route.ts` — **additivo**: `?meta=1` (versione + totale) e `?from=&to=` per il download paginato. Senza parametri risponde **esattamente come oggi**.
+- `components/modules/mappa/MappaOperatoriClient.tsx` — scelta del flusso alla creazione del piano vuoto, `opts.templateId` mandato.
 - `app/api/r/[token]/intervento-manuale/route.ts` — ri-verifica master al POST.
 - `lib/offline/syncPlan.ts` — `motivoManuale400` passa il nuovo codice errore.
-- `components/modules/lista-attesa/RegistroAutorizzazioni.tsx` — colonna/badge «Da assegnare», export, spunta massiva.
+- `components/modules/lista-attesa/RegistroAutorizzazioni.tsx` — badge «Da assegnare», export, spunta massiva.
 - `app/api/admin/interventi-manuali/route.ts` — espone `assegnato_committente_at`.
 
-**Non toccati (deliberatamente):** `app/api/r/[token]/cerca-limitazione/route.ts`, `app/api/r/[token]/censimento/route.ts`, `CercaMatricolaLimitazione.tsx`, `limitazione_misuratori_ref`. Il percorso ACEA è in produzione e ha semantica opposta (blocco morbido, «inserisci a mano»): resta invariato byte per byte.
+**Non toccati (deliberatamente):** `app/api/r/[token]/cerca-limitazione/route.ts`, `CercaMatricolaLimitazione.tsx`, `limitazione_misuratori_ref`. Il percorso di ricerca ACEA è in produzione e ha semantica opposta (blocco morbido, «inserisci a mano»): resta invariato byte per byte, **incluso il suo `useEffect` di `aggiornaCensimento`**, che resta come rete di sicurezza se l'operatore chiude la modale.
 
 ## Note gate
 
@@ -506,65 +519,57 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ---
 
-### Task 5: Cache offline del censimento AcquaLatina
+### Task 5: Il perimetro — il flusso si scegli alla creazione del piano
 
 **Files:**
-- Create: `app/api/r/[token]/censimento-master/route.ts`
-- Create: `lib/offline/censimentoMaster.ts`
+- Create: `lib/rapportini/perimetroCensimento.ts` (+`.test.ts`)
+- Modify: `components/modules/mappa/MappaOperatoriClient.tsx`
+- Modify: `app/r/[token]/page.tsx`
 
-Il blocco offline vale **solo se la cache c'è** (decisione 5): la cache diventa il fattore che decide se si lavora, quindi va scaricata prima di arrivare davanti al contatore.
+Il perimetro del download è il **committente del flusso** del rapportino (decisioni 11 e 12). Oggi quel flusso, per un piano **senza interventi**, viene scelto dall'**ordine alfabetico**: la catena di `sincronizzaRapportini` finisce su `candidati[0]`, e `'ACQUALATINA SOSTITUZIONE MISURATORI'` comincia per A. Questo task rende esplicita una scelta che oggi è un incidente.
 
-- [ ] **Step 1: La route**
-
-Specchia `app/api/r/[token]/censimento/route.ts`: gate leggero sul token (è dato di riferimento, non si guarda lo stato), `?v=<versione>` → `{ unchanged: true }` se coincide, altrimenti la proiezione completa.
+- [ ] **Step 1: La funzione pura (TDD)**
 
 ```ts
-import { NextResponse } from 'next/server';
-import { supabaseAdmin } from '@/lib/supabaseAdmin';
-import { masterAttivi, proiezioneCompleta, versioneCensimento } from '@/lib/acqualatina/censimentoMaster';
+// PURA: dal flusso del rapportino al committente del censimento da scaricare in cache.
+// Solo due committenti hanno un censimento consultabile dal campo: ACEA (limitazione_
+// misuratori_ref) e AcquaLatina (template_master_righe). Per tutti gli altri → null,
+// e la modale non compare affatto: un operatore Italgas non si porta in cache 8.000
+// righe ACEA che non gli servono (decisione 12).
+export type CommittenteCensimento = 'acea' | 'acqualatina';
 
-export const runtime = 'nodejs';
-
-export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
-  const { token } = await params;
-  const { data: rap } = await supabaseAdmin.from('rapportini').select('id').eq('token', token).maybeSingle();
-  if (!rap) return NextResponse.json({ error: 'not_found' }, { status: 404 });
-
-  const masterIds = await masterAttivi();
-  const versione = await versioneCensimento(masterIds);
-  if ((new URL(req.url).searchParams.get('v') ?? '') === versione)
-    return NextResponse.json({ unchanged: true, versione });
-
-  return NextResponse.json({ unchanged: false, versione, righe: await proiezioneCompleta(masterIds) });
+export function perimetroCensimento(gruppoCommittente: string | null | undefined): CommittenteCensimento | null {
+  const c = String(gruppoCommittente ?? '').trim().toLowerCase();
+  return c === 'acea' || c === 'acqualatina' ? c : null;
 }
 ```
 
-- [ ] **Step 2: Il modulo di cache**
+Test: `'acea'` → `'acea'`; `'ACQUALATINA'` → `'acqualatina'`; `'italgas'`, `null`, `''`, `'altro'` → `null`.
 
-Copia fedele di `lib/offline/censimento.ts` con `CHIAVE = 'acqualatina'` (lo store `dbCensimento` è già indicizzato per chiave arbitraria: nessuna modifica a `lib/offline/db.ts`) e `RigaMaster` invece di `CensitoMisuratore`.
+- [ ] **Step 2: La UI della mappa manda il flusso**
+
+Nel pannello «senza interventi» (`MappaOperatoriClient.tsx`, la modalità che crea rapportini vuoti) aggiungi una **tendina «Flusso»** con i template attivi non-`solo_manuale`, etichettati con nome + committente + gruppi — e mandala come `templateId` nel payload di generazione.
+
+**Una scelta, non due:** `rapportino_template` ha un CHECK che impone `gruppo_committente` e `gruppi_attivita` valorizzati insieme o entrambi vuoti. Scegliere il flusso *è* scegliere la coppia committente + gruppi, e non può produrne una incoerente — due tendine separate sì.
+
+Obbligatoria in modalità «senza interventi» (niente task da cui dedurre), facoltativa altrimenti: con i task il comportamento attuale resta valido e non va toccato.
+
+- [ ] **Step 3: Il committente arriva al client**
+
+In `app/r/[token]/page.tsx` la select del template LIVE è già presente:
 
 ```ts
-import { dbCensimento, indexedDbDisponibile } from './db';
-import type { RigaMaster } from '@/lib/acqualatina/lookupMaster';
-
-/** Chiave STABILE della cache (non il token del giorno → riuso cross-giorno). */
-const CHIAVE = 'acqualatina';
-
-export async function leggiCensimentoMasterLocale(): Promise<{ versione: string; righe: RigaMaster[] } | undefined> { /* come censimento.ts */ }
-export async function salvaCensimentoMasterLocale(versione: string, righe: RigaMaster[], now: number): Promise<void> { /* idem */ }
-/** Best-effort, solo ONLINE. No-op offline / senza IndexedDB / su errore. NON lancia mai. */
-export async function aggiornaCensimentoMaster(token: string): Promise<void> { /* fetch /censimento-master?v= */ }
+.select('campi, titolo_campi, info_campi')   // →  aggiungi gruppo_committente
 ```
 
-- [ ] **Step 3: Allinea la cache all'APERTURA DEL RAPPORTINO, non del passo ricerca**
+Passa `perimetroCensimento(tpl.gruppo_committente)` a `RapportinoForm` come prop `committenteCensimento`. Nessuna query nuova.
 
-In `components/modules/rapportini/RapportinoForm.tsx` chiama `void aggiornaCensimentoMaster(token)` in un `useEffect` di mount. Motivo: oggi `aggiornaCensimento` (ACEA) parte quando si apre il passo «Cerca matricola», cioè quando l'operatore è già davanti al contatore — e se lì è offline la cache resta vuota. Il rapportino invece si apre in ufficio o in auto, sotto rete.
-
-- [ ] **Step 4: Verifica tipi/lint + commit**
+- [ ] **Step 4: Verifica + commit**
 
 ```bash
-git add "app/api/r/[token]/censimento-master/route.ts" lib/offline/censimentoMaster.ts components/modules/rapportini/RapportinoForm.tsx
-git commit -m "feat(acqualatina): cache offline del censimento, allineata all'apertura del rapportino
+npx vitest run lib/rapportini/perimetroCensimento.test.ts
+git add lib/rapportini/perimetroCensimento.ts lib/rapportini/perimetroCensimento.test.ts components/modules/mappa/MappaOperatoriClient.tsx "app/r/[token]/page.tsx"
+git commit -m "feat(rapportini): il flusso del piano vuoto si scegli, non lo decide l'alfabeto
 
 Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
 Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
@@ -572,7 +577,81 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ---
 
-### Task 6: `CercaMatricolaAcqualatina` — blocco secco e doppio tocco
+### Task 6: La modale all'apertura del link, con barra di avanzamento
+
+**Files:**
+- Create: `app/api/r/[token]/censimento-master/route.ts`
+- Create: `lib/offline/censimentoMaster.ts`
+- Create: `components/modules/rapportini/CensimentoGate.tsx`
+- Modify: `app/api/r/[token]/censimento/route.ts` (additivo), `components/modules/rapportini/RapportinoForm.tsx`
+
+Il blocco offline vale **solo se la cache c'è** (decisione 5): la cache è il fattore che decide se si lavora, quindi va scaricata **prima** di arrivare davanti al contatore — non al passo di ricerca, dove oggi parte.
+
+- [ ] **Step 1: Le due route parlano la stessa lingua**
+
+Tre modalità per entrambe, `/censimento` (ACEA) e `/censimento-master` (AcquaLatina):
+
+| Query | Risposta | Costo |
+|---|---|---|
+| `?meta=1&v=<versione>` | `{ unchanged: true, versione }` oppure `{ unchanged: false, versione, totale }` | 2 query, ~40 byte |
+| `?from=0&to=999` | `{ righe: [...] }` — una pagina | 1 query |
+| *nessun parametro* | come oggi: proiezione completa in un colpo | invariato |
+
+La terza riga è la garanzia di non-regressione: `aggiornaCensimento` esistente continua a funzionare senza modifiche, e resta come rete se l'operatore chiude la modale.
+
+`/censimento-master` specchia la struttura ma legge da `lib/acqualatina/censimentoMaster.ts` (`masterAttivi` → `versioneCensimento` / `proiezioneCompleta`), col gate leggero sul token (è dato di riferimento: non si guarda lo stato del rapportino).
+
+- [ ] **Step 2: Il modulo di cache AcquaLatina**
+
+Copia fedele di `lib/offline/censimento.ts` con `CHIAVE = 'acqualatina'` — lo store `dbCensimento` è già indicizzato per chiave arbitraria, `lib/offline/db.ts` non si tocca — e `RigaMaster` invece di `CensitoMisuratore`. Espone `leggiCensimentoMasterLocale`, `salvaCensimentoMasterLocale` e `aggiornaCensimentoMaster` (best-effort, solo online, non lancia mai).
+
+- [ ] **Step 3: `CensimentoGate` — il comportamento**
+
+Montato da `RapportinoForm`, riceve `token` e `committenteCensimento`.
+
+| Situazione | Cosa vede l'operatore |
+|---|---|
+| `committenteCensimento === null` (Italgas, «altro») | **niente**: nessuna modale, nessun download |
+| cache già alla versione corrente | **niente modale**; in fondo alla barra del rapportino una riga discreta «Censimento aggiornato · *data*» |
+| versione cambiata o cache assente | **modale**: «Commessa **AcquaLatina**: 8.412 misuratori da scaricare. Servono per cercare le matricole anche senza rete.» → «Scarica» / «Non ora» |
+| «Scarica» premuto | barra a larghezza piena con `done/total` **righe reali**, pagina per pagina |
+| download finito | la modale si chiude da sé, resta la riga «Censimento aggiornato» |
+| errore o rete caduta a metà | «Scaricamento interrotto a 3.000/8.412 — riprova quando hai rete», con «Riprova» e «Chiudi». **Niente cache parziale salvata**: si scrive in IndexedDB solo a download completo, altrimenti «la cache c'è» sarebbe una bugia e il blocco della decisione 5 si appoggerebbe su un sottoinsieme |
+| offline all'apertura | nessuna modale (non si può scaricare): la riga dice «Censimento non disponibile offline» |
+
+- [ ] **Step 4: La barra**
+
+Riusa la matematica e i token di `components/ui/ProgressPill.tsx` (`pct = done/total`, traccia `--brand-border`, riempimento `--brand-primary`, cifre in `font-mono tabular-nums`) a larghezza piena dentro il foglio. `aria-live="polite"` sul contatore, `role="progressbar"` con `aria-valuenow/min/max` sulla traccia.
+
+- [ ] **Step 5: Il download paginato**
+
+```
+1. meta = GET ?meta=1&v=<versione locale>
+2. se meta.unchanged → fine, nessuna modale
+3. mostra la modale con meta.totale
+4. su «Scarica»: for (from = 0; from < totale; from += 1000)
+     pagina = GET ?from=<from>&to=<from+999>
+     righe.push(...pagina.righe); setDone(righe.length)
+5. salva in IndexedDB (versione + righe) SOLO qui, a ciclo completo
+```
+
+Il `totale` è noto prima di iniziare: è per questo che la barra dice il vero. Le pagine sono **sequenziali**, non parallele: su 4G in campo il parallelismo peggiora la latenza percepita e rende il progresso a scatti.
+
+- [ ] **Step 6: Verifica + commit**
+
+Smoke: DevTools → Application → IndexedDB, cancella lo store censimento, ricarica il link. La modale compare col numero giusto; «Scarica» fa avanzare la barra; ricaricando ancora **non** compare più.
+
+```bash
+git add "app/api/r/[token]/censimento-master/route.ts" "app/api/r/[token]/censimento/route.ts" lib/offline/censimentoMaster.ts components/modules/rapportini/CensimentoGate.tsx components/modules/rapportini/RapportinoForm.tsx
+git commit -m "feat(rapportini): il censimento si scarica all'apertura del link, con barra e perimetro per committente
+
+Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
+```
+
+---
+
+### Task 7: `CercaMatricolaAcqualatina` — blocco secco e doppio tocco
 
 **Files:**
 - Create: `components/modules/rapportini/acqualatina/CercaMatricolaAcqualatina.tsx`
@@ -616,7 +695,7 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ---
 
-### Task 7: AcquaLatina nel `+`
+### Task 8: AcquaLatina nel `+`
 
 **Files:**
 - Modify: `lib/interventi/manuali/types.ts`, `attivitaPerCommittente.ts`, `anagraficaValida.ts`
@@ -690,7 +769,7 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ---
 
-### Task 8: Ri-verifica del master al POST (il verdetto duro)
+### Task 9: Ri-verifica del master al POST (il verdetto duro)
 
 **Files:**
 - Modify: `app/api/r/[token]/intervento-manuale/route.ts`
@@ -750,7 +829,7 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ---
 
-### Task 9: «Da assegnare» — export e spunta massiva
+### Task 10: «Da assegnare» — export e spunta massiva
 
 **Files:**
 - Create: `app/api/admin/interventi-manuali/da-assegnare/route.ts`
@@ -794,10 +873,17 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ## Verifica finale
 
-- [ ] `npx vitest run lib/acqualatina/lookupMaster.test.ts lib/offline/syncPlan.test.ts` → PASS.
+- [ ] `npx vitest run lib/acqualatina/lookupMaster.test.ts lib/rapportini/perimetroCensimento.test.ts lib/offline/syncPlan.test.ts` → PASS.
 - [ ] `npx tsc --noEmit` → solo i 2 errori baseline su `.next/types/.../template-rapportini`.
 - [ ] `npx eslint` sui file toccati → 0 errori, 0 warning.
-- [ ] **Il percorso ACEA è intatto**: `git diff` non tocca `cerca-limitazione`, `censimento/route.ts`, `CercaMatricolaLimitazione.tsx`, `limitazione_misuratori_ref`. Smoke: un `+` «Limitazioni massive» su una matricola non censita mostra ancora «Inserisci a mano questa matricola».
+- [ ] **La ricerca ACEA è intatta**: `git diff` non tocca `cerca-limitazione` né `CercaMatricolaLimitazione.tsx`. Smoke: un `+` «Limitazioni massive» su una matricola non censita mostra ancora «Inserisci a mano questa matricola».
+- [ ] **`/censimento` è retro-compatibile**: chiamata **senza parametri** risponde come prima (`{unchanged, versione, righe}`). È il contratto su cui gira `aggiornaCensimento`, che resta come rete di sicurezza.
+- [ ] **Smoke della modale**, per ognuno dei tre casi:
+  - flusso **Italgas** → nessuna modale, nessun byte scaricato (verifica in Network);
+  - flusso **AcquaLatina/ACEA con cache aggiornata** → nessuna modale, solo la riga «Censimento aggiornato · *data*»;
+  - flusso **AcquaLatina/ACEA con IndexedDB svuotato** → modale col numero giusto, «Scarica» fa avanzare la barra a scatti di 1000, al termine si chiude; ricaricando non ricompare.
+- [ ] **Download interrotto**: DevTools offline a metà scaricamento → messaggio con il conteggio raggiunto, e **niente cache salvata** (lo store resta vuoto: una cache parziale renderebbe bugiardo il blocco della decisione 5).
+- [ ] **Piano vuoto**: crea un piano «senza interventi» senza scegliere il flusso → la generazione **rifiuta** invece di pescare `candidati[0]`. Scegliendolo, i rapportini nascono col template giusto.
 - [ ] **Smoke campo** (rapportino AcquaLatina, tema chiaro e scuro):
   - matricola del master scritta identica → nessuna domanda, si va ai dati con ODL, via, comune, CAP compilati e calibro DN15;
   - stessa matricola con un trattino in più → scheda di conferma, si procede solo dopo il secondo tocco;
@@ -815,3 +901,6 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 - **Filtro del `+` per committente del rapportino.** I quattro bottoni si vedono tutti, anche a un operatore che sta su un altro committente. Sfrondare quella lista in base al rapportino è un lavoro a sé, che riguarda anche gli altri tre.
 - **`pdr` e `nominativo`** nell'autofill AcquaLatina: il master non li porta e la commessa non li usa.
 - **Blocco anche quando `template_master` non ha nessun file attivo per il committente**: oggi si comporta come «assente» (si blocca tutto). Se l'ufficio spegne per errore l'unico master, il campo si ferma. Un avviso in `/impostazioni/template-master` («questo è l'unico master attivo di AcquaLatina») è un miglioramento a parte.
+- **Perimetro per comune.** Valutato e scartato (decisione 12): porterebbe il download da ~250 KB a poche decine, ma «non c'è in cache» smetterebbe di significare «non c'è nel master», e con esso cadrebbe il blocco offline della decisione 5. Se un domani il master crescesse di un ordine di grandezza, il modo giusto di stringere è **per territorio del piano** — non per comune della singola riga — e va rifatto il ragionamento sul blocco.
+- **Il `+` `lim_massive` su un rapportino non-ACEA.** Il `+` offre tutti e quattro i committenti a prescindere dal flusso del rapportino, ma la cache la scarica solo per il committente del flusso. Conseguenza voluta: un operatore Italgas che usa il `+` per una limitazione massiva lavora **solo online** (il server decide comunque). È il prezzo del guardrail; sistemarlo vuol dire filtrare i bottoni del `+`, che è la voce sopra.
+- **Download in background senza modale** (service worker, prefetch alla generazione del piano). Sarebbe l'ideale — la cache pronta prima che l'operatore apra il link — ma richiede di mettere mano al service worker Serwist e alla sua strategia di cache: lavoro a sé, e la modale funziona anche senza.
