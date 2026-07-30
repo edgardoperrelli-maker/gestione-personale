@@ -82,4 +82,54 @@ describe('lookupMaster', () => {
     ];
     expect(lookupMaster('M1', due).esito).toBe('conferma'); // non 'letterale'
   });
+
+  // ── Matricole degeneri: fixture dal master AcquaLatina di produzione (30/07/2026) ──
+  // `1`, `6`, `51`, `55`, `60`, `64`, `490`, `922` esistono davvero a catalogo. Su matricole
+  // numeriche corte il match per contenimento di `matricoleSimili` le farebbe risalire come
+  // suggerimento di QUALUNQUE query che le contenga, trasformando un blocco in una conferma
+  // su un ODL estraneo.
+  describe('candidati troppo corti per essere "simili"', () => {
+    const spazzatura = [
+      R({ odl: 'J1', matricola: '1', indirizzo: 'VIA IGNOTA' }),
+      R({ odl: 'J2', matricola: '6', indirizzo: 'VIA IGNOTA' }),
+      R({ odl: 'J3', matricola: '51', indirizzo: 'VIA IGNOTA' }),
+      R({ odl: 'J4', matricola: '922', indirizzo: 'VIA IGNOTA' }),
+    ];
+
+    it('una matricola non censita resta un BLOCCO, non diventa conferma su una riga corta', () => {
+      // '987651' finisce per '1' e per '51': con i candidati corti sarebbero i due
+      // suggerimenti col punteggio migliore (suffisso = 1).
+      expect(lookupMaster('987651', spazzatura).esito).toBe('assente');
+      // '140622' contiene '6' e finisce per '22' → nessuno dei due deve emergere.
+      expect(lookupMaster('140622', spazzatura).esito).toBe('assente');
+    });
+
+    it('ma il match ESATTO su una matricola corta resta valido', () => {
+      const v = lookupMaster('922', spazzatura);
+      expect(v.esito).toBe('letterale');
+      if (v.esito === 'letterale') expect(v.riga.odl).toBe('J4');
+    });
+
+    it('le righe corte non inquinano i simili quando un candidato buono c e', () => {
+      const misto = [...spazzatura, R({ odl: 'OK', matricola: '99A023041', indirizzo: 'VIA ROMA 1' })];
+      const v = lookupMaster('A023041', misto);
+      expect(v.esito).toBe('conferma');
+      if (v.esito === 'conferma') expect(v.candidati.map((r) => r.odl)).toEqual(['OK']);
+    });
+  });
+
+  // Duplicato REALE del master AcquaLatina (30/07/2026): matricola 140622 su due ODL,
+  // stesso comune e indirizzi diversi → l'operatore scegli, e ha l'indirizzo per farlo.
+  it('duplicato di produzione: 140622 → due candidati, non un blocco', () => {
+    const veri = [
+      R({ odl: '12379532', matricola: '140622', indirizzo: 'VIA DOMENICO SUBIACO 18', comune: 'TERRACINA', cap: '' }),
+      R({ odl: '12379595', matricola: '140622', indirizzo: 'VIA BADINO SNC', comune: 'TERRACINA', cap: '' }),
+    ];
+    const v = lookupMaster('140622', veri);
+    expect(v.esito).toBe('conferma');
+    if (v.esito === 'conferma') {
+      expect(v.candidati.map((r) => r.odl)).toEqual(['12379532', '12379595']);
+      expect(v.candidati.map((r) => r.indirizzo)).toEqual(['VIA DOMENICO SUBIACO 18', 'VIA BADINO SNC']);
+    }
+  });
 });

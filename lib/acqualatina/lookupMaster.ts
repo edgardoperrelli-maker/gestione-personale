@@ -33,6 +33,24 @@ export type VerdettoMaster =
 
 const t = (v: unknown): string => String(v ?? '').trim();
 
+/**
+ * Lunghezza minima perché una matricola possa fare da CANDIDATO "simile".
+ *
+ * `matricoleSimili` impone il suo `minLen` solo alla QUERY, non ai candidati, e fa match
+ * per prefisso/suffisso/contenimento. Il master AcquaLatina contiene matricole degeneri
+ * (al 30/07: `1`, `6`, `51`, `55`, `60`, `64`, `490`, `922`) e su matricole numeriche corte
+ * questo è un disastro: la query `987651`, che NON è a catalogo e deve bloccare, finisce
+ * `q.endsWith('1')` → punteggio 1, il secondo migliore → la riga spazzatura diventa il
+ * primo suggerimento, col suo ODL. Un blocco si trasformerebbe in una conferma su un ordine
+ * che non ha niente a che vedere col contatore.
+ *
+ * Il filtro sta QUI e non in `matricoleSimili` perché quella funzione la usa anche la
+ * ricerca ACEA in produzione: cambiarne la semantica muoverebbe un comportamento vivo.
+ * Vale solo per il ramo "simili": una matricola corta trovata per match ESATTO resta
+ * valida (se il master dice `1` e l'operatore legge `1`, è quel misuratore).
+ */
+const MIN_LEN_CANDIDATO = 4;
+
 /** Chiave di confronto dell'indirizzo: maiuscolo, spazi compattati — il master arriva da
  *  Excel e porta doppi spazi e minuscole. Serve solo a decidere se due righe con ODL
  *  diverso sono distinguibili da chi è sul posto. */
@@ -88,6 +106,8 @@ export function lookupMaster(q: string, righe: RigaMaster[]): VerdettoMaster {
   }
 
   // Nessun match normalizzato → simili: è qui che entra il prefisso variabile del master.
-  const simili = [...perOdl(matricoleSimili(query, conMatricola, 8)).values()];
+  // Solo candidati di lunghezza significativa (vedi MIN_LEN_CANDIDATO).
+  const perSimili = conMatricola.filter((r) => normMatricola(r.matricola).length >= MIN_LEN_CANDIDATO);
+  const simili = [...perOdl(matricoleSimili(query, perSimili, 8)).values()];
   return simili.length === 0 ? { esito: 'assente' } : { esito: 'conferma', candidati: simili };
 }
