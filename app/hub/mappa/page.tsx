@@ -11,6 +11,7 @@ import RiepilogoRapportini from '@/components/modules/mappa/RiepilogoRapportini'
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
 import { caricaCommittenti } from '@/lib/contratti/dati';
 import { committentiAttivi } from '@/lib/contratti/tipi';
+import { flussiSelezionabili, type FlussoRow } from '@/lib/rapportini/flussiSelezionabili';
 import type { Task } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
 
@@ -54,6 +55,7 @@ async function MappaPageContent({
     { data: ztlOps },
     { data: allegato10Rows },
     committentiRegistro,
+    { data: flussiRaw },
   ] = await Promise.all([
     supabase
       .from('territories')
@@ -81,6 +83,16 @@ async function MappaPageContent({
       .select('codice')
       .eq('genera_allegato', true),
     caricaCommittenti(),
+    // Flussi di Azioni operatori: alimentano il selettore del modello per i piani SENZA
+    // interventi, dove non ci sono task da cui dedurlo. Con `supabaseAdmin` e non col client
+    // dell'utente perché la lista dei flussi è leggibile solo agli admin via RLS, mentre
+    // generare i rapportini richiede solo di essere autenticati: leggerla col client farebbe
+    // sparire la tendina proprio ai pianificatori non-admin, che oggi la funzione la usano.
+    // La rotta /hub è già dietro il middleware di autenticazione.
+    supabaseAdmin
+      .from('rapportino_template')
+      .select('id, nome, active, solo_manuale, gruppo_committente, gruppi_attivita')
+      .eq('active', true),
   ]);
 
   // Committenti dal REGISTRO (`committenti`, modulo Contratti) per l'inserimento
@@ -88,6 +100,11 @@ async function MappaPageContent({
   const committentiOptions = committentiAttivi(committentiRegistro)
     .filter((c) => c.codice)
     .map((c) => ({ value: c.codice as string, label: c.nome }));
+
+  // Il filtro e l'ordine rispecchiano la regola del server (`candidati` in
+  // sincronizzaRapportini): il selettore non deve poter offrire un flusso che la
+  // generazione rifiuta, né nascondere uno che accetterebbe.
+  const flussiOptions = flussiSelezionabili((flussiRaw ?? []) as FlussoRow[]);
 
   const dayIdMap = new Map<string, string>();
   (calendarDays ?? []).forEach((d) => dayIdMap.set(d.id, d.day));
@@ -308,6 +325,7 @@ async function MappaPageContent({
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
       committenti={committentiOptions}
+      flussi={flussiOptions}
       initialPianoId={initialPianoId}
       initialDistribution={initialDistribution}
       initialPlanningDate={initialPlanningDate}

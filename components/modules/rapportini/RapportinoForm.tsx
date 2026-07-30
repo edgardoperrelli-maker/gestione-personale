@@ -17,6 +17,7 @@ import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import { contenitoreTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import type { CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
@@ -29,6 +30,7 @@ import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
+import { aggiornaCensimento } from '@/lib/offline/censimento';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
@@ -109,6 +111,9 @@ type Props = {
   righe?: RigaRisanamento[];
   /** Tassonomia attività (committente, descrizione, gruppo): alimenta la select obbligatoria del "+" (spec §7). */
   tassonomia?: TassonomiaRiga[];
+  /** Committente del censimento da tenere in cache per la ricerca per matricola, dedotto dal
+   *  flusso del rapportino. null = questo flusso non ne ha uno e non si scarica niente. */
+  committenteCensimento?: CommittenteCensimento | null;
 };
 
 const DEBOUNCE_MS = 800;
@@ -160,6 +165,7 @@ export default function RapportinoForm({
   tipo,
   righe: righeRisanamento,
   tassonomia,
+  committenteCensimento = null,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
   // Risanamento: le "azioni" (campi foto) si leggono LIVE dal template collegato, non dallo snapshot
@@ -217,6 +223,16 @@ export default function RapportinoForm({
   useEffect(() => {
     voci.forEach((v) => { taskIdPerVoceRef.current[v.id] = v.taskId; });
   }, [voci]);
+
+  // Censimento in cache all'APERTURA DEL LINK, non al passo «Cerca matricola».
+  // Il download partiva quando l'operatore apriva la ricerca — cioè quando è già davanti al
+  // contatore: se lì è offline la cache resta vuota e la ricerca per matricola non funziona.
+  // Il rapportino invece si apre in ufficio o in auto, sotto rete.
+  // Solo per il committente del flusso: un operatore Italgas non si porta in cache un master
+  // che non gli serve. Best-effort, no-op offline, non lancia mai.
+  useEffect(() => {
+    if (committenteCensimento === 'acea') void aggiornaCensimento(token);
+  }, [committenteCensimento, token]);
 
   useEffect(() => {
     const timers = timersRef.current;

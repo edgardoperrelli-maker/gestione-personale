@@ -42,6 +42,8 @@ import { buildRiepilogoConferma } from '@/utils/rapportini/riepilogoConferma';
 import { decideSyncRapportini } from '@/utils/rapportini/diffRapportini';
 import { isAssenzaIntera, labelOrario, type Disponibilita } from '@/lib/disponibilita';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
+import type { FlussoOpzione } from '@/lib/rapportini/flussiSelezionabili';
+import { perimetroCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { preparaBanda, posizionaBanda } from '@/lib/rapportini/bandaRapportino';
 import DatePicker from '@/components/ui/DatePicker';
 import ObjectHeader from '@/components/ui/ObjectHeader';
@@ -132,6 +134,9 @@ type Props = {
   allegato10ActiveCodes?: string[];
   /** Committenti dal REGISTRO (`committenti`), per l'inserimento manuale: mai cablati. */
   committenti?: { value: string; label: string }[];
+  /** Flussi di Azioni operatori selezionabili come modello del piano (filtrati e ordinati
+   *  server-side con la stessa regola del motore di generazione). */
+  flussi?: FlussoOpzione[];
   initialPianoId?: string;
   initialDistribution?: DistEntry[];
   initialPlanningDate?: string;
@@ -698,7 +703,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], committenti = [], initialPianoId, initialDistribution, initialPlanningDate, initialPlanningTerritorio, initialScope = 'piano' }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], committenti = [], flussi = [], initialPianoId, initialDistribution, initialPlanningDate, initialPlanningTerritorio, initialScope = 'piano' }: Props) {
   const excelTaskItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const geocodingActiveRef = useRef(false);
@@ -724,6 +729,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   // Modalità "senza interventi": piano con solo personale, rapportini vuoti da compilare
   // unicamente con ordini manuali (es. limitazioni massive). Nessun task → niente data sul master.
   const [modalitaSenzaInterventi, setModalitaSenzaInterventi] = useState(false);
+  // Flusso scelto per il piano. Serve SOLO ai piani senza interventi: là non ci sono task da
+  // cui dedurre il modello e la catena di fallback del server finisce sul primo flusso attivo
+  // in ordine alfabetico — cioè lo decide l'alfabeto. Con i task il comportamento storico
+  // resta valido e non si tocca (si manda `undefined`).
+  const [flussoId, setFlussoId] = useState('');
 
   // Modifica task non geocodificati
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -2175,13 +2185,23 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
 
   const eseguiGenerazione = useCallback(async (overwrite?: 'replace' | 'skip', overwriteSubmitted?: boolean) => {
     if (!currentPianoId) return;
+    // Piano senza interventi: il flusso è obbligatorio. Senza, la catena di fallback del
+    // server arriva a `candidati[0]` — il primo flusso attivo in ordine alfabetico — e i
+    // rapportini nascono col modello di un committente a caso, insieme al censimento che
+    // il dispositivo dell'operatore si scaricherà.
+    if (modalitaSenzaInterventi && !flussoId) {
+      setRapError('Scegli il flusso: senza interventi non c’è nulla da cui dedurlo.');
+      return;
+    }
     setRapGenerating(true);
     setRapError(null);
     try {
       const res = await fetch('/api/mappa/rapportini/genera', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ pianoId: currentPianoId, overwrite, overwriteSubmitted }),
+        // `templateId` solo quando l'ufficio l'ha scelto: con i task il fallback del server
+        // (rapportini esistenti → risanamento → primo attivo) resta quello di sempre.
+        body: JSON.stringify({ pianoId: currentPianoId, templateId: flussoId || undefined, overwrite, overwriteSubmitted }),
       });
       const data = await res.json();
       if (res.status === 409 && Array.isArray(data?.conflicts)) {
@@ -2208,7 +2228,7 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     } finally {
       setRapGenerating(false);
     }
-  }, [currentPianoId, caricaRapportini]);
+  }, [currentPianoId, caricaRapportini, modalitaSenzaInterventi, flussoId]);
 
   const generaRapportini = useCallback(() => {
     void eseguiGenerazione();
@@ -3142,6 +3162,41 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
                   <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
                     Nessun intervento caricato: i rapportini nasceranno vuoti, da compilare solo con ordini manuali. Le quantità sono ignorate.
                   </p>
+                )}
+
+                {/* Flusso del piano: obbligatorio senza interventi, perché non c'è nessun
+                    task da cui dedurlo. UNA scelta e non due (committente + gruppo): il
+                    flusso li dichiara entrambi e un CHECK in DB li tiene coerenti. */}
+                {modalitaSenzaInterventi && (
+                  <div className="mt-2">
+                    <label htmlFor="flusso-piano" className="mb-1 block text-[11px] font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+                      Flusso (committente e gruppo attività)
+                    </label>
+                    <select
+                      id="flusso-piano"
+                      value={flussoId}
+                      onChange={(e) => setFlussoId(e.target.value)}
+                      className="w-full rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    >
+                      <option value="">Scegli il flusso…</option>
+                      {flussi.map((f) => (
+                        <option key={f.id} value={f.id}>{f.etichetta}</option>
+                      ))}
+                    </select>
+                    {/* Cosa comporta la scelta, detto dove si fa: il censimento che il
+                        dispositivo dell'operatore scaricherà dipende da questo committente. */}
+                    {flussoId && (() => {
+                      const scelto = flussi.find((f) => f.id === flussoId);
+                      const perimetro = perimetroCensimento(scelto?.gruppoCommittente);
+                      return (
+                        <p className="mt-1 text-[11px] text-[var(--brand-text-muted)]">
+                          {perimetro
+                            ? `Alla prima apertura del link l’operatore scaricherà il censimento ${perimetro === 'acqualatina' ? 'AcquaLatina' : 'ACEA'}.`
+                            : 'Questo flusso non ha un censimento da scaricare: la ricerca per matricola non sarà disponibile.'}
+                        </p>
+                      );
+                    })()}
+                  </div>
                 )}
 
                 {esecutoreWarnings.length > 0 && (

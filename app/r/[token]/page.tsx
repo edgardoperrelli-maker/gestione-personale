@@ -5,6 +5,7 @@ import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { coordinateFromRaw, diametroFromRaw } from '@/utils/rapportini/infoCampi';
+import { perimetroCensimento, type CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
 import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
@@ -312,13 +313,19 @@ export default async function RapportinoPublicPage({
   // (migrazione non applicata → select in errore), si resta sullo snapshot congelato + titolo storico.
   let infoCampiLive = (rap.info_snapshot ?? []) as TemplateInfoCampo[];
   let titoloCampi: InfoChiave[] = [];
+  // Committente del censimento da scaricare in cache (null = questo flusso non ne ha uno,
+  // e la modale di scaricamento non compare affatto).
+  let committenteCensimento: CommittenteCensimento | null = null;
   // Campi "standard" che comandano il "+": quelli del template del rapportino, letti LIVE
   // (così modificando lo standard il "+" segue). Il template manuale è solo un override.
   let campiStandardLive = campiSnapshot;
   if (rap.template_id) {
     const { data: tpl } = await supabaseAdmin
       .from('rapportino_template')
-      .select('campi, titolo_campi, info_campi')
+      // `gruppo_committente` serve al perimetro del censimento offline: decide QUALE master
+      // il dispositivo dell'operatore si scarica (e se se ne scarica uno). Colonna in più su
+      // una select che c'era già: nessuna query aggiuntiva.
+      .select('campi, titolo_campi, info_campi, gruppo_committente')
       .eq('id', rap.template_id)
       .maybeSingle();
     if (tpl) {
@@ -331,6 +338,7 @@ export default async function RapportinoPublicPage({
       if (Array.isArray(tpl.titolo_campi)) {
         titoloCampi = tpl.titolo_campi as InfoChiave[];
       }
+      committenteCensimento = perimetroCensimento((tpl as { gruppo_committente?: string | null }).gruppo_committente);
     }
   }
 
@@ -400,6 +408,7 @@ export default async function RapportinoPublicPage({
         tipo={(rap as { tipo?: 'standard' | 'risanamento' }).tipo ?? 'standard'}
         righe={righe}
         tassonomia={tassonomia}
+        committenteCensimento={committenteCensimento}
       />
       <OperatoreAssistenza sessionId={assistSessionId(token)} staff={rap.staff_name} data={rap.data} />
       {/* Il portale vive fuori dall'AppShell → monta il proprio Toaster (DESIGN.md §7quater),
