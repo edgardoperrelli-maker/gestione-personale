@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from 'react';
 import {
   flexRender, getCoreRowModel, useReactTable,
   type ColumnDef, type RowSelectionState,
@@ -69,7 +69,11 @@ export type Props = {
   colonneVisibili: Set<string>;
   oggi: string;
   selezione: RowSelectionState;
-  onSelezione: (s: RowSelectionState) => void;
+  /**
+   * Accetta anche l'UPDATER, come `setState`: i click in raffica sulle righe devono partire
+   * ciascuno dallo stato vero del momento, non dalla fotografia dell'ultimo render.
+   */
+  onSelezione: Dispatch<SetStateAction<RowSelectionState>>;
   caricando?: boolean;
   /** Filtri delle intestazioni. Assenti = tabella senza imbuti (nessun uso oggi, ma il tipo lo dice). */
   filtri?: FiltriUI;
@@ -173,7 +177,9 @@ export default function TabellaOrdini({
     data: righe,
     columns,
     state: { rowSelection: selezione },
-    onRowSelectionChange: (agg) => onSelezione(typeof agg === 'function' ? agg(selezione) : agg),
+    // Updater passato COM'È: risolverlo qui sulla `selezione` del render ricascherebbe nel
+    // difetto della closure vecchia che `clickRiga` ha appena tolto.
+    onRowSelectionChange: onSelezione,
     getRowId: (r) => chiaveRiga(r),
     enableRowSelection: true,
     getCoreRowModel: getCoreRowModel(),
@@ -216,17 +222,26 @@ export default function TabellaOrdini({
    * La regola sta in `selezionaRighe` e non qui: e` logica di dominio, e si e` gia` rotta una volta
    * (vedi il commento in quel file). Questo resta il solo punto che la invoca, ed e` invocato UNA
    * volta per click.
+   *
+   * AGGIORNAMENTO FUNZIONALE, non dalla prop. Da quando la riga si spunta cliccandola, i click
+   * arrivano in raffica — e due click ravvicinati potevano leggere entrambi la selezione del
+   * RENDER PRECEDENTE: il secondo ripartiva da uno stato senza il primo, e il flag appena messo
+   * spariva. Con l'updater ogni click parte dallo stato VERO del momento, non dalla fotografia
+   * della closure. (`ultimaCliccata` si scrive dentro l'updater: in StrictMode gira due volte,
+   * ma con lo stesso esito — la scrittura e` idempotente.)
    */
   const clickRiga = (indice: number, shift: boolean) => {
-    const esito = selezionaRighe(
-      selezione,
-      rows.map((r) => r.id),
-      indice,
-      shift,
-      ultimaCliccata.current,
-    );
-    ultimaCliccata.current = esito.ancora;
-    onSelezione(esito.selezione);
+    onSelezione((prec) => {
+      const esito = selezionaRighe(
+        prec,
+        rows.map((r) => r.id),
+        indice,
+        shift,
+        ultimaCliccata.current,
+      );
+      ultimaCliccata.current = esito.ancora;
+      return esito.selezione;
+    });
   };
 
   const tutteSelezionate = rows.length > 0 && rows.every((r) => selezione[r.id]);
@@ -683,7 +698,14 @@ export default function TabellaOrdini({
                         onMouseDown={
                           COLONNE_CLICK_RIGA.has(c.chiave)
                             ? (e) => {
-                                // Colonna d'identità: il click spunta la riga, come il checkbox.
+                                /*
+                                  Colonna d'identità: il click spunta la riga, come il checkbox.
+                                  Solo il tasto PRINCIPALE e solo il primo click della coppia:
+                                  `mousedown` scatta anche per destro e centrale (il menu
+                                  contestuale su un ODL spuntava la riga), e il secondo click di
+                                  un doppio click la spuntava e la rispegneva.
+                                */
+                                if (e.button !== 0 || e.detail > 1) return;
                                 e.preventDefault();
                                 clickRiga(vi.index, e.shiftKey);
                               }

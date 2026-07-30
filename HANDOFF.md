@@ -157,6 +157,16 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   della riga comandi DOPO GuidaTabella; select h-8, contatore compatto («N righe»), suggerimenti
   nowrap. Comparire alla prima spunta non muove più la pagina (prima spingeva la tabella di
   ~44px e il click dopo cadeva su un'altra riga).
+- [x] **Flag in raffica + riga dei comandi che si schiacciava** (dec. 44 + coda della 43) — il
+  bug dei flag: `clickRiga` leggeva la selezione dalla PROP (fotografia del render) e due click
+  ravvicinati facevano sparire il flag del primo → ora updater funzionale
+  (`onSelezione: Dispatch<SetStateAction<…>>`, updater passato com'è anche a
+  `onRowSelectionChange`); in più guardie `e.button !== 0` (il tasto destro su un ODL spuntava)
+  e `e.detail > 1` (il doppio click metteva e toglieva). Il bug grafico: il suggerimento nowrap
+  «Nessuno con LIMITAZIONI MASSIVE…» sfondava la riga e schiacciava i comandi → select
+  «Nessuno in tabellone» + title col nome intero, link corto «compila il tabellone», avviso
+  ven/sab come badge «⚠ solo attivazioni» con tooltip, e `[&>*]:shrink-0` sul gruppo destro
+  (un comando o sta intero o va a capo intero).
 
 ## Not Yet Done
 
@@ -204,7 +214,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 43 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 44 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -239,7 +249,7 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 43 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 44 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |

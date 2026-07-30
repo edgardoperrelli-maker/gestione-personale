@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { CalendarCheck, ClipboardCopy, ClipboardList, Undo2, X } from 'lucide-react';
+import { CalendarCheck, ClipboardCopy, ClipboardList, TriangleAlert, Undo2, X } from 'lucide-react';
 import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
@@ -314,9 +314,14 @@ export default function BarraAzioni({
             aria-label="Assegna a"
             className="h-8 w-48"
             disabled={operatori.length === 0}
+            // Il nome dell'attività per esteso sta qui: dentro una select da w-48
+            // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
+            title={operatori.length === 0
+              ? `Nessun operatore con attività ${etichettaAttivita} in cronoprogramma`
+              : undefined}
           >
             <option value="">
-              {operatori.length === 0 ? `Nessuno su ${etichettaAttivita} in tabellone` : 'Assegna a…'}
+              {operatori.length === 0 ? 'Nessuno in tabellone' : 'Assegna a…'}
             </option>
             {/*
               Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
@@ -361,27 +366,42 @@ export default function BarraAzioni({
             Deseleziona
           </Button>
 
+          {/*
+            COMPATTO, perché la barra vive nella riga dei comandi e non ha spazio da spendere: la
+            frase intera («Nessuno con LIMITAZIONI MASSIVE in tabellone per giovedì…») sfondava la
+            riga e schiacciava tutti i comandi a sinistra. Il fatto lo dice già la select
+            («Nessuno in tabellone», col nome per esteso nel suo title): qui resta solo l'AZIONE.
+          */}
           {operatori.length === 0 && giornoScelto && (
-            // `nowrap`: dentro una barra ad altezza fissa un testo che va a capo sfonda i 36px.
-            // Meglio una barra larga (la riga dei comandi sa andare a capo) che una sformata.
-            <span className="whitespace-nowrap text-xs text-[var(--brand-text-muted)]">
-              Nessuno con {etichettaAttivita} in tabellone per {giornoScelto.esteso}:{' '}
-              <a href="/dashboard" className="underline">compilalo</a>.
-            </span>
+            <a
+              href="/dashboard"
+              className="whitespace-nowrap text-xs text-[var(--brand-text-muted)] underline"
+              title={`Nessun operatore con attività ${etichettaAttivita} in cronoprogramma per ${giornoScelto.esteso}: compila il tabellone.`}
+            >
+              compila il tabellone
+            </a>
           )}
 
           {/*
-            Detto PRIMA di premere, non dopo. Senza, il venerdì si selezionavano quaranta righe, si
-            premeva Pianifica e ne passavano tre: l'esito diceva «37 saltati» e sembrava un guasto.
-            `--status-warn` perché qui il colore è l'informazione (DESIGN.md §«Semantici e stato»).
+            Detto PRIMA di premere, non dopo: senza, il venerdì si selezionavano quaranta righe,
+            ne passavano tre e l'esito sembrava un guasto. Badge e non frase per la stessa
+            ragione di spazio qui sopra; il tooltip porta la frase intera. `--status-warn` perché
+            il colore è l'informazione (DESIGN.md §«Semantici e stato»).
 
             Solo nel DUNNING: la regola «solo attivazioni» è sua. Le limitazioni massive sono
             esenti (dec. 38) — venerdì e sabato lì si pianifica normalmente, e un avviso su una
             regola che non morde sarebbe un falso allarme che insegna a ignorare quello vero.
           */}
           {giornoScelto?.soloAttivazioni && famiglia !== 'massive' && operatori.length > 0 && (
-            <span className="whitespace-nowrap text-xs text-[var(--status-warn)]">
-              {giornoScelto.esteso}: passano solo le attivazioni, le altre righe vengono saltate.
+            <span
+              className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-warn)]"
+              title={`${giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}
+            >
+              <TriangleAlert size={12} aria-hidden="true" />
+              solo attivazioni
+              <span className="sr-only">
+                : {giornoScelto.esteso} passano solo le attivazioni, le altre righe vengono saltate.
+              </span>
             </span>
           )}
         </>

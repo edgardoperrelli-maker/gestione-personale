@@ -368,7 +368,14 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
+        {/*
+          `[&>*]:shrink-0`: NESSUN comando si lascia schiacciare. Quando la barra azioni compare
+          con la selezione, il flex provava a far stare tutto su una riga comprimendo i bottoni —
+          «Importa export» e «Esporta vista» finivano su due righe e la riga cresceva comunque.
+          Con lo shrink spento i comandi tengono la loro misura; se lo spazio davvero non basta,
+          il `flex-wrap` manda a capo un comando INTERO (caso limite di schermi stretti).
+        */}
+        <div className="flex flex-wrap items-center gap-2 [&>*]:shrink-0">
           {/* L'indicatore visibile del salvataggio: stava nel paragrafo-guida rimosso, e a chi
               scrive in griglia serve ancora un segno che la scrittura è in viaggio. */}
           {editing.salvando && (
