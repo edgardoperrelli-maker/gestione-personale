@@ -101,7 +101,9 @@ export async function sincronizzaRapportiniAcea(
       .from('acea_ordini')
       .select('odl, pianificato_a_bozza')
       .eq('pianificato_il_bozza', opts.data);
-    if (eMeta) return { ok: false, status: 500, error: eMeta.message };
+    // Errore di lettura (tipicamente: migration non ancora passata) → si genera come prima, senza
+    // il blocco. Un cancello che non si sa aprire non deve chiudere la strada a tutti.
+    if (eMeta) console.error('[acea/rapportini] righe a meta` non lette:', eMeta.message);
     const incomplete = ((aMeta ?? []) as Array<{ odl: string; pianificato_a_bozza: string | null }>)
       .filter((r) => !r.pianificato_a_bozza)
       .map((r) => r.odl);

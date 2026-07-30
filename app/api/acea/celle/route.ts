@@ -90,7 +90,7 @@ export async function POST(req: Request) {
       const blocco = odlTutti.slice(i, i + 200);
       const { data: righe, error } = await supabaseAdmin
         .from('acea_ordini')
-        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla, pianificato_a_bozza, pianificato_il_bozza')
+        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
         .in('odl', blocco);
       if (error) throw error;
       for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
@@ -108,7 +108,30 @@ export async function POST(req: Request) {
           matricola: (r.matricola as string | null) ?? null,
           riapertura: eRiapertura(r.codice_sla as string | null),
         });
-        bozzePerChiave.set(chiave, {
+      }
+    }
+
+    /*
+      Gli appunti già presenti, letti a parte e best-effort.
+
+      Tenerli fuori dalla select qui sopra è deliberato: sono colonne di una migration che potrebbe
+      non essere ancora passata sul database che serve questo codice, e in quell'elenco una colonna
+      sconosciuta farebbe fallire ogni scrittura di cella — comprese le note e la pianificazione
+      normale, che funzionavano già. Senza appunti si torna al comportamento di prima: una riga a
+      metà non completa nulla, e basta.
+    */
+    for (let i = 0; i < odlTutti.length; i += 200) {
+      const blocco = odlTutti.slice(i, i + 200);
+      const { data: righe, error } = await supabaseAdmin
+        .from('acea_ordini')
+        .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
+        .in('odl', blocco);
+      if (error) {
+        console.error('[acea/celle] appunti di pianificazione non letti:', error);
+        break;
+      }
+      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+        bozzePerChiave.set(`${String(r.odl)}|${String(r.numero_operazione)}`, {
           staffId: (r.pianificato_a_bozza as string | null) ?? null,
           data: (r.pianificato_il_bozza as string | null) ?? null,
         });

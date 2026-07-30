@@ -37,8 +37,13 @@ const COLONNE = [
   // su un ordine chiuso da ACEA e mai pianificato da noi restavano vuote. Sembrava un import
   // che non aveva caricato niente.
   'operatore_nome', 'data_completamento',
-  // Pianificazione a metà: l'appunto scritto prima che la coppia si completi.
-  'pianificato_a_bozza', 'pianificato_il_bozza',
+  /*
+    Gli appunti (`pianificato_*_bozza`) NON sono qui, ed è deliberato: si leggono a parte, con la
+    stessa degradazione delle saracinesche. Sono colonne di una migration che potrebbe non essere
+    ancora passata sul database che sta servendo questo codice, e una colonna sconosciuta in questo
+    elenco non fa fallire una decorazione — fa fallire la query del registro, cioè il motivo per
+    cui si apre la schermata. È già successo una volta.
+  */
 ].join(', ');
 
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };
@@ -445,11 +450,39 @@ export async function GET(req: Request) {
       return new Map<string, Sostituzione>();
     });
 
+    /*
+      Gli APPUNTI della pagina: la pianificazione scritta a metà.
+
+      Lettura a parte e best-effort, come le due della saracinesca: se la migration che aggiunge le
+      colonne non è ancora passata, la tabella si carica senza gli appunti invece di non caricarsi.
+    */
+    type Bozza = { staff_id: string | null; data: string | null };
+    const bozze = new Map<string, Bozza>();
+    if (righe.length > 0) {
+      const chiaviPagina = righe.map((r) => `${r.odl}|${r.numero_operazione}`);
+      const { data: righeBozza, error: eBozza } = await supabaseAdmin
+        .from('acea_ordini')
+        .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
+        .in('odl', odlPagina);
+      if (eBozza) {
+        console.error('[acea/ordini] appunti di pianificazione non letti:', eBozza);
+      } else {
+        for (const r of (righeBozza ?? []) as Array<Record<string, unknown>>) {
+          const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
+          if (!chiaviPagina.includes(chiave)) continue;
+          bozze.set(chiave, {
+            staff_id: (r.pianificato_a_bozza as string | null) ?? null,
+            data: (r.pianificato_il_bozza as string | null) ?? null,
+          });
+        }
+      }
+    }
+
     // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella. Anche quelli
     // degli APPUNTI: una riga a metà mostra il nome scelto, non l'uuid con cui è memorizzato.
     const staffIds = [...new Set([
       ...[...pianificazione.values()].map((p) => p.staff_id),
-      ...righe.map((r) => r.pianificato_a_bozza as string | null),
+      ...[...bozze.values()].map((b) => b.staff_id),
     ].filter(Boolean))] as string[];
     const nomi = new Map<string, string>();
     if (staffIds.length > 0) {
@@ -472,8 +505,9 @@ export async function GET(req: Request) {
         tabella lo dica a vista — un valore che sembra una pianificazione ma non genera nessun
         rapportino è peggio di una cella vuota.
       */
-      const bozzaStaff = (r.pianificato_a_bozza as string | null) ?? null;
-      const bozzaData = (r.pianificato_il_bozza as string | null) ?? null;
+      const bozza = bozze.get(`${r.odl}|${r.numero_operazione}`);
+      const bozzaStaff = bozza?.staff_id ?? null;
+      const bozzaData = bozza?.data ?? null;
       const parziale = !p && Boolean(bozzaStaff || bozzaData);
       return {
         ...r,
