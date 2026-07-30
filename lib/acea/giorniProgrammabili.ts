@@ -5,10 +5,12 @@
 // LAVORATIVO. La settimana lavorativa arriva **al sabato compreso**: da venerdì il giorno dopo è
 // sabato, ed è solo dal sabato che si salta alla domenica per arrivare a lunedì.
 //
-// Il venerdì e il sabato però non sono giorni pieni: ci si mandano **solo le attivazioni** —
-// riaperture `RIAT`/`REVO`, quelle col cardine contrattuale a un giorno. Il resto del dunning e le
-// massive aspettano il lunedì. È il motivo per cui `soloAttivazioni` sta qui e non in un `if`
-// sparso nelle rotte: è una proprietà del giorno, e la sanno in tre posti diversi.
+// Il venerdì e il sabato però non sono giorni pieni PER IL DUNNING: ci si mandano **solo le
+// attivazioni** — riaperture `RIAT`/`REVO`, quelle col cardine contrattuale a un giorno — e il
+// resto del dunning aspetta il lunedì. Le limitazioni MASSIVE sono esenti (dec. 38): campagne per
+// paese, si pianificano anche in quei giorni. `soloAttivazioni` resta una proprietà del GIORNO —
+// per questo sta qui e non in un `if` sparso nelle rotte — e a decidere chi ne è toccato è
+// `pianoPianificazione`, guardando la famiglia della riga.
 //
 // Perché una finestra e non un campo data libero: la pianificazione ACEA vale finché l'export del
 // Cruscotto è fresco. Assegnare a tre settimane da oggi significa assegnare su uno stato degli
@@ -35,7 +37,7 @@ export type GiornoProgrammabile = {
   etichetta: string;
   /** Forma lunga per titoli e messaggi di rifiuto: «lunedì 03/08». */
   esteso: string;
-  /** `true` di venerdì e di sabato: ci si programmano solo riaperture (`RIAT`/`REVO`). */
+  /** `true` di venerdì e di sabato: il dunning ci programma solo riaperture (`RIAT`/`REVO`); le massive sono esenti. */
   soloAttivazioni: boolean;
 };
 
@@ -62,10 +64,11 @@ export function giornoEsteso(iso: string): string {
 }
 
 /**
- * `true` se in quel giorno si programmano SOLO attivazioni (riaperture `RIAT`/`REVO`).
+ * `true` se in quel giorno il DUNNING programma SOLO attivazioni (riaperture `RIAT`/`REVO`).
  *
  * Venerdì e sabato. Non è una regola di calendario ma di commessa: le riaperture hanno un giorno
- * di cardine contrattuale e non possono aspettare il lunedì, il resto sì.
+ * di cardine contrattuale e non possono aspettare il lunedì, il resto del dunning sì. Le
+ * limitazioni massive sono ESENTI: chi applica la regola (`pianoPianificazione`) le fa passare.
  */
 export function soloAttivazioni(iso: string): boolean {
   return eDataIso(iso) && SOLO_ATTIVAZIONI.has(giornoSettimana(iso));

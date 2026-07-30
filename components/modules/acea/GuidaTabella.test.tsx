@@ -36,10 +36,13 @@ describe('ContenutoGuida', () => {
     expect(html).toContain('oggi o il giorno lavorativo successivo');
   });
 
-  it('nelle massive la guida nomina la SUA attività, e dice che ven/sab da lì non si pianifica', () => {
+  it('nelle massive la guida nomina la SUA attività, e dice che ven/sab sono compresi', () => {
+    // La regola «solo attivazioni» è del dunning: le massive si pianificano anche in quei
+    // giorni (dec. 38), e la guida deve dirlo — non lasciare il dubbio.
     const html = renderToStaticMarkup(<ContenutoGuida giorni={GIORNI} famiglia="massive" />);
     expect(html).toContain('LIMITAZIONI MASSIVE');
     expect(html).not.toContain('attività DUNNING');
-    expect(html).toContain('quei giorni da qui non si pianifica');
+    expect(html).toContain('venerdì e sabato compresi');
+    expect(html).toContain('riguarda il dunning');
   });
 });

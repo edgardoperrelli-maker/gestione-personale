@@ -67,10 +67,9 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
           Quando si programma, e su chi
         </h3>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano
-            solo le attivazioni{famiglia === 'massive'
-              ? ' — e le limitazioni massive non lo sono: quei giorni da qui non si pianifica'
-              : ''}.</li>
+          {famiglia === 'massive'
+            ? <li>Si programma solo per <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non le massive.</li>
+            : <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>}
           <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
             <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>

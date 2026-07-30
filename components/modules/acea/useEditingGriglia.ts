@@ -203,16 +203,18 @@ export function useEditingGriglia({
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
         /*
-          Venerdì e sabato passano solo le ATTIVAZIONI.
+          Venerdì e sabato il DUNNING manda solo le ATTIVAZIONI; le limitazioni MASSIVE sono
+          esenti dalla regola (dec. 38) e passano.
 
           Il controllo si fa qui e non solo sul server perché su un incolla da Excel di duecento
           righe il server ne rifiuterebbe centonovanta, e l'esito sarebbe un elenco di rifiuti da
           leggere invece di una riga che dice cosa non va. Il codice SLA sta già nella riga: è la
-          stessa definizione che decide la scadenza a un giorno (`eRiapertura`), non una copia.
+          stessa definizione che decide la scadenza a un giorno (`eRiapertura`), non una copia —
+          e la famiglia pure, la stessa che il server usa in `pianoPianificazione`.
         */
         if (giorniSoloAttivazioni.has(e.valore)) {
           const riga = righeRef.current[s.riga];
-          if (!eRiapertura(riga?.codice_sla)) {
+          if (riga?.famiglia !== 'massive' && !eRiapertura(riga?.codice_sla)) {
             errori.push(MOTIVO_SOLO_ATTIVAZIONI);
             continue;
           }

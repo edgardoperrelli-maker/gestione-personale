@@ -121,10 +121,15 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   non conta più lo stato). E il pezzo che alle massive mancava davvero: gli **assegnabili per
   famiglia** — menu, `/celle`, `/pianifica` e messaggi filtrano il tabellone sull'attività della
   famiglia (`ATTIVITA_TABELLONE`: DUNNING / **LIMITAZIONI MASSIVE**, nomi verificati in
-  produzione), con la famiglia dentro la chiave di `controllaAssegnazioni`. Ven/sab la barra
-  massive dice che non passa niente. Export col comune nel nome
-  (`acea-massive-zagarolo-aperti-…`). Lib: `schedeVista`/`applicaScheda`/`valoreScheda` in
+  produzione), con la famiglia dentro la chiave di `controllaAssegnazioni`. Export col comune nel
+  nome (`acea-massive-zagarolo-aperti-…`). Lib: `schedeVista`/`applicaScheda`/`valoreScheda` in
   `filtriOrdini.ts`, `lib/acea/caricaComuniMassive.ts`.
+- [x] **Ven/sab: le massive sono esenti dal «solo attivazioni»** — richiesta esplicita che
+  ribalta il primo taglio (la regola era stata estesa alle massive per coerenza; troppo stretta).
+  Decisione 38: la regola resta piena per il dunning e per le righe SENZA famiglia (si sbaglia
+  per difetto); `pianoPianificazione` guarda `famiglia`, il controllo client dell'incolla pure
+  (`useEditingGriglia`), l'avviso in barra compare solo nel dunning, la guida delle massive dice
+  «venerdì e sabato compresi».
 
 ## Not Yet Done
 
@@ -172,7 +177,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 37 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 38 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -190,7 +195,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 ## Current State
 
 **Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.737 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
+**2.740 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
 Supabase segnaposto: nel container non c'è `.env.local`).
 
 **Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
@@ -207,7 +212,7 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 37 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 38 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |

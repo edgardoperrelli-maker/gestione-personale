@@ -146,8 +146,9 @@ describe('pianoPianificazione — riepilogo misto', () => {
   });
 });
 
-// Venerdì e sabato hanno mezza giornata di squadre e le riaperture hanno un giorno di cardine
-// contrattuale: ci vanno solo quelle, il resto aspetta il lunedì.
+// Venerdì e sabato le riaperture hanno un giorno di cardine contrattuale: nel DUNNING ci vanno
+// solo quelle, il resto aspetta il lunedì. Le limitazioni MASSIVE sono esenti (dec. 38): campagne
+// per paese, si pianificano anche in quei giorni.
 describe('pianoPianificazione — giorni di sole attivazioni', () => {
   const ARG_VEN = { data: '2026-07-31', staffId: 's2', soloAttivazioni: true };
 
@@ -169,6 +170,33 @@ describe('pianoPianificazione — giorni di sole attivazioni', () => {
   it('un ordine senza `riapertura` dichiarata NON passa: si sbaglia per difetto, non per eccesso', () => {
     const p = pianoPianificazione({ ordini: [ordine()], esistenti: [], ...ARG_VEN });
     expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'solo_attivazioni' });
+  });
+
+  it('una limitazione MASSIVE passa: la regola è del dunning, non del giorno', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: false, famiglia: 'massive' })], esistenti: [], ...ARG_VEN,
+    });
+    expect(p.creati).toBe(1);
+    expect(p.saltati).toBe(0);
+  });
+
+  it('e una massive si può anche SPOSTARE su venerdì o sabato', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: false, famiglia: 'massive' })],
+      esistenti: [intervento()],
+      ...ARG_VEN,
+    });
+    expect(p.aggiornati).toBe(1);
+  });
+
+  it('la famiglia ASSENTE resta sotto la regola piena: si sbaglia per difetto', () => {
+    // Una riga di cui non si sa la famiglia non guadagna l'esenzione: come per `riapertura`.
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: false, famiglia: 'dunning' }), ordine({ odl: 'X', riapertura: false })],
+      esistenti: [],
+      ...ARG_VEN,
+    });
+    expect(p.saltati).toBe(2);
   });
 
   it('nemmeno per SPOSTARCI un intervento che esiste già', () => {

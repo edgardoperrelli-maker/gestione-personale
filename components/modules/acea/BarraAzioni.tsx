@@ -29,8 +29,8 @@ export type EsitoPianifica = {
 type Props = {
   /**
    * La famiglia della vista: decide come si CHIAMA l'attività di tabellone nei messaggi
-   * («Nessuno su DUNNING…» / «…su LIMITAZIONI MASSIVE…») e cosa dire il venerdì e il sabato —
-   * in massive non passa niente, non «solo le attivazioni».
+   * («Nessuno su DUNNING…» / «…su LIMITAZIONI MASSIVE…») e se l'avviso del venerdì/sabato ha
+   * senso — la regola «solo attivazioni» è del dunning, le massive ne sono esenti (dec. 38).
    */
   famiglia: Famiglia;
   /** Chiavi `odl|numero_operazione` selezionate. */
@@ -366,15 +366,14 @@ export default function BarraAzioni({
             premeva Pianifica e ne passavano tre: l'esito diceva «37 saltati» e sembrava un guasto.
             `--status-warn` perché qui il colore è l'informazione (DESIGN.md §«Semantici e stato»).
 
-            In MASSIVE il venerdì e il sabato non passa NIENTE — le limitazioni massive non sono
-            attivazioni — e va detto con quelle parole: «passano solo le attivazioni» su una vista
-            che non ne ha suona come un dettaglio, invece è «oggi da qui non si pianifica».
+            Solo nel DUNNING: la regola «solo attivazioni» è sua. Le limitazioni massive sono
+            esenti (dec. 38) — venerdì e sabato lì si pianifica normalmente, e un avviso su una
+            regola che non morde sarebbe un falso allarme che insegna a ignorare quello vero.
           */}
-          {giornoScelto?.soloAttivazioni && operatori.length > 0 && (
+          {giornoScelto?.soloAttivazioni && famiglia !== 'massive' && operatori.length > 0 && (
             <span className="text-xs text-[var(--status-warn)]">
-              {famiglia === 'massive'
-                ? `${giornoScelto.esteso}: passano solo le attivazioni, e le limitazioni massive non lo sono — le righe verrebbero tutte saltate. Si riprogramma da lunedì.`
-                : `${giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}
+              {giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe
+              vengono saltate.
             </span>
           )}
         </>

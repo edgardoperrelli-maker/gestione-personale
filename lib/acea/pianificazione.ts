@@ -27,9 +27,10 @@ export type OrdineDaPianificare = {
    */
   riapertura?: boolean;
   /**
-   * Famiglia della riga (`dunning`/`massive`). Il piano non la guarda: la portano le route, che
-   * ne hanno bisogno per il cancello del tabellone (`controllaAssegnazioni` filtra gli
-   * assegnabili sull'attività della famiglia).
+   * Famiglia della riga (`dunning`/`massive`). Serve a due cose: alle route per il cancello del
+   * tabellone (`controllaAssegnazioni` filtra gli assegnabili sull'attività della famiglia), e
+   * QUI per il venerdì e il sabato — la regola «solo attivazioni» è del dunning, le limitazioni
+   * massive ne sono esenti. Assente = dunning, cioè la regola piena: si sbaglia per difetto.
    */
   famiglia?: 'dunning' | 'massive';
 };
@@ -85,8 +86,10 @@ export type ArgomentiPianifica = {
  *  - un ODL con un intervento aperto viene SPOSTATO (data e operatore), non duplicato: due
  *    interventi sullo stesso ODL violerebbero l'unique `(committente, odl, data)` e, peggio,
  *    manderebbero due squadre allo stesso indirizzo;
- *  - il venerdì e il sabato passano solo le ATTIVAZIONI: hanno un giorno di cardine contrattuale
- *    e non possono aspettare il lunedì, mentre il resto del dunning e le massive sì.
+ *  - il venerdì e il sabato il DUNNING manda solo le ATTIVAZIONI: hanno un giorno di cardine
+ *    contrattuale e non possono aspettare il lunedì, il resto del dunning sì. Le limitazioni
+ *    MASSIVE sono ESENTI per decisione esplicita (dec. 38): sono campagne per paese e si
+ *    pianificano anche in quei giorni.
  */
 export function pianoPianificazione({
   ordini, esistenti, data, staffId, soloAttivazioni = false,
@@ -104,9 +107,10 @@ export function pianoPianificazione({
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'ordine_chiuso' });
       continue;
     }
-    // Prima di guardare gli interventi: su un giorno di sole attivazioni una limitazione non ci
-    // va, nemmeno per SPOSTARCI un intervento che esiste già.
-    if (soloAttivazioni && o.riapertura !== true) {
+    // Prima di guardare gli interventi: su un giorno di sole attivazioni una limitazione di
+    // dunning non ci va, nemmeno per SPOSTARCI un intervento che esiste già. Le massive passano:
+    // la regola è del dunning, non del giorno.
+    if (soloAttivazioni && o.famiglia !== 'massive' && o.riapertura !== true) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'solo_attivazioni' });
       continue;
     }
