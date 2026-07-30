@@ -113,6 +113,67 @@ describe('taskToIntervento — tassonomia', () => {
 const ctxAnn = { committente: 'acea', data: '2026-06-10', staffId: 's1', pianoId: 'p1', territorioId: null };
 const baseTask = (over: Partial<Task> = {}): Task => ({ id: 't1', odl: 'ODL1', indirizzo: 'Via 1', cap: '00100', citta: 'Roma', priorita: 0, fascia_oraria: '', ...over });
 
+// ─── Committente e territorio ESPLICITI (inserimento manuale) ────────────────
+// Era il bug dei giri AcquaLatina: attività digitata a mano non risolta → fallback
+// silenzioso su acea. Col committente esplicito sul task la scelta dell'ufficio vince.
+describe('taskToIntervento — committente esplicito', () => {
+  it('attività NON risolta + committente esplicito → vince l\'esplicito (niente fallback acea)', () => {
+    const r = taskToIntervento(
+      { ...task, attivita: 'SOSTITUZIONE MISURATORI', committente: 'acqualatina' },
+      ctx,
+      INDICE,
+    );
+    expect(r.committente).toBe('acqualatina');
+    expect(r.intervento_tipo).toBe('SOSTITUZIONE MISURATORI'); // testo com\'è: non risolto
+    expect(r.gruppo_attivita).toBeNull();
+    expect(r.diametro).toBe('DN15'); // regola di capitolato: segue il committente risolto
+  });
+  it('committente esplicito + attività del suo catalogo → canonica + gruppo', () => {
+    const idx = buildTassonomiaIndex([
+      { committente: 'acqualatina', descrizione: 'Sostituzione misuratore', descrizioneNorm: 'SOSTITUZIONE MISURATORE', gruppo: 'SOSTITUZIONE MISURATORI', attivo: true },
+    ] as TassonomiaRiga[]);
+    const r = taskToIntervento(
+      { ...task, attivita: 'sostituzione misuratore', committente: 'acqualatina' },
+      ctx,
+      idx,
+    );
+    expect(r.committente).toBe('acqualatina');
+    expect(r.intervento_tipo).toBe('Sostituzione misuratore');
+    expect(r.gruppo_attivita).toBe('SOSTITUZIONE MISURATORI');
+  });
+  it('committente esplicito: NESSUNA sonda \'altro\' anche se l\'attività risolve altrove', () => {
+    // 's-pr-003 a' è a catalogo ITALGAS: senza esplicito diventerebbe italgas (giro misto);
+    // con l'esplicito la scelta dell'ufficio non va scavalcata.
+    const r = taskToIntervento({ ...task, attivita: 's-pr-003 a', committente: 'acqualatina' }, ctx, INDICE);
+    expect(r.committente).toBe('acqualatina');
+    expect(r.gruppo_attivita).toBeNull();
+  });
+  it('senza esplicito → comportamento storico invariato (giro misto via \'altro\')', () => {
+    const r = taskToIntervento({ ...task, attivita: 's-pr-003 a' }, ctx, INDICE);
+    expect(r.committente).toBe('italgas');
+  });
+});
+
+describe('taskToIntervento — territorio esplicito', () => {
+  const byName = new Map([['acqua latina', 'terr-al'], ['lazio est', 'terr-le']]);
+  const ctxTerr = { ...ctx, territorioId: 'terr-piano', territorioIdByName: byName };
+
+  it('territorio del task risolto nel master → override del territorio del piano', () => {
+    const r = taskToIntervento({ ...task, territorio: 'ACQUA LATINA' }, ctxTerr);
+    expect(r.territorio_id).toBe('terr-al');
+  });
+  it('territorio del task NON risolvibile → resta quello del piano (soft)', () => {
+    const r = taskToIntervento({ ...task, territorio: 'INESISTENTE' }, ctxTerr);
+    expect(r.territorio_id).toBe('terr-piano');
+  });
+  it('senza territorio sul task → territorio del piano', () => {
+    expect(taskToIntervento(task, ctxTerr).territorio_id).toBe('terr-piano');
+  });
+  it('senza mappa nomi → territorio del piano (nessun errore)', () => {
+    expect(taskToIntervento({ ...task, territorio: 'ACQUA LATINA' }, ctx).territorio_id).toBe('terr1');
+  });
+});
+
 describe('taskToIntervento — stato annullato', () => {
   it('task annullato → intervento stato "annullato"', () => {
     expect(taskToIntervento(baseTask({ annullato: true }), ctxAnn).stato).toBe('annullato');

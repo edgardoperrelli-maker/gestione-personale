@@ -12,6 +12,10 @@ export type InterventoContext = {
   staffId: string;
   pianoId: string;
   territorioId?: string | null;
+  /** Mappa nome normalizzato (trim+lowercase) → id dei territori master: risolve il
+   *  territorio ESPLICITO del task manuale (task.territorio). Assente → sempre il
+   *  territorio del piano. */
+  territorioIdByName?: Map<string, string>;
 };
 
 export type InterventoDaMappa = {
@@ -51,16 +55,27 @@ export function taskToIntervento(
   // base 'acea' che contiene attività italgas produce interventi ITALGAS col loro
   // gruppo, così ogni voce di rapportino risolve il flusso della SUA attività
   // (Azioni operatori) invece di cadere sul fallback.
+  // ECCEZIONE: committente ESPLICITO sul task (inserimento manuale) — il lookup resta
+  // confinato al suo catalogo e senza sonda 'altro': la scelta dell'ufficio non va
+  // scavalcata né dalla tassonomia né dal default del piano (era il bug che caricava
+  // su ACEA gli interventi manuali dei giri AcquaLatina).
+  const esplicito = task.committente?.trim().toLowerCase() || null;
+  const base = esplicito ?? ctx.committente;
   const ris = indiceTassonomia
-    ? risolviGruppo(ctx.committente, task.attivita, indiceTassonomia, { allinea: 'scrittura' })
-      ?? risolviGruppo('altro', task.attivita, indiceTassonomia, { allinea: 'scrittura' })
+    ? risolviGruppo(base, task.attivita, indiceTassonomia, { allinea: 'scrittura' })
+      ?? (esplicito ? null : risolviGruppo('altro', task.attivita, indiceTassonomia, { allinea: 'scrittura' }))
     : null;
-  const committente = ris?.committente ?? ctx.committente;
+  const committente = ris?.committente ?? base;
   // Il calibro è una regola della sola commessa AcquaLatina: il default DN15 non deve
   // toccare ACEA/Italgas, che sul misuratore non hanno un diametro di capitolato.
   const diametro = isAcqualatina(committente)
     ? calibroConDefault(task.calibro)
     : (task.calibro?.trim() || null);
+  // Territorio ESPLICITO del task (inserimento manuale) se risolvibile nel master,
+  // altrimenti quello del piano. Soft come la tassonomia: mai bloccante.
+  const territorioTask = task.territorio?.trim().toLowerCase() || null;
+  const territorioId =
+    (territorioTask ? ctx.territorioIdByName?.get(territorioTask) : null) ?? ctx.territorioId ?? null;
   return {
     committente,
     odl: (task.odl && task.odl.trim()) || null,
@@ -80,7 +95,7 @@ export function taskToIntervento(
     staff_id: ctx.staffId,
     stato: task.annullato ? 'annullato' : 'assegnato',
     piano_id: ctx.pianoId,
-    territorio_id: ctx.territorioId ?? null,
+    territorio_id: territorioId,
     created_from_mappa: true,
   };
 }

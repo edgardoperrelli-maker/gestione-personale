@@ -37,6 +37,12 @@ export interface Task {
   annullato?: boolean;
   /** Nota informativa dall'ufficio per l'operatore (sola lettura lato operatore). */
   note?: string;
+  /** Committente scelto ESPLICITAMENTE dall'ufficio (inserimento manuale): vince sulla
+   *  derivazione tassonomia e sul committente base del piano. Codice runtime ('acea', …). */
+  committente?: string;
+  /** Territorio (nome del master `territories`) scelto ESPLICITAMENTE nell'inserimento
+   *  manuale: override per-task del territorio del piano. */
+  territorio?: string;
 }
 
 export interface OperatorBase {
