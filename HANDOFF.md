@@ -7,8 +7,8 @@
 
 **Branch**: `claude/acea-commessa-feasibility-okoirs` (78 commit sopra `origin/main` @ `8d8964c`)
 **Specchio**: `claude/acea-table-copy-schedule-filter-3xt700` — stesso SHA, si pusha su entrambi
-**Checkpoint**: `1e9b96d` — PR #175 aperta, corpo allineato al codice
-**Status**: modulo completo e testato; **manca la migration in produzione** (vedi Not Yet Done)
+**Checkpoint**: `744de8f` — PR #175 aperta, corpo allineato al codice
+**Status**: modulo completo e testato; migration applicata in produzione il 30/07
 
 ## Goal
 
@@ -83,9 +83,10 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 
 ## Not Yet Done
 
-- [ ] **Applicare `20260730090000_acea_pianificazione_bozza.sql`** in produzione (Supabase).
-  Il codice regge l'ordine inverso, ma senza migration gli appunti non esistono e il 409 dei
-  rapportini non scatta. Idempotente, nessun grant nuovo (scrive solo il service role).
+- [x] ~~Applicare `20260730090000_acea_pianificazione_bozza.sql` in produzione~~ — **fatta il
+  30/07** via MCP sul progetto «Calendario personale» (`aceztqfebringeaebvce`), registrata come
+  version `20260730094446`. Verificato dopo: le due colonne ci sono (`uuid`/`date`), l'indice
+  parziale c'è, `authenticated` resta SELECT-only. Sul registro c'erano 6.444 righe.
 - [ ] **Verifica a schermo**: niente di questa sessione è stato visto nel browser (container
   senza `.env.local`). Da guardare: barra azioni a due menu, triangolo sul tasto (13px — se
   piccolo, si ingrandisce), calendario in cella, corsivo warn delle righe a metà, colonne
@@ -173,7 +174,7 @@ Supabase segnaposto: nel container non c'è `.env.local`).
 | `app/api/acea/celle/route.ts` | Editing di cella: stato finale, appunti, pulizia bozze |
 | `app/api/acea/pianifica/route.ts` | Assegnazione in blocco: finestra + attivazioni |
 | `lib/acea/sincronizzaRapportiniAcea.ts` | Il 409 delle righe a metà + avviso solo-esecutore |
-| `supabase/migrations/20260730090000_acea_pianificazione_bozza.sql` | **DA APPLICARE** in produzione |
+| `supabase/migrations/20260730090000_acea_pianificazione_bozza.sql` | Applicata in produzione il 30/07 (version `20260730094446`) |
 | `lib/interventi/testUtils/fakeSupabase.ts` | Fake condiviso: esteso con `is`/`not is null` |
 
 ## Code Context
@@ -224,9 +225,9 @@ anche `bozze` (contatore righe salvate a metà).
 
 - **Repo PUBBLICO**: mai nomi di dipendenti, matricole cliente, ODL veri, indirizzi o URL
   SharePoint in commit, PR o file. I file xlsx caricati dall'utente restano fuori dal repo.
-- **Ordine deploy/migration**: il codice regge la migration mancante (letture best-effort), ma
-  la migration va applicata per avere appunti e 409. Non aggiungere MAI colonne nuove alla
-  select principale del registro.
+- **Ordine deploy/migration**: la migration è applicata; la regola resta — non aggiungere MAI
+  colonne nuove alla select principale del registro, le letture di colonne recenti vanno a parte
+  e best-effort.
 - **Sessioni concorrenti su questo repo**: `git fetch` e verifica SHA prima di committare o
   pushare — è già capitato che `main` si muovesse durante il lavoro.
 - **`Tabs`, `Select`, `MultiSelect` sono primitivi condivisi**: modifiche solo additive.
