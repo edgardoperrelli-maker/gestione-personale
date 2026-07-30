@@ -8,6 +8,8 @@ import { riconciliaImport, type AnnullatoPianificato } from '@/lib/acea/riconcil
 import { applicaImport } from '@/lib/acea/applicaImport';
 import { ricalcolaGruppi, type EsitoGruppi } from '@/lib/acea/gruppiServer';
 import { isAnnullato } from '@/lib/acea/statiOrdine';
+import { daPotare, type ImportArchiviato } from '@/lib/acea/retentionArchivio';
+import { partiRoma } from '@/lib/agente/orarioRoma';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
 
 export const runtime = 'nodejs';
@@ -17,6 +19,42 @@ export const maxDuration = 300;
 
 const BUCKET = 'acea-import';
 const PAGINA = 1000;
+
+/**
+ * Retention dell'archivio: pota dal bucket gli xlsx che hanno esaurito il loro compito.
+ *
+ * Corre a valle di ogni import riuscito — il bucket cresce solo lì, quindi è anche l'unico
+ * momento in cui serve potare. Rimuove il file e AZZERA `storage_path` sulla riga di
+ * `acea_import`: i metadati e il change-log restano per sempre, è solo il file grezzo a uscire.
+ * Best-effort come l'archiviazione stessa: un import scritto non deve fallire per una pulizia.
+ */
+async function potaArchivio(): Promise<number> {
+  const { data, error } = await supabaseAdmin
+    .from('acea_import')
+    .select('id, caricato_il, storage_path')
+    .not('storage_path', 'is', null);
+  if (error) throw error;
+
+  const scelti = daPotare((data ?? []) as ImportArchiviato[], partiRoma(new Date()).oggi);
+  if (scelti.length === 0) return 0;
+
+  // Prima il bucket, poi il puntatore: se la rimozione fallisce, `storage_path` resta vero e il
+  // prossimo import ci riprova. L'ordine inverso lascerebbe file orfani che nessuno pota più.
+  const percorsi = scelti.map((s) => s.storage_path).filter((p): p is string => Boolean(p));
+  for (let i = 0; i < percorsi.length; i += 100) {
+    const { error: eRm } = await supabaseAdmin.storage.from(BUCKET).remove(percorsi.slice(i, i + 100));
+    if (eRm) throw eRm;
+  }
+  for (let i = 0; i < scelti.length; i += 200) {
+    const blocco = scelti.slice(i, i + 200).map((s) => s.id);
+    const { error: eUp } = await supabaseAdmin
+      .from('acea_import')
+      .update({ storage_path: null })
+      .in('id', blocco);
+    if (eUp) throw eUp;
+  }
+  return scelti.length;
+}
 
 /** Carica l'intero registro (PostgREST tronca a 1000 righe per chiamata). */
 async function caricaRegistro(): Promise<RigaOrdineAcea[]> {
@@ -170,6 +208,17 @@ export async function POST(req: Request) {
       /* l'archiviazione è tracciabilità, non correttezza */
     }
 
+    // 6-bis) Retention dell'archivio: si pota qui perché è qui che il bucket cresce.
+    let archivioPotati = 0;
+    try {
+      archivioPotati = await potaArchivio();
+      if (archivioPotati > 0) {
+        console.info(`[acea/import] archivio potato: ${archivioPotati} file oltre la retention`);
+      }
+    } catch (e) {
+      console.warn('[acea/import] retention archivio non riuscita:', e);
+    }
+
     const riepilogo = {
       importId,
       finestra: parse.finestra,
@@ -183,6 +232,7 @@ export async function POST(req: Request) {
       avvisi: parse.avvisi,
       scritture,
       archiviato: storagePath !== null,
+      archivioPotati,
       microaree: gruppi,
     };
 
