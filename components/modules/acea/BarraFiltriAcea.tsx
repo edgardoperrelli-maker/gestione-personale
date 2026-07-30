@@ -9,6 +9,7 @@ import {
 import {
   ETICHETTE_STATO, filtriVuoti, haFiltriAttivi, type FiltriUI, type StatoFiltro,
 } from '@/lib/acea/filtriOrdini';
+import type { ConteggiSchede } from './useOrdiniAcea';
 
 type Props = {
   filtri: FiltriUI;
@@ -26,6 +27,13 @@ type Props = {
    * un contatore d'allarme è peggio della sua assenza.
    */
   riapertureDaAssegnare?: number | null;
+  /**
+   * Righe di ogni scheda, prima dei filtri di colonna: il numero smorzato sul tasto.
+   *
+   * Sono i totali «da fermo» della famiglia — dicono quanto pesa ogni vista prima di entrarci.
+   * Il conteggio della vista corrente, filtri compresi, resta il «N di M» qui accanto.
+   */
+  conteggi?: ConteggiSchede | null;
 };
 
 /**
@@ -67,6 +75,7 @@ const statiDella = (famiglia: 'dunning' | 'massive'): StatoFiltro[] =>
  */
 export default function BarraFiltriAcea({
   filtri, onChange, colonne, totale, caricate, famiglia, riapertureDaAssegnare = null,
+  conteggi = null,
 }: Props) {
   const pill = pillFiltri(colonne, filtri);
   const attivi = haFiltriAttivi(filtri);
@@ -80,6 +89,11 @@ export default function BarraFiltriAcea({
           items={statiDella(famiglia).map((s) => ({
             value: s,
             label: ETICHETTE_STATO[s],
+            // Quante righe ha la scheda. Anche 0: su un conteggio è una risposta («è vuota»),
+            // non l'allarme muto che sarebbe su un badge.
+            ...(conteggi && conteggi[s as keyof ConteggiSchede] !== undefined
+              ? { count: conteggi[s as keyof ConteggiSchede] }
+              : {}),
             /*
               Il badge sta sul TASTO, non nei contatori di testa: deve farsi vedere da qualunque
               scheda, e la risposta giusta al vederlo — aprire le riaperture — è il click che gli

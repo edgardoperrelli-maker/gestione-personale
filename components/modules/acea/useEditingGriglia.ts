@@ -98,6 +98,14 @@ export function useEditingGriglia({
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
   const [locali, setLocali] = useState<Map<string, ValoreLocale>>(new Map());
   const [salvando, setSalvando] = useState(false);
+  /**
+   * Cella della Data pianificata con l'EDITOR aperto: un `<input type="date">` dentro la cella.
+   *
+   * L'incolla da Excel resta la via per i blocchi, ma una data singola si deve poter scrivere
+   * anche a mano o scegliere dal calendario — prima l'unico modo di toccarne UNA era copiarla da
+   * qualche parte, che per una cella sola è un giro assurdo.
+   */
+  const [editorData, setEditorData] = useState<Cella | null>(null);
   const righeRef = useRef(righe);
   righeRef.current = righe;
 
@@ -134,8 +142,9 @@ export function useEditingGriglia({
     return null;
   }, [colonneVisibili]);
 
-  // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso.
-  useEffect(() => { setLocali(new Map()); }, [righe]);
+  // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso, e
+  // l'editor aperto starebbe su una riga che non è più quella.
+  useEffect(() => { setLocali(new Map()); setEditorData(null); }, [righe]);
 
   const chiaveDi = useCallback((i: number) => {
     const r = righeRef.current[i];
@@ -355,14 +364,34 @@ export function useEditingGriglia({
         setSelezione((s) => (e.shiftKey && s ? { da: s.da, a: nuovo } : { da: nuovo, a: nuovo }));
         return;
       }
+      // Enter o F2 sulla Data pianificata aprono l'editor, come in Excel. La guardia sulla
+      // colonna sta in `apriEditorData`: sugli altri campi i due tasti non fanno niente.
+      if (e.key === 'Enter' || e.key === 'F2') {
+        if (colonneRef.current[focus.colonna] === 'pianificato_il') {
+          e.preventDefault();
+          setEditorData(focus);
+        }
+        return;
+      }
       if (e.key === 'Escape') { setFocus(null); setSelezione(null); }
     };
 
     const copia = (e: ClipboardEvent) => {
       if (eventoDiUnCampo(e.target as HTMLElement | null)) return;
-      // Le spunte battono il cursore di cella: sono il gesto visibile — righe evidenziate e
-      // conteggio nella barra — mentre il cursore è un contorno sottile su una cella sola.
-      const testo = spuntate.length > 0 ? testoRigheSpuntate() : testoSelezione();
+      /*
+        Nella COPIA il cursore di cella batte le spunte, ed è un cambio deciso.
+
+        Prima vincevano sempre le spunte, e il flusso «spunto le righe, clicco la data buona,
+        Ctrl+C, Ctrl+V» copiava le righe intere invece della data appena cliccata: l'incolla
+        spargeva quaranta colonne dove doveva finire un giorno. Il cursore è il gesto più recente
+        e più specifico — se hai appena cliccato una cella, è QUELLA che vuoi copiare. Le righe
+        spuntate si copiano quando un cursore non c'è, o sempre col comando «Copia righe» in
+        barra, che non è ambiguo per costruzione.
+
+        L'INCOLLA resta alle spunte: là il bersaglio giusto sono le righe scelte, qualunque cella
+        abbia il cursore — è il gesto con cui si assegna in blocco.
+      */
+      const testo = focus ? testoSelezione() : (spuntate.length > 0 ? testoRigheSpuntate() : '');
       if (!testo) return;
       e.preventDefault();
       e.clipboardData?.setData('text/plain', testo);
@@ -423,8 +452,34 @@ export function useEditingGriglia({
     setSelezione((s) => (shift && s ? { da: s.da, a: c } : { da: c, a: c }));
   }, []);
 
+  /** Apre l'editor SOLO sulla Data pianificata: le altre colonne non hanno un calendario. */
+  const apriEditorData = useCallback((riga: number, colonna: number) => {
+    if (colonneRef.current[colonna] !== 'pianificato_il') return;
+    const c = { riga, colonna };
+    setFocus(c);
+    setSelezione({ da: c, a: c });
+    setEditorData(c);
+  }, []);
+
+  const chiudiEditorData = useCallback(() => setEditorData(null), []);
+
+  /** Conferma dell'editor: il valore ISO dell'input passa dalla stessa strada dell'incolla. */
+  const confermaData = useCallback((riga: number, colonna: number, valore: string) => {
+    setEditorData(null);
+    if (valore) void applica([{ riga, colonna, valore }]);
+  }, [applica]);
+
+  /** L'ISO grezzo della data pianificata, per il `value` dell'input: la cella mostra dd/mm/yyyy. */
+  const valoreIsoData = useCallback((riga: number): string => {
+    const r = righeRef.current[riga];
+    if (!r) return '';
+    const loc = locali.get(`${r.odl}|${r.numero_operazione}`);
+    return loc?.pianificato_il ?? r.pianificato_il ?? '';
+  }, [locali]);
+
   return {
     focus, selezione, celleSelezionate, locali, salvando,
     clickCella, applica, setFocus, editabile, copiaRigheSpuntate,
+    editorData, apriEditorData, chiudiEditorData, confermaData, valoreIsoData,
   };
 }

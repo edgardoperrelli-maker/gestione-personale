@@ -11,9 +11,12 @@ import { COLONNE_DUNNING } from '@/lib/acea/colonneTabella';
 import { filtriVuoti } from '@/lib/acea/filtriOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 
+type ConteggiProp = React.ComponentProps<typeof BarraFiltriAcea>['conteggi'];
+
 const barra = (
   riapertureDaAssegnare: number | null,
   famiglia: 'dunning' | 'massive' = 'dunning',
+  conteggi: ConteggiProp = null,
 ) => renderToStaticMarkup(
   <BarraFiltriAcea
     filtri={filtriVuoti()}
@@ -23,6 +26,7 @@ const barra = (
     caricate={100}
     famiglia={famiglia}
     riapertureDaAssegnare={riapertureDaAssegnare}
+    conteggi={conteggi}
   />,
 );
 
@@ -51,6 +55,45 @@ describe('BarraFiltriAcea — badge della scheda Riaperture', () => {
         expect(html).toContain(etichetta);
       }
     }
+  });
+});
+
+// Ogni scheda porta il SUO conteggio: quante righe contiene, prima dei filtri di colonna. È il
+// numero smorzato accanto all'etichetta — diverso dal badge, che grida il lavoro scoperto — e i
+// due convivono sullo stesso tasto.
+describe('BarraFiltriAcea — conteggi delle schede', () => {
+  const conteggi = { aperti: 924, chiusi: 466, tutti: 5293, saracinesche: 800, riaperture: 14 };
+
+  it('ogni scheda mostra il suo numero, formattato all’italiana', () => {
+    const html = barra(null, 'dunning', conteggi);
+    // «5293» senza punto non è un errore: il CLDR italiano raggruppa da 10.000 in su
+    // (minimumGroupingDigits=2), ed è lo stesso formato del resto dell'app.
+    for (const n of ['924', '466', '800', '14', '5293']) expect(html).toContain(`>${n}<`);
+    expect(barra(null, 'dunning', { ...conteggi, tutti: 15293 })).toContain('>15.293<');
+  });
+
+  it('conteggio e badge convivono sulla scheda Riaperture', () => {
+    const html = barra(3, 'dunning', conteggi);
+    expect(html).toContain('>14<');
+    expect(html).toContain('>3<');
+    expect(html).toContain('3 riaperture senza esecutore');
+  });
+
+  it('lo zero si mostra: su un conteggio è una risposta, non un allarme', () => {
+    expect(barra(null, 'dunning', { ...conteggi, riaperture: 0 })).toContain('>0<');
+  });
+
+  it('senza conteggi (server non ha risposto) le schede restano nude', () => {
+    const html = barra(null, 'dunning', null);
+    expect(html).not.toContain('>924<');
+    expect(html).toContain('Da lavorare');
+  });
+
+  it('in massive il conteggio riaperture non ha una scheda su cui stare', () => {
+    const html = barra(null, 'massive', { aperti: 10, chiusi: 5, tutti: 15, saracinesche: 7 });
+    expect(html).toContain('>10<');
+    expect(html).toContain('>15<');
+    expect(html).not.toContain('Riaperture');
   });
 });
 

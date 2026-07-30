@@ -39,7 +39,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica, perPagina, query, riapertureDaAssegnare,
+    ricarica, perPagina, query, riapertureDaAssegnare, conteggi,
   } = useOrdiniAcea(famiglia);
 
   /*
@@ -329,6 +329,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         // ordini di dunning — non comparirebbe comunque sulla vista sbagliata.
         famiglia={famiglia}
         riapertureDaAssegnare={famiglia === 'dunning' ? riapertureDaAssegnare : null}
+        conteggi={conteggi}
       />
 
       {/*
@@ -436,6 +437,17 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           celleSelezionate: editing.celleSelezionate,
           valoreLocale,
           onClickCella: editing.clickCella,
+          editorData: editing.editorData,
+          onApriEditorData: editing.apriEditorData,
+          onChiudiEditorData: editing.chiudiEditorData,
+          onConfermaData: editing.confermaData,
+          valoreIsoData: editing.valoreIsoData,
+          // I confini del calendario sono la finestra programmabile. La domenica fra sabato e
+          // lunedì resta cliccabile nel picker (min/max non sanno bucare), ma la validazione la
+          // rifiuta col motivo — meglio un rifiuto spiegato che un calendario che sembra rotto.
+          finestraData: giorni.length > 0
+            ? { min: giorni[0].data, max: giorni[giorni.length - 1].data }
+            : undefined,
         }}
       />
 
@@ -443,11 +455,13 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         Esecutore, Data pianificata e Note si modificano direttamente in tabella: clicca una cella, usa le
         frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
-        <strong>Con delle righe spuntate</strong> le scorciatoie lavorano sulle righe intere:{' '}
-        <kbd>Ctrl</kbd>+<kbd>C</kbd> le porta via tutte, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su
-        tutte — un nome incollato su quaranta spunte le assegna in un colpo, senza passare da
-        «Pianifica». Si programma solo per{' '}
+        da Excel. <strong>Doppio click sulla Data pianificata</strong> (o <kbd>Invio</kbd> sulla
+        cella) apre il calendario, e la data si scrive anche a mano.{' '}
+        <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
+        <strong>Con delle righe spuntate</strong>, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su tutte —
+        una data o un nome copiati con il cursore si incollano su quaranta spunte in un colpo,
+        senza passare da «Pianifica» — e <kbd>Ctrl</kbd>+<kbd>C</kbd> senza un cursore attivo le
+        porta via intere (il comando «Copia righe» lo fa sempre). Si programma solo per{' '}
         {giorni.length > 0 ? giorni.map((g) => g.esteso).join(' o ') : 'oggi o il giorno lavorativo successivo'},
         e i nomi assegnabili sono quelli in <a href="/dashboard" className="underline">cronoprogramma</a>{' '}
         per quel giorno. La nota scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si

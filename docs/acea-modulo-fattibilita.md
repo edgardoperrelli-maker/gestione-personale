@@ -189,6 +189,8 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 28 | Riaperture | La scheda è una **coda di lavoro**: solo aperte su ACEA e non completate nei rapportini. Le esitate stanno in «Chiusi». **Solo nella vista dunning**: in massive la scheda non si disegna |
 | 29 | Badge | Sul tasto della scheda, il numero delle riaperture **senza esecutore** — non le righe della scheda: un'assegnata non finita è in coda ma ha già qualcuno che ci va |
 | 30 | Annullati | Un intervento **annullato** non assegna, non pianifica e non si mostra: badge, filtro «Non assegnato» e colonna Esecutore usano la stessa definizione |
+| 31 | Conteggi schede | Ogni scheda porta **quante righe contiene** (prima dei filtri di colonna): numero smorzato sul tasto, distinto dal badge d'allarme |
+| 32 | Editor data | La Data pianificata si scrive anche **a mano o dal calendario** (doppio click / Invio sulla cella); nella **copia** il cursore di cella batte le spunte, nell'**incolla** vincono le spunte |
 
 ---
 

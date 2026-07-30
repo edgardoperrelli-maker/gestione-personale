@@ -14,6 +14,15 @@ export { filtriVuoti };
 /** Quante righe si caricano per volta. Il registro può averne 5.000+: si pagina. */
 const PER_PAGINA = 300;
 
+/** Righe di ogni scheda, prima dei filtri di colonna. `riaperture` solo nella vista dunning. */
+export type ConteggiSchede = {
+  aperti: number;
+  chiusi: number;
+  tutti: number;
+  saracinesche: number;
+  riaperture?: number;
+};
+
 type Risposta = {
   righe: RigaTabella[];
   totale: number;
@@ -22,6 +31,8 @@ type Risposta = {
   oggi: string;
   /** Riaperture aperte senza esecutore: il badge della scheda. `null` = non calcolabile. */
   riapertureDaAssegnare?: number | null;
+  /** Quante righe ha ogni scheda. `null` = non calcolabile. */
+  conteggi?: ConteggiSchede | null;
 };
 
 /**
@@ -71,6 +82,8 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
     «0» mostrato prima di sapere sarebbe una rassicurazione non guadagnata.
   */
   const [riapertureDaAssegnare, setRiapertureDaAssegnare] = useState<number | null>(null);
+  /** Righe di ogni scheda, per i tasti. Stessa disciplina del badge: `null` = non si mostrano. */
+  const [conteggi, setConteggi] = useState<ConteggiSchede | null>(null);
   // Evita che una risposta lenta di un filtro vecchio sovrascriva quella del filtro corrente.
   const richiestaCorrente = useRef(0);
 
@@ -105,6 +118,7 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
       if (dati.riapertureDaAssegnare !== undefined) {
         setRiapertureDaAssegnare(dati.riapertureDaAssegnare);
       }
+      if (dati.conteggi !== undefined) setConteggi(dati.conteggi);
       setErrore(null);
     } catch (e) {
       if (mio !== richiestaCorrente.current) return;
@@ -135,7 +149,7 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
 
   return {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni,
-    riapertureDaAssegnare,
+    riapertureDaAssegnare, conteggi,
     altre, ricarica,
     // La query esce dal hook perché l'export deve poter rifare *la stessa* interrogazione fino in
     // fondo. Ricostruirla dai filtri nel componente vorrebbe dire due costruttori di query da

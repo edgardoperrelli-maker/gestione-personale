@@ -79,6 +79,15 @@ export type Props = {
     celleSelezionate: Set<string>;
     valoreLocale: (r: RigaTabella, chiave: string) => string | null;
     onClickCella: (riga: number, colonna: number, shift: boolean) => void;
+    /** Editor della Data pianificata: doppio click (o Enter/F2) apre un `<input type="date">`. */
+    editorData: { riga: number; colonna: number } | null;
+    onApriEditorData: (riga: number, colonna: number) => void;
+    onChiudiEditorData: () => void;
+    onConfermaData: (riga: number, colonna: number, valoreIso: string) => void;
+    /** L'ISO grezzo della cella (la cella mostra dd/mm/yyyy, all'input serve YYYY-MM-DD). */
+    valoreIsoData: (riga: number) => string;
+    /** Confini del calendario: la finestra programmabile, quando è nota. */
+    finestraData?: { min: string; max: string };
   };
 };
 
@@ -488,6 +497,55 @@ export default function TabellaOrdini({
                       iEdit !== null && editing?.focus?.riga === vi.index && editing.focus.colonna === iEdit;
                     const inSelezione =
                       iEdit !== null && editing?.celleSelezionate.has(`${vi.index}:${iEdit}`);
+                    const inEditor =
+                      iEdit !== null
+                      && c.chiave === 'pianificato_il'
+                      && editing?.editorData?.riga === vi.index
+                      && editing.editorData.colonna === iEdit;
+                    if (inEditor && editing) {
+                      /*
+                        L'editor della data VIVE nella cella: stesso posto, stessa larghezza.
+
+                        `defaultValue` e non `value`: l'input è vivo solo finché è aperto, e
+                        controllarlo da fuori farebbe passare ogni battuta dallo stato della
+                        griglia. La conferma è Enter, il blur, o la scelta dal calendario;
+                        Esc chiude senza scrivere. Un valore identico a quello iniziale non
+                        parte nemmeno: sarebbe una chiamata per non cambiare niente.
+                      */
+                      const iniziale = editing.valoreIsoData(vi.index);
+                      const conferma = (valore: string) => {
+                        if (valore && valore !== iniziale) {
+                          editing.onConfermaData(vi.index, iEdit, valore);
+                        } else {
+                          editing.onChiudiEditorData();
+                        }
+                      };
+                      return (
+                        <div key={c.chiave} role="gridcell" aria-colindex={iCol + 2} style={stileColonna(c)} className="px-1 py-1">
+                          <input
+                            type="date"
+                            aria-label={`Data pianificata, ODL ${r.odl}`}
+                            defaultValue={iniziale}
+                            min={editing.finestraData?.min}
+                            max={editing.finestraData?.max}
+                            // `showPicker` apre subito il calendario: il doppio click è il
+                            // gesto-utente che lo autorizza. Se il browser non lo sa fare,
+                            // l'input resta comunque scrivibile a mano.
+                            ref={(el) => {
+                              if (!el) return;
+                              el.focus();
+                              try { el.showPicker?.(); } catch { /* si scrive a mano */ }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter') { e.preventDefault(); conferma(e.currentTarget.value); }
+                              if (e.key === 'Escape') { e.stopPropagation(); editing.onChiudiEditorData(); }
+                            }}
+                            onBlur={(e) => conferma(e.currentTarget.value)}
+                            className="h-full w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1 text-sm text-[var(--brand-text-main)] focus:outline-none"
+                          />
+                        </div>
+                      );
+                    }
                     return (
                       <div
                         key={c.chiave}
@@ -524,6 +582,14 @@ export default function TabellaOrdini({
                                 // Tab successivo ripartiva dall'inizio del documento.
                                 griglia.current?.focus();
                               }
+                        }
+                        // Doppio click sulla Data pianificata: si apre l'editor col calendario.
+                        // La guardia sulla colonna sta in `onApriEditorData`, quindi sugli altri
+                        // campi il doppio click non fa niente di diverso da due click.
+                        onDoubleClick={
+                          iEdit === null || c.chiave !== 'pianificato_il' || !scrivibile
+                            ? undefined
+                            : () => editing?.onApriEditorData(vi.index, iEdit)
                         }
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'

@@ -5,7 +5,15 @@ type TabItem = {
   label: string;
   disabled?: boolean;
   /**
-   * Contatore accanto all'etichetta: quante cose ASPETTANO in quella scheda.
+   * Quante righe CONTIENE la scheda: un numero smorzato accanto all'etichetta.
+   *
+   * È un'informazione diversa dal `badge`, e i due convivono: il conteggio dice quanto pesa la
+   * vista prima di entrarci (anche 0, che qui è una risposta: la scheda è vuota), il badge grida
+   * un'attesa. Additivo: chi non lo passa resta com'era.
+   */
+  count?: number;
+  /**
+   * Contatore d'ALLARME accanto all'etichetta: quante cose ASPETTANO in quella scheda.
    *
    * Additivo: le altre schede non lo passano e restano com'erano. Con 0 non si disegna niente —
    * un «0» in un badge d'avviso è una rassicurazione che occupa lo spazio di un allarme.
@@ -41,6 +49,16 @@ export default function Tabs({ value, onValueChange, items, className = '' }: Ta
             }`}
           >
             {item.label}
+            {/*
+              Il conteggio è testo, non un badge: smorzato, `tabular-nums`, formattato
+              all'italiana. Fa parte del nome del tasto («Chiusi 466») e uno screen reader lo
+              legge così com'è — nessun attributo, nessun trucco.
+            */}
+            {typeof item.count === 'number' && (
+              <span className="ml-1.5 font-mono text-xs font-normal tabular-nums text-[var(--brand-text-muted)]">
+                {item.count.toLocaleString('it-IT')}
+              </span>
+            )}
             {/*
               `--status-warn`: qui il colore È l'informazione — lavoro scoperto — non un aiuto
               alla lettura (DESIGN.md §«Semantici e stato»). Il numero resta dentro il bottone:
