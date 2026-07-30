@@ -9,6 +9,7 @@ export type RigaMasterUpload = {
   odl: string;
   matricola: string;
   indirizzo: string;
+  cap: string;
   comune: string;
   operazione: string;
 };
@@ -27,6 +28,7 @@ const PATTERN: Record<Campo, RegExp> = {
   odl: /^ordine$|ods|odl|ordinativo/,
   matricola: /matricola|matr/,
   indirizzo: /indirizzo|^via$|ubicazione|toponimo/,
+  cap: /^cap$/, // l'header normalizzato riduce "C.A.P." a "cap"
   comune: /comune|citta|localita/,
   // niente /descrizione/ nudo: prenderebbe "Descrizione Stato Ordine".
   operazione: /operazione|descrizioneattivita|^attivita/,
@@ -62,7 +64,7 @@ export function trovaHeaderMaster(rows: unknown[][], maxScan = 15): number {
   for (let i = 0; i < lim; i++) {
     const idx = mappaColonne(rows[i] ?? []);
     if (idx.odl === undefined) continue;
-    const altri = (['matricola', 'indirizzo', 'comune', 'operazione'] as const)
+    const altri = (['matricola', 'indirizzo', 'cap', 'comune', 'operazione'] as const)
       .filter((c) => idx[c] !== undefined).length;
     if (altri >= 1) return i;
     if (soloOdl === -1) soloOdl = i;
@@ -95,6 +97,7 @@ export function parseMasterUpload(rows: unknown[][]): ParseMasterResult {
       odl,
       matricola: get(row, 'matricola'),
       indirizzo: get(row, 'indirizzo'),
+      cap: get(row, 'cap'),
       comune: get(row, 'comune'),
       operazione: get(row, 'operazione'),
     });

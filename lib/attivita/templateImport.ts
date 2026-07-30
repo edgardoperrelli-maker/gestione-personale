@@ -1,5 +1,5 @@
 // PURA: builder del template di import (spec §5): 2 fogli + MasterODL quando ci sono
-// master attivi (scrivi l'ODS/ODL → si compilano MATRICOLA/Indirizzo/COMUNE/DESCRIZIONE;
+// master attivi (scrivi l'ODS/ODL → si compilano MATRICOLA/Indirizzo/CAP/COMUNE/DESCRIZIONE;
 // ODL sconosciuto → cella rossa, riga da compilare a mano). GRUPPO e COMMITTENTE nel file
 // sono "di conforto" e NON compilabili a mano: formule VLOOKUP sulla Leggenda (si svuotano
 // se la descrizione è sbagliata) su celle bloccate dalla protezione del foglio — il
@@ -29,6 +29,7 @@ const MASTER_ODL_COLONNE = [
   { header: 'DESCRIZIONE ATTIVITÀ', template: 'DESCRIZIONE ATTIVITÀ' },
   { header: 'MATRICOLA', template: 'MATRICOLA' },
   { header: 'INDIRIZZO', template: 'Indirizzo' },
+  { header: 'CAP', template: 'CAP' },
   { header: 'COMUNE', template: 'COMUNE' },
 ] as const;
 
@@ -78,7 +79,7 @@ export async function buildTemplateImport(
     // restituirebbe 0, e uno 0 in MATRICOLA/COMUNE sporcherebbe l'import.
     for (const { col, vlookupN } of colonneDaOdl) {
       row.getCell(col).value = {
-        formula: `IFERROR(T(VLOOKUP(${odlCorrente},${FOGLIO_MASTER_ODL}!$A$2:$E$${master.length + 1},${vlookupN},FALSE)),"")`,
+        formula: `IFERROR(T(VLOOKUP(${odlCorrente},${FOGLIO_MASTER_ODL}!$A$2:$F$${master.length + 1},${vlookupN},FALSE)),"")`,
       } as ExcelJS.CellFormulaValue;
     }
     // L'ODL si digita come TESTO: senza il formato '@' Excel lo convertirebbe in numero
@@ -153,7 +154,7 @@ export async function buildTemplateImport(
     wm.addRow(MASTER_ODL_COLONNE.map((c) => c.header));
     wm.getRow(1).font = { bold: true };
     for (const r of master) {
-      wm.addRow([r.odl, r.descrizione, r.matricola, r.indirizzo, r.comune]);
+      wm.addRow([r.odl, r.descrizione, r.matricola, r.indirizzo, r.cap, r.comune]);
     }
     wm.columns.forEach((c) => { c.width = 28; });
     await wm.protect('', { selectLockedCells: true, selectUnlockedCells: true });

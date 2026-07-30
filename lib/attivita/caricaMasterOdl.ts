@@ -5,7 +5,7 @@ import { costruisciMasterOdl, type FonteMaster, type FonteMasterRiga, type RigaM
 
 const PAGE = 1000;
 
-type RigaMasterDb = { odl: string | null; matricola: string | null; indirizzo: string | null; comune: string | null; operazione: string | null };
+type RigaMasterDb = { odl: string | null; matricola: string | null; indirizzo: string | null; cap: string | null; comune: string | null; operazione: string | null };
 type RigaSnapshotDb = { odl: string | null; attivita: string | null; matricola: string | null; comune: string | null; indirizzo?: string | null };
 
 async function righeMasterCaricato(masterId: string): Promise<FonteMasterRiga[]> {
@@ -13,7 +13,7 @@ async function righeMasterCaricato(masterId: string): Promise<FonteMasterRiga[]>
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('template_master_righe')
-      .select('odl, matricola, indirizzo, comune, operazione')
+      .select('odl, matricola, indirizzo, cap, comune, operazione')
       .eq('master_id', masterId)
       .range(off, off + PAGE - 1);
     if (error) throw error;

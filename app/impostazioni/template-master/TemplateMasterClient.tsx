@@ -147,14 +147,14 @@ export default function TemplateMasterClient() {
       <h1 className="text-lg font-bold text-[var(--brand-text-main)]">Master ODL del template</h1>
       <p className="text-sm text-[var(--brand-text-muted)]">
         I master caricati qui (limitazioni massive per comune, sostituzioni Acqua Latina, …) finiscono nel
-        foglio MasterODL del template di import: l&apos;ufficio scrive l&apos;ODS/ODL e matricola, indirizzo, comune e
+        foglio MasterODL del template di import: l&apos;ufficio scrive l&apos;ODS/ODL e matricola, indirizzo, CAP, comune e
         descrizione attività si compilano da sole. Un ODL fuori da ogni master attivo resta rosso e si compila a mano.
       </p>
 
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
         <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Carica un master</h2>
         <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-          Excel/CSV con colonna ORDINE/ODL (obbligatoria); Matricola, Indirizzo, Località/Comune e Operazione
+          Excel/CSV con colonna ORDINE/ODL (obbligatoria); Matricola, Indirizzo, CAP, Località/Comune e Operazione
           si riconoscono per nome, se ci sono.
         </p>
         <label htmlFor="file-master" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">

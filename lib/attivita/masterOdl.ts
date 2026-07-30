@@ -14,6 +14,7 @@ export type RigaMasterOdl = {
   descrizione: string; // canonica di tassonomia; '' se l'operazione non è risolvibile
   matricola: string;
   indirizzo: string;
+  cap: string;
   comune: string;
 };
 
@@ -22,6 +23,7 @@ export type FonteMasterRiga = {
   operazione?: string | null; // testo grezzo attività/operazione della riga
   matricola?: string | null;
   indirizzo?: string | null;
+  cap?: string | null;
   comune?: string | null;
 };
 
@@ -63,6 +65,7 @@ export function costruisciMasterOdl(
         descrizione: ris?.descrizione ?? '',
         matricola: t(r.matricola),
         indirizzo: t(r.indirizzo),
+        cap: t(r.cap),
         comune: t(r.comune),
       };
       const prima = byOdl.get(odl);
@@ -71,6 +74,7 @@ export function costruisciMasterOdl(
         descrizione: prima.descrizione || nuova.descrizione,
         matricola: prima.matricola || nuova.matricola,
         indirizzo: prima.indirizzo || nuova.indirizzo,
+        cap: prima.cap || nuova.cap,
         comune: prima.comune || nuova.comune,
       } : nuova);
     }

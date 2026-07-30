@@ -7,7 +7,7 @@
 
 - ✅ **Template import: l'ODL compila la riga da sé (foglio MasterODL)** *(2026-07-30)* — il template
   Excel scaricabile (`/api/interventi/template`) acquisisce un terzo foglio **MasterODL** (sola lettura):
-  scritto l'ODS/ODL, MATRICOLA / Indirizzo / COMUNE / DESCRIZIONE ATTIVITÀ si compilano da sole
+  scritto l'ODS/ODL, MATRICOLA / Indirizzo / CAP / COMUNE / DESCRIZIONE ATTIVITÀ si compilano da sole
   (VLOOKUP self-locating con `T(...)` anti-zero e coercizione a testo; colonna ODL in formato testo);
   un ODL **fuori da ogni master attivo diventa ROSSO** (formattazione condizionale su defined name) e
   si compila a mano — le celle derivate restano libere, il gate resta `validaImport` (descrizione

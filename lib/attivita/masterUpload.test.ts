@@ -29,13 +29,13 @@ describe('trovaHeaderMaster', () => {
 describe('parseMasterUpload', () => {
   it('mappa le colonne per nome (accenti/maiuscole indifferenti) e scarta le righe senza ODL', () => {
     const out = parseMasterUpload([
-      ['ORDINE', 'MATRICOLA', 'INDIRIZZO', 'LOCALITÀ', 'OPERAZIONE'],
-      [' 912000001 ', ' M1 ', 'VIA ROMA 1', 'LABICO', 'Limitazione'],
-      ['', 'M2', 'VIA MILANO 2', 'RIANO', ''],
+      ['ORDINE', 'MATRICOLA', 'INDIRIZZO', 'C.A.P.', 'LOCALITÀ', 'OPERAZIONE'],
+      [' 912000001 ', ' M1 ', 'VIA ROMA 1', '00030', 'LABICO', 'Limitazione'],
+      ['', 'M2', 'VIA MILANO 2', '00060', 'RIANO', ''],
       [],
     ]);
     expect(out.righe).toEqual([
-      { odl: '912000001', matricola: 'M1', indirizzo: 'VIA ROMA 1', comune: 'LABICO', operazione: 'Limitazione' },
+      { odl: '912000001', matricola: 'M1', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO', operazione: 'Limitazione' },
     ]);
     expect(out.totale).toBe(2);
     expect(out.scartate).toBe(1);
@@ -45,7 +45,7 @@ describe('parseMasterUpload', () => {
       ['Ordine', 'Matricola'],
       ['1', 'M1'],
     ]);
-    expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', indirizzo: '', comune: '', operazione: '' });
+    expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', indirizzo: '', cap: '', comune: '', operazione: '' });
   });
   it('"DESCRIZIONE ATTIVITÀ" vale come operazione, "Descrizione Stato Ordine" no', () => {
     const out = parseMasterUpload([

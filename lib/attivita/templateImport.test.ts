@@ -98,8 +98,8 @@ describe('buildTemplateImport', () => {
   });
 
   const MASTER: RigaMasterOdl[] = [
-    { odl: '912000001', descrizione: 'Limitazione Massiva su Impianto', matricola: 'M1', indirizzo: 'VIA ROMA 1', comune: 'LABICO' },
-    { odl: '912000002', descrizione: '', matricola: 'M2', indirizzo: '', comune: 'RIANO' },
+    { odl: '912000001', descrizione: 'Limitazione Massiva su Impianto', matricola: 'M1', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO' },
+    { odl: '912000002', descrizione: '', matricola: 'M2', indirizzo: '', cap: '', comune: 'RIANO' },
   ];
   const COL_ODL = COLONNE_TEMPLATE.indexOf('ODS/ODL') + 1; // D
   const cella = (ws: ExcelJS.Worksheet, r: number, nome: (typeof COLONNE_TEMPLATE)[number]) =>
@@ -118,8 +118,8 @@ describe('buildTemplateImport', () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 5, MASTER));
     expect(wb.worksheets.map((w) => w.name)).toEqual(['Interventi', 'Leggenda', FOGLIO_MASTER_ODL]);
     const wm = wb.getWorksheet(FOGLIO_MASTER_ODL)!;
-    expect((wm.getRow(1).values as unknown[]).slice(1)).toEqual(['ODL', 'DESCRIZIONE ATTIVITÀ', 'MATRICOLA', 'INDIRIZZO', 'COMUNE']);
-    expect((wm.getRow(2).values as unknown[]).slice(1)).toEqual(['912000001', 'Limitazione Massiva su Impianto', 'M1', 'VIA ROMA 1', 'LABICO']);
+    expect((wm.getRow(1).values as unknown[]).slice(1)).toEqual(['ODL', 'DESCRIZIONE ATTIVITÀ', 'MATRICOLA', 'INDIRIZZO', 'CAP', 'COMUNE']);
+    expect((wm.getRow(2).values as unknown[]).slice(1)).toEqual(['912000001', 'Limitazione Massiva su Impianto', 'M1', 'VIA ROMA 1', '00030', 'LABICO']);
     expect((wm as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
   });
 
@@ -127,12 +127,12 @@ describe('buildTemplateImport', () => {
     const wb = await carica(await buildTemplateImport(TASSONOMIA, 10, MASTER));
     const ws = wb.getWorksheet('Interventi')!;
     const attese: Array<[(typeof COLONNE_TEMPLATE)[number], number]> = [
-      ['DESCRIZIONE ATTIVITÀ', 2], ['MATRICOLA', 3], ['Indirizzo', 4], ['COMUNE', 5],
+      ['DESCRIZIONE ATTIVITÀ', 2], ['MATRICOLA', 3], ['Indirizzo', 4], ['CAP', 5], ['COMUNE', 6],
     ];
     for (const [nome, n] of attese) {
       const f2 = String((cella(ws, 2, nome).value as { formula?: string })?.formula ?? '');
       expect(f2).toContain(`VLOOKUP`);
-      expect(f2).toContain(`${FOGLIO_MASTER_ODL}!$A$2:$E$3,${n},FALSE`);
+      expect(f2).toContain(`${FOGLIO_MASTER_ODL}!$A$2:$F$3,${n},FALSE`);
       // Self-locating (INDIRECT+ROW) e coercizione a testo dell'ODL digitato come numero.
       expect(f2).toContain('INDIRECT("D"&ROW())&""');
       // T(...) evita lo 0 dei buchi del master.
