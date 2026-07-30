@@ -88,6 +88,21 @@ export type Props = {
     valoreIsoData: (riga: number) => string;
     /** Confini del calendario: la finestra programmabile, quando è nota. */
     finestraData?: { min: string; max: string };
+    /**
+     * Menu dell'Esecutore: su una cella VUOTA si apre al primo click, ed è l'unico modo di
+     * inserire un nome a mano — si sceglie fra chi è in cronoprogramma, niente testo libero.
+     */
+    editorEsecutore: { riga: number; colonna: number } | null;
+    onApriEditorEsecutore: (riga: number, colonna: number) => void;
+    onChiudiEditorEsecutore: () => void;
+    onConfermaEsecutore: (riga: number, colonna: number, nome: string) => void;
+    /** Chi si può scegliere, giorno per giorno della finestra: le voci del menu. */
+    operatoriFinestra: Array<{
+      data: string;
+      etichetta: string;
+      esteso: string;
+      operatori: Array<{ id: string; display_name: string; territorio?: string | null }>;
+    }>;
   };
 };
 
@@ -502,6 +517,60 @@ export default function TabellaOrdini({
                       && c.chiave === 'pianificato_il'
                       && editing?.editorData?.riga === vi.index
                       && editing.editorData.colonna === iEdit;
+                    const inEditorEsecutore =
+                      iEdit !== null
+                      && c.chiave === 'pianificato_a'
+                      && editing?.editorEsecutore?.riga === vi.index
+                      && editing.editorEsecutore.colonna === iEdit;
+                    if (inEditorEsecutore && editing) {
+                      /*
+                        Il menu dell'Esecutore VIVE nella cella, come il calendario della data.
+
+                        Le voci sono chi è in cronoprogramma, raggruppate per giorno della
+                        finestra: la scelta è «chi c'è», non un nome qualsiasi — è il motivo per
+                        cui su una cella vuota non c'è testo libero. La stessa persona può
+                        comparire in entrambi i giorni: si scrive comunque il nome, il giorno lo
+                        decide la cella Data (o la barra).
+                      */
+                      const vuoto = editing.operatoriFinestra.every((g) => g.operatori.length === 0);
+                      return (
+                        <div key={c.chiave} role="gridcell" aria-colindex={iCol + 2} style={stileColonna(c)} className="px-1 py-1">
+                          <select
+                            aria-label={`Esecutore, ODL ${r.odl}: scegli chi è in cronoprogramma`}
+                            defaultValue=""
+                            ref={(el) => el?.focus()}
+                            onChange={(e) => {
+                              if (e.currentTarget.value) {
+                                editing.onConfermaEsecutore(vi.index, iEdit, e.currentTarget.value);
+                              }
+                            }}
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') { e.stopPropagation(); editing.onChiudiEditorEsecutore(); }
+                            }}
+                            onBlur={() => editing.onChiudiEditorEsecutore()}
+                            className="h-full w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1 text-sm text-[var(--brand-text-main)] focus:outline-none"
+                          >
+                            <option value="" disabled>
+                              {vuoto ? 'Nessuno in cronoprogramma: compila il tabellone' : 'Scegli operatore…'}
+                            </option>
+                            {editing.operatoriFinestra.map((g) => (
+                              g.operatori.length > 0 && (
+                                <optgroup key={g.data} label={`${g.etichetta} · ${g.esteso}`}>
+                                  {g.operatori.map((o) => (
+                                    // Il VALORE è il nome, non l'id: la conferma passa dalla
+                                    // stessa validazione dell'incolla (`validaOperatore`), che
+                                    // risolve per corrispondenza esatta.
+                                    <option key={`${g.data}|${o.id}`} value={o.display_name}>
+                                      {o.territorio ? `${o.display_name} · ${o.territorio}` : o.display_name}
+                                    </option>
+                                  ))}
+                                </optgroup>
+                              )
+                            ))}
+                          </select>
+                        </div>
+                      );
+                    }
                     if (inEditor && editing) {
                       /*
                         L'editor della data VIVE nella cella: stesso posto, stessa larghezza.
@@ -581,15 +650,32 @@ export default function TabellaOrdini({
                                 // riga restava sul `<body>`: il cursore ARIA non veniva letto e il
                                 // Tab successivo ripartiva dall'inizio del documento.
                                 griglia.current?.focus();
+                                /*
+                                  Su una cella Esecutore VUOTA il menu si apre al PRIMO click:
+                                  è l'unico modo di inserire un nome a mano, quindi non c'è
+                                  ragione di chiedere un secondo gesto. Su una cella piena il
+                                  click resta selezione (si copia, si estende con shift): per
+                                  CAMBIARE un nome c'è il doppio click, come per la data.
+                                */
+                                if (
+                                  c.chiave === 'pianificato_a' && scrivibile && !e.shiftKey
+                                  && !locale && !r.pianificato_a
+                                ) {
+                                  editing?.onApriEditorEsecutore(vi.index, iEdit);
+                                }
                               }
                         }
-                        // Doppio click sulla Data pianificata: si apre l'editor col calendario.
-                        // La guardia sulla colonna sta in `onApriEditorData`, quindi sugli altri
-                        // campi il doppio click non fa niente di diverso da due click.
+                        // Doppio click: l'editor della cella — calendario sulla Data, menu degli
+                        // operatori sull'Esecutore. Le guardie sulle colonne stanno negli `onApri*`,
+                        // quindi sugli altri campi il doppio click non fa niente di diverso da due click.
                         onDoubleClick={
-                          iEdit === null || c.chiave !== 'pianificato_il' || !scrivibile
+                          iEdit === null || !scrivibile
                             ? undefined
-                            : () => editing?.onApriEditorData(vi.index, iEdit)
+                            : c.chiave === 'pianificato_il'
+                              ? () => editing?.onApriEditorData(vi.index, iEdit)
+                              : c.chiave === 'pianificato_a'
+                                ? () => editing?.onApriEditorEsecutore(vi.index, iEdit)
+                                : undefined
                         }
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'

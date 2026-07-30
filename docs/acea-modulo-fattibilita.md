@@ -191,6 +191,7 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 30 | Annullati | Un intervento **annullato** non assegna, non pianifica e non si mostra: badge, filtro «Non assegnato» e colonna Esecutore usano la stessa definizione |
 | 31 | Conteggi schede | **Provati e tolti**: cinque numeri sempre accesi sui tasti erano rumore, e il rumore copre l'allarme. Sui tasti resta solo il triangolo (dec. 29) |
 | 32 | Editor data | La Data pianificata si scrive anche **a mano o dal calendario** (doppio click / Invio sulla cella); nella **copia** il cursore di cella batte le spunte, nell'**incolla** vincono le spunte |
+| 33 | Menu esecutore | Su una cella Esecutore **vuota**, un click apre il **menu di chi è in cronoprogramma** (per giorno della finestra): si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto |
 
 ---
 

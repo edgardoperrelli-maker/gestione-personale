@@ -106,6 +106,14 @@ export function useEditingGriglia({
    * qualche parte, che per una cella sola è un giro assurdo.
    */
   const [editorData, setEditorData] = useState<Cella | null>(null);
+  /**
+   * Cella dell'Esecutore con il MENU aperto: una `<select>` dentro la cella.
+   *
+   * Su una cella vuota si apre al primo click, ed è l'UNICO modo di inserire un nome a mano:
+   * niente testo libero — si sceglie fra chi è in cronoprogramma nella finestra di lavoro,
+   * perché sono le sole persone a cui un ordine può andare. L'incolla resta per i blocchi.
+   */
+  const [editorEsecutore, setEditorEsecutore] = useState<Cella | null>(null);
   const righeRef = useRef(righe);
   righeRef.current = righe;
 
@@ -143,8 +151,8 @@ export function useEditingGriglia({
   }, [colonneVisibili]);
 
   // Cambiano i dati (nuovo filtro, ricarica): le modifiche locali non hanno più senso, e
-  // l'editor aperto starebbe su una riga che non è più quella.
-  useEffect(() => { setLocali(new Map()); setEditorData(null); }, [righe]);
+  // gli editor aperti starebbero su una riga che non è più quella.
+  useEffect(() => { setLocali(new Map()); setEditorData(null); setEditorEsecutore(null); }, [righe]);
 
   const chiaveDi = useCallback((i: number) => {
     const r = righeRef.current[i];
@@ -364,12 +372,16 @@ export function useEditingGriglia({
         setSelezione((s) => (e.shiftKey && s ? { da: s.da, a: nuovo } : { da: nuovo, a: nuovo }));
         return;
       }
-      // Enter o F2 sulla Data pianificata aprono l'editor, come in Excel. La guardia sulla
-      // colonna sta in `apriEditorData`: sugli altri campi i due tasti non fanno niente.
+      // Enter o F2 aprono l'editor della cella, come in Excel: il calendario sulla Data, il
+      // menu degli operatori sull'Esecutore. Sugli altri campi i due tasti non fanno niente.
       if (e.key === 'Enter' || e.key === 'F2') {
-        if (colonneRef.current[focus.colonna] === 'pianificato_il') {
+        const chiave = colonneRef.current[focus.colonna];
+        if (chiave === 'pianificato_il') {
           e.preventDefault();
           setEditorData(focus);
+        } else if (chiave === 'pianificato_a') {
+          e.preventDefault();
+          setEditorEsecutore(focus);
         }
         return;
       }
@@ -477,9 +489,33 @@ export function useEditingGriglia({
     return loc?.pianificato_il ?? r.pianificato_il ?? '';
   }, [locali]);
 
+  /** Apre il menu SOLO sull'Esecutore: le altre colonne non hanno un elenco da cui scegliere. */
+  const apriEditorEsecutore = useCallback((riga: number, colonna: number) => {
+    if (colonneRef.current[colonna] !== 'pianificato_a') return;
+    const c = { riga, colonna };
+    setFocus(c);
+    setSelezione({ da: c, a: c });
+    setEditorEsecutore(c);
+  }, []);
+
+  const chiudiEditorEsecutore = useCallback(() => setEditorEsecutore(null), []);
+
+  /**
+   * Conferma del menu: il nome scelto passa dalla stessa strada dell'incolla.
+   *
+   * Si conferma col `display_name` e non con l'id: `applica` valida ogni scrittura con
+   * `validaOperatore`, e un nome uscito dall'elenco risolve per corrispondenza esatta — così
+   * menu, incolla e barra non possono divergere su chi è assegnabile.
+   */
+  const confermaEsecutore = useCallback((riga: number, colonna: number, nome: string) => {
+    setEditorEsecutore(null);
+    if (nome) void applica([{ riga, colonna, valore: nome }]);
+  }, [applica]);
+
   return {
     focus, selezione, celleSelezionate, locali, salvando,
     clickCella, applica, setFocus, editabile, copiaRigheSpuntate,
     editorData, apriEditorData, chiudiEditorData, confermaData, valoreIsoData,
+    editorEsecutore, apriEditorEsecutore, chiudiEditorEsecutore, confermaEsecutore,
   };
 }

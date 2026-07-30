@@ -80,6 +80,12 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   è `aria-hidden` col testo completo in `sr-only` (aria-label su `generic` è vietata).
 - [x] **Conteggi per scheda: provati e TOLTI** (`cdcdc2c` → `1e9b96d`) — un giro di vita:
   cinque numeri sempre accesi sui tasti erano rumore che copriva l'allarme. Non riproporli.
+- [x] **Menu esecutore in cella** — su una cella Esecutore VUOTA un click apre una `<select>`
+  con chi è in cronoprogramma, raggruppato per giorno della finestra (territorio accanto al
+  nome): si sceglie da lì, niente testo libero. Doppio click (o Invio/F2) per cambiare un nome
+  già scritto. La conferma passa dal `display_name` dentro `applica` → `validaOperatore`, così
+  menu, incolla e barra non possono divergere.
+- [x] **Migration applicata in produzione** — vedi Not Yet Done (spuntata).
 
 ## Not Yet Done
 
@@ -93,9 +99,9 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   «Operatore ACEA»/«Esecuzione ACEA» nel layout.
 - [ ] **Cut-over dal master** (piano in PR #175, sezione «Dopo il merge»): import con finestra
   larga, backfill dal collaudo, due giorni in parallelo con l'agente acceso.
-- [ ] **Editor in cella per Esecutore e Note**: oggi si scrivono solo per incolla o dalla barra.
-  Chiesto e costruito solo per la Data; se serve, il pattern è in `TabellaOrdini` (ramo
-  `inEditor`) + `useEditingGriglia` (`apriEditorData`).
+- [ ] **Editor in cella per le Note**: oggi si scrivono solo per incolla. Data ed Esecutore
+  hanno il loro editor; se serve anche per le Note, il pattern è in `TabellaOrdini` (rami
+  `inEditor`/`inEditorEsecutore`) + `useEditingGriglia` (`apriEditor*`).
 
 ## Failed Approaches (da non ripetere)
 

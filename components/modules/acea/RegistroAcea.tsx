@@ -441,6 +441,14 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           onChiudiEditorData: editing.chiudiEditorData,
           onConfermaData: editing.confermaData,
           valoreIsoData: editing.valoreIsoData,
+          editorEsecutore: editing.editorEsecutore,
+          onApriEditorEsecutore: editing.apriEditorEsecutore,
+          onChiudiEditorEsecutore: editing.chiudiEditorEsecutore,
+          onConfermaEsecutore: editing.confermaEsecutore,
+          // Le voci del menu in cella: chi è in cronoprogramma, giorno per giorno della finestra.
+          operatoriFinestra: giorni.map((g) => ({
+            ...g, operatori: operatoriPerGiorno[g.data] ?? [],
+          })),
           // I confini del calendario sono la finestra programmabile. La domenica fra sabato e
           // lunedì resta cliccabile nel picker (min/max non sanno bucare), ma la validazione la
           // rifiuta col motivo — meglio un rifiuto spiegato che un calendario che sembra rotto.
@@ -456,6 +464,9 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
         da Excel. <strong>Doppio click sulla Data pianificata</strong> (o <kbd>Invio</kbd> sulla
         cella) apre il calendario, e la data si scrive anche a mano.{' '}
+        <strong>Un click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi è in
+        cronoprogramma nella finestra di lavoro: si sceglie da lì, niente testo libero (doppio
+        click per cambiare un nome già scritto).{' '}
         <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
         <strong>Con delle righe spuntate</strong>, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su tutte —
         una data o un nome copiati con il cursore si incollano su quaranta spunte in un colpo,
