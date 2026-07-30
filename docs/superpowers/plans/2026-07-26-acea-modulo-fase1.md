@@ -1,0 +1,513 @@
+# Modulo ACEA — Fase 1 (implementation plan)
+
+**Studio di riferimento:** [`docs/acea-modulo-fattibilita.md`](../../acea-modulo-fattibilita.md) — 20 decisioni approvate.
+
+**Goal:** portare la gestione della commessa ACEA dentro l'app — registro ordini da import
+manuale dell'export Cruscotto, tabella di pianificazione con editing stile Excel, generazione
+automatica dei rapportini — così da abbandonare i master Excel su SharePoint e la dipendenza
+dall'agente locale.
+
+**Architettura:** un registro immutabile (`acea_ordini`) alimentato solo dall'ingestione, la
+pianificazione che resta in `interventi`, un motore rapportini ACEA separato da quello Italgas, e un
+modulo a fogliette (Dunning · Limitazioni massive · Misuratori).
+
+**Stack:** Next.js 15 App Router · TypeScript strict · Supabase · Vitest · Tailwind 4 con i token di
+`DESIGN.md` · **due dipendenze nuove approvate**: `@tanstack/react-table`, `@tanstack/react-virtual`.
+
+**Baseline rossa:** `npm run lint` e `npx vitest run` interi sono già rossi su main. I gate qui sono
+**mirati**: `npx vitest run <file del task>` deve passare, e nessun nuovo errore nei file toccati.
+
+**Regola di sicurezza per tutta la Fase 1:** non si smonta nulla di `tools/limitazioni-sync` e non
+si tocca `sincronizzaRapportini`. L'agente resta funzionante come rete di ripopolamento del master.
+
+---
+
+## Vincoli di casa da rispettare (AGENTS.md)
+
+- `lib/moduleAccess.ts` e `middleware.ts` si toccano **solo** con istruzione esplicita: qui c'è
+  (registrazione del modulo `acea`), ma va fatta in un commit isolato e nient'altro in quel file.
+- Zero `any`, zero `@ts-ignore`, zero `console.log`, zero colori hardcoded.
+- Vietati `alert()`/`confirm()` nativi → `toast.*` e `ConfirmDialog`.
+- Primitivi esistenti prima di crearne di nuovi: `FogliettaCard`, `Breadcrumb`, `FilterBar`,
+  `DetailDrawer`, `StatTile`, `Dialog`, `Skeleton`.
+- Date: `YYYY-MM-DD` per Supabase, `dd/MM/yyyy` a video. Numeri con `font-mono tabular-nums`.
+
+---
+
+## File structure
+
+```
+docs/fixtures/acea/export-campione.xlsx        ← fixture anonimizzata (Parte 0)
+
+supabase/migrations/
+  20260727090000_acea_ordini.sql               ← registro + eventi + impianti + import
+  20260727091000_rapportino_voci_origine.sql   ← colonna origine + delete ristretto
+  20260727092000_interventi_ordine_id.sql      ← FK + backfill
+
+lib/acea/
+  colonneExport.ts / .test.ts                  ← nomi colonna, validazione intestazione
+  parseTestoOrdine.ts / .test.ts               ← impianto + matricola dai 3 marcatori
+  famiglia.ts / .test.ts                       ← Tipo di ordine → famiglia
+  statiOrdine.ts / .test.ts                    ← COMP/DAPI/RICE/ASGN/SOSP/ANNL
+  scadenza.ts / .test.ts                       ← creazione + 14gg, RIAT/REVO 1gg
+  rigaHash.ts / .test.ts                       ← hash dei soli campi ACEA
+  parseExportAcea.ts / .test.ts                ← orchestratore di lettura file
+  riconciliaImport.ts / .test.ts               ← diff: nuove/modificate/invariate/annullate
+  saracinesche.ts / .test.ts                   ← stati derivati
+  comuniMassive.ts / .test.ts                  ← comuni dal registro (sostituisce la fonte agente)
+
+app/api/acea/
+  import/route.ts                              ← POST multipart
+  ordini/route.ts                              ← GET registro filtrato
+  pianifica/route.ts                           ← POST assegnazione in blocco + undo
+  rapportini/route.ts                          ← POST generazione
+  export-pianificato/route.ts                  ← GET xlsx del giorno
+  export-master/route.ts                       ← GET xlsx layout master
+
+lib/interventi/
+  sincronizzaRapportiniAcea.ts / .test.ts      ← motore separato
+
+components/modules/acea/
+  AceaNav.tsx                                  ← fogliette
+  ImportCard.tsx  RiepilogoImport.tsx
+  TabellaOrdini.tsx  useTabellaAcea.ts
+  EditingGriglia.ts / .test.ts                 ← focus, range, clipboard, undo
+  BarraAzioni.tsx  ColonneMenu.tsx
+  DunningClient.tsx  MassiveClient.tsx
+
+app/hub/acea/
+  page.tsx  dunning/page.tsx  massive/page.tsx  misuratori/page.tsx
+```
+
+---
+
+## PARTE 0 — Fixture
+
+### Task 0.1: campione anonimizzato dell'export
+
+L'export reale contiene nominativi e indirizzi di clienti ACEA: **non entra nel repo**. Serve un
+campione che copra tutti i casi limite, con indirizzi e nominativi sostituiti.
+
+- [ ] Script one-shot che estrae ~40 righe dal file reale coprendo: i tre marcatori del testo
+      ordine, il troncamento a 40 caratteri (`LEN`/`LENT`/`LENTE_MM_`), matricole con prefisso
+      alfabetico e con trattino, una matricola a 16 caratteri, i sei stati, le cinque famiglie,
+      l'ordine con due operazioni, le righe `REVO` con `Escludi = X`, un `AVUF` senza impianto,
+      righe con e senza `Cognome C.I.D.`.
+- [ ] Anonimizzazione: `Via`, `N. civico`, `CAP` sostituiti con valori fittizi coerenti; ODL,
+      impianto e matricola mantenuti (non sono dati personali e servono agli aggancî).
+- [ ] Salvare in `docs/fixtures/acea/export-campione.xlsx` e verificare che il campione produca gli
+      stessi esiti di parsing del file reale sui casi coperti.
+
+---
+
+## PARTE 1 — Database
+
+### Task 1.1: `acea_ordini` + `acea_ordini_eventi` + `acea_impianti` + `acea_import`
+
+- [ ] Migration `20260727090000_acea_ordini.sql`.
+
+Punti non negoziabili:
+
+```sql
+-- chiave: la coppia, non l'ODL
+primary key (odl, numero_operazione)
+
+-- il dato ACEA non è scrivibile dall'app
+revoke insert, update, delete on acea_ordini from authenticated;
+grant select on acea_ordini to authenticated;
+
+-- unica tabella mista: privilegi di COLONNA
+grant update (indirizzo_verificato, verificato_da, verificato_il)
+  on acea_impianti to authenticated;
+```
+
+- [ ] RLS su tutte e quattro (convenzione di casa: policy permissiva `authenticated` in lettura,
+      authz reale nei guard API).
+- [ ] Indici: `(famiglia, stato_norm)`, `(comune)`, `(data_creazione)`, `(impianto)`,
+      `(matricola_norm)`, `(scaduto_al)` se materializzata.
+- [ ] `acea_import`: `sha256` unique, righe totali/nuove/modificate/invariate/annullate, finestra
+      coperta, `caricato_da`, `caricato_il`, `storage_path`.
+- [ ] Bucket Storage `acea-import` privato per gli xlsx originali.
+
+Verifica: `mcp supabase list_tables` o `\d acea_ordini`; un `update` da ruolo `authenticated` deve
+fallire con permission denied.
+
+### Task 1.2: `rapportino_voci.origine`
+
+- [ ] Migration `20260727091000`: colonna `origine text not null default 'task'` con check
+      `in ('task','manuale','acea')`; backfill `'manuale'` dove `manuale = true`.
+- [ ] **Unica modifica a `sincronizzaRapportini.ts`**: la delete alla riga ~291 passa da
+      `.eq('manuale', false)` a `.eq('origine', 'task')`.
+- [ ] Test di regressione: `npx vitest run lib/interventi/sincronizzaRapportini.test.ts` verde, più
+      un test nuovo che verifica che una voce `origine='acea'` **sopravvive** a una rigenerazione di
+      piano.
+
+> È l'unico punto in cui si tocca il motore Italgas. Commit isolato, nient'altro dentro.
+
+### Task 1.3: `interventi.ordine_id` + backfill
+
+- [ ] Migration `20260727092000`: colonna nullable + FK verso `acea_ordini` con
+      `on delete set null` (un ODL annullato non deve cancellare l'intervento eseguito).
+- [ ] Backfill per ODL dei 5.375 interventi ACEA esistenti, dopo il primo import.
+
+---
+
+## PARTE 2 — Parser (funzioni pure, TDD)
+
+Tutte le funzioni di questa parte sono **pure e testate sulla fixture**. Nessuna tocca il DB.
+
+### Task 2.1: `parseTestoOrdine`
+
+- [ ] Test prima: i tre marcatori, il caso minuscolo `Sost_Sarac_ser`, il troncamento, le matricole
+      `123324A` / `04-228458` / `MIS-E392-3017` / `OA3494` / `99AO23231`, e il caso senza impianto
+      (`SCISSIONE_ODL_PADRE`, `RICERCA FRODE_ZAGAROLO`) che deve restituire `null` senza lanciare.
+
+```ts
+export type EstrazioneImpianto = {
+  impianto: string | null;
+  matricola: string | null;
+  /** true se il testo è a 40 caratteri e la matricola tocca il limite: possibile troncamento. */
+  sospettoTroncamento: boolean;
+};
+export function parseTestoOrdine(testo: string): EstrazioneImpianto;
+```
+
+- [ ] Regola: impianto = 10 cifre iniziali; matricola = primo token dopo
+      `LIM_MAS_MATR_` | `LIM_MASS_` | `SOST_SARAC_SER_` (case-insensitive, `_` o spazio).
+- [ ] `sospettoTroncamento` a `true` quando `testo.length >= 40` e la matricola termina a fine
+      stringa: non blocca, segnala.
+- [ ] Il parsing **non decide mai l'attività** — quella si legge solo da `Operazione testo breve`.
+
+### Task 2.2: `famiglia`, `statiOrdine`, `scadenza`
+
+- [ ] `famigliaDaTipoOrdine`: `ASTR` → `'massive'`; `ALIM`/`AMOR`/`ARMO`/`AVUF` → `'dunning'`;
+      ignoto → `'dunning'` con flag di avviso (mai scartare una riga).
+- [ ] `isAperto`: `DAPI`, `RICE`, `ASGN`, **`SOSP`** → true. `COMP` chiuso, `ANNL` da eliminare.
+- [ ] `scadenzaOrdine({ famiglia, codiceSla, dataCreazione })`:
+      massive → `null` (**non scadono mai**); `RIAT`/`REVO` → creazione + 1 giorno; resto dunning →
+      creazione + 14 giorni. Restituisce anche `giorniResidui` rispetto a una data data.
+- [ ] Test sui casi di bordo: scadenza oggi, scaduta ieri, riga massive (deve essere `null` anche
+      con `Data fine cardine` valorizzata).
+
+### Task 2.3: `rigaHash` e `colonneExport`
+
+- [ ] `rigaHash`: sha256 dei soli campi ACEA in ordine fisso. Due letture della stessa riga → stesso
+      hash; un campo diverso → hash diverso. Serve al «salta se identica».
+- [ ] `validaIntestazione`: rifiuta se manca una colonna obbligatoria o se il foglio non è
+      `Esportazione SAPUI5`.
+- [ ] `validaProvenienza`: `Contratto = 3600002158` e `Fornitore = 25617` su tutte le righe; un file
+      di un'altra commessa viene rifiutato **prima** di scrivere.
+
+### Task 2.4: `parseExportAcea`
+
+- [ ] Orchestratore: legge il workbook con `exceljs`, valida, mappa ogni riga in `RigaOrdineAcea`
+      (~35 campi utili), applica `parseTestoOrdine` quando la colonna matricola è vuota, calcola
+      famiglia, stato, scadenza, hash.
+- [ ] Test sulla fixture: 40 righe attese, zero eccezioni, copertura impianto ≥ 99%, gli 8 casi
+      senza impianto passano con `null`.
+
+---
+
+## PARTE 3 — Import
+
+### Task 3.1: `riconciliaImport` (puro)
+
+- [ ] Dato l'insieme delle righe del file e lo stato corrente del registro, produce il piano di
+      scrittura: `nuove[]`, `modificate[]`, `invariate` (conteggio), `daEliminare[]` (le `ANNL`),
+      `nonCoperte` (in DB e assenti dal file, **da non toccare**).
+- [ ] Test dei casi decisi nello studio: riga identica → invariata; `ANNL` presente → eliminazione;
+      ODL in DB assente dal file → nessuna azione; riga cambiata → modificata con la lista dei campi
+      cambiati per il change-log.
+
+### Task 3.2: `POST /api/acea/import`
+
+- [ ] Guard admin (`requireUser` + ruolo), `runtime = 'nodejs'`.
+- [ ] Flusso: sha256 → se già importato risponde `409` con i dati dell'import precedente e attende
+      conferma → valida provenienza → parse → riconcilia → scrive in transazione logica →
+      registra `acea_import` → archivia l'xlsx in Storage.
+- [ ] Gli `ANNL` con `interventi` collegati **non spariscono in silenzio**: la risposta include
+      l'elenco (ODL, data pianificata, operatore) per il riepilogo.
+- [ ] Eventi nel change-log solo per i campi realmente cambiati.
+- [ ] Verifica manuale con la fixture: primo import (tutte nuove) → secondo import identico (tutte
+      invariate, zero scritture, `updated_at` immutato).
+
+### Task 3.3: UI di import
+
+- [ ] `ImportCard`: drop area, stato di avanzamento, riuso del pattern di
+      `ImportMisuratoriClient.tsx`.
+- [ ] `RiepilogoImport`: finestra coperta, totali per famiglia, nuove/modificate/invariate,
+      annullate rimosse (con l'avviso sui pianificati), ODL in DB non coperti dal file.
+      **Il riepilogo è il sostituto del CONFRONTA**: è la schermata che si guarda ogni mattina.
+- [ ] Storico degli import con chi e quando.
+
+---
+
+## PARTE 4 — Registro e query
+
+### Task 4.1: `GET /api/acea/ordini`
+
+- [ ] Filtri: famiglia, stato, comune, attività, operatore, scadenza (scaduti / entro N giorni),
+      testo libero su ODL, matricola, impianto, indirizzo. Paginazione server-side.
+- [ ] Join con `interventi` per esecutore e data pianificata; join con i rapportini per esito,
+      sigillo e saracinesca (il riporto è **un join**, non una scrittura).
+
+### Task 4.2: `comuniMassive` dal registro
+
+- [ ] Nuovo `lib/acea/comuniMassive.ts`: comuni distinti delle righe `famiglia = 'massive'` del
+      registro.
+- [ ] `lib/produzione/comuniMassive.ts` passa a questa fonte con **fallback** su
+      `agente_file_colonne` finché l'agente è vivo.
+
+> **Perché è obbligatorio.** Oggi `caricaComuniMassive()` deriva i comuni massive dai file
+> scansionati dall'agente (`agente_file_colonne.is_master`) e li passa a `attivitaCanonica`, che
+> decide se una riga ACEA senza testo attività è massiva o va riclassificata Italgas. Spegnendo
+> l'agente quella fonte si congela: un comune nuovo non verrebbe più riconosciuto e la Produzione
+> economica lo classificherebbe male. Vedi AGENTS.md §14.
+
+---
+
+## PARTE 5 — Tabella di pianificazione
+
+### Task 5.1: fondamenta
+
+- [ ] `npm i @tanstack/react-table @tanstack/react-virtual` (approvate).
+- [ ] `TabellaOrdini` con virtualizzazione **dalla prima riga di codice**: 5.293 righe × 20 colonne
+      senza virtualizzazione bloccano il browser.
+- [ ] Colonne Dunning visibili: ODL · Attività · Matricola · Indirizzo · Comune · Stato ordine ·
+      Data creazione · **Scadenza** · Esecutore · Data pianificata. Nascoste ma filtrabili: famiglia,
+      tipo ordine, operatore ACEA, valore, priorità, impianto, causale.
+- [ ] Colonne Massive: ODL · Impianto · Matricola · Indirizzo · Comune · Stato · Esecutore · Data
+      esecuzione · Esito · Sigillo · Saracinesca · Extra manuale. **Nessuna colonna scadenza.**
+- [ ] Design: token di `DESIGN.md`, `thead` sticky, `font-mono tabular-nums` sui numerici.
+
+### Task 5.2: must-have (cancelli di collaudo)
+
+- [ ] Filtri per colonna · ordinamento · ricerca libera · conteggio righe filtrate.
+- [ ] Selezione multipla con shift-click.
+- [ ] Scelta delle colonne visibili (persistita per utente).
+- [ ] Evidenziazione scaduti / in scadenza (solo dunning).
+- [ ] Export xlsx della **vista filtrata corrente**, non di tutto il registro.
+
+### Task 5.3: azioni in blocco + undo
+
+- [ ] `BarraAzioni`: «Assegna a…» + «Pianifica il…» sulle righe selezionate.
+- [ ] `POST /api/acea/pianifica`: crea/aggiorna gli `interventi`, restituisce un `operazione_id`.
+- [ ] **Annullamento dell'ultima azione in blocco**: l'operazione registra lo stato precedente delle
+      righe toccate; l'undo lo ripristina. È un must-have, quindi va progettato qui, non aggiunto
+      dopo.
+- [ ] Guardrail: un ODL già pianificato per un altro giorno non si assegna due volte; un ODL già
+      completato non si sposta (stessa invariante di `spostamento_completato`).
+
+### Task 5.4: editing stile Excel (`EditingGriglia`)
+
+Costruito **sopra** la tabella già funzionante, come ultimo strato: se scivola, non blocca lo
+spegnimento del master.
+
+- [ ] Logica pura e testata a parte: modello di selezione (cella, range, shift+frecce), parsing del
+      blocco incollato (TSV dalla clipboard), mappatura blocco → celle target, undo/redo.
+- [ ] Editing consentito **solo** su `Esecutore` e `Data pianificata`. I campi ACEA non sono
+      editabili: la tabella non offre nemmeno il focus in edit su quelle colonne.
+- [ ] Validazione per colonna: esecutore deve essere uno staff attivo, data deve essere valida e non
+      passata.
+- [ ] Persistenza ottimistica con coda e rollback: ogni cella è una chiamata di rete che può
+      fallire, e l'utente deve vedere cosa non è stato salvato.
+- [ ] Copia (`Ctrl+C`) e incolla (`Ctrl+V`) di un blocco; nessun trascinamento, per decisione.
+
+---
+
+## PARTE 6 — Rapportini
+
+### Task 6.1: `sincronizzaRapportiniAcea` ✅
+
+- [x] Motore separato (`lib/acea/sincronizzaRapportiniAcea.ts`). Regola: **un rapportino per
+      operatore per giorno**. Cerca per `(staff_id, data)` attraverso i piani; se non esiste lo crea
+      su un piano-contenitore di territorio ACEA indipendentemente dall'attività; se esiste vi
+      **aggiunge** le voci con `origine = 'acea'`.
+- [x] **Non cancella mai nulla.**
+- [x] Le voci portano `template_id` e `campi_snapshot` del flusso della loro attività (meccanismo già
+      esistente per voce dal 20/07), e `_nuovo` per evidenziarle all'operatore.
+- [x] Rapportino già `inviato`: non si altera in silenzio. Il motore risponde
+      `esito: 'richiede_riapertura'` e l'admin conferma. Se però non c'è nulla da aggiungere
+      risponde `nessuna_modifica`: nessuna riapertura per zero voci.
+- [x] Idempotente: `task_id = acea:<intervento_id>` più il confronto sull'ODL **di qualunque
+      origine** — durante la transizione il vecchio flusso da master genera voci `origine='task'`
+      sugli stessi ODL e senza quel controllo l'operatore vedrebbe l'intervento due volte.
+- [x] Gli interventi ACEA restano **senza `piano_id`**: legarli al contenitore li esporrebbe a
+      `ensureInterventiForPiano`, che cancella ciò che nei task del piano non trova.
+- [x] 27 test (`vociRapportino.test.ts`, `sincronizzaRapportiniAcea.test.ts`): operatore senza
+      rapportino → creato; con rapportino Italgas → voci aggiunte in coda e **voci Italgas intatte,
+      risposte comprese**; con rapportino inviato → nessuna modifica e richiesta di conferma; con
+      conferma → riaperto e aggiornato; secondo giro identico → nessuna voce duplicata; due
+      operatori → un solo piano-contenitore.
+
+### Task 6.2: conferma esplicita all'admin ✅
+
+- [x] `POST /api/acea/rapportini` restituisce, per operatore: creato / aggiunto / richiede
+      riapertura / nessuna modifica, con conteggi e link al rapportino.
+- [x] `RapportiniGiorno` mostra l'esito riga per riga e offre «Riapri e aggiungi» con conferma.
+      **Mai un silenzio**: è il difetto del motore attuale, dove `skipInviati: true` scarta il
+      lavoro senza avvisare nessuno.
+
+---
+
+## PARTE 7 — Modulo e navigazione
+
+> **Anticipata rispetto all'ordine del piano** (parti 7 minima → 5): senza una pagina, l'import
+> della Parte 3 non era raggiungibile e il registro non si poteva popolare. La tabella nasce così
+> sopra qualcosa che già gira.
+
+### Task 7.1: registrazione del modulo ✅
+
+- [x] `APP_MODULES`: voce `acea` (gruppo `pianificazione`, `adminOnly`, `requiresAdminRole`).
+      Commit isolato (`fb0d29c`), nient'altro nel file (AGENTS.md §11.1).
+- [x] `lib/appNavigation.ts` si aggiorna da solo: mappa `APP_MODULES`.
+- [x] Icona `acea` in `components/layout/moduleIcons.tsx`.
+- [ ] `agente`, `assegnazione-ai` e `misuratori` restano registrati: si ritirano al **cut-over**,
+      non prima — l'agente serve ancora come rete di ripopolamento del master.
+
+### Task 7.2: fogliette ✅ (minima)
+
+- [x] `AceaNav` con `FogliettaCard` + `Breadcrumb` (DESIGN.md §7bis, come `ListaAttesaNav`).
+- [x] `/hub/acea` → hub con contatori e le tre fogliette.
+- [x] `/hub/acea/dunning` → import funzionante + contatori che si aggiornano a fine import.
+- [x] `/hub/acea/massive` → contatori + segnaposto della tabella.
+- [x] Misuratori: foglietta che punta alla rotta esistente `/hub/misuratori` (spostamento reale
+      rimandato: la vista funziona, muoverla ora sarebbe solo churn).
+
+### Task 7.3: import nella UI ✅ (era il task 3.3)
+
+- [x] `ImportCard`: caricamento del file, 409 «già importato» con conferma esplicita via
+      `chiediConferma`, storico degli ultimi import.
+- [x] `RiepilogoImport`: finestra coperta, nuove / modificate / invariate / annullate rimosse /
+      non coperte, gli annullati che erano pianificati in rosso, gli avvisi di parsing raggruppati.
+- [x] `ContatoriAcea`: aperti per famiglia, oltre scadenza, in scadenza a 7 giorni, **età
+      dell'ultimo import** in evidenza — con l'import manuale il rischio non è il dato sbagliato,
+      è il dato vecchio che nessuno sa essere vecchio.
+
+### Task 7.4: da completare con la tabella
+
+- [ ] Dunning: tabella, azioni in blocco, export del pianificato.
+- [ ] Massive: tabella unica con **filtro comune**, righe extra dai rapportini, tasto «aggiorna
+      stato» come scorciatoia all'import.
+
+---
+
+## PARTE 8 — Saracinesche
+
+### Task 8.1: stati derivati ✅
+
+- [x] `lib/acea/saracinesche.ts` — puro, nessuna tabella nuova:
+      **fatte** (saracinesca `SI` nel rapportino) · **da esitare** (ordine di sostituzione aperto) ·
+      **da richiedere** (nessun ordine sull'impianto/matricola).
+- [x] Aggancio per impianto, e per matricola normalizzata quando l'impianto non si conosce: le due
+      parti non sono simmetriche (il registro ha quasi sempre l'impianto, il rapportino la
+      matricola), quindi basta UNA chiave in comune.
+- [x] `fatte` conta i **misuratori**, non le voci: la stessa saracinesca si paga una volta sola.
+- [x] Vale per Dunning **e** Massive: filtro presente in entrambe le fogliette. Il filtro si applica
+      **dopo** l'aggancio — filtrare gli ordini a monte mostrerebbe come «da richiedere»
+      saracinesche già coperte da un ordine dell'altra famiglia.
+- [x] Un ordine aperto si mostra sotto la famiglia della saracinesca che copre, non sotto la
+      propria: nato da un dunning, va cercato fra i dunning anche se come tipo è una ASTR.
+- [x] `attendibile: false` quando il registro non ha ordini di sostituzione: senza import
+      «da richiedere» coinciderebbe con «fatte» e mostrerebbe decine di migliaia di euro di falso
+      allarme. La UI lo dice e nasconde i due numeri.
+- [x] 22 test puri + collaudo sul DB di produzione (tre ordini sintetici, poi rimossi):
+      matricola esatta → coperta · matricola scritta diversamente (`2020-15213481`) → coperta,
+      la normalizzazione regge · attività diversa sulla stessa matricola → **resta da richiedere**.
+- [ ] Verifica sui dati reali dei tre numeri (**791 / 80 / 634**): misurabile solo dopo il primo
+      import vero. Oggi il lato dichiarazioni misura **800 fatte** (730 massive + 70 dunning,
+      04/06 → 27/07) contro le 791 dello studio del 25/07 — due giorni di lavoro in più, coerente.
+      Copertura e da-richiedere restano da verificare col registro pieno.
+
+---
+
+## PARTE 9 — Export
+
+### Task 9.1: pianificato del giorno ✅
+
+- [x] `GET /api/acea/export-pianificato?data=YYYY-MM-DD[&famiglia=]` → xlsx con operatore, ODL,
+      operazione, attività, comune, indirizzo, CAP, impianto, matricola, stato ACEA.
+- [x] Ordinato **per operatore**, poi comune, poi indirizzo: sul Cruscotto si assegna una persona
+      alla volta, e un foglio ordinato per ODL costringerebbe a saltare avanti e indietro.
+- [x] Giorno senza pianificato → 404 con il messaggio, non un file vuoto da aprire per scoprirlo.
+
+### Task 9.2: master on-demand ✅
+
+- [x] `GET /api/acea/export-master?famiglia=[&comune=]` → xlsx col layout del master, generato dal
+      registro.
+- [x] **Massive**: le 21 intestazioni reali lette da `agente_file_colonne` il 27/07 — l'unione di
+      LABICO e ZAGAROLO, che non coincidono (`PREASSEGNAZIONE`/`ASSEGNATARIO` solo sul primo,
+      `Via`/`N. civico` solo sul secondo). L'agente risolve le colonne per nome: una in più è
+      innocua, una in meno romperebbe la lettura.
+- [x] **Dunning**: esattamente le colonne che `config.example.json` nomina, volutamente non
+      arricchite — serve a riavere il file com'era, non a farne uno migliore.
+- [x] Esito, saracinesca, sigillo e note passano dalla **stessa funzione pura** che alimenta
+      l'agente (`buildRigaLimMassive`): il file rigenerato dice quello che il file scritto
+      dall'agente direbbe, senza una seconda interpretazione destinata a divergere.
+- [x] `Odl saracinesca` — la colonna che l'ufficio compilava a mano — è **derivata** dall'ordine di
+      sostituzione sullo stesso impianto o matricola.
+- [x] L'indirizzo verificato dall'ufficio (`acea_impianti`) vince su quello ACEA: è la ragione per
+      cui quella colonna esiste.
+- [x] 25 test, di cui 8 **riaprono il file appena scritto**: le date restano date con formato
+      `dd/mm/yyyy` (scritte come testo, `new Date()` le rileggerebbe all'americana e un 27/07
+      diventerebbe non valido), i numeri restano numeri, gli ODL restano testo con gli zeri
+      iniziali, intestazione bloccata e filtro attivi.
+
+---
+
+## PARTE 10 — Collaudo e cut-over
+
+**Strumenti pronti** (`/hub/acea/collaudo`). Restano da eseguire i passi che richiedono il file vero.
+
+### Fatto
+
+- [x] `lib/acea/collaudo.ts` — confronto puro fra il registro e le fonti che sostituisce, 10 test.
+      Nessun troncamento silenzioso: gli scarti riportano il totale accanto agli esempi.
+- [x] `GET /api/acea/collaudo` — due confronti con pesi diversi:
+      **modulo ↔ Cruscotto** (`acea_portale_snapshot`) è quello che decide, perché è la stessa
+      fonte dell'export letta in modo indipendente dall'agente;
+      **modulo ↔ master** (`acea_master_snapshot`) serve a capire la differenza, non a validarla.
+- [x] `POST /api/acea/backfill-ordini` — collega gli interventi ACEA esistenti al registro per ODL
+      (prima operazione, deterministica). Idempotente: tocca solo quelli ancora scollegati.
+- [x] Pannello di collaudo con i due semafori, il backfill e i 13 cancelli da spuntare.
+- [x] **Correzione emersa dal collaudo**: `isAperto` passa dalla regola per appartenenza a quella
+      per esclusione (aperto = non completato e non annullato). Il 27/07 il Cruscotto mostrava 4
+      ordini «Iniziato», stato assente dall'export del 26/07: sarebbero stati trattati come chiusi
+      e spariti dal backlog in silenzio. Gli stati nuovi ora entrano come aperti **e** producono un
+      avviso `stato_ignoto` all'import.
+
+### Numeri di partenza, misurati il 27/07
+
+| misura | valore | a che serve |
+|---|---|---|
+| ODL sul Cruscotto (`acea_portale_snapshot`, letto alle 08:37) | 5.291 | il registro deve arrivarci |
+| di cui **aperti** | **1.732** | è il bersaglio del confronto dopo l'import |
+| ODL nel master e **non** sul Cruscotto | 1.353 | la ragione della finestra `Data pubblicazione ≥` più larga possibile |
+| ODL condivisi da master e Cruscotto | 5.130 | — |
+| di cui **concordi sullo stato** | 3.091 | il master non è un oracolo: su questa base non si valida niente |
+| interventi ACEA da collegare | 6.922 | copertura attesa del backfill |
+
+### Da eseguire con il file vero
+
+- [ ] **Primo import con il filtro `Data pubblicazione ≥` portato il più indietro possibile.**
+- [ ] Backfill `interventi.ordine_id` dal pannello.
+- [ ] Confronto col Cruscotto **verde**: nessun ODL assente dal modulo, nessuno stato discorde.
+      Un eccesso di ODL nel modulo è atteso ed è giallo, non rosso — è la finestra più larga.
+- [ ] Verifica dei cancelli (Task 5.2, 5.3, 5.4) uno per uno sui dati veri.
+- [ ] Preview → due giorni di prova con l'agente ancora attivo → abbandono del master.
+- [ ] L'agente resta installato: se serve, una passata ripopola i master. In alternativa il master
+      si rigenera dal modulo (Task 9.2).
+
+---
+
+## Rischi tecnici
+
+| rischio | mitigazione |
+|---|---|
+| Toccare `sincronizzaRapportini` rompe Italgas (477 rapportini inviati) | Una sola riga modificata, in un commit isolato, con test di regressione prima |
+| `caricaComuniMassive()` si congela spegnendo l'agente | Task 4.2, con fallback durante la transizione |
+| Editing a griglia più lungo del previsto | È l'ultimo strato: la tabella funziona e il master si spegne anche senza |
+| Persistenza ottimistica che perde scritture | Coda con rollback ed evidenza visiva delle celle non salvate |
+| Import di un file sbagliato | Validazione contratto/fornitore prima di qualsiasi scrittura |
+| 5.293 righe nel DOM | Virtualizzazione fin dal primo commit della tabella |
+| Fixture con dati personali nel repo | Anonimizzazione in Parte 0, file reale mai committato |

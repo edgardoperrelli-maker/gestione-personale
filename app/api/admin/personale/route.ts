@@ -68,6 +68,37 @@ async function requireAdmin(): Promise<true | NextResponse> {
   return true;
 }
 
+/**
+ * GET /api/admin/personale — l'elenco degli operatori.
+ *
+ * Mancava, e la mancanza non si vedeva: chi lo chiamava riceveva 405, controllava `res.ok` e
+ * lasciava l'elenco vuoto senza dire niente. Da lì due comandi che sembravano rotti a caso nel
+ * registro ACEA — il menu «assegna a» vuoto, e ogni nome incollato in griglia respinto con
+ * «operatore non trovato», compreso il nome COPIATO DALLA CELLA ACCANTO.
+ *
+ * Solo id e nome: chi chiama deve scegliere una persona, non modificarne l'anagrafica. Ordinati
+ * per nome perché finiscono in un menu che si scorre a occhio.
+ */
+export async function GET() {
+  const guard = await requireAdmin();
+  if (guard instanceof NextResponse) return guard;
+
+  const { data, error } = await supabaseAdmin
+    .from('staff')
+    .select('id, display_name')
+    // Solo gli attivi: a un operatore che non lavora più non si assegna un intervento, e in un
+    // menu di trenta nomi quelli spenti sono rumore.
+    .eq('active', true)
+    .order('display_name', { ascending: true });
+
+  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  return NextResponse.json(
+    { rows: (data ?? []).filter((r) => r.display_name) },
+    { headers: { 'Cache-Control': 'no-store' } },
+  );
+}
+
 export async function PATCH(req: NextRequest) {
   const guard = await requireAdmin();
   if (guard instanceof NextResponse) return guard;

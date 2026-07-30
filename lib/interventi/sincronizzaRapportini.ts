@@ -253,11 +253,26 @@ export async function sincronizzaRapportini(
       await db.from('rapportini').update(patch).eq('id', rapId);
     }
 
-    // IMPORTANTE: le voci MANUALI (create dal "+") NON derivano dai task del piano e NON
-    // vanno ricostruite. Si leggono/cancellano solo le voci da-task (manuale=false): la
-    // rigenerazione/salvataggio del piano altrimenti perderebbe gli interventi dal "+".
-    const { data: existingVoci } = await db.from('rapportino_voci')
-      .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('manuale', false);
+    // IMPORTANTE: questo motore possiede SOLO le voci da-task (origine='task'). Le voci MANUALI
+    // (dal "+" dell'operatore) e quelle del motore ACEA (aggiunte a un rapportino esistente per la
+    // regola "un rapportino per operatore per giorno") non derivano dai task del piano e NON vanno
+    // ricostruite: leggerle/cancellarle qui farebbe perdere gli interventi dal "+" e raderebbe via
+    // le voci ACEA alla prima rigenerazione del piano.
+    //
+    // Se la migration 20260727091000 non è ancora applicata (deploy del codice che precede il DB),
+    // si ripiega sul filtro storico `manuale=false`. Senza questo fallback la select fallirebbe,
+    // il delete pure — ed essendo entrambi senza controllo dell'errore, l'insert successivo
+    // creerebbe voci DUPLICATE sui rapportini esistenti.
+    let filtroMotore: { campo: 'origine' | 'manuale'; valore: unknown } = { campo: 'origine', valore: 'task' };
+    const selVoci = await db.from('rapportino_voci')
+      .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('origine', 'task');
+    let existingVoci = selVoci.data;
+    const eSelVoci = selVoci.error;
+    if (eSelVoci && /origine/i.test(eSelVoci.message) && /column|schema/i.test(eSelVoci.message)) {
+      filtroMotore = { campo: 'manuale', valore: false };
+      ({ data: existingVoci } = await db.from('rapportino_voci')
+        .select('task_id, risposte, raw_json').eq('rapportino_id', rapId).eq('manuale', false));
+    }
     const existingRows = (existingVoci as Array<{ task_id: string; risposte: Record<string, unknown> | null; raw_json: unknown }>) ?? [];
     const existingTaskIds = new Set(existingRows.map((v) => v.task_id));
     const prevNuovoByTask = new Map<string, boolean>(
@@ -288,7 +303,8 @@ export async function sincronizzaRapportini(
     const existingAsVoci: Voce[] = existingRows.map((v) => ({ task_id: v.task_id, ordine: 0, raw_json: {}, risposte: v.risposte ?? {} }));
     const merged = mergeVoci(fromTasks, existingAsVoci);
 
-    await db.from('rapportino_voci').delete().eq('rapportino_id', rapId).eq('manuale', false);
+    await db.from('rapportino_voci').delete().eq('rapportino_id', rapId)
+      .eq(filtroMotore.campo, filtroMotore.valore);
     if (merged.length) {
       const vociRows = merged.map(({ annullato, ...v }) => {
         const raw = (v.raw_json ?? {}) as { odl?: unknown; odsin?: unknown; matricola?: unknown; pdr?: unknown };

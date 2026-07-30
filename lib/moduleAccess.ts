@@ -14,6 +14,7 @@ export type AppModuleKey =
   | 'dashboard'
   | 'hotel-calendar'
   | 'mappa'
+  | 'acea'
   | 'interventi'
   | 'consuntivazione'
   | 'assistenza'
@@ -81,6 +82,19 @@ export const APP_MODULES: AppModuleDefinition[] = [
     section: 'modules',
     group: 'pianificazione',
     matchPrefixes: ['/hub/mappa'],
+  },
+  {
+    // Modulo unico della commessa ACEA: registro degli ordini importato dall'export del
+    // Cruscotto, pianificazione e limitazioni massive. Sostituisce l'uso dei file master.
+    key: 'acea',
+    href: '/hub/acea',
+    label: 'ACEA',
+    description: 'Commessa ACEA: dunning, limitazioni massive, misuratori',
+    section: 'modules',
+    group: 'pianificazione',
+    matchPrefixes: ['/hub/acea'],
+    adminOnly: true,
+    requiresAdminRole: true,
   },
   {
     key: 'interventi',

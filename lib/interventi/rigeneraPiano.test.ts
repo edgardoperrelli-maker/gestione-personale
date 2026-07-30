@@ -29,7 +29,7 @@ describe('rigeneraPiano', () => {
     const { db, tables } = makeFakeDb(seedBase({
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' }] }],
       rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso', template_id: 'tpl1' }],
-      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} }],
+      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: {}, raw_json: {} }],
     }));
     const res = await rigeneraPiano(db, 'p1');
     expect(res.ok).toBe(true);
@@ -44,7 +44,7 @@ describe('rigeneraPiano', () => {
     const { db, tables } = makeFakeDb(seedBase({
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' }] }],
       rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'inviato', template_id: 'tpl1' }],
-      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} }],
+      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: {}, raw_json: {} }],
     }));
     const res = await rigeneraPiano(db, 'p1');
     expect(res.ok).toBe(true);

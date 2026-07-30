@@ -23,6 +23,36 @@ describe('valoreSaracinesca', () => {
   it('entrambi assenti → vuoto', () => {
     expect(valoreSaracinesca(null, undefined)).toBe('');
   });
+
+  /*
+    Le due chiavi NON sono due nomi della stessa domanda.
+
+    `sostituzione_valvola` è la domanda vera (SI su 817 ODL, NO su 273). `sost_valvola` è un campo
+    FOTO: sui dati reali 314 voci, di cui 309 percorsi di immagine e 5 booleani sbandati, e zero
+    risposte testuali — mai una.
+
+    Quei 5 booleani facevano passare per «saracinesca sostituita» cinque ordini di rimozione
+    misuratore e sospensione fornitura, dove una saracinesca non è nemmeno contemplata, e su tutti
+    e cinque la domanda vera era rimasta senza risposta. Un elenco di lavoro da fatturare che
+    contiene lavoro mai fatto è peggio di un elenco corto: ci si va a discutere con ACEA.
+  */
+  it('un booleano sul campo FOTO non è una dichiarazione', () => {
+    expect(valoreSaracinesca(null, true)).toBe('');
+    expect(valoreSaracinesca(undefined, true)).toBe('');
+    expect(valoreSaracinesca('', true)).toBe('');
+  });
+
+  it('ma sulla domanda vera il booleano resta una risposta', () => {
+    // Il template a checkbox salva `true`, ed è un SI a tutti gli effetti: la correzione non deve
+    // buttare via anche quello.
+    expect(valoreSaracinesca(true, null)).toBe('SI');
+    expect(valoreSaracinesca(true, 'rapportini/abc/x.jpg')).toBe('SI');
+  });
+
+  it('un NO esplicito non diventa SI per via della foto', () => {
+    expect(valoreSaracinesca('NO', true)).toBe('NO');
+    expect(valoreSaracinesca('NO', 'rapportini/abc/x.jpg')).toBe('NO');
+  });
 });
 
 describe('cognomeDaDisplayName', () => {

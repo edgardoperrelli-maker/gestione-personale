@@ -29,7 +29,7 @@ describe('sincronizzaRapportini', () => {
     const { db, tables } = makeFakeDb(seedBase({
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
       rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
-      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', risposte: { q: 'A' }, raw_json: {} }],
+      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', origine: 'task', risposte: { q: 'A' }, raw_json: {} }],
     }));
     const res = await sincronizzaRapportini(db, 'p1', OPTS);
     expect(res.ok).toBe(true);
@@ -132,7 +132,7 @@ describe('sincronizzaRapportini — ODL già positivi (invariante odlPositivi)',
     const { db, tables } = makeFakeDb(seedBase({
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
       rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
-      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: { eseguito: 'SI' }, raw_json: {} }],
+      rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: { eseguito: 'SI' }, raw_json: {} }],
     }));
     const res = await sincronizzaRapportini(db, 'p1', OPTS);
     expect(res.ok).toBe(true);
@@ -172,8 +172,8 @@ describe('sincronizzaRapportini — preserva le voci manuali (dal +)', () => {
       mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
       rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
       rapportino_voci: [
-        { id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} },
-        { id: 'vman', rapportino_id: 'rap1', task_id: null, manuale: true, approvazione_stato: 'in_attesa', richiesta_id: 'req1', risposte: { esito: 'OK' }, raw_json: { _nuovo: true } },
+        { id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: {}, raw_json: {} },
+        { id: 'vman', rapportino_id: 'rap1', task_id: null, manuale: true, origine: 'manuale', approvazione_stato: 'in_attesa', richiesta_id: 'req1', risposte: { esito: 'OK' }, raw_json: { _nuovo: true } },
       ],
     }));
     const res = await sincronizzaRapportini(db, 'p1', OPTS);
@@ -181,6 +181,27 @@ describe('sincronizzaRapportini — preserva le voci manuali (dal +)', () => {
     const manuale = tables.rapportino_voci.find((v) => v.id === 'vman');
     expect(manuale).toBeTruthy();                        // non cancellata
     expect(manuale?.risposte).toEqual({ esito: 'OK' });  // dati intatti
+    expect(tables.rapportino_voci.filter((v) => v.task_id === 't1').length).toBe(1); // task ricostruito
+  });
+});
+
+describe('sincronizzaRapportini — preserva le voci ACEA (modulo commessa)', () => {
+  // Regola "un rapportino per operatore per giorno": il motore ACEA aggiunge le sue voci a un
+  // rapportino nato da un piano Italgas. Rigenerare quel piano NON deve raderle via.
+  it('una rigenerazione del piano NON cancella le voci origine=acea', async () => {
+    const { db, tables } = makeFakeDb(seedBase({
+      mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }] }],
+      rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato: 'in_corso' }],
+      rapportino_voci: [
+        { id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: {}, raw_json: {} },
+        { id: 'vacea', rapportino_id: 'rap1', task_id: 'acea-912215286', manuale: false, origine: 'acea', risposte: { esito: 'eseguito' }, raw_json: {} },
+      ],
+    }));
+    const res = await sincronizzaRapportini(db, 'p1', OPTS);
+    expect(res.ok).toBe(true);
+    const acea = tables.rapportino_voci.find((v) => v.id === 'vacea');
+    expect(acea).toBeTruthy();                              // sopravvissuta alla rigenerazione
+    expect(acea?.risposte).toEqual({ esito: 'eseguito' });  // dati intatti
     expect(tables.rapportino_voci.filter((v) => v.task_id === 't1').length).toBe(1); // task ricostruito
   });
 });
@@ -203,7 +224,7 @@ describe('sincronizzaRapportini — skipInviati (sync automatico dal salvataggio
   const seedConRapportino = (stato: string) => seedBase({
     mappa_piani_operatori: [{ piano_id: 'p1', staff_id: 's1', staff_name: 'Mario', tasks: [{ id: 't1', odl: 'ODL1' }, { id: 't2', odl: 'ODL2' }] }],
     rapportini: [{ id: 'rap1', piano_id: 'p1', staff_id: 's1', token: 'TOK1', stato }],
-    rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, risposte: {}, raw_json: {} }],
+    rapportino_voci: [{ id: 'v1', rapportino_id: 'rap1', task_id: 't1', manuale: false, origine: 'task', risposte: {}, raw_json: {} }],
   });
 
   it('con skipInviati NON tocca le voci di un rapportino inviato (il nuovo ODL non viene aggiunto)', async () => {
