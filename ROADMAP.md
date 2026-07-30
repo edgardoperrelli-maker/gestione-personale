@@ -20,9 +20,11 @@
   ereditano — un gruppo eterogeneo tipo DUNNING o più gruppi lasciano la descrizione da scegliere
   in Excel) con **interruttore Attivo/Spento** per master (lo "spegnimento" toglie
   gli ODL dal template senza cancellare nulla) — API `api/admin/interventi/template-master` (+`[id]`),
-  tabelle `template_master` + `template_master_righe`; 2) **snapshot del master DUNNING/ZAGAROLO**
-  che l'agente invia già a ogni giro, ora con la colonna **indirizzo** portata end-to-end
-  (`mappaMasterSnapshot` → `preparaRigheMasterSnapshot` → `acea_master_snapshot.indirizzo`).
+  tabelle `template_master` + `template_master_righe`; 2) **registro ACEA** (`acea_ordini`,
+  dunning+massive già importati dal modulo ACEA: attività, matricola, via+civico, CAP, comune —
+  niente agente di mezzo); 3) **snapshot del master dell'agente** come ultima riserva, ora con la
+  colonna **indirizzo** portata end-to-end (`mappaMasterSnapshot` → `preparaRigheMasterSnapshot`
+  → `acea_master_snapshot.indirizzo`).
   Caricamento best-effort (`caricaMasterOdl`): fonte irraggiungibile → template senza autocompilazione,
   mai download rotto. Migration `20260730120000_template_master_odl.sql` — **da applicare al prod**
   (senza, il template esce come oggi e la pagina admin segnala il DB non migrato). Il file resta

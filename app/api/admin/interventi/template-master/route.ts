@@ -26,22 +26,40 @@ export async function GET() {
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
-  // Info di contorno sul master DUNNING via agente: best-effort (la pagina vive anche senza).
-  let snapshot: { righe: number; raccolto_at: string | null } | null = null;
+  // Info di contorno sulla fonte ACEA automatica: prima il registro (`acea_ordini`,
+  // import del modulo ACEA), altrimenti lo snapshot dell'agente. Best-effort.
+  let fonteAcea: { tipo: 'registro' | 'agente'; righe: number; aggiornato: string | null } | null = null;
   try {
-    const { count } = await supabaseAdmin
-      .from('acea_master_snapshot')
+    const { count, error: eCount } = await supabaseAdmin
+      .from('acea_ordini')
       .select('odl', { count: 'exact', head: true });
-    const { data: ultimo } = await supabaseAdmin
-      .from('acea_master_snapshot')
-      .select('raccolto_at')
-      .order('raccolto_at', { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    snapshot = { righe: count ?? 0, raccolto_at: (ultimo as { raccolto_at?: string } | null)?.raccolto_at ?? null };
-  } catch { /* tabella assente o vuota: nessuna info */ }
+    if (eCount) throw eCount;
+    if ((count ?? 0) > 0) {
+      const { data: ultimo } = await supabaseAdmin
+        .from('acea_ordini')
+        .select('aggiornato_il')
+        .order('aggiornato_il', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fonteAcea = { tipo: 'registro', righe: count ?? 0, aggiornato: (ultimo as { aggiornato_il?: string } | null)?.aggiornato_il ?? null };
+    }
+  } catch { /* registro assente: si prova lo snapshot */ }
+  if (!fonteAcea) {
+    try {
+      const { count } = await supabaseAdmin
+        .from('acea_master_snapshot')
+        .select('odl', { count: 'exact', head: true });
+      const { data: ultimo } = await supabaseAdmin
+        .from('acea_master_snapshot')
+        .select('raccolto_at')
+        .order('raccolto_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      fonteAcea = { tipo: 'agente', righe: count ?? 0, aggiornato: (ultimo as { raccolto_at?: string } | null)?.raccolto_at ?? null };
+    } catch { /* nessuna fonte automatica */ }
+  }
 
-  return NextResponse.json({ masters: data ?? [], snapshot }, { headers: { 'Cache-Control': 'no-store' } });
+  return NextResponse.json({ masters: data ?? [], fonteAcea }, { headers: { 'Cache-Control': 'no-store' } });
 }
 
 /**

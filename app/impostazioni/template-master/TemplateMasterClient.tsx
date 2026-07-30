@@ -14,7 +14,7 @@ type MasterRow = {
   created_at: string;
 };
 type TassonomiaRiga = { committente: string; descrizione: string; gruppo: string; attivo: boolean };
-type SnapshotInfo = { righe: number; raccolto_at: string | null } | null;
+type FonteAcea = { tipo: 'registro' | 'agente'; righe: number; aggiornato: string | null } | null;
 type Esito = { type: 'ok' | 'err'; msg: string } | null;
 
 const ENDPOINT = '/api/admin/interventi/template-master';
@@ -28,7 +28,7 @@ const COMMITTENTI = [
 
 export default function TemplateMasterClient() {
   const [masters, setMasters] = useState<MasterRow[]>([]);
-  const [snapshot, setSnapshot] = useState<SnapshotInfo>(null);
+  const [fonteAcea, setFonteAcea] = useState<FonteAcea>(null);
   const [tassonomia, setTassonomia] = useState<TassonomiaRiga[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState('');
@@ -68,9 +68,9 @@ export default function TemplateMasterClient() {
       setEsito({ type: 'err', msg: 'Impossibile caricare la lista (DB non ancora migrato?).' });
       return;
     }
-    const json = (await res.json()) as { masters: MasterRow[]; snapshot: SnapshotInfo };
+    const json = (await res.json()) as { masters: MasterRow[]; fonteAcea: FonteAcea };
     setMasters(json.masters);
-    setSnapshot(json.snapshot);
+    setFonteAcea(json.fonteAcea);
   }, []);
 
   useEffect(() => { void carica(); }, [carica]);
@@ -269,15 +269,20 @@ export default function TemplateMasterClient() {
       </div>
 
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
-        <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Master DUNNING (agente)</h2>
+        <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">DUNNING dal registro ACEA</h2>
         <p className="text-xs text-[var(--brand-text-muted)]">
-          Il master DUNNING/ZAGAROLO entra nel template da solo, dalla foto che l&apos;agente invia a ogni giro:
-          qui non c&apos;è niente da caricare né da spegnere.
+          Il DUNNING entra nel template da solo, dal registro degli ordini del modulo ACEA (l&apos;import del
+          Cruscotto): qui non c&apos;è niente da caricare né da spegnere. Se il registro non è disponibile,
+          fa da riserva la foto inviata dall&apos;agente.
         </p>
         <p className="mt-2 text-sm text-[var(--brand-text-main)]">
-          {snapshot
-            ? <>ODL nella foto corrente: <span className="font-medium">{snapshot.righe}</span>{snapshot.raccolto_at ? <span className="text-xs text-[var(--brand-text-muted)]"> · aggiornata {new Date(snapshot.raccolto_at).toLocaleString('it-IT')}</span> : null}</>
-            : 'Nessuna foto del master ricevuta finora.'}
+          {fonteAcea
+            ? <>
+                {fonteAcea.tipo === 'registro' ? 'Righe nel registro: ' : "ODL nella foto dell'agente (riserva): "}
+                <span className="font-medium">{fonteAcea.righe}</span>
+                {fonteAcea.aggiornato ? <span className="text-xs text-[var(--brand-text-muted)]"> · aggiornato {new Date(fonteAcea.aggiornato).toLocaleString('it-IT')}</span> : null}
+              </>
+            : 'Nessuna fonte ACEA automatica disponibile.'}
         </p>
       </div>
     </div>
