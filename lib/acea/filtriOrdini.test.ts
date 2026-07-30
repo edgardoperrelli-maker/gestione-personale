@@ -542,6 +542,15 @@ describe('ordinamento sul registro intero', () => {
     expect(serveIncrocio(q('ordina=scadenza'))).toBe(false);
   });
 
+  it('l\'indirizzo ordina via e POI il civico, da numero', () => {
+    // La sola `via` lasciava i civici in ordine casuale; come testo verrebbero 1, 10, 2.
+    // `civico_num` e` la colonna generata del registro (migration 20260730160000); il civico
+    // testuale in coda spareggia «584 B» / «584 C».
+    expect(ORDINAMENTI.indirizzo).toEqual({
+      tipo: 'registro', campo: 'via', poi: ['civico_num', 'civico'],
+    });
+  });
+
   it('le colonne non ordinabili restano fuori dalla mappa, non ci finiscono a meta`', () => {
     // Le tre delle saracinesche derivano da un aggancio per impianto o matricola che non e` una
     // colonna: meglio nessun comando che un comando che ordina solo il caricato.

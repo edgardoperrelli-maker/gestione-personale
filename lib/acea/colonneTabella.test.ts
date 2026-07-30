@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  AVVISO_REVOCA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt, eRevocaDaVerificare,
-  valoreCella, tonoScadenza,
+  AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato,
+  dataIt, eRevocaDaVerificare, valoreCella, tonoScadenza,
   type RigaTabella,
 } from './colonneTabella';
 import { COLONNE_ELENCO, COLONNE_TESTO, OPZIONI_VUOTE } from './filtriOrdini';
@@ -213,6 +213,23 @@ describe('eRevocaDaVerificare', () => {
     // È il testo del tooltip e dello sr-only: deve portare all'azione (verificare su ACEA).
     expect(AVVISO_REVOCA).toMatch(/sistema ACEA/);
     expect(AVVISO_REVOCA).toMatch(/Riattivazione o Regolarizzazione/);
+  });
+});
+
+describe('matricole tronche delle massive', () => {
+  it('l\'avviso dice la verità: il dato completo non arriva, si lavora con l\'Impianto', () => {
+    // Verificato sul registro: le SETA tronche sono TUTTE al limite esatto dei 40 caratteri del
+    // testo ordine, e la cifra mancante non sta in nessun file che riceviamo (master compreso).
+    // Un generico «da verificare» manderebbe a cercare un errore che non c'è.
+    expect(AVVISO_MATRICOLA_TRONCA).toMatch(/40 caratteri/);
+    expect(AVVISO_MATRICOLA_TRONCA).toMatch(/non arriva in nessun file/);
+    expect(AVVISO_MATRICOLA_TRONCA).toMatch(/Impianto/);
+  });
+
+  it('la colonna massive è larga abbastanza per una SETA intera più il triangolo', () => {
+    // A 140px si leggeva «SETA0712240…»: sembrava un dato rotto due volte.
+    const matricola = COLONNE_MASSIVE.find((c) => c.chiave === 'matricola');
+    expect(matricola?.larghezza ?? 0).toBeGreaterThanOrEqual(175);
   });
 });
 

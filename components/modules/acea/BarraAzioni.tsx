@@ -271,14 +271,21 @@ export default function BarraAzioni({
   const giornoScelto = giorni.find((g) => g.data === giorno);
 
   return (
-    <div className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-3 py-2">
+    /*
+      ALTEZZA FISSA h-9, la stessa della riga dei comandi in cui vive (a destra del «?»).
+
+      Prima era un riquadro con la sua aria attorno (py-2, riga a parte): comparendo alla prima
+      spunta faceva crescere la riga e la tabella slittava in giù — il click successivo cadeva
+      su una riga diversa da quella mirata. Ora comparire e sparire non muove NIENTE: dentro i
+      36px stanno select h-8 e bottoni sm, e il riquadro resta un riquadro (fondo primario) ma
+      della taglia dei comandi che ha accanto.
+    */
+    <div className="flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-2">
       {chiavi.length > 0 && (
         <>
-          <span className="font-mono text-sm font-semibold tabular-nums text-[var(--brand-text-main)]">
-            {chiavi.length}
-          </span>
-          <span className="text-sm text-[var(--brand-text-main)]">
-            {chiavi.length === 1 ? 'riga selezionata' : 'righe selezionate'}
+          <span className="whitespace-nowrap text-sm text-[var(--brand-text-main)]">
+            <span className="font-mono font-semibold tabular-nums">{chiavi.length}</span>
+            {chiavi.length === 1 ? ' riga' : ' righe'}
           </span>
 
           {/*
@@ -294,7 +301,7 @@ export default function BarraAzioni({
             value={giorno}
             onChange={(e) => onGiorno(e.target.value)}
             aria-label="Giorno di lavoro"
-            className="h-9 w-44"
+            className="h-8 w-40"
           >
             {giorni.map((g) => (
               <option key={g.data} value={g.data}>{`${g.etichetta} · ${g.esteso}`}</option>
@@ -305,7 +312,7 @@ export default function BarraAzioni({
             value={staffId}
             onChange={(e) => setStaffId(e.target.value)}
             aria-label="Assegna a"
-            className="h-9 w-52"
+            className="h-8 w-48"
             disabled={operatori.length === 0}
           >
             <option value="">
@@ -355,9 +362,11 @@ export default function BarraAzioni({
           </Button>
 
           {operatori.length === 0 && giornoScelto && (
-            <span className="text-xs text-[var(--brand-text-muted)]">
-              Nessun operatore con attività {etichettaAttivita} in cronoprogramma per{' '}
-              {giornoScelto.esteso}: <a href="/dashboard" className="underline">compila il tabellone</a>.
+            // `nowrap`: dentro una barra ad altezza fissa un testo che va a capo sfonda i 36px.
+            // Meglio una barra larga (la riga dei comandi sa andare a capo) che una sformata.
+            <span className="whitespace-nowrap text-xs text-[var(--brand-text-muted)]">
+              Nessuno con {etichettaAttivita} in tabellone per {giornoScelto.esteso}:{' '}
+              <a href="/dashboard" className="underline">compilalo</a>.
             </span>
           )}
 
@@ -371,22 +380,15 @@ export default function BarraAzioni({
             regola che non morde sarebbe un falso allarme che insegna a ignorare quello vero.
           */}
           {giornoScelto?.soloAttivazioni && famiglia !== 'massive' && operatori.length > 0 && (
-            <span className="text-xs text-[var(--status-warn)]">
-              {giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe
-              vengono saltate.
+            <span className="whitespace-nowrap text-xs text-[var(--status-warn)]">
+              {giornoScelto.esteso}: passano solo le attivazioni, le altre righe vengono saltate.
             </span>
           )}
         </>
       )}
 
       {ultima && (
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => void annulla()}
-          loading={busy}
-          className="ml-auto"
-        >
+        <Button variant="outline" size="sm" onClick={() => void annulla()} loading={busy}>
           <Undo2 size={14} aria-hidden="true" />
           Annulla ultima ({ultima.descrizione})
         </Button>

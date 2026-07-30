@@ -8,7 +8,7 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert } from 'lucide-react';
 import {
-  AVVISO_REVOCA, eRevocaDaVerificare, valoreCella, tonoScadenza,
+  AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, eRevocaDaVerificare, valoreCella, tonoScadenza,
   type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
@@ -44,6 +44,17 @@ const ALTEZZA_MAX = '100dvh';
   quella che si sbaglia più spesso. I valori coincidono, il nome dichiara l'intento — e se un
   giorno il rosso dei ritardi dovesse divergere dal rosso degli errori, questo punto è già giusto.
 */
+/*
+  Le colonne su cui il CLICK spunta la riga: quelle d'identità, «fino alla Matricola».
+
+  Il quadratino era un bersaglio da 16px su righe da 36: per selezionare si mirava. Ora tutta la
+  parte sinistra della riga — ODL, Attività/Impianto, Matricola, le colonne che non si scrivono
+  mai — spunta la riga come il checkbox, shift-click compreso per l'intervallo. Le colonne dopo
+  restano celle: cursore, copia, editor. Su QUESTE il cursore di cella resta raggiungibile con
+  le frecce (per copiare un ODL nudo): cambia solo cosa fa il click.
+*/
+const COLONNE_CLICK_RIGA = new Set<string>(['odl', 'attivita', 'impianto', 'matricola']);
+
 const TONO_CLASSE: Record<TonoScadenza, string> = {
   scaduto: 'text-[var(--status-ko)] font-semibold',
   oggi: 'text-[var(--status-warn)] font-semibold',
@@ -659,16 +670,24 @@ export default function TabellaOrdini({
                         }
                         style={stileColonna(c)}
                         title={
-                          gruppoStimato
-                            ? `Gruppo ${testo} stimato dal ${r.comune?.toUpperCase() === 'ROMA' ? 'CAP' : 'comune'}: `
-                              + 'questo ordine non e` ancora geocodificato, quindi la zona e` approssimata.'
-                            : aMeta
-                              ? 'Pianificazione a meta`: manca l\'altra fra esecutore e data. '
-                                + 'Finche` non ci sono entrambe questa riga non genera nessun rapportino.'
-                              : testo
+                          c.chiave === 'matricola' && r.sospetto_troncamento
+                            ? AVVISO_MATRICOLA_TRONCA
+                            : gruppoStimato
+                              ? `Gruppo ${testo} stimato dal ${r.comune?.toUpperCase() === 'ROMA' ? 'CAP' : 'comune'}: `
+                                + 'questo ordine non e` ancora geocodificato, quindi la zona e` approssimata.'
+                              : aMeta
+                                ? 'Pianificazione a meta`: manca l\'altra fra esecutore e data. '
+                                  + 'Finche` non ci sono entrambe questa riga non genera nessun rapportino.'
+                                : testo
                         }
                         onMouseDown={
-                          iEdit === null
+                          COLONNE_CLICK_RIGA.has(c.chiave)
+                            ? (e) => {
+                                // Colonna d'identità: il click spunta la riga, come il checkbox.
+                                e.preventDefault();
+                                clickRiga(vi.index, e.shiftKey);
+                              }
+                            : iEdit === null
                             ? undefined
                             : (e) => {
                                 e.preventDefault();
@@ -707,6 +726,8 @@ export default function TabellaOrdini({
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
                         } ${scrivibile ? 'cursor-cell' : ''} ${
+                          COLONNE_CLICK_RIGA.has(c.chiave) ? 'cursor-pointer' : ''
+                        } ${
                           inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
                         } ${
                           inFocus
@@ -725,9 +746,7 @@ export default function TabellaOrdini({
                               aria-hidden="true"
                               className="mr-1 inline text-[var(--status-warn)]"
                             />
-                            <span className="sr-only">
-                              Matricola al limite dei 40 caratteri: da verificare.{' '}
-                            </span>
+                            <span className="sr-only">{AVVISO_MATRICOLA_TRONCA}{' '}</span>
                           </>
                         )}
                         {testo}

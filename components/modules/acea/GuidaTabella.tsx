@@ -57,6 +57,7 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
           Righe spuntate
         </h3>
         <ul className="list-disc space-y-1 pl-5">
+          <li>Si spunta col quadratino o <strong>cliccando la riga</strong> sulle prime colonne (ODL, Attività, Impianto, Matricola); shift-click per un intervallo.</li>
           <li><strong>Pianifica</strong> assegna operatore e giorno a tutte le spunte.</li>
           <li><strong>Sul rapportino</strong> carica le righe già pianificate dritte sul rapportino del loro esecutore, senza passare dagli Strumenti.</li>
         </ul>

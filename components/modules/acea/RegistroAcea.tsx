@@ -355,33 +355,16 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
       />
 
       {/*
-        La barra azioni occupa SEMPRE la sua riga, anche senza selezione (allora ospita il
-        suggerimento). Prima entrava nel flusso solo a selezione fatta, spingendo la tabella verso
-        il basso di ~44px: il click successivo cadeva su una riga diversa da quella mirata.
+        La riga dei comandi è a min-h-9 e TUTTO ciò che vi compare e scompare — la barra azioni
+        in testa — è alto esattamente h-9: alla prima spunta la pagina non si muove di un pixel,
+        e il click successivo cade sulla riga mirata. La barra sta a DESTRA, dopo il «?».
       */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
-          {/*
-            Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel
-            suo stato interno e sparirebbe smontandola alla deselezione — proprio quando serve.
-            Si nasconde da sola quando non ha niente da dire.
-          */}
-          <BarraAzioni
-            famiglia={famiglia}
-            chiavi={selezionate.map(chiaveRiga)}
-            onAnnullaSelezione={() => setSelezione({})}
-            onPianificato={ricarica}
-            operatori={operatoriDelGiorno}
-            giorni={giorni}
-            giorno={giorno}
-            onGiorno={setGiorno}
-            onCopiaRighe={editing.copiaRigheSpuntate}
-            pianoCarico={pianoCarico}
-            onCaricato={ricarica}
-          />
           {selezionate.length === 0 && (
             <span className="text-xs text-[var(--brand-text-muted)]">
-              Seleziona le righe da pianificare o da copiare (shift-click per un intervallo)
+              Seleziona le righe cliccandole (shift-click per un intervallo): da lì si pianifica
+              e si copia
             </span>
           )}
         </div>
@@ -447,6 +430,25 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           />
 
           <GuidaTabella giorni={giorni} famiglia={famiglia} />
+
+          {/*
+            Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel
+            suo stato interno e sparirebbe smontandola alla deselezione — proprio quando serve.
+            Si nasconde da sola quando non ha niente da dire.
+          */}
+          <BarraAzioni
+            famiglia={famiglia}
+            chiavi={selezionate.map(chiaveRiga)}
+            onAnnullaSelezione={() => setSelezione({})}
+            onPianificato={ricarica}
+            operatori={operatoriDelGiorno}
+            giorni={giorni}
+            giorno={giorno}
+            onGiorno={setGiorno}
+            onCopiaRighe={editing.copiaRigheSpuntate}
+            pianoCarico={pianoCarico}
+            onCaricato={ricarica}
+          />
         </div>
       </div>
 

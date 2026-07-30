@@ -124,6 +124,13 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
     // `nullsFirst: false` sempre: le righe senza valore stanno in fondo in entrambi i versi, che è
     // dove uno se le aspetta. In cima somiglierebbero a un risultato.
     q = q.order(scelto.campo, { ascending: f.verso === 'asc', nullsFirst: false });
+    // Gli spareggi della colonna (l'indirizzo: civico numerico, poi testuale), nello stesso verso.
+    // La guardia `in` serve al tipo: ogni voce di ORDINAMENTI è il SUO letterale, e `poi` ce
+    // l'hanno solo quelle che lo dichiarano.
+    const spareggi: readonly string[] = ('poi' in scelto ? scelto.poi : undefined) ?? [];
+    for (const campo of spareggi) {
+      q = q.order(campo, { ascending: f.verso === 'asc', nullsFirst: false });
+    }
   } else if (f.stato === 'riaperture') {
     // Dentro la scheda sono riaperture tutte quante, e tutte APERTE (le esitate stanno in
     // «Chiusi»): l'unico criterio che serve è l'urgenza — prima chi scade prima.

@@ -19,6 +19,7 @@ describe('ContenutoGuida', () => {
       'DUNNING',                    // menu esecutore e assegnabili
       'Sul rapportino',             // carico diretto
       'Copia righe',                // copia delle spunte
+      'cliccando la riga',          // selezione sulle colonne d'identità
       'appunto',                    // riga a metà
       'cronoprogramma',             // link al tabellone
     ]) {

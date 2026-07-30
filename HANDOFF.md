@@ -138,6 +138,25 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   scarta il contenuto); la spunta vince sul rossastro. Solo le APERTE (60 chiuse vs 1 aperta).
   Pure: `eRevoca` (scadenza.ts), `eRevocaDaVerificare`/`AVVISO_REVOCA` (colonneTabella.ts).
   Riga di legenda nella guida «?».
+- [x] **Matricole massive tronche: dette per quello che sono** (dec. 40) — le SETA massive
+  vengono dal testo ordine (colonna misuratore vuota sugli ASTR) tagliato a 40 caratteri: 240
+  matricole senza l'ultima cifra (16→15, tutte al limite esatto; master 0/244 sui comuni nuovi;
+  `acea_impianti` ha lo stesso valore tronco — INDAGATO, non recuperabile da nessun file).
+  `AVVISO_MATRICOLA_TRONCA` su tooltip e sr-only: manda all'Impianto (completo), al Cruscotto o
+  al misuratore. Colonna matricola massive 140→175 per mostrare intero ciò che abbiamo.
+- [x] **Indirizzo ordina anche i civici, da numero** (dec. 41) — colonna GENERATA `civico_num`
+  (migration `20260730160000_acea_civico_num.sql`, **applicata in produzione** via MCP e
+  verificata: 1, 2, 4, 10…, «99999» in fondo); `ORDINAMENTI.indirizzo` ha `poi:
+  ['civico_num','civico']` e la route applica gli spareggi nello stesso verso. PostgREST ordina
+  solo colonne: senza la generata non si può.
+- [x] **La riga si spunta cliccandola «fino alla Matricola»** (dec. 42) — `COLONNE_CLICK_RIGA`
+  (odl, attivita, impianto, matricola) in TabellaOrdini: click = spunta con shift per
+  l'intervallo, cursor-pointer; le colonne dopo restano celle. Frecce ancora buone per il
+  cursore di cella su quelle colonne (copia dell'ODL nudo).
+- [x] **Barra azioni a destra del «?», alta h-9 fissa** (dec. 43) — spostata nel gruppo destro
+  della riga comandi DOPO GuidaTabella; select h-8, contatore compatto («N righe»), suggerimenti
+  nowrap. Comparire alla prima spunta non muove più la pagina (prima spingeva la tabella di
+  ~44px e il click dopo cadeva su un'altra riga).
 
 ## Not Yet Done
 
@@ -185,7 +204,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 39 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 43 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -203,7 +222,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 ## Current State
 
 **Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.745 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
+**2.748 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
 Supabase segnaposto: nel container non c'è `.env.local`).
 
 **Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
@@ -220,7 +239,7 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 39 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 43 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |
@@ -238,6 +257,7 @@ Push sempre su entrambi:
 | `app/api/acea/pianifica/route.ts` | Assegnazione in blocco: finestra + attivazioni |
 | `lib/acea/sincronizzaRapportiniAcea.ts` | Il 409 delle righe a metà + avviso solo-esecutore |
 | `supabase/migrations/20260730090000_acea_pianificazione_bozza.sql` | Applicata in produzione il 30/07 (version `20260730094446`) |
+| `supabase/migrations/20260730160000_acea_civico_num.sql` | Colonna generata per ordinare i civici da numero; applicata in produzione il 30/07 |
 | `lib/interventi/testUtils/fakeSupabase.ts` | Fake condiviso: esteso con `is`/`not is null` |
 
 ## Code Context

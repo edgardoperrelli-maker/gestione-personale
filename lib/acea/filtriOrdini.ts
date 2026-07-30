@@ -200,14 +200,28 @@ export function serveIncrocio(f: FiltriOrdini): boolean {
  * valga in una vista da 76 righe.
  */
 export type OrdinamentoColonna =
-  | { tipo: 'registro'; campo: string }
+  | {
+      tipo: 'registro';
+      campo: string;
+      /** Spareggi ulteriori, nello STESSO verso del campo: l'indirizzo ordina via e poi civico. */
+      poi?: readonly string[];
+    }
   | { tipo: 'incrocio' };
 
 export const ORDINAMENTI = {
   odl: { tipo: 'registro', campo: 'odl' },
   attivita: { tipo: 'registro', campo: 'attivita' },
   matricola: { tipo: 'registro', campo: 'matricola_norm' },
-  indirizzo: { tipo: 'registro', campo: 'via' },
+  /*
+    Via, poi CIVICO NUMERICO, poi civico testuale.
+
+    Ordinare la sola `via` lasciava i civici in ordine casuale dentro la stessa strada — e come
+    testo verrebbero 1, 10, 2. `civico_num` è una colonna GENERATA del registro (la parte
+    numerica iniziale del civico, migration 20260730160000): Postgres ordina 1, 2, 4, 10, e lo
+    spareggio sul testo mette «584 B» prima di «584 C». I civici senza numero e i «99999» di
+    ACEA (civico ignoto) restano in fondo, dove non intralciano il giro.
+  */
+  indirizzo: { tipo: 'registro', campo: 'via', poi: ['civico_num', 'civico'] },
   comune: { tipo: 'registro', campo: 'comune' },
   cap: { tipo: 'registro', campo: 'cap' },
   gruppo: { tipo: 'registro', campo: 'microarea' },

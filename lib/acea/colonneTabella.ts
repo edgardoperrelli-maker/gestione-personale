@@ -195,7 +195,13 @@ export const COLONNE_DUNNING: DefColonna[] = [
 export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: true, mono: true, larghezza: 120, filtro: F.impianto },
-  { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 140, filtro: F.matricola },
+  /*
+    175 e non 140: le matricole SETA delle massive sono 15-16 caratteri mono più il triangolo
+    del sospetto troncamento — a 140 si leggeva «SETA0712240…», che sembrava un dato rotto due
+    volte. La cifra che manca DAVVERO (vedi il tooltip del triangolo) non si recupera
+    allargando, ma quello che abbiamo si mostra intero.
+  */
+  { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 175, filtro: F.matricola },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
@@ -400,6 +406,21 @@ export function eRevocaDaVerificare(r: Pick<RigaTabella, 'aperto' | 'codice_sla'
 /** Il perché della riga rossastra, per il tooltip: cosa controllare e dove. */
 export const AVVISO_REVOCA =
   'Revoca (REVO): verifica sul sistema ACEA se è davvero una revoca o se va trasformata in Riattivazione o Regolarizzazione.';
+
+/**
+ * Il perché del triangolo sulla matricola: cosa manca davvero, e con che cosa si lavora.
+ *
+ * Non un generico «da verificare»: la verifica è stata FATTA, sui dati. Il testo ordine ACEA si
+ * ferma a 40 caratteri e sulle massive taglia l'ultima cifra della matricola (le SETA sono 16
+ * caratteri: le tronche sono tutte 15, al limite esatto del campo). La cifra mancante non è in
+ * nessun file che riceviamo — master compreso — quindi non c'è import che la sistemi: il
+ * riferimento completo è l'Impianto, e la matricola intera si legge sul Cruscotto o sul
+ * misuratore stesso.
+ */
+export const AVVISO_MATRICOLA_TRONCA =
+  'Matricola quasi certamente incompleta: il testo ordine ACEA si ferma a 40 caratteri e taglia '
+  + 'l\'ultima cifra (il dato completo non arriva in nessun file). Identifica il punto con '
+  + 'l\'Impianto, che è completo; la matricola intera si legge sul Cruscotto o sul misuratore.';
 
 export type TonoScadenza = 'scaduto' | 'oggi' | 'vicino' | 'lontano' | 'nessuna';
 
