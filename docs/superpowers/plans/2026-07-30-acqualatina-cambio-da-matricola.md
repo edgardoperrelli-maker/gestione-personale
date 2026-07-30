@@ -673,16 +673,21 @@ Componente **nuovo**, non un ramo di `CercaMatricolaLimitazione`: quello ha sema
 |---|---|---|
 | task già tuo (`matchVociMatricola` sulle voci non rifiutate) | apre quella voce | — |
 | `letterale` | autofill immediato, passo successivo | sì, senza chiedere |
-| `conferma`, 1 candidato | scheda: matricola piena, indirizzo, comune, **ODL** → «È questo il misuratore?» Sì/No | sì, dopo il **secondo tocco** |
+| `conferma`, 1 candidato | scheda: **«Sul contatore c'è scritto `99A023041`?»** → Sì / No, con indirizzo e ODL sotto come contesto | sì, dopo il **secondo tocco** |
 | `conferma`, N candidati | elenco (matricola · indirizzo · ODL) → tocca uno → la scheda di sopra | sì, dopo la scelta **e** la conferma |
 | `ambiguo` | riquadro rosso: «Più ordini sulla stessa matricola (ODL …) — contatta l'ufficio» | **no** |
 | `assente` | riquadro rosso: «Misuratore non censito — non eseguire l'intervento, contatta l'ufficio» | **no** |
 | offline, cache presente | stesso verdetto calcolato in locale con `lookupMaster` | come sopra, blocco incluso |
 | offline, cache assente | banner giallo: «Censimento non disponibile: la matricola verrà verificata alla sincronizzazione» + inserimento a mano | sì, **con riserva** |
 
-- [ ] **Step 2: I due «No» non sono un annulla**
+- [ ] **Step 2: Il «No» non è un annulla**
 
-Su «No, non corrisponde» dalla scheda di conferma si ricade sul blocco (`assente`) con il testo diagnostico: «letta `<q>`, il master proponeva `<matricola>` in `<indirizzo>` — contatta l'ufficio». Non si torna alla lista candidati: se l'operatore ha detto che non è quell'impianto, riproporgli gli altri lo invita a cercarne uno che «somigli».
+> **Nota di esecuzione (30/07).** La domanda della scheda è sulla **matricola** — «Sul contatore
+> c'è scritto `99A023041`?» — non sull'impianto: è la decisione 4, che ha scelto il doppio tocco
+> sulla matricola (opzione A) e non la conferma sull'indirizzo (opzione C). Indirizzo e ODL
+> restano a schermo come **contesto**, non come oggetto della conferma.
+
+Su «No» si ricade sul blocco con il testo diagnostico: «letta `<q>`, in elenco risulta `<matricola>` in `<indirizzo>` — contatta l'ufficio». Non si torna alla lista candidati: se l'operatore ha detto che non è quella matricola, riproporgli le altre lo invita a cercarne una che «somigli».
 
 - [ ] **Step 3: Nel blocco NON ci sono bottoni per procedere**
 
