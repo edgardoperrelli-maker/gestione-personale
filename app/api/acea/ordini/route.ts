@@ -12,9 +12,7 @@ import {
   chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
-import {
-  contaDaAssegnare, esitataNeiRapportini, type InterventoDellOdl,
-} from '@/lib/acea/codaRiaperture';
+import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 
 export const runtime = 'nodejs';
 
@@ -210,32 +208,34 @@ async function indicePianificazione(): Promise<Map<string, { staff: Set<string>;
 }
 
 /**
- * Lo stato della coda riaperture, in una passata: quante righe HA la scheda e quante sono scoperte.
+ * Le attivazioni APERTE senza una data di pianificazione: il triangolo rosso sulla scheda.
  *
- * Viaggia su OGNI risposta della lista — il badge deve dire il vero anche da un'altra scheda, ed è
- * lì che serve: chi sta sui «Da lavorare» deve vedere che ci sono riaperture scoperte senza andare
- * a controllare. Due query mirate e piccole, non l'incrocio completo: le riaperture aperte sono
- * poche decine (14 sul registro misurato), quindi la `in` sugli ODL resta corta — non è la URL da
- * 33 KB che ha già rotto il registro una volta.
+ * Viaggia su OGNI risposta della lista — il triangolo deve dire il vero anche da un'altra scheda,
+ * ed è lì che serve: chi sta sui «Da lavorare» deve vedere che ci sono attivazioni fuori
+ * calendario senza andare a controllare. Hanno un giorno di cardine: quella non messa su un
+ * giorno è quella che scade domani e sparisce senza che nessuno la veda. Due query mirate e
+ * piccole, non l'incrocio completo: le riaperture aperte sono poche decine (14 sul registro
+ * misurato), quindi la `in` sugli ODL resta corta — non è la URL da 33 KB che ha già rotto il
+ * registro una volta.
  *
- * Best-effort: se una lettura fallisce i numeri non ci sono (`null`), la tabella si carica lo
+ * Best-effort: se una lettura fallisce il numero non c'è (`null`), la tabella si carica lo
  * stesso. Un contatore è una decorazione, e una decorazione non porta giù la vista.
  */
-async function statoCodaRiaperture(): Promise<{ daAssegnare: number; inCoda: number } | null> {
+async function riapertureSenzaData(): Promise<number | null> {
   try {
     const { data: righe, error } = await supabaseAdmin
       .from('acea_ordini')
       .select('odl')
       .eq('riapertura', true)
       .eq('aperto', true)
-      // La stessa famiglia della scheda che il badge decora. La colonna `riapertura` deriva dal
-      // solo `codice_sla`, e il dominio contempla una massive con codice RIAT (riaperture.test.ts):
-      // senza questo filtro il badge la conterebbe, e punterebbe a una coda che non la mostra.
+      // La stessa famiglia della scheda che il triangolo decora. La colonna `riapertura` deriva
+      // dal solo `codice_sla`, e il dominio contempla una massive con codice RIAT
+      // (riaperture.test.ts): senza questo filtro il numero conterebbe righe che la scheda non
+      // mostra.
       .eq('famiglia', 'dunning');
     if (error) throw error;
-    const righeAperte = ((righe ?? []) as Array<{ odl: string }>).map((r) => r.odl);
-    const odl = [...new Set(righeAperte)];
-    if (odl.length === 0) return { daAssegnare: 0, inCoda: 0 };
+    const odl = [...new Set(((righe ?? []) as Array<{ odl: string }>).map((r) => r.odl))];
+    if (odl.length === 0) return 0;
 
     const interventiPerOdl = new Map<string, InterventoDellOdl[]>();
     for (let i = 0; i < odl.length; i += 200) {
@@ -253,80 +253,9 @@ async function statoCodaRiaperture(): Promise<{ daAssegnare: number; inCoda: num
         interventiPerOdl.set(it.odl, lista);
       }
     }
-    return {
-      daAssegnare: contaDaAssegnare(odl, interventiPerOdl),
-      // Le RIGHE della scheda (un ODL può avere più operazioni): la stessa esclusione delle
-      // esitate che fa il percorso di incrocio, così il numero sul tasto e il «totale» dentro la
-      // scheda non possono divergere.
-      inCoda: righeAperte.filter((o) => !esitataNeiRapportini(interventiPerOdl.get(o) ?? [])).length,
-    };
+    return contaSenzaData(odl, interventiPerOdl);
   } catch (e) {
-    console.error('[acea/ordini] coda riaperture non calcolata:', e);
-    return null;
-  }
-}
-
-export type ConteggiSchede = {
-  aperti: number;
-  chiusi: number;
-  tutti: number;
-  saracinesche: number;
-  /** Solo nella vista dunning: in massive la scheda non esiste. */
-  riaperture?: number;
-};
-
-/**
- * Quante righe ha OGNI scheda, prima dei filtri di colonna.
- *
- * Sono i totali «da fermo» della famiglia: i filtri e la ricerca non li toccano, perché il loro
- * lavoro è un altro — dire quanto pesa ciascuna vista prima di entrarci. Il conteggio della vista
- * corrente, filtri compresi, resta il «N di M» accanto alle pill.
- *
- * Best-effort come il badge: `null` spegne i numeri, mai la tabella.
- */
-async function conteggiSchede(
-  famiglia: 'dunning' | 'massive' | null,
-  codaRiaperture: { inCoda: number } | null,
-): Promise<ConteggiSchede | null> {
-  // Senza famiglia non c'è una vista da contare: succede solo su una URL costruita a mano.
-  if (!famiglia) return null;
-  try {
-    const conta = async (build: (q: ReturnType<typeof base>) => ReturnType<typeof base>) => {
-      const { count, error } = await build(base());
-      if (error) throw error;
-      return count ?? 0;
-    };
-    function base() {
-      return supabaseAdmin
-        .from('acea_ordini')
-        .select('odl', { count: 'exact', head: true })
-        .eq('famiglia', famiglia);
-    }
-
-    const [aperti, chiusi, tutti] = await Promise.all([
-      conta((q) => q.eq('aperto', true)),
-      conta((q) => q.eq('aperto', false)),
-      conta((q) => q),
-    ]);
-
-    /*
-      Saracinesche: le righe della famiglia il cui ODL ha una dichiarazione nei rapportini.
-      L'elenco dichiarato è già cachato 60 secondi (`odlConSaracinescaDichiarata`), quindi il
-      costo ricorrente sono i soli head-count a blocchi di 200 ODL.
-    */
-    let saracinesche = 0;
-    const dichiarati = [...await odlConSaracinescaDichiarata(supabaseAdmin)];
-    for (let i = 0; i < dichiarati.length; i += 200) {
-      const blocco = dichiarati.slice(i, i + 200);
-      saracinesche += await conta((q) => q.in('odl', blocco));
-    }
-
-    return {
-      aperti, chiusi, tutti, saracinesche,
-      ...(famiglia === 'dunning' && codaRiaperture ? { riaperture: codaRiaperture.inCoda } : {}),
-    };
-  } catch (e) {
-    console.error('[acea/ordini] conteggi schede non calcolati:', e);
+    console.error('[acea/ordini] attivazioni senza data non contate:', e);
     return null;
   }
 }
@@ -675,9 +604,6 @@ export async function GET(req: Request) {
       };
     });
 
-    // Badge e conteggi delle schede: aggiornati a ogni ricarica della tabella, così pianificare o
-    // importare li muove senza una chiamata in più. `null` = non calcolabile, i numeri si spengono.
-    const coda = await statoCodaRiaperture();
     return NextResponse.json(
       {
         righe: conPianificazione,
@@ -685,8 +611,9 @@ export async function GET(req: Request) {
         pagina: f.pagina,
         perPagina: f.perPagina,
         oggi,
-        riapertureDaAssegnare: coda ? coda.daAssegnare : null,
-        conteggi: await conteggiSchede(f.famiglia, coda),
+        // Il triangolo della scheda «Riaperture»: aggiornato a ogni ricarica della tabella, così
+        // pianificare o importare lo muove senza una chiamata in più. `null` = non calcolabile.
+        riapertureSenzaData: await riapertureSenzaData(),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

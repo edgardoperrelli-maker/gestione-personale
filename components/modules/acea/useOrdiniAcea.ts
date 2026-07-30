@@ -14,25 +14,14 @@ export { filtriVuoti };
 /** Quante righe si caricano per volta. Il registro può averne 5.000+: si pagina. */
 const PER_PAGINA = 300;
 
-/** Righe di ogni scheda, prima dei filtri di colonna. `riaperture` solo nella vista dunning. */
-export type ConteggiSchede = {
-  aperti: number;
-  chiusi: number;
-  tutti: number;
-  saracinesche: number;
-  riaperture?: number;
-};
-
 type Risposta = {
   righe: RigaTabella[];
   totale: number;
   pagina: number;
   perPagina: number;
   oggi: string;
-  /** Riaperture aperte senza esecutore: il badge della scheda. `null` = non calcolabile. */
-  riapertureDaAssegnare?: number | null;
-  /** Quante righe ha ogni scheda. `null` = non calcolabile. */
-  conteggi?: ConteggiSchede | null;
+  /** Attivazioni aperte senza data di pianificazione: il triangolo della scheda. `null` = non calcolabile. */
+  riapertureSenzaData?: number | null;
 };
 
 /**
@@ -76,14 +65,12 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
   const [errore, setErrore] = useState<string | null>(null);
   const [opzioni, setOpzioni] = useState<Opzioni>(OPZIONI_VUOTE);
   /*
-    Il badge della scheda «Riaperture». Stato SEPARATO dalle righe, di proposito: il numero non
-    dipende dalla scheda su cui si sta — dice quante riaperture sono scoperte mentre si guarda
-    qualunque vista. `null` finché non arriva (o se il server non l'ha saputo calcolare): un
-    «0» mostrato prima di sapere sarebbe una rassicurazione non guadagnata.
+    Il triangolo della scheda «Riaperture». Stato SEPARATO dalle righe, di proposito: il numero non
+    dipende dalla scheda su cui si sta — dice quante attivazioni sono fuori calendario mentre si
+    guarda qualunque vista. `null` finché non arriva (o se il server non l'ha saputo calcolare):
+    un «0» mostrato prima di sapere sarebbe una rassicurazione non guadagnata.
   */
-  const [riapertureDaAssegnare, setRiapertureDaAssegnare] = useState<number | null>(null);
-  /** Righe di ogni scheda, per i tasti. Stessa disciplina del badge: `null` = non si mostrano. */
-  const [conteggi, setConteggi] = useState<ConteggiSchede | null>(null);
+  const [riapertureSenzaData, setRiapertureSenzaData] = useState<number | null>(null);
   // Evita che una risposta lenta di un filtro vecchio sovrascriva quella del filtro corrente.
   const richiestaCorrente = useRef(0);
 
@@ -111,14 +98,13 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
       setTotale(dati.totale);
       setOggi(dati.oggi);
       setPagina(dati.pagina);
-      // Anche il `null` si propaga: è il server che dice «non l'ho saputo calcolare», e il badge
-      // deve SPARIRE — tenere l'ultimo numero riuscito significherebbe gridare «3 senza esecutore»
-      // dopo che le tre sono state assegnate, per tutta la sessione. Si scarta solo `undefined`
-      // (campo assente: risposta di una versione che il badge non lo conosce).
-      if (dati.riapertureDaAssegnare !== undefined) {
-        setRiapertureDaAssegnare(dati.riapertureDaAssegnare);
+      // Anche il `null` si propaga: è il server che dice «non l'ho saputo calcolare», e il
+      // triangolo deve SPARIRE — tenere l'ultimo numero riuscito significherebbe gridare «3 fuori
+      // calendario» dopo che le tre sono state pianificate, per tutta la sessione. Si scarta solo
+      // `undefined` (campo assente: risposta di una versione che il numero non lo conosce).
+      if (dati.riapertureSenzaData !== undefined) {
+        setRiapertureSenzaData(dati.riapertureSenzaData);
       }
-      if (dati.conteggi !== undefined) setConteggi(dati.conteggi);
       setErrore(null);
     } catch (e) {
       if (mio !== richiestaCorrente.current) return;
@@ -149,7 +135,7 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
 
   return {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni,
-    riapertureDaAssegnare, conteggi,
+    riapertureSenzaData,
     altre, ricarica,
     // La query esce dal hook perché l'export deve poter rifare *la stessa* interrogazione fino in
     // fondo. Ricostruirla dai filtri nel componente vorrebbe dire due costruttori di query da

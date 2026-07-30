@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  assegnata, contaDaAssegnare, esitataNeiRapportini, type InterventoDellOdl,
+  contaSenzaData, esitataNeiRapportini, pianificata, type InterventoDellOdl,
 } from './codaRiaperture';
 
 const int = (over: Partial<InterventoDellOdl> = {}): InterventoDellOdl => ({
@@ -27,53 +27,55 @@ describe('esitataNeiRapportini', () => {
   });
 });
 
-describe('assegnata', () => {
-  it('un intervento vivo con un esecutore assegna', () => {
-    expect(assegnata([int()])).toBe(true);
+describe('pianificata', () => {
+  it('un intervento vivo è una data in calendario: la data di un intervento non è mai vuota', () => {
+    expect(pianificata([int()])).toBe(true);
+    // Anche senza esecutore: la DATA c'è, e il triangolo conta le senza-data.
+    expect(pianificata([int({ staff_id: null })])).toBe(true);
   });
 
-  it('un intervento ANNULLATO con un esecutore non assegna: quel lavoro non è mai successo', () => {
-    expect(assegnata([int({ stato: 'annullato' })])).toBe(false);
+  it('un intervento ANNULLATO non pianifica: quel lavoro non è mai successo', () => {
+    expect(pianificata([int({ stato: 'annullato' })])).toBe(false);
   });
 
-  it('un intervento senza esecutore non assegna', () => {
-    expect(assegnata([int({ staff_id: null })])).toBe(false);
-    expect(assegnata([])).toBe(false);
+  it('senza interventi non c’è nessuna data', () => {
+    expect(pianificata([])).toBe(false);
   });
 });
 
-describe('contaDaAssegnare', () => {
+describe('contaSenzaData', () => {
   const indice = (voci: Record<string, InterventoDellOdl[]>) =>
     new Map(Object.entries(voci));
 
-  it('conta le aperte senza nessun esecutore', () => {
-    const n = contaDaAssegnare(
+  it('conta le aperte che non hanno NESSUN intervento vivo', () => {
+    const n = contaSenzaData(
       ['A', 'B', 'C'],
-      indice({ A: [int()], B: [], C: [int({ staff_id: null })] }),
+      indice({ A: [int()], B: [], C: [int({ stato: 'annullato' })] }),
     );
-    expect(n).toBe(2);   // B (nessun intervento) e C (intervento senza esecutore)
+    expect(n).toBe(2);   // B (mai pianificata) e C (la pianificazione è stata annullata)
   });
 
-  it('un ODL senza traccia negli interventi è da assegnare', () => {
-    expect(contaDaAssegnare(['X'], indice({}))).toBe(1);
+  it('una riga con la data ma senza esecutore NON si conta: la data ce l’ha', () => {
+    // Quella riga la ferma il motore rapportini (409 righe a metà), non il triangolo.
+    expect(contaSenzaData(['A'], indice({ A: [int({ staff_id: null })] }))).toBe(0);
   });
 
-  it('le esitate nei rapportini NON si contano: sono finite, non «senza assegnazione»', () => {
-    // Completata da noi ma ancora aperta su ACEA (l'import non è ancora passato): il badge non
-    // deve gridare per lavoro già fatto.
-    const n = contaDaAssegnare(['A'], indice({ A: [int({ staff_id: null, stato: 'completato' })] }));
+  it('un ODL senza traccia negli interventi è senza data', () => {
+    expect(contaSenzaData(['X'], indice({}))).toBe(1);
+  });
+
+  it('le esitate nei rapportini NON si contano: sono finite, non «senza data»', () => {
+    // Completata da noi ma ancora aperta su ACEA (l'import non è ancora passato): il triangolo
+    // non deve gridare per lavoro già fatto.
+    const n = contaSenzaData(['A'], indice({ A: [int({ stato: 'completato' })] }));
     expect(n).toBe(0);
   });
 
-  it('un’assegnazione poi annullata torna da assegnare', () => {
-    expect(contaDaAssegnare(['A'], indice({ A: [int({ stato: 'annullato' })] }))).toBe(1);
-  });
-
   it('più operazioni sullo stesso ODL sono un lavoro solo: si conta una volta', () => {
-    expect(contaDaAssegnare(['A', 'A'], indice({}))).toBe(1);
+    expect(contaSenzaData(['A', 'A'], indice({}))).toBe(1);
   });
 
   it('nessuna riapertura aperta: zero, non un errore', () => {
-    expect(contaDaAssegnare([], indice({}))).toBe(0);
+    expect(contaSenzaData([], indice({}))).toBe(0);
   });
 });

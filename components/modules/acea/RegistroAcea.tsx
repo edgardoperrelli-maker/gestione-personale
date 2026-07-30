@@ -39,7 +39,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica, perPagina, query, riapertureDaAssegnare, conteggi,
+    ricarica, perPagina, query, riapertureSenzaData,
   } = useOrdiniAcea(famiglia);
 
   /*
@@ -325,11 +325,10 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         totale={totale}
         caricate={righe.length}
         // In massive la barra non disegna proprio la scheda Riaperture, quindi il gating del
-        // badge e` una seconda rete: se un domani la scheda tornasse, il numero — che conta
+        // triangolo e` una seconda rete: se un domani la scheda tornasse, il numero — che conta
         // ordini di dunning — non comparirebbe comunque sulla vista sbagliata.
         famiglia={famiglia}
-        riapertureDaAssegnare={famiglia === 'dunning' ? riapertureDaAssegnare : null}
-        conteggi={conteggi}
+        riapertureSenzaData={famiglia === 'dunning' ? riapertureSenzaData : null}
       />
 
       {/*

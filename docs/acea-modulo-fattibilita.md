@@ -187,9 +187,9 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 26 | Riga a metà | Solo esecutore o sola data si scrivono come **appunto** su `acea_ordini`; il motore rapportini si rifiuta di generare un giorno che ne contiene, finché non lo si conferma |
 | 27 | Colonne ACEA | «Operatore ACEA» e «Esecuzione ACEA» sono **predefinite**: senza, un ordine chiuso da ACEA e mai pianificato da noi sembrava un import mancato |
 | 28 | Riaperture | La scheda è una **coda di lavoro**: solo aperte su ACEA e non completate nei rapportini. Le esitate stanno in «Chiusi». **Solo nella vista dunning**: in massive la scheda non si disegna |
-| 29 | Badge | Sul tasto della scheda, il numero delle riaperture **senza esecutore** — non le righe della scheda: un'assegnata non finita è in coda ma ha già qualcuno che ci va |
+| 29 | Triangolo | Sul tasto della scheda, **triangolo rosso** col numero delle attivazioni **senza data di pianificazione** — hanno un giorno di cardine, quella fuori calendario sparisce senza che nessuno la veda |
 | 30 | Annullati | Un intervento **annullato** non assegna, non pianifica e non si mostra: badge, filtro «Non assegnato» e colonna Esecutore usano la stessa definizione |
-| 31 | Conteggi schede | Ogni scheda porta **quante righe contiene** (prima dei filtri di colonna): numero smorzato sul tasto, distinto dal badge d'allarme |
+| 31 | Conteggi schede | **Provati e tolti**: cinque numeri sempre accesi sui tasti erano rumore, e il rumore copre l'allarme. Sui tasti resta solo il triangolo (dec. 29) |
 | 32 | Editor data | La Data pianificata si scrive anche **a mano o dal calendario** (doppio click / Invio sulla cella); nella **copia** il cursore di cella batte le spunte, nell'**incolla** vincono le spunte |
 
 ---

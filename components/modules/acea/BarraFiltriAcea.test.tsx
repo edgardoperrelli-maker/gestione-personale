@@ -1,22 +1,23 @@
-// Il badge della scheda «Riaperture»: quante riaperture aperte NON hanno un esecutore.
+// Il triangolo rosso della scheda «Riaperture»: quante attivazioni aperte NON hanno una data di
+// pianificazione. Hanno un giorno di cardine — quella fuori calendario è quella che scade domani
+// e sparisce senza che nessuno la veda.
 //
 // Sta sul tasto e non nei contatori di testa perché deve farsi vedere da qualunque scheda, e la
 // risposta giusta al vederlo — aprire le riaperture — è il click che gli sta sotto. Questi test
-// presidiano le tre regole di quel numero: si disegna col suo valore, sparisce a zero (un «0» in
-// un badge d'avviso è una rassicurazione che occupa lo spazio di un allarme), e sparisce quando il
-// server non l'ha saputo calcolare (un numero inventato è peggio della sua assenza).
+// presidiano le tre regole di quel numero: si disegna col suo valore, sparisce a zero (uno «0»
+// accanto a un triangolo d'allarme è una rassicurazione che occupa lo spazio di un allarme), e
+// sparisce quando il server non l'ha saputo calcolare (un numero inventato è peggio della sua
+// assenza). Nessun altro numero sulle schede: i conteggi per scheda sono stati provati e tolti —
+// cinque numeri sempre accesi erano rumore, e il rumore copre proprio l'allarme.
 import { describe, expect, it } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { COLONNE_DUNNING } from '@/lib/acea/colonneTabella';
 import { filtriVuoti } from '@/lib/acea/filtriOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 
-type ConteggiProp = React.ComponentProps<typeof BarraFiltriAcea>['conteggi'];
-
 const barra = (
-  riapertureDaAssegnare: number | null,
+  riapertureSenzaData: number | null,
   famiglia: 'dunning' | 'massive' = 'dunning',
-  conteggi: ConteggiProp = null,
 ) => renderToStaticMarkup(
   <BarraFiltriAcea
     filtri={filtriVuoti()}
@@ -25,75 +26,38 @@ const barra = (
     totale={100}
     caricate={100}
     famiglia={famiglia}
-    riapertureDaAssegnare={riapertureDaAssegnare}
-    conteggi={conteggi}
+    riapertureSenzaData={riapertureSenzaData}
   />,
 );
 
-describe('BarraFiltriAcea — badge della scheda Riaperture', () => {
-  it('mostra il numero, e dice cosa conta', () => {
+describe('BarraFiltriAcea — triangolo della scheda Riaperture', () => {
+  it('mostra il numero col triangolo, e dice cosa conta', () => {
     const html = barra(3);
-    expect(html).toContain('>3<');
-    expect(html).toContain('3 riaperture senza esecutore');
+    expect(html).toContain('lucide-triangle-alert');
+    expect(html).toContain('3 attivazioni senza data di pianificazione');
   });
 
   it('al singolare parla al singolare', () => {
-    expect(barra(1)).toContain('1 riapertura senza esecutore');
+    expect(barra(1)).toContain('1 attivazione senza data di pianificazione');
   });
 
   it('a zero non disegna niente', () => {
-    expect(barra(0)).not.toContain('senza esecutore');
+    const html = barra(0);
+    expect(html).not.toContain('senza data');
+    expect(html).not.toContain('lucide-triangle-alert');
   });
 
   it('senza il dato (server non ha risposto) non disegna niente', () => {
-    expect(barra(null)).not.toContain('senza esecutore');
+    expect(barra(null)).not.toContain('senza data');
   });
 
-  it('le schede restano tutte, badge o non badge', () => {
-    for (const html of [barra(3), barra(null)]) {
-      for (const etichetta of ['Da lavorare', 'Riaperture', 'Chiusi', 'Tutti']) {
-        expect(html).toContain(etichetta);
-      }
+  it('le schede restano nude: nessun conteggio di righe sui tasti', () => {
+    // I conteggi per scheda sono stati provati e tolti: il tasto porta solo l'allarme.
+    const html = barra(3);
+    for (const etichetta of ['Da lavorare', 'Riaperture', 'Chiusi', 'Tutti']) {
+      expect(html).toContain(etichetta);
     }
-  });
-});
-
-// Ogni scheda porta il SUO conteggio: quante righe contiene, prima dei filtri di colonna. È il
-// numero smorzato accanto all'etichetta — diverso dal badge, che grida il lavoro scoperto — e i
-// due convivono sullo stesso tasto.
-describe('BarraFiltriAcea — conteggi delle schede', () => {
-  const conteggi = { aperti: 924, chiusi: 466, tutti: 5293, saracinesche: 800, riaperture: 14 };
-
-  it('ogni scheda mostra il suo numero, formattato all’italiana', () => {
-    const html = barra(null, 'dunning', conteggi);
-    // «5293» senza punto non è un errore: il CLDR italiano raggruppa da 10.000 in su
-    // (minimumGroupingDigits=2), ed è lo stesso formato del resto dell'app.
-    for (const n of ['924', '466', '800', '14', '5293']) expect(html).toContain(`>${n}<`);
-    expect(barra(null, 'dunning', { ...conteggi, tutti: 15293 })).toContain('>15.293<');
-  });
-
-  it('conteggio e badge convivono sulla scheda Riaperture', () => {
-    const html = barra(3, 'dunning', conteggi);
-    expect(html).toContain('>14<');
-    expect(html).toContain('>3<');
-    expect(html).toContain('3 riaperture senza esecutore');
-  });
-
-  it('lo zero si mostra: su un conteggio è una risposta, non un allarme', () => {
-    expect(barra(null, 'dunning', { ...conteggi, riaperture: 0 })).toContain('>0<');
-  });
-
-  it('senza conteggi (server non ha risposto) le schede restano nude', () => {
-    const html = barra(null, 'dunning', null);
-    expect(html).not.toContain('>924<');
-    expect(html).toContain('Da lavorare');
-  });
-
-  it('in massive il conteggio riaperture non ha una scheda su cui stare', () => {
-    const html = barra(null, 'massive', { aperti: 10, chiusi: 5, tutti: 15, saracinesche: 7 });
-    expect(html).toContain('>10<');
-    expect(html).toContain('>15<');
-    expect(html).not.toContain('Riaperture');
+    expect(html).not.toContain('>100<');
   });
 });
 
@@ -109,7 +73,7 @@ describe('BarraFiltriAcea — vista massive', () => {
     }
   });
 
-  it('nemmeno un badge, anche se il numero arrivasse: non c’è il tasto su cui metterlo', () => {
-    expect(barra(3, 'massive')).not.toContain('senza esecutore');
+  it('nemmeno il triangolo, anche se il numero arrivasse: non c’è il tasto su cui metterlo', () => {
+    expect(barra(3, 'massive')).not.toContain('senza data');
   });
 });

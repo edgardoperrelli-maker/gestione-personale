@@ -9,7 +9,6 @@ import {
 import {
   ETICHETTE_STATO, filtriVuoti, haFiltriAttivi, type FiltriUI, type StatoFiltro,
 } from '@/lib/acea/filtriOrdini';
-import type { ConteggiSchede } from './useOrdiniAcea';
 
 type Props = {
   filtri: FiltriUI;
@@ -21,19 +20,14 @@ type Props = {
   /** La vista decide QUALI schede esistono: le riaperture sono dunning, e in massive non c'è la scheda. */
   famiglia: 'dunning' | 'massive';
   /**
-   * Riaperture aperte senza esecutore: il badge sul tasto della scheda.
+   * Attivazioni aperte SENZA una data di pianificazione: il triangolo rosso sul tasto della
+   * scheda. Hanno un giorno di cardine — quella fuori calendario è quella che scade domani e
+   * sparisce senza che nessuno la veda.
    *
    * `null` = il server non l'ha saputo calcolare, e non si disegna niente: un numero inventato su
    * un contatore d'allarme è peggio della sua assenza.
    */
-  riapertureDaAssegnare?: number | null;
-  /**
-   * Righe di ogni scheda, prima dei filtri di colonna: il numero smorzato sul tasto.
-   *
-   * Sono i totali «da fermo» della famiglia — dicono quanto pesa ogni vista prima di entrarci.
-   * Il conteggio della vista corrente, filtri compresi, resta il «N di M» qui accanto.
-   */
-  conteggi?: ConteggiSchede | null;
+  riapertureSenzaData?: number | null;
 };
 
 /**
@@ -74,8 +68,7 @@ const statiDella = (famiglia: 'dunning' | 'massive'): StatoFiltro[] =>
  * la loro larghezza (vedi il commento in `components/ui/Select.tsx`).
  */
 export default function BarraFiltriAcea({
-  filtri, onChange, colonne, totale, caricate, famiglia, riapertureDaAssegnare = null,
-  conteggi = null,
+  filtri, onChange, colonne, totale, caricate, famiglia, riapertureSenzaData = null,
 }: Props) {
   const pill = pillFiltri(colonne, filtri);
   const attivi = haFiltriAttivi(filtri);
@@ -89,23 +82,19 @@ export default function BarraFiltriAcea({
           items={statiDella(famiglia).map((s) => ({
             value: s,
             label: ETICHETTE_STATO[s],
-            // Quante righe ha la scheda. Anche 0: su un conteggio è una risposta («è vuota»),
-            // non l'allarme muto che sarebbe su un badge.
-            ...(conteggi && conteggi[s as keyof ConteggiSchede] !== undefined
-              ? { count: conteggi[s as keyof ConteggiSchede] }
-              : {}),
             /*
-              Il badge sta sul TASTO, non nei contatori di testa: deve farsi vedere da qualunque
-              scheda, e la risposta giusta al vederlo — aprire le riaperture — è il click che gli
-              sta sotto. Conta le SENZA ESECUTORE, non le righe della scheda: un'assegnata ma non
-              finita è nella scheda ma non è un allarme, ha già qualcuno che ci sta andando.
+              Il triangolo sta sul TASTO, non nei contatori di testa: deve farsi vedere da
+              qualunque scheda, e la risposta giusta al vederlo — aprire le riaperture — è il
+              click che gli sta sotto. Conta le attivazioni SENZA DATA di pianificazione, non le
+              righe della scheda: una in calendario ma non finita è nella scheda ma non è un
+              allarme, ha già un giorno in cui qualcuno ci va.
             */
-            ...(s === 'riaperture' && riapertureDaAssegnare !== null && riapertureDaAssegnare > 0
+            ...(s === 'riaperture' && riapertureSenzaData !== null && riapertureSenzaData > 0
               ? {
-                  badge: riapertureDaAssegnare,
-                  badgeLabel: riapertureDaAssegnare === 1
-                    ? '1 riapertura senza esecutore'
-                    : `${riapertureDaAssegnare} riaperture senza esecutore`,
+                  badge: riapertureSenzaData,
+                  badgeLabel: riapertureSenzaData === 1
+                    ? '1 attivazione senza data di pianificazione'
+                    : `${riapertureSenzaData} attivazioni senza data di pianificazione`,
                 }
               : {}),
           }))}
