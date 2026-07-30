@@ -9,6 +9,7 @@ import {
   Ban,
   Building2,
   Contact,
+  Database,
   FileSpreadsheet,
   FileText,
   Hotel,
@@ -101,6 +102,12 @@ const MODULES: {
     title: 'Estrazione misuratori',
     description: "Importa l'estrazione misuratori (Excel/CSV) del risanamento colonne.",
     icon: <FileSpreadsheet {...ICON_PROPS} />,
+  },
+  {
+    href: '/impostazioni/template-master',
+    title: 'Master ODL template',
+    description: "File master del template di import: l'ODL scritto compila da sé la riga.",
+    icon: <Database {...ICON_PROPS} />,
   },
 ];
 

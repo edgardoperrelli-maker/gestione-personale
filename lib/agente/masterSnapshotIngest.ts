@@ -11,6 +11,7 @@ export interface MasterSnapshotIn {
   dataRaw?: string;
   statoRaw?: string;
   matricola?: string;
+  indirizzo?: string;
   comune?: string;
   esito?: string;
   saracinesca?: string;
@@ -25,6 +26,7 @@ export interface MasterRigaDb {
   data_raw: string | null;
   stato_op: string | null;
   matricola: string | null;
+  indirizzo: string | null;
   comune: string | null;
   esito: string | null;
   saracinesca: string | null;
@@ -53,6 +55,7 @@ export function preparaRigheMasterSnapshot(snapshot: MasterSnapshotIn[]): Master
       data_raw: x.dataRaw ?? null,
       stato_op: x.statoRaw ?? null,
       matricola: x.matricola ?? null,
+      indirizzo: x.indirizzo ?? null, // lookup MasterODL del template di import
       comune: x.comune ?? null,
       esito: x.esito ?? null,
       saracinesca: x.saracinesca ?? null,

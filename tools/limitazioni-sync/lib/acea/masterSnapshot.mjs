@@ -13,6 +13,7 @@ export function mappaMasterSnapshot(grezze) {
       dataRaw: g.dataRaw ?? '',
       statoRaw: g.statoRaw ?? '',
       matricola: g.matricola ?? '',
+      indirizzo: g.indirizzo ?? '', // lookup MasterODL del template di import
       comune: g.comune ?? '',
       esito: g.esito ?? '', // ZAGAROLO
       saracinesca: g.saracinesca ?? '', // ZAGAROLO (SI)

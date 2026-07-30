@@ -1,8 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import ExcelJS from 'exceljs';
-import { buildTemplateImport, COLONNE_TEMPLATE } from './templateImport';
+import { buildTemplateImport, COLONNE_TEMPLATE, FOGLIO_MASTER_ODL } from './templateImport';
 import { isHeaderTemplateUfficiale } from './templateColonne';
 import type { TassonomiaRiga } from './tassonomia';
+import type { RigaMasterOdl } from './masterOdl';
 
 const TASSONOMIA: TassonomiaRiga[] = [
   { committente: 'acea', descrizione: 'Limitazione Massiva su Impianto', descrizioneNorm: 'LIMITAZIONE MASSIVA SU IMPIANTO', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
@@ -94,6 +95,73 @@ describe('buildTemplateImport', () => {
       // 2 attive in TASSONOMIA → elenco B2:B3 della Leggenda.
       expect(String(dv?.formulae?.[0] ?? '')).toBe('Leggenda!$B$2:$B$3');
     }
+  });
+
+  const MASTER: RigaMasterOdl[] = [
+    { odl: '912000001', descrizione: 'Limitazione Massiva su Impianto', matricola: 'M1', indirizzo: 'VIA ROMA 1', comune: 'LABICO' },
+    { odl: '912000002', descrizione: '', matricola: 'M2', indirizzo: '', comune: 'RIANO' },
+  ];
+  const COL_ODL = COLONNE_TEMPLATE.indexOf('ODS/ODL') + 1; // D
+  const cella = (ws: ExcelJS.Worksheet, r: number, nome: (typeof COLONNE_TEMPLATE)[number]) =>
+    ws.getRow(r).getCell(COLONNE_TEMPLATE.indexOf(nome) + 1);
+
+  it('senza master: nessun foglio MasterODL, MATRICOLA/Indirizzo/COMUNE senza formula', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5));
+    expect(wb.getWorksheet(FOGLIO_MASTER_ODL)).toBeUndefined();
+    const ws = wb.getWorksheet('Interventi')!;
+    for (const nome of ['MATRICOLA', 'Indirizzo', 'COMUNE'] as const) {
+      expect(cella(ws, 2, nome).value ?? null).toBeNull();
+    }
+  });
+
+  it("con master: terzo foglio MasterODL protetto, righe nell'ordine dato", async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5, MASTER));
+    expect(wb.worksheets.map((w) => w.name)).toEqual(['Interventi', 'Leggenda', FOGLIO_MASTER_ODL]);
+    const wm = wb.getWorksheet(FOGLIO_MASTER_ODL)!;
+    expect((wm.getRow(1).values as unknown[]).slice(1)).toEqual(['ODL', 'DESCRIZIONE ATTIVITÀ', 'MATRICOLA', 'INDIRIZZO', 'COMUNE']);
+    expect((wm.getRow(2).values as unknown[]).slice(1)).toEqual(['912000001', 'Limitazione Massiva su Impianto', 'M1', 'VIA ROMA 1', 'LABICO']);
+    expect((wm as unknown as { sheetProtection?: { sheet?: boolean } }).sheetProtection?.sheet).toBe(true);
+  });
+
+  it('con master: MATRICOLA/Indirizzo/COMUNE/DESCRIZIONE si compilano dall\'ODL (VLOOKUP su MasterODL, self-locating, identico su ogni riga)', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 10, MASTER));
+    const ws = wb.getWorksheet('Interventi')!;
+    const attese: Array<[(typeof COLONNE_TEMPLATE)[number], number]> = [
+      ['DESCRIZIONE ATTIVITÀ', 2], ['MATRICOLA', 3], ['Indirizzo', 4], ['COMUNE', 5],
+    ];
+    for (const [nome, n] of attese) {
+      const f2 = String((cella(ws, 2, nome).value as { formula?: string })?.formula ?? '');
+      expect(f2).toContain(`VLOOKUP`);
+      expect(f2).toContain(`${FOGLIO_MASTER_ODL}!$A$2:$E$3,${n},FALSE`);
+      // Self-locating (INDIRECT+ROW) e coercizione a testo dell'ODL digitato come numero.
+      expect(f2).toContain('INDIRECT("D"&ROW())&""');
+      // T(...) evita lo 0 dei buchi del master.
+      expect(f2).toContain('T(VLOOKUP');
+      expect(String((cella(ws, 11, nome).value as { formula?: string })?.formula ?? '')).toBe(f2);
+    }
+    // Le celle autocompilate restano LIBERE: per un ODL fuori master si scrive a mano.
+    for (const [nome] of attese) {
+      expect(cella(ws, 2, nome).protection?.locked).toBe(false);
+    }
+  });
+
+  it('con master: ODL in formato testo e rosso condizionale sugli ODL sconosciuti', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5, MASTER));
+    const ws = wb.getWorksheet('Interventi')!;
+    expect(ws.getRow(2).getCell(COL_ODL).numFmt).toBe('@');
+    const cf = (ws as unknown as { conditionalFormattings?: Array<{ ref: string; rules: Array<{ type: string; formulae?: string[] }> }> }).conditionalFormattings ?? [];
+    const regola = cf.find((c) => c.ref === 'D2:D6')?.rules?.[0];
+    expect(regola?.type).toBe('expression');
+    expect(String(regola?.formulae?.[0] ?? '')).toContain('COUNTIF(MasterOdlChiavi');
+    // Il defined name usato dalla regola esiste e punta alle chiavi del MasterODL.
+    const nomi = (wb.model.definedNames as Array<{ name: string; ranges: string[] }> | undefined) ?? [];
+    expect(nomi.find((n) => n.name === 'MasterOdlChiavi')?.ranges).toEqual([`${FOGLIO_MASTER_ODL}!$A$2:$A$3`]);
+  });
+
+  it('INVARIANTE: anche col master il file resta riconosciuto come template ufficiale', async () => {
+    const wb = await carica(await buildTemplateImport(TASSONOMIA, 5, MASTER));
+    const header = (wb.getWorksheet('Interventi')!.getRow(1).values as unknown[]).slice(1);
+    expect(isHeaderTemplateUfficiale(header)).toBe(true);
   });
 
   it('la Leggenda contiene solo righe attive, con chiave upper in colonna A', async () => {

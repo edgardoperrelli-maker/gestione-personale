@@ -5,6 +5,26 @@
 
 ## Fatto
 
+- ✅ **Template import: l'ODL compila la riga da sé (foglio MasterODL)** *(2026-07-30)* — il template
+  Excel scaricabile (`/api/interventi/template`) acquisisce un terzo foglio **MasterODL** (sola lettura):
+  scritto l'ODS/ODL, MATRICOLA / Indirizzo / COMUNE / DESCRIZIONE ATTIVITÀ si compilano da sole
+  (VLOOKUP self-locating con `T(...)` anti-zero e coercizione a testo; colonna ODL in formato testo);
+  un ODL **fuori da ogni master attivo diventa ROSSO** (formattazione condizionale su defined name) e
+  si compila a mano — le celle derivate restano libere, il gate resta `validaImport` (descrizione
+  mancante = file rifiutato). **Fonti del lookup**, fuse in modo difensivo (prima fonte vince, i campi
+  vuoti si riempiono dalle successive; descrizione canonicalizzata col tier *scrittura* degli alias):
+  1) **file master caricati a mano** — nuova pagina admin `/impostazioni/template-master` (upload
+  Excel/CSV con colonne risolte per NOME, committente, attività di default per i file che non la
+  ripetono, es. Acqua Latina) con **interruttore Attivo/Spento** per master (lo "spegnimento" toglie
+  gli ODL dal template senza cancellare nulla) — API `api/admin/interventi/template-master` (+`[id]`),
+  tabelle `template_master` + `template_master_righe`; 2) **snapshot del master DUNNING/ZAGAROLO**
+  che l'agente invia già a ogni giro, ora con la colonna **indirizzo** portata end-to-end
+  (`mappaMasterSnapshot` → `preparaRigheMasterSnapshot` → `acea_master_snapshot.indirizzo`).
+  Caricamento best-effort (`caricaMasterOdl`): fonte irraggiungibile → template senza autocompilazione,
+  mai download rotto. Migration `20260730120000_template_master_odl.sql` — **da applicare al prod**
+  (senza, il template esce come oggi e la pagina admin segnala il DB non migrato). Il file resta
+  riconosciuto dal gate `isFileTemplateUfficiale` (header invariato); un template scaricato e
+  ricaricato intatto continua a non generare righe (le formule non calcolate leggono come vuote).
 - ✅ **Modulo Assistenza — co-browsing live back office ↔ operatore** *(2026-07-22)* — dall'esito dello
   studio di fattibilità sulla connessione remota (vedi `docs/connessione-remota-fattibilita.md`, PR #157):
   nuovo modulo admin **`/hub/assistenza`** (gruppo Operatività, `adminOnly` + `requiresAdminRole`) per

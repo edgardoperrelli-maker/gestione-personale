@@ -56,6 +56,15 @@ describe('preparaRigheMasterSnapshot', () => {
     expect(out[0].odl).toBe('912345');
   });
 
+  it("porta l'indirizzo fino alla riga DB (lookup MasterODL del template); assente → null", () => {
+    const out = preparaRigheMasterSnapshot([
+      { odl: '912345', indirizzo: 'VIA ROMA 1' },
+      { odl: '912346' },
+    ]);
+    expect(out[0].indirizzo).toBe('VIA ROMA 1');
+    expect(out[1].indirizzo).toBeNull();
+  });
+
   it('Odl saracinesca ha precedenza anche con matricola presente', () => {
     const out = preparaRigheMasterSnapshot([{ odl: 'DA CHIEDERE', matricola: 'M1', odlSaracinesca: '912354706' }]);
     expect(out[0].odl).toBe('912354706');
