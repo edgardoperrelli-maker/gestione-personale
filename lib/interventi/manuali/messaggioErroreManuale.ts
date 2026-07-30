@@ -17,6 +17,8 @@ export function messaggioErroreManuale(
     upload_foto_fallito: 'Caricamento foto non riuscito, riprova.',
     attivita_obbligatoria: 'Scegli la descrizione attività: è obbligatoria.',
     attivita_sconosciuta: "Descrizione attività non riconosciuta. Scegline una dall'elenco.",
+    // Fallback: la route manda sempre un `dettaglio` con la matricola, che ha la precedenza.
+    misuratore_non_censito: "Misuratore non presente nell'elenco del committente. Contatta l'ufficio.",
   };
   if (j.error && map[j.error]) return map[j.error];
   return j.error && j.error.trim() ? j.error : `Errore ${status}`;

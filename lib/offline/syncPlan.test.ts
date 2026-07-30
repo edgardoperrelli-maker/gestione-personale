@@ -124,4 +124,32 @@ describe('motivoManuale400', () => {
     expect(motivoManuale400({})).toBeNull();
     expect(motivoManuale400(null)).toBeNull();
   });
+
+  // AcquaLatina: ci si arriva solo dal ramo offline-senza-censimento, dove il campo ha
+  // proceduto con riserva. Senza il motivo vero l'operatore leggerebbe «riapri il link» e
+  // andrebbe a cercare un problema che non esiste.
+  it('misuratore_non_censito → il dettaglio del server, con la matricola', () => {
+    expect(motivoManuale400({
+      error: 'misuratore_non_censito',
+      dettaglio: "Misuratore 140622 non presente nell'elenco AcquaLatina. Contatta l'ufficio.",
+    })).toBe("Misuratore 140622 non presente nell'elenco AcquaLatina. Contatta l'ufficio.");
+  });
+
+  it('misuratore_non_censito senza dettaglio → messaggio di scorta, mai «riapri il link»', () => {
+    const m = motivoManuale400({ error: 'misuratore_non_censito' });
+    expect(m).toMatch(/elenco del committente/i);
+    expect(m).not.toMatch(/riapri il link/i);
+  });
+});
+
+/** L'item respinto non deve ritentare all'infinito: 400 = errore client permanente. */
+describe('respinta del "+" AcquaLatina nella coda offline', () => {
+  it('400 → bloccato (esce dai sync successivi), non «ritenta»', () => {
+    expect(classificaEsito(400).esito).toBe('bloccato');
+    expect(esitoInvioManuale('con_foto', 400, false, 0)).toEqual({
+      tipo: 'bloccato',
+      motivo: 'Intervento non più disponibile — riapri il link',
+    });
+    // …e il motivo generico viene poi sovrascritto da motivoManuale400 in sync.ts.
+  });
 });

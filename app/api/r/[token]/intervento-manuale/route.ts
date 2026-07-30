@@ -22,6 +22,8 @@ import { haEsitoNegativo } from '@/utils/rapportini/voceColore';
 import { nomeFotoFile, identificativoFoto, type FotoIdCampo } from '@/lib/interventi/manuali/fotoNaming';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { decisioneCorsia } from '@/lib/interventi/manuali/decisioneCorsia';
+import { lookupMaster } from '@/lib/acqualatina/lookupMaster';
+import { masterAttivi, candidatiPerRicerca } from '@/lib/acqualatina/censimentoMaster';
 import { richiestaToIntervento } from '@/lib/interventi/manuali/richiestaToIntervento';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
 import { isTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
@@ -209,6 +211,32 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
           { status: 409 },
         );
       }
+    }
+  }
+
+  // AcquaLatina — il misuratore dev'essere nel master del committente. È la seconda metà del
+  // blocco: la prima la fa la ricerca in campo, ma quella si può essere fidata della cache
+  // locale (o non aver potuto verificare affatto, se il telefono era offline e il censimento
+  // non era mai stato scaricato). Qui il verdetto è quello vero, sul dato di adesso.
+  //
+  // 400 e NON 409, deliberatamente: `classificaEsito` dà a ogni 409 il motivo generico
+  // «Link scaduto o non più modificabile», che qui sarebbe falso e manderebbe l'operatore a
+  // cercare un problema che non c'è. Sul 400 il sync legge il corpo (`motivoManuale400`) e
+  // mostra il motivo vero nella coda «da risolvere».
+  if (committente === 'acqualatina') {
+    const matricolaQ = String((anagrafica as { matricola?: unknown }).matricola ?? '').trim();
+    const masterIds = await masterAttivi();
+    const verdetto = lookupMaster(matricolaQ, await candidatiPerRicerca(matricolaQ, masterIds));
+    if (verdetto.esito === 'assente' || verdetto.esito === 'ambiguo') {
+      return NextResponse.json(
+        {
+          error: 'misuratore_non_censito',
+          dettaglio: verdetto.esito === 'ambiguo'
+            ? `Più ordini indistinguibili sulla matricola ${matricolaQ} (ODL ${verdetto.odl.join(', ')}). Contatta l'ufficio.`
+            : `Misuratore ${matricolaQ} non presente nell'elenco AcquaLatina. Contatta l'ufficio.`,
+        },
+        { status: 400 },
+      );
     }
   }
 

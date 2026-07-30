@@ -123,10 +123,11 @@ async function inviaElemento(item: OutboxItem): Promise<{ status: number; ritent
         return { status: r.status, differita: true };
       }
       if (esito.tipo === 'ritenta') return { status: r.status === 0 ? 0 : r.status, ritentabile: true };
-      // bloccato: sul 400 leggi il body — i codici attività (spec §7) hanno un messaggio
-      // amichevole dedicato al posto del generico "riapri il link" (che qui sarebbe fuorviante).
+      // bloccato: sul 400 leggi il body — alcuni codici hanno un messaggio amichevole dedicato
+      // al posto del generico "riapri il link" (che qui sarebbe fuorviante). Il corpo è ancora
+      // integro: sopra si legge solo `if (r.ok)`, e un 400 non lo è.
       if (r.status === 400) {
-        const j = (await r.json().catch(() => null)) as { error?: string; messaggio?: string } | null;
+        const j = (await r.json().catch(() => null)) as { error?: string; messaggio?: string; dettaglio?: string } | null;
         const motivo = motivoManuale400(j);
         if (motivo) return { status: r.status, motivo };
       }
