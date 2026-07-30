@@ -95,6 +95,13 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   territorio: Liberatori su LAZIO EST col dunning fra le attività multiple compare, Napoli sul
   risanamento no. Vale per menu barra, menu in cella e rifiuti server (messaggi aggiornati).
   Verificato sui dati veri di produzione prima di scrivere il filtro.
+- [x] **Salvataggio di cella velocizzato** — le letture indipendenti di `/celle` e `/pianifica`
+  (registro, appunti, interventi, tassonomia, controllo finestra) partono in PARALLELO invece che
+  in fila; la tassonomia è cachata 60s (`lib/acea/indiceTassonomia.ts`); in `operatoriPerGiorno`
+  attività e assenze partono insieme. Sul GET del registro: il triangolo parte subito e si
+  riscuote alla fine, e la scheda Riaperture non paga più la scansione COMPLETA degli interventi
+  (~7 richieste in fila) — usa `indicePianificazionePerOdl` mirato sulle poche chiavi scese; la
+  scansione completa resta solo per filtri di pianificazione e ordinamenti a incrocio.
 - [x] **«Sul rapportino» dalla selezione** — le righe spuntate si caricano dritte sul rapportino
   del loro esecutore per il loro giorno, senza passare dagli Strumenti: bottone in barra, conferma
   con riepilogo per (operatore, giorno), gestione di 409 righe-a-metà e riaperture con conferme.

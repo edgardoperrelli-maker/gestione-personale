@@ -5,8 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import {
   pianoPianificazione, type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
-import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
 import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
@@ -82,89 +81,93 @@ export async function POST(req: Request) {
       });
     }
 
-    // Registro e interventi correnti: si decide sul dato del server, non su quello del client.
+    /*
+      Registro, appunti, interventi e tassonomia: quattro letture INDIPENDENTI, in parallelo.
+
+      Erano in fila, e un salvataggio di cella pagava la somma delle loro latenze prima ancora di
+      decidere qualcosa: era il grosso del «salva lento». Restano letture separate — gli appunti
+      fuori dalla select del registro per la solita ragione (una colonna di migration non ancora
+      passata non deve rompere note e pianificazione), la tassonomia best-effort e ora cachata un
+      minuto — ma partono tutte insieme.
+    */
     const ordiniPerChiave = new Map<string, OrdineDaPianificare>();
     /** Appunti già presenti sulla riga: `pianificato_*_bozza`, la mezza pianificazione. */
     const bozzePerChiave = new Map<string, { staffId: string | null; data: string | null }>();
-    for (let i = 0; i < odlTutti.length; i += 200) {
-      const blocco = odlTutti.slice(i, i + 200);
-      const { data: righe, error } = await supabaseAdmin
-        .from('acea_ordini')
-        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
-        .in('odl', blocco);
-      if (error) throw error;
-      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
-        ordiniPerChiave.set(chiave, {
-          odl: String(r.odl),
-          numero_operazione: String(r.numero_operazione),
-          ordine_id: (r.id as string | null) ?? null,
-          aperto: r.aperto === true,
-          attivita: (r.attivita as string | null) ?? null,
-          comune: (r.comune as string | null) ?? null,
-          via: (r.via as string | null) ?? null,
-          civico: (r.civico as string | null) ?? null,
-          cap: (r.cap as string | null) ?? null,
-          matricola: (r.matricola as string | null) ?? null,
-          riapertura: eRiapertura(r.codice_sla as string | null),
-        });
-      }
-    }
-
-    /*
-      Gli appunti già presenti, letti a parte e best-effort.
-
-      Tenerli fuori dalla select qui sopra è deliberato: sono colonne di una migration che potrebbe
-      non essere ancora passata sul database che serve questo codice, e in quell'elenco una colonna
-      sconosciuta farebbe fallire ogni scrittura di cella — comprese le note e la pianificazione
-      normale, che funzionavano già. Senza appunti si torna al comportamento di prima: una riga a
-      metà non completa nulla, e basta.
-    */
-    for (let i = 0; i < odlTutti.length; i += 200) {
-      const blocco = odlTutti.slice(i, i + 200);
-      const { data: righe, error } = await supabaseAdmin
-        .from('acea_ordini')
-        .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
-        .in('odl', blocco);
-      if (error) {
-        console.error('[acea/celle] appunti di pianificazione non letti:', error);
-        break;
-      }
-      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        bozzePerChiave.set(`${String(r.odl)}|${String(r.numero_operazione)}`, {
-          staffId: (r.pianificato_a_bozza as string | null) ?? null,
-          data: (r.pianificato_il_bozza as string | null) ?? null,
-        });
-      }
-    }
-
     const esistenti: InterventoEsistente[] = [];
-    for (let i = 0; i < odlTutti.length; i += 200) {
-      const blocco = odlTutti.slice(i, i + 200);
-      const { data: righe, error } = await supabaseAdmin
-        .from('interventi')
-        .select('id, odl, data, staff_id, stato')
-        .in('odl', blocco)
-        .in('committente', ['acea', 'lim_massive']);
-      if (error) throw error;
-      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        if (!r.odl) continue;
-        esistenti.push({
-          id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
-          staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
-        });
+
+    const blocchi: string[][] = [];
+    for (let i = 0; i < odlTutti.length; i += 200) blocchi.push(odlTutti.slice(i, i + 200));
+
+    const leggiRegistro = (async () => {
+      for (const blocco of blocchi) {
+        const { data: righe, error } = await supabaseAdmin
+          .from('acea_ordini')
+          .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
+          .in('odl', blocco);
+        if (error) throw error;
+        for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+          const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
+          ordiniPerChiave.set(chiave, {
+            odl: String(r.odl),
+            numero_operazione: String(r.numero_operazione),
+            ordine_id: (r.id as string | null) ?? null,
+            aperto: r.aperto === true,
+            attivita: (r.attivita as string | null) ?? null,
+            comune: (r.comune as string | null) ?? null,
+            via: (r.via as string | null) ?? null,
+            civico: (r.civico as string | null) ?? null,
+            cap: (r.cap as string | null) ?? null,
+            matricola: (r.matricola as string | null) ?? null,
+            riapertura: eRiapertura(r.codice_sla as string | null),
+          });
+        }
       }
-    }
+    })();
+
+    const leggiAppunti = (async () => {
+      for (const blocco of blocchi) {
+        const { data: righe, error } = await supabaseAdmin
+          .from('acea_ordini')
+          .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
+          .in('odl', blocco);
+        if (error) {
+          console.error('[acea/celle] appunti di pianificazione non letti:', error);
+          return;
+        }
+        for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+          bozzePerChiave.set(`${String(r.odl)}|${String(r.numero_operazione)}`, {
+            staffId: (r.pianificato_a_bozza as string | null) ?? null,
+            data: (r.pianificato_il_bozza as string | null) ?? null,
+          });
+        }
+      }
+    })();
+
+    const leggiInterventi = (async () => {
+      for (const blocco of blocchi) {
+        const { data: righe, error } = await supabaseAdmin
+          .from('interventi')
+          .select('id, odl, data, staff_id, stato')
+          .in('odl', blocco)
+          .in('committente', ['acea', 'lim_massive']);
+        if (error) throw error;
+        for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+          if (!r.odl) continue;
+          esistenti.push({
+            id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
+            staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+          });
+        }
+      }
+    })();
+
+    const [, , , indice] = await Promise.all([
+      leggiRegistro, leggiAppunti, leggiInterventi, indiceTassonomiaCached(),
+    ]);
+
     const interventoPerOdl = new Map<string, InterventoEsistente[]>();
     for (const i of esistenti) {
       interventoPerOdl.set(i.odl, [...(interventoPerOdl.get(i.odl) ?? []), i]);
-    }
-
-    let indice: Map<string, TassonomiaRiga> | null = null;
-    try {
-      indice = buildTassonomiaIndex(await caricaTassonomia());
-    } catch {
-      indice = null;
     }
 
     const azioniLog: Array<Record<string, unknown>> = [];

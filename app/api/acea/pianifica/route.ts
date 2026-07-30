@@ -6,8 +6,7 @@ import {
   pianoPianificazione, etichettaMotivo,
   type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
-import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
-import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
 import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
 import { soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
@@ -57,79 +56,86 @@ export async function POST(req: Request) {
       chiedere incollando da Excel — e una regola che vale solo per il menu è decorativa.
     */
     const oggi = partiRoma(new Date()).oggi;
-    // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
-    const motivi = await controllaAssegnazioni([{ data, staffId, dataScritta: true }], oggi);
+    const odlSelezionati = [...new Set(chiavi.map((k) => k.split('|')[0]))];
+    const blocchi: string[][] = [];
+    for (let i = 0; i < odlSelezionati.length; i += 200) blocchi.push(odlSelezionati.slice(i, i + 200));
+
+    /*
+      Quattro letture INDIPENDENTI, in parallelo: il controllo finestra+tabellone, gli ordini dal
+      registro, gli interventi esistenti e la tassonomia (cachata un minuto). Erano in fila e la
+      pianificazione pagava la somma delle latenze; nessuna SCRITTURA parte comunque prima che il
+      controllo abbia detto sì — il rifiuto arriva solo qualche lettura più tardi, a costo zero.
+    */
+    const [motivi, ordini, esistenti, indice] = await Promise.all([
+      // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
+      controllaAssegnazioni([{ data, staffId, dataScritta: true }], oggi),
+      (async () => {
+        // 1) Ordini selezionati, letti dal registro (non dal client: il client potrebbe avere una
+        //    fotografia vecchia, e su questi dati si decide chi va dove).
+        const out: OrdineDaPianificare[] = [];
+        for (const blocco of blocchi) {
+          const { data: righe, error } = await supabaseAdmin
+            .from('acea_ordini')
+            .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
+            .in('odl', blocco);
+          if (error) throw error;
+          for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+            const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
+            if (!chiavi.includes(chiave)) continue;
+            out.push({
+              odl: String(r.odl),
+              numero_operazione: String(r.numero_operazione),
+              ordine_id: (r.id as string | null) ?? null,
+              aperto: r.aperto === true,
+              attivita: (r.attivita as string | null) ?? null,
+              comune: (r.comune as string | null) ?? null,
+              via: (r.via as string | null) ?? null,
+              civico: (r.civico as string | null) ?? null,
+              cap: (r.cap as string | null) ?? null,
+              matricola: (r.matricola as string | null) ?? null,
+              riapertura: eRiapertura(r.codice_sla as string | null),
+            });
+          }
+        }
+        return out;
+      })(),
+      (async () => {
+        // 2) Interventi già esistenti su quegli ODL (qualunque data): servono a spostare invece
+        //    di duplicare, e a non toccare il lavoro già completato.
+        const out: InterventoEsistente[] = [];
+        for (const blocco of blocchi) {
+          const { data: righe, error } = await supabaseAdmin
+            .from('interventi')
+            .select('id, odl, data, staff_id, stato')
+            .in('odl', blocco)
+            .in('committente', ['acea', 'lim_massive']);
+          if (error) throw error;
+          for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
+            if (!r.odl) continue;
+            out.push({
+              id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
+              staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+            });
+          }
+        }
+        return out;
+      })(),
+      // 3) Tassonomia: descrizione canonica e gruppo (vedi lib/acea/tassonomiaAcea.ts per l'alias
+      //    di scrittura). Best-effort: senza, l'intervento nasce con l'attività grezza.
+      indiceTassonomiaCached(),
+    ]);
+
     const rifiuto = motivi.get(`${data}|${staffId}`);
     if (rifiuto) {
       return NextResponse.json({ error: rifiuto.replace(/^./, (c) => c.toUpperCase()) }, { status: 400 });
-    }
-
-    // 1) Ordini selezionati, letti dal registro (non dal client: il client potrebbe avere una
-    //    fotografia vecchia, e su questi dati si decide chi va dove).
-    const odlSelezionati = [...new Set(chiavi.map((k) => k.split('|')[0]))];
-    const ordini: OrdineDaPianificare[] = [];
-    for (let i = 0; i < odlSelezionati.length; i += 200) {
-      const blocco = odlSelezionati.slice(i, i + 200);
-      const { data: righe, error } = await supabaseAdmin
-        .from('acea_ordini')
-        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
-        .in('odl', blocco);
-      if (error) throw error;
-      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
-        if (!chiavi.includes(chiave)) continue;
-        ordini.push({
-          odl: String(r.odl),
-          numero_operazione: String(r.numero_operazione),
-          ordine_id: (r.id as string | null) ?? null,
-          aperto: r.aperto === true,
-          attivita: (r.attivita as string | null) ?? null,
-          comune: (r.comune as string | null) ?? null,
-          via: (r.via as string | null) ?? null,
-          civico: (r.civico as string | null) ?? null,
-          cap: (r.cap as string | null) ?? null,
-          matricola: (r.matricola as string | null) ?? null,
-          riapertura: eRiapertura(r.codice_sla as string | null),
-        });
-      }
     }
     if (ordini.length === 0) {
       return NextResponse.json({ error: 'Nessun ordine trovato nel registro.' }, { status: 404 });
     }
 
-    // 2) Interventi già esistenti su quegli ODL (qualunque data): servono a spostare invece di
-    //    duplicare, e a non toccare il lavoro già completato.
-    const esistenti: InterventoEsistente[] = [];
-    for (let i = 0; i < odlSelezionati.length; i += 200) {
-      const blocco = odlSelezionati.slice(i, i + 200);
-      const { data: righe, error } = await supabaseAdmin
-        .from('interventi')
-        .select('id, odl, data, staff_id, stato')
-        .in('odl', blocco)
-        .in('committente', ['acea', 'lim_massive']);
-      if (error) throw error;
-      for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        if (!r.odl) continue;
-        esistenti.push({
-          id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
-          staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
-        });
-      }
-    }
-
     const piano = pianoPianificazione({
       ordini, esistenti, data, staffId, soloAttivazioni: soloAttivazioni(data),
     });
-
-    // 3) Tassonomia: descrizione canonica e gruppo dell'attività (vedi lib/acea/tassonomiaAcea.ts
-    //    per il motivo per cui serve l'alias di scrittura). Best-effort: senza tassonomia
-    //    l'intervento nasce comunque con l'attività grezza.
-    let indice: Map<string, TassonomiaRiga> | null = null;
-    try {
-      indice = buildTassonomiaIndex(await caricaTassonomia());
-    } catch {
-      indice = null;
-    }
 
     // 4) Scritture + registrazione dello stato precedente per l'annullamento.
     const azioniLog: Array<Record<string, unknown>> = [];

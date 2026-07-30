@@ -104,30 +104,38 @@ export async function operatoriPerGiorno(
     if (r.activity_id) idAttivita.add(r.activity_id);
     for (const id of r.activity_ids ?? []) if (id) idAttivita.add(id);
   }
+
+  // Nomi attività e assenze sono indipendenti: partono insieme, non in fila. Questo elenco sta
+  // sulla strada di OGNI salvataggio (controllaAssegnazioni) — ogni giro risparmiato si sente.
   const nomiAttivita = new Map<string, string>();
-  if (idAttivita.size > 0) {
-    const { data: attivita, error: eAtt } = await supabaseAdmin
-      .from('activities')
-      .select('id, name')
-      .in('id', [...idAttivita]);
-    if (eAtt) throw eAtt;
-    for (const a of (attivita ?? []) as Array<{ id: string; name: string | null }>) {
-      nomiAttivita.set(a.id, a.name ?? '');
-    }
-  }
+  const assenti = new Set<string>();
+  await Promise.all([
+    (async () => {
+      if (idAttivita.size === 0) return;
+      const { data: attivita, error: eAtt } = await supabaseAdmin
+        .from('activities')
+        .select('id, name')
+        .in('id', [...idAttivita]);
+      if (eAtt) throw eAtt;
+      for (const a of (attivita ?? []) as Array<{ id: string; name: string | null }>) {
+        nomiAttivita.set(a.id, a.name ?? '');
+      }
+    })(),
+    (async () => {
+      // Assenze intere del periodo: una sola lettura per tutte le date richieste.
+      const { data: disp } = await supabaseAdmin
+        .from('disponibilita_operatore')
+        .select('staff_id, data, ora_da, ora_a')
+        .in('data', date as string[]);
+      for (const a of (disp ?? []) as Array<{ staff_id: string; data: string; ora_da: string | null; ora_a: string | null }>) {
+        if (isAssenzaIntera(a)) assenti.add(`${a.data}|${a.staff_id}`);
+      }
+    })(),
+  ]);
+
   const faDunning = (r: RigaAssegnazione): boolean =>
     (r.activity_id !== null && eNomeDunning(nomiAttivita.get(r.activity_id)))
     || (r.activity_ids ?? []).some((id) => eNomeDunning(nomiAttivita.get(id)));
-
-  // Assenze intere del periodo: una sola lettura per tutte le date richieste.
-  const assenti = new Set<string>();
-  const { data: disp } = await supabaseAdmin
-    .from('disponibilita_operatore')
-    .select('staff_id, data, ora_da, ora_a')
-    .in('data', date as string[]);
-  for (const a of (disp ?? []) as Array<{ staff_id: string; data: string; ora_da: string | null; ora_a: string | null }>) {
-    if (isAssenzaIntera(a)) assenti.add(`${a.data}|${a.staff_id}`);
-  }
 
   // Dedup per (giorno, operatore): una persona può avere più righe di tabellone nello stesso
   // giorno — squadre, attività multiple — e nel menu deve comparire una volta sola.

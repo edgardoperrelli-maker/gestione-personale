@@ -5,7 +5,8 @@ import { requireAdmin } from '@/lib/apiAuth';
 import {
   COLONNE_ELENCO, COLONNE_TESTO,
   leggiFiltri, soglieScadenza, intervalloPagina, espressioneRicerca,
-  serveIncrocio, ORDINAMENTI, type FiltriOrdini, type FiltriPianificazione,
+  serveIncrocio, filtriPianificazioneAttivi, ordinamentoDaIncrociare,
+  ORDINAMENTI, type FiltriOrdini, type FiltriPianificazione,
 } from '@/lib/acea/filtriOrdini';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import {
@@ -171,8 +172,43 @@ type VoceIntervento = { odl: string | null; data: string | null; staff_id: strin
  * non al display. `completato` alimenta la coda delle riaperture: una riapertura completata nei
  * rapportini è esitata, e in una coda di lavoro non ci sta più.
  */
-async function indicePianificazione(): Promise<Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>> {
-  const indice = new Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>();
+type IndicePianificazione = Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>;
+
+/**
+ * L'indice per i SOLI ODL indicati: la versione mirata di `indicePianificazione`.
+ *
+ * La scansione completa degli interventi (~7.000 righe, sette richieste in fila) serve solo
+ * quando il criterio tocca TUTTO il registro — filtri di pianificazione o ordinamento per
+ * esecutore/data. La coda delle riaperture no: le sue chiavi le ha già tagliate Postgres a poche
+ * decine, e chiederle mirate costa una richiesta invece di sette. Era il grosso della lentezza
+ * percepita dopo un salvataggio: ogni ricarica della scheda pagava la scansione intera.
+ */
+async function indicePianificazionePerOdl(odl: readonly string[]): Promise<IndicePianificazione> {
+  const indice: IndicePianificazione = new Map();
+  const unici = [...new Set(odl)];
+  for (let i = 0; i < unici.length; i += 200) {
+    const blocco = unici.slice(i, i + 200);
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('odl, data, staff_id, stato')
+      .in('odl', blocco)
+      .in('committente', COMMITTENTI);
+    if (error) throw error;
+    for (const it of (data ?? []) as VoceIntervento[]) {
+      if (!it.odl || it.stato === 'annullato') continue;
+      const v = indice.get(it.odl)
+        ?? { staff: new Set<string>(), giorni: new Set<string>(), completato: false };
+      if (it.staff_id) v.staff.add(it.staff_id);
+      if (it.data) v.giorni.add(it.data);
+      if (it.stato === 'completato') v.completato = true;
+      indice.set(it.odl, v);
+    }
+  }
+  return indice;
+}
+
+async function indicePianificazione(): Promise<IndicePianificazione> {
+  const indice: IndicePianificazione = new Map();
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
@@ -375,6 +411,10 @@ export async function GET(req: Request) {
     const oggi = partiRoma(new Date()).oggi;
     const { da, a } = intervalloPagina(f);
 
+    // Il triangolo parte SUBITO e si riscuote alla fine: è indipendente da tutto il resto, e
+    // messo in coda com'era aggiungeva le sue due letture alla latenza di ogni risposta.
+    const triangolo = riapertureSenzaData();
+
     let righe: OrdineRow[];
     let totale: number;
 
@@ -398,13 +438,25 @@ export async function GET(req: Request) {
         mostrerebbe «12 di 871» quando i non pianificati sono 400. Si paga solo quando uno dei due
         filtri è acceso — la vista normale resta una query sola.
       */
-      const [chiavi, indice, saracinesche] = await Promise.all([
+      /*
+        L'indice COMPLETO solo quando il criterio tocca tutto il registro (filtri di
+        pianificazione, ordinamento per esecutore/data). La scheda riaperture da sola usa la
+        versione mirata sugli ODL scesi dalla scansione — che Postgres ha già ridotto a poche
+        decine — e la scheda saracinesche senza filtri non ha bisogno di nessun indice.
+      */
+      const serveIndiceCompleto =
+        filtriPianificazioneAttivi(f.pianificazione) || ordinamentoDaIncrociare(f);
+      const [chiavi, indiceCompleto, saracinesche] = await Promise.all([
         scansionaChiavi(f, oggi),
-        indicePianificazione(),
+        serveIndiceCompleto ? indicePianificazione() : Promise.resolve(null),
         f.stato === 'saracinesche'
           ? odlConSaracinescaDichiarata(supabaseAdmin)
           : Promise.resolve(new Set<string>()),
       ]);
+      const indice = indiceCompleto
+        ?? (f.stato === 'riaperture'
+          ? await indicePianificazionePerOdl(chiavi.map((k) => k.odl))
+          : new Map<string, never>() as IndicePianificazione);
 
       // Nomi scelti → staff_id. Il filtro parla di persone, il registro di identificativi.
       const staffScelti = new Set<string>();
@@ -613,7 +665,7 @@ export async function GET(req: Request) {
         oggi,
         // Il triangolo della scheda «Riaperture»: aggiornato a ogni ricarica della tabella, così
         // pianificare o importare lo muove senza una chiamata in più. `null` = non calcolabile.
-        riapertureSenzaData: await riapertureSenzaData(),
+        riapertureSenzaData: await triangolo,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );
