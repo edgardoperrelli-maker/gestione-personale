@@ -57,7 +57,8 @@ export async function caricaDatiListaAttesa(): Promise<DatiListaAttesa> {
   // Campi esito per committente: solo template SOLO-MANUALE attivi (esclusi i riservati P.I.).
   const tpl = await caricaTemplateManuali(supabase, { soloAttivi: true });
 
-  const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
+  // Allineata a mano all'unione CommittenteManuale: `tsc` non segnala un array piu' corto.
+  const COMMITTENTI_MANUALI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive', 'acqualatina'];
   const tplRows2 = tpl as TemplateRow[];
   const campiPerCommittente: Partial<Record<CommittenteManuale, TemplateCampo[]>> = {};
   const infoCampiPerCommittente: Partial<Record<CommittenteManuale, TemplateInfoCampo[]>> = {};

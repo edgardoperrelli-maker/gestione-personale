@@ -9,10 +9,18 @@ const PROIEZIONE = 'matricola, pdr, nominativo, indirizzo, civico, comune, cap, 
 const PAGINA = 1000;
 
 /**
- * GET /api/r/[token]/censimento?v=<versione>
- * Cache offline del censimento Acea. La versione è "<count>:<maxId>": un nuovo import
- * alza max(id) → cambia versione. Se la versione del client coincide risponde
- * { unchanged: true } (check giornaliero minuscolo); altrimenti la proiezione completa.
+ * GET /api/r/[token]/censimento — cache offline del censimento Acea.
+ * La versione è "<count>:<maxId>": un nuovo import alza max(id) → cambia versione.
+ *
+ * Tre modalità, tutte sulla stessa versione:
+ *   ?v=<versione>            → { unchanged:true } se coincide, altrimenti TUTTE le righe.
+ *                              È il contratto STORICO: `aggiornaCensimento` continua a girarci.
+ *   ?meta=1&v=<versione>     → { unchanged, versione, totale } senza dati: due query e
+ *                              ~40 byte, è il controllo che si fa a ogni apertura del link.
+ *   ?from=&to=&v=<versione>  → { righe } di UNA pagina, per il download con la barra.
+ *                              Con `v` diverso dalla versione corrente risponde 409: se un
+ *                              import atterra a metà scaricamento le pagine sarebbero di due
+ *                              dataset diversi, e la cache verrebbe su incoerente.
  */
 export async function GET(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -35,7 +43,32 @@ export async function GET(req: Request, { params }: { params: Promise<{ token: s
     .maybeSingle();
   const versione = `${count ?? 0}:${(maxRow as { id: number } | null)?.id ?? 0}`;
 
-  const vClient = new URL(req.url).searchParams.get('v') ?? '';
+  const qs = new URL(req.url).searchParams;
+  const vClient = qs.get('v') ?? '';
+
+  // Solo metadati: quanto c'è da scaricare, senza scaricarlo.
+  if (qs.get('meta') === '1') {
+    return NextResponse.json({ unchanged: vClient === versione, versione, totale: count ?? 0 });
+  }
+
+  // Una pagina sola, per il download con la barra.
+  const fromRaw = qs.get('from');
+  if (fromRaw !== null) {
+    if (vClient !== versione) {
+      return NextResponse.json({ error: 'versione_cambiata', versione }, { status: 409 });
+    }
+    const from = Math.max(0, Number(fromRaw) || 0);
+    const to = Math.max(from, Number(qs.get('to')) || from);
+    const { data, error } = await supabaseAdmin
+      .from('limitazione_misuratori_ref')
+      .select(PROIEZIONE)
+      .eq('committente', COMMITTENTE)
+      .order('id', { ascending: true })
+      .range(from, to);
+    if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    return NextResponse.json({ versione, righe: (data ?? []) as CensitoMisuratore[] });
+  }
+
   if (vClient === versione) return NextResponse.json({ unchanged: true, versione });
 
   // Fetch completo PAGINATO (PostgREST tronca a 1000).

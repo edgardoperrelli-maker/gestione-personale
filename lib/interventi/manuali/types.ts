@@ -7,7 +7,7 @@ export type StatoRichiesta = (typeof STATI_RICHIESTA)[number];
 export const CORSIE_RICHIESTA = ['normale', 'liberi'] as const;
 export type CorsiaRichiesta = (typeof CORSIE_RICHIESTA)[number];
 
-export type CommittenteManuale = 'acea' | 'italgas' | 'altro' | 'lim_massive';
+export type CommittenteManuale = 'acea' | 'italgas' | 'altro' | 'lim_massive' | 'acqualatina';
 
 /** Anagrafica compilata dall'operatore: sottoinsieme delle chiavi info, tutte string. */
 export type AnagraficaManuale = Partial<Record<InfoChiave, string>>;
@@ -45,4 +45,14 @@ export type RigaRichiesta = {
   deciso_da_name?: string | null;
   /** Timestamp della decisione (approvazione/rifiuto). */
   deciso_at?: string | null;
+  /**
+   * Istante in cui l'ODL è stato assegnato all'operatore sul sistema del committente
+   * (AcquaLatina: a mano, poi registrato con la spunta massiva del registro).
+   * NULL su una riga `approvato` = ordine ancora **da assegnare**.
+   *
+   * È una colonna e non un valore di `stato` perché l'assegnazione è un fatto del mondo
+   * esterno, non una decisione sulla richiesta: tenerli su assi separati evita che ogni
+   * lettore di `stato` debba imparare che «da assegnare» conta come approvato.
+   */
+  assegnato_committente_at?: string | null;
 };

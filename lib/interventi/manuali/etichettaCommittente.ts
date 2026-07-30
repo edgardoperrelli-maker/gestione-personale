@@ -5,6 +5,7 @@ const ETICHETTE: Record<CommittenteManuale, string> = {
   italgas: 'Italgas',
   altro: 'Altro',
   lim_massive: 'Limitazioni massive',
+  acqualatina: 'AcquaLatina',
 };
 
 /** Etichetta leggibile del committente; fallback al valore grezzo se sconosciuto. */

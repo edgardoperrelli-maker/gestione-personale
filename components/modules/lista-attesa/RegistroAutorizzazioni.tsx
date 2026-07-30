@@ -28,6 +28,8 @@ import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Badge from '@/components/Badge';
+import { toast } from '@/components/ui/Toast';
+import { daAssegnare } from '@/lib/interventi/manuali/daAssegnare';
 
 const labelCls = 'text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]';
 
@@ -133,6 +135,11 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
   const [loading, setLoading] = useState(true);
   const [apertaId, setApertaId] = useState<string | null>(null);
   const [filtri, setFiltri] = useState<FiltriRegistro>({ operatore: '', stato: '', committente: '', from: '', to: '', ricerca: '' });
+  // Coda «da assegnare»: filtro DERIVATO, non un valore di `stato`. L'approvazione è la
+  // decisione dell'ufficio, l'assegnazione sul sistema del committente è un fatto esterno.
+  const [soloDaAssegnare, setSoloDaAssegnare] = useState(false);
+  const [selezione, setSelezione] = useState<Set<string>>(new Set());
+  const [registrando, setRegistrando] = useState(false);
 
   const carica = useCallback(async () => {
     setLoading(true);
@@ -158,7 +165,39 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
       .sort((a, b) => a.nome.localeCompare(b.nome));
   }, [righe]);
 
-  const filtrate = useMemo(() => filtraRegistro(righe, filtri), [righe, filtri]);
+  const filtrate = useMemo(() => {
+    const base = filtraRegistro(righe, filtri);
+    return soloDaAssegnare ? base.filter(daAssegnare) : base;
+  }, [righe, filtri, soloDaAssegnare]);
+
+  // La selezione vive solo sulle righe visibili e ancora da assegnare: cambiare filtro non
+  // deve lasciare in memoria righe che non si vedono più (si spunterebbero alla cieca).
+  const selezionabili = useMemo(() => filtrate.filter(daAssegnare).map((r) => r.id), [filtrate]);
+  const selezionati = useMemo(() => selezionabili.filter((id) => selezione.has(id)), [selezionabili, selezione]);
+
+  const registraAssegnati = async () => {
+    if (selezionati.length === 0) return;
+    if (!window.confirm(`Segnare ${selezionati.length} ${selezionati.length === 1 ? 'ordine' : 'ordini'} come assegnati sul sistema del committente?`)) return;
+    setRegistrando(true);
+    try {
+      const res = await fetch('/api/admin/interventi-manuali/da-assegnare', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids: selezionati }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { registrate?: number; error?: string };
+      if (!res.ok) { toast.error(j.error ?? 'Registrazione non riuscita.'); return; }
+      // Il server dice quante hanno cambiato stato DAVVERO: se qualcuno ha spuntato le stesse
+      // righe nel frattempo, il numero è più basso e va detto invece che nascosto.
+      const n = j.registrate ?? 0;
+      if (n < selezionati.length) toast.success(`${n} di ${selezionati.length} registrati: le altre erano già assegnate.`);
+      else toast.success(`${n} ${n === 1 ? 'ordine registrato' : 'ordini registrati'}.`);
+      setSelezione(new Set());
+      await carica();
+    } finally {
+      setRegistrando(false);
+    }
+  };
 
   const esporta = () => {
     const blob = new Blob([toCsv(filtrate)], { type: 'text/csv;charset=utf-8;' });
@@ -181,15 +220,53 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           </span>{' '}
           {filtrate.length === 1 ? 'richiesta' : 'richieste'}
         </p>
-        <Button
-          variant="secondary"
-          size="sm"
-          animated={false}
-          disabled={filtrate.length === 0}
-          onClick={esporta}
-        >
-          <Download size={15} aria-hidden /> Esporta CSV
-        </Button>
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Coda «da assegnare»: approvati che l'ufficio non ha ancora registrato sul
+              sistema del committente. Su AcquaLatina l'assegnazione si fa a mano. */}
+          <Button
+            variant={soloDaAssegnare ? 'primary' : 'secondary'}
+            size="sm"
+            animated={false}
+            aria-pressed={soloDaAssegnare}
+            onClick={() => { setSoloDaAssegnare((v) => !v); setSelezione(new Set()); }}
+          >
+            Da assegnare
+            <span className="ml-1.5 font-mono tabular-nums">{righe.filter(daAssegnare).length}</span>
+          </Button>
+          {soloDaAssegnare && (
+            <>
+              <Button
+                variant="secondary"
+                size="sm"
+                animated={false}
+                disabled={filtrate.length === 0}
+                onClick={() => { window.location.href = `/api/admin/interventi-manuali/da-assegnare${filtri.committente ? `?committente=${encodeURIComponent(filtri.committente)}` : ''}`; }}
+              >
+                <Download size={15} aria-hidden /> Esporta XLSX
+              </Button>
+              <Button
+                variant="primary"
+                size="sm"
+                animated={false}
+                loading={registrando}
+                disabled={selezionati.length === 0 || registrando}
+                onClick={() => void registraAssegnati()}
+              >
+                Segna come assegnati
+                {selezionati.length > 0 && <span className="ml-1.5 font-mono tabular-nums">{selezionati.length}</span>}
+              </Button>
+            </>
+          )}
+          <Button
+            variant="secondary"
+            size="sm"
+            animated={false}
+            disabled={filtrate.length === 0}
+            onClick={esporta}
+          >
+            <Download size={15} aria-hidden /> Esporta CSV
+          </Button>
+        </div>
       </div>
 
       {/* Ricerca + filtri */}
@@ -267,6 +344,20 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
           <table className="w-full text-sm">
             <thead className="sticky top-0 z-10 border-b border-[var(--brand-border)] bg-[var(--brand-surface-muted)] text-[var(--brand-text-muted)]">
               <tr>
+                {/* Colonna di selezione: compare solo nella coda «da assegnare», dove serve.
+                    Fuori di lì sarebbe una casella che non fa niente. */}
+                {soloDaAssegnare && (
+                  <th className="w-10 px-3 py-2 text-left">
+                    <input
+                      type="checkbox"
+                      aria-label="Seleziona tutti gli ordini da assegnare"
+                      checked={selezionabili.length > 0 && selezionati.length === selezionabili.length}
+                      ref={(el) => { if (el) el.indeterminate = selezionati.length > 0 && selezionati.length < selezionabili.length; }}
+                      onChange={(e) => setSelezione(e.target.checked ? new Set(selezionabili) : new Set())}
+                      className="h-4 w-4 accent-[var(--brand-primary)]"
+                    />
+                  </th>
+                )}
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Data</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Operatore</th>
                 <th className="px-3 py-2 text-left text-xs font-semibold uppercase tracking-wide">Committente</th>
@@ -289,13 +380,35 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                       onClick={() => setApertaId((cur) => (cur === r.id ? null : r.id))}
                       className="cursor-pointer transition hover:bg-[var(--brand-surface-muted)]"
                     >
+                      {soloDaAssegnare && (
+                        <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                          <input
+                            type="checkbox"
+                            aria-label={`Seleziona ODL di ${r.staff_name ?? r.staff_id}`}
+                            checked={selezione.has(r.id)}
+                            onChange={(e) => setSelezione((cur) => {
+                              const next = new Set(cur);
+                              if (e.target.checked) next.add(r.id); else next.delete(r.id);
+                              return next;
+                            })}
+                            className="h-4 w-4 accent-[var(--brand-primary)]"
+                          />
+                        </td>
+                      )}
                       <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatDataIt(r.data)}</td>
                       <td className="px-3 py-2">{r.staff_name ?? r.staff_id}</td>
                       <td className="px-3 py-2">{etichettaCommittente(r.committente)}</td>
                       <td className="max-w-[200px] truncate px-3 py-2" title={a.via || undefined}>{a.via || '—'}</td>
                       <td className="px-3 py-2 font-mono tabular-nums">{a.matricola || '—'}</td>
                       <td className="max-w-[160px] truncate px-3 py-2" title={a.attivita || undefined}>{attivitaUnificataDisplay(a.attivita) || '—'}</td>
-                      <td className="px-3 py-2"><StatoBadge stato={r.stato} /></td>
+                      <td className="px-3 py-2">
+                        <span className="inline-flex flex-wrap items-center gap-1">
+                          <StatoBadge stato={r.stato} />
+                          {/* Derivato dal timestamp nullo, non un valore di `stato`: l'assegnazione
+                              sul sistema del committente e' un fatto esterno, non una decisione. */}
+                          {daAssegnare(r) && <Badge variant="warn">Da assegnare</Badge>}
+                        </span>
+                      </td>
                       <td className="px-3 py-2">{r.deciso_da_name ?? '—'}</td>
                       <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums text-[var(--brand-text-muted)]">{r.deciso_at ? formatDataOraIt(r.deciso_at) : '—'}</td>
                       <td className="px-3 py-2 text-[var(--brand-text-muted)]">{r.motivo_rifiuto ?? ''}</td>
@@ -313,7 +426,7 @@ export function RegistroAutorizzazioni({ campiPerCommittente }: { campiPerCommit
                     </tr>
                     {apertaId === r.id && (
                       <tr>
-                        <td colSpan={11} className="bg-[var(--brand-surface-muted)] px-3 py-3">
+                        <td colSpan={soloDaAssegnare ? 12 : 11} className="bg-[var(--brand-surface-muted)] px-3 py-3">
                           <DettaglioRiga riga={r} campiEsito={campiPerCommittente[r.committente] ?? []} />
                         </td>
                       </tr>

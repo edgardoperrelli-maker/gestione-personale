@@ -20,6 +20,7 @@ import { esitoPositivoDefault } from '@/lib/interventi/manuali/esitoPositivoDefa
 import { attivitaDefaultManuale } from '@/lib/interventi/manuali/attivitaPerCommittente';
 import { messaggioErroreManuale } from '@/lib/interventi/manuali/messaggioErroreManuale';
 import { CercaMatricolaLimitazione } from './limitazione/CercaMatricolaLimitazione';
+import { CercaMatricolaAcqualatina } from './acqualatina/CercaMatricolaAcqualatina';
 import { autofillAnagrafica } from '@/lib/limitazione/autofillAnagrafica';
 import type { VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { accodaManuale } from '@/lib/offline/persistManuale';
@@ -31,6 +32,7 @@ import { opzioniAttivitaManuale } from '@/lib/interventi/manuali/opzioniAttivita
 const COMMITTENTI: { value: CommittenteManuale; label: string }[] = [
   { value: 'italgas', label: 'Italgas' },
   { value: 'lim_massive', label: 'Limitazioni massive' },
+  { value: 'acqualatina', label: 'AcquaLatina' },
   { value: 'altro', label: 'Altro' },
 ];
 
@@ -61,8 +63,10 @@ export function ModaleInterventoManuale({
   voci: VoceMatricola[];
   onApriAssegnato: (voceId: string) => void;
   onClose: () => void;
-  /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync. */
-  onCreata: (stato: 'inviata' | 'in-coda') => void;
+  /** 'inviata' = partita subito (online); 'in-coda' = salvata offline, partirà alla sync.
+   *  `soloRichiesta` = era una richiesta di assegnazione, non un intervento già eseguito:
+   *  il rapportino non deve ricaricarsi, così se ne possono mandare altre di fila. */
+  onCreata: (stato: 'inviata' | 'in-coda', soloRichiesta: boolean) => void;
   /** Pre-compilazione (task-via): committente pre-selezionato, anagrafica iniziale, link al task padre. */
   committenteIniziale?: CommittenteManuale;
   anagraficaIniziale?: AnagraficaManuale;
@@ -113,9 +117,15 @@ export function ModaleInterventoManuale({
         risposte,
       );
 
+  // AcquaLatina: il "+" NON e' un intervento gia' fatto, e' la richiesta di farsi assegnare
+  // quel misuratore. L'operatore e' sul posto e senza il task sul tablet non puo' iniziare:
+  // manda la richiesta, l'ufficio assegna, e solo allora compila esito e foto sul task vero.
+  // Quindi qui ci si ferma all'anagrafica: niente passo 3 (esito) e 4 (foto).
+  const soloRichiesta = committente === 'acqualatina';
+
   const handleInvia = async () => {
     if (!committente) return;
-    const mancanti = campiObbligatoriMancanti(campiEsito, risposte);
+    const mancanti = soloRichiesta ? [] : campiObbligatoriMancanti(campiEsito, risposte);
     if (mancanti.length > 0) {
       setErrore(`Compila i campi obbligatori: ${mancanti.join(', ')}.`);
       return;
@@ -133,7 +143,7 @@ export function ModaleInterventoManuale({
       const online = typeof navigator === 'undefined' || navigator.onLine !== false;
       void sincronizzaToken(token);
       setInviando(false);
-      onCreata(online ? 'inviata' : 'in-coda');
+      onCreata(online ? 'inviata' : 'in-coda', soloRichiesta);
       return;
     }
 
@@ -150,7 +160,7 @@ export function ModaleInterventoManuale({
         const j = (await res.json().catch(() => ({}))) as { error?: string; dettaglio?: string; mancanti?: string[] };
         throw new Error(messaggioErroreManuale(j, res.status));
       }
-      onCreata('inviata');
+      onCreata('inviata', soloRichiesta);
     } catch (e) {
       setErrore(e instanceof Error ? e.message : 'Invio non riuscito');
     } finally {
@@ -158,10 +168,16 @@ export function ModaleInterventoManuale({
     }
   };
 
-  // Il passo "cerca matricola" (limitazioni massive) porta la propria navigazione dentro
-  // `CercaMatricolaLimitazione`: lì il footer della Dialog resta vuoto, altrimenti ci
-  // sarebbero due "Indietro" con due significati diversi.
-  const passoCerca = step === 2 && committente === 'lim_massive' && !cercaFatta;
+  // Il passo "cerca matricola" porta la propria navigazione dentro il componente di ricerca:
+  // lì il footer della Dialog resta vuoto, altrimenti ci sarebbero due "Indietro" con due
+  // significati diversi.
+  //
+  // Due componenti e non uno con un flag: ACEA e AcquaLatina hanno la SEMANTICA OPPOSTA sul
+  // non censito (là avviso morbido con "inserisci a mano", qui blocco). Vedi
+  // CercaMatricolaAcqualatina.
+  const passoCercaAcea = step === 2 && committente === 'lim_massive' && !cercaFatta;
+  const passoCercaAcqua = step === 2 && committente === 'acqualatina' && !cercaFatta;
+  const passoCerca = passoCercaAcea || passoCercaAcqua;
 
   // Azioni di passo nel `footer` del primitivo: barra fissa in fondo al foglio, il corpo
   // scrolla sotto (prima scorrevano insieme e su schermo corto l'"Avanti" finiva fuori vista).
@@ -171,14 +187,20 @@ export function ModaleInterventoManuale({
         <Button size="touch" variant="outline" className="shrink-0" onClick={() => setStep(1)}>
           Indietro
         </Button>
-        <Button
-          size="touch"
-          variant="primary"
-          className="flex-1"
-          onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }}
-        >
-          Avanti
-        </Button>
+        {soloRichiesta ? (
+          <Button size="touch" variant="primary" className="flex-1" loading={inviando} disabled={inviando} onClick={handleInvia}>
+            {inviando ? 'Invio…' : 'Richiedi assegnazione'}
+          </Button>
+        ) : (
+          <Button
+            size="touch"
+            variant="primary"
+            className="flex-1"
+            onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }}
+          >
+            Avanti
+          </Button>
+        )}
       </>
     ) : step === 3 ? (
       <>
@@ -249,11 +271,24 @@ export function ModaleInterventoManuale({
         </div>
       )}
 
-      {passoCerca && (
+      {passoCercaAcea && (
         <CercaMatricolaLimitazione
           token={token}
           voci={voci}
           onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+          onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
+          onApriAssegnato={onApriAssegnato}
+          onIndietro={() => setStep(1)}
+        />
+      )}
+
+      {passoCercaAcqua && (
+        <CercaMatricolaAcqualatina
+          token={token}
+          voci={voci}
+          onTrovato={(m) => { setAnagrafica((prev) => ({ ...prev, ...autofillAnagrafica(m) })); setCercaFatta(true); }}
+          // `onManuale` qui NON è la scorciatoia di ACEA: lo espone solo il ramo
+          // offline-senza-censimento, dove non si sa e quindi non si blocca.
           onManuale={(matricola) => { setAnagrafica((prev) => ({ ...prev, matricola })); setCercaFatta(true); }}
           onApriAssegnato={onApriAssegnato}
           onIndietro={() => setStep(1)}

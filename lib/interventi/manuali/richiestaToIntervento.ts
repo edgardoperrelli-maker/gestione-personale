@@ -16,6 +16,19 @@ export type ContextInterventoManuale = {
    * Italgas e al gruppo attività BONIFICHE EXTRA, a prescindere dall'attività digitata.
    */
   taskViaParent?: boolean;
+  /**
+   * L'intervento nasce ASSEGNATO invece che completato: il lavoro non è ancora stato fatto.
+   *
+   * Vale per il flusso AcquaLatina, dove l'approvazione dell'ufficio **è** l'assegnazione —
+   * l'operatore è sul posto e aspetta di poter iniziare. Chiuderlo come «completato ed
+   * eseguito positivo» al momento dell'approvazione direbbe una cosa falsa per tutto il tempo
+   * fra l'assegnazione e la compilazione: entrerebbe in Storico e nei KPI come lavoro fatto,
+   * e l'anti-duplicato lo tratterebbe da esito positivo.
+   *
+   * Ci pensa `invia` a chiuderlo con l'esito vero letto dal rapportino, come per qualunque
+   * intervento pianificato.
+   */
+  daAssegnare?: boolean;
 };
 
 export type InterventoManualeRecord = {
@@ -34,8 +47,9 @@ export type InterventoManualeRecord = {
   gruppo_attivita: string | null;
   data: string;
   staff_id: string;
-  stato: 'completato';
-  esito: 'eseguito_positivo';
+  stato: 'completato' | 'assegnato';
+  esito: 'eseguito_positivo' | null;
+  assegnato_at: string | null;
   piano_id: string | null;
   territorio_id: string | null;
   origine: 'manuale';
@@ -91,8 +105,10 @@ export function richiestaToIntervento(
     gruppo_attivita: classificazione.gruppo_attivita,
     data: ctx.data,
     staff_id: ctx.staff_id,
-    stato: 'completato',
-    esito: 'eseguito_positivo',
+    // Assegnato = il lavoro deve ancora essere fatto; lo chiude `invia` con l'esito vero.
+    stato: ctx.daAssegnare ? 'assegnato' : 'completato',
+    esito: ctx.daAssegnare ? null : 'eseguito_positivo',
+    assegnato_at: ctx.daAssegnare ? new Date().toISOString() : null,
     piano_id: ctx.piano_id ?? null,
     territorio_id: ctx.territorio_id ?? null,
     origine: 'manuale',

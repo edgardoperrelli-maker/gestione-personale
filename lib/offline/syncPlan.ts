@@ -59,13 +59,26 @@ export function deveRilasciareFoto(status: number, durabile: boolean): boolean {
 }
 
 /**
- * Motivo amichevole per il 400 del percorso manuale quando il body porta uno dei codici
- * attività (spec §7: obbligo descrizione a lista chiusa). Per gli altri 400 ritorna null
- * → resta il motivo storico di classificaEsito ("riapri il link"), che lì è corretto.
+ * Codici di 400 che portano con sé un motivo LEGGIBILE nel corpo. Per tutti gli altri 400
+ * resta il motivo storico di `classificaEsito` («Intervento non più disponibile — riapri il
+ * link»), che lì è corretto perché descrive davvero cos'è successo.
  */
-export function motivoManuale400(body: { error?: string; messaggio?: string } | null): string | null {
-  if (!body) return null;
-  if (body.error !== 'attivita_obbligatoria' && body.error !== 'attivita_sconosciuta') return null;
+const CODICI_400_PARLANTI = new Set([
+  // spec §7: obbligo della descrizione attività a lista chiusa.
+  'attivita_obbligatoria',
+  'attivita_sconosciuta',
+  // AcquaLatina: il misuratore non è nel master del committente, o il master ne offre più
+  // d'uno indistinguibile. Ci si arriva solo dal ramo offline-senza-censimento, dove il campo
+  // ha proceduto con riserva: senza il motivo vero l'operatore leggerebbe «riapri il link» e
+  // andrebbe a cercare un problema che non c'è.
+  'misuratore_non_censito',
+]);
+
+/** Motivo amichevole per un 400 del percorso manuale, o null se il codice non è parlante. */
+export function motivoManuale400(
+  body: { error?: string; messaggio?: string; dettaglio?: string } | null,
+): string | null {
+  if (!body?.error || !CODICI_400_PARLANTI.has(body.error)) return null;
   return messaggioErroreManuale(body, 400);
 }
 

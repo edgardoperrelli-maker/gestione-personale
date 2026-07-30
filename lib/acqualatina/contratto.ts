@@ -12,6 +12,20 @@ export const COMMITTENTE_ACQUALATINA = 'acqualatina';
 export const GRUPPO_SOSTITUZIONE_MISURATORI = 'SOSTITUZIONE MISURATORI';
 
 /**
+ * Descrizione canonica dell'unica attività, al SINGOLARE.
+ *
+ * Non è un dettaglio di stile: il gruppo è al plurale, la descrizione al singolare, e le due
+ * cose NON sono intercambiabili. `risolviGruppo` cerca fra le DESCRIZIONI, quindi passargli
+ * «SOSTITUZIONE MISURATORI» (il gruppo) restituisce null e il POST di un intervento manuale
+ * risponde `attivita_sconosciuta`. Verificato sul prod: `attivita_tassonomia` ha una sola riga
+ * acqualatina, `Sostituzione misuratore`.
+ *
+ * Su ACEA l'equivoco non si vede perché lì la descrizione è OMONIMA del gruppo
+ * («LIMITAZIONI MASSIVE» è entrambe le cose), e il default per gruppo funziona per caso.
+ */
+export const ATTIVITA_SOSTITUZIONE_MISURATORE = 'Sostituzione misuratore';
+
+/**
  * Calibro di capitolato quando la colonna CALIBRO del file di pianificazione è vuota.
  * L'ufficio lo pre-carica per i punti che fanno eccezione; il resto è DN15.
  */

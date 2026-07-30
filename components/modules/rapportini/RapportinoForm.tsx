@@ -17,6 +17,7 @@ import { fabAbilitato } from '@/lib/interventi/manuali/fabAbilitato';
 import { contenitoreTaskVia, ATTIVITA_TASK_VIA } from '@/lib/interventi/manuali/taskVia';
 import type { CommittenteManuale, AnagraficaManuale } from '@/lib/interventi/manuali/types';
 import type { TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import type { CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { badgeVoceManuale } from '@/lib/interventi/manuali/badgeVoce';
 import { RapportinoFotoCtx } from './RapportinoFotoCtx';
 import { RisanamentoView } from './risanamento/RisanamentoView';
@@ -29,6 +30,8 @@ import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
+import { CensimentoGate } from './CensimentoGate';
+import { AttesaAssegnazione } from './AttesaAssegnazione';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
@@ -109,6 +112,9 @@ type Props = {
   righe?: RigaRisanamento[];
   /** Tassonomia attività (committente, descrizione, gruppo): alimenta la select obbligatoria del "+" (spec §7). */
   tassonomia?: TassonomiaRiga[];
+  /** Committente del censimento da tenere in cache per la ricerca per matricola, dedotto dal
+   *  flusso del rapportino. null = questo flusso non ne ha uno e non si scarica niente. */
+  committenteCensimento?: CommittenteCensimento | null;
 };
 
 const DEBOUNCE_MS = 800;
@@ -160,6 +166,7 @@ export default function RapportinoForm({
   tipo,
   righe: righeRisanamento,
   tassonomia,
+  committenteCensimento = null,
 }: Props) {
   const campi = useMemo(() => campiSnapshot.slice().sort((a, b) => a.ordine - b.ordine), [campiSnapshot]);
   // Risanamento: le "azioni" (campi foto) si leggono LIVE dal template collegato, non dallo snapshot
@@ -217,6 +224,7 @@ export default function RapportinoForm({
   useEffect(() => {
     voci.forEach((v) => { taskIdPerVoceRef.current[v.id] = v.taskId; });
   }, [voci]);
+
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -381,6 +389,29 @@ export default function RapportinoForm({
 
   // Le voci-contenitore sono escluse dalla completezza così non bloccano l'invio né compaiono tra
   // i "campi mancanti". Nel task-via puro vengono escluse tutte; nell'ibrido solo le BONIFICHE EXTRA.
+  // Id delle voci a schermo, per contare senza leggere dentro l'updater di setVoci: in
+  // StrictMode React lo esegue due volte e un contatore li' dentro raddoppierebbe.
+  const vociIdsRef = useRef<Set<string>>(new Set());
+  useEffect(() => { vociIdsRef.current = new Set(voci.map((v) => v.id)); }, [voci]);
+
+  /** Applica alle voci a schermo un nuovo stato di approvazione, SENZA ricaricare la pagina —
+   *  e' cio' che le rende editabili all'istante. Torna quante ne ha trovate: se sono meno di
+   *  quelle indicate, il resto e' nato dopo il caricamento e li' serve un reload.
+   *  Le callback restano STABILI (deps vuote): cambiando identita' farebbero riazzerare
+   *  l'intervallo di controllo a ogni modifica delle voci. */
+  const applicaApprovazione = useCallback((ids: string[], stato: 'approvato' | 'rifiutato'): number => {
+    const set = new Set(ids);
+    const trovate = ids.filter((id) => vociIdsRef.current.has(id)).length;
+    if (trovate > 0) {
+      setVoci((prev) => prev.map((v) => (set.has(v.id) ? { ...v, approvazione_stato: stato } : v)));
+    }
+    return trovate;
+  }, []);
+
+  const sbloccaVoci = useCallback((ids: string[]) => applicaApprovazione(ids, 'approvato'), [applicaApprovazione]);
+  /** Speculare: la voce resta visibile ma con badge Rifiutato (non bloccata: va rifatta). */
+  const segnaRifiutate = useCallback((ids: string[]) => applicaApprovazione(ids, 'rifiutato'), [applicaApprovazione]);
+
   const riepilogo = useMemo(() => riepilogoRapportino(voci.filter((v) => !isVoceTaskVia(v)), campi), [voci, campi, isVoceTaskVia]);
   const inviabile = riepilogo.daFare === 0 && voci.length > 0;
 
@@ -646,10 +677,17 @@ export default function RapportinoForm({
             if (idx >= 0) { toast.info('Ordine già assegnato a te — apro il task da compilare.'); onApri(idx); }
           }}
           onClose={() => { setModaleAperta(false); setPrefillManuale(null); }}
-          onCreata={(stato) => {
+          onCreata={(stato, soloRichiesta) => {
             setModaleAperta(false);
             setPrefillManuale(null);
-            if (stato === 'inviata') {
+            if (soloRichiesta) {
+              // Richiesta di assegnazione: NIENTE reload. Ricaricare dopo ognuna renderebbe le
+              // richieste "una alla volta", mentre l'operatore deve poterne mandare tre di fila
+              // per lo stesso stabile e farle arrivare in ufficio insieme. La voce nasce sospesa:
+              // non c'e' niente da mostrare finche' non e' assegnata, e a quello pensa il
+              // riquadro d'attesa (che la scopre col suo controllo periodico).
+              setAvvisoManuale('Richiesta inviata. Puoi chiederne altre col +.');
+            } else if (stato === 'inviata') {
               window.location.reload();
             } else {
               // Offline: la pratica è in coda. Niente reload (la cache non mostrerebbe la
@@ -678,6 +716,21 @@ export default function RapportinoForm({
           onChiudi={() => setFotoMancanti(null)}
         />
       )}
+      {/* Censimento in cache all'APERTURA DEL LINK, non al passo «Cerca matricola»: là
+          partiva quando l'operatore è già davanti al contatore, e se lì è offline la cache
+          resta vuota. Il rapportino invece si apre in ufficio o in auto, sotto rete.
+          Con `committente` null non renderizza niente: un operatore Italgas non si porta in
+          cache un master che non gli serve. */}
+      {/* L'operatore che ha chiesto un'assegnazione e' FERMO sul posto: il rapportino non si
+          aggiorna da solo, quindi qui si chiede al server finche' la voce resta sospesa.
+          Con nessuna voce in attesa non renderizza niente e non fa nessuna chiamata. */}
+      <AttesaAssegnazione
+        token={token}
+        voci={voci.map((v) => ({ id: v.id, approvazione_stato: v.approvazione_stato ?? null }))}
+        onAssegnate={sbloccaVoci}
+        onRifiutate={segnaRifiutate}
+      />
+      <CensimentoGate token={token} committente={committenteCensimento} />
     </div>
     </RapportinoFotoCtx.Provider>
   );
