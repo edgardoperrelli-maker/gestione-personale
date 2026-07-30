@@ -115,9 +115,15 @@ export function ModaleInterventoManuale({
         risposte,
       );
 
+  // AcquaLatina: il "+" NON e' un intervento gia' fatto, e' la richiesta di farsi assegnare
+  // quel misuratore. L'operatore e' sul posto e senza il task sul tablet non puo' iniziare:
+  // manda la richiesta, l'ufficio assegna, e solo allora compila esito e foto sul task vero.
+  // Quindi qui ci si ferma all'anagrafica: niente passo 3 (esito) e 4 (foto).
+  const soloRichiesta = committente === 'acqualatina';
+
   const handleInvia = async () => {
     if (!committente) return;
-    const mancanti = campiObbligatoriMancanti(campiEsito, risposte);
+    const mancanti = soloRichiesta ? [] : campiObbligatoriMancanti(campiEsito, risposte);
     if (mancanti.length > 0) {
       setErrore(`Compila i campi obbligatori: ${mancanti.join(', ')}.`);
       return;
@@ -179,14 +185,20 @@ export function ModaleInterventoManuale({
         <Button size="touch" variant="outline" className="shrink-0" onClick={() => setStep(1)}>
           Indietro
         </Button>
-        <Button
-          size="touch"
-          variant="primary"
-          className="flex-1"
-          onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }}
-        >
-          Avanti
-        </Button>
+        {soloRichiesta ? (
+          <Button size="touch" variant="primary" className="flex-1" loading={inviando} disabled={inviando} onClick={handleInvia}>
+            {inviando ? 'Invio…' : 'Richiedi assegnazione'}
+          </Button>
+        ) : (
+          <Button
+            size="touch"
+            variant="primary"
+            className="flex-1"
+            onClick={() => { setRisposte((prev) => esitoPositivoDefault(campiEsito, seedRisposteDaAnagrafica(prev, anagrafica, campiEsito))); setStep(3); }}
+          >
+            Avanti
+          </Button>
+        )}
       </>
     ) : step === 3 ? (
       <>

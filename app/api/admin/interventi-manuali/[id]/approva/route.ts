@@ -226,6 +226,9 @@ async function handlePOST(req: Request, { params }: { params: Promise<{ id: stri
     piano_id: (richiesta.piano_id as string | null) ?? null,
     territorio_id: territorioId,
     taskViaParent: parentTaskVia,
+    // AcquaLatina: approvare E' assegnare. L'operatore e' sul posto e deve ancora lavorare,
+    // quindi l'intervento nasce 'assegnato' e lo chiude `invia` con l'esito vero.
+    daAssegnare: committente === 'acqualatina',
   }, indiceTassonomia);
 
   const { data: intRow, error: eInt } = await supabaseAdmin

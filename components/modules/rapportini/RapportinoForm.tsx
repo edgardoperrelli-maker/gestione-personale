@@ -31,6 +31,7 @@ import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
 import { CensimentoGate } from './CensimentoGate';
+import { AttesaAssegnazione } from './AttesaAssegnazione';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
@@ -690,6 +691,10 @@ export default function RapportinoForm({
           resta vuota. Il rapportino invece si apre in ufficio o in auto, sotto rete.
           Con `committente` null non renderizza niente: un operatore Italgas non si porta in
           cache un master che non gli serve. */}
+      {/* L'operatore che ha chiesto un'assegnazione e' FERMO sul posto: il rapportino non si
+          aggiorna da solo, quindi qui si chiede al server finche' la voce resta sospesa.
+          Con nessuna voce in attesa non renderizza niente e non fa nessuna chiamata. */}
+      <AttesaAssegnazione token={token} voci={voci.map((v) => ({ id: v.id, approvazione_stato: v.approvazione_stato ?? null }))} />
       <CensimentoGate token={token} committente={committenteCensimento} />
     </div>
     </RapportinoFotoCtx.Provider>

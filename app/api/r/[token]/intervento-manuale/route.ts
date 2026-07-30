@@ -81,7 +81,10 @@ async function rispostaIdempotente(
   });
 }
 
-const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive'];
+// Lista di validazione a RUNTIME: `tsc` non aiuta qui, perché un array più corto è comunque
+// di tipo CommittenteManuale[]. Allargare l'unione senza toccare questa riga fa rispondere
+// `committente_non_valido` a ogni "+" del committente nuovo. Va tenuta allineata a mano.
+const COMMITTENTI: CommittenteManuale[] = ['acea', 'italgas', 'altro', 'lim_massive', 'acqualatina'];
 
 export async function POST(req: Request, { params }: { params: Promise<{ token: string }> }) {
   const { token } = await params;
@@ -444,6 +447,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
       piano_id: (rap.piano_id as string | null) ?? null,
       territorio_id: territorioId,
       taskViaParent: parentTaskVia,
+      daAssegnare: committente === 'acqualatina',
     }, indiceTassonomia);
     const { data: intRow, error: eInt } = await supabaseAdmin
       .from('interventi')
