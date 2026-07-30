@@ -111,6 +111,20 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   con riepilogo per (operatore, giorno), gestione di 409 righe-a-metà e riaperture con conferme.
   Stesso motore (`/api/acea/rapportini` con `staffIds`), additivo e idempotente. Lib pura:
   `lib/acea/caricaSuRapportino.ts` (`gruppiPerRapportino`).
+- [x] **Vista massive per comune, con le mani del dunning** (`7bd84db`) — le schede della vista
+  massive sono i COMUNI con ordini aperti (ZAGAROLO, RIANO, LABICO, RIGNANO FLAMINIO,
+  BRACCIANO…), più «Chiusi» e «Sostituzione saracinesca» riepilogative su tutti; via «Tutti» e la
+  «Da lavorare» generica. Scheda = `stato aperti` + `comuneScheda` (`eq` sul server, AND col
+  filtro comune di colonna); comuni letti sul server nella pagina (prima interrogazione già
+  dentro il primo paese) e riaggiornati a ogni risposta; se un comune finisce si passa al primo
+  rimasto. «Azzera» ripulisce i filtri SENZA cambiare scheda (`azzeraFiltri`; `haFiltriAttivi`
+  non conta più lo stato). E il pezzo che alle massive mancava davvero: gli **assegnabili per
+  famiglia** — menu, `/celle`, `/pianifica` e messaggi filtrano il tabellone sull'attività della
+  famiglia (`ATTIVITA_TABELLONE`: DUNNING / **LIMITAZIONI MASSIVE**, nomi verificati in
+  produzione), con la famiglia dentro la chiave di `controllaAssegnazioni`. Ven/sab la barra
+  massive dice che non passa niente. Export col comune nel nome
+  (`acea-massive-zagarolo-aperti-…`). Lib: `schedeVista`/`applicaScheda`/`valoreScheda` in
+  `filtriOrdini.ts`, `lib/acea/caricaComuniMassive.ts`.
 
 ## Not Yet Done
 
@@ -121,7 +135,9 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - [ ] **Verifica a schermo**: niente di questa sessione è stato visto nel browser (container
   senza `.env.local`). Da guardare: barra azioni a due menu, triangolo sul tasto (13px — se
   piccolo, si ingrandisce), calendario in cella, corsivo warn delle righe a metà, colonne
-  «Operatore ACEA»/«Esecuzione ACEA» nel layout.
+  «Operatore ACEA»/«Esecuzione ACEA» nel layout; in MASSIVE: la fila delle schede-comune (oggi
+  5 paesi — se crescono molto, la fila andrà a capo: valutare uno scroll orizzontale), il menu
+  esecutori con chi fa LIMITAZIONI MASSIVE, l'export col comune nel nome.
 - [ ] **Cut-over dal master** (piano in PR #175, sezione «Dopo il merge»): import con finestra
   larga, backfill dal collaudo, due giorni in parallelo con l'agente acceso.
 - [ ] **Editor in cella per le Note**: oggi si scrivono solo per incolla. Data ed Esecutore
@@ -156,7 +172,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 32 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 37 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -174,11 +190,12 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 ## Current State
 
 **Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.692 test verdi su 297 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
+**2.737 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
 Supabase segnaposto: nel container non c'è `.env.local`).
 
-**Branch**: `1e9b96d` identico su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
-`claude/acea-table-copy-schedule-filter-3xt700`. Push sempre su entrambi:
+**Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
+`claude/acea-table-copy-schedule-filter-3xt700` — ultima feature `7bd84db` (+ commit docs).
+Push sempre su entrambi:
 `git push origin <sha>:claude/acea-commessa-feasibility-okoirs` dopo `git fetch` + verifica SHA.
 
 **Broken**: niente di noto. **Uncommitted**: niente.
@@ -190,16 +207,18 @@ Supabase segnaposto: nel container non c'è `.env.local`).
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 32 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 37 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
-| `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili; `controllaAssegnazioni` con `dataScritta` (LA regola) |
+| `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
+| `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |
+| `lib/acea/caricaComuniMassive.ts` | I comuni-scheda della vista massive (aperti > 0), usato da route e pagina |
 | `lib/acea/codaRiaperture.ts` | Coda e triangolo: `esitataNeiRapportini`, `pianificata`, `contaSenzaData` |
 | `lib/acea/righeAppunti.ts` | Copia/incolla per righe spuntate (TSV citato, incolla non contiguo) |
 | `lib/acea/editingGriglia.ts` | Validazioni pure: `validaData(giorni)`, `validaOperatore` |
 | `lib/acea/pianificazione.ts` | `pianoPianificazione`: le invarianti + `solo_attivazioni`; unica per le due rotte |
 | `components/modules/acea/useEditingGriglia.ts` | Tastiera/appunti globali, editor data, precedenza copia |
 | `components/modules/acea/RegistroAcea.tsx` | Collante: finestra, operatori, spunte, badge, editor |
-| `components/modules/acea/BarraFiltriAcea.tsx` | `statiDella(famiglia)` + triangolo sul tasto |
+| `components/modules/acea/BarraFiltriAcea.tsx` | Disegna `schedeVista(famiglia, comuni)` (la logica sta in `filtriOrdini.ts`) + triangolo sul tasto |
 | `components/Tabs.tsx` | Primitivo CONDIVISO: prop additive `badge`/`badgeLabel` (triangolo rosso) |
 | `app/api/acea/ordini/route.ts` | Registro, incrocio, coda riaperture, `riapertureSenzaData` |
 | `app/api/acea/celle/route.ts` | Editing di cella: stato finale, appunti, pulizia bozze |
