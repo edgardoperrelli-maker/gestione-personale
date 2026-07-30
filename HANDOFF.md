@@ -157,6 +157,11 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   della riga comandi DOPO GuidaTabella; select h-8, contatore compatto («N righe»), suggerimenti
   nowrap. Comparire alla prima spunta non muove più la pagina (prima spingeva la tabella di
   ~44px e il click dopo cadeva su un'altra riga).
+- [x] **Copia dell'ODL nudo ripristinata** — il click-selezione (dec. 42) si era mangiato il
+  gesto «clicco l'ODL, Ctrl+C»: ora sulla cella ODL compare al passaggio un'icona di copia
+  (click → appunti + toast, `stopPropagation`: non tocca la spunta; `tabIndex=-1`: la griglia
+  resta un solo stop di tabulazione — da tastiera si copia con frecce + Ctrl+C). Guida
+  aggiornata.
 - [x] **Rapportini in modale, via UNICA** (dec. 45) — il comando «Rapportini» non naviga più
   agli Strumenti: apre `ModaleRapportini` sopra la tabella (selezione conservata). Anteprima per
   (esecutore, giorno) via `GET /api/acea/rapportini?coppia=staffId|data` (pure

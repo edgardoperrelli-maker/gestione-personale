@@ -6,7 +6,7 @@ import {
   type ColumnDef, type RowSelectionState,
 } from '@tanstack/react-table';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert } from 'lucide-react';
+import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, TriangleAlert } from 'lucide-react';
 import {
   AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, eRevocaDaVerificare, valoreCella, tonoScadenza,
   type DefColonna, type RigaTabella, type TonoScadenza,
@@ -14,6 +14,7 @@ import {
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
 import Skeleton from '@/components/ui/Skeleton';
+import { toast } from '@/components/ui/Toast';
 import FiltroColonna from './FiltroColonna';
 import ManigliaColonna from './ManigliaColonna';
 import type { ComandiColonne } from './useLayoutTabella';
@@ -54,6 +55,23 @@ const ALTEZZA_MAX = '100dvh';
   le frecce (per copiare un ODL nudo): cambia solo cosa fa il click.
 */
 const COLONNE_CLICK_RIGA = new Set<string>(['odl', 'attivita', 'impianto', 'matricola']);
+
+/**
+ * Copia l'ODL nudo negli appunti — il numero che si cerca su ACEA e si detta al telefono.
+ *
+ * È il pezzo che il click-selezione si era mangiato: prima si cliccava la cella ODL e Ctrl+C
+ * copiava il numero; ora quel click spunta la riga, e Ctrl+C con delle spunte porta via le righe
+ * intere. L'icona che compare al passaggio è la via col mouse; da tastiera restano le frecce
+ * (il cursore di cella ci arriva ancora) e Ctrl+C.
+ */
+async function copiaOdl(odl: string): Promise<void> {
+  try {
+    await navigator.clipboard.writeText(odl);
+    toast.success(`ODL ${odl} copiato`);
+  } catch {
+    toast.error('Copia non riuscita: il browser ha negato gli appunti.');
+  }
+}
 
 const TONO_CLASSE: Record<TonoScadenza, string> = {
   scaduto: 'text-[var(--status-ko)] font-semibold',
@@ -749,7 +767,7 @@ export default function TabellaOrdini({
                           evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
                         } ${scrivibile ? 'cursor-cell' : ''} ${
                           COLONNE_CLICK_RIGA.has(c.chiave) ? 'cursor-pointer' : ''
-                        } ${
+                        } ${c.chiave === 'odl' ? 'group/odl relative' : ''} ${
                           inSelezione && !inFocus ? 'bg-[var(--brand-primary-soft)]' : ''
                         } ${
                           inFocus
@@ -772,6 +790,26 @@ export default function TabellaOrdini({
                           </>
                         )}
                         {testo}
+                        {/*
+                          La copia dell'ODL nudo, ripristinata: il click sulla cella ora spunta
+                          la riga, e questa icona — visibile al passaggio — è la via col mouse.
+                          `stopPropagation` sul mousedown: copiare non deve togliere la spunta.
+                          `tabIndex={-1}`: la griglia resta UN solo stop di tabulazione; da
+                          tastiera si copia con le frecce + Ctrl+C, come per ogni cella.
+                        */}
+                        {c.chiave === 'odl' && (
+                          <button
+                            type="button"
+                            aria-label={`Copia ODL ${r.odl}`}
+                            title="Copia l'ODL"
+                            tabIndex={-1}
+                            onMouseDown={(e) => { e.preventDefault(); e.stopPropagation(); }}
+                            onClick={(e) => { e.stopPropagation(); void copiaOdl(r.odl); }}
+                            className="absolute right-0.5 top-1/2 -translate-y-1/2 rounded-[var(--radius-sm)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-0.5 text-[var(--brand-text-muted)] opacity-0 transition-opacity hover:text-[var(--brand-text-main)] focus-visible:opacity-100 group-hover/odl:opacity-100"
+                          >
+                            <Copy size={12} aria-hidden="true" />
+                          </button>
+                        )}
                       </div>
                     );
                   })}

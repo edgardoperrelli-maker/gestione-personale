@@ -47,6 +47,7 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
         </h3>
         <ul className="list-disc space-y-1 pl-5">
           <li><kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> funzionano anche da e verso Excel. <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.</li>
+          <li>L&apos;<strong>ODL nudo</strong> si copia con l&apos;icona che compare passando sulla cella (il click sulla cella ormai spunta la riga); da tastiera: frecce + <kbd>Ctrl</kbd>+<kbd>C</kbd>.</li>
           <li>Nella copia il <strong>cursore di cella</strong> vince sulle righe spuntate; senza un cursore attivo, <kbd>Ctrl</kbd>+<kbd>C</kbd> porta via le righe spuntate intere («Copia righe» lo fa sempre).</li>
           <li>Con delle righe spuntate, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su tutte: una data o un nome copiati si incollano su quaranta spunte in un colpo, senza passare da «Pianifica».</li>
         </ul>
