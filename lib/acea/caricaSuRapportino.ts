@@ -79,3 +79,73 @@ export function gruppiPerRapportino(
     nonPronte,
   };
 }
+
+// ---------------------------------------------------------------------------
+// Anteprima: cosa succederà a ogni (operatore, giorno) PRIMA di premere.
+//
+// La modale dei rapportini deve dire «si integra nel rapportino esistente» o «ne nasce uno
+// nuovo» senza far partire niente: è la differenza fra una conferma letta e una subita. La
+// lettura è MIRATA alle coppie della selezione — mai una scansione di tutti i rapportini.
+// ---------------------------------------------------------------------------
+
+export type CoppiaRapportino = { staffId: string; data: string };
+
+const ISO_GIORNO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** Tetto alle coppie per richiesta: l'anteprima serve una selezione, non una scansione. */
+export const MAX_COPPIE_ANTEPRIMA = 100;
+
+/**
+ * Le coppie `staffId|data` della query di anteprima, ripulite: malformate scartate in silenzio
+ * (l'anteprima è una decorazione, non un cancello), dedup, tetto.
+ */
+export function parseCoppie(grezzi: readonly string[]): CoppiaRapportino[] {
+  const viste = new Set<string>();
+  const out: CoppiaRapportino[] = [];
+  for (const g of grezzi) {
+    const [staffId, data] = String(g ?? '').split('|');
+    const id = (staffId ?? '').trim();
+    if (id === '' || !ISO_GIORNO.test(data ?? '')) continue;
+    const chiave = `${id}|${data}`;
+    if (viste.has(chiave)) continue;
+    viste.add(chiave);
+    out.push({ staffId: id, data: data as string });
+    if (out.length >= MAX_COPPIE_ANTEPRIMA) break;
+  }
+  return out;
+}
+
+export type AnteprimaRapportino = CoppiaRapportino & {
+  esiste: boolean;
+  /** Stato del rapportino esistente (`in_corso`, `inviato`, …); `null` se non esiste. */
+  stato: string | null;
+  /** Voci già a bordo del rapportino esistente. */
+  voci: number;
+};
+
+/**
+ * L'anteprima per ciascuna coppia chiesta.
+ *
+ * Il matching è ESATTO sulla coppia (staff, giorno): la lettura a monte porta un soprainsieme —
+ * `in` su date e operatori separati produce il prodotto incrociato — e qui si tiene solo ciò
+ * che è stato davvero chiesto.
+ */
+export function anteprimeRapportini(
+  coppie: readonly CoppiaRapportino[],
+  esistenti: readonly { id: string; staff_id: string | null; data: string | null; stato: string | null }[],
+  vociPerRapportino: ReadonlyMap<string, number>,
+): AnteprimaRapportino[] {
+  const perCoppia = new Map<string, { id: string; stato: string | null }>();
+  for (const r of esistenti) {
+    if (r.staff_id && r.data) perCoppia.set(`${r.staff_id}|${r.data}`, { id: r.id, stato: r.stato });
+  }
+  return coppie.map((c) => {
+    const r = perCoppia.get(`${c.staffId}|${c.data}`);
+    return {
+      ...c,
+      esiste: Boolean(r),
+      stato: r?.stato ?? null,
+      voci: r ? (vociPerRapportino.get(r.id) ?? 0) : 0,
+    };
+  });
+}

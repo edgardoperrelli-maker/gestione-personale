@@ -20,6 +20,7 @@ import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 import BarraAzioni from './BarraAzioni';
 import GuidaTabella from './GuidaTabella';
+import ModaleRapportini from './ModaleRapportini';
 import MenuColonne from './MenuColonne';
 import { caricaTutteLeRighe, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
@@ -48,6 +49,8 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   const [esportando, setEsportando] = useState(false);
   const [scaricate, setScaricate] = useState(0);
   const [ingrandita, setIngrandita] = useState(false);
+  /** La modale dei rapportini: l'unica via dal registro, si sovrappone e la selezione resta. */
+  const [rapportiniAperti, setRapportiniAperti] = useState(false);
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
@@ -382,14 +385,11 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             <span className="text-xs italic text-[var(--brand-text-muted)]">salvataggio…</span>
           )}
           {/*
-            Scorciatoie, non doppioni: i due motori vivono negli Strumenti della commessa e restano
-            li`. Da qui ci si arriva in un click perche` sono le due cose che si fanno GUARDANDO il
-            registro — si importa l'export nuovo e si generano i rapportini del giorno — e passare
-            dal menu ogni volta e` un giro che non serve.
-
-            `<a>` e non un pulsante con `router.push`: e` una navigazione, quindi deve poter essere
-            aperta in una scheda nuova col click centrale o col Ctrl, che e` esattamente cio` che
-            si vuole quando si sta lavorando su una tabella e non la si vuole perdere.
+            L'import resta una scorciatoia agli Strumenti (`<a>`: e` una navigazione, apribile in
+            scheda nuova senza perdere la tabella). «Rapportini» invece NON naviga piu`: apre la
+            modale qui sopra la pagina — la selezione resta dov'e`, e la funzione e` UNA (via il
+            vecchio collegamento agli Strumenti e il bottone «Sul rapportino» in barra: tre vie
+            per la stessa cosa erano due di troppo).
           */}
           <a
             href="/hub/acea/strumenti#import"
@@ -398,13 +398,14 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             <Upload size={14} aria-hidden="true" />
             Importa export
           </a>
-          <a
-            href="/hub/acea/strumenti#rapportini"
+          <button
+            type="button"
+            onClick={() => setRapportiniAperti(true)}
             className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
           >
             <ClipboardList size={14} aria-hidden="true" />
             Rapportini
-          </a>
+          </button>
 
           {/*
             Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
@@ -453,11 +454,17 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             giorno={giorno}
             onGiorno={setGiorno}
             onCopiaRighe={editing.copiaRigheSpuntate}
-            pianoCarico={pianoCarico}
-            onCaricato={ricarica}
           />
         </div>
       </div>
+
+      <ModaleRapportini
+        aperta={rapportiniAperti}
+        onChiudi={() => setRapportiniAperti(false)}
+        pianoCarico={pianoCarico}
+        selezionate={selezionate.length}
+        onCaricato={ricarica}
+      />
 
       <TabellaOrdini
         righe={righe}

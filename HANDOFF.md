@@ -157,6 +157,15 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   della riga comandi DOPO GuidaTabella; select h-8, contatore compatto («N righe»), suggerimenti
   nowrap. Comparire alla prima spunta non muove più la pagina (prima spingeva la tabella di
   ~44px e il click dopo cadeva su un'altra riga).
+- [x] **Rapportini in modale, via UNICA** (dec. 45) — il comando «Rapportini» non naviga più
+  agli Strumenti: apre `ModaleRapportini` sopra la tabella (selezione conservata). Anteprima per
+  (esecutore, giorno) via `GET /api/acea/rapportini?coppia=staffId|data` (pure
+  `parseCoppie`/`anteprimeRapportini` in caricaSuRapportino.ts, testate): «si integra nel
+  rapportino esistente (N voci)», «già consegnato: verrà chiesto di riaprirlo», «rapportino
+  nuovo». Genera = stesso motore additivo (`POST`, `staffIds`+`data` per gruppo, conferme
+  409/riapertura dentro la modale, esiti riga per riga; badge «Nuovo» sulle voci come sempre).
+  ELIMINATI il vecchio link `strumenti#rapportini` e il bottone «Sul rapportino» in barra: tre
+  vie per la stessa funzione erano due di troppo. Gli Strumenti restano per l'intera giornata.
 - [x] **Flag in raffica + riga dei comandi che si schiacciava** (dec. 44 + coda della 43) — il
   bug dei flag: `clickRiga` leggeva la selezione dalla PROP (fotografia del render) e due click
   ravvicinati facevano sparire il flag del primo → ora updater funzionale
@@ -214,7 +223,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 44 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 45 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -232,7 +241,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 ## Current State
 
 **Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.748 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
+**2.754 test verdi su 301 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
 Supabase segnaposto: nel container non c'è `.env.local`).
 
 **Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
@@ -249,7 +258,7 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 44 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 45 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |

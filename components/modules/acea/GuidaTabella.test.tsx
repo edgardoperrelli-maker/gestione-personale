@@ -17,7 +17,7 @@ describe('ContenutoGuida', () => {
       'Modifica in cella', 'Copia e incolla', 'Righe spuntate', 'Quando si programma', 'Colonne',
       'calendario',                 // editor della data
       'DUNNING',                    // menu esecutore e assegnabili
-      'Sul rapportino',             // carico diretto
+      'Rapportini',                 // la modale di carico, unica via
       'Copia righe',                // copia delle spunte
       'cliccando la riga',          // selezione sulle colonne d'identità
       'appunto',                    // riga a metà

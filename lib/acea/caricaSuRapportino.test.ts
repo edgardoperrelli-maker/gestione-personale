@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { gruppiPerRapportino, type RigaSelezionataPerRapportino } from './caricaSuRapportino';
+import {
+  anteprimeRapportini, gruppiPerRapportino, MAX_COPPIE_ANTEPRIMA, parseCoppie,
+  type RigaSelezionataPerRapportino,
+} from './caricaSuRapportino';
 
 const ATTIVI = [
   { id: 's1', display_name: 'DANIELE BELLOMO' },
@@ -69,5 +72,68 @@ describe('gruppiPerRapportino', () => {
 
   it('selezione vuota: niente gruppi, niente non-pronte', () => {
     expect(gruppiPerRapportino([], ATTIVI)).toEqual({ gruppi: [], nonPronte: 0 });
+  });
+});
+
+/*
+  L'anteprima della modale: «si integra» o «ne nasce uno», detto PRIMA di premere. Il matching è
+  esatto sulla coppia (staff, giorno) perché la lettura a monte porta il prodotto incrociato di
+  date e operatori — e un rapportino di Bellomo di IERI non deve dire «esiste» per oggi.
+*/
+describe('parseCoppie', () => {
+  it('legge, dedup e scarta le malformate in silenzio', () => {
+    expect(parseCoppie(['s1|2026-07-30', 's1|2026-07-30', ' s2 |2026-07-31'])).toEqual([
+      { staffId: 's1', data: '2026-07-30' },
+      { staffId: 's2', data: '2026-07-31' },
+    ]);
+    expect(parseCoppie(['|2026-07-30', 's1|30/07/2026', 's1|', 'niente', ''])).toEqual([]);
+  });
+
+  it('ha un tetto: è un\'anteprima per selezioni, non una scansione', () => {
+    const tante = Array.from({ length: 300 }, (_, i) => `s${i}|2026-07-30`);
+    expect(parseCoppie(tante)).toHaveLength(MAX_COPPIE_ANTEPRIMA);
+  });
+});
+
+describe('anteprimeRapportini', () => {
+  const RAP = [
+    { id: 'r1', staff_id: 's1', data: '2026-07-30', stato: 'in_corso' },
+    { id: 'r2', staff_id: 's2', data: '2026-07-31', stato: 'inviato' },
+  ];
+  const VOCI = new Map([['r1', 4], ['r2', 7]]);
+
+  it('esistente: stato e voci a bordo; assente: rapportino nuovo', () => {
+    const a = anteprimeRapportini(
+      [
+        { staffId: 's1', data: '2026-07-30' },
+        { staffId: 's3', data: '2026-07-30' },
+      ],
+      RAP, VOCI,
+    );
+    expect(a).toEqual([
+      { staffId: 's1', data: '2026-07-30', esiste: true, stato: 'in_corso', voci: 4 },
+      { staffId: 's3', data: '2026-07-30', esiste: false, stato: null, voci: 0 },
+    ]);
+  });
+
+  it('il consegnato si vede dallo stato: la modale avvisa che verrà chiesto di riaprirlo', () => {
+    const [a] = anteprimeRapportini([{ staffId: 's2', data: '2026-07-31' }], RAP, VOCI);
+    expect(a).toMatchObject({ esiste: true, stato: 'inviato', voci: 7 });
+  });
+
+  it('NIENTE prodotto incrociato: il rapportino di s1 di un ALTRO giorno non «esiste» per oggi', () => {
+    // La lettura a monte usa `in` su date e staff separati: s1|31 arriva fra gli esistenti solo
+    // se c'è davvero, non perché s1 ha un rapportino il 30 e qualcun altro ne ha uno il 31.
+    const [a] = anteprimeRapportini([{ staffId: 's1', data: '2026-07-31' }], RAP, VOCI);
+    expect(a).toMatchObject({ esiste: false, stato: null, voci: 0 });
+  });
+
+  it('un rapportino esistente senza voci conta 0, non «assente»', () => {
+    const [a] = anteprimeRapportini(
+      [{ staffId: 's1', data: '2026-07-30' }],
+      RAP,
+      new Map(),
+    );
+    expect(a).toMatchObject({ esiste: true, voci: 0 });
   });
 });

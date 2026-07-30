@@ -59,7 +59,7 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Si spunta col quadratino o <strong>cliccando la riga</strong> sulle prime colonne (ODL, Attività, Impianto, Matricola); shift-click per un intervallo.</li>
           <li><strong>Pianifica</strong> assegna operatore e giorno a tutte le spunte.</li>
-          <li><strong>Sul rapportino</strong> carica le righe già pianificate dritte sul rapportino del loro esecutore, senza passare dagli Strumenti.</li>
+          <li><strong>Rapportini</strong> (comando in alto) apre la modale di carico sulla selezione: per ogni esecutore dice prima se <em>si integra</em> il rapportino esistente — le voci nuove arrivano col badge «Nuovo» — o se ne <em>nasce uno</em>. La selezione resta: non si naviga.</li>
         </ul>
       </section>
 
