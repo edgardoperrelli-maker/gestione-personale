@@ -87,7 +87,7 @@ export async function POST(req: Request) {
     const bodySnap = body as unknown as {
       portaleSnapshot?: Array<{ odl?: string; stato?: string; operatore?: string; causa?: string }>;
       masterSnapshot?: Array<{
-        odl?: string; attivita?: string; esecutore?: string; dataRaw?: string; statoRaw?: string; matricola?: string; comune?: string;
+        odl?: string; attivita?: string; esecutore?: string; dataRaw?: string; statoRaw?: string; matricola?: string; indirizzo?: string; comune?: string;
         esito?: string; saracinesca?: string; odlSaracinesca?: string;
       }>;
     };
