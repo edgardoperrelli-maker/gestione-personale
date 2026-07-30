@@ -102,6 +102,10 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   riscuote alla fine, e la scheda Riaperture non paga più la scansione COMPLETA degli interventi
   (~7 richieste in fila) — usa `indicePianificazionePerOdl` mirato sulle poche chiavi scese; la
   scansione completa resta solo per filtri di pianificazione e ordinamenti a incrocio.
+- [x] **Guida della tabella in modale** — il paragrafo fisso sotto la tabella (tre righe di
+  registro mangiate) è ora una modale aperta dal «?» in barra (`GuidaTabella.tsx`, primitivo
+  `Dialog`), contenuto in cinque sezioni con test sulle frasi chiave (`ContenutoGuida`).
+  L'indicatore «salvataggio…» si è spostato nella riga dei comandi.
 - [x] **«Sul rapportino» dalla selezione** — le righe spuntate si caricano dritte sul rapportino
   del loro esecutore per il loro giorno, senza passare dagli Strumenti: bottone in barra, conferma
   con riepilogo per (operatore, giorno), gestione di 409 righe-a-metà e riaperture con conferme.
