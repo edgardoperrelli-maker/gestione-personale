@@ -281,6 +281,15 @@ Claude-Session: https://claude.ai/code/session_01FfBrfgeSf2pxqDmpvhyi1u"
 
 ### Task 2: Migration — indice sulla matricola + colonna «da assegnare»
 
+> **Correzione applicata in corso d'opera (30/07).** L'indice B-tree parziale descritto qui
+> sotto è **peso morto**: il pre-filtro della ricerca è `matricola ilike '%q%'` e il wildcard
+> iniziale rende un B-tree inservibile (misurato: l'indice non compare nel piano, 4194 righe
+> scartate dal filtro, 5,9 ms). Sostituito da un **GIN trigram** (`pg_trgm` era già
+> installato) con la migration `20260730190000`: 0,41 ms, 14×. **Non ri-aggiungere un B-tree
+> su `matricola`.** Un'altra cosa emersa dai dati: le righe senza matricola sul prod sono
+> **stringhe vuote, non NULL** (6 su 8.805), quindi il filtro del lettore vuole entrambe le
+> condizioni.
+
 **Files:**
 - Create: `supabase/migrations/20260730180000_acqualatina_lookup_matricola.sql`
 
