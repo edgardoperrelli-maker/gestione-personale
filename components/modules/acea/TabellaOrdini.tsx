@@ -8,7 +8,8 @@ import {
 import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ChevronsUpDown, TriangleAlert } from 'lucide-react';
 import {
-  valoreCella, tonoScadenza, type DefColonna, type RigaTabella, type TonoScadenza,
+  AVVISO_REVOCA, eRevocaDaVerificare, valoreCella, tonoScadenza,
+  type DefColonna, type RigaTabella, type TonoScadenza,
 } from '@/lib/acea/colonneTabella';
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
@@ -442,14 +443,29 @@ export default function TabellaOrdini({
               const r = row.original;
               const tono = tonoScadenza(r, oggi);
               const scelta = Boolean(selezione[row.id]);
+              /*
+                REVOCA APERTA: tutta la riga in rossastro, col perché nel tooltip.
+
+                Le REVO arrivano fra le attivazioni con la STESSA attività scritta delle RIAT
+                («Regolarizzazione», «Riattivazione»): a tabella non c'è nessun altro segno, e la
+                verifica sul sistema ACEA — è davvero una revoca, o va trasformata? — si fa solo
+                se la riga si fa notare. `--status-ko-soft` perché il colore È l'informazione;
+                la spunta vince sul rossastro (è il gesto in corso), il tooltip resta.
+              */
+              const revoca = eRevocaDaVerificare(r);
               return (
                 <div
                   key={row.id}
                   role="row"
                   aria-rowindex={vi.index + 2}
                   aria-selected={scelta}
+                  title={revoca ? AVVISO_REVOCA : undefined}
                   className={`absolute left-0 flex w-full border-b border-[var(--brand-border)] text-sm ${
-                    scelta ? 'bg-[var(--brand-primary-soft)]' : 'hover:bg-[var(--brand-surface-muted)]'
+                    scelta
+                      ? 'bg-[var(--brand-primary-soft)]'
+                      : revoca
+                        ? 'bg-[var(--status-ko-soft)]'
+                        : 'hover:bg-[var(--brand-surface-muted)]'
                   }`}
                   style={{ height: vi.size, transform: `translateY(${vi.start}px)` }}
                 >
@@ -486,6 +502,13 @@ export default function TabellaOrdini({
                       }}
                     />
                     </label>
+                    {/*
+                      FUORI dalla label, apposta: l'`aria-label` del checkbox ne scarta il
+                      contenuto, e lì dentro questo testo non verrebbe mai letto. Qui è un nodo
+                      della riga: chi la percorre col lettore di schermo sente il perché del
+                      colore, che da solo non dice niente a chi non lo vede.
+                    */}
+                    {revoca && <span className="sr-only">{AVVISO_REVOCA}</span>}
                   </div>
                   {visibili.map((c, iCol) => {
                     // Ogni colonna e` una cella della griglia: selezionabile e copiabile. La

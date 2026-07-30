@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
-  COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt, valoreCella, tonoScadenza,
+  AVVISO_REVOCA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt, eRevocaDaVerificare,
+  valoreCella, tonoScadenza,
   type RigaTabella,
 } from './colonneTabella';
 import { COLONNE_ELENCO, COLONNE_TESTO, OPZIONI_VUOTE } from './filtriOrdini';
@@ -180,6 +181,38 @@ describe('tonoScadenza', () => {
 
   it('le massive non hanno tono: non scadono', () => {
     expect(tonoScadenza(riga({ scadenza: null }), oggi)).toBe('nessuna');
+  });
+});
+
+/*
+  La revoca aperta si evidenzia in tabella: le REVO arrivano fra le attivazioni con la STESSA
+  attività scritta delle RIAT (verificato sul registro: «Regolarizzazione» e «Riattivazione» su
+  entrambe), e vanno controllate a mano sul sistema ACEA — possono essere riattivazioni o
+  regolarizzazioni etichettate male. Il colore è l'unico segno, quindi la regola sta qui, pura.
+*/
+describe('eRevocaDaVerificare', () => {
+  it('REVO aperta: da evidenziare', () => {
+    expect(eRevocaDaVerificare(riga({ codice_sla: 'REVO', aperto: true }))).toBe(true);
+  });
+
+  it('REVO chiusa no: la verifica serviva quando era lavorabile', () => {
+    // 60 chiuse contro 1 aperta sui numeri veri: colorare lo storico seppellirebbe quella viva.
+    expect(eRevocaDaVerificare(riga({ codice_sla: 'REVO', aperto: false }))).toBe(false);
+  });
+
+  it('una RIAT non si evidenzia, per quanto aperta', () => {
+    expect(eRevocaDaVerificare(riga({ codice_sla: 'RIAT', aperto: true }))).toBe(false);
+  });
+
+  it('il codice si normalizza; assente non è una revoca', () => {
+    expect(eRevocaDaVerificare(riga({ codice_sla: ' revo ', aperto: true }))).toBe(true);
+    expect(eRevocaDaVerificare(riga({ codice_sla: null, aperto: true }))).toBe(false);
+  });
+
+  it('l\'avviso dice cosa fare, non solo cosa è', () => {
+    // È il testo del tooltip e dello sr-only: deve portare all'azione (verificare su ACEA).
+    expect(AVVISO_REVOCA).toMatch(/sistema ACEA/);
+    expect(AVVISO_REVOCA).toMatch(/Riattivazione o Regolarizzazione/);
   });
 });
 

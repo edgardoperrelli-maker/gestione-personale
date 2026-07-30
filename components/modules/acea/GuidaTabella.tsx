@@ -83,6 +83,7 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Si <strong>trascinano</strong> per riordinarle e si <strong>tirano dal bordo</strong> per la larghezza (doppio click sul bordo per rimetterla com&apos;era).</li>
           <li>Dal menu «Colonne» si scelgono quelle visibili e si esporta la vista filtrata.</li>
+          <li>Una riga <strong>rossastra</strong> è una <strong>revoca</strong> (REVO) aperta: verifica sul sistema ACEA se è davvero una revoca o se va trasformata in Riattivazione o Regolarizzazione — l&apos;attività scritta non le distingue.</li>
         </ul>
       </section>
     </div>

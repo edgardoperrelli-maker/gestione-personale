@@ -130,6 +130,14 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   per difetto); `pianoPianificazione` guarda `famiglia`, il controllo client dell'incolla pure
   (`useEditingGriglia`), l'avviso in barra compare solo nel dunning, la guida delle massive dice
   «venerdì e sabato compresi».
+- [x] **Le REVOCHE aperte si evidenziano in rossastro** (decisione 39) — una REVO fra le
+  attivazioni va verificata a mano sul sistema ACEA: può essere una riattivazione o
+  regolarizzazione etichettata male, e l'attività scritta NON distingue (le REVO portano gli
+  stessi testi delle RIAT — verificato sulle 61 del registro; l'unico segno è `codice_sla`).
+  Riga `--status-ko-soft` + tooltip + sr-only (fuori dalla label del checkbox: l'aria-label ne
+  scarta il contenuto); la spunta vince sul rossastro. Solo le APERTE (60 chiuse vs 1 aperta).
+  Pure: `eRevoca` (scadenza.ts), `eRevocaDaVerificare`/`AVVISO_REVOCA` (colonneTabella.ts).
+  Riga di legenda nella guida «?».
 
 ## Not Yet Done
 
@@ -177,7 +185,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - **`(5293).toLocaleString('it-IT')` non mette il punto.** CLDR italiano raggruppa da 10.000 in
   su (`minimumGroupingDigits=2`): «5293» è corretto, non un bug — un test lo aspettava col punto.
 
-## Key Decisions (oltre alle 38 in `docs/acea-modulo-fattibilita.md` §3)
+## Key Decisions (oltre alle 39 in `docs/acea-modulo-fattibilita.md` §3)
 
 | Decisione | Motivo |
 |---|---|
@@ -195,7 +203,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 ## Current State
 
 **Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.740 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
+**2.745 test verdi su 300 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
 Supabase segnaposto: nel container non c'è `.env.local`).
 
 **Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
@@ -212,7 +220,7 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 38 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 39 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |

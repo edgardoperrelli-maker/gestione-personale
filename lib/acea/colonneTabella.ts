@@ -9,6 +9,7 @@ import {
   ETICHETTE_PIANIFICAZIONE, ETICHETTE_SCADENZA,
   type ChiaveOpzioni, type ColonnaElenco, type ColonnaTesto, type FiltriUI,
 } from './filtriOrdini';
+import { eRevoca } from './scadenza';
 
 export type RigaTabella = {
   odl: string;
@@ -382,6 +383,23 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
     }
   }
 }
+
+/**
+ * `true` se la riga è una REVOCA APERTA, da evidenziare in tabella.
+ *
+ * Le revoche (`REVO`) arrivano fra le attivazioni con la stessa attività scritta delle RIAT, ma
+ * vanno controllate a mano sul sistema ACEA: possono essere riattivazioni o regolarizzazioni
+ * etichettate male, e lavorarle come revoche è l'intervento sbagliato. La riga si colora finché
+ * l'ordine è APERTO — è lì che la verifica serve; colorare anche lo storico (60 REVO chiuse
+ * contro 1 aperta, sui numeri veri) seppellirebbe l'unica riga che conta.
+ */
+export function eRevocaDaVerificare(r: Pick<RigaTabella, 'aperto' | 'codice_sla'>): boolean {
+  return r.aperto && eRevoca(r.codice_sla);
+}
+
+/** Il perché della riga rossastra, per il tooltip: cosa controllare e dove. */
+export const AVVISO_REVOCA =
+  'Revoca (REVO): verifica sul sistema ACEA se è davvero una revoca o se va trasformata in Riattivazione o Regolarizzazione.';
 
 export type TonoScadenza = 'scaduto' | 'oggi' | 'vicino' | 'lontano' | 'nessuna';
 

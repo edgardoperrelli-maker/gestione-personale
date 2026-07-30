@@ -45,6 +45,19 @@ export function eRiapertura(codiceSla: string | null | undefined): boolean {
   return SLA_ATTIVAZIONE.has(String(codiceSla ?? '').trim().toUpperCase());
 }
 
+/**
+ * `true` se il codice SLA è una REVOCA (`REVO`) — la riapertura da guardare due volte.
+ *
+ * L'attività scritta sull'ordine NON distingue: nel registro le REVO portano gli stessi testi
+ * delle RIAT («Regolarizzazione flusso idrico», «Riattivazione fornitura» — verificato su tutte
+ * le 61 del registro). L'unico segno è il codice, ed è per questo che la verifica va fatta a
+ * mano sul sistema ACEA: una revoca può essere in realtà una riattivazione o una
+ * regolarizzazione etichettata male, e lavorarla come revoca è l'intervento sbagliato.
+ */
+export function eRevoca(codiceSla: string | null | undefined): boolean {
+  return String(codiceSla ?? '').trim().toUpperCase() === 'REVO';
+}
+
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
 
 /** 'YYYY-MM-DD' → epoch UTC di mezzanotte. NaN se la stringa non è una data ISO valida. */
