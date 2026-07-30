@@ -11,13 +11,17 @@ import { COLONNE_DUNNING } from '@/lib/acea/colonneTabella';
 import { filtriVuoti } from '@/lib/acea/filtriOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 
-const barra = (riapertureDaAssegnare: number | null) => renderToStaticMarkup(
+const barra = (
+  riapertureDaAssegnare: number | null,
+  famiglia: 'dunning' | 'massive' = 'dunning',
+) => renderToStaticMarkup(
   <BarraFiltriAcea
     filtri={filtriVuoti()}
     onChange={() => {}}
     colonne={COLONNE_DUNNING}
     totale={100}
     caricate={100}
+    famiglia={famiglia}
     riapertureDaAssegnare={riapertureDaAssegnare}
   />,
 );
@@ -47,5 +51,22 @@ describe('BarraFiltriAcea — badge della scheda Riaperture', () => {
         expect(html).toContain(etichetta);
       }
     }
+  });
+});
+
+// Le riaperture sono ordini di dunning (RIAT/REVO sul ripristino da morosità): in massive la
+// scheda sarebbe strutturalmente vuota — si apre, non c'è niente, e non si capisce se è un filtro
+// o un guasto. Quindi non si disegna proprio.
+describe('BarraFiltriAcea — vista massive', () => {
+  it('non ha la scheda Riaperture, e le altre restano', () => {
+    const html = barra(null, 'massive');
+    expect(html).not.toContain('Riaperture');
+    for (const etichetta of ['Da lavorare', 'Chiusi', 'Tutti', 'Sostituzione saracinesca']) {
+      expect(html).toContain(etichetta);
+    }
+  });
+
+  it('nemmeno un badge, anche se il numero arrivasse: non c’è il tasto su cui metterlo', () => {
+    expect(barra(3, 'massive')).not.toContain('senza esecutore');
   });
 });

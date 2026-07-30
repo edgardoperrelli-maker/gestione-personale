@@ -17,6 +17,8 @@ type Props = {
   colonne: DefColonna[];
   totale: number;
   caricate: number;
+  /** La vista decide QUALI schede esistono: le riaperture sono dunning, e in massive non c'è la scheda. */
+  famiglia: 'dunning' | 'massive';
   /**
    * Riaperture aperte senza esecutore: il badge sul tasto della scheda.
    *
@@ -36,8 +38,15 @@ type Props = {
  * `riaperture` e` un sottoinsieme anche lei, ma sta SUBITO DOPO «Da lavorare» e non in fondo:
  * e` la scheda del lavoro che scade domani, e la fila si legge da sinistra. Metterla accanto alle
  * saracinesche l'avrebbe archiviata fra le viste di controllo, che e` il contrario del punto.
+ *
+ * In MASSIVE la scheda riaperture non esiste: le riaperture sono ordini di dunning (`RIAT`/`REVO`
+ * sul ripristino da morosita`), e una scheda strutturalmente vuota non e` una vista, e` una
+ * domanda senza risposta — si apre, non c'e` niente, e non si sa se e` un filtro o un guasto.
  */
 const STATI: StatoFiltro[] = ['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche'];
+
+const statiDella = (famiglia: 'dunning' | 'massive'): StatoFiltro[] =>
+  famiglia === 'massive' ? STATI.filter((s) => s !== 'riaperture') : STATI;
 
 /**
  * Barra sopra la tabella: quello che i filtri di colonna NON possono fare.
@@ -57,7 +66,7 @@ const STATI: StatoFiltro[] = ['aperti', 'riaperture', 'chiusi', 'tutti', 'saraci
  * la loro larghezza (vedi il commento in `components/ui/Select.tsx`).
  */
 export default function BarraFiltriAcea({
-  filtri, onChange, colonne, totale, caricate, riapertureDaAssegnare = null,
+  filtri, onChange, colonne, totale, caricate, famiglia, riapertureDaAssegnare = null,
 }: Props) {
   const pill = pillFiltri(colonne, filtri);
   const attivi = haFiltriAttivi(filtri);
@@ -68,7 +77,7 @@ export default function BarraFiltriAcea({
         <Tabs
           value={filtri.stato}
           onValueChange={(v) => onChange({ ...filtri, stato: v as StatoFiltro })}
-          items={STATI.map((s) => ({
+          items={statiDella(famiglia).map((s) => ({
             value: s,
             label: ETICHETTE_STATO[s],
             /*

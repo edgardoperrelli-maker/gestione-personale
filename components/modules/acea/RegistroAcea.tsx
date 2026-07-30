@@ -324,8 +324,10 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         colonne={colonneVista}
         totale={totale}
         caricate={righe.length}
-        // Solo nella vista dunning: le riaperture sono ordini di dunning, e nella vista massive il
-        // numero conterebbe righe che quella scheda non mostra.
+        // In massive la barra non disegna proprio la scheda Riaperture, quindi il gating del
+        // badge e` una seconda rete: se un domani la scheda tornasse, il numero — che conta
+        // ordini di dunning — non comparirebbe comunque sulla vista sbagliata.
+        famiglia={famiglia}
         riapertureDaAssegnare={famiglia === 'dunning' ? riapertureDaAssegnare : null}
       />
 
