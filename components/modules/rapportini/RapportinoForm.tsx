@@ -30,7 +30,7 @@ import { statoBadgeDaOutbox } from '@/lib/offline/voceOutbox';
 import { useStatoSync } from '@/lib/offline/useStatoSync';
 import { avviaSyncAutomatica, sincronizzaToken } from '@/lib/offline/sync';
 import { salvaSnapshot } from '@/lib/offline/snapshot';
-import { aggiornaCensimento } from '@/lib/offline/censimento';
+import { CensimentoGate } from './CensimentoGate';
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import { OfflineStatusPill } from '@/components/offline/OfflineStatusPill';
@@ -224,15 +224,6 @@ export default function RapportinoForm({
     voci.forEach((v) => { taskIdPerVoceRef.current[v.id] = v.taskId; });
   }, [voci]);
 
-  // Censimento in cache all'APERTURA DEL LINK, non al passo «Cerca matricola».
-  // Il download partiva quando l'operatore apriva la ricerca — cioè quando è già davanti al
-  // contatore: se lì è offline la cache resta vuota e la ricerca per matricola non funziona.
-  // Il rapportino invece si apre in ufficio o in auto, sotto rete.
-  // Solo per il committente del flusso: un operatore Italgas non si porta in cache un master
-  // che non gli serve. Best-effort, no-op offline, non lancia mai.
-  useEffect(() => {
-    if (committenteCensimento === 'acea') void aggiornaCensimento(token);
-  }, [committenteCensimento, token]);
 
   useEffect(() => {
     const timers = timersRef.current;
@@ -694,6 +685,12 @@ export default function RapportinoForm({
           onChiudi={() => setFotoMancanti(null)}
         />
       )}
+      {/* Censimento in cache all'APERTURA DEL LINK, non al passo «Cerca matricola»: là
+          partiva quando l'operatore è già davanti al contatore, e se lì è offline la cache
+          resta vuota. Il rapportino invece si apre in ufficio o in auto, sotto rete.
+          Con `committente` null non renderizza niente: un operatore Italgas non si porta in
+          cache un master che non gli serve. */}
+      <CensimentoGate token={token} committente={committenteCensimento} />
     </div>
     </RapportinoFotoCtx.Provider>
   );

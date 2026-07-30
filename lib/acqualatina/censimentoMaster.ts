@@ -114,9 +114,27 @@ export async function totaleCensimento(masterIds: string[]): Promise<number> {
   return count ?? 0;
 }
 
-/** Versione della cache: `<righe>:<master attivi>`. Un import nuovo o un master
- *  acceso/spento cambia il conteggio → il client riscarica. */
+/**
+ * Versione della cache: `<righe>:<max(updated_at) dei master attivi>`.
+ *
+ * Il conteggio da solo NON basta: ricaricare un master con lo stesso numero di righe — un
+ * file corretto e ricaricato, il caso normale — lascerebbe la versione identica e il campo
+ * continuerebbe a lavorare sul dato vecchio senza accorgersene. `/censimento` (ACEA) non ha
+ * questo problema perché usa `max(id)` su una `bigserial`, che a ogni import cresce; qui
+ * `template_master_righe.id` è un uuid e non dà nessun ordine temporale.
+ *
+ * `template_master.updated_at` è mantenuto dal trigger `template_master_set_updated_at` e si
+ * muove a ogni modifica del file master, compreso l'interruttore `attivo`.
+ */
 export async function versioneCensimento(masterIds: string[]): Promise<string> {
   if (masterIds.length === 0) return '0:0';
-  return `${await totaleCensimento(masterIds)}:${masterIds.length}`;
+  const { data } = await supabaseAdmin
+    .from('template_master')
+    .select('updated_at')
+    .in('id', masterIds)
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  const stamp = (data as { updated_at?: string } | null)?.updated_at ?? '0';
+  return `${await totaleCensimento(masterIds)}:${stamp}`;
 }
