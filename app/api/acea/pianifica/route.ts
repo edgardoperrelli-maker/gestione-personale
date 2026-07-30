@@ -10,6 +10,8 @@ import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
 import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
+import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 
 export const runtime = 'nodejs';
@@ -55,7 +57,8 @@ export async function POST(req: Request) {
       chiedere incollando da Excel — e una regola che vale solo per il menu è decorativa.
     */
     const oggi = partiRoma(new Date()).oggi;
-    const motivi = await controllaAssegnazioni([{ data, staffId }], oggi);
+    // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
+    const motivi = await controllaAssegnazioni([{ data, staffId, dataScritta: true }], oggi);
     const rifiuto = motivi.get(`${data}|${staffId}`);
     if (rifiuto) {
       return NextResponse.json({ error: rifiuto.replace(/^./, (c) => c.toUpperCase()) }, { status: 400 });
@@ -69,7 +72,7 @@ export async function POST(req: Request) {
       const blocco = odlSelezionati.slice(i, i + 200);
       const { data: righe, error } = await supabaseAdmin
         .from('acea_ordini')
-        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola')
+        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
         .in('odl', blocco);
       if (error) throw error;
       for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
@@ -86,6 +89,7 @@ export async function POST(req: Request) {
           civico: (r.civico as string | null) ?? null,
           cap: (r.cap as string | null) ?? null,
           matricola: (r.matricola as string | null) ?? null,
+          riapertura: eRiapertura(r.codice_sla as string | null),
         });
       }
     }
@@ -113,7 +117,9 @@ export async function POST(req: Request) {
       }
     }
 
-    const piano = pianoPianificazione({ ordini, esistenti, data, staffId });
+    const piano = pianoPianificazione({
+      ordini, esistenti, data, staffId, soloAttivazioni: soloAttivazioni(data),
+    });
 
     // 3) Tassonomia: descrizione canonica e gruppo dell'attività (vedi lib/acea/tassonomiaAcea.ts
     //    per il motivo per cui serve l'alias di scrittura). Best-effort: senza tassonomia

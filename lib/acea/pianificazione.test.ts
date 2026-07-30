@@ -146,9 +146,57 @@ describe('pianoPianificazione — riepilogo misto', () => {
   });
 });
 
+// Venerdì e sabato hanno mezza giornata di squadre e le riaperture hanno un giorno di cardine
+// contrattuale: ci vanno solo quelle, il resto aspetta il lunedì.
+describe('pianoPianificazione — giorni di sole attivazioni', () => {
+  const ARG_VEN = { data: '2026-07-31', staffId: 's2', soloAttivazioni: true };
+
+  it('un’attivazione passa', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: true })], esistenti: [], ...ARG_VEN,
+    });
+    expect(p.creati).toBe(1);
+  });
+
+  it('una limitazione viene saltata, col suo motivo', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: false })], esistenti: [], ...ARG_VEN,
+    });
+    expect(p.saltati).toBe(1);
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'solo_attivazioni' });
+  });
+
+  it('un ordine senza `riapertura` dichiarata NON passa: si sbaglia per difetto, non per eccesso', () => {
+    const p = pianoPianificazione({ ordini: [ordine()], esistenti: [], ...ARG_VEN });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'solo_attivazioni' });
+  });
+
+  it('nemmeno per SPOSTARCI un intervento che esiste già', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ riapertura: false })], esistenti: [intervento()], ...ARG_VEN,
+    });
+    expect(p.aggiornati).toBe(0);
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'solo_attivazioni' });
+  });
+
+  it('un ordine già chiuso resta «chiuso», non diventa «solo attivazioni»', () => {
+    // L'ordine dei controlli conta: il motivo che si legge deve essere quello che si risolve.
+    const p = pianoPianificazione({
+      ordini: [ordine({ aperto: false, riapertura: false })], esistenti: [], ...ARG_VEN,
+    });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'ordine_chiuso' });
+  });
+
+  it('negli altri giorni la limitazione passa come sempre', () => {
+    const p = pianoPianificazione({ ordini: [ordine({ riapertura: false })], esistenti: [], ...ARG });
+    expect(p.creati).toBe(1);
+  });
+});
+
 describe('etichettaMotivo', () => {
   it('spiega il motivo in italiano', () => {
     expect(etichettaMotivo('ordine_chiuso')).toMatch(/chiuso/i);
     expect(etichettaMotivo('gia_completato')).toMatch(/completato/i);
+    expect(etichettaMotivo('solo_attivazioni')).toMatch(/attivazion/i);
   });
 });

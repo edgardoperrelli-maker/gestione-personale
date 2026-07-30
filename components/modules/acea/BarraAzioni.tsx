@@ -225,6 +225,18 @@ export default function BarraAzioni({
               <a href="/dashboard" className="underline">compila il tabellone</a>.
             </span>
           )}
+
+          {/*
+            Detto PRIMA di premere, non dopo. Senza, il venerdì si selezionavano quaranta righe, si
+            premeva Pianifica e ne passavano tre: l'esito diceva «37 saltati» e sembrava un guasto.
+            `--status-warn` perché qui il colore è l'informazione (DESIGN.md §«Semantici e stato»).
+          */}
+          {giornoScelto?.soloAttivazioni && operatori.length > 0 && (
+            <span className="text-xs text-[var(--status-warn)]">
+              {giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe
+              vengono saltate.
+            </span>
+          )}
         </>
       )}
 

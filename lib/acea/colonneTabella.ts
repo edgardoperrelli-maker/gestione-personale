@@ -24,6 +24,15 @@ export type RigaTabella = {
   scadenza: string | null;
   data_completamento: string | null;
   operatore_cognome: string | null;
+  /** Nome di battesimo del C.I.D. ACEA. Opzionale: il registro c'era prima che si mostrasse. */
+  operatore_nome?: string | null;
+  /**
+   * `true` se Esecutore e Data pianificata vengono da un APPUNTO e non da un intervento.
+   *
+   * Una riga con solo l'esecutore o solo la data non produce nessun rapportino: il valore si
+   * vede, ma va detto che non è ancora pianificazione. Vedi `TabellaOrdini`.
+   */
+  pianificazione_parziale?: boolean;
   causale: string | null;
   causale_desc: string | null;
   esito_positivo: boolean | null;
@@ -69,7 +78,7 @@ export type RigaTabella = {
 export type ChiaveColonna =
   | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'gruppo' | 'stato'
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
-  | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'esito'
+  | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'data_completamento' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
   | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note';
 
@@ -145,6 +154,19 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  /*
+    Le due colonne di ACEA, subito accanto alle nostre, e PREDEFINITE.
+
+    Non è un ripensamento estetico: «Esecutore» e «Data pianificata» qui sopra vengono da
+    `interventi`, cioè da chi ci abbiamo mandato NOI. Su un ordine che ACEA ha chiuso senza passare
+    dalla nostra pianificazione restano vuote per costruzione, e la riga si legge come un import
+    che non ha caricato niente — è successo davvero, su un export di riaperture tutte «completato».
+    Il dato c'era da sempre nel registro (`Cognome C.I.D.`, `Nome C.I.D.`, `Data Completamento`),
+    non aveva una cella dove farsi vedere. Averle affiancate è ciò che rende il registro «lo
+    specchio del Cruscotto» invece che «l'elenco di quello che abbiamo assegnato noi».
+  */
+  { chiave: 'operatore_cognome', intestazione: 'Operatore ACEA', predefinita: true, larghezza: 150, filtro: F.operatore },
+  { chiave: 'data_completamento', intestazione: 'Esecuzione ACEA', predefinita: true, mono: true, larghezza: 120 },
   // Saracinesca sostituita, e l'ODL con cui e` stata richiesta ad ACEA. Dove risulta una
   // sostituzione DEVE esistere l'ordine che la registra: senza, il lavoro e` stato fatto e non
   // verra` mai pagato (91,12 € l'una). La colonna esiste per far vedere quel buco.
@@ -160,7 +182,6 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'impianto', intestazione: 'Impianto', predefinita: false, mono: true, larghezza: 120, filtro: F.impianto },
   { chiave: 'famiglia', intestazione: 'Famiglia', predefinita: false, larghezza: 100 },
   { chiave: 'tipo_ordine', intestazione: 'Tipo ordine', predefinita: false, mono: true, larghezza: 100 },
-  { chiave: 'operatore_cognome', intestazione: 'Operatore ACEA', predefinita: false, larghezza: 140, filtro: F.operatore },
   { chiave: 'esito', intestazione: 'Esito ACEA', predefinita: false, larghezza: 200 },
   { chiave: 'valore_netto', intestazione: 'Valore', predefinita: false, mono: true, larghezza: 90 },
   { chiave: 'codice_sla', intestazione: 'SLA', predefinita: false, mono: true, larghezza: 80 },
@@ -179,8 +200,17 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
   { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76, filtro: F.gruppo },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
+  /*
+    «Data pianificata», non «Data esecuzione»: questa colonna è `pianificato_il`, cioè il giorno
+    a cui l'abbiamo messa NOI. Chiamarla «Data esecuzione» accanto a un ordine che ACEA ha già
+    chiuso la fa leggere come la data in cui il lavoro è stato fatto, e su una riga mai pianificata
+    da noi la cella vuota diventa «l'import non ha caricato l'esecuzione». La data vera di ACEA è
+    la colonna qui sotto.
+  */
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
-  { chiave: 'pianificato_il', intestazione: 'Data esecuzione', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'operatore_cognome', intestazione: 'Operatore ACEA', predefinita: true, larghezza: 150, filtro: F.operatore },
+  { chiave: 'data_completamento', intestazione: 'Esecuzione ACEA', predefinita: true, mono: true, larghezza: 120 },
   { chiave: 'esito', intestazione: 'Esito', predefinita: true, larghezza: 200 },
   { chiave: 'attivita', intestazione: 'Attività', predefinita: false, larghezza: 210, filtro: F.attivita },
   { chiave: 'valore_netto', intestazione: 'Valore', predefinita: false, mono: true, larghezza: 90 },
@@ -293,6 +323,19 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
       return [r.via, r.civico].filter(Boolean).join(' ') || '—';
     case 'stato':
       return r.stato_desc ?? r.stato;
+    /*
+      Chi ha eseguito SU ACEA, e quando.
+
+      Sono le due colonne che venivano scambiate per un import mancato: «Esecutore» e «Data
+      pianificata» sono NOSTRE — vengono da `interventi`, cioè da chi ci abbiamo mandato noi — e
+      su un ordine che ACEA ha chiuso senza passare dalla nostra pianificazione restano vuote per
+      costruzione. Il dato ACEA c'era da sempre nel registro (`Cognome C.I.D.`, `Nome C.I.D.`,
+      `Data Completamento`), ma non aveva una cella dove farsi vedere.
+    */
+    case 'operatore_cognome':
+      return [r.operatore_cognome, r.operatore_nome].filter(Boolean).join(' ') || '—';
+    case 'data_completamento':
+      return r.data_completamento ? dataIt(r.data_completamento) : '—';
     case 'esito': {
       if (r.esito_positivo === null) return '—';
       return r.causale_desc ?? r.causale ?? (r.esito_positivo ? 'Eseguito' : 'Non eseguito');

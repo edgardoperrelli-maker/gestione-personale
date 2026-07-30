@@ -2,9 +2,13 @@
 // PURA: quali giorni si possono programmare su ACEA, e come si chiamano a schermo.
 //
 // La regola viene dal campo, non da un calendario: si programma per OGGI e per il PROSSIMO GIORNO
-// LAVORATIVO. Di venerdì il prossimo giorno lavorativo è lunedì, quindi la finestra è
-// venerdì + lunedì; il sabato e la domenica restano programmabili come "oggi" (chi lavora nel
-// weekend deve poter vedere le sue righe) ma il secondo giorno resta comunque il lunedì.
+// LAVORATIVO. La settimana lavorativa arriva **al sabato compreso**: da venerdì il giorno dopo è
+// sabato, ed è solo dal sabato che si salta alla domenica per arrivare a lunedì.
+//
+// Il venerdì e il sabato però non sono giorni pieni: ci si mandano **solo le attivazioni** —
+// riaperture `RIAT`/`REVO`, quelle col cardine contrattuale a un giorno. Il resto del dunning e le
+// massive aspettano il lunedì. È il motivo per cui `soloAttivazioni` sta qui e non in un `if`
+// sparso nelle rotte: è una proprietà del giorno, e la sanno in tre posti diversi.
 //
 // Perché una finestra e non un campo data libero: la pianificazione ACEA vale finché l'export del
 // Cruscotto è fresco. Assegnare a tre settimane da oggi significa assegnare su uno stato degli
@@ -19,13 +23,20 @@ const NOMI_GIORNO = [
   'domenica', 'lunedì', 'martedì', 'mercoledì', 'giovedì', 'venerdì', 'sabato',
 ] as const;
 
+/** Giorni in cui si lavora, come `getUTCDay()`: lunedì (1) → sabato (6). */
+const LAVORATIVI = new Set([1, 2, 3, 4, 5, 6]);
+/** Giorni riservati alle sole attivazioni: venerdì (5) e sabato (6). */
+const SOLO_ATTIVAZIONI = new Set([5, 6]);
+
 export type GiornoProgrammabile = {
   /** 'YYYY-MM-DD'. */
   data: string;
-  /** «Oggi», «Domani», oppure il nome del giorno («Lunedì») quando salta il weekend. */
+  /** «Oggi», «Domani», oppure il nome del giorno («Lunedì») quando salta la domenica. */
   etichetta: string;
   /** Forma lunga per titoli e messaggi di rifiuto: «lunedì 03/08». */
   esteso: string;
+  /** `true` di venerdì e di sabato: ci si programmano solo riaperture (`RIAT`/`REVO`). */
+  soloAttivazioni: boolean;
 };
 
 const epoca = (iso: string) => Date.parse(`${iso}T00:00:00Z`);
@@ -50,13 +61,22 @@ export function giornoEsteso(iso: string): string {
   return `${NOMI_GIORNO[giornoSettimana(iso)]} ${giorno}/${mese}`;
 }
 
-/** Il primo giorno feriale DOPO quello dato: da venerdì, sabato e domenica esce sempre lunedì. */
-export function prossimoFeriale(iso: string): string {
+/**
+ * `true` se in quel giorno si programmano SOLO attivazioni (riaperture `RIAT`/`REVO`).
+ *
+ * Venerdì e sabato. Non è una regola di calendario ma di commessa: le riaperture hanno un giorno
+ * di cardine contrattuale e non possono aspettare il lunedì, il resto sì.
+ */
+export function soloAttivazioni(iso: string): boolean {
+  return eDataIso(iso) && SOLO_ATTIVAZIONI.has(giornoSettimana(iso));
+}
+
+/** Il primo giorno lavorativo DOPO quello dato. Solo la domenica non è lavorativa. */
+export function prossimoLavorativo(iso: string): string {
   let ms = epoca(iso) + GIORNO_MS;
-  // Al massimo tre passi (venerdì → lunedì); il ciclo è comunque limitato per non poter divergere.
+  // Un passo solo (sabato → lunedì); il ciclo è comunque limitato per non poter divergere.
   for (let i = 0; i < 7; i++) {
-    const g = new Date(ms).getUTCDay();
-    if (g >= 1 && g <= 5) break;
+    if (LAVORATIVI.has(new Date(ms).getUTCDay())) break;
     ms += GIORNO_MS;
   }
   return isoDa(ms);
@@ -70,18 +90,20 @@ export function prossimoFeriale(iso: string): string {
 export function giorniProgrammabili(oggi: string): GiornoProgrammabile[] {
   if (!eDataIso(oggi)) return [];
   const domani = isoDa(epoca(oggi) + GIORNO_MS);
-  const secondo = prossimoFeriale(oggi);
+  const secondo = prossimoLavorativo(oggi);
+  const descrivi = (data: string, etichetta: string): GiornoProgrammabile => ({
+    data, etichetta, esteso: giornoEsteso(data), soloAttivazioni: soloAttivazioni(data),
+  });
   return [
-    { data: oggi, etichetta: 'Oggi', esteso: giornoEsteso(oggi) },
-    {
-      data: secondo,
-      // «Domani» solo quando è davvero il giorno dopo: da venerdì il secondo giorno è lunedì, e
-      // chiamarlo «Domani» farebbe assegnare al sabato credendo di assegnare al lunedì.
-      etichetta: secondo === domani
+    descrivi(oggi, 'Oggi'),
+    // «Domani» solo quando è davvero il giorno dopo: dal sabato il secondo giorno è lunedì, e
+    // chiamarlo «Domani» farebbe assegnare alla domenica credendo di assegnare al lunedì.
+    descrivi(
+      secondo,
+      secondo === domani
         ? 'Domani'
         : NOMI_GIORNO[giornoSettimana(secondo)].replace(/^./, (c) => c.toUpperCase()),
-      esteso: giornoEsteso(secondo),
-    },
+    ),
   ];
 }
 
@@ -101,3 +123,6 @@ export function spiegaFinestra(oggi: string): string {
   if (giorni.length === 0) return 'si programma solo per oggi o per il giorno lavorativo successivo';
   return `si programma solo per ${giorni.map((g) => g.esteso).join(' o ')}`;
 }
+
+/** Il rifiuto di un ordine che non è un'attivazione su un giorno che ne accetta solo quelle. */
+export const MOTIVO_SOLO_ATTIVAZIONI = 'solo attivazioni il venerdì e il sabato';

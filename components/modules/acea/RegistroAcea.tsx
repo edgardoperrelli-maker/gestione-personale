@@ -76,7 +76,14 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   const [giorni, setGiorni] = useState<GiornoProgrammabile[]>([]);
   const [operatoriPerGiorno, setOperatoriPerGiorno] = useState<Record<string, Operatore[]>>({});
   const [giorno, setGiorno] = useState('');
-  // Solo per distinguere i rifiuti: «BIANCHI non è in cronoprogramma» invece di «non trovato».
+  /*
+    Gli operatori ATTIVI, che sono quelli su cui la griglia risolve un nome incollato.
+
+    Non è una svista che siano diversi da quelli del menu: il menu sceglie un giorno, quindi può
+    limitarsi al tabellone di quel giorno; la griglia no — un intervento vecchio e non eseguito si
+    deve poter riassegnare senza spostarlo, e il cronoprogramma di un giorno passato non ha nessuna
+    autorità su chi ci va adesso. Il controllo giorno per giorno lo fa il server, che la data ce l'ha.
+  */
   const [operatoriTutti, setOperatoriTutti] = useState<Operatore[]>([]);
 
   useEffect(() => {
@@ -89,7 +96,11 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           giorni: Array<GiornoProgrammabile & { operatori: Operatore[] }>;
         };
         const elenco = body.giorni ?? [];
-        setGiorni(elenco.map(({ data, etichetta, esteso }) => ({ data, etichetta, esteso })));
+        // Gli operatori escono dal giorno e vanno nella mappa: `giorni` descrive la finestra e
+        // basta, così passarlo alla griglia non si porta dietro due elenchi di nomi.
+        setGiorni(elenco.map((g) => ({
+          data: g.data, etichetta: g.etichetta, esteso: g.esteso, soloAttivazioni: g.soloAttivazioni,
+        })));
         setOperatoriPerGiorno(Object.fromEntries(elenco.map((g) => [g.data, g.operatori])));
         // Il giorno scelto si imposta una volta sola: se l'utente ha già scelto «domani» e nel
         // frattempo qualcosa ricarica la finestra, riportarlo a oggi gli cambierebbe il bersaglio
@@ -124,21 +135,6 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     [operatoriPerGiorno, giorno],
   );
 
-  /*
-    In griglia si valida sull'UNIONE dei due giorni.
-
-    Un incolla può portare due date diverse nella stessa colonna: rifiutare qui il nome giusto
-    dell'altro giorno sarebbe un falso allarme, e il controllo giorno per giorno lo fa comunque il
-    server — che è l'unico a saperlo per certo.
-  */
-  const operatoriAssegnabili = useMemo(() => {
-    const visti = new Map<string, Operatore>();
-    for (const lista of Object.values(operatoriPerGiorno)) {
-      for (const o of lista) visti.set(o.id, o);
-    }
-    return [...visti.values()];
-  }, [operatoriPerGiorno]);
-
   /** Indici delle righe spuntate, in ordine di tabella: è il bersaglio di copia e incolla. */
   const righeSpuntate = useMemo(
     () => righe.reduce<number[]>((acc, r, i) => {
@@ -153,8 +149,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
   const chiaviVisibili = useMemo(() => colonneVisibili.map((c) => c.chiave), [colonneVisibili]);
   const editing = useEditingGriglia({
     righe,
-    operatori: operatoriAssegnabili,
-    operatoriTutti,
+    operatori: operatoriTutti,
     giorni,
     righeSpuntate,
     colonneVisibili: chiaviVisibili,

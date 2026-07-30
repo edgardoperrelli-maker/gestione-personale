@@ -40,13 +40,19 @@ export type OpzioniAcea = {
   staffIds?: string[];
   /** Riapre i rapportini già inviati che devono ricevere voci nuove. */
   confermaRiaperture?: boolean;
+  /** Genera comunque, pur essendoci righe pianificate a metà per quel giorno. */
+  confermaIncomplete?: boolean;
   /** Modello dei rapportini creati da zero. Sui rapportini esistenti non si tocca nulla. */
   templateId?: string;
 };
 
 export type RisultatoAcea =
   | { ok: true; esiti: EsitoOperatore[]; avvisi: string[] }
-  | { ok: false; status: number; error: string };
+  | {
+      ok: false; status: number; error: string;
+      /** ODL pianificati a metà per quel giorno: presenti solo sul rifiuto 409. */
+      incomplete?: string[];
+    };
 
 type TemplateRow = {
   id: string;
@@ -74,6 +80,42 @@ export async function sincronizzaRapportiniAcea(
     return { ok: false, status: 400, error: 'Data non valida (atteso YYYY-MM-DD).' };
   }
   const avvisi: string[] = [];
+
+  /*
+    ---- 0. Le righe pianificate a METÀ di questo giorno ---------------------------------------
+
+    Una riga con la data ma senza esecutore (o viceversa) non è un intervento: `interventi.data` è
+    NOT NULL e senza `staff_id` non c'è nessuno a cui mandare il rapportino. Quindi non produce
+    nessuna voce, e non produrla è **silenzioso** — è esattamente il modo in cui un ordine sparisce
+    dalla giornata di qualcuno senza che nessuno se ne accorga.
+
+    Per questo si BLOCCA invece di avvisare: generare i rapportini è il momento in cui la
+    pianificazione diventa lavoro vero, ed è l'ultimo istante utile per accorgersene. Con
+    `confermaIncomplete` si va avanti lo stesso — la decisione resta all'ufficio, ma presa.
+
+    Si guardano solo le righe con la DATA di questo giorno: quelle con il solo esecutore non
+    appartengono a nessun giorno e non possono bloccarne uno: si contano e si dicono, in fondo.
+  */
+  if (!opts.confermaIncomplete) {
+    const { data: aMeta, error: eMeta } = await db
+      .from('acea_ordini')
+      .select('odl, pianificato_a_bozza')
+      .eq('pianificato_il_bozza', opts.data);
+    if (eMeta) return { ok: false, status: 500, error: eMeta.message };
+    const incomplete = ((aMeta ?? []) as Array<{ odl: string; pianificato_a_bozza: string | null }>)
+      .filter((r) => !r.pianificato_a_bozza)
+      .map((r) => r.odl);
+    if (incomplete.length > 0) {
+      return {
+        ok: false,
+        status: 409,
+        error: incomplete.length === 1
+          ? '1 ordine è programmato per questo giorno ma non ha un esecutore: non entrerebbe in nessun rapportino.'
+          : `${incomplete.length} ordini sono programmati per questo giorno ma non hanno un esecutore: non entrerebbero in nessun rapportino.`,
+        incomplete,
+      };
+    }
+  }
 
   // ---- 1. Interventi ACEA del giorno ---------------------------------------------------------
   const { data: intRows, error: eInt } = await db
@@ -111,6 +153,24 @@ export async function sincronizzaRapportiniAcea(
   if (senzaOperatore > 0) {
     avvisi.push(`${senzaOperatore} interventi del giorno non hanno un esecutore: non generano voci.`);
   }
+
+  /*
+    Gli ordini con il solo ESECUTORE non appartengono a nessun giorno, quindi non possono bloccarne
+    uno — ma sono lavoro deciso a metà, e sparirebbero senza che nessuno lo dica. Si contano una
+    volta per generazione, come avviso.
+  */
+  const { data: senzaData } = await db
+    .from('acea_ordini')
+    .select('odl')
+    .not('pianificato_a_bozza', 'is', null)
+    .is('pianificato_il_bozza', null);
+  const inSospeso = ((senzaData ?? []) as Array<{ odl: string }>).length;
+  if (inSospeso > 0) {
+    avvisi.push(
+      `${inSospeso} ordini hanno un esecutore ma nessun giorno: restano fuori da qualunque rapportino finché non hanno una data.`,
+    );
+  }
+
   if (interventi.length === 0) return { ok: true, esiti: [], avvisi };
 
   const perStaff = new Map<string, InterventoDaVoce[]>();

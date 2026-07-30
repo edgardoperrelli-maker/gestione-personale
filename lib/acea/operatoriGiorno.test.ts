@@ -26,6 +26,7 @@ const { controllaAssegnazioni, operatoriPerGiorno } = await import('./operatoriG
 
 const GIOVEDI = '2026-07-30';
 const VENERDI = '2026-07-31';
+const SABATO = '2026-08-01';
 const LUNEDI = '2026-08-03';
 
 const assegna = (day_id: string, id: string, nome: string, extra: Riga = {}): Riga => ({
@@ -37,6 +38,7 @@ beforeEach(() => {
     { id: 'g1', day: GIOVEDI },
     { id: 'g2', day: VENERDI },
     { id: 'g3', day: LUNEDI },
+    { id: 'g4', day: SABATO },
   ];
   tabelle.assignments = [];
   tabelle.disponibilita_operatore = [];
@@ -105,42 +107,77 @@ describe('operatoriPerGiorno', () => {
 describe('controllaAssegnazioni', () => {
   it('passa la coppia giusta: giorno in finestra, operatore in tabellone', async () => {
     tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1' }], VENERDI);
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.size).toBe(0);
   });
 
-  it('di venerdì il lunedì passa e il sabato no', async () => {
-    tabelle.assignments = [assegna('g3', 's1', 'CIARALLO ANNA')];
+  it('di venerdì il sabato passa (è lavorativo) e il lunedì no: è troppo in là', async () => {
+    tabelle.assignments = [assegna('g4', 's1', 'CIARALLO ANNA')];
     const m = await controllaAssegnazioni(
-      [{ data: LUNEDI, staffId: 's1' }, { data: '2026-08-01', staffId: 's1' }],
+      [{ data: SABATO, staffId: 's1', dataScritta: true }, { data: LUNEDI, staffId: 's1', dataScritta: true }],
       VENERDI,
     );
-    expect(m.get(`${LUNEDI}|s1`)).toBeUndefined();
-    expect(m.get(`2026-08-01|s1`)).toMatch(/fuori finestra/);
+    expect(m.get(`${SABATO}|s1`)).toBeUndefined();
+    expect(m.get(`${LUNEDI}|s1`)).toMatch(/fuori finestra/);
   });
 
   it('rifiuta una data lontana nominando i giorni buoni', async () => {
-    const m = await controllaAssegnazioni([{ data: '2026-09-15', staffId: 's1' }], VENERDI);
+    const m = await controllaAssegnazioni([{ data: '2026-09-15', staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.get('2026-09-15|s1')).toBe(
-      'martedì 15/09 è fuori finestra: si programma solo per venerdì 31/07 o lunedì 03/08',
+      'martedì 15/09 è fuori finestra: si programma solo per venerdì 31/07 o sabato 01/08',
     );
+  });
+
+  /*
+    La presa allentata: un lavoro rimasto indietro si deve poter riassegnare.
+
+    Con `dataScritta: false` il giorno non lo si sta scegliendo, lo si eredita da un intervento che
+    esiste già — e il cronoprogramma di un giorno passato non ha nessuna autorità su chi ci va
+    adesso. Senza questa distinzione, cambiare l'esecutore di ieri era impossibile senza prima
+    spostare la data, cioè senza cambiare anche quando.
+  */
+  describe('cambio del solo esecutore su un intervento vecchio', () => {
+    it('una data fuori finestra passa, se non è quella che si sta scrivendo', async () => {
+      const m = await controllaAssegnazioni(
+        [{ data: '2026-07-20', staffId: 's9', dataScritta: false }],
+        VENERDI,
+      );
+      expect(m.size).toBe(0);
+    });
+
+    it('la stessa data, se la si sta SCRIVENDO, viene rifiutata', async () => {
+      const m = await controllaAssegnazioni(
+        [{ data: '2026-07-20', staffId: 's9', dataScritta: true }],
+        VENERDI,
+      );
+      expect(m.get('2026-07-20|s9')).toMatch(/fuori finestra/);
+    });
+
+    it('dentro la finestra il cronoprogramma vale comunque, anche senza riscrivere la data', async () => {
+      tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
+      const m = await controllaAssegnazioni(
+        [{ data: VENERDI, staffId: 's9', dataScritta: false }],
+        VENERDI,
+      );
+      expect(m.get(`${VENERDI}|s9`)).toMatch(/non in cronoprogramma/);
+    });
   });
 
   it('rifiuta chi quel giorno non è in tabellone, pur essendo giorno buono', async () => {
     tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's9' }], VENERDI);
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's9', dataScritta: true }], VENERDI);
     expect(m.get(`${VENERDI}|s9`)).toBe('operatore non in cronoprogramma per venerdì 31/07');
   });
 
   it('tabellone vuoto: lo dice, invece di far cercare un operatore che non c’entra', async () => {
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1' }], VENERDI);
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.get(`${VENERDI}|s1`)).toBe('nessun operatore in cronoprogramma per venerdì 31/07');
   });
 
   it('chi è in tabellone ma in ferie intere quel giorno viene rifiutato', async () => {
     tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
     tabelle.disponibilita_operatore = [{ staff_id: 's1', data: VENERDI, ora_da: null, ora_a: null }];
-    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1' }], VENERDI);
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.get(`${VENERDI}|s1`)).toMatch(/nessun operatore in cronoprogramma/);
   });
 

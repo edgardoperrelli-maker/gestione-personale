@@ -13,6 +13,8 @@ type Risposta = {
   avvisi: string[];
   riepilogo: Record<TipoEsito, number>;
   error?: string;
+  /** ODL programmati per il giorno ma senza esecutore: presenti solo sul rifiuto 409. */
+  incomplete?: string[];
 };
 
 const oggiIso = () => new Date().toLocaleDateString('sv-SE');
@@ -49,15 +51,41 @@ export default function RapportiniGiorno() {
   const [busy, setBusy] = useState(false);
   const [risposta, setRisposta] = useState<Risposta | null>(null);
 
-  const genera = useCallback(async (confermaRiaperture: boolean) => {
+  const genera = useCallback(async (
+    confermaRiaperture: boolean,
+    confermaIncomplete = false,
+  ) => {
     setBusy(true);
     try {
       const res = await fetch('/api/acea/rapportini', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ data, confermaRiaperture }),
+        body: JSON.stringify({ data, confermaRiaperture, confermaIncomplete }),
       });
       const body = (await res.json()) as Risposta;
+      /*
+        409: ci sono righe programmate per questo giorno senza esecutore.
+
+        Si blocca invece di avvisare perché la generazione è l'ULTIMO istante utile per
+        accorgersene: una riga a metà non produce voci, e non produrle è silenzioso — l'ordine
+        sparisce dalla giornata di qualcuno e nessuno se ne accorge. La conferma è esplicita e la
+        decisione resta all'ufficio, ma presa.
+      */
+      if (res.status === 409 && body.incomplete) {
+        const odl = body.incomplete;
+        const elenco = odl.slice(0, 5).join(', ') + (odl.length > 5 ? ` e altri ${odl.length - 5}` : '');
+        const ok = await chiediConferma({
+          title: odl.length === 1
+            ? '1 ordine è programmato oggi senza esecutore'
+            : `${odl.length} ordini sono programmati oggi senza esecutore`,
+          message:
+            `${elenco}. Non entreranno in nessun rapportino finché non hanno anche l'esecutore. `
+            + 'Puoi completarli nel registro e rilanciare, oppure generare lo stesso senza di loro.',
+          confirmLabel: 'Genera senza di loro',
+        });
+        if (ok) await genera(confermaRiaperture, true);
+        return;
+      }
       if (!res.ok) {
         toast.error(body.error ?? 'Generazione non riuscita.');
         return;

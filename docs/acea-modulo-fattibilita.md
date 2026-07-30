@@ -180,8 +180,12 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 19 | Scadenza | Dunning: creazione + 14 gg, `RIAT`/`REVO` 1 gg. **Le massive non scadono** |
 | 20 | Cut-over | Preview, due giorni di prova, poi abbandono del master. L'agente resta come rete |
 | 21 | Appunti | Le **righe spuntate** sono un bersaglio degli appunti: si copiano intere e ci si incolla sopra, senza passare dalla barra di assegnazione |
-| 22 | Finestra | Si programma solo per **oggi e il prossimo giorno lavorativo** (di venerdì: lunedì). Applicata anche sul server, non solo nel menu |
+| 22 | Finestra | Si programma solo per **oggi e il prossimo giorno lavorativo**. Il sabato è lavorativo, la domenica no. Applicata anche sul server |
 | 23 | Assegnabili | Gli operatori proponibili sono quelli **in cronoprogramma** per quel giorno, meno le assenze intere — non l'anagrafica del personale |
+| 24 | Ven/sab | Venerdì e sabato passano **solo le attivazioni** (`RIAT`/`REVO`): hanno un giorno di cardine, il resto aspetta il lunedì |
+| 25 | Riassegnazione | Cambiare il **solo esecutore** su un intervento vecchio e non eseguito è sempre concesso: la finestra vincola chi SCEGLIE un giorno, non chi lo eredita |
+| 26 | Riga a metà | Solo esecutore o sola data si scrivono come **appunto** su `acea_ordini`; il motore rapportini si rifiuta di generare un giorno che ne contiene, finché non lo si conferma |
+| 27 | Colonne ACEA | «Operatore ACEA» e «Esecuzione ACEA» sono **predefinite**: senza, un ordine chiuso da ACEA e mai pianificato da noi sembrava un import mancato |
 
 ---
 
@@ -302,22 +306,62 @@ evidenziate e conteggio in barra — mentre il cursore è un contorno su una cel
 
 ### Finestra di programmazione e operatori assegnabili
 
-Si programma per **oggi e il prossimo giorno lavorativo**, e per nessun altro giorno: di venerdì,
-sabato e domenica il secondo giorno è il lunedì. Il campo data libero è sostituito da un menu di due
-voci, e la finestra è applicata anche sul server (`/api/acea/pianifica` e `/api/acea/celle`) —
-altrimenti basterebbe un incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste
-per rendere comodo.
+Si programma per **oggi e il prossimo giorno lavorativo**, e per nessun altro giorno. Il **sabato è
+lavorativo**, la domenica no: da giovedì si arriva a venerdì, da venerdì a sabato, da sabato e da
+domenica a lunedì. Il campo data libero è sostituito da un menu di due voci, e la finestra è
+applicata anche sul server (`/api/acea/pianifica` e `/api/acea/celle`) — altrimenti basterebbe un
+incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste per rendere comodo.
 
-Gli operatori proponibili sono quelli **in cronoprogramma** per il giorno scelto, non l'anagrafica
-del personale: sono le persone che quel giorno ci sono davvero. Si sottraggono chi è a tabellone con
-un'attività di tipo assenza e chi ha un'assenza **intera** in `disponibilita_operatore` — le assenze
-parziali no, chi c'è mezza giornata un ordine lo può fare. Accanto al nome compare il territorio del
-tabellone, perché il primo passo della mattina è «assegnazione in base all'operatore più vicino».
+**Venerdì e sabato passano solo le attivazioni** — riaperture `RIAT`/`REVO`, quelle col cardine
+contrattuale a un giorno. Il resto del dunning e le massive aspettano il lunedì. La regola vive in
+`giorniProgrammabili.soloAttivazioni` e diventa un motivo di salto di `pianoPianificazione`, così
+la barra in blocco e l'incolla in griglia non possono divergere. La barra lo dice **prima** di
+premere: senza, il venerdì si selezionavano quaranta righe e ne passavano tre, e l'esito sembrava
+un guasto.
 
-Se il tabellone di quel giorno è vuoto, il menu lo dice e rimanda al Cronoprogramma invece di
-mostrare un elenco vuoto senza spiegazione; e un nome incollato che esiste ma non è a tabellone
-viene rifiutato con «non è in cronoprogramma per <giorno>», non con «operatore non trovato» — sono
-due problemi diversi e si risolvono in due posti diversi.
+Gli operatori proponibili **nel menu** sono quelli in cronoprogramma per il giorno scelto, non
+l'anagrafica del personale: sono le persone che quel giorno ci sono davvero. Si sottraggono chi è a
+tabellone con un'attività di tipo assenza e chi ha un'assenza **intera** in
+`disponibilita_operatore` — le assenze parziali no, chi c'è mezza giornata un ordine lo può fare.
+Accanto al nome compare il territorio del tabellone, perché il primo passo della mattina è
+«assegnazione in base all'operatore più vicino». Se il tabellone di quel giorno è vuoto, il menu lo
+dice e rimanda al Cronoprogramma.
+
+**In griglia il vincolo è più largo, ed è voluto.** Un nome incollato si risolve su tutti gli
+operatori attivi, e il cronoprogramma lo controlla il server — che è l'unico a sapere su quale data
+la riga andrà a finire. La distinzione che conta è fra *scegliere* un giorno e *ereditarlo*:
+riscrivere la data significa sottostare alla finestra e al tabellone, cambiare il **solo esecutore**
+di un intervento vecchio e non eseguito no. Senza questa distinzione un lavoro rimasto indietro non
+si poteva più riassegnare senza prima spostarlo, cioè senza cambiare anche quando.
+
+### La riga a metà: l'appunto
+
+Un intervento richiede sempre operatore **e** giorno (`interventi.data` è NOT NULL, e senza
+`staff_id` non c'è nessuno a cui mandare il rapportino). Scrivere una sola delle due celle veniva
+quindi rifiutato — e chi stava pianificando perdeva l'annotazione: sapeva già a chi darlo, non
+ancora quando.
+
+Ora la mezza pianificazione si scrive come **appunto** su `acea_ordini.pianificato_*_bozza`, dove
+sta già `note` e per lo stesso motivo: deve poter esistere prima dell'intervento. Non è una seconda
+fonte di verità — l'intervento vince sempre, l'appunto compare solo dove l'intervento non c'è, e nel
+momento in cui la coppia si completa l'appunto viene cancellato. In tabella le due celle si
+disegnano in corsivo su `--status-warn`, col motivo nel tooltip: un valore che *sembra* una
+pianificazione e non genera nessun rapportino è peggio di una cella vuota, perché la vuota si nota.
+
+La rete sta nel motore rapportini: un giorno che contiene righe con la data ma senza esecutore
+**non si genera** (409) finché non lo si conferma esplicitamente, con l'elenco degli ODL. Le righe
+col solo esecutore non appartengono a nessun giorno e non possono bloccarne uno: si contano e si
+dicono come avviso.
+
+### Le colonne di ACEA, accanto alle nostre
+
+«Esecutore» e «Data pianificata» vengono da `interventi`: sono chi ci abbiamo mandato **noi**. Su un
+ordine che ACEA ha chiuso senza passare dalla nostra pianificazione restano vuote per costruzione, e
+la riga si legge come un import che non ha caricato niente — è successo davvero, su un export di
+riaperture tutte «completato». Il dato ACEA c'era da sempre nel registro (`Cognome C.I.D.`,
+`Nome C.I.D.`, `Data Completamento`): non aveva una cella dove farsi vedere. Da qui **«Operatore
+ACEA» e «Esecuzione ACEA» sono predefinite**, subito dopo le nostre; e nella vista massive
+`pianificato_il` smette di chiamarsi «Data esecuzione», che era il nome della colonna sbagliata.
 
 Design: sistema esistente (`DESIGN.md`), nessuno stile proprio.
 

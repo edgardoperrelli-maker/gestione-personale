@@ -8,7 +8,10 @@ import {
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
 import { incollaSuRighe, testoRighe } from '@/lib/acea/righeAppunti';
-import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
+import {
+  MOTIVO_SOLO_ATTIVAZIONI, type GiornoProgrammabile,
+} from '@/lib/acea/giorniProgrammabili';
+import { eRiapertura } from '@/lib/acea/scadenza';
 import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
 
 export type Operatore = {
@@ -37,18 +40,15 @@ export type ValoreLocale = {
 type Props = {
   righe: RigaTabella[];
   /**
-   * Operatori ASSEGNABILI: quelli in cronoprogramma nella finestra programmabile, non l'anagrafica.
+   * Operatori su cui si risolve un nome incollato: gli ATTIVI, non quelli in cronoprogramma.
    *
-   * L'elenco completo degli attivi conteneva anche chi e` in ferie e chi sta su un'altra commessa:
-   * un nome incollato veniva accettato anche se quel giorno la persona non c'era.
+   * Il vincolo «dev'essere in tabellone quel giorno» dipende dalla data su cui la riga andra` a
+   * finire, che qui non si conosce — e imporlo avrebbe impedito di riassegnare un intervento
+   * vecchio e non eseguito senza spostarlo di data. Lo applica il server, che la data ce l'ha. Il
+   * menu della barra azioni resta invece limitato al cronoprogramma: li` il giorno si sceglie.
    */
   operatori: Operatore[];
-  /**
-   * Tutti gli operatori attivi, solo per DISTINGUERE i rifiuti: un nome giusto di chi non e` in
-   * tabellone non e` un refuso, ed e` un problema che si risolve nel Cronoprogramma.
-   */
-  operatoriTutti?: Operatore[];
-  /** Finestra programmabile (oggi + prossimo feriale): una data fuori finestra viene rifiutata. */
+  /** Finestra programmabile (oggi + prossimo lavorativo): una data fuori finestra viene rifiutata. */
   giorni?: GiornoProgrammabile[];
   /**
    * Le colonne A SCHERMO, nell'ordine in cui si vedono.
@@ -92,7 +92,7 @@ type Props = {
  * ogni cella è una chiamata di rete che può fallire, e l'utente deve vedere cosa non è passato.
  */
 export function useEditingGriglia({
-  righe, operatori, operatoriTutti, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo,
+  righe, operatori, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo,
 }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
@@ -142,20 +142,11 @@ export function useEditingGriglia({
     return r ? `${r.odl}|${r.numero_operazione}` : null;
   }, []);
 
-  /**
-   * Chi si puo` nominare, e come si dice di no a chi non si puo`.
-   *
-   * L'elenco assegnabile e` l'UNIONE dei giorni della finestra, non il solo giorno scelto: un
-   * incolla puo` portare due date diverse nella stessa colonna, e rifiutare lato client il nome
-   * giusto dell'altro giorno sarebbe un falso allarme. Il controllo giorno per giorno lo fa il
-   * server, che e` l'unico a saperlo per certo.
-   */
-  const fuoriCrono = useMemo(() => {
-    if (!operatoriTutti || operatoriTutti.length === 0 || !giorni || giorni.length === 0) {
-      return undefined;
-    }
-    return { operatori: operatoriTutti, giorno: giorni.map((g) => g.esteso).join(' né per ') };
-  }, [operatoriTutti, giorni]);
+  /** I giorni della finestra che accettano solo attivazioni: venerdì e sabato. */
+  const giorniSoloAttivazioni = useMemo(
+    () => new Set((giorni ?? []).filter((g) => g.soloAttivazioni).map((g) => g.data)),
+    [giorni],
+  );
 
   /** Applica le scritture: valida, mostra subito, poi salva. */
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
@@ -184,7 +175,7 @@ export function useEditingGriglia({
         perChiave.set(chiave, { ...perChiave.get(chiave), nota: testo });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), note: testo });
       } else if (colonna === 'pianificato_a') {
-        const e = validaOperatore(s.valore, operatori, fuoriCrono);
+        const e = validaOperatore(s.valore, operatori);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
         perChiave.set(chiave, { ...perChiave.get(chiave), staffId: e.valore });
@@ -194,6 +185,21 @@ export function useEditingGriglia({
         const e = validaData(s.valore, giorni);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
+        /*
+          Venerdì e sabato passano solo le ATTIVAZIONI.
+
+          Il controllo si fa qui e non solo sul server perché su un incolla da Excel di duecento
+          righe il server ne rifiuterebbe centonovanta, e l'esito sarebbe un elenco di rifiuti da
+          leggere invece di una riga che dice cosa non va. Il codice SLA sta già nella riga: è la
+          stessa definizione che decide la scadenza a un giorno (`eRiapertura`), non una copia.
+        */
+        if (giorniSoloAttivazioni.has(e.valore)) {
+          const riga = righeRef.current[s.riga];
+          if (!eRiapertura(riga?.codice_sla)) {
+            errori.push(MOTIVO_SOLO_ATTIVAZIONI);
+            continue;
+          }
+        }
         perChiave.set(chiave, { ...perChiave.get(chiave), data: e.valore });
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), pianificato_il: e.valore });
       }
@@ -223,7 +229,7 @@ export function useEditingGriglia({
       });
       const body = (await res.json()) as {
         operazioneId: string | null; creati: number; aggiornati: number;
-        rifiutate: Array<{ chiave: string; motivo: string }>; error?: string;
+        rifiutate: Array<{ chiave: string; motivo: string }>; bozze?: number; error?: string;
       };
       if (!res.ok) {
         setLocali(precedenti);   // rollback: il valore torna com'era
@@ -232,6 +238,21 @@ export function useEditingGriglia({
       }
       const tot = body.creati + body.aggiornati;
       if (tot > 0) toast.success(`${tot} ${tot === 1 ? 'riga aggiornata' : 'righe aggiornate'}`);
+      /*
+        Le righe rimaste a metà si dicono a parte, e si dice cosa comporta.
+
+        Sono scritte — non si è perso niente — ma non sono ancora lavoro: senza l'altra metà non
+        esiste l'intervento, quindi non esiste il rapportino. Contarle insieme alle «righe
+        aggiornate» le farebbe passare per pianificazione fatta.
+      */
+      const meta = body.bozze ?? 0;
+      if (meta > 0) {
+        toast.info(
+          meta === 1
+            ? '1 riga salvata a metà: senza esecutore e data non genera il rapportino.'
+            : `${meta} righe salvate a metà: senza esecutore e data non generano il rapportino.`,
+        );
+      }
       if (body.rifiutate.length > 0) {
         const primi = body.rifiutate.slice(0, 2).map((r) => `${r.chiave.split('|')[0]} (${r.motivo})`);
         toast.info(
@@ -247,7 +268,7 @@ export function useEditingGriglia({
     } finally {
       setSalvando(false);
     }
-  }, [locali, operatori, fuoriCrono, giorni, chiaveDi, onSalvato, editabile]);
+  }, [locali, operatori, giorni, giorniSoloAttivazioni, chiaveDi, onSalvato, editabile]);
 
   /**
    * Il testo di una cella come esce negli appunti.

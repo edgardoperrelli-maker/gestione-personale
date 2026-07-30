@@ -473,6 +473,17 @@ export default function TabellaOrdini({
                     // riga. Si smorza invece di marcare il numero: chi legge «162» deve poterlo
                     // dettare com'e`, ma chi ci monta sopra un giro deve vedere che e` una stima.
                     const gruppoStimato = c.chiave === 'gruppo' && r.microarea_stimata === true;
+                    /*
+                      Pianificazione a metà: c'è l'esecutore o la data, non entrambi.
+
+                      Il valore si mostra — è stato scritto, e mostrarlo è tutto il senso di poterlo
+                      scrivere — ma smorzato, perché una cella che sembra una pianificazione e non
+                      genera nessun rapportino è peggio di una cella vuota: la vuota si nota, questa
+                      no. Stesso canale del gruppo stimato: lo stile dice «attenzione», il dato resta
+                      leggibile e copiabile com'è.
+                    */
+                    const aMeta = r.pianificazione_parziale === true
+                      && (c.chiave === 'pianificato_a' || c.chiave === 'pianificato_il');
                     const inFocus =
                       iEdit !== null && editing?.focus?.riga === vi.index && editing.focus.colonna === iEdit;
                     const inSelezione =
@@ -497,7 +508,10 @@ export default function TabellaOrdini({
                           gruppoStimato
                             ? `Gruppo ${testo} stimato dal ${r.comune?.toUpperCase() === 'ROMA' ? 'CAP' : 'comune'}: `
                               + 'questo ordine non e` ancora geocodificato, quindi la zona e` approssimata.'
-                            : testo
+                            : aMeta
+                              ? 'Pianificazione a meta`: manca l\'altra fra esecutore e data. '
+                                + 'Finche` non ci sono entrambe questa riga non genera nessun rapportino.'
+                              : testo
                         }
                         onMouseDown={
                           iEdit === null
@@ -521,7 +535,7 @@ export default function TabellaOrdini({
                             : ''
                         } ${locale ? 'italic' : ''} ${
                           gruppoStimato ? 'italic text-[var(--brand-text-muted)]' : ''
-                        }`}
+                        } ${aMeta ? 'italic text-[var(--status-warn)]' : ''}`}
                       >
                         {c.chiave === 'matricola' && r.sospetto_troncamento && (
                           <>

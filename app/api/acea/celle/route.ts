@@ -9,6 +9,8 @@ import { caricaTassonomia } from '@/lib/attivita/caricaTassonomia';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
 import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
+import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 
 export const runtime = 'nodejs';
@@ -76,21 +78,24 @@ export async function POST(req: Request) {
     // vuota che comparirebbe nello storico come se avesse spostato qualcosa.
     if (lista.every((m) => m.staffId === undefined && m.data === undefined)) {
       return NextResponse.json({
-        operazioneId: null, creati: 0, aggiornati: noteScritte, rifiutate: [],
+        operazioneId: null, creati: 0, aggiornati: noteScritte, rifiutate: [], bozze: 0,
       });
     }
 
     // Registro e interventi correnti: si decide sul dato del server, non su quello del client.
     const ordiniPerChiave = new Map<string, OrdineDaPianificare>();
+    /** Appunti già presenti sulla riga: `pianificato_*_bozza`, la mezza pianificazione. */
+    const bozzePerChiave = new Map<string, { staffId: string | null; data: string | null }>();
     for (let i = 0; i < odlTutti.length; i += 200) {
       const blocco = odlTutti.slice(i, i + 200);
       const { data: righe, error } = await supabaseAdmin
         .from('acea_ordini')
-        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola')
+        .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla, pianificato_a_bozza, pianificato_il_bozza')
         .in('odl', blocco);
       if (error) throw error;
       for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
-        ordiniPerChiave.set(`${String(r.odl)}|${String(r.numero_operazione)}`, {
+        const chiave = `${String(r.odl)}|${String(r.numero_operazione)}`;
+        ordiniPerChiave.set(chiave, {
           odl: String(r.odl),
           numero_operazione: String(r.numero_operazione),
           ordine_id: (r.id as string | null) ?? null,
@@ -101,6 +106,11 @@ export async function POST(req: Request) {
           civico: (r.civico as string | null) ?? null,
           cap: (r.cap as string | null) ?? null,
           matricola: (r.matricola as string | null) ?? null,
+          riapertura: eRiapertura(r.codice_sla as string | null),
+        });
+        bozzePerChiave.set(chiave, {
+          staffId: (r.pianificato_a_bozza as string | null) ?? null,
+          data: (r.pianificato_il_bozza as string | null) ?? null,
         });
       }
     }
@@ -144,22 +154,35 @@ export async function POST(req: Request) {
 
       Serve a chiedere la finestra e il cronoprogramma una volta sola invece che riga per riga —
       un incolla può portare centinaia di righe, e un controllo dentro il ciclo sarebbe una lettura
-      del tabellone per ciascuna. Si controlla lo stato FINALE e non solo ciò che è stato scritto:
-      cambiare il solo esecutore su una riga pianificata la settimana scorsa la lascerebbe altrimenti
-      fuori finestra, ed è proprio la scrittura che questa regola vuole impedire.
+      del tabellone per ciascuna.
+
+      `dataScritta` distingue i due gesti che qui si somigliano. Scegliere un giorno significa
+      sottostare alla finestra e al tabellone di quel giorno; cambiare il solo esecutore di un
+      intervento vecchio e non eseguito no — la data non la si sta scegliendo, la si eredita, e il
+      cronoprogramma di un giorno passato non ha nessuna autorità su chi ci va adesso.
     */
-    const finali = new Map<string, { data: string; staffId: string }>();
+    type StatoFinale = { data: string; staffId: string; dataScritta: boolean };
+    const finali = new Map<string, StatoFinale>();
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
       if (!ordine) continue;
       const aperti = (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato !== 'annullato');
       const corrente = [...aperti].sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
-      const data = m.data ?? corrente?.data ?? null;
-      const staffId = m.staffId ?? corrente?.staff_id ?? null;
-      if (data && staffId) finali.set(m.chiave, { data, staffId });
+      const bozza = bozzePerChiave.get(m.chiave);
+      const data = m.data ?? corrente?.data ?? bozza?.data ?? null;
+      const staffId = m.staffId ?? corrente?.staff_id ?? bozza?.staffId ?? null;
+      if (!data || !staffId) continue;
+      // Senza un intervento esistente il giorno lo si sta SCEGLIENDO adesso, che arrivi
+      // dall'incolla o da un appunto lasciato prima: in entrambi i casi la finestra vale.
+      finali.set(m.chiave, { data, staffId, dataScritta: m.data !== undefined || corrente === null });
     }
     const oggi = partiRoma(new Date()).oggi;
     const motiviFinestra = await controllaAssegnazioni([...finali.values()], oggi);
+
+    /** Righe rimaste a metà: si scrivono come APPUNTO, non come intervento. */
+    const appunti: Array<{ chiave: string; staffId?: string | null; data?: string | null }> = [];
+    /** Righe completate ora: l'appunto ha esaurito il suo compito e va tolto. */
+    const appuntiDaPulire: string[] = [];
 
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
@@ -171,9 +194,19 @@ export async function POST(req: Request) {
 
       const finale = finali.get(m.chiave);
       if (!finale) {
-        // Una cella sola su una riga mai pianificata non basta a creare l'intervento: servono
-        // entrambi. Non è un errore, è una riga incompleta — si dice e si va avanti.
-        rifiutate.push({ chiave: m.chiave, motivo: 'servono sia operatore sia data' });
+        /*
+          Una cella sola su una riga mai pianificata non basta a creare l'intervento — `data` è
+          NOT NULL e senza operatore non c'è nessuno a cui mandare il rapportino — ma non è più un
+          rifiuto: si scrive come APPUNTO su `acea_ordini`, e la riga resta in tabella con il
+          valore in corsivo. Prima si perdeva: chi sapeva già a chi darlo, ma non ancora quando,
+          si vedeva rifiutare la scrittura e riscriveva a mano su un foglio.
+
+          La rete che lo rende sicuro sta nel motore rapportini: un giorno con righe a metà si
+          rifiuta di generare finché non lo si conferma.
+        */
+        if (m.staffId !== undefined || m.data !== undefined) {
+          appunti.push({ chiave: m.chiave, staffId: m.staffId, data: m.data });
+        }
         continue;
       }
       const { data: dataFinale, staffId: staffFinale } = finale;
@@ -192,6 +225,7 @@ export async function POST(req: Request) {
         ),
         data: dataFinale,
         staffId: staffFinale,
+        soloAttivazioni: soloAttivazioni(dataFinale),
       });
       const azione = piano.azioni[0];
       if (!azione) continue;                                   // già così: nulla da fare
@@ -200,10 +234,16 @@ export async function POST(req: Request) {
           chiave: m.chiave,
           motivo: azione.motivo === 'ordine_chiuso'
             ? 'ordine già chiuso su ACEA'
-            : 'intervento già completato',
+            : azione.motivo === 'solo_attivazioni'
+              ? MOTIVO_SOLO_ATTIVAZIONI
+              : 'intervento già completato',
         });
         continue;
       }
+
+      // Da qui in giù la riga diventa un intervento vero: l'appunto, se c'era, ha finito.
+      const bozza = bozzePerChiave.get(m.chiave);
+      if (bozza && (bozza.staffId || bozza.data)) appuntiDaPulire.push(m.chiave);
 
       if (azione.tipo === 'aggiorna') {
         const { error } = await supabaseAdmin
@@ -247,6 +287,40 @@ export async function POST(req: Request) {
       });
     }
 
+    /*
+      Gli appunti, dopo gli interventi.
+
+      Dopo, e non dentro il ciclo, per una ragione sola: una riga può prima ricevere un appunto e
+      poi essere completata dallo stesso incolla (si incollano esecutore e data insieme). Scrivendo
+      man mano, l'appunto sarebbe finito su una riga che nel frattempo è diventata un intervento —
+      e sarebbe rimasto lì a far bloccare i rapportini per una riga a posto.
+    */
+    let bozze = 0;
+    for (const a of appunti) {
+      const [odl, operazione] = a.chiave.split('|');
+      const patch: Record<string, string | null> = {};
+      if (a.staffId !== undefined) patch.pianificato_a_bozza = a.staffId || null;
+      if (a.data !== undefined) patch.pianificato_il_bozza = a.data || null;
+      if (Object.keys(patch).length === 0) continue;
+      const { error } = await supabaseAdmin
+        .from('acea_ordini')
+        .update(patch)
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione);
+      if (error) throw error;
+      bozze += 1;
+    }
+
+    for (const chiave of appuntiDaPulire) {
+      const [odl, operazione] = chiave.split('|');
+      const { error } = await supabaseAdmin
+        .from('acea_ordini')
+        .update({ pianificato_a_bozza: null, pianificato_il_bozza: null })
+        .eq('odl', odl)
+        .eq('numero_operazione', operazione);
+      if (error) throw error;
+    }
+
     let operazioneId: string | null = null;
     if (azioniLog.length > 0) {
       const { data: op, error } = await supabaseAdmin
@@ -263,7 +337,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json(
-      { operazioneId, creati, aggiornati, rifiutate },
+      { operazioneId, creati, aggiornati, rifiutate, bozze },
       { headers: { 'Cache-Control': 'no-store' } },
     );
   } catch (e) {

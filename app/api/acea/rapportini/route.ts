@@ -12,6 +12,8 @@ type Corpo = {
   staffIds?: string[];
   /** Riapre i rapportini già consegnati che devono ricevere voci nuove. */
   confermaRiaperture?: boolean;
+  /** Genera comunque, pur essendoci righe pianificate a metà per quel giorno. */
+  confermaIncomplete?: boolean;
 };
 
 /**
@@ -41,10 +43,16 @@ export async function POST(req: Request) {
       attoreId: auth.user.id,
       staffIds,
       confermaRiaperture: corpo.confermaRiaperture === true,
+      confermaIncomplete: corpo.confermaIncomplete === true,
     });
 
     if (!esito.ok) {
-      return NextResponse.json({ error: esito.error }, { status: esito.status });
+      // `incomplete` esce solo sul 409 delle righe a metà: la UI ne fa l'elenco da mostrare
+      // prima di chiedere se generare lo stesso.
+      return NextResponse.json(
+        { error: esito.error, incomplete: esito.incomplete },
+        { status: esito.status },
+      );
     }
     return NextResponse.json(
       { esiti: esito.esiti, avvisi: esito.avvisi, riepilogo: riepilogoEsiti(esito.esiti) },

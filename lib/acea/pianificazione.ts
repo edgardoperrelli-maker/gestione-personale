@@ -17,6 +17,15 @@ export type OrdineDaPianificare = {
   civico: string | null;
   cap: string | null;
   matricola: string | null;
+  /**
+   * `true` se l'ordine è un'attivazione (riapertura `RIAT`/`REVO`).
+   *
+   * Serve al venerdì e al sabato, che accettano solo quelle. Passata come booleano già deciso e
+   * non come codice SLA: la definizione di «riapertura» sta in `scadenza.ts` (`eRiapertura`) ed è
+   * la stessa che decide la scadenza a un giorno — averne due copie significherebbe poterle far
+   * divergere, e la seconda si accorgerebbe con settimane di ritardo.
+   */
+  riapertura?: boolean;
 };
 
 /** Intervento già esistente sullo stesso ODL (qualunque data). */
@@ -28,7 +37,7 @@ export type InterventoEsistente = {
   stato: string;
 };
 
-export type MotivoSalto = 'ordine_chiuso' | 'gia_completato';
+export type MotivoSalto = 'ordine_chiuso' | 'gia_completato' | 'solo_attivazioni';
 
 export type AzionePianifica =
   | { tipo: 'crea'; ordine: OrdineDaPianificare }
@@ -56,6 +65,8 @@ export type ArgomentiPianifica = {
   /** Giorno di lavoro assegnato, 'YYYY-MM-DD'. */
   data: string;
   staffId: string;
+  /** `true` se quel giorno accetta solo attivazioni (venerdì e sabato). */
+  soloAttivazioni?: boolean;
 };
 
 /**
@@ -67,10 +78,12 @@ export type ArgomentiPianifica = {
  *    `spostamento_completato` nel motore rapportini: il lavoro registrato non si tocca;
  *  - un ODL con un intervento aperto viene SPOSTATO (data e operatore), non duplicato: due
  *    interventi sullo stesso ODL violerebbero l'unique `(committente, odl, data)` e, peggio,
- *    manderebbero due squadre allo stesso indirizzo.
+ *    manderebbero due squadre allo stesso indirizzo;
+ *  - il venerdì e il sabato passano solo le ATTIVAZIONI: hanno un giorno di cardine contrattuale
+ *    e non possono aspettare il lunedì, mentre il resto del dunning e le massive sì.
  */
 export function pianoPianificazione({
-  ordini, esistenti, data, staffId,
+  ordini, esistenti, data, staffId, soloAttivazioni = false,
 }: ArgomentiPianifica): PianoPianificazione {
   const perOdl = new Map<string, InterventoEsistente[]>();
   for (const i of esistenti) {
@@ -83,6 +96,12 @@ export function pianoPianificazione({
   for (const o of ordini) {
     if (!o.aperto) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'ordine_chiuso' });
+      continue;
+    }
+    // Prima di guardare gli interventi: su un giorno di sole attivazioni una limitazione non ci
+    // va, nemmeno per SPOSTARCI un intervento che esiste già.
+    if (soloAttivazioni && o.riapertura !== true) {
+      azioni.push({ tipo: 'salta', ordine: o, motivo: 'solo_attivazioni' });
       continue;
     }
     const suOdl = perOdl.get(o.odl) ?? [];
@@ -119,7 +138,7 @@ export function pianoPianificazione({
 
 /** Etichetta leggibile del motivo di salto, per il messaggio all'utente. */
 export function etichettaMotivo(m: MotivoSalto): string {
-  return m === 'ordine_chiuso'
-    ? 'ordine già chiuso su ACEA'
-    : 'intervento già completato: non si sposta';
+  if (m === 'ordine_chiuso') return 'ordine già chiuso su ACEA';
+  if (m === 'solo_attivazioni') return 'non è un’attivazione: venerdì e sabato passano solo quelle';
+  return 'intervento già completato: non si sposta';
 }

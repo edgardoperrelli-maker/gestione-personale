@@ -23,6 +23,15 @@ describe('definizione colonne', () => {
     expect(pred).toEqual([
       'odl', 'attivita', 'matricola', 'indirizzo', 'comune', 'cap', 'gruppo', 'stato',
       'data_creazione', 'scadenza', 'pianificato_a', 'pianificato_il',
+      /*
+        Le due di ACEA sono a vista, e non è un ripensamento estetico.
+
+        `pianificato_a`/`pianificato_il` sono NOSTRE: vengono da `interventi`, cioè da chi ci
+        abbiamo mandato noi. Su un ordine che ACEA ha chiuso senza passare dalla nostra
+        pianificazione restano vuote per costruzione, e la riga si legge come un import che non ha
+        caricato niente — è successo davvero, su un export di riaperture tutte «completato».
+      */
+      'operatore_cognome', 'data_completamento',
       // La nota dell'ufficio: si scrive qui e arriva all'operatore nel rapportino.
       'note',
     ]);

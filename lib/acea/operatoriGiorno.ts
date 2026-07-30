@@ -115,8 +115,24 @@ export async function finestraProgrammabile(oggi: string): Promise<GiornoConOper
   return giorni.map((g) => ({ ...g, operatori: perGiorno.get(g.data) ?? [] }));
 }
 
+export type AssegnazioneDaControllare = {
+  data: string;
+  staffId: string;
+  /**
+   * `true` se la DATA viene scritta adesso. `false` se si sta cambiando il solo esecutore su una
+   * riga che la data ce l'aveva già.
+   *
+   * La distinzione è tutta la regola. Scegliere un giorno significa sottostare alla finestra e al
+   * tabellone di quel giorno. Cambiare l'esecutore di un intervento vecchio e non eseguito non è
+   * la stessa cosa: la data non la si sta scegliendo, e il cronoprogramma di un giorno passato non
+   * ha nessuna autorità su chi ci va adesso. Senza questa distinzione un lavoro rimasto indietro
+   * non si poteva più riassegnare senza prima spostarlo.
+   */
+  dataScritta: boolean;
+};
+
 /**
- * Motivo del rifiuto di una coppia (giorno, operatore), o `null` se si può scrivere.
+ * Motivo del rifiuto di un'assegnazione, o assente se si può scrivere. Chiave `${data}|${staffId}`.
  *
  * Sta sul SERVER e non solo nel menu perché una regola applicata alla sola UI è decorativa: la
  * griglia accetta un incolla da Excel, e senza questo controllo un blocco incollato scriverebbe
@@ -124,32 +140,39 @@ export async function finestraProgrammabile(oggi: string): Promise<GiornoConOper
  * passano entrambe di qui, così non possono divergere.
  */
 export async function controllaAssegnazioni(
-  coppie: readonly { data: string; staffId: string }[],
+  assegnazioni: readonly AssegnazioneDaControllare[],
   oggi: string,
 ): Promise<Map<string, string>> {
   const motivi = new Map<string, string>();
-  if (coppie.length === 0) return motivi;
+  if (assegnazioni.length === 0) return motivi;
 
   const ammessi = new Set(giorniProgrammabili(oggi).map((g) => g.data));
-  const dateDaLeggere = [...new Set(coppie.map((c) => c.data))].filter((d) => ammessi.has(d));
+  /*
+    Il tabellone si legge solo per i giorni su cui si sta davvero scegliendo.
+
+    Una data fuori finestra che NON viene scritta (si cambia il solo esecutore su un intervento
+    vecchio) passa senza controlli: non si sta decidendo quel giorno, lo si sta ereditando.
+  */
+  const daControllare = assegnazioni.filter((a) => a.dataScritta || ammessi.has(a.data));
+  const dateDaLeggere = [...new Set(daControllare.map((a) => a.data))].filter((d) => ammessi.has(d));
   const perGiorno = dateDaLeggere.length > 0
     ? await operatoriPerGiorno(dateDaLeggere)
     : new Map<string, OperatoreGiorno[]>();
 
-  for (const c of coppie) {
-    const chiave = `${c.data}|${c.staffId}`;
+  for (const a of daControllare) {
+    const chiave = `${a.data}|${a.staffId}`;
     if (motivi.has(chiave)) continue;
-    if (!ammessi.has(c.data)) {
-      motivi.set(chiave, `${giornoEsteso(c.data)} è fuori finestra: ${spiegaFinestra(oggi)}`);
+    if (!ammessi.has(a.data)) {
+      motivi.set(chiave, `${giornoEsteso(a.data)} è fuori finestra: ${spiegaFinestra(oggi)}`);
       continue;
     }
-    const lista = perGiorno.get(c.data) ?? [];
-    if (!lista.some((o) => o.id === c.staffId)) {
+    const lista = perGiorno.get(a.data) ?? [];
+    if (!lista.some((o) => o.id === a.staffId)) {
       motivi.set(
         chiave,
         lista.length === 0
-          ? `nessun operatore in cronoprogramma per ${giornoEsteso(c.data)}`
-          : `operatore non in cronoprogramma per ${giornoEsteso(c.data)}`,
+          ? `nessun operatore in cronoprogramma per ${giornoEsteso(a.data)}`
+          : `operatore non in cronoprogramma per ${giornoEsteso(a.data)}`,
       );
     }
   }

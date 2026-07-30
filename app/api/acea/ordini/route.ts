@@ -32,6 +32,13 @@ const COLONNE = [
   'impianto', 'matricola', 'matricola_norm', 'sospetto_troncamento',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
+  // L'esecutore e la data di ACEA: sono nel registro dall'inizio, ma senza queste due qui non
+  // arrivavano in tabella — e le colonne «Esecutore»/«Data pianificata» sono le NOSTRE, quindi
+  // su un ordine chiuso da ACEA e mai pianificato da noi restavano vuote. Sembrava un import
+  // che non aveva caricato niente.
+  'operatore_nome', 'data_completamento',
+  // Pianificazione a metà: l'appunto scritto prima che la coppia si completi.
+  'pianificato_a_bozza', 'pianificato_il_bozza',
 ].join(', ');
 
 type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: string };
@@ -438,8 +445,12 @@ export async function GET(req: Request) {
       return new Map<string, Sostituzione>();
     });
 
-    // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella.
-    const staffIds = [...new Set([...pianificazione.values()].map((p) => p.staff_id).filter(Boolean))] as string[];
+    // Nomi operatore: staff_id → display_name, per non mostrare uuid in tabella. Anche quelli
+    // degli APPUNTI: una riga a metà mostra il nome scelto, non l'uuid con cui è memorizzato.
+    const staffIds = [...new Set([
+      ...[...pianificazione.values()].map((p) => p.staff_id),
+      ...righe.map((r) => r.pianificato_a_bozza as string | null),
+    ].filter(Boolean))] as string[];
     const nomi = new Map<string, string>();
     if (staffIds.length > 0) {
       const { data: staff } = await supabaseAdmin.from('staff').select('id, display_name').in('id', staffIds);
@@ -453,6 +464,17 @@ export async function GET(req: Request) {
       const sost = chiaviAggancio({ impianto: r.impianto as string | null, matricola: r.matricola as string | null })
         .map((k) => sostituzioni.get(k))
         .find(Boolean);
+      /*
+        La pianificazione a metà si mostra al posto di quella vera, quando quella vera non c'è.
+
+        Non è una seconda fonte: l'intervento vince SEMPRE. L'appunto compare solo dove
+        l'intervento non esiste ancora, e la riga porta `pianificazione_parziale` perché la
+        tabella lo dica a vista — un valore che sembra una pianificazione ma non genera nessun
+        rapportino è peggio di una cella vuota.
+      */
+      const bozzaStaff = (r.pianificato_a_bozza as string | null) ?? null;
+      const bozzaData = (r.pianificato_il_bozza as string | null) ?? null;
+      const parziale = !p && Boolean(bozzaStaff || bozzaData);
       return {
         ...r,
         saracinesca:
@@ -461,8 +483,11 @@ export async function GET(req: Request) {
             : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
-        pianificato_il: p?.data ?? null,
-        pianificato_a: p?.staff_id ? (nomi.get(p.staff_id) ?? p.staff_id) : null,
+        pianificato_il: p?.data ?? bozzaData,
+        pianificato_a: p?.staff_id
+          ? (nomi.get(p.staff_id) ?? p.staff_id)
+          : (bozzaStaff ? (nomi.get(bozzaStaff) ?? bozzaStaff) : null),
+        pianificazione_parziale: parziale,
         stato_intervento: p?.stato ?? null,
       };
     });

@@ -212,39 +212,17 @@ describe('validaOperatore', () => {
   });
 });
 
-// Da quando gli assegnabili sono i soli operatori in cronoprogramma per il giorno scelto, «non
-// trovato» copriva due problemi diversi: un refuso e un cronoprogramma da compilare. Si risolvono
-// in due posti diversi, quindi vanno detti in due modi diversi.
-describe('validaOperatore — chi non è in cronoprogramma', () => {
-  const inCrono = [{ id: 's1', display_name: 'DE ROSSI ANNA' }];
-  const fuori = {
-    operatori: [
-      { id: 's1', display_name: 'DE ROSSI ANNA' },
-      { id: 's2', display_name: 'BIANCHI LUIGI' },
-    ],
-    giorno: 'giovedì 30/07',
-  };
+// Il vincolo «dev'essere in cronoprogramma quel giorno» NON sta qui, ed è una decisione: dipende
+// dalla data su cui la riga andrà a finire, che in griglia non si conosce. Imporlo qui avrebbe
+// impedito di riassegnare un intervento vecchio e non eseguito senza spostarlo di data.
+describe('validaOperatore — non è la griglia a conoscere il cronoprogramma', () => {
+  const attivi = [
+    { id: 's1', display_name: 'DE ROSSI ANNA' },
+    { id: 's2', display_name: 'BIANCHI LUIGI' },
+  ];
 
-  it('chi è in cronoprogramma si assegna come sempre', () => {
-    expect(validaOperatore('DE ROSSI ANNA', inCrono, fuori)).toEqual({ ok: true, valore: 's1' });
-  });
-
-  it('chi esiste ma non è in cronoprogramma lo dice, con nome e giorno', () => {
-    const e = validaOperatore('BIANCHI LUIGI', inCrono, fuori);
-    expect(e.ok).toBe(false);
-    if (!e.ok) expect(e.motivo).toBe('BIANCHI LUIGI non è in cronoprogramma per giovedì 30/07');
-  });
-
-  it('un nome che non esiste proprio resta «non trovato»', () => {
-    const e = validaOperatore('VERDI', inCrono, fuori);
-    expect(e.ok).toBe(false);
-    if (!e.ok) expect(e.motivo).toMatch(/non trovato/i);
-  });
-
-  it('cronoprogramma vuoto: lo dice, invece di mandare a cercare un refuso', () => {
-    const e = validaOperatore('DE ROSSI ANNA', [], fuori);
-    expect(e.ok).toBe(false);
-    if (!e.ok) expect(e.motivo).toBe('nessun operatore in cronoprogramma per giovedì 30/07');
+  it('accetta qualunque operatore attivo: il giorno lo controlla il server', () => {
+    expect(validaOperatore('BIANCHI LUIGI', attivi)).toEqual({ ok: true, valore: 's2' });
   });
 });
 

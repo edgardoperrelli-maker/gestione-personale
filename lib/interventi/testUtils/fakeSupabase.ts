@@ -5,7 +5,12 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 
 export type Row = Record<string, unknown>;
 export type Tables = Record<string, Row[]>;
-type Filtro = ['eq' | 'neq', string, unknown] | ['in', string, unknown[]];
+type Filtro =
+  | ['eq' | 'neq', string, unknown]
+  | ['in', string, unknown[]]
+  // `is`/`not is` sul null: in PostgREST il null non si confronta con `eq`, e il motore ACEA li usa
+  // per trovare le righe pianificate a metà (`pianificato_*_bozza`).
+  | ['isNull' | 'notNull', string, null];
 
 /** Fake Supabase client: simula le tabelle in memoria con le query chain usate dal motore. */
 export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } = {}): { db: SupabaseClient; tables: Tables } {
@@ -26,6 +31,14 @@ export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } =
     eq(c: string, v: unknown) { this.filters.push(['eq', c, v]); return this; }
     neq(c: string, v: unknown) { this.filters.push(['neq', c, v]); return this; }
     in(c: string, v: unknown[]) { this.filters.push(['in', c, v]); return this; }
+    is(c: string, v: unknown) { this.filters.push(['isNull', c, null]); void v; return this; }
+    not(c: string, op: string, v: unknown) {
+      // Solo `not(col, 'is', null)`: è l'unica forma usata, e accettarne altre in silenzio
+      // renderebbe verde un test che filtra per qualcos'altro.
+      if (op !== 'is' || v !== null) throw new Error(`fakeSupabase: not(${op}) non supportato`);
+      this.filters.push(['notNull', c, null]);
+      return this;
+    }
     update(patch: Row) { this.op = 'update'; this.patch = patch; return this; }
     delete() { this.op = 'delete'; return this; }
 
@@ -34,6 +47,8 @@ export function makeFakeDb(seed: Tables, opts: { failVociInsertOnce?: string } =
       for (const f of this.filters) {
         if (f[0] === 'eq') rows = rows.filter((r) => r[f[1]] === f[2]);
         else if (f[0] === 'neq') rows = rows.filter((r) => r[f[1]] !== f[2]);
+        else if (f[0] === 'isNull') rows = rows.filter((r) => r[f[1]] == null);
+        else if (f[0] === 'notNull') rows = rows.filter((r) => r[f[1]] != null);
         else rows = rows.filter((r) => (f[2] as unknown[]).includes(r[f[1]]));
       }
       return rows;

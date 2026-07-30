@@ -1,45 +1,74 @@
 import { describe, it, expect } from 'vitest';
 import {
-  eDataIso, eProgrammabile, giorniProgrammabili, giornoEsteso, prossimoFeriale, spiegaFinestra,
+  eDataIso, eProgrammabile, giorniProgrammabili, giornoEsteso, prossimoLavorativo,
+  soloAttivazioni, spiegaFinestra,
 } from './giorniProgrammabili';
 
 // Riferimenti fissi (2026): 27/07 lunedì … 31/07 venerdì, 01/08 sabato, 02/08 domenica, 03/08 lunedì.
 
-describe('prossimoFeriale', () => {
+describe('prossimoLavorativo', () => {
   it('da lunedì a giovedì è il giorno dopo', () => {
-    expect(prossimoFeriale('2026-07-27')).toBe('2026-07-28'); // lun → mar
-    expect(prossimoFeriale('2026-07-30')).toBe('2026-07-31'); // gio → ven
+    expect(prossimoLavorativo('2026-07-27')).toBe('2026-07-28'); // lun → mar
+    expect(prossimoLavorativo('2026-07-30')).toBe('2026-07-31'); // gio → ven
   });
 
-  it('da venerdì salta il weekend e arriva a lunedì', () => {
-    expect(prossimoFeriale('2026-07-31')).toBe('2026-08-03');
+  it('il sabato è lavorativo: da venerdì si va a sabato, non a lunedì', () => {
+    expect(prossimoLavorativo('2026-07-31')).toBe('2026-08-01');
   });
 
-  it('da sabato e domenica è comunque lunedì', () => {
-    expect(prossimoFeriale('2026-08-01')).toBe('2026-08-03');
-    expect(prossimoFeriale('2026-08-02')).toBe('2026-08-03');
+  it('solo la domenica non è lavorativa: da sabato e da domenica si arriva a lunedì', () => {
+    expect(prossimoLavorativo('2026-08-01')).toBe('2026-08-03');
+    expect(prossimoLavorativo('2026-08-02')).toBe('2026-08-03');
+  });
+});
+
+describe('soloAttivazioni', () => {
+  it('venerdì e sabato accettano solo riaperture', () => {
+    expect(soloAttivazioni('2026-07-31')).toBe(true); // venerdì
+    expect(soloAttivazioni('2026-08-01')).toBe(true); // sabato
+  });
+
+  it('dal lunedì al giovedì si programma tutto', () => {
+    for (const d of ['2026-07-27', '2026-07-28', '2026-07-29', '2026-07-30']) {
+      expect(soloAttivazioni(d)).toBe(false);
+    }
+  });
+
+  it('una data non valida non è un giorno di sole attivazioni', () => {
+    expect(soloAttivazioni('boh')).toBe(false);
   });
 });
 
 describe('giorniProgrammabili', () => {
-  it('sono sempre due: oggi e il prossimo feriale', () => {
+  it('sono sempre due: oggi e il prossimo lavorativo', () => {
     const g = giorniProgrammabili('2026-07-30');
     expect(g.map((x) => x.data)).toEqual(['2026-07-30', '2026-07-31']);
     expect(g.map((x) => x.etichetta)).toEqual(['Oggi', 'Domani']);
   });
 
-  it('di venerdì il secondo giorno è lunedì, e NON si chiama «Domani»', () => {
-    const g = giorniProgrammabili('2026-07-31');
-    expect(g.map((x) => x.data)).toEqual(['2026-07-31', '2026-08-03']);
-    // Il punto della regola: chiamarlo «Domani» farebbe assegnare al sabato credendo di
-    // assegnare al lunedì.
-    expect(g[1].etichetta).toBe('Lunedì');
-    expect(g[1].esteso).toBe('lunedì 03/08');
+  it('di giovedì il domani è venerdì, e il venerdì è marcato solo-attivazioni', () => {
+    const g = giorniProgrammabili('2026-07-30');
+    expect(g[0].soloAttivazioni).toBe(false);
+    expect(g[1].soloAttivazioni).toBe(true);
   });
 
-  it('nel weekend «oggi» resta programmabile e il secondo giorno è lunedì', () => {
-    expect(giorniProgrammabili('2026-08-01').map((x) => x.data))
-      .toEqual(['2026-08-01', '2026-08-03']);
+  it('di venerdì il secondo giorno è sabato, ed entrambi sono solo-attivazioni', () => {
+    const g = giorniProgrammabili('2026-07-31');
+    expect(g.map((x) => x.data)).toEqual(['2026-07-31', '2026-08-01']);
+    expect(g[1].etichetta).toBe('Domani');
+    expect(g.map((x) => x.soloAttivazioni)).toEqual([true, true]);
+  });
+
+  it('di sabato il secondo giorno è lunedì, e NON si chiama «Domani»', () => {
+    const g = giorniProgrammabili('2026-08-01');
+    expect(g.map((x) => x.data)).toEqual(['2026-08-01', '2026-08-03']);
+    // Chiamarlo «Domani» farebbe assegnare alla domenica credendo di assegnare al lunedì.
+    expect(g[1].etichetta).toBe('Lunedì');
+    expect(g[1].esteso).toBe('lunedì 03/08');
+    expect(g.map((x) => x.soloAttivazioni)).toEqual([true, false]);
+  });
+
+  it('di domenica «oggi» resta programmabile e il secondo giorno è lunedì', () => {
     expect(giorniProgrammabili('2026-08-02').map((x) => x.data))
       .toEqual(['2026-08-02', '2026-08-03']);
   });
@@ -54,11 +83,15 @@ describe('giorniProgrammabili', () => {
 describe('eProgrammabile', () => {
   it('accetta i due giorni della finestra e rifiuta tutto il resto', () => {
     expect(eProgrammabile('2026-07-31', '2026-07-31')).toBe(true);
-    expect(eProgrammabile('2026-08-03', '2026-07-31')).toBe(true);
-    // Il sabato in mezzo NON è programmabile pur essendo "domani".
-    expect(eProgrammabile('2026-08-01', '2026-07-31')).toBe(false);
-    expect(eProgrammabile('2026-07-30', '2026-07-31')).toBe(false); // ieri
+    expect(eProgrammabile('2026-08-01', '2026-07-31')).toBe(true);   // sabato, da venerdì
+    expect(eProgrammabile('2026-08-03', '2026-07-31')).toBe(false);  // lunedì: troppo in là
+    expect(eProgrammabile('2026-07-30', '2026-07-31')).toBe(false);  // ieri
     expect(eProgrammabile('2026-09-15', '2026-07-31')).toBe(false);
+  });
+
+  it('la domenica non è mai programmabile, se non come «oggi»', () => {
+    expect(eProgrammabile('2026-08-02', '2026-08-01')).toBe(false);
+    expect(eProgrammabile('2026-08-02', '2026-08-02')).toBe(true);
   });
 });
 
@@ -74,7 +107,7 @@ describe('etichette', () => {
 
   it('spiegaFinestra nomina entrambi i giorni', () => {
     expect(spiegaFinestra('2026-07-31'))
-      .toBe('si programma solo per venerdì 31/07 o lunedì 03/08');
+      .toBe('si programma solo per venerdì 31/07 o sabato 01/08');
   });
 });
 
