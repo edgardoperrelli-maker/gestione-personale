@@ -37,12 +37,21 @@ describe('costruisciMasterOdl', () => {
     expect(out[0].descrizione).toBe('');
   });
 
-  it('operazioneDefault della fonte riempie SOLO le righe senza operazione propria', () => {
+  it('UNA attività selezionata: riempie SOLO le righe senza operazione propria', () => {
     const out = costruisciMasterOdl([fonte([
       { odl: '1' },
       { odl: '2', operazione: 'Sospensione' },
-    ], { operazioneDefault: 'limitazioni massive' })], index);
+    ], { operazioniDefault: ['limitazioni massive'] })], index);
     expect(out.find((r) => r.odl === '1')?.descrizione).toBe('LIMITAZIONI MASSIVE');
+    expect(out.find((r) => r.odl === '2')?.descrizione).toBe('Sospensione');
+  });
+
+  it('PIÙ attività selezionate: non si può decidere per riga → descrizione vuota (si sceglie in Excel)', () => {
+    const out = costruisciMasterOdl([fonte([
+      { odl: '1' },
+      { odl: '2', operazione: 'Sospensione' }, // la propria operazione vince comunque
+    ], { operazioniDefault: ['LIMITAZIONI MASSIVE', 'Sospensione'] })], index);
+    expect(out.find((r) => r.odl === '1')?.descrizione).toBe('');
     expect(out.find((r) => r.odl === '2')?.descrizione).toBe('Sospensione');
   });
 

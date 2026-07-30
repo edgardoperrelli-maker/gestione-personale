@@ -26,8 +26,11 @@ export type FonteMasterRiga = {
 };
 
 export type FonteMaster = {
-  committente: string;          // per la risoluzione in tassonomia
-  operazioneDefault?: string | null; // applicata alle righe senza operazione propria
+  committente: string; // per la risoluzione in tassonomia
+  /** Attività del master scelte DAL CATALOGO (selezione multipla, admin). Una riga senza
+   *  operazione propria la eredita SOLO se la selezione è UNA: con più attività non si può
+   *  decidere per riga, la descrizione resta da scegliere in Excel (tendina della Leggenda). */
+  operazioniDefault?: string[] | null;
   righe: FonteMasterRiga[];
 };
 
@@ -46,10 +49,12 @@ export function costruisciMasterOdl(
 ): RigaMasterOdl[] {
   const byOdl = new Map<string, RigaMasterOdl>();
   for (const fonte of fonti ?? []) {
+    const defaults = (fonte.operazioniDefault ?? []).map(t).filter(Boolean);
+    const operazioneDefault = defaults.length === 1 ? defaults[0] : '';
     for (const r of fonte.righe ?? []) {
       const odl = t(r.odl);
       if (!isOdlReale(odl)) continue;
-      const operazione = t(r.operazione) || t(fonte.operazioneDefault);
+      const operazione = t(r.operazione) || operazioneDefault;
       const ris = operazione
         ? risolviGruppo(fonte.committente, operazione, index, { allinea: 'scrittura' })
         : null;

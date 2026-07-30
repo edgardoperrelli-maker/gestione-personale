@@ -22,7 +22,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from('template_master')
-    .select('id, nome, committente, attivo, file_nome, operazione_default, righe_totali, created_at, updated_at')
+    .select('id, nome, committente, attivo, file_nome, operazioni_default, righe_totali, created_at, updated_at')
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -45,7 +45,9 @@ export async function GET() {
 }
 
 /**
- * POST: carica un file master (multipart: `file`, `nome?`, `committente?`, `operazione_default?`).
+ * POST: carica un file master (multipart: `file`, `nome?`, `committente?`,
+ * `operazioni_default?` = JSON array di descrizioni DAL CATALOGO tassonomia — mai testo
+ * libero, un refuso creerebbe una descrizione-doppione che l'import poi rifiuta).
  * Le colonne si risolvono per NOME (parseMasterUpload); le righe senza ODL sono scartate.
  * Il master entra ATTIVO: da subito nel foglio MasterODL del template.
  */
@@ -65,7 +67,16 @@ export async function POST(req: Request) {
   }
   const nome = String(form.get('nome') ?? '').trim() || nomeFile.replace(/\.(xlsx|xls|csv)$/i, '');
   const committente = committenteValido(form.get('committente') as string | null);
-  const operazioneDefault = String(form.get('operazione_default') ?? '').trim() || null;
+  let operazioniDefault: string[] | null = null;
+  try {
+    const raw = JSON.parse(String(form.get('operazioni_default') ?? 'null'));
+    if (Array.isArray(raw)) {
+      const pulite = [...new Set(raw.map((x) => String(x ?? '').trim()).filter(Boolean))].slice(0, 50);
+      operazioniDefault = pulite.length > 0 ? pulite : null;
+    }
+  } catch {
+    return NextResponse.json({ error: 'Campo "operazioni_default" non valido (atteso JSON array).' }, { status: 400 });
+  }
 
   // Endpoint admin a basso traffico: file letto in memoria (poche migliaia di righe attese).
   let rows: unknown[][];
@@ -98,7 +109,7 @@ export async function POST(req: Request) {
 
   const { data: master, error: eIns } = await supabaseAdmin
     .from('template_master')
-    .insert({ nome, committente, file_nome: nomeFile, operazione_default: operazioneDefault, righe_totali: parsed.righe.length })
+    .insert({ nome, committente, file_nome: nomeFile, operazioni_default: operazioniDefault, righe_totali: parsed.righe.length })
     .select('id')
     .single();
   if (eIns || !master) return NextResponse.json({ error: eIns?.message ?? 'Insert fallita.' }, { status: 500 });

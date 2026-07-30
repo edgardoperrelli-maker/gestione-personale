@@ -1,6 +1,7 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import MultiSelect from '@/components/ui/MultiSelect';
 
 type MasterRow = {
   id: string;
@@ -8,10 +9,11 @@ type MasterRow = {
   committente: string;
   attivo: boolean;
   file_nome: string | null;
-  operazione_default: string | null;
+  operazioni_default: string[] | null;
   righe_totali: number;
   created_at: string;
 };
+type TassonomiaRiga = { committente: string; descrizione: string; gruppo: string; attivo: boolean };
 type SnapshotInfo = { righe: number; raccolto_at: string | null } | null;
 type Esito = { type: 'ok' | 'err'; msg: string } | null;
 
@@ -27,12 +29,39 @@ const COMMITTENTI = [
 export default function TemplateMasterClient() {
   const [masters, setMasters] = useState<MasterRow[]>([]);
   const [snapshot, setSnapshot] = useState<SnapshotInfo>(null);
+  const [tassonomia, setTassonomia] = useState<TassonomiaRiga[]>([]);
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<string>('acea');
-  const [operazioneDefault, setOperazioneDefault] = useState('');
+  const [operazioniDefault, setOperazioniDefault] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [esito, setEsito] = useState<Esito>(null);
+
+  // Attività DAL CATALOGO tassonomia (mai testo libero: un refuso creerebbe una
+  // descrizione-doppione che l'import poi rifiuta), filtrate sul committente scelto.
+  const opzioniAttivita = useMemo(() => {
+    const proprie = tassonomia.filter(
+      (t) => t.attivo && (committente === 'altro' || t.committente === committente),
+    );
+    return proprie.map((t) => ({
+      value: t.descrizione,
+      label: t.gruppo && t.gruppo.toUpperCase() !== t.descrizione.toUpperCase()
+        ? `${t.descrizione} · ${t.gruppo}`
+        : t.descrizione,
+    }));
+  }, [tassonomia, committente]);
+
+  // Cambio committente: sopravvivono solo le attività ancora tra le opzioni.
+  useEffect(() => {
+    setOperazioniDefault((prev) => prev.filter((v) => opzioniAttivita.some((o) => o.value === v)));
+  }, [opzioniAttivita]);
+
+  useEffect(() => {
+    void (async () => {
+      const res = await fetch('/api/attivita-tassonomia');
+      if (res.ok) setTassonomia(((await res.json()) as { righe: TassonomiaRiga[] }).righe ?? []);
+    })();
+  }, []);
 
   const carica = useCallback(async () => {
     const res = await fetch(ENDPOINT);
@@ -56,7 +85,7 @@ export default function TemplateMasterClient() {
       fd.append('file', file, file.name);
       if (nome.trim()) fd.append('nome', nome.trim());
       fd.append('committente', committente);
-      if (operazioneDefault.trim()) fd.append('operazione_default', operazioneDefault.trim());
+      if (operazioniDefault.length > 0) fd.append('operazioni_default', JSON.stringify(operazioniDefault));
       const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) {
@@ -67,7 +96,7 @@ export default function TemplateMasterClient() {
       setEsito({ type: 'ok', msg: `Caricate ${json.righe} righe${scartate}. Il master è attivo: già dentro il template.` });
       setFile(null);
       setNome('');
-      setOperazioneDefault('');
+      setOperazioniDefault([]);
       await carica();
     } catch {
       setEsito({ type: 'err', msg: 'Errore di rete.' });
@@ -159,15 +188,24 @@ export default function TemplateMasterClient() {
             </select>
           </label>
         </div>
-        <label className="mt-2 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-          Attività se il file non la dice (facoltativo)
-          <input
-            value={operazioneDefault}
-            onChange={(e) => setOperazioneDefault(e.target.value)}
-            placeholder="es. LIMITAZIONI MASSIVE · Sostituzione misuratore"
-            className="mt-1 block w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2.5 py-1.5 text-sm font-normal normal-case tracking-normal text-[var(--brand-text-main)]"
+        <div className="mt-2">
+          <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
+            Attività del master (dal catalogo, facoltativo)
+          </span>
+          <MultiSelect
+            label="Attività"
+            ariaLabel="Attività del master"
+            options={opzioniAttivita}
+            values={operazioniDefault}
+            onChange={setOperazioniDefault}
+            disabled={busy}
           />
-        </label>
+          <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
+            Solo voci della tassonomia, niente testo libero. Con UNA attività selezionata, le righe del file
+            senza colonna Operazione la ereditano nel template; con più d&apos;una non si può decidere per riga
+            e la descrizione resta da scegliere in Excel (tendina della Leggenda).
+          </p>
+        </div>
         <div className="mt-4">
           <button
             type="button"
@@ -197,7 +235,7 @@ export default function TemplateMasterClient() {
                   <span className="font-medium">{m.nome}</span>
                   <span className="ml-2 text-xs text-[var(--brand-text-muted)]">
                     {labelCommittente(m.committente)} · {m.righe_totali} ODL · {new Date(m.created_at).toLocaleDateString('it-IT')}
-                    {m.operazione_default ? ` · attività: ${m.operazione_default}` : ''}
+                    {m.operazioni_default?.length ? ` · attività: ${m.operazioni_default.join(', ')}` : ''}
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">
