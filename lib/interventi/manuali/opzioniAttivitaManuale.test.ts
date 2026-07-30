@@ -1,5 +1,10 @@
 import { describe, it, expect } from 'vitest';
-import { opzioniAttivitaManuale } from './opzioniAttivitaManuale';
+import {
+  gruppiAttivitaManuale,
+  gruppoDellAttivita,
+  opzioniAttivitaManuale,
+  opzioniDelGruppo,
+} from './opzioniAttivitaManuale';
 import { chiaveTassonomia, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 const riga = (committente: string, descrizione: string, gruppo: string, attivo = true): TassonomiaRiga => ({
@@ -63,5 +68,55 @@ describe('opzioniAttivitaManuale', () => {
   it('tassonomia mancante → lista vuota, nessun errore', () => {
     expect(opzioniAttivitaManuale(undefined, 'italgas')).toEqual([]);
     expect(opzioniAttivitaManuale(undefined, 'italgas', { soloBonificheExtra: true })).toEqual([]);
+  });
+});
+
+// ── Cascata gruppo → dettaglio ───────────────────────────────────────────────
+
+describe('gruppiAttivitaManuale', () => {
+  it('gruppi distinti delle opzioni, ordinati per nome', () => {
+    const out = gruppiAttivitaManuale(opzioniAttivitaManuale(TASSONOMIA, 'italgas'));
+    expect(out).toEqual(["ATTIVITA' ALLA CLIENTELA", 'BONIFICHE EXTRA']);
+  });
+
+  it("deduplica per forma normalizzata (maiuscole/spazi non raddoppiano l'opzione)", () => {
+    const righe = [
+      riga('acea', 'Sospensione fornitura', 'DUNNING'),
+      riga('acea', 'Regolarizzazione', 'Dunning'), // stessa chiave normalizzata
+    ];
+    expect(gruppiAttivitaManuale(righe)).toEqual(['DUNNING']);
+  });
+
+  it('lista vuota → nessun gruppo, nessun errore', () => {
+    expect(gruppiAttivitaManuale([])).toEqual([]);
+  });
+});
+
+describe('opzioniDelGruppo', () => {
+  const opzioni = opzioniAttivitaManuale(TASSONOMIA, 'italgas');
+
+  it('solo le attività del gruppo scelto (confronto normalizzato)', () => {
+    expect(descrizioni(opzioniDelGruppo(opzioni, 'bonifiche  extra')))
+      .toEqual(['BONIFICHE EXTRA', 'Regolarizzazione flusso idrico']);
+  });
+
+  it('gruppo vuoto/null → nessuna opzione (il dettaglio resta disabilitato)', () => {
+    expect(opzioniDelGruppo(opzioni, '')).toEqual([]);
+    expect(opzioniDelGruppo(opzioni, null)).toEqual([]);
+  });
+});
+
+describe('gruppoDellAttivita', () => {
+  const opzioni = opzioniAttivitaManuale(TASSONOMIA, 'italgas');
+
+  it("risale al gruppo dall'attività già valorizzata (inizializza la cascata)", () => {
+    expect(gruppoDellAttivita(opzioni, 'Regolarizzazione flusso idrico')).toBe('BONIFICHE EXTRA');
+    expect(gruppoDellAttivita(opzioni, ' s-pr-003 a ')).toBe("ATTIVITA' ALLA CLIENTELA");
+  });
+
+  it('attività fuori catalogo o vuota → null', () => {
+    expect(gruppoDellAttivita(opzioni, 'QUALCOSA DI IGNOTO')).toBeNull();
+    expect(gruppoDellAttivita(opzioni, '')).toBeNull();
+    expect(gruppoDellAttivita(opzioni, null)).toBeNull();
   });
 });

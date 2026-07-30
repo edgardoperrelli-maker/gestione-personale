@@ -1,6 +1,13 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { chiaveTassonomia, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import {
+  gruppiAttivitaManuale,
+  gruppoDellAttivita,
+  opzioniAttivitaManuale,
+  opzioniDelGruppo,
+} from '@/lib/interventi/manuali/opzioniAttivitaManuale';
 
 export type ManualTaskData = {
   committente: string;
@@ -33,8 +40,8 @@ export default function ManualTaskModal({
   committenti: { value: string; label: string }[];
   /** Nomi dei territori master (`territories`). */
   territori: string[];
-  /** Tassonomia attiva per i suggerimenti attività del committente scelto (null = non caricata). */
-  righeTassonomia: { committente: string; descrizione: string; attivo: boolean }[] | null;
+  /** Tassonomia per la cascata gruppo → dettaglio del committente scelto (null = non caricata). */
+  righeTassonomia: TassonomiaRiga[] | null;
   defaultCommittente: string;
   defaultTerritorio: string;
   onClose: () => void;
@@ -64,12 +71,62 @@ export default function ManualTaskModal({
   const valido = d.indirizzo.trim() !== '' && d.citta.trim() !== '' && d.committente !== '' && d.territorio !== '';
   const inputCls = 'w-full rounded-lg border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-sm text-[var(--brand-text-main)] focus:border-[var(--brand-primary)] focus:outline-none';
 
-  // Suggerimenti attività del SOLO committente scelto (forme canoniche della tassonomia):
-  // evitano i liberi "SOSTITUZIONE CONTATORI"/typo che non risolvono gruppo e flusso.
-  const attivitaSuggerite = (righeTassonomia ?? [])
-    .filter((r) => r.attivo && r.committente === d.committente)
-    .map((r) => r.descrizione)
-    .sort((a, b) => a.localeCompare(b, 'it', { sensitivity: 'base' }));
+  // Attività a CASCATA dal catalogo del committente scelto: prima il GRUPPO, poi il
+  // dettaglio tra le sole attività di quel gruppo. Niente più testo libero — i
+  // "SOSTITUZIONE CONTATORI"/typo che non risolvevano gruppo e flusso non possono
+  // più nascere. Con una sola opzione (es. AcquaLatina) gruppo e dettaglio si
+  // auto-selezionano.
+  const [gruppoScelto, setGruppoScelto] = useState('');
+  const opzioniAttivita = opzioniAttivitaManuale(righeTassonomia ?? undefined, d.committente);
+  const gruppi = gruppiAttivitaManuale(opzioniAttivita);
+  const gruppoEff = (() => {
+    const k = chiaveTassonomia(gruppoScelto);
+    const esplicito = k ? gruppi.find((g) => chiaveTassonomia(g) === k) : undefined;
+    if (esplicito) return esplicito;
+    const daValore = gruppoDellAttivita(opzioniAttivita, d.attivita);
+    if (daValore) return daValore;
+    return gruppi.length === 1 ? gruppi[0] : '';
+  })();
+  const dettagli = opzioniDelGruppo(opzioniAttivita, gruppoEff);
+
+  const cambiaGruppo = (g: string) => {
+    setGruppoScelto(g);
+    const nelGruppo = opzioniDelGruppo(opzioniAttivita, g);
+    setD((prev) => {
+      const valida = prev.attivita.trim() !== ''
+        && nelGruppo.some((o) => o.descrizioneNorm === chiaveTassonomia(prev.attivita));
+      if (valida) return prev;
+      return { ...prev, attivita: nelGruppo.length === 1 ? nelGruppo[0].descrizione : '' };
+    });
+  };
+
+  // Committente cambiato → il gruppo esplicito si azzera (si ri-deriva) e l'attività
+  // sopravvive solo se ancora a catalogo per il nuovo committente.
+  useEffect(() => {
+    setGruppoScelto('');
+    setD((prev) => {
+      const att = prev.attivita.trim();
+      if (!att) return prev;
+      const opz = opzioniAttivitaManuale(righeTassonomia ?? undefined, prev.committente);
+      return opz.some((o) => o.descrizioneNorm === chiaveTassonomia(att)) ? prev : { ...prev, attivita: '' };
+    });
+  }, [d.committente, righeTassonomia]);
+
+  // Unico dettaglio nel gruppo (es. AcquaLatina → "Sostituzione misuratore") → auto-selezione.
+  useEffect(() => {
+    const nelGruppo = opzioniDelGruppo(opzioniAttivita, gruppoEff);
+    if (!gruppoEff || nelGruppo.length !== 1) return;
+    setD((prev) => (prev.attivita.trim() !== '' ? prev : { ...prev, attivita: nelGruppo[0].descrizione }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [gruppoEff, righeTassonomia, d.committente]);
+
+  const placeholderGruppo = !d.committente
+    ? '— prima scegli il committente —'
+    : righeTassonomia == null
+      ? '— caricamento catalogo… —'
+      : gruppi.length === 0
+        ? '— nessuna attività a catalogo —'
+        : '— scegli il gruppo —';
 
   const handleAdd = async () => {
     if (!valido || saving) return;
@@ -108,11 +165,17 @@ export default function ManualTaskModal({
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">ODS/ODL</span><input className={inputCls} value={d.odl} onChange={set('odl')} /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">PDR</span><input className={inputCls} value={d.pdr} onChange={set('pdr')} /></label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Matricola</span><input className={inputCls} value={d.matricola} onChange={set('matricola')} /></label>
+          <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Gruppo attività</span>
+            <select className={inputCls} value={gruppoEff} onChange={(e) => cambiaGruppo(e.target.value)} disabled={gruppi.length === 0}>
+              <option value="">{placeholderGruppo}</option>
+              {gruppi.map((g) => (<option key={g} value={g}>{g}</option>))}
+            </select>
+          </label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Attività</span>
-            <input className={inputCls} value={d.attivita} onChange={set('attivita')} list="manual-task-attivita" placeholder={attivitaSuggerite[0] ? `Es. ${attivitaSuggerite[0]}` : undefined} />
-            <datalist id="manual-task-attivita">
-              {attivitaSuggerite.map((a) => (<option key={a} value={a} />))}
-            </datalist>
+            <select className={inputCls} value={d.attivita} onChange={set('attivita')} disabled={!gruppoEff}>
+              <option value="">{gruppoEff ? "— scegli l'attività —" : '— prima scegli il gruppo —'}</option>
+              {dettagli.map((o) => (<option key={`${o.committente}|${o.descrizione}`} value={o.descrizione}>{o.descrizione}</option>))}
+            </select>
           </label>
           <label className="sm:col-span-2"><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Nota per l&apos;operatore</span><textarea className={inputCls} rows={2} value={d.note} onChange={set('note')} placeholder="Es. citofonare Rossi, accesso dal retro…" /></label>
           <label><span className="mb-1 block text-xs font-semibold text-[var(--brand-text-muted)]">Fascia oraria</span><input className={inputCls} value={d.fascia_oraria} onChange={set('fascia_oraria')} /></label>
