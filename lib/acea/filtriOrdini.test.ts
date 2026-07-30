@@ -462,16 +462,16 @@ describe('scheda «Riaperture»', () => {
   });
 
   /*
-    La differenza con le saracinesche, ed e` la ragione per cui questa scheda costa niente.
+    ACCENDE l'incrocio, e non lo faceva: e` il cambio di natura della scheda.
 
-    La saracinesca vive in `acea_master_snapshot` e va incrociata. La riapertura invece e` una
-    colonna generata da `codice_sla` DENTRO `acea_ordini`: Postgres la filtra e la ordina da solo,
-    con un indice parziale sopra. Se `serveIncrocio` la accendesse per sbaglio, la scheda
-    funzionerebbe lo stesso — ma pagando un incrocio su tutto il registro per un dato che sta gia`
-    nella riga, e nessuno se ne accorgerebbe guardando lo schermo.
+    Prima era un filtro su una colonna del registro (`riapertura`, generata da `codice_sla`) e
+    Postgres bastava. Da quando e` una coda di lavoro deve escludere le riaperture COMPLETATE NEI
+    RAPPORTINI, e quel dato vive in `interventi` — che Postgres non puo` guardare da dentro la
+    query sul registro. Il costo resta minimo: `riapertura=true AND aperto=true` taglia gia` in
+    Postgres, e la scansione delle chiavi tocca poche decine di righe.
   */
-  it('NON accende l’incrocio: la riapertura e` una colonna del registro', () => {
-    expect(serveIncrocio(q('stato=riaperture'))).toBe(false);
+  it('accende l’incrocio: «non completata nei rapportini» vive in `interventi`', () => {
+    expect(serveIncrocio(q('stato=riaperture'))).toBe(true);
   });
 
   // Resta un sottoinsieme, non uno stato: i filtri di pianificazione la incrociano come le altre.

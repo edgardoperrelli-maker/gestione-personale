@@ -12,6 +12,7 @@ import {
   chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
+import { contaDaAssegnare, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 
 export const runtime = 'nodejs';
 
@@ -80,7 +81,10 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   // aperti e chiusi come le saracinesche — chi controlla il lavoro fatto ha bisogno anche di
   // quelle chiuse — ma l'ordinamento della scheda mette le APERTE in cima, che sono le uniche che
   // possono ancora sfuggire.
-  if (f.stato === 'riaperture') q = q.eq('riapertura', true);
+  // La scheda e` una CODA: solo le aperte su ACEA. Le esitate stanno in «Chiusi», e l'altra meta`
+  // del taglio — «non completata nei rapportini» — si fa nell'incrocio, perche` vive in
+  // `interventi` e Postgres da qui non la vede.
+  if (f.stato === 'riaperture') q = q.eq('riapertura', true).eq('aperto', true);
 
   // Filtri di colonna. `in` per le spunte (un valore solo resta un `in` di uno: stesso piano di
   // esecuzione di `eq` su Postgres), `ilike` per il «contiene».
@@ -115,11 +119,9 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
     // dove uno se le aspetta. In cima somiglierebbero a un risultato.
     q = q.order(scelto.campo, { ascending: f.verso === 'asc', nullsFirst: false });
   } else if (f.stato === 'riaperture') {
-    // Dentro la scheda sono riaperture tutte quante: metterle «in cima» non vorrebbe dire niente.
-    // Il criterio che serve lì è un altro — le APERTE per prime, perché sono le sole che possono
-    // ancora sfuggire; le chiuse restano sotto, per chi controlla il lavoro fatto.
-    q = q.order('aperto', { ascending: false })
-      .order('scadenza', { ascending: true, nullsFirst: false })
+    // Dentro la scheda sono riaperture tutte quante, e tutte APERTE (le esitate stanno in
+    // «Chiusi»): l'unico criterio che serve è l'urgenza — prima chi scade prima.
+    q = q.order('scadenza', { ascending: true, nullsFirst: false })
       .order('data_creazione', { ascending: true });
   } else {
     /*
@@ -164,13 +166,17 @@ async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]>
 
 type VoceIntervento = { odl: string | null; data: string | null; staff_id: string | null; stato: string | null };
 
-/** Tutti gli interventi delle due famiglie: `odl` → chi e quando. Serve al predicato, non al display. */
-async function indicePianificazione(): Promise<Map<string, { staff: Set<string>; giorni: Set<string> }>> {
-  const indice = new Map<string, { staff: Set<string>; giorni: Set<string> }>();
+/**
+ * Tutti gli interventi delle due famiglie: `odl` → chi, quando, e se è finita. Serve al predicato,
+ * non al display. `completato` alimenta la coda delle riaperture: una riapertura completata nei
+ * rapportini è esitata, e in una coda di lavoro non ci sta più.
+ */
+async function indicePianificazione(): Promise<Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>> {
+  const indice = new Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>();
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('odl, data, staff_id')
+      .select('odl, data, staff_id, stato')
       .in('committente', COMMITTENTI)
       .order('odl', { ascending: true })
       .order('data', { ascending: true })
@@ -179,14 +185,76 @@ async function indicePianificazione(): Promise<Map<string, { staff: Set<string>;
     const blocco = (data ?? []) as VoceIntervento[];
     for (const it of blocco) {
       if (!it.odl) continue;
-      const v = indice.get(it.odl) ?? { staff: new Set<string>(), giorni: new Set<string>() };
+      /*
+        Un intervento ANNULLATO è lavoro che non è mai successo: non assegna e non pianifica.
+
+        Prima entrava nell'indice come gli altri, e le tre viste sullo stesso ODL si
+        contraddicevano: il badge lo contava «senza esecutore» (via `assegnata()`, che gli
+        annullati li scarta), ma il filtro «Non assegnato» non lo trovava e la colonna Esecutore
+        mostrava il nome di chi NON ci sarebbe andato. Stessa regola di `pianoPianificazione`,
+        che gli annullati li ha sempre trattati come inesistenti.
+      */
+      if (it.stato === 'annullato') continue;
+      const v = indice.get(it.odl)
+        ?? { staff: new Set<string>(), giorni: new Set<string>(), completato: false };
       if (it.staff_id) v.staff.add(it.staff_id);
       if (it.data) v.giorni.add(it.data);
+      if (it.stato === 'completato') v.completato = true;
       indice.set(it.odl, v);
     }
     if (blocco.length < PAGINA_SCAN) break;
   }
   return indice;
+}
+
+/**
+ * Le riaperture aperte ancora senza esecutore: il numero del badge sulla scheda «Riaperture».
+ *
+ * Viaggia su OGNI risposta della lista — il badge deve dire il vero anche da un'altra scheda, ed è
+ * lì che serve: chi sta sui «Da lavorare» deve vedere che ci sono riaperture scoperte senza andare
+ * a controllare. Due query mirate e piccole, non l'incrocio completo: le riaperture aperte sono
+ * poche decine (14 sul registro misurato), quindi la `in` sugli ODL resta corta — non è la URL da
+ * 33 KB che ha già rotto il registro una volta.
+ *
+ * Best-effort: se una lettura fallisce il badge non c'è (`null`), la tabella si carica lo stesso.
+ * Un contatore è una decorazione, e una decorazione non porta giù la vista.
+ */
+async function riapertureDaAssegnare(): Promise<number | null> {
+  try {
+    const { data: righe, error } = await supabaseAdmin
+      .from('acea_ordini')
+      .select('odl')
+      .eq('riapertura', true)
+      .eq('aperto', true)
+      // La stessa famiglia della scheda che il badge decora. La colonna `riapertura` deriva dal
+      // solo `codice_sla`, e il dominio contempla una massive con codice RIAT (riaperture.test.ts):
+      // senza questo filtro il badge la conterebbe, e punterebbe a una coda che non la mostra.
+      .eq('famiglia', 'dunning');
+    if (error) throw error;
+    const odl = [...new Set(((righe ?? []) as Array<{ odl: string }>).map((r) => r.odl))];
+    if (odl.length === 0) return 0;
+
+    const interventiPerOdl = new Map<string, InterventoDellOdl[]>();
+    for (let i = 0; i < odl.length; i += 200) {
+      const blocco = odl.slice(i, i + 200);
+      const { data: interventi, error: eInt } = await supabaseAdmin
+        .from('interventi')
+        .select('odl, staff_id, stato')
+        .in('odl', blocco)
+        .in('committente', COMMITTENTI);
+      if (eInt) throw eInt;
+      for (const it of (interventi ?? []) as Array<{ odl: string | null; staff_id: string | null; stato: string | null }>) {
+        if (!it.odl) continue;
+        const lista = interventiPerOdl.get(it.odl) ?? [];
+        lista.push({ staff_id: it.staff_id, stato: it.stato });
+        interventiPerOdl.set(it.odl, lista);
+      }
+    }
+    return contaDaAssegnare(odl, interventiPerOdl);
+  } catch (e) {
+    console.error('[acea/ordini] badge riaperture non calcolato:', e);
+    return null;
+  }
 }
 
 /** `staff_id` → nome, per ordinare per esecutore con quello che si LEGGE, non con un uuid. */
@@ -348,6 +416,9 @@ export async function GET(req: Request) {
 
       let passate = chiavi.filter(
         (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
+          // La coda delle riaperture: fuori le completate nei rapportini. Le chiuse su ACEA sono
+          // gia` fuori dalla query (`aperto=true` in `queryRegistro`).
+          && (f.stato !== 'riaperture' || indice.get(k.odl)?.completato !== true)
           && passaPianificazione(k.odl, f.pianificazione, indice, staffScelti),
       );
       /*
@@ -424,6 +495,10 @@ export async function GET(req: Request) {
           .order('data', { ascending: false });
         if (eInt) throw eInt;
         for (const it of (interventi ?? []) as VoceIntervento[]) {
+          // Un annullato non si mostra: in colonna Esecutore comparirebbe il nome di chi non ci
+          // va — e il badge, che gli annullati li scarta, direbbe «senza esecutore» su una riga
+          // che un nome lo mostra. Stessa esclusione dell'indice dei filtri, qui sopra.
+          if (it.stato === 'annullato') continue;
           // Più interventi sullo stesso ODL: vince il più recente (l'ordinamento è discendente).
           if (it.odl && !pianificazione.has(it.odl)) {
             pianificazione.set(it.odl, { data: it.data, staff_id: it.staff_id, stato: it.stato });
@@ -533,6 +608,9 @@ export async function GET(req: Request) {
         pagina: f.pagina,
         perPagina: f.perPagina,
         oggi,
+        // Il badge della scheda «Riaperture»: aggiornato a ogni ricarica della tabella, così
+        // pianificare o importare lo muove senza una chiamata in più. `null` = non calcolabile.
+        riapertureDaAssegnare: await riapertureDaAssegnare(),
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

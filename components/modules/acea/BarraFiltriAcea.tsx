@@ -17,6 +17,13 @@ type Props = {
   colonne: DefColonna[];
   totale: number;
   caricate: number;
+  /**
+   * Riaperture aperte senza esecutore: il badge sul tasto della scheda.
+   *
+   * `null` = il server non l'ha saputo calcolare, e non si disegna niente: un numero inventato su
+   * un contatore d'allarme è peggio della sua assenza.
+   */
+  riapertureDaAssegnare?: number | null;
 };
 
 /**
@@ -49,7 +56,9 @@ const STATI: StatoFiltro[] = ['aperti', 'riaperture', 'chiusi', 'tutti', 'saraci
  * Prima erano sei tendine impilate: ~200px sopra la tabella, e le tendine non disegnavano nemmeno
  * la loro larghezza (vedi il commento in `components/ui/Select.tsx`).
  */
-export default function BarraFiltriAcea({ filtri, onChange, colonne, totale, caricate }: Props) {
+export default function BarraFiltriAcea({
+  filtri, onChange, colonne, totale, caricate, riapertureDaAssegnare = null,
+}: Props) {
   const pill = pillFiltri(colonne, filtri);
   const attivi = haFiltriAttivi(filtri);
 
@@ -59,7 +68,24 @@ export default function BarraFiltriAcea({ filtri, onChange, colonne, totale, car
         <Tabs
           value={filtri.stato}
           onValueChange={(v) => onChange({ ...filtri, stato: v as StatoFiltro })}
-          items={STATI.map((s) => ({ value: s, label: ETICHETTE_STATO[s] }))}
+          items={STATI.map((s) => ({
+            value: s,
+            label: ETICHETTE_STATO[s],
+            /*
+              Il badge sta sul TASTO, non nei contatori di testa: deve farsi vedere da qualunque
+              scheda, e la risposta giusta al vederlo — aprire le riaperture — è il click che gli
+              sta sotto. Conta le SENZA ESECUTORE, non le righe della scheda: un'assegnata ma non
+              finita è nella scheda ma non è un allarme, ha già qualcuno che ci sta andando.
+            */
+            ...(s === 'riaperture' && riapertureDaAssegnare !== null && riapertureDaAssegnare > 0
+              ? {
+                  badge: riapertureDaAssegnare,
+                  badgeLabel: riapertureDaAssegnare === 1
+                    ? '1 riapertura senza esecutore'
+                    : `${riapertureDaAssegnare} riaperture senza esecutore`,
+                }
+              : {}),
+          }))}
         />
 
         <div className="relative">

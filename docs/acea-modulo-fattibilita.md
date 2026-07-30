@@ -186,6 +186,9 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 25 | Riassegnazione | Cambiare il **solo esecutore** su un intervento vecchio e non eseguito è sempre concesso: la finestra vincola chi SCEGLIE un giorno, non chi lo eredita |
 | 26 | Riga a metà | Solo esecutore o sola data si scrivono come **appunto** su `acea_ordini`; il motore rapportini si rifiuta di generare un giorno che ne contiene, finché non lo si conferma |
 | 27 | Colonne ACEA | «Operatore ACEA» e «Esecuzione ACEA» sono **predefinite**: senza, un ordine chiuso da ACEA e mai pianificato da noi sembrava un import mancato |
+| 28 | Riaperture | La scheda è una **coda di lavoro**: solo aperte su ACEA e non completate nei rapportini. Le esitate stanno in «Chiusi» |
+| 29 | Badge | Sul tasto della scheda, il numero delle riaperture **senza esecutore** — non le righe della scheda: un'assegnata non finita è in coda ma ha già qualcuno che ci va |
+| 30 | Annullati | Un intervento **annullato** non assegna, non pianifica e non si mostra: badge, filtro «Non assegnato» e colonna Esecutore usano la stessa definizione |
 
 ---
 

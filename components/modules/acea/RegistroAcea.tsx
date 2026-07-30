@@ -39,7 +39,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica, perPagina, query,
+    ricarica, perPagina, query, riapertureDaAssegnare,
   } = useOrdiniAcea(famiglia);
 
   /*
@@ -324,6 +324,9 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         colonne={colonneVista}
         totale={totale}
         caricate={righe.length}
+        // Solo nella vista dunning: le riaperture sono ordini di dunning, e nella vista massive il
+        // numero conterebbe righe che quella scheda non mostra.
+        riapertureDaAssegnare={famiglia === 'dunning' ? riapertureDaAssegnare : null}
       />
 
       {/*

@@ -23,14 +23,20 @@
  * si cambia vista, non si compone un filtro — ma attraversa aperti e chiusi, e il dato che la
  * definisce non vive nemmeno nel registro (sta in `acea_master_snapshot`).
  *
- * `riaperture` è anch'essa un sottoinsieme, e c'è per un motivo misurato: le riaperture aperte
- * sono 14 su 924 ordini di dunning aperti, e nell'ordinamento predefinito cadono alle righe
- * 491-548 — in mezzo alla tabella. Hanno UN giorno di tempo contro i quattordici del resto, ma
- * ordinare per scadenza mette in cima il più VECCHIO, non il più urgente: una limitazione di
- * maggio scaduta da due mesi sta sopra una riapertura che scade domani.
+ * `riaperture` è una CODA DI LAVORO, non un archivio: le riaperture ancora da fare — aperte su
+ * ACEA e non completate nei nostri rapportini. Il motivo è misurato: le riaperture aperte sono
+ * 14 su 924 ordini di dunning aperti, e nell'ordinamento predefinito cadevano alle righe 491-548.
+ * Hanno UN giorno di tempo contro i quattordici del resto, ma ordinare per scadenza mette in cima
+ * il più VECCHIO, non il più urgente: una limitazione di maggio scaduta da due mesi sta sopra una
+ * riapertura che scade domani.
+ *
+ * Le ESITATE stanno fuori, ed è il punto: la scheda mostrava anche le 452 chiuse su ACEA e le
+ * completate nei rapportini, e le 14 che potevano ancora sfuggire stavano in mezzo a centinaia di
+ * righe archiviate. Le chiuse su ACEA hanno già una casa — la scheda «Chiusi» — e le completate
+ * da noi ci arrivano al primo import che le registra.
  *
  * Questa scheda è il modo di richiamarle a colpo sicuro. L'altra metà del rimedio sta
- * nell'ordinamento predefinito, che ora le porta in cima da solo (vedi `queryRegistro`): la
+ * nell'ordinamento predefinito, che le porta in cima da solo (vedi `queryRegistro`): la
  * scheda serve a chi le cerca, l'ordinamento a chi non sa di doverle cercare.
  */
 export type StatoFiltro = 'tutti' | 'aperti' | 'chiusi' | 'saracinesche' | 'riaperture';
@@ -153,14 +159,20 @@ export function filtriPianificazioneAttivi(p: FiltriPianificazione): boolean {
 /**
  * `true` se la richiesta chiede qualcosa che NON sta in `acea_ordini`, e quindi va incrociato.
  *
- * Sono tre dati nostri, non di ACEA: esecutore e giorno pianificato (in `interventi`) e la
+ * Sono dati nostri, non di ACEA: esecutore e giorno pianificato (in `interventi`) e la
  * saracinesca sostituita (in `acea_master_snapshot`). Postgres non può filtrarli dentro la query
  * sul registro, e passargli la lista degli ODL sarebbe una URL da decine di migliaia di caratteri.
+ *
+ * La scheda «Riaperture» accende l'incrocio da quando è una coda di lavoro: «non completata nei
+ * rapportini» vive in `interventi`, non nel registro. Il grosso del taglio resta comunque su
+ * Postgres — `riapertura=true` e `aperto=true` sono colonne del registro — quindi la scansione
+ * delle chiavi tocca poche decine di righe, non le 5.000 del registro.
  */
 export function serveIncrocio(f: FiltriOrdini): boolean {
   return (
     filtriPianificazioneAttivi(f.pianificazione)
     || f.stato === 'saracinesche'
+    || f.stato === 'riaperture'
     || ordinamentoDaIncrociare(f)
   );
 }
