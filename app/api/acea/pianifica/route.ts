@@ -8,7 +8,8 @@ import {
 } from '@/lib/acea/pianificazione';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
-import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import type { Famiglia } from '@/lib/acea/famiglia';
 import { soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
@@ -66,9 +67,19 @@ export async function POST(req: Request) {
       pianificazione pagava la somma delle latenze; nessuna SCRITTURA parte comunque prima che il
       controllo abbia detto sì — il rifiuto arriva solo qualche lettura più tardi, a costo zero.
     */
+    /*
+      Il controllo del tabellone parte per ENTRAMBE le famiglie, prima di sapere quali righe sono
+      state selezionate. Non è uno spreco cercato: la famiglia delle righe la dice il registro, che
+      si sta leggendo NELLO STESSO Promise.all — aspettarla avrebbe rimesso in fila le letture che
+      questo blocco esiste per parallelizzare. Si consuma poi solo il verdetto delle famiglie
+      davvero presenti; le letture in più sono tre query piccole e indicizzate.
+    */
     const [motivi, ordini, esistenti, indice] = await Promise.all([
       // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
-      controllaAssegnazioni([{ data, staffId, dataScritta: true }], oggi),
+      controllaAssegnazioni([
+        { data, staffId, dataScritta: true, famiglia: 'dunning' },
+        { data, staffId, dataScritta: true, famiglia: 'massive' },
+      ], oggi),
       (async () => {
         // 1) Ordini selezionati, letti dal registro (non dal client: il client potrebbe avere una
         //    fotografia vecchia, e su questi dati si decide chi va dove).
@@ -76,7 +87,7 @@ export async function POST(req: Request) {
         for (const blocco of blocchi) {
           const { data: righe, error } = await supabaseAdmin
             .from('acea_ordini')
-            .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
+            .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
             .in('odl', blocco);
           if (error) throw error;
           for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
@@ -86,6 +97,7 @@ export async function POST(req: Request) {
               odl: String(r.odl),
               numero_operazione: String(r.numero_operazione),
               ordine_id: (r.id as string | null) ?? null,
+              famiglia: r.famiglia === 'massive' ? 'massive' : 'dunning',
               aperto: r.aperto === true,
               attivita: (r.attivita as string | null) ?? null,
               comune: (r.comune as string | null) ?? null,
@@ -125,12 +137,17 @@ export async function POST(req: Request) {
       indiceTassonomiaCached(),
     ]);
 
-    const rifiuto = motivi.get(`${data}|${staffId}`);
-    if (rifiuto) {
-      return NextResponse.json({ error: rifiuto.replace(/^./, (c) => c.toUpperCase()) }, { status: 400 });
-    }
     if (ordini.length === 0) {
       return NextResponse.json({ error: 'Nessun ordine trovato nel registro.' }, { status: 404 });
+    }
+    // Il verdetto delle sole famiglie fra le righe selezionate: nella pratica una (la selezione
+    // arriva da una vista), e se mai fossero due l'operatore deve andare bene a tutt'e due.
+    const famiglie = [...new Set(ordini.map((o) => o.famiglia ?? 'dunning'))] as Famiglia[];
+    const rifiuto = famiglie
+      .map((famiglia) => motivi.get(chiaveAssegnazione({ data, staffId, famiglia })))
+      .find(Boolean);
+    if (rifiuto) {
+      return NextResponse.json({ error: rifiuto.replace(/^./, (c) => c.toUpperCase()) }, { status: 400 });
     }
 
     const piano = pianoPianificazione({

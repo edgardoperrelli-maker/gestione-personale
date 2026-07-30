@@ -22,6 +22,8 @@ type Risposta = {
   oggi: string;
   /** Attivazioni aperte senza data di pianificazione: il triangolo della scheda. `null` = non calcolabile. */
   riapertureSenzaData?: number | null;
+  /** Comuni massive con ordini aperti: le schede della vista. `null` = non calcolato stavolta. */
+  comuniMassive?: string[] | null;
 };
 
 /**
@@ -36,7 +38,15 @@ type Risposta = {
  * caricate darebbe un risultato che sembra giusto ed è sbagliato, perché escluderebbe le 4.993
  * righe non ancora scese.
  */
-export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
+export function useOrdiniAcea(
+  famiglia: 'dunning' | 'massive',
+  /**
+   * I comuni-scheda al primo render, letti dal server nella pagina (solo massive). Servono
+   * PRIMA della prima risposta: senza, la prima interrogazione partirebbe senza scheda e
+   * mostrerebbe gli aperti di tutti i paesi sotto il tasto del primo.
+   */
+  comuniIniziali: readonly string[] = [],
+) {
   const params = useSearchParams();
   /*
     `?cerca=<odl>` nella URL apre il registro gia` su quella riga.
@@ -47,16 +57,34 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
 
     Insieme alla ricerca si passa a «Tutti»: una riga segnalata puo` benissimo essere chiusa, e
     atterrare su «Da lavorare» con una ricerca che non trova niente e` peggio che non linkarla.
+    In massive «Tutti» non ha piu` una scheda, ma resta uno stato valido: la ricerca deve poter
+    attraversare aperti e chiusi anche li` — la fila delle schede semplicemente non ne accende
+    nessuna finche` non se ne clicca una.
   */
   const [filtri, setFiltri] = useState<FiltriUI>(() => {
     const iniziali = filtriVuoti();
+    if (famiglia === 'massive') {
+      // Si apre sul primo comune. Senza comuni aperti (campagna finita, o lettura server
+      // fallita) si apre sui «Chiusi»: una vista vera, non un «Da lavorare» senza tasto.
+      iniziali.comuneScheda = comuniIniziali[0] ?? null;
+      if (iniziali.comuneScheda === null) iniziali.stato = 'chiusi';
+    }
     const cerca = params?.get('cerca')?.trim();
     if (cerca) {
       iniziali.cerca = cerca;
       iniziali.stato = 'tutti';
+      iniziali.comuneScheda = null;
     }
     return iniziali;
   });
+  /*
+    La fila delle schede-comune (solo massive), aggiornata da ogni risposta della lista: un
+    import che aggiunge un paese fa comparire il tasto, un comune completato lo fa sparire.
+    Su `null` (lettura fallita lato server) si TIENE l'ultima fila buona: le schede sono
+    struttura, non un contatore — a differenza del triangolo, sparire sarebbe peggio che
+    invecchiare di un giro.
+  */
+  const [comuniMassive, setComuniMassive] = useState<string[]>([...comuniIniziali]);
   const [righe, setRighe] = useState<RigaTabella[]>([]);
   const [totale, setTotale] = useState(0);
   const [oggi, setOggi] = useState('');
@@ -105,6 +133,10 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
       if (dati.riapertureSenzaData !== undefined) {
         setRiapertureSenzaData(dati.riapertureSenzaData);
       }
+      // `null` qui significa «non calcolato stavolta», e si tiene la fila precedente (vedi sopra).
+      if (dati.comuniMassive !== undefined && dati.comuniMassive !== null) {
+        setComuniMassive(dati.comuniMassive);
+      }
       setErrore(null);
     } catch (e) {
       if (mio !== richiestaCorrente.current) return;
@@ -116,6 +148,27 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
 
   // Cambio filtri: si riparte dalla prima pagina.
   useEffect(() => { void carica(1, false); }, [carica]);
+
+  /*
+    La scheda-comune resta agganciata a un comune che ESISTE.
+
+    Il caso vero: il comune su cui si sta lavorando finisce (ultimo ordine chiuso, o un import
+    lo chiude) e il suo tasto sparisce dalla fila — si passa al primo paese rimasto, o ai
+    «Chiusi» se non resta niente da pianificare. Si tocca solo chi sta su una scheda-comune:
+    chi è su Chiusi/Saracinesche/Tutti non viene spostato da sotto i piedi.
+  */
+  useEffect(() => {
+    if (famiglia !== 'massive') return;
+    setFiltri((f) => {
+      if (f.stato !== 'aperti') return f;
+      if (f.comuneScheda !== null && comuniMassive.includes(f.comuneScheda)) return f;
+      const primo = comuniMassive[0] ?? null;
+      if (primo === null) {
+        return f.comuneScheda === null ? f : { ...f, stato: 'chiusi', comuneScheda: null };
+      }
+      return { ...f, comuneScheda: primo };
+    });
+  }, [famiglia, comuniMassive]);
 
   useEffect(() => {
     let vivo = true;
@@ -135,7 +188,7 @@ export function useOrdiniAcea(famiglia: 'dunning' | 'massive') {
 
   return {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni,
-    riapertureSenzaData,
+    riapertureSenzaData, comuniMassive,
     altre, ricarica,
     // La query esce dal hook perché l'export deve poter rifare *la stessa* interrogazione fino in
     // fondo. Ricostruirla dai filtri nel componente vorrebbe dire due costruttori di query da

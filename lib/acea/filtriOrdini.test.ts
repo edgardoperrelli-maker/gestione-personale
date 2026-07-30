@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
-  COLONNE_ELENCO, COLONNE_TESTO, colonneFiltrate, contaFiltriColonna, espressioneRicerca,
-  filtriPianificazioneAttivi, filtriVuoti, haFiltriAttivi, intervalloPagina, leggiFiltri,
-  ordinabile, ORDINAMENTI, parametriQuery, serveIncrocio, soglieScadenza,
-  terminoContiene,
+  applicaScheda, azzeraFiltri, COLONNE_ELENCO, COLONNE_TESTO, colonneFiltrate,
+  contaFiltriColonna, espressioneRicerca, filtriPianificazioneAttivi, filtriVuoti,
+  haFiltriAttivi, intervalloPagina, leggiFiltri, ordinabile, ORDINAMENTI, parametriQuery,
+  schedeVista, serveIncrocio, soglieScadenza, terminoContiene, valoreScheda,
 } from './filtriOrdini';
 
 const q = (s: string) => leggiFiltri(new URLSearchParams(s));
@@ -16,7 +16,7 @@ const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null
 describe('leggiFiltri', () => {
   it('senza parametri applica i default', () => {
     expect(q('')).toEqual({
-      famiglia: null, stato: 'tutti', elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
+      famiglia: null, stato: 'tutti', comuneScheda: null, elenchi: ELENCHI_VUOTI, testi: TESTI_VUOTI,
       scadenza: 'tutte', entroGiorni: 7, cerca: null, pagina: 1, perPagina: 100,
       pianificazione: {
         esecutori: [], senzaEsecutore: false, pianificazione: 'tutte', giorno: null,
@@ -271,14 +271,17 @@ describe('contaFiltriColonna e haFiltriAttivi', () => {
     expect(contaFiltriColonna(f)).toBe(1);
   });
 
-  it('la ricerca libera e lo stato attivano «azzera» ma non sono filtri di colonna', () => {
+  it('la ricerca libera attiva «azzera» ma non è un filtro di colonna', () => {
     const conCerca = { ...filtriVuoti(), cerca: '912' };
     expect(contaFiltriColonna(conCerca)).toBe(0);
     expect(haFiltriAttivi(conCerca)).toBe(true);
+  });
 
-    const conStato = { ...filtriVuoti(), stato: 'tutti' as const };
-    expect(contaFiltriColonna(conStato)).toBe(0);
-    expect(haFiltriAttivi(conStato)).toBe(true);
+  it('la SCHEDA non attiva «azzera»: è navigazione, non un criterio da ripulire', () => {
+    // Da quando in massive le schede sono i comuni, «Azzera» non deve buttare fuori dal paese
+    // in cui si sta lavorando — e in dunning passare ai «Chiusi» non è sporcare la vista.
+    expect(haFiltriAttivi({ ...filtriVuoti(), stato: 'tutti' as const })).toBe(false);
+    expect(haFiltriAttivi({ ...filtriVuoti(), comuneScheda: 'ZAGAROLO' })).toBe(false);
   });
 
   it('un testo di soli spazi non conta come filtro', () => {
@@ -568,5 +571,93 @@ describe('la colonna Note si filtra e si ordina', () => {
     expect(ORDINAMENTI.note).toEqual({ tipo: 'registro', campo: 'note' });
     // Niente incrocio: e` una colonna del registro, quindi la query resta una sola.
     expect(serveIncrocio(q('ordina=note'))).toBe(false);
+  });
+});
+
+/*
+  Le schede della vista massive: un tasto per comune, poi «Chiusi» e «Sostituzione saracinesca»
+  riepilogative. Le massive sono campagne per paese — «quante ne mancano a Riano» era un filtro
+  manuale a ogni giro — e il legame scheda→filtri è il punto in cui una svista mostra righe
+  plausibili sotto il tasto sbagliato. Per questo è puro e provato qui, non dentro la barra.
+*/
+describe('schede della vista (schedeVista / valoreScheda / applicaScheda)', () => {
+  const COMUNI = ['LABICO', 'RIANO', 'ZAGAROLO'];
+
+  it('dunning: gli stati di sempre, riaperture subito dopo «Da lavorare»', () => {
+    expect(schedeVista('dunning', []).map((s) => s.value))
+      .toEqual(['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche']);
+  });
+
+  it('massive: una scheda per comune, poi Chiusi e Saracinesche — niente «Tutti», niente «Da lavorare»', () => {
+    const schede = schedeVista('massive', COMUNI);
+    expect(schede.map((s) => s.label)).toEqual(
+      ['LABICO', 'RIANO', 'ZAGAROLO', 'Chiusi', 'Sostituzione saracinesca'],
+    );
+    expect(schede.map((s) => s.value)).not.toContain('tutti');
+    expect(schede.map((s) => s.value)).not.toContain('aperti');
+    expect(schede.map((s) => s.value)).not.toContain('riaperture');
+  });
+
+  it('senza comuni aperti restano i due riepiloghi: la campagna è finita, la storia resta', () => {
+    expect(schedeVista('massive', []).map((s) => s.value)).toEqual(['chiusi', 'saracinesche']);
+  });
+
+  it('click su un comune = gli APERTI di quel comune', () => {
+    const f = applicaScheda(filtriVuoti(), 'comune:RIANO');
+    expect(f.stato).toBe('aperti');
+    expect(f.comuneScheda).toBe('RIANO');
+    // E la scheda attiva è quella: il cerchio si chiude.
+    expect(valoreScheda(f)).toBe('comune:RIANO');
+  });
+
+  it('i riepiloghi azzerano il comune: sono su TUTTI i paesi', () => {
+    const su = applicaScheda({ ...filtriVuoti(), comuneScheda: 'RIANO' }, 'chiusi');
+    expect(su.stato).toBe('chiusi');
+    expect(su.comuneScheda).toBeNull();
+    expect(valoreScheda(su)).toBe('chiusi');
+  });
+
+  it('cambiare scheda non tocca i filtri di colonna', () => {
+    const f = filtriVuoti();
+    f.elenchi.cap = ['00039'];
+    f.testi.via = 'ROMA';
+    const dopo = applicaScheda(f, 'comune:LABICO');
+    expect(dopo.elenchi.cap).toEqual(['00039']);
+    expect(dopo.testi.via).toBe('ROMA');
+  });
+
+  it('«Azzera» ripulisce i filtri ma NON cambia scheda', () => {
+    const f = applicaScheda(filtriVuoti(), 'comune:RIANO');
+    f.elenchi.cap = ['00060'];
+    f.cerca = '912';
+    const dopo = azzeraFiltri(f);
+    expect(dopo.elenchi.cap).toEqual([]);
+    expect(dopo.cerca).toBe('');
+    expect(dopo.stato).toBe('aperti');
+    expect(dopo.comuneScheda).toBe('RIANO');
+  });
+});
+
+describe('comuneScheda in query', () => {
+  it('viaggia e torna: parametriQuery → leggiFiltri', () => {
+    const f = { ...filtriVuoti(), comuneScheda: 'RIGNANO FLAMINIO' };
+    const riletti = leggiFiltri(parametriQuery(f, 'massive', 300));
+    expect(riletti.comuneScheda).toBe('RIGNANO FLAMINIO');
+  });
+
+  it('assente o vuota non compare nella URL', () => {
+    expect(parametriQuery(filtriVuoti(), 'massive', 300).has('comuneScheda')).toBe(false);
+    expect(q('comuneScheda=%20%20').comuneScheda).toBeNull();
+  });
+
+  it('è indipendente dal filtro di colonna comune: AND, non OR', () => {
+    // La scheda restringe al paese; il filtro comune resta un filtro come gli altri. Se un
+    // domani si sommassero nella stessa chiave, spuntare un secondo comune ALLARGHEREBBE la
+    // scheda invece di restringerla.
+    const f = { ...filtriVuoti(), comuneScheda: 'ZAGAROLO' };
+    f.elenchi.comune = ['LABICO'];
+    const riletti = leggiFiltri(parametriQuery(f, 'massive', 300));
+    expect(riletti.comuneScheda).toBe('ZAGAROLO');
+    expect(riletti.elenchi.comune).toEqual(['LABICO']);
   });
 });

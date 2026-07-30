@@ -34,6 +34,8 @@ export type NomeExport = {
   famiglia: 'dunning' | 'massive';
   /** Stato del segmented: è parte di cosa c'è dentro il file, non un dettaglio della vista. */
   stato: StatoFiltro;
+  /** Scheda-comune attiva (massive): restringe il contenuto quanto lo stato, e il nome lo dice. */
+  comune?: string | null;
   /** Giorno del registro ('YYYY-MM-DD'), preso dal server. */
   oggi: string;
   /** Almeno un filtro di colonna o una ricerca libera attiva. */
@@ -41,6 +43,15 @@ export type NomeExport = {
 };
 
 const ISO = /^\d{4}-\d{2}-\d{2}$/;
+
+/** 'RIGNANO FLAMINIO' → 'rignano-flaminio': nel nome di un file gli spazi sono guai. */
+function fettaComune(comune: string | null | undefined): string | null {
+  const pulito = String(comune ?? '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return pulito === '' ? null : pulito;
+}
 
 /**
  * Nome del file: dice cosa restringe il contenuto.
@@ -53,8 +64,11 @@ const ISO = /^\d{4}-\d{2}-\d{2}$/;
  * `filtrato` non elenca i filtri (diventerebbe illeggibile e non entrerebbe in un nome di file):
  * dice che ce n'erano, cioè che quel totale non è il totale della famiglia.
  */
-export function nomeFileExport({ famiglia, stato, oggi, filtrato }: NomeExport): string {
-  const parti: string[] = ['acea', famiglia, stato];
+export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: NomeExport): string {
+  const parti: string[] = ['acea', famiglia];
+  const c = fettaComune(comune);
+  if (c) parti.push(c);
+  parti.push(stato);
   if (ISO.test(oggi)) parti.push(oggi.replaceAll('-', ''));
   if (filtrato) parti.push('filtrato');
   return `${parti.join('-')}.xlsx`;

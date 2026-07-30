@@ -62,4 +62,16 @@ describe('nomeFileExport', () => {
   it('distingue le due famiglie', () => {
     expect(nomeFileExport({ ...base, famiglia: 'massive' })).toContain('acea-massive-');
   });
+
+  it('la scheda-comune entra nel nome: il file di un paese deve dirlo', () => {
+    expect(nomeFileExport({ ...base, famiglia: 'massive', comune: 'ZAGAROLO' }))
+      .toBe('acea-massive-zagarolo-aperti-20260727.xlsx');
+    // Gli spazi diventano trattini: 'RIGNANO FLAMINIO' non deve produrre un nome con spazi.
+    expect(nomeFileExport({ ...base, famiglia: 'massive', comune: 'RIGNANO FLAMINIO' }))
+      .toBe('acea-massive-rignano-flaminio-aperti-20260727.xlsx');
+  });
+
+  it('senza scheda-comune il nome resta quello di sempre', () => {
+    expect(nomeFileExport({ ...base, comune: null })).toBe('acea-dunning-aperti-20260727.xlsx');
+  });
 });

@@ -103,6 +103,8 @@ export type Props = {
       esteso: string;
       operatori: Array<{ id: string; display_name: string; territorio?: string | null }>;
     }>;
+    /** Nome dell'attività di tabellone della vista (DUNNING / LIMITAZIONI MASSIVE), per lo stato vuoto. */
+    etichettaAttivita?: string;
   };
 };
 
@@ -552,7 +554,7 @@ export default function TabellaOrdini({
                           >
                             <option value="" disabled>
                               {vuoto
-                                ? 'Nessuno su DUNNING in tabellone: compilalo nel cronoprogramma'
+                                ? `Nessuno su ${editing.etichettaAttivita ?? 'DUNNING'} in tabellone: compilalo nel cronoprogramma`
                                 : 'Scegli operatore…'}
                             </option>
                             {editing.operatoriFinestra.map((g) => (

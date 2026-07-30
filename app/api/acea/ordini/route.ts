@@ -13,6 +13,7 @@ import {
   chiaviAggancio, isAttivitaSaracinesca, saracinescaContemplata, FRAMMENTI_SARACINESCA,
 } from '@/lib/acea/saracinesche';
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
+import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 
 export const runtime = 'nodejs';
@@ -74,6 +75,10 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   if (f.famiglia) q = q.eq('famiglia', f.famiglia);
   if (f.stato === 'aperti') q = q.eq('aperto', true);
   if (f.stato === 'chiusi') q = q.eq('aperto', false);
+  // La scheda-comune della vista massive: un `eq` secco. I valori delle schede escono dal
+  // registro stesso (`comuniMassiveAperti`), quindi corrispondono per costruzione — l'import
+  // normalizza il comune, verificato in produzione su tutti e cinque i paesi.
+  if (f.comuneScheda) q = q.eq('comune', f.comuneScheda);
   // `saracinesche` non restringe qui: e` un sottoinsieme che attraversa aperti e chiusi, e il dato
   // che lo definisce sta in `acea_master_snapshot`. Lo applica il percorso di incrocio.
   //
@@ -413,7 +418,24 @@ export async function GET(req: Request) {
 
     // Il triangolo parte SUBITO e si riscuote alla fine: è indipendente da tutto il resto, e
     // messo in coda com'era aggiungeva le sue due letture alla latenza di ogni risposta.
-    const triangolo = riapertureSenzaData();
+    // È un dato di DUNNING (attivazioni fuori calendario): sulle risposte della vista massive non
+    // si calcola — il client là non lo disegna, e sarebbero due letture pagate per un numero muto.
+    const triangolo = f.famiglia === 'massive'
+      ? Promise.resolve<number | null>(null)
+      : riapertureSenzaData();
+    /*
+      Le schede della vista massive: i comuni con ordini aperti, sull'INTERO registro massive e
+      non sulla query corrente — la fila delle schede non deve cambiare a seconda della scheda da
+      cui la si guarda. Best-effort come il triangolo: `null` = non calcolato, e il client tiene
+      l'ultima fila buona (le schede sono struttura, non un contatore: sparire a ogni lettura
+      storta renderebbe la vista inagibile).
+    */
+    const schedeComuni = f.famiglia === 'massive'
+      ? comuniMassiveAperti(supabaseAdmin).catch((e): null => {
+          console.error('[acea/ordini] comuni massive non letti:', e);
+          return null;
+        })
+      : Promise.resolve<string[] | null>(null);
 
     let righe: OrdineRow[];
     let totale: number;
@@ -666,6 +688,9 @@ export async function GET(req: Request) {
         // Il triangolo della scheda «Riaperture»: aggiornato a ogni ricarica della tabella, così
         // pianificare o importare lo muove senza una chiamata in più. `null` = non calcolabile.
         riapertureSenzaData: await triangolo,
+        // Le schede-comune della vista massive, aggiornate a ogni ricarica per la stessa ragione:
+        // un import che aggiunge un paese fa comparire il tasto da solo. `null` = non calcolato.
+        comuniMassive: await schedeComuni,
       },
       { headers: { 'Cache-Control': 'no-store' } },
     );

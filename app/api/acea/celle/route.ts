@@ -7,7 +7,8 @@ import {
 } from '@/lib/acea/pianificazione';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
-import { controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
+import type { Famiglia } from '@/lib/acea/famiglia';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
@@ -102,7 +103,7 @@ export async function POST(req: Request) {
       for (const blocco of blocchi) {
         const { data: righe, error } = await supabaseAdmin
           .from('acea_ordini')
-          .select('id, odl, numero_operazione, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
+          .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
           .in('odl', blocco);
         if (error) throw error;
         for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
@@ -111,6 +112,7 @@ export async function POST(req: Request) {
             odl: String(r.odl),
             numero_operazione: String(r.numero_operazione),
             ordine_id: (r.id as string | null) ?? null,
+            famiglia: r.famiglia === 'massive' ? 'massive' : 'dunning',
             aperto: r.aperto === true,
             attivita: (r.attivita as string | null) ?? null,
             comune: (r.comune as string | null) ?? null,
@@ -187,7 +189,7 @@ export async function POST(req: Request) {
       intervento vecchio e non eseguito no — la data non la si sta scegliendo, la si eredita, e il
       cronoprogramma di un giorno passato non ha nessuna autorità su chi ci va adesso.
     */
-    type StatoFinale = { data: string; staffId: string; dataScritta: boolean };
+    type StatoFinale = { data: string; staffId: string; dataScritta: boolean; famiglia: Famiglia };
     const finali = new Map<string, StatoFinale>();
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
@@ -200,7 +202,12 @@ export async function POST(req: Request) {
       if (!data || !staffId) continue;
       // Senza un intervento esistente il giorno lo si sta SCEGLIENDO adesso, che arrivi
       // dall'incolla o da un appunto lasciato prima: in entrambi i casi la finestra vale.
-      finali.set(m.chiave, { data, staffId, dataScritta: m.data !== undefined || corrente === null });
+      // La famiglia viaggia col controllo: una riga massive esige chi fa le massive quel giorno.
+      finali.set(m.chiave, {
+        data, staffId,
+        dataScritta: m.data !== undefined || corrente === null,
+        famiglia: ordine.famiglia ?? 'dunning',
+      });
     }
     const oggi = partiRoma(new Date()).oggi;
     const motiviFinestra = await controllaAssegnazioni([...finali.values()], oggi);
@@ -237,7 +244,7 @@ export async function POST(req: Request) {
       }
       const { data: dataFinale, staffId: staffFinale } = finale;
 
-      const fuoriFinestra = motiviFinestra.get(`${dataFinale}|${staffFinale}`);
+      const fuoriFinestra = motiviFinestra.get(chiaveAssegnazione(finale));
       if (fuoriFinestra) {
         rifiutate.push({ chiave: m.chiave, motivo: fuoriFinestra });
         continue;

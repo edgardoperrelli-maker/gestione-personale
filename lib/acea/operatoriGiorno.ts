@@ -1,15 +1,17 @@
 import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { isAssenzaIntera, isNomeAttivitaAssenza } from '@/lib/disponibilita';
+import { ATTIVITA_TABELLONE, type Famiglia } from './famiglia';
 import { giorniProgrammabili, giornoEsteso, spiegaFinestra } from './giorniProgrammabili';
 
 /**
  * Chi si può mandare su un ordine ACEA in un dato giorno.
  *
  * Non è l'anagrafica del personale: è il CRONOPROGRAMMA, e non tutto il cronoprogramma — solo chi
- * quel giorno ha l'ATTIVITÀ DI DUNNING in tabellone. Il tabellone intero conteneva Firenze,
- * Napoli e Perugia su tutt'altre commesse: trenta nomi da cui sceglierne quattro, e nessun modo
- * di sapere quali quattro se non chiedendo.
+ * quel giorno ha in tabellone l'ATTIVITÀ DELLA FAMIGLIA che si sta pianificando (DUNNING per il
+ * dunning, LIMITAZIONI MASSIVE per le massive — vedi `ATTIVITA_TABELLONE`). Il tabellone intero
+ * conteneva Firenze, Napoli e Perugia su tutt'altre commesse: trenta nomi da cui sceglierne
+ * quattro, e nessun modo di sapere quali quattro se non chiedendo.
  *
  * Il criterio è l'attività, NON il territorio, ed è il punto: chi sta su LAZIO CENTRO o LAZIO EST
  * con il dunning aggiunto alle sue attività (`activity_ids`) deve comparire — è chi «prende
@@ -43,22 +45,14 @@ type RigaAssegnazione = {
 
 const primo = <T,>(v: T | T[] | null): T | null => (Array.isArray(v) ? (v[0] ?? null) : v);
 
-/**
- * Frammenti di nome che rendono un'attività di tabellone «di dunning».
- *
- * Per NOME e non per id: l'id è un uuid di produzione e cablarlo qui legherebbe il codice a un
- * database. Oggi l'attività si chiama «DUNNING»; se un domani se ne aggiunge una («ACEA
- * DUNNING», …) basta che il nome contenga il frammento.
- */
-const ATTIVITA_DUNNING = ['DUNNING'];
-
-const eNomeDunning = (nome: string | null | undefined): boolean => {
+const eNomeDellaFamiglia = (famiglia: Famiglia, nome: string | null | undefined): boolean => {
   const n = String(nome ?? '').toUpperCase();
-  return ATTIVITA_DUNNING.some((f) => n.includes(f));
+  return ATTIVITA_TABELLONE[famiglia].frammenti.some((f) => n.includes(f));
 };
 
 /**
- * Gli operatori in cronoprogramma per ciascuna delle date richieste.
+ * Gli operatori in cronoprogramma per ciascuna delle date richieste, filtrati sull'attività
+ * della famiglia.
  *
  * Due sottrazioni, entrambe necessarie:
  *  - le righe di tabellone la cui ATTIVITÀ è un tipo di assenza (Ferie/104/Malattia/…): sono la
@@ -69,6 +63,7 @@ const eNomeDunning = (nome: string | null | undefined): boolean => {
  */
 export async function operatoriPerGiorno(
   date: readonly string[],
+  famiglia: Famiglia = 'dunning',
 ): Promise<Map<string, OperatoreGiorno[]>> {
   const esito = new Map<string, OperatoreGiorno[]>();
   for (const d of date) esito.set(d, []);
@@ -93,7 +88,7 @@ export async function operatoriPerGiorno(
   if (error) throw error;
 
   /*
-    I nomi delle attività citate dalle righe, per decidere chi fa dunning.
+    I nomi delle attività citate dalle righe, per decidere chi fa l'attività della famiglia.
 
     Il join `activity:activity_id` copre solo l'attività SINGOLA: il dunning di chi satura la
     giornata sta in `activity_ids`, che è un array di uuid senza join. Si risolvono per nome con
@@ -133,9 +128,9 @@ export async function operatoriPerGiorno(
     })(),
   ]);
 
-  const faDunning = (r: RigaAssegnazione): boolean =>
-    (r.activity_id !== null && eNomeDunning(nomiAttivita.get(r.activity_id)))
-    || (r.activity_ids ?? []).some((id) => eNomeDunning(nomiAttivita.get(id)));
+  const faLaFamiglia = (r: RigaAssegnazione): boolean =>
+    (r.activity_id !== null && eNomeDellaFamiglia(famiglia, nomiAttivita.get(r.activity_id)))
+    || (r.activity_ids ?? []).some((id) => eNomeDellaFamiglia(famiglia, nomiAttivita.get(id)));
 
   // Dedup per (giorno, operatore): una persona può avere più righe di tabellone nello stesso
   // giorno — squadre, attività multiple — e nel menu deve comparire una volta sola.
@@ -143,8 +138,8 @@ export async function operatoriPerGiorno(
   for (const r of (righe ?? []) as RigaAssegnazione[]) {
     const data = dataDelGiorno.get(r.day_id);
     if (!data || !r.staff_id) continue;
-    // Solo chi fa DUNNING quel giorno: attività singola o una delle sue attività multiple.
-    if (!faDunning(r)) continue;
+    // Solo chi fa l'attività della famiglia quel giorno: singola o una delle sue multiple.
+    if (!faLaFamiglia(r)) continue;
     if (assenti.has(`${data}|${r.staff_id}`)) continue;
     if (isNomeAttivitaAssenza(primo(r.activity)?.name)) continue;
     const chiave = `${data}|${r.staff_id}`;
@@ -166,10 +161,13 @@ export async function operatoriPerGiorno(
 }
 
 /** I giorni programmabili con dentro i rispettivi operatori: una lettura sola per la pagina. */
-export async function finestraProgrammabile(oggi: string): Promise<GiornoConOperatori[]> {
+export async function finestraProgrammabile(
+  oggi: string,
+  famiglia: Famiglia = 'dunning',
+): Promise<GiornoConOperatori[]> {
   const giorni = giorniProgrammabili(oggi);
   if (giorni.length === 0) return [];
-  const perGiorno = await operatoriPerGiorno(giorni.map((g) => g.data));
+  const perGiorno = await operatoriPerGiorno(giorni.map((g) => g.data), famiglia);
   return giorni.map((g) => ({ ...g, operatori: perGiorno.get(g.data) ?? [] }));
 }
 
@@ -187,10 +185,29 @@ export type AssegnazioneDaControllare = {
    * non si poteva più riassegnare senza prima spostarlo.
    */
   dataScritta: boolean;
+  /**
+   * La famiglia della RIGA che si sta pianificando: decide quale attività di tabellone rende
+   * l'operatore assegnabile. Assente = dunning, che è il default storico di tutte le chiamate.
+   */
+  famiglia?: Famiglia;
 };
 
 /**
- * Motivo del rifiuto di un'assegnazione, o assente se si può scrivere. Chiave `${data}|${staffId}`.
+ * Chiave di un'assegnazione nella mappa dei motivi: `data|staffId|famiglia`.
+ *
+ * La famiglia STA nella chiave perché lo stesso operatore nello stesso giorno può essere buono
+ * per una famiglia e non per l'altra (ha DUNNING in tabellone ma non LIMITAZIONI MASSIVE): due
+ * righe di famiglie diverse nello stesso incolla devono poter avere verdetti diversi, e con la
+ * sola coppia `data|staffId` il primo verdetto coprirebbe il secondo.
+ */
+export function chiaveAssegnazione(
+  a: Pick<AssegnazioneDaControllare, 'data' | 'staffId' | 'famiglia'>,
+): string {
+  return `${a.data}|${a.staffId}|${a.famiglia ?? 'dunning'}`;
+}
+
+/**
+ * Motivo del rifiuto di un'assegnazione, o assente se si può scrivere. Chiave: `chiaveAssegnazione`.
  *
  * Sta sul SERVER e non solo nel menu perché una regola applicata alla sola UI è decorativa: la
  * griglia accetta un incolla da Excel, e senza questo controllo un blocco incollato scriverebbe
@@ -205,34 +222,47 @@ export async function controllaAssegnazioni(
   if (assegnazioni.length === 0) return motivi;
 
   const ammessi = new Set(giorniProgrammabili(oggi).map((g) => g.data));
-  /*
-    Il tabellone si legge solo per i giorni su cui si sta davvero scegliendo.
 
-    Una data fuori finestra che NON viene scritta (si cambia il solo esecutore su un intervento
-    vecchio) passa senza controlli: non si sta decidendo quel giorno, lo si sta ereditando.
-  */
-  const daControllare = assegnazioni.filter((a) => a.dataScritta || ammessi.has(a.data));
-  const dateDaLeggere = [...new Set(daControllare.map((a) => a.data))].filter((d) => ammessi.has(d));
-  const perGiorno = dateDaLeggere.length > 0
-    ? await operatoriPerGiorno(dateDaLeggere)
-    : new Map<string, OperatoreGiorno[]>();
-
-  for (const a of daControllare) {
-    const chiave = `${a.data}|${a.staffId}`;
-    if (motivi.has(chiave)) continue;
-    if (!ammessi.has(a.data)) {
-      motivi.set(chiave, `${giornoEsteso(a.data)} è fuori finestra: ${spiegaFinestra(oggi)}`);
-      continue;
-    }
-    const lista = perGiorno.get(a.data) ?? [];
-    if (!lista.some((o) => o.id === a.staffId)) {
-      motivi.set(
-        chiave,
-        lista.length === 0
-          ? `nessun operatore con attività DUNNING in cronoprogramma per ${giornoEsteso(a.data)}`
-          : `operatore senza attività DUNNING in cronoprogramma per ${giornoEsteso(a.data)}`,
-      );
-    }
+  // Per famiglia, perché il tabellone si legge con il filtro della famiglia. In pratica un
+  // salvataggio arriva da UNA vista e il gruppo è uno solo: il caso misto resta corretto, non
+  // ottimizzato.
+  const perFamiglia = new Map<Famiglia, AssegnazioneDaControllare[]>();
+  for (const a of assegnazioni) {
+    const f = a.famiglia ?? 'dunning';
+    perFamiglia.set(f, [...(perFamiglia.get(f) ?? []), a]);
   }
+
+  await Promise.all([...perFamiglia.entries()].map(async ([famiglia, lista]) => {
+    /*
+      Il tabellone si legge solo per i giorni su cui si sta davvero scegliendo.
+
+      Una data fuori finestra che NON viene scritta (si cambia il solo esecutore su un intervento
+      vecchio) passa senza controlli: non si sta decidendo quel giorno, lo si sta ereditando.
+    */
+    const daControllare = lista.filter((a) => a.dataScritta || ammessi.has(a.data));
+    const dateDaLeggere = [...new Set(daControllare.map((a) => a.data))].filter((d) => ammessi.has(d));
+    const perGiorno = dateDaLeggere.length > 0
+      ? await operatoriPerGiorno(dateDaLeggere, famiglia)
+      : new Map<string, OperatoreGiorno[]>();
+    const { etichetta } = ATTIVITA_TABELLONE[famiglia];
+
+    for (const a of daControllare) {
+      const chiave = chiaveAssegnazione(a);
+      if (motivi.has(chiave)) continue;
+      if (!ammessi.has(a.data)) {
+        motivi.set(chiave, `${giornoEsteso(a.data)} è fuori finestra: ${spiegaFinestra(oggi)}`);
+        continue;
+      }
+      const assegnabili = perGiorno.get(a.data) ?? [];
+      if (!assegnabili.some((o) => o.id === a.staffId)) {
+        motivi.set(
+          chiave,
+          assegnabili.length === 0
+            ? `nessun operatore con attività ${etichetta} in cronoprogramma per ${giornoEsteso(a.data)}`
+            : `operatore senza attività ${etichetta} in cronoprogramma per ${giornoEsteso(a.data)}`,
+        );
+      }
+    }
+  }));
   return motivi;
 }

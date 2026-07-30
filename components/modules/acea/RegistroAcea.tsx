@@ -11,6 +11,7 @@ import {
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
+import { ATTIVITA_TABELLONE } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import { useEditingGriglia, type Operatore } from './useEditingGriglia';
@@ -26,8 +27,17 @@ import { useOrdiniAcea } from './useOrdiniAcea';
 const numero = (n: number) => n.toLocaleString('it-IT');
 
 /** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso da Dunning e Massive. */
-export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'massive' }) {
+export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
+  famiglia: 'dunning' | 'massive';
+  /**
+   * Le schede-comune al primo render (solo massive), lette dal server nella pagina: devono
+   * esistere PRIMA della prima risposta, o la prima interrogazione partirebbe senza scheda.
+   */
+  comuniIniziali?: string[];
+}) {
   const definizione: DefColonna[] = famiglia === 'dunning' ? COLONNE_DUNNING : COLONNE_MASSIVE;
+  /** Come si chiama, nei messaggi, l'attività di tabellone che rende assegnabili in questa vista. */
+  const etichettaAttivita = ATTIVITA_TABELLONE[famiglia].etichetta;
   // `colonne` è la definizione RIORDINATA come l'ha lasciata l'utente. Da qui in giù nessuno deve
   // più preoccuparsi dell'ordine: tabella, pill dei filtri, menu colonne ed export leggono questa.
   const { ordinate: colonne, personalizzato, azzera, comandi } = useLayoutTabella(famiglia, definizione);
@@ -41,8 +51,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
-    ricarica, perPagina, query, riapertureSenzaData,
-  } = useOrdiniAcea(famiglia);
+    ricarica, perPagina, query, riapertureSenzaData, comuniMassive,
+  } = useOrdiniAcea(famiglia, comuniIniziali);
 
   /*
     Le colonne ADATTATE alla scheda: nella «Sostituzione saracinesca» l'ODL che conta e` quello
@@ -92,7 +102,9 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
     let vivo = true;
     void (async () => {
       try {
-        const res = await fetch('/api/acea/operatori');
+        // La famiglia decide il filtro degli assegnabili: qui le massive vedono chi fa le
+        // massive, non la squadra del dunning.
+        const res = await fetch(`/api/acea/operatori?famiglia=${famiglia}`);
         if (!res.ok || !vivo) return;
         const body = (await res.json()) as {
           giorni: Array<GiornoProgrammabile & { operatori: Operatore[] }>;
@@ -113,7 +125,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
       }
     })();
     return () => { vivo = false; };
-  }, []);
+  }, [famiglia]);
 
   useEffect(() => {
     let vivo = true;
@@ -256,6 +268,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         nomeFileExport({
           famiglia,
           stato: filtri.stato,
+          // La scheda-comune restringe il contenuto quanto lo stato: il file deve dirlo.
+          comune: filtri.comuneScheda,
           oggi,
           filtrato: contaFiltriColonna(filtri) > 0 || filtri.cerca.trim() !== '',
         }),
@@ -336,6 +350,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         // triangolo e` una seconda rete: se un domani la scheda tornasse, il numero — che conta
         // ordini di dunning — non comparirebbe comunque sulla vista sbagliata.
         famiglia={famiglia}
+        comuni={comuniMassive}
         riapertureSenzaData={famiglia === 'dunning' ? riapertureSenzaData : null}
       />
 
@@ -352,6 +367,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             Si nasconde da sola quando non ha niente da dire.
           */}
           <BarraAzioni
+            famiglia={famiglia}
             chiavi={selezionate.map(chiaveRiga)}
             onAnnullaSelezione={() => setSelezione({})}
             onPianificato={ricarica}
@@ -430,7 +446,7 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
             }
           />
 
-          <GuidaTabella giorni={giorni} />
+          <GuidaTabella giorni={giorni} famiglia={famiglia} />
         </div>
       </div>
 
@@ -466,6 +482,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           operatoriFinestra: giorni.map((g) => ({
             ...g, operatori: operatoriPerGiorno[g.data] ?? [],
           })),
+          // Per lo stato vuoto del menu: quale attività manca in tabellone, detta col suo nome.
+          etichettaAttivita,
           // I confini del calendario sono la finestra programmabile. La domenica fra sabato e
           // lunedì resta cliccabile nel picker (min/max non sanno bucare), ma la validazione la
           // rifiuta col motivo — meglio un rifiuto spiegato che un calendario che sembra rotto.

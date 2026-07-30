@@ -18,6 +18,7 @@ import BarraFiltriAcea from './BarraFiltriAcea';
 const barra = (
   riapertureSenzaData: number | null,
   famiglia: 'dunning' | 'massive' = 'dunning',
+  comuni: string[] = [],
 ) => renderToStaticMarkup(
   <BarraFiltriAcea
     filtri={filtriVuoti()}
@@ -26,6 +27,7 @@ const barra = (
     totale={100}
     caricate={100}
     famiglia={famiglia}
+    comuni={comuni}
     riapertureSenzaData={riapertureSenzaData}
   />,
 );
@@ -61,19 +63,37 @@ describe('BarraFiltriAcea — triangolo della scheda Riaperture', () => {
   });
 });
 
-// Le riaperture sono ordini di dunning (RIAT/REVO sul ripristino da morosità): in massive la
-// scheda sarebbe strutturalmente vuota — si apre, non c'è niente, e non si capisce se è un filtro
-// o un guasto. Quindi non si disegna proprio.
+/*
+  In massive le schede sono i COMUNI (il lavoro da pianificare di ogni paese) più i due riepiloghi
+  su tutti: «Chiusi» e «Sostituzione saracinesca». Né «Tutti» né una «Da lavorare» generica: la
+  prima diluiva le altre, la seconda è la somma delle schede-comune. E niente «Riaperture»: sono
+  ordini di dunning (RIAT/REVO sul ripristino da morosità) — una scheda strutturalmente vuota non
+  è una vista, è una domanda senza risposta.
+*/
 describe('BarraFiltriAcea — vista massive', () => {
-  it('non ha la scheda Riaperture, e le altre restano', () => {
-    const html = barra(null, 'massive');
-    expect(html).not.toContain('Riaperture');
-    for (const etichetta of ['Da lavorare', 'Chiusi', 'Tutti', 'Sostituzione saracinesca']) {
+  const COMUNI = ['LABICO', 'RIANO', 'ZAGAROLO'];
+
+  it('un tasto per comune, poi Chiusi e Sostituzione saracinesca', () => {
+    const html = barra(null, 'massive', COMUNI);
+    for (const etichetta of [...COMUNI, 'Chiusi', 'Sostituzione saracinesca']) {
       expect(html).toContain(etichetta);
     }
   });
 
+  it('niente «Tutti», niente «Da lavorare», niente «Riaperture»', () => {
+    const html = barra(null, 'massive', COMUNI);
+    expect(html).not.toContain('Tutti');
+    expect(html).not.toContain('Da lavorare');
+    expect(html).not.toContain('Riaperture');
+  });
+
   it('nemmeno il triangolo, anche se il numero arrivasse: non c’è il tasto su cui metterlo', () => {
-    expect(barra(3, 'massive')).not.toContain('senza data');
+    expect(barra(3, 'massive', COMUNI)).not.toContain('senza data');
+  });
+
+  it('senza comuni aperti restano i due riepiloghi: la campagna è finita, la storia resta', () => {
+    const html = barra(null, 'massive');
+    expect(html).toContain('Chiusi');
+    expect(html).toContain('Sostituzione saracinesca');
   });
 });

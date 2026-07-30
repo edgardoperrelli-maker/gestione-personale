@@ -126,6 +126,12 @@ export type FiltriPianificazione = {
 export type FiltriOrdini = {
   famiglia: 'dunning' | 'massive' | null;
   stato: StatoFiltro;
+  /**
+   * Il comune della SCHEDA attiva, nella vista massive. Non è un filtro di colonna: è la scheda —
+   * le limitazioni massive si lavorano per comune (una campagna per paese), e la fila delle
+   * schede è un tasto per ciascuno. Restringe con un `eq`, in AND con tutto il resto.
+   */
+  comuneScheda: string | null;
   /** Valori spuntati per colonna. Array vuoto = nessun filtro su quella colonna. */
   elenchi: Record<ColonnaElenco, string[]>;
   /** Termine «contiene» per colonna, già ripulito. `null` = nessun filtro. */
@@ -319,6 +325,7 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
       stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' || stato === 'riaperture'
         ? stato
         : 'tutti',
+    comuneScheda: testo(params.get('comuneScheda')),
     elenchi,
     testi,
     scadenza:
@@ -384,6 +391,8 @@ export function intervalloPagina(f: FiltriOrdini): { da: number; a: number } {
 export type FiltriUI = {
   /** Segmented sopra la tabella: si lavora sull'aperto, lo storico è a un click. */
   stato: StatoFiltro;
+  /** Scheda-comune attiva (solo massive): `stato` resta 'aperti', questo dice QUALE paese. */
+  comuneScheda: string | null;
   /** Filtro dell'intestazione «Scadenza» (semantico, non un intervallo di date). */
   scadenza: ScadenzaFiltro;
   /** Ricerca libera: attraversa più colonne, quindi sta nella barra e non in un'intestazione. */
@@ -407,6 +416,7 @@ export function filtriVuoti(): FiltriUI {
   for (const c of COLONNE_TESTO) testi[c] = '';
   return {
     stato: 'aperti', // si lavora sull'aperto: lo storico è a un click, ma non è la vista di default
+    comuneScheda: null,
     scadenza: 'tutte',
     cerca: '',
     elenchi,
@@ -425,6 +435,7 @@ export function parametriQuery(
 ): URLSearchParams {
   const p = new URLSearchParams({ famiglia, perPagina: String(perPagina) });
   if (f.stato !== 'tutti') p.set('stato', f.stato);
+  if (f.comuneScheda) p.set('comuneScheda', f.comuneScheda);
   if (f.scadenza !== 'tutte') p.set('scadenza', f.scadenza);
   if (f.cerca.trim()) p.set('cerca', f.cerca.trim());
   for (const c of COLONNE_ELENCO) {
@@ -461,12 +472,82 @@ export function contaFiltriColonna(f: FiltriUI): number {
   );
 }
 
-/** `true` se qualcosa è diverso dallo stato iniziale: decide se mostrare «Azzera». */
+/**
+ * `true` se c'è qualcosa da azzerare: filtri di colonna o ricerca libera.
+ *
+ * La SCHEDA non conta, ed è un cambio deliberato: la scheda è navigazione («dove sto guardando»),
+ * non un criterio da ripulire — e da quando in massive le schede sono i comuni, «Azzera» non deve
+ * buttare fuori dal paese in cui si sta lavorando. Per lo stesso motivo `azzeraFiltri` qui sotto
+ * riparte dai filtri vuoti ma TIENE la scheda.
+ */
 export function haFiltriAttivi(f: FiltriUI): boolean {
-  const iniziale = filtriVuoti();
-  return (
-    contaFiltriColonna(f) > 0 || f.cerca.trim() !== '' || f.stato !== iniziale.stato
-  );
+  return contaFiltriColonna(f) > 0 || f.cerca.trim() !== '';
+}
+
+/** Filtri ripuliti, scheda com'era: è il gesto del pulsante «Azzera». */
+export function azzeraFiltri(f: FiltriUI): FiltriUI {
+  return { ...filtriVuoti(), stato: f.stato, comuneScheda: f.comuneScheda };
+}
+
+// ---------------------------------------------------------------------------
+// Le schede sopra la tabella: quali esistono, quale è attiva, cosa fa un click.
+//
+// Pure e qui — non nella barra — perché il legame scheda→filtri è il punto in cui una svista fa
+// mostrare righe plausibili sotto il tasto sbagliato, e va provato senza montare React.
+// ---------------------------------------------------------------------------
+
+export type Scheda = { value: string; label: string };
+
+/** Prefisso del value delle schede-comune: le distingue dagli stati senza un secondo campo. */
+export const PREFISSO_SCHEDA_COMUNE = 'comune:';
+
+/**
+ * Le schede della vista, nell'ordine in cui si usano.
+ *
+ * DUNNING — gli stati di sempre: `riaperture` sta SUBITO DOPO «Da lavorare» perché è la scheda
+ * del lavoro che scade domani e la fila si legge da sinistra; `saracinesche` sta in fondo perché
+ * non è uno stato dell'ordine ma un sottoinsieme che attraversa aperti e chiusi.
+ *
+ * MASSIVE — un tasto PER COMUNE (il lavoro da pianificare di quel paese), poi «Chiusi» e
+ * «Sostituzione saracinesca» riepilogative su tutti i comuni. Le massive sono campagne per paese
+ * — ZAGAROLO, RIANO, LABICO… — e «quante ne mancano a Riano» era una domanda da filtro manuale a
+ * ogni giro. Niente «Da lavorare» generica (sono le schede-comune, sommate) e niente «Tutti»:
+ * aperto-di-un-comune e chiuso-di-tutti coprono ogni riga, e la scheda in più diluiva le altre.
+ * I comuni arrivano dal registro (quelli con almeno un ordine APERTO): un comune nuovo compare al
+ * primo import che lo contiene, uno finito sparisce da solo — la sua storia resta in «Chiusi».
+ */
+export function schedeVista(
+  famiglia: 'dunning' | 'massive',
+  comuni: readonly string[],
+): Scheda[] {
+  if (famiglia === 'dunning') {
+    return (['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche'] as StatoFiltro[])
+      .map((s) => ({ value: s, label: ETICHETTE_STATO[s] }));
+  }
+  return [
+    ...comuni.map((c) => ({ value: `${PREFISSO_SCHEDA_COMUNE}${c}`, label: c })),
+    { value: 'chiusi', label: ETICHETTE_STATO.chiusi },
+    { value: 'saracinesche', label: ETICHETTE_STATO.saracinesche },
+  ];
+}
+
+/** Il value della scheda attiva per lo stato corrente dei filtri. */
+export function valoreScheda(f: Pick<FiltriUI, 'stato' | 'comuneScheda'>): string {
+  return f.comuneScheda !== null ? `${PREFISSO_SCHEDA_COMUNE}${f.comuneScheda}` : f.stato;
+}
+
+/**
+ * I filtri dopo un click su una scheda.
+ *
+ * Una scheda-comune È «gli aperti di quel comune»: `stato: 'aperti'` + il comune. Le altre
+ * azzerano il comune — «Chiusi» e «Saracinesche» sono riepilogative su tutti i paesi, e portarsi
+ * dietro il comune della scheda di prima le farebbe sembrare vuote a metà.
+ */
+export function applicaScheda(f: FiltriUI, value: string): FiltriUI {
+  if (value.startsWith(PREFISSO_SCHEDA_COMUNE)) {
+    return { ...f, stato: 'aperti', comuneScheda: value.slice(PREFISSO_SCHEDA_COMUNE.length) };
+  }
+  return { ...f, stato: value as StatoFiltro, comuneScheda: null };
 }
 
 /** Espressione `or` di PostgREST per la ricerca libera. `null` se non c'è nulla da cercare. */

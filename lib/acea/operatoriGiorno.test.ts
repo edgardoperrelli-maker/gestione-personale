@@ -4,8 +4,8 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
   Fake minimo di Supabase: regge la sola catena usata da `operatoriGiorno.ts`
   (`from(t).select(...).in(col, valori)` atteso). Le righe di `assignments` arrivano già nella
   forma che il join produce — il fake non sa fare join, e non è quello che questi test provano:
-  qui si provano il filtro per attività DUNNING, il dedup, le sottrazioni delle assenze e il
-  rifiuto fuori finestra.
+  qui si provano il filtro per attività della famiglia (DUNNING / LIMITAZIONI MASSIVE), il dedup,
+  le sottrazioni delle assenze e il rifiuto fuori finestra.
 */
 type Riga = Record<string, unknown>;
 const tabelle: Record<string, Riga[]> = {};
@@ -23,16 +23,21 @@ vi.mock('@/lib/supabaseAdmin', () => ({
   },
 }));
 
-const { controllaAssegnazioni, operatoriPerGiorno } = await import('./operatoriGiorno');
+const { chiaveAssegnazione, controllaAssegnazioni, operatoriPerGiorno } = await import('./operatoriGiorno');
 
 const GIOVEDI = '2026-07-30';
 const VENERDI = '2026-07-31';
 const SABATO = '2026-08-01';
 const LUNEDI = '2026-08-03';
 
-/** Attività di tabellone: il dunning e le altre. Nomi come in produzione. */
+/** Chiave dei motivi, col default dunning: com'era prima che la famiglia entrasse nella chiave. */
+const k = (data: string, staffId: string, famiglia: 'dunning' | 'massive' = 'dunning') =>
+  chiaveAssegnazione({ data, staffId, famiglia });
+
+/** Attività di tabellone: il dunning, le massive e le altre. Nomi come in produzione. */
 const ATT = {
   dunning: 'act-dunning',
+  massive: 'act-massive',
   clientela: 'act-clientela',
   risanamento: 'act-risanamento',
   ferie: 'act-ferie',
@@ -64,6 +69,7 @@ beforeEach(() => {
   tabelle.disponibilita_operatore = [];
   tabelle.activities = [
     { id: ATT.dunning, name: 'DUNNING' },
+    { id: ATT.massive, name: 'LIMITAZIONI MASSIVE' },
     { id: ATT.clientela, name: 'CLIENTELA' },
     { id: ATT.risanamento, name: 'RISANAMENTO COLONNE' },
     { id: ATT.ferie, name: 'Ferie' },
@@ -186,13 +192,13 @@ describe('controllaAssegnazioni', () => {
       [{ data: SABATO, staffId: 's1', dataScritta: true }, { data: LUNEDI, staffId: 's1', dataScritta: true }],
       VENERDI,
     );
-    expect(m.get(`${SABATO}|s1`)).toBeUndefined();
-    expect(m.get(`${LUNEDI}|s1`)).toMatch(/fuori finestra/);
+    expect(m.get(k(SABATO, 's1'))).toBeUndefined();
+    expect(m.get(k(LUNEDI, 's1'))).toMatch(/fuori finestra/);
   });
 
   it('rifiuta una data lontana nominando i giorni buoni', async () => {
     const m = await controllaAssegnazioni([{ data: '2026-09-15', staffId: 's1', dataScritta: true }], VENERDI);
-    expect(m.get('2026-09-15|s1')).toBe(
+    expect(m.get(k('2026-09-15', 's1'))).toBe(
       'martedì 15/09 è fuori finestra: si programma solo per venerdì 31/07 o sabato 01/08',
     );
   });
@@ -205,12 +211,12 @@ describe('controllaAssegnazioni', () => {
       }),
     ];
     const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's9', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s9`)).toBe('operatore senza attività DUNNING in cronoprogramma per venerdì 31/07');
+    expect(m.get(k(VENERDI, 's9'))).toBe('operatore senza attività DUNNING in cronoprogramma per venerdì 31/07');
   });
 
   it('tabellone senza nessuno sul dunning: lo dice', async () => {
     const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s1`)).toBe(
+    expect(m.get(k(VENERDI, 's1'))).toBe(
       'nessun operatore con attività DUNNING in cronoprogramma per venerdì 31/07',
     );
   });
@@ -219,7 +225,7 @@ describe('controllaAssegnazioni', () => {
     tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
     tabelle.disponibilita_operatore = [{ staff_id: 's1', data: VENERDI, ora_da: null, ora_a: null }];
     const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
-    expect(m.get(`${VENERDI}|s1`)).toMatch(/nessun operatore con attività DUNNING/);
+    expect(m.get(k(VENERDI, 's1'))).toMatch(/nessun operatore con attività DUNNING/);
   });
 
   /*
@@ -244,7 +250,7 @@ describe('controllaAssegnazioni', () => {
         [{ data: '2026-07-20', staffId: 's9', dataScritta: true }],
         VENERDI,
       );
-      expect(m.get('2026-07-20|s9')).toMatch(/fuori finestra/);
+      expect(m.get(k('2026-07-20', 's9'))).toMatch(/fuori finestra/);
     });
 
     it('dentro la finestra il tabellone vale comunque, anche senza riscrivere la data', async () => {
@@ -253,11 +259,98 @@ describe('controllaAssegnazioni', () => {
         [{ data: VENERDI, staffId: 's9', dataScritta: false }],
         VENERDI,
       );
-      expect(m.get(`${VENERDI}|s9`)).toMatch(/senza attività DUNNING|nessun operatore/);
+      expect(m.get(k(VENERDI, 's9'))).toMatch(/senza attività DUNNING|nessun operatore/);
     });
   });
 
   it('nessuna coppia: nessuna lettura e nessun rifiuto', async () => {
     expect((await controllaAssegnazioni([], VENERDI)).size).toBe(0);
+  });
+});
+
+/*
+  La famiglia sceglie l'ATTIVITÀ che filtra il tabellone: DUNNING per il dunning, LIMITAZIONI
+  MASSIVE per le massive. Stesso principio («chi quel giorno è sulla commessa»), attività diversa:
+  un filtro solo avrebbe mostrato ai pianificatori delle massive la squadra del dunning.
+*/
+describe('operatoriPerGiorno — famiglia massive', () => {
+  const suMassive = (day_id: string, id: string, nome: string): Riga =>
+    assegna(day_id, id, nome, {
+      activity_id: ATT.massive,
+      activity: { name: 'LIMITAZIONI MASSIVE' },
+      activity_ids: [ATT.massive],
+    });
+
+  it('vede chi ha LIMITAZIONI MASSIVE, non chi ha il dunning', async () => {
+    tabelle.assignments = [
+      suMassive('g1', 's1', 'BELLOMO PIETRO'),
+      assegna('g1', 's2', 'CIARALLO ANNA'), // dunning: non è di questa vista
+    ];
+    const m = await operatoriPerGiorno([GIOVEDI], 'massive');
+    expect(m.get(GIOVEDI)?.map((o) => o.id)).toEqual(['s1']);
+  });
+
+  it('specularmente, il dunning non vede chi fa solo le massive', async () => {
+    tabelle.assignments = [suMassive('g1', 's1', 'BELLOMO PIETRO')];
+    const m = await operatoriPerGiorno([GIOVEDI], 'dunning');
+    expect(m.get(GIOVEDI)).toEqual([]);
+  });
+
+  it('le massive fra le attività MULTIPLE bastano, come per il dunning', async () => {
+    tabelle.assignments = [
+      assegna('g1', 's1', 'SIKORA JAN', {
+        activity_id: ATT.clientela,
+        activity: { name: 'CLIENTELA' },
+        activity_ids: [ATT.clientela, ATT.massive],
+      }),
+    ];
+    const m = await operatoriPerGiorno([GIOVEDI], 'massive');
+    expect(m.get(GIOVEDI)?.map((o) => o.id)).toEqual(['s1']);
+  });
+});
+
+describe('controllaAssegnazioni — famiglia massive', () => {
+  it('il motivo nomina LIMITAZIONI MASSIVE, non DUNNING', async () => {
+    const m = await controllaAssegnazioni(
+      [{ data: VENERDI, staffId: 's1', dataScritta: true, famiglia: 'massive' }],
+      VENERDI,
+    );
+    expect(m.get(k(VENERDI, 's1', 'massive'))).toBe(
+      'nessun operatore con attività LIMITAZIONI MASSIVE in cronoprogramma per venerdì 31/07',
+    );
+  });
+
+  it('chi ha SOLO il dunning viene rifiutato sulle massive', async () => {
+    tabelle.assignments = [
+      assegna('g2', 's1', 'CIARALLO ANNA'), // solo dunning
+      assegna('g2', 's2', 'BELLOMO PIETRO', { // le massive quel giorno le fa un altro
+        activity_id: ATT.massive, activity: { name: 'LIMITAZIONI MASSIVE' }, activity_ids: [ATT.massive],
+      }),
+    ];
+    const m = await controllaAssegnazioni(
+      [{ data: VENERDI, staffId: 's1', dataScritta: true, famiglia: 'massive' }],
+      VENERDI,
+    );
+    expect(m.get(k(VENERDI, 's1', 'massive'))).toBe(
+      'operatore senza attività LIMITAZIONI MASSIVE in cronoprogramma per venerdì 31/07',
+    );
+  });
+
+  it('stessa coppia (giorno, operatore), verdetti INDIPENDENTI per famiglia', async () => {
+    // È il motivo per cui la famiglia sta nella chiave: senza, il primo verdetto coprirebbe
+    // il secondo e una riga massive passerebbe sull'idoneità dunning (o viceversa).
+    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
+    const m = await controllaAssegnazioni([
+      { data: VENERDI, staffId: 's1', dataScritta: true, famiglia: 'dunning' },
+      { data: VENERDI, staffId: 's1', dataScritta: true, famiglia: 'massive' },
+    ], VENERDI);
+    expect(m.get(k(VENERDI, 's1', 'dunning'))).toBeUndefined();
+    expect(m.get(k(VENERDI, 's1', 'massive'))).toMatch(/LIMITAZIONI MASSIVE/);
+  });
+
+  it('senza famiglia vale il dunning: il default storico di tutte le chiamate', async () => {
+    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
+    const m = await controllaAssegnazioni([{ data: VENERDI, staffId: 's1', dataScritta: true }], VENERDI);
+    expect(m.size).toBe(0);
   });
 });

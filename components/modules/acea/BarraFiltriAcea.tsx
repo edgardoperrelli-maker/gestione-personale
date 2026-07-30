@@ -7,7 +7,7 @@ import {
   pillFiltri, senzaFiltroColonna, type ChiaveColonna, type DefColonna,
 } from '@/lib/acea/colonneTabella';
 import {
-  ETICHETTE_STATO, filtriVuoti, haFiltriAttivi, type FiltriUI, type StatoFiltro,
+  applicaScheda, azzeraFiltri, haFiltriAttivi, schedeVista, valoreScheda, type FiltriUI,
 } from '@/lib/acea/filtriOrdini';
 
 type Props = {
@@ -17,8 +17,14 @@ type Props = {
   colonne: DefColonna[];
   totale: number;
   caricate: number;
-  /** La vista decide QUALI schede esistono: le riaperture sono dunning, e in massive non c'è la scheda. */
+  /**
+   * La vista decide QUALI schede esistono (vedi `schedeVista`): il dunning ha gli stati di
+   * sempre — le riaperture sono sue, e in massive quella scheda non si disegna proprio — mentre
+   * le massive hanno un tasto per comune più i riepiloghi.
+   */
   famiglia: 'dunning' | 'massive';
+  /** Comuni con ordini aperti: le schede della vista massive. In dunning resta vuoto. */
+  comuni?: readonly string[];
   /**
    * Attivazioni aperte SENZA una data di pianificazione: il triangolo rosso sul tasto della
    * scheda. Hanno un giorno di cardine — quella fuori calendario è quella che scade domani e
@@ -29,26 +35,6 @@ type Props = {
    */
   riapertureSenzaData?: number | null;
 };
-
-/**
- * Le schede, nell'ordine in cui si usano.
- *
- * `saracinesche` sta in fondo perche` non e` uno stato dell'ordine come gli altri tre: e` un
- * sottoinsieme che attraversa aperti e chiusi. Sta comunque in questa fila perche` e` cosi` che ci
- * si arriva — si cambia vista, non si compone un filtro.
- *
- * `riaperture` e` un sottoinsieme anche lei, ma sta SUBITO DOPO «Da lavorare» e non in fondo:
- * e` la scheda del lavoro che scade domani, e la fila si legge da sinistra. Metterla accanto alle
- * saracinesche l'avrebbe archiviata fra le viste di controllo, che e` il contrario del punto.
- *
- * In MASSIVE la scheda riaperture non esiste: le riaperture sono ordini di dunning (`RIAT`/`REVO`
- * sul ripristino da morosita`), e una scheda strutturalmente vuota non e` una vista, e` una
- * domanda senza risposta — si apre, non c'e` niente, e non si sa se e` un filtro o un guasto.
- */
-const STATI: StatoFiltro[] = ['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche'];
-
-const statiDella = (famiglia: 'dunning' | 'massive'): StatoFiltro[] =>
-  famiglia === 'massive' ? STATI.filter((s) => s !== 'riaperture') : STATI;
 
 /**
  * Barra sopra la tabella: quello che i filtri di colonna NON possono fare.
@@ -68,7 +54,7 @@ const statiDella = (famiglia: 'dunning' | 'massive'): StatoFiltro[] =>
  * la loro larghezza (vedi il commento in `components/ui/Select.tsx`).
  */
 export default function BarraFiltriAcea({
-  filtri, onChange, colonne, totale, caricate, famiglia, riapertureSenzaData = null,
+  filtri, onChange, colonne, totale, caricate, famiglia, comuni = [], riapertureSenzaData = null,
 }: Props) {
   const pill = pillFiltri(colonne, filtri);
   const attivi = haFiltriAttivi(filtri);
@@ -77,11 +63,10 @@ export default function BarraFiltriAcea({
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         <Tabs
-          value={filtri.stato}
-          onValueChange={(v) => onChange({ ...filtri, stato: v as StatoFiltro })}
-          items={statiDella(famiglia).map((s) => ({
-            value: s,
-            label: ETICHETTE_STATO[s],
+          value={valoreScheda(filtri)}
+          onValueChange={(v) => onChange(applicaScheda(filtri, v))}
+          items={schedeVista(famiglia, comuni).map((s) => ({
+            ...s,
             /*
               Il triangolo sta sul TASTO, non nei contatori di testa: deve farsi vedere da
               qualunque scheda, e la risposta giusta al vederlo — aprire le riaperture — è il
@@ -89,7 +74,7 @@ export default function BarraFiltriAcea({
               righe della scheda: una in calendario ma non finita è nella scheda ma non è un
               allarme, ha già un giorno in cui qualcuno ci va.
             */
-            ...(s === 'riaperture' && riapertureSenzaData !== null && riapertureSenzaData > 0
+            ...(s.value === 'riaperture' && riapertureSenzaData !== null && riapertureSenzaData > 0
               ? {
                   badge: riapertureSenzaData,
                   badgeLabel: riapertureSenzaData === 1
@@ -117,7 +102,9 @@ export default function BarraFiltriAcea({
         </div>
 
         {attivi && (
-          <Button variant="ghost" size="sm" onClick={() => onChange(filtriVuoti())}>
+          // «Azzera» ripulisce i filtri ma NON cambia scheda: da quando le schede massive sono i
+          // comuni, azzerare non deve buttare fuori dal paese in cui si sta lavorando.
+          <Button variant="ghost" size="sm" onClick={() => onChange(azzeraFiltri(filtri))}>
             <X size={14} aria-hidden="true" />
             Azzera
           </Button>

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { famigliaDaTipoOrdine } from './famiglia';
+import { ATTIVITA_TABELLONE, famigliaDaTipoOrdine } from './famiglia';
 import {
   isAperto, isApertoNoto, isAnnullato, isCompletato, isStatoNoto, normalizzaStato, STATI_APERTI,
 } from './statiOrdine';
@@ -28,6 +28,25 @@ describe('famigliaDaTipoOrdine', () => {
     expect(famigliaDaTipoOrdine('AXXX')).toEqual({ famiglia: 'dunning', riconosciuto: false });
     expect(famigliaDaTipoOrdine('')).toEqual({ famiglia: 'dunning', riconosciuto: false });
     expect(famigliaDaTipoOrdine(null)).toEqual({ famiglia: 'dunning', riconosciuto: false });
+  });
+});
+
+describe('ATTIVITA_TABELLONE', () => {
+  it('i frammenti agganciano i nomi VERI delle attività di produzione', () => {
+    // «DUNNING» e «LIMITAZIONI MASSIVE» sono i nomi in tabellone, verificati in produzione:
+    // se un frammento smette di agganciare il suo nome, il menu degli assegnabili si svuota.
+    const aggancia = (frammenti: string[], nome: string) =>
+      frammenti.some((f) => nome.toUpperCase().includes(f));
+    expect(aggancia(ATTIVITA_TABELLONE.dunning.frammenti, 'DUNNING')).toBe(true);
+    expect(aggancia(ATTIVITA_TABELLONE.massive.frammenti, 'LIMITAZIONI MASSIVE')).toBe(true);
+    // E non si agganciano a vicenda: le due viste hanno squadre diverse.
+    expect(aggancia(ATTIVITA_TABELLONE.dunning.frammenti, 'LIMITAZIONI MASSIVE')).toBe(false);
+    expect(aggancia(ATTIVITA_TABELLONE.massive.frammenti, 'DUNNING')).toBe(false);
+  });
+
+  it('le etichette dicono il nome per intero: finiscono nei messaggi', () => {
+    expect(ATTIVITA_TABELLONE.dunning.etichetta).toBe('DUNNING');
+    expect(ATTIVITA_TABELLONE.massive.etichetta).toBe('LIMITAZIONI MASSIVE');
   });
 });
 

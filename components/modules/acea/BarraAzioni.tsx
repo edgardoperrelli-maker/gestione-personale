@@ -6,6 +6,7 @@ import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { chiediConferma } from '@/components/ui/chiediConferma';
+import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import type { PianoCarico } from '@/lib/acea/caricaSuRapportino';
 import { giornoEsteso } from '@/lib/acea/giorniProgrammabili';
@@ -26,6 +27,12 @@ export type EsitoPianifica = {
 };
 
 type Props = {
+  /**
+   * La famiglia della vista: decide come si CHIAMA l'attività di tabellone nei messaggi
+   * («Nessuno su DUNNING…» / «…su LIMITAZIONI MASSIVE…») e cosa dire il venerdì e il sabato —
+   * in massive non passa niente, non «solo le attivazioni».
+   */
+  famiglia: Famiglia;
   /** Chiavi `odl|numero_operazione` selezionate. */
   chiavi: string[];
   onAnnullaSelezione: () => void;
@@ -66,9 +73,10 @@ type Props = {
  * "ho assegnato 200 righe alla persona sbagliata", che senza undo si ripara solo riga per riga.
  */
 export default function BarraAzioni({
-  chiavi, onAnnullaSelezione, onPianificato, operatori, giorni, giorno, onGiorno, onCopiaRighe,
-  pianoCarico, onCaricato,
+  famiglia, chiavi, onAnnullaSelezione, onPianificato, operatori, giorni, giorno, onGiorno,
+  onCopiaRighe, pianoCarico, onCaricato,
 }: Props) {
+  const { etichetta: etichettaAttivita } = ATTIVITA_TABELLONE[famiglia];
   const [staffId, setStaffId] = useState('');
   const [busy, setBusy] = useState(false);
   const [ultima, setUltima] = useState<{ id: string; descrizione: string } | null>(null);
@@ -301,7 +309,7 @@ export default function BarraAzioni({
             disabled={operatori.length === 0}
           >
             <option value="">
-              {operatori.length === 0 ? 'Nessuno su DUNNING in tabellone' : 'Assegna a…'}
+              {operatori.length === 0 ? `Nessuno su ${etichettaAttivita} in tabellone` : 'Assegna a…'}
             </option>
             {/*
               Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
@@ -348,8 +356,8 @@ export default function BarraAzioni({
 
           {operatori.length === 0 && giornoScelto && (
             <span className="text-xs text-[var(--brand-text-muted)]">
-              Nessun operatore con attività DUNNING in cronoprogramma per {giornoScelto.esteso}:{' '}
-              <a href="/dashboard" className="underline">compila il tabellone</a>.
+              Nessun operatore con attività {etichettaAttivita} in cronoprogramma per{' '}
+              {giornoScelto.esteso}: <a href="/dashboard" className="underline">compila il tabellone</a>.
             </span>
           )}
 
@@ -357,11 +365,16 @@ export default function BarraAzioni({
             Detto PRIMA di premere, non dopo. Senza, il venerdì si selezionavano quaranta righe, si
             premeva Pianifica e ne passavano tre: l'esito diceva «37 saltati» e sembrava un guasto.
             `--status-warn` perché qui il colore è l'informazione (DESIGN.md §«Semantici e stato»).
+
+            In MASSIVE il venerdì e il sabato non passa NIENTE — le limitazioni massive non sono
+            attivazioni — e va detto con quelle parole: «passano solo le attivazioni» su una vista
+            che non ne ha suona come un dettaglio, invece è «oggi da qui non si pianifica».
           */}
           {giornoScelto?.soloAttivazioni && operatori.length > 0 && (
             <span className="text-xs text-[var(--status-warn)]">
-              {giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe
-              vengono saltate.
+              {famiglia === 'massive'
+                ? `${giornoScelto.esteso}: passano solo le attivazioni, e le limitazioni massive non lo sono — le righe verrebbero tutte saltate. Si riprogramma da lunedì.`
+                : `${giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}
             </span>
           )}
         </>

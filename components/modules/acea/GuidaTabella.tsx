@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { CircleHelp } from 'lucide-react';
 import Button from '@/components/Button';
 import Dialog from '@/components/ui/Dialog';
+import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 
 /**
@@ -14,8 +15,15 @@ import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
  * consultazione, non stato: si apre quando serve e la tabella si riprende la piega.
  */
 
+type PropsGuida = {
+  giorni: GiornoProgrammabile[];
+  /** La famiglia della vista: la guida nomina l'attività di tabellone giusta (DUNNING / MASSIVE). */
+  famiglia: Famiglia;
+};
+
 /** Contenuto della guida, esportato nudo: si prova con un render statico, senza stato né Dialog. */
-export function ContenutoGuida({ giorni }: { giorni: GiornoProgrammabile[] }) {
+export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
+  const { etichetta: attivita } = ATTIVITA_TABELLONE[famiglia];
   const finestra = giorni.length > 0
     ? giorni.map((g) => g.esteso).join(' o ')
     : 'oggi o il giorno lavorativo successivo';
@@ -28,7 +36,7 @@ export function ContenutoGuida({ giorni }: { giorni: GiornoProgrammabile[] }) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Si modificano <strong>Esecutore</strong>, <strong>Data pianificata</strong> e <strong>Note</strong>: clicca una cella, frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo.</li>
           <li><strong>Doppio click sulla Data</strong> (o <kbd>Invio</kbd>) apre il calendario; la data si scrive anche a mano.</li>
-          <li><strong>Click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi ha l&apos;attività DUNNING in cronoprogramma, di qualunque territorio — si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto.</li>
+          <li><strong>Click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi ha l&apos;attività {attivita} in cronoprogramma, di qualunque territorio — si sceglie da lì, niente testo libero. Doppio click per cambiare un nome già scritto.</li>
           <li>La <strong>nota</strong> scritta qui arriva all&apos;operatore dentro il rapportino.</li>
         </ul>
       </section>
@@ -59,8 +67,11 @@ export function ContenutoGuida({ giorni }: { giorni: GiornoProgrammabile[] }) {
           Quando si programma, e su chi
         </h3>
         <ul className="list-disc space-y-1 pl-5">
-          <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>
-          <li>I nomi assegnabili sono quelli con l&apos;attività DUNNING nel{' '}
+          <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano
+            solo le attivazioni{famiglia === 'massive'
+              ? ' — e le limitazioni massive non lo sono: quei giorni da qui non si pianifica'
+              : ''}.</li>
+          <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
             <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>
         </ul>
@@ -79,7 +90,7 @@ export function ContenutoGuida({ giorni }: { giorni: GiornoProgrammabile[] }) {
   );
 }
 
-export default function GuidaTabella({ giorni }: { giorni: GiornoProgrammabile[] }) {
+export default function GuidaTabella({ giorni, famiglia }: PropsGuida) {
   const [aperta, setAperta] = useState(false);
   return (
     <>
@@ -97,7 +108,7 @@ export default function GuidaTabella({ giorni }: { giorni: GiornoProgrammabile[]
         <CircleHelp size={14} aria-hidden="true" />
       </Button>
       <Dialog open={aperta} onClose={() => setAperta(false)} title="Come si usa la tabella">
-        <ContenutoGuida giorni={giorni} />
+        <ContenutoGuida giorni={giorni} famiglia={famiglia} />
       </Dialog>
     </>
   );

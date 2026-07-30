@@ -22,6 +22,27 @@ const MASSIVE = new Set(['ASTR']);
 const DUNNING = new Set(['ALIM', 'AMOR', 'ARMO', 'AVUF']);
 
 /**
+ * L'attività di TABELLONE che rende un operatore assegnabile, famiglia per famiglia.
+ *
+ * Il criterio degli assegnabili è lo stesso per tutt'e due le viste — «chi quel giorno ha in
+ * cronoprogramma l'attività di QUESTA commessa» — ma l'attività non è la stessa: il dunning ha
+ * «DUNNING», le limitazioni massive hanno «LIMITAZIONI MASSIVE» (verificato in produzione, con
+ * righe di tabellone reali su entrambe). Un solo filtro per tutt'e due avrebbe mostrato ai
+ * pianificatori delle massive l'elenco di chi fa dunning — cioè nessuno dei loro.
+ *
+ * `frammenti`: il match è per NOME e mai per uuid (l'id è un dato di produzione, cablarlo
+ * legherebbe il codice a un database). Basta che il nome contenga il frammento: «MASSIV» prende
+ * «LIMITAZIONI MASSIVE» oggi e un eventuale «ACEA MASSIVE» domani.
+ *
+ * `etichetta`: come la si nomina nei messaggi («Nessuno su … in tabellone», i motivi di rifiuto
+ * del server, la guida). Una sola fonte, così menu, errori e documentazione dicono la stessa cosa.
+ */
+export const ATTIVITA_TABELLONE: Record<Famiglia, { frammenti: string[]; etichetta: string }> = {
+  dunning: { frammenti: ['DUNNING'], etichetta: 'DUNNING' },
+  massive: { frammenti: ['MASSIV'], etichetta: 'LIMITAZIONI MASSIVE' },
+};
+
+/**
  * Famiglia dal codice "Tipo di ordine".
  *
  * Un codice ignoto NON scarta la riga: cade su `dunning` con `riconosciuto: false`, così l'import

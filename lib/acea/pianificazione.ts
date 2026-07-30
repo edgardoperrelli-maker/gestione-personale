@@ -26,6 +26,12 @@ export type OrdineDaPianificare = {
    * divergere, e la seconda si accorgerebbe con settimane di ritardo.
    */
   riapertura?: boolean;
+  /**
+   * Famiglia della riga (`dunning`/`massive`). Il piano non la guarda: la portano le route, che
+   * ne hanno bisogno per il cancello del tabellone (`controllaAssegnazioni` filtra gli
+   * assegnabili sull'attività della famiglia).
+   */
+  famiglia?: 'dunning' | 'massive';
 };
 
 /** Intervento già esistente sullo stesso ODL (qualunque data). */
