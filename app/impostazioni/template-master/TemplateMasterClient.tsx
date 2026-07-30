@@ -9,7 +9,7 @@ type MasterRow = {
   committente: string;
   attivo: boolean;
   file_nome: string | null;
-  operazioni_default: string[] | null;
+  gruppi_default: string[] | null;
   righe_totali: number;
   created_at: string;
 };
@@ -33,28 +33,27 @@ export default function TemplateMasterClient() {
   const [file, setFile] = useState<File | null>(null);
   const [nome, setNome] = useState('');
   const [committente, setCommittente] = useState<string>('acea');
-  const [operazioniDefault, setOperazioniDefault] = useState<string[]>([]);
+  const [gruppiDefault, setGruppiDefault] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [esito, setEsito] = useState<Esito>(null);
 
-  // Attività DAL CATALOGO tassonomia (mai testo libero: un refuso creerebbe una
-  // descrizione-doppione che l'import poi rifiuta), filtrate sul committente scelto.
-  const opzioniAttivita = useMemo(() => {
-    const proprie = tassonomia.filter(
-      (t) => t.attivo && (committente === 'altro' || t.committente === committente),
-    );
-    return proprie.map((t) => ({
-      value: t.descrizione,
-      label: t.gruppo && t.gruppo.toUpperCase() !== t.descrizione.toUpperCase()
-        ? `${t.descrizione} · ${t.gruppo}`
-        : t.descrizione,
-    }));
+  // GRUPPI ATTIVITÀ dal catalogo tassonomia (mai testo libero: un refuso creerebbe un
+  // gruppo-doppione), filtrati sul committente scelto. Pochi e leggibili: l'ufficio
+  // ragiona per gruppo (DUNNING, LIMITAZIONI MASSIVE, …), non per dettaglio.
+  const opzioniGruppi = useMemo(() => {
+    const gruppi = new Set<string>();
+    for (const t of tassonomia) {
+      if (!t.attivo || !t.gruppo) continue;
+      if (committente !== 'altro' && t.committente !== committente) continue;
+      gruppi.add(t.gruppo);
+    }
+    return [...gruppi].sort((a, b) => a.localeCompare(b, 'it')).map((g) => ({ value: g, label: g }));
   }, [tassonomia, committente]);
 
-  // Cambio committente: sopravvivono solo le attività ancora tra le opzioni.
+  // Cambio committente: sopravvivono solo i gruppi ancora tra le opzioni.
   useEffect(() => {
-    setOperazioniDefault((prev) => prev.filter((v) => opzioniAttivita.some((o) => o.value === v)));
-  }, [opzioniAttivita]);
+    setGruppiDefault((prev) => prev.filter((v) => opzioniGruppi.some((o) => o.value === v)));
+  }, [opzioniGruppi]);
 
   useEffect(() => {
     void (async () => {
@@ -85,7 +84,7 @@ export default function TemplateMasterClient() {
       fd.append('file', file, file.name);
       if (nome.trim()) fd.append('nome', nome.trim());
       fd.append('committente', committente);
-      if (operazioniDefault.length > 0) fd.append('operazioni_default', JSON.stringify(operazioniDefault));
+      if (gruppiDefault.length > 0) fd.append('gruppi_default', JSON.stringify(gruppiDefault));
       const res = await fetch(ENDPOINT, { method: 'POST', body: fd });
       const json = await res.json();
       if (!res.ok) {
@@ -96,7 +95,7 @@ export default function TemplateMasterClient() {
       setEsito({ type: 'ok', msg: `Caricate ${json.righe} righe${scartate}. Il master è attivo: già dentro il template.` });
       setFile(null);
       setNome('');
-      setOperazioniDefault([]);
+      setGruppiDefault([]);
       await carica();
     } catch {
       setEsito({ type: 'err', msg: 'Errore di rete.' });
@@ -190,20 +189,21 @@ export default function TemplateMasterClient() {
         </div>
         <div className="mt-2">
           <span className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
-            Attività del master (dal catalogo, facoltativo)
+            Gruppo attività del master (dal catalogo, facoltativo)
           </span>
           <MultiSelect
-            label="Attività"
-            ariaLabel="Attività del master"
-            options={opzioniAttivita}
-            values={operazioniDefault}
-            onChange={setOperazioniDefault}
+            label="Gruppo attività"
+            ariaLabel="Gruppo attività del master"
+            options={opzioniGruppi}
+            values={gruppiDefault}
+            onChange={setGruppiDefault}
             disabled={busy}
           />
           <p className="mt-1 text-xs text-[var(--brand-text-muted)]">
-            Solo voci della tassonomia, niente testo libero. Con UNA attività selezionata, le righe del file
-            senza colonna Operazione la ereditano nel template; con più d&apos;una non si può decidere per riga
-            e la descrizione resta da scegliere in Excel (tendina della Leggenda).
+            Solo gruppi del catalogo, niente testo libero. Con UN gruppo che identifica una sola attività
+            (es. LIMITAZIONI MASSIVE), le righe del file senza colonna Operazione la ereditano nel template;
+            un gruppo con tante attività diverse (es. DUNNING) o più gruppi insieme non decidono per riga:
+            la descrizione si sceglie in Excel (tendina della Leggenda).
           </p>
         </div>
         <div className="mt-4">
@@ -235,7 +235,7 @@ export default function TemplateMasterClient() {
                   <span className="font-medium">{m.nome}</span>
                   <span className="ml-2 text-xs text-[var(--brand-text-muted)]">
                     {labelCommittente(m.committente)} · {m.righe_totali} ODL · {new Date(m.created_at).toLocaleDateString('it-IT')}
-                    {m.operazioni_default?.length ? ` · attività: ${m.operazioni_default.join(', ')}` : ''}
+                    {m.gruppi_default?.length ? ` · gruppi: ${m.gruppi_default.join(', ')}` : ''}
                   </span>
                 </div>
                 <div className="flex shrink-0 items-center gap-2">

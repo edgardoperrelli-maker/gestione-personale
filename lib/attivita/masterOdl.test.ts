@@ -1,11 +1,13 @@
 import { describe, it, expect } from 'vitest';
-import { costruisciMasterOdl, isOdlReale, type FonteMaster } from './masterOdl';
+import { costruisciMasterOdl, descrizioneDaGruppo, isOdlReale, type FonteMaster } from './masterOdl';
 import { buildTassonomiaIndex, type TassonomiaRiga } from './tassonomia';
 
 const TASSONOMIA: TassonomiaRiga[] = [
   { committente: 'acea', descrizione: 'LIMITAZIONI MASSIVE', descrizioneNorm: 'LIMITAZIONI MASSIVE', gruppo: 'LIMITAZIONI MASSIVE', attivo: true },
   { committente: 'acea', descrizione: 'Sospensione', descrizioneNorm: 'SOSPENSIONE', gruppo: 'DUNNING', attivo: true },
+  { committente: 'acea', descrizione: 'Limitazione flusso idrico', descrizioneNorm: 'LIMITAZIONE FLUSSO IDRICO', gruppo: 'DUNNING', attivo: true },
   { committente: 'acqualatina', descrizione: 'Sostituzione misuratore', descrizioneNorm: 'SOSTITUZIONE MISURATORE', gruppo: 'SOSTITUZIONE MISURATORI', attivo: true },
+  { committente: 'acqualatina', descrizione: 'Sostituzione misuratori', descrizioneNorm: 'SOSTITUZIONE MISURATORI', gruppo: 'SOSTITUZIONE MISURATORI', attivo: true },
   { committente: 'acea', descrizione: 'SPENTA', descrizioneNorm: 'SPENTA', gruppo: 'X', attivo: false },
 ];
 const index = buildTassonomiaIndex(TASSONOMIA);
@@ -37,22 +39,33 @@ describe('costruisciMasterOdl', () => {
     expect(out[0].descrizione).toBe('');
   });
 
-  it('UNA attività selezionata: riempie SOLO le righe senza operazione propria', () => {
+  it('UN gruppo univoco selezionato: riempie SOLO le righe senza operazione propria', () => {
     const out = costruisciMasterOdl([fonte([
       { odl: '1' },
       { odl: '2', operazione: 'Sospensione' },
-    ], { operazioniDefault: ['limitazioni massive'] })], index);
+    ], { gruppiDefault: ['LIMITAZIONI MASSIVE'] })], index);
     expect(out.find((r) => r.odl === '1')?.descrizione).toBe('LIMITAZIONI MASSIVE');
     expect(out.find((r) => r.odl === '2')?.descrizione).toBe('Sospensione');
   });
 
-  it('PIÙ attività selezionate: non si può decidere per riga → descrizione vuota (si sceglie in Excel)', () => {
-    const out = costruisciMasterOdl([fonte([
-      { odl: '1' },
-      { odl: '2', operazione: 'Sospensione' }, // la propria operazione vince comunque
-    ], { operazioniDefault: ['LIMITAZIONI MASSIVE', 'Sospensione'] })], index);
-    expect(out.find((r) => r.odl === '1')?.descrizione).toBe('');
-    expect(out.find((r) => r.odl === '2')?.descrizione).toBe('Sospensione');
+  it('gruppo eterogeneo (DUNNING) o PIÙ gruppi: non si decide per riga → descrizione vuota', () => {
+    const dunning = costruisciMasterOdl([fonte([{ odl: '1' }], { gruppiDefault: ['DUNNING'] })], index);
+    expect(dunning[0].descrizione).toBe('');
+    const doppio = costruisciMasterOdl([fonte([{ odl: '1' }], { gruppiDefault: ['LIMITAZIONI MASSIVE', 'DUNNING'] })], index);
+    expect(doppio[0].descrizione).toBe('');
+  });
+
+  it("gruppo con singolare+plurale: vince l'attività OMONIMA del gruppo (Acqua Latina)", () => {
+    const out = costruisciMasterOdl([
+      { committente: 'acqualatina', gruppiDefault: ['SOSTITUZIONE MISURATORI'], righe: [{ odl: '9' }] },
+    ], index);
+    expect(out[0].descrizione).toBe('Sostituzione misuratori');
+  });
+
+  it('descrizioneDaGruppo: univoco → descrizione; eterogeneo → vuoto; case-insensitive', () => {
+    expect(descrizioneDaGruppo('acea', 'limitazioni massive', index)).toBe('LIMITAZIONI MASSIVE');
+    expect(descrizioneDaGruppo('acea', 'DUNNING', index)).toBe('');
+    expect(descrizioneDaGruppo('acea', '', index)).toBe('');
   });
 
   it('il committente della fonte guida la risoluzione (acqualatina)', () => {

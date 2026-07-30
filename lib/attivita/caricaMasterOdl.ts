@@ -54,14 +54,14 @@ export async function caricaMasterOdl(tassonomia: TassonomiaRiga[]): Promise<Rig
   try {
     const { data: files, error } = await supabaseAdmin
       .from('template_master')
-      .select('id, committente, operazioni_default')
+      .select('id, committente, gruppi_default')
       .eq('attivo', true)
       .order('created_at', { ascending: true });
     if (error) throw error;
-    for (const f of (files ?? []) as Array<{ id: string; committente: string; operazioni_default: string[] | null }>) {
+    for (const f of (files ?? []) as Array<{ id: string; committente: string; gruppi_default: string[] | null }>) {
       fonti.push({
         committente: f.committente,
-        operazioniDefault: f.operazioni_default,
+        gruppiDefault: f.gruppi_default,
         righe: await righeMasterCaricato(f.id),
       });
     }

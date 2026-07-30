@@ -22,7 +22,7 @@ export async function GET() {
 
   const { data, error } = await supabaseAdmin
     .from('template_master')
-    .select('id, nome, committente, attivo, file_nome, operazioni_default, righe_totali, created_at, updated_at')
+    .select('id, nome, committente, attivo, file_nome, gruppi_default, righe_totali, created_at, updated_at')
     .order('created_at', { ascending: false });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
 
@@ -46,8 +46,8 @@ export async function GET() {
 
 /**
  * POST: carica un file master (multipart: `file`, `nome?`, `committente?`,
- * `operazioni_default?` = JSON array di descrizioni DAL CATALOGO tassonomia — mai testo
- * libero, un refuso creerebbe una descrizione-doppione che l'import poi rifiuta).
+ * `gruppi_default?` = JSON array di GRUPPI ATTIVITÀ dal catalogo tassonomia — mai testo
+ * libero, un refuso creerebbe un gruppo-doppione fuori catalogo).
  * Le colonne si risolvono per NOME (parseMasterUpload); le righe senza ODL sono scartate.
  * Il master entra ATTIVO: da subito nel foglio MasterODL del template.
  */
@@ -67,15 +67,15 @@ export async function POST(req: Request) {
   }
   const nome = String(form.get('nome') ?? '').trim() || nomeFile.replace(/\.(xlsx|xls|csv)$/i, '');
   const committente = committenteValido(form.get('committente') as string | null);
-  let operazioniDefault: string[] | null = null;
+  let gruppiDefault: string[] | null = null;
   try {
-    const raw = JSON.parse(String(form.get('operazioni_default') ?? 'null'));
+    const raw = JSON.parse(String(form.get('gruppi_default') ?? 'null'));
     if (Array.isArray(raw)) {
-      const pulite = [...new Set(raw.map((x) => String(x ?? '').trim()).filter(Boolean))].slice(0, 50);
-      operazioniDefault = pulite.length > 0 ? pulite : null;
+      const puliti = [...new Set(raw.map((x) => String(x ?? '').trim()).filter(Boolean))].slice(0, 50);
+      gruppiDefault = puliti.length > 0 ? puliti : null;
     }
   } catch {
-    return NextResponse.json({ error: 'Campo "operazioni_default" non valido (atteso JSON array).' }, { status: 400 });
+    return NextResponse.json({ error: 'Campo "gruppi_default" non valido (atteso JSON array).' }, { status: 400 });
   }
 
   // Endpoint admin a basso traffico: file letto in memoria (poche migliaia di righe attese).
@@ -109,7 +109,7 @@ export async function POST(req: Request) {
 
   const { data: master, error: eIns } = await supabaseAdmin
     .from('template_master')
-    .insert({ nome, committente, file_nome: nomeFile, operazioni_default: operazioniDefault, righe_totali: parsed.righe.length })
+    .insert({ nome, committente, file_nome: nomeFile, gruppi_default: gruppiDefault, righe_totali: parsed.righe.length })
     .select('id')
     .single();
   if (eIns || !master) return NextResponse.json({ error: eIns?.message ?? 'Insert fallita.' }, { status: 500 });

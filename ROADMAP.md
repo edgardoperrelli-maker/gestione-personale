@@ -14,10 +14,11 @@
   mancante = file rifiutato). **Fonti del lookup**, fuse in modo difensivo (prima fonte vince, i campi
   vuoti si riempiono dalle successive; descrizione canonicalizzata col tier *scrittura* degli alias):
   1) **file master caricati a mano** — nuova pagina admin `/impostazioni/template-master` (upload
-  Excel/CSV con colonne risolte per NOME, committente, attività del master a **selezione multipla
-  DAL CATALOGO** tassonomia — mai testo libero, un refuso creerebbe una descrizione-doppione; con
-  UNA selezione le righe senza colonna Operazione la ereditano, con più d'una la descrizione resta
-  da scegliere in Excel) con **interruttore Attivo/Spento** per master (lo "spegnimento" toglie
+  Excel/CSV con colonne risolte per NOME, committente, **GRUPPI ATTIVITÀ** del master a selezione
+  multipla DAL CATALOGO tassonomia — mai testo libero, un refuso creerebbe un doppione; con UN
+  gruppo che identifica una sola attività, o l'omonima, le righe senza colonna Operazione la
+  ereditano — un gruppo eterogeneo tipo DUNNING o più gruppi lasciano la descrizione da scegliere
+  in Excel) con **interruttore Attivo/Spento** per master (lo "spegnimento" toglie
   gli ODL dal template senza cancellare nulla) — API `api/admin/interventi/template-master` (+`[id]`),
   tabelle `template_master` + `template_master_righe`; 2) **snapshot del master DUNNING/ZAGAROLO**
   che l'agente invia già a ogni giro, ora con la colonna **indirizzo** portata end-to-end
