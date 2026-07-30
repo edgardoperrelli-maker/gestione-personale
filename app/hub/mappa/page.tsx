@@ -9,6 +9,8 @@ import MappaOperatoriClient, {
 } from '@/components/modules/mappa/MappaOperatoriClient';
 import RiepilogoRapportini from '@/components/modules/mappa/RiepilogoRapportini';
 import { formatStaffStartAddress, formatStaffHomeAddress, isStaffRelevantForRange, isStaffValidOnDay } from '@/lib/staff';
+import { caricaCommittenti } from '@/lib/contratti/dati';
+import { committentiAttivi } from '@/lib/contratti/tipi';
 import type { Task } from '@/utils/routing';
 import type { Staff, Territory } from '@/types';
 
@@ -51,6 +53,7 @@ async function MappaPageContent({
     { data: ztlZonesRaw },
     { data: ztlOps },
     { data: allegato10Rows },
+    committentiRegistro,
   ] = await Promise.all([
     supabase
       .from('territories')
@@ -77,7 +80,14 @@ async function MappaPageContent({
       .from('allegato10_codici')
       .select('codice')
       .eq('genera_allegato', true),
+    caricaCommittenti(),
   ]);
+
+  // Committenti dal REGISTRO (`committenti`, modulo Contratti) per l'inserimento
+  // manuale: mai una lista cablata — apri una commessa e diventa selezionabile.
+  const committentiOptions = committentiAttivi(committentiRegistro)
+    .filter((c) => c.codice)
+    .map((c) => ({ value: c.codice as string, label: c.nome }));
 
   const dayIdMap = new Map<string, string>();
   (calendarDays ?? []).forEach((d) => dayIdMap.set(d.id, d.day));
@@ -223,6 +233,7 @@ async function MappaPageContent({
   let initialDistribution: InitialDistributionEntry[] | undefined = undefined;
   let initialPianoId: string | undefined = undefined;
   let initialPlanningDate: string | undefined = undefined;
+  let initialPlanningTerritorio: string | undefined = undefined;
   let initialScope: 'piano' | 'territorio' = 'piano';
 
   if (pianoId) {
@@ -273,14 +284,17 @@ async function MappaPageContent({
         pianoId: op.piano_id ?? undefined,
       }));
 
-      // Data del piano riaperto: inizializza il giorno di pianificazione
-      // (altrimenti in riapertura resta vuoto → "campo data obbligatorio").
+      // Data e territorio del piano riaperto: la data inizializza il giorno di
+      // pianificazione (altrimenti "campo data obbligatorio"); il territorio fa da
+      // default al campo Territorio dell'inserimento manuale.
       const { data: pianoRow } = await supabaseAdmin
         .from('mappa_piani')
-        .select('data')
+        .select('data, territorio')
         .eq('id', pianoId)
         .maybeSingle();
-      initialPlanningDate = (pianoRow as { data: string } | null)?.data ?? undefined;
+      const pianoInfo = pianoRow as { data: string; territorio: string | null } | null;
+      initialPlanningDate = pianoInfo?.data ?? undefined;
+      initialPlanningTerritorio = pianoInfo?.territorio ?? undefined;
     }
   }
 
@@ -293,9 +307,11 @@ async function MappaPageContent({
       dateTo={dateTo}
       ztlZones={ztlZones}
       allegato10ActiveCodes={allegato10ActiveCodes}
+      committenti={committentiOptions}
       initialPianoId={initialPianoId}
       initialDistribution={initialDistribution}
       initialPlanningDate={initialPlanningDate}
+      initialPlanningTerritorio={initialPlanningTerritorio}
       initialScope={initialScope}
     />
   );

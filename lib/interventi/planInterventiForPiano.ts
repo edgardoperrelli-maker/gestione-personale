@@ -24,6 +24,9 @@ export type PianoPlanInput = {
   operatori: OperatorePiano[];
   esistenti: InterventoEsistente[];
   territorioId: string | null;
+  /** Mappa nome normalizzato → id dei territori master, per il territorio ESPLICITO
+   *  dei task manuali (task.territorio). Assente → sempre territorioId del piano. */
+  territorioIdByName?: Map<string, string>;
   /**
    * Chiavi `committente|odl` già presenti in `interventi` su ALTRE righe della stessa data
    * (rispecchia l'indice unico globale (committente, odl, data)).
@@ -127,6 +130,7 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
           staffId: op.staff_id,
           pianoId: input.pianoId,
           territorioId: input.territorioId,
+          territorioIdByName: input.territorioIdByName,
         },
         input.indiceTassonomia,
       );

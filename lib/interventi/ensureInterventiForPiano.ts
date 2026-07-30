@@ -5,7 +5,7 @@
 // catch — se fallisce, es. nello script tsx, degrada a comportamento storico senza rompere il giro.)
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
-import { reapplyOverridesInterventi } from './territorioOverride';
+import { buildIdByName, reapplyOverridesInterventi } from './territorioOverride';
 import { caricaPositiviInfo, type PositivoDettaglio } from './caricaOdlPositivi';
 import { dettagliOdlBloccati, type OdlBloccatoDettaglio } from './odlPositivi';
 import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
@@ -49,12 +49,13 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
   const piano = pianoRow as { id: string; data: string; territorio: string | null } | null;
   if (!piano) return { creati: 0, preservati: 0, scartati: 0, error: 'Piano non trovato.' };
 
-  // territorio del piano (nome) → territory_id, per il filtro torre
-  let territorioId: string | null = null;
-  if (piano.territorio) {
-    const { data: terr } = await db.from('territories').select('id').eq('name', piano.territorio).maybeSingle();
-    territorioId = (terr as { id: string } | null)?.id ?? null;
-  }
+  // Territori master (nome→id): risolve il territorio del piano per il filtro torre E
+  // gli override per-task dell'inserimento manuale (task.territorio, vedi taskToIntervento).
+  const { data: terrRows } = await db.from('territories').select('id, name');
+  const territorioIdByName = buildIdByName((terrRows ?? []) as Array<{ id: string; name: string }>);
+  const territorioId = piano.territorio
+    ? (territorioIdByName.get(piano.territorio.trim().toLowerCase()) ?? null)
+    : null;
 
   const { data: opRows } = await db
     .from('mappa_piani_operatori')
@@ -97,7 +98,7 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
   const odlGiaPositivi = new Set(positiviInfo.keys());
 
   const { idDaEliminare, daInserire, odlBloccati } = planInterventi({
-    piano, pianoId, operatori, esistenti, territorioId, odlGiaPresenti, odlGiaPositivi, indiceTassonomia,
+    piano, pianoId, operatori, esistenti, territorioId, territorioIdByName, odlGiaPresenti, odlGiaPositivi, indiceTassonomia,
   });
   const odlBloccatiDettagli = dettagliOdlBloccati(odlBloccati, positiviInfo);
 

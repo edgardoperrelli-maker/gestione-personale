@@ -62,7 +62,7 @@ import { computePlanningPhase } from '@/lib/mappa/planningPhase';
 import MenuDropdown, { type MenuItem } from './MenuDropdown';
 import { ModaleErroreImport } from '@/components/modules/interventi/ModaleErroreImport';
 import { validaImport, type ErroreImport } from '@/lib/attivita/validaImport';
-import { buildTassonomiaIndex, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
+import { buildTassonomiaIndex, risolviGruppo, type TassonomiaRiga } from '@/lib/attivita/tassonomia';
 
 // Mappa mapcn (MapLibre GL) caricata solo lato client: WebGL tocca `window`,
 // quindi va importata con ssr:false (questo componente è renderizzato in SSR
@@ -130,9 +130,13 @@ type Props = {
   dateTo: string;
   ztlZones?: ZtlZoneInfo[];
   allegato10ActiveCodes?: string[];
+  /** Committenti dal REGISTRO (`committenti`), per l'inserimento manuale: mai cablati. */
+  committenti?: { value: string; label: string }[];
   initialPianoId?: string;
   initialDistribution?: DistEntry[];
   initialPlanningDate?: string;
+  /** Territorio (nome) del piano riaperto: default del campo Territorio nell'inserimento manuale. */
+  initialPlanningTerritorio?: string;
   /** 'territorio' = riapertura unificata di tutti i piani dello stesso giorno+territorio. */
   initialScope?: 'piano' | 'territorio';
 };
@@ -694,7 +698,7 @@ function isoToDisplay(iso: string): string {
 
 // ─── Componente principale ───────────────────────────────────────────────────
 
-export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], initialPianoId, initialDistribution, initialPlanningDate, initialScope = 'piano' }: Props) {
+export default function MappaOperatoriClient({ rows, operatorOptions, territories, dateFrom, dateTo, ztlZones = [], allegato10ActiveCodes = [], committenti = [], initialPianoId, initialDistribution, initialPlanningDate, initialPlanningTerritorio, initialScope = 'piano' }: Props) {
   const excelTaskItemRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const geocodingActiveRef = useRef(false);
@@ -741,6 +745,23 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const [operatorFreeLane, setOperatorFreeLane] = useState<Record<string, boolean>>({});
   const [assignModalOpen, setAssignModalOpen] = useState(false);
   const [manualModalOpen, setManualModalOpen] = useState(false);
+  // Tassonomia per l'inserimento manuale (default committente + suggerimenti attività):
+  // caricata al primo apri-modale, poi riusata. Se il fetch fallisce il modale resta
+  // usabile — semplicemente senza suggerimenti e senza default calcolato.
+  const [tassRigheManuale, setTassRigheManuale] = useState<TassonomiaRiga[] | null>(null);
+  useEffect(() => {
+    if (!manualModalOpen || tassRigheManuale) return;
+    let alive = true;
+    (async () => {
+      try {
+        const r = await fetch('/api/attivita-tassonomia');
+        if (!r.ok) return;
+        const { righe } = (await r.json()) as { righe: TassonomiaRiga[] };
+        if (alive) setTassRigheManuale(righe);
+      } catch { /* soft: modale senza suggerimenti */ }
+    })();
+    return () => { alive = false; };
+  }, [manualModalOpen, tassRigheManuale]);
   const [distribution, setDistribution] = useState<DistEntry[] | null>(
     initialDistribution ?? null
   );
@@ -1137,6 +1158,30 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
   const allTasks = useMemo(() => {
     return [...excelTasks, ...templateTasks];
   }, [excelTasks, templateTasks]);
+
+  // Default del campo Committente nell'inserimento manuale: il committente PREVALENTE
+  // tra i task già nel giro (risolti via tassonomia). Un giro AcquaLatina propone
+  // acqualatina, un giro torre ACEA propone acea; giro vuoto/non risolvibile → nessun
+  // default, la scelta resta all'ufficio (il campo è obbligatorio: mai più assunzioni).
+  const defaultCommittenteManuale = useMemo(() => {
+    if (!tassRigheManuale) return '';
+    const idx = buildTassonomiaIndex(tassRigheManuale);
+    const conta = new Map<string, number>();
+    for (const t of allTasks) {
+      const ris = t.committente?.trim().toLowerCase()
+        ? { committente: t.committente.trim().toLowerCase() }
+        : risolviGruppo('altro', t.attivita, idx, { allinea: 'scrittura' });
+      if (ris) conta.set(ris.committente, (conta.get(ris.committente) ?? 0) + 1);
+    }
+    let best = '';
+    let n = 0;
+    for (const [c, k] of conta) if (k > n) { best = c; n = k; }
+    return best;
+  }, [tassRigheManuale, allTasks]);
+
+  // Default del campo Territorio nell'inserimento manuale: territorio del piano
+  // (setup nuova pianificazione o piano riaperto dal registro).
+  const defaultTerritorioManuale = selectedPlanningTerritory?.name ?? initialPlanningTerritorio ?? '';
 
   const totalQtyRichiesta = selectedOps.reduce((s,o) => s + (o.qty||0), 0);
   const geocodificati = allTasks.filter(t => t.lat != null && t.lng != null).length;
@@ -2339,6 +2384,10 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
     const operator = data.staffId ? operatorOptions.find((o) => o.id === data.staffId) : undefined;
     const task: Task & { _operatore?: string } = {
       id: `manual-${Date.now()}`,
+      // Committente e territorio ESPLICITI dal modale: viaggiano sul task fino a
+      // taskToIntervento, che non li scavalca (niente più default silenzioso su acea).
+      committente: data.committente.trim().toLowerCase() || undefined,
+      territorio: data.territorio.trim() || undefined,
       indirizzo: data.indirizzo.trim(),
       cap: data.cap.trim(),
       citta: data.citta.trim(),
@@ -4101,6 +4150,11 @@ export default function MappaOperatoriClient({ rows, operatorOptions, territorie
               ? selectedOps.map((o) => ({ id: o.id, displayName: o.name }))
               : operatorOptions.map((o) => ({ id: o.id, displayName: o.displayName }))
           }
+          committenti={committenti}
+          territori={territories.map((t) => t.name)}
+          righeTassonomia={tassRigheManuale}
+          defaultCommittente={defaultCommittenteManuale}
+          defaultTerritorio={defaultTerritorioManuale}
           onClose={() => setManualModalOpen(false)}
           onAdd={addManualTask}
         />
