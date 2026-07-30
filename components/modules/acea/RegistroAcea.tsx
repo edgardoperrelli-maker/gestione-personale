@@ -18,6 +18,7 @@ import { useLayoutTabella } from './useLayoutTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
 import BarraFiltriAcea from './BarraFiltriAcea';
 import BarraAzioni from './BarraAzioni';
+import GuidaTabella from './GuidaTabella';
 import MenuColonne from './MenuColonne';
 import { caricaTutteLeRighe, esportaVista } from './esportaVista';
 import { useOrdiniAcea } from './useOrdiniAcea';
@@ -369,6 +370,11 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
           )}
         </div>
         <div className="flex items-center gap-2">
+          {/* L'indicatore visibile del salvataggio: stava nel paragrafo-guida rimosso, e a chi
+              scrive in griglia serve ancora un segno che la scrittura è in viaggio. */}
+          {editing.salvando && (
+            <span className="text-xs italic text-[var(--brand-text-muted)]">salvataggio…</span>
+          )}
           {/*
             Scorciatoie, non doppioni: i due motori vivono negli Strumenti della commessa e restano
             li`. Da qui ci si arriva in un click perche` sono le due cose che si fanno GUARDANDO il
@@ -423,6 +429,8 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
                 : undefined
             }
           />
+
+          <GuidaTabella giorni={giorni} />
         </div>
       </div>
 
@@ -467,29 +475,11 @@ export default function RegistroAcea({ famiglia }: { famiglia: 'dunning' | 'mass
         }}
       />
 
-      <p className="text-xs text-[var(--brand-text-muted)]">
-        Esecutore, Data pianificata e Note si modificano direttamente in tabella: clicca una cella, usa le
-        frecce per spostarti, <kbd>Shift</kbd>+frecce o shift-click per un intervallo,{' '}
-        <kbd>Ctrl</kbd>+<kbd>C</kbd> e <kbd>Ctrl</kbd>+<kbd>V</kbd> per copiare e incollare anche
-        da Excel. <strong>Doppio click sulla Data pianificata</strong> (o <kbd>Invio</kbd> sulla
-        cella) apre il calendario, e la data si scrive anche a mano.{' '}
-        <strong>Un click su una cella Esecutore vuota</strong> apre l&apos;elenco di chi ha
-        l&apos;attività DUNNING in cronoprogramma nella finestra di lavoro — qualunque sia il suo
-        territorio: si sceglie da lì, niente testo libero (doppio click per cambiare un nome già
-        scritto).{' '}
-        <strong>Si copia da qualsiasi colonna</strong>, campi ACEA compresi.{' '}
-        <strong>Con delle righe spuntate</strong>, <kbd>Ctrl</kbd>+<kbd>V</kbd> scrive su tutte —
-        una data o un nome copiati con il cursore si incollano su quaranta spunte in un colpo,
-        senza passare da «Pianifica» — e <kbd>Ctrl</kbd>+<kbd>C</kbd> senza un cursore attivo le
-        porta via intere (il comando «Copia righe» lo fa sempre). Si programma solo per{' '}
-        {giorni.length > 0 ? giorni.map((g) => g.esteso).join(' o ') : 'oggi o il giorno lavorativo successivo'},
-        e i nomi assegnabili sono quelli con l&apos;attività DUNNING in{' '}
-        <a href="/dashboard" className="underline">cronoprogramma</a> per quel giorno, di
-        qualunque territorio. La nota scritta qui arriva all&apos;operatore dentro il rapportino. Le colonne si
-        trascinano per riordinarle e si tirano dal bordo per la larghezza (doppio click sul bordo per
-        rimetterla com&apos;era).
-        {editing.salvando && <span className="ml-2 italic">salvataggio in corso…</span>}
-      </p>
+      {/*
+        La guida non sta più qui sotto: era un paragrafo che cresceva a ogni funzione e si è
+        mangiato tre righe di registro. Ora vive nella modale del «?» in barra (GuidaTabella),
+        e la tabella si riprende la piega.
+      */}
 
       {/*
         Regione live, solo per i lettori di schermo: a chi vede, conteggio e selezione sono già
