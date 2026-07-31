@@ -35,7 +35,7 @@ describe('parseMasterUpload', () => {
       [],
     ]);
     expect(out.righe).toEqual([
-      { odl: '912000001', matricola: 'M1', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO', operazione: 'Limitazione' },
+      { odl: '912000001', matricola: 'M1', impianto: '', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO', operazione: 'Limitazione' },
     ]);
     expect(out.totale).toBe(2);
     expect(out.scartate).toBe(1);
@@ -45,7 +45,30 @@ describe('parseMasterUpload', () => {
       ['Ordine', 'Matricola'],
       ['1', 'M1'],
     ]);
-    expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', indirizzo: '', cap: '', comune: '', operazione: '' });
+    expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', impianto: '', indirizzo: '', cap: '', comune: '', operazione: '' });
+  });
+  it("legge l'IMPIANTO, comunque sia scritta l'intestazione", () => {
+    for (const header of ['IMPIANTO', 'Impianto', 'N. impianto', 'Cod. Impianto', 'CODICE IMPIANTO', 'PDR']) {
+      const out = parseMasterUpload([['Ordine', header], ['12379743', '19633002']]);
+      expect(out.righe[0].impianto, header).toBe('19633002');
+    }
+  });
+  it('"DESCRIZIONE PDR/IMPIANTO" è la descrizione dell\'ordine, non il codice impianto', () => {
+    const out = parseMasterUpload([
+      ['Ordine', 'DESCRIZIONE PDR/IMPIANTO', 'IMPIANTO'],
+      ['12379743', 'SOSTITUZIONE MISURATORE', '19633002'],
+    ]);
+    expect(out.righe[0].impianto).toBe('19633002');
+  });
+  it("l'IMPIANTO da solo basta a riconoscere la riga di intestazione", () => {
+    const out = parseMasterUpload([
+      ['ESTRAZIONE ACQUA LATINA — LUGLIO'],
+      ['ODL', 'IMPIANTO'],
+      ['12379743', '19633002'],
+    ]);
+    expect(out.righe).toEqual([
+      { odl: '12379743', matricola: '', impianto: '19633002', indirizzo: '', cap: '', comune: '', operazione: '' },
+    ]);
   });
   it('"DESCRIZIONE ATTIVITÀ" vale come operazione, "Descrizione Stato Ordine" no', () => {
     const out = parseMasterUpload([

@@ -143,11 +143,29 @@ export async function POST(req: Request) {
     }
   }
 
+  // Se il file porta gli IMPIANTI, gli ordini del committente che ne sono privi si
+  // allineano da soli: il caricamento del master è l'evento che porta il dato, ed è qui
+  // che va consumato. La funzione non sovrascrive mai un impianto già presente e non esce
+  // dal committente del master (vedi 20260731120000).
+  // Best-effort come le sonde del GET: le righe del master sono già dentro, e un
+  // allineamento fallito non è un buon motivo per far fallire il caricamento — al massimo
+  // si ricarica il file.
+  let impianti: { interventi: number; voci: number } | null = null;
+  if (parsed.righe.some((r) => r.impianto !== '')) {
+    try {
+      const { data, error } = await supabaseAdmin.rpc('allinea_impianti_da_master', { p_master_id: masterId });
+      if (error) throw error;
+      const r = (data as Array<{ interventi_aggiornati: number; voci_aggiornate: number }> | null)?.[0];
+      impianti = { interventi: r?.interventi_aggiornati ?? 0, voci: r?.voci_aggiornate ?? 0 };
+    } catch { /* DB non ancora migrato o allineamento fallito: il master resta caricato */ }
+  }
+
   return NextResponse.json({
     ok: true,
     id: masterId,
     righe: parsed.righe.length,
     totale: parsed.totale,
     scartate: parsed.scartate,
+    impianti,
   });
 }
