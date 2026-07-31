@@ -217,13 +217,15 @@ async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]>
 
 type VoceIntervento = {
   odl: string | null; data: string | null; staff_id: string | null; stato: string | null;
+  esito?: string | null;
   matricola_contatore?: string | null;
 };
 
 /**
  * Tutti gli interventi della commessa: chiave di aggancio → chi, quando, e se è finita. Serve al
- * predicato, non al display. `completato` alimenta la coda delle riaperture: una riapertura
- * completata nei rapportini è esitata, e in una coda di lavoro non ci sta più.
+ * predicato, non al display. `completato` alimenta la coda delle riaperture: esitata è SOLO la
+ * riapertura con esito positivo — un'uscita chiusa a vuoto lascia l'ordine da lavorare, e in una
+ * coda di lavoro ci sta eccome (è la riga che rischia di sfuggire).
  */
 type IndicePianificazione = Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>;
 
@@ -243,7 +245,7 @@ async function indicePianificazionePerOdl(odl: readonly string[]): Promise<Indic
     const blocco = unici.slice(i, i + 200);
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('odl, data, staff_id, stato')
+      .select('odl, data, staff_id, stato, esito')
       .in('odl', blocco)
       .in('committente', COMMITTENTI);
     if (error) throw error;
@@ -253,7 +255,7 @@ async function indicePianificazionePerOdl(odl: readonly string[]): Promise<Indic
         ?? { staff: new Set<string>(), giorni: new Set<string>(), completato: false };
       if (it.staff_id) v.staff.add(it.staff_id);
       if (it.data) v.giorni.add(it.data);
-      if (it.stato === 'completato') v.completato = true;
+      if (it.esito === 'eseguito_positivo') v.completato = true;
       indice.set(it.odl, v);
     }
   }
@@ -266,7 +268,7 @@ async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazio
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('odl, data, staff_id, stato, matricola_contatore')
+      .select('odl, data, staff_id, stato, esito, matricola_contatore')
       .in('committente', [...profilo.committenti])
       .order('odl', { ascending: true })
       .order('data', { ascending: true })
@@ -290,7 +292,7 @@ async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazio
         ?? { staff: new Set<string>(), giorni: new Set<string>(), completato: false };
       if (it.staff_id) v.staff.add(it.staff_id);
       if (it.data) v.giorni.add(it.data);
-      if (it.stato === 'completato') v.completato = true;
+      if (it.esito === 'eseguito_positivo') v.completato = true;
       indice.set(chiave, v);
     }
     if (blocco.length < PAGINA_SCAN) break;
@@ -400,14 +402,16 @@ async function riapertureSenzaData(): Promise<number | null> {
       const blocco = odl.slice(i, i + 200);
       const { data: interventi, error: eInt } = await supabaseAdmin
         .from('interventi')
-        .select('odl, staff_id, stato')
+        .select('odl, staff_id, stato, esito')
         .in('odl', blocco)
         .in('committente', COMMITTENTI);
       if (eInt) throw eInt;
-      for (const it of (interventi ?? []) as Array<{ odl: string | null; staff_id: string | null; stato: string | null }>) {
+      for (const it of (interventi ?? []) as Array<{
+        odl: string | null; staff_id: string | null; stato: string | null; esito: string | null;
+      }>) {
         if (!it.odl) continue;
         const lista = interventiPerOdl.get(it.odl) ?? [];
-        lista.push({ staff_id: it.staff_id, stato: it.stato });
+        lista.push({ staff_id: it.staff_id, stato: it.stato, esito: it.esito });
         interventiPerOdl.set(it.odl, lista);
       }
     }
@@ -707,9 +711,17 @@ export async function GET(req: Request) {
           // che un nome lo mostra. Stessa esclusione dell'indice dei filtri, qui sopra.
           if (it.stato === 'annullato') continue;
           if (!it.odl) continue;
-          // Più interventi sulla stessa unità: vince il più recente (l'ordinamento è discendente).
+          /*
+            Più interventi sulla stessa unità: vince la pianificazione CORRENTE, cioè l'intervento
+            APERTO più recente (l'ordinamento discendente fa incontrare prima i più recenti); le
+            uscite già registrate (completato) si mostrano solo se non c'è niente in corso. Prima
+            vinceva il più recente in assoluto: su un ODL con sei uscite a vuoto e una
+            ripianificazione in corso la colonna mostrava l'uscita vecchia, e la scrittura appena
+            fatta sembrava non aver fatto niente.
+          */
           const chiave = chiaveAggancioIntervento(f.famiglia, it.odl, it.matricola_contatore);
-          if (!pianificazione.has(chiave)) {
+          const prev = pianificazione.get(chiave);
+          if (!prev || (prev.stato === 'completato' && it.stato !== 'completato')) {
             pianificazione.set(chiave, { data: it.data, staff_id: it.staff_id, stato: it.stato });
           }
         }
@@ -793,15 +805,19 @@ export async function GET(req: Request) {
       /*
         La pianificazione a metà si mostra al posto di quella vera, quando quella vera non c'è.
 
-        Non è una seconda fonte: l'intervento vince SEMPRE. L'appunto compare solo dove
-        l'intervento non esiste ancora, e la riga porta `pianificazione_parziale` perché la
-        tabella lo dica a vista — un valore che sembra una pianificazione ma non genera nessun
-        rapportino è peggio di una cella vuota.
+        «Quella vera» è un intervento IN CORSO: l'aperto vince sempre — un valore che sembra una
+        pianificazione ma non genera nessun rapportino è peggio di una cella vuota. Un'uscita già
+        registrata (completato) invece non lo è: su una riga con sole uscite a vuoto l'appunto
+        appena scritto vince, o la scrittura sparirebbe dietro l'uscita vecchia. La riga porta
+        `pianificazione_parziale` perché la tabella dica a vista che è una metà.
       */
       const bozza = bozze.get(`${r.odl}|${r.numero_operazione}`);
       const bozzaStaff = bozza?.staff_id ?? null;
       const bozzaData = bozza?.data ?? null;
-      const parziale = !p && Boolean(bozzaStaff || bozzaData);
+      const inCorso = p && p.stato !== 'completato' ? p : null;
+      const parziale = !inCorso && Boolean(bozzaStaff || bozzaData);
+      const mostrato = inCorso
+        ?? (parziale ? { data: bozzaData, staff_id: bozzaStaff, stato: null } : p ?? null);
       return {
         ...r,
         saracinesca:
@@ -810,12 +826,12 @@ export async function GET(req: Request) {
             : null,
         odl_saracinesca: sost?.odl ?? null,
         stato_saracinesca: sost?.stato ?? null,
-        pianificato_il: p?.data ?? bozzaData,
-        pianificato_a: p?.staff_id
-          ? (nomi.get(p.staff_id) ?? p.staff_id)
-          : (bozzaStaff ? (nomi.get(bozzaStaff) ?? bozzaStaff) : null),
+        pianificato_il: mostrato?.data ?? null,
+        pianificato_a: mostrato?.staff_id
+          ? (nomi.get(mostrato.staff_id) ?? mostrato.staff_id)
+          : null,
         pianificazione_parziale: parziale,
-        stato_intervento: p?.stato ?? null,
+        stato_intervento: mostrato?.stato ?? null,
       };
     });
 

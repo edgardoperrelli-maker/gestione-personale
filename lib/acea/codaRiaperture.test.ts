@@ -4,13 +4,19 @@ import {
 } from './codaRiaperture';
 
 const int = (over: Partial<InterventoDellOdl> = {}): InterventoDellOdl => ({
-  staff_id: 's1', stato: 'assegnato', ...over,
+  staff_id: 's1', stato: 'assegnato', esito: null, ...over,
 });
 
 describe('esitataNeiRapportini', () => {
-  it('un intervento completato la esita', () => {
-    expect(esitataNeiRapportini([int({ stato: 'completato' })])).toBe(true);
-    expect(esitataNeiRapportini([int(), int({ stato: 'completato' })])).toBe(true);
+  it('un intervento con esito POSITIVO la esita', () => {
+    expect(esitataNeiRapportini([int({ stato: 'completato', esito: 'eseguito_positivo' })])).toBe(true);
+    expect(esitataNeiRapportini([int(), int({ stato: 'completato', esito: 'eseguito_positivo' })])).toBe(true);
+  });
+
+  it('un\'uscita a vuoto NON esita: l\'ordine è ancora da lavorare', () => {
+    // «Completato» è l'uscita, non il lavoro: chiusa a vuoto, la riapertura resta in coda —
+    // è esattamente la riga che la scheda esiste per non far sfuggire.
+    expect(esitataNeiRapportini([int({ stato: 'completato', esito: null })])).toBe(false);
   });
 
   it('assegnata non vuol dire fatta', () => {
@@ -36,6 +42,12 @@ describe('pianificata', () => {
 
   it('un intervento ANNULLATO non pianifica: quel lavoro non è mai successo', () => {
     expect(pianificata([int({ stato: 'annullato' })])).toBe(false);
+  });
+
+  it('un\'uscita registrata non è in calendario: quel giorno è consumato', () => {
+    // Uscita a vuoto e nessun intervento in corso: la prossima uscita una data non ce l'ha
+    // ancora, e il triangolo la deve contare.
+    expect(pianificata([int({ stato: 'completato', esito: null })])).toBe(false);
   });
 
   it('senza interventi non c’è nessuna data', () => {
@@ -65,9 +77,25 @@ describe('contaSenzaData', () => {
   });
 
   it('le esitate nei rapportini NON si contano: sono finite, non «senza data»', () => {
-    // Completata da noi ma ancora aperta su ACEA (l'import non è ancora passato): il triangolo
-    // non deve gridare per lavoro già fatto.
-    const n = contaSenzaData(['A'], indice({ A: [int({ stato: 'completato' })] }));
+    // Eseguita POSITIVA da noi ma ancora aperta su ACEA (l'import non è ancora passato): il
+    // triangolo non deve gridare per lavoro già fatto.
+    const n = contaSenzaData(
+      ['A'],
+      indice({ A: [int({ stato: 'completato', esito: 'eseguito_positivo' })] }),
+    );
+    expect(n).toBe(0);
+  });
+
+  it('un\'uscita a vuoto senza nuova pianificazione SI conta: può ancora sfuggire', () => {
+    const n = contaSenzaData(['A'], indice({ A: [int({ stato: 'completato', esito: null })] }));
+    expect(n).toBe(1);
+  });
+
+  it('uscita a vuoto ma già ripianificata: la data ce l\'ha, non si conta', () => {
+    const n = contaSenzaData(
+      ['A'],
+      indice({ A: [int({ stato: 'completato', esito: null }), int({ stato: 'assegnato' })] }),
+    );
     expect(n).toBe(0);
   });
 
