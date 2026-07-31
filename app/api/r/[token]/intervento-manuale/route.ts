@@ -276,8 +276,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   // Risolve il template e carica anche i campi (serve per validare le foto obbligatorie).
   // caricaTemplateManuali esclude i modelli riservati (P.I.): non concorrono al "+".
   const templates = await caricaTemplateManuali(supabaseAdmin);
+  // Puo' essere NULL: non tutti i committenti hanno un modello "+" dedicato. AcquaLatina non
+  // ce l'ha di proposito — il "+" li' e' una richiesta di assegnazione e i campi esito li
+  // eredita dal template del rapportino, che per quell'operatore e' gia' quello giusto.
+  // Il gate sta piu' sotto, dopo l'ereditarieta': quello che conta e' avere dei campi, non
+  // avere un modello. Prima falliva qui e ogni "+" AcquaLatina moriva con 409
+  // template_mancante — che la coda offline traduce in "Link scaduto", cioe' un messaggio
+  // che manda l'operatore a cercare un problema che non esiste.
   const templateId = risolviTemplateCommittente(committente, templates as TemplateRow[]);
-  if (!templateId) return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
 
   // Override = campi del template solo_manuale del committente.
   const templateRow = (templates ?? []).find((t) => t.id === templateId);
@@ -301,6 +307,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
   }
   const ereditaStandard = !(overrideCampi.length > 0);
   const campiEffettivi = risolviCampiManuali(overrideCampi, standardCampi);
+  // Niente modello "+" E niente campi ereditati dal rapportino: qui non c'e' proprio nulla su
+  // cui validare, ed e' una configurazione rotta da segnalare all'ufficio.
+  if (!templateId && campiEffettivi.length === 0) {
+    return NextResponse.json({ error: 'template_mancante' }, { status: 409 });
+  }
   const slotFoto = campiFoto(campiEffettivi);
 
   // Gli interventi dal "+" sono sempre a esito positivo: se non valorizzato, imposta
