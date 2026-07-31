@@ -39,8 +39,10 @@ function pad(n: number) {
   return String(n).padStart(2, '0');
 }
 
+// `py-1.5` e non `py-1`: i campi stanno in fila con i preset, che sono `Button size="sm"` da
+// 30px. Con `py-1` rendevano 26 — 4+16+2 di bordo — e la riga aveva due altezze.
 const field =
-  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
+  'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
 export default function PerformanceEconomica() {
   const now = useMemo(() => new Date(), []);
@@ -120,15 +122,22 @@ export default function PerformanceEconomica() {
         <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-[11px] text-[var(--brand-text-subtle)]">Allinea master:</span>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('dunning')}>Dunning</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => allinea('dunning')}>Dunning</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
           <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => setEditorOpen((v) => !v)}>
+          <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
             {editorOpen ? 'Chiudi listino' : 'Listino tariffe'}
           </Button>
           <a
             href={invalid ? undefined : exportUrl}
-            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] bg-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--on-primary)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+            /*
+              Sono `<a>` (scaricano un file), quindi non passano dal primitivo: le classi ne
+              ricalcano la taglia `sm`. `py-1.5` + `border` al posto di `h-7`, che li teneva a
+              28px contro i 30 dei Button in fila. Il bordo qui e` trasparente per la stessa
+              ragione per cui ce l'ha `Button variant="primary"`: l'altezza nasce anche dal
+              bordo, e senza la scatola non combacia.
+            */
+            className={`inline-flex items-center rounded-[var(--radius-md)] border border-transparent bg-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-[var(--on-primary)] transition hover:bg-[var(--brand-primary-hover)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
           >
             Scarica Excel (dashboard)
           </a>
@@ -136,7 +145,7 @@ export default function PerformanceEconomica() {
             href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}`}
             target="_blank"
             rel="noreferrer"
-            className={`inline-flex h-7 items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 text-xs font-medium text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
+            className={`inline-flex items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
           >
             Presentazione
           </a>
@@ -156,9 +165,9 @@ export default function PerformanceEconomica() {
         <input type="date" value={from} onChange={(e) => setFrom(e.target.value)} className={field} aria-label="Da" />
         <ArrowRight size={13} className="shrink-0 text-[var(--brand-text-subtle)]" aria-hidden />
         <input type="date" value={to} onChange={(e) => setTo(e.target.value)} className={field} aria-label="A" />
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetMese}>Mese</Button>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTrimestre}>Trim.</Button>
-        <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetAnno}>Anno</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={presetMese}>Mese</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={presetTrimestre}>Trim.</Button>
+        <Button type="button" variant="ghost" size="sm" onClick={presetAnno}>Anno</Button>
         {invalid && <span className="text-xs text-[var(--danger)]">Da &gt; A</span>}
         {loading && <span className="text-xs text-[var(--brand-text-subtle)]">Carico…</span>}
       </div>

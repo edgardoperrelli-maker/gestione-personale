@@ -40,7 +40,9 @@ export default function PerfFilterBar({
   const presetAnno = () => setRange(toISO(new Date(now.getFullYear(), 0, 1)), today);
   const presetTutto = () => setRange('', '');
 
-  const field = 'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
+  // `py-1.5` e non `py-1`: i due campi data stanno in fila con i preset, che sono `Button
+  // size="sm"` da 30px. Con `py-1` rendevano 26 — 4+16+2 di bordo — e la riga aveva due altezze.
+  const field = 'rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-2 py-1.5 text-xs text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]';
 
   return (
     <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
@@ -50,11 +52,11 @@ export default function PerfFilterBar({
         <ArrowRight size={13} className="shrink-0 text-[var(--brand-text-subtle)]" aria-hidden />
         <input type="date" value={value.dateTo} onChange={(e) => set({ dateTo: e.target.value })} className={field} aria-label="A" />
         <div className="flex items-center gap-1">
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetSettimana}>Sett.</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetMese}>Mese</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTrimestre}>Trim.</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetAnno}>Anno</Button>
-          <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={presetTutto}>Tutto</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={presetSettimana}>Sett.</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={presetMese}>Mese</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={presetTrimestre}>Trim.</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={presetAnno}>Anno</Button>
+          <Button type="button" variant="ghost" size="sm" onClick={presetTutto}>Tutto</Button>
         </div>
         {invalid && <span className="text-xs text-[var(--danger)]">Da &gt; A</span>}
         {value.dateFrom && value.dateTo && !invalid && (
