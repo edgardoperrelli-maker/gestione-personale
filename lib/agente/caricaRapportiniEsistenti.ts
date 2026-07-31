@@ -4,6 +4,7 @@
 // via join su `mappa_piani` (stesso pattern di sincronizzaRapportini).
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
+import { idPianiPerLettura } from '@/utils/rapportini/idPiani';
 
 export async function caricaRapportiniEsistenti(
   db: SupabaseClient,
@@ -17,8 +18,14 @@ export async function caricaRapportiniEsistenti(
     .eq('data', data)
     .in('staff_id', staffIds);
   if (error) throw new Error(error.message);
-  const rows = (raps ?? []) as Array<{ id: string; staff_id: string; piano_id: string; data: string; stato: string; submitted_at: string | null }>;
-  const pianoIds = [...new Set(rows.map((r) => r.piano_id))];
+  // I rapportini-contenitore della Consuntivazione hanno `piano_id` NULL: non hanno territorio,
+  // quindi non possono generare conflitti (`rilevaConflitti` scarta i territori vuoti). Vanno
+  // tolti PRIMA del `.in('id', …)`: un `null` in lista arriva a PostgREST come la stringa "null"
+  // e fa fallire l'intera query — «invalid input syntax for type uuid» — buttando giù
+  // anteprima e assegnazione dell'agente.
+  const rows = ((raps ?? []) as Array<{ id: string; staff_id: string; piano_id: string | null; data: string; stato: string; submitted_at: string | null }>)
+    .filter((r): r is typeof r & { piano_id: string } => Boolean(r.piano_id));
+  const pianoIds = idPianiPerLettura(rows);
   const terrByPiano: Record<string, string | null> = {};
   if (pianoIds.length) {
     const { data: piani, error: ePiani } = await db.from('mappa_piani').select('id, territorio').in('id', pianoIds);
