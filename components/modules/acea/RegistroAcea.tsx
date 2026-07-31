@@ -443,33 +443,35 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
               (Impostazioni → Template master): il comando tira dentro le righe nuove del file
               del mese, senza toccare quelle già presenti.
             */
-            <button
-              type="button"
+            <Button
+              variant="outline"
+              size="sm"
               onClick={() => void sincronizzaDalMaster()}
-              disabled={sincronizzando}
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-60"
+              loading={sincronizzando}
               title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
             >
-              <Upload size={14} aria-hidden="true" />
+              {!sincronizzando && <Upload size={14} aria-hidden="true" />}
               {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
-            </button>
+            </Button>
           ) : (
+            /*
+              Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e `Button`
+              rende solo `<button>`. Le classi ricalcano `Button variant="outline" size="sm"` e
+              vanno tenute allineate a quelle: `px-3` e `gap-2` come il primitivo, non `px-2.5` e
+              `gap-1.5` — con quelli era 2px per lato piu` stretto dei vicini identici.
+            */
             <a
               href="/hub/acea/strumenti#import"
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
             >
               <Upload size={14} aria-hidden="true" />
               Importa export
             </a>
           )}
-          <button
-            type="button"
-            onClick={() => setRapportiniAperti(true)}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          >
+          <Button variant="outline" size="sm" onClick={() => setRapportiniAperti(true)}>
             <ClipboardList size={14} aria-hidden="true" />
             Rapportini
-          </button>
+          </Button>
 
           {/*
             Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
