@@ -8,6 +8,7 @@ import { chiediConferma } from '@/components/ui/chiediConferma';
 import { giornoEsteso } from '@/lib/acea/giorniProgrammabili';
 import type { AnteprimaRapportino, GruppoRapportino, PianoCarico } from '@/lib/acea/caricaSuRapportino';
 import type { EsitoOperatore, TipoEsito } from '@/lib/acea/vociRapportino';
+import type { Famiglia } from '@/lib/acea/famiglia';
 
 /**
  * La modale dei rapportini: L'UNICA via dal registro ai rapportini del giorno.
@@ -34,6 +35,8 @@ type Props = {
   selezionate: number;
   /** Dopo una generazione riuscita: ricarica la tabella (gli stati intervento si muovono). */
   onCaricato: () => void;
+  /** Famiglia della vista: il motore deve leggere gli interventi della SUA commessa. */
+  famiglia: Famiglia;
 };
 
 const chiaveGruppo = (g: GruppoRapportino) => `${g.staffId}|${g.data}`;
@@ -46,7 +49,7 @@ const ETICHETTA_ESITO: Record<TipoEsito, string> = {
 };
 
 export default function ModaleRapportini({
-  aperta, onChiudi, pianoCarico, selezionate, onCaricato,
+  aperta, onChiudi, pianoCarico, selezionate, onCaricato, famiglia,
 }: Props) {
   const { gruppi, nonPronte } = pianoCarico;
 
@@ -90,7 +93,7 @@ export default function ModaleRapportini({
         const chiama = (extra: Record<string, boolean>) => fetch('/api/acea/rapportini', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ data: g.data, staffIds: [g.staffId], ...extra }),
+          body: JSON.stringify({ data: g.data, staffIds: [g.staffId], famiglia, ...extra }),
         });
         let res = await chiama({});
         let body = (await res.json()) as {

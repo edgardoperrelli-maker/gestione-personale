@@ -104,13 +104,19 @@ export async function POST(req: Request) {
   const esecuzioneIso = `${dataEsecuzione}T12:00:00.000Z`;
 
   // Backstop doppio-positivo (escludendo QUESTO intervento).
+  // La matricola pesa solo su acqualatina, dove l'invariante è per contatore.
   const odlNorm = normOdl(int.odl);
   let positivoOriginale = null as { id: string; data: string | null } | null;
   if (odlNorm) {
     const { data: pos } = await supabaseAdmin
-      .from('interventi').select('id, odl, data, committente')
+      .from('interventi').select('id, odl, data, committente, matricola_contatore')
       .eq('esito', 'eseguito_positivo').eq('committente', int.committente).eq('odl', int.odl!);
-    positivoOriginale = indicizzaPositivi((pos ?? []) as never).get(chiavePositivo(int.committente, int.odl)) ?? null;
+    positivoOriginale = indicizzaPositivi(
+      ((pos ?? []) as Array<{
+        id: string; odl: string | null; data: string | null; committente: string | null;
+        matricola_contatore: string | null;
+      }>).map((r) => ({ ...r, matricola: r.matricola_contatore })),
+    ).get(chiavePositivo(int.committente, int.odl, int.matricola_contatore)) ?? null;
   }
 
   const { patch, misuratore } = calcolaEsitazione({

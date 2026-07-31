@@ -1,8 +1,12 @@
 // lib/acea/famiglia.ts
-// PURA: famiglia di commessa a partire da "Tipo di ordine" dell'export ACEA.
+// PURA: le famiglie del registro commesse, e la classificazione ACEA da "Tipo di ordine".
 //
-// Sostituisce il filtro manuale che oggi si fa in Excel per separare le attività di dunning da
-// quelle delle limitazioni massive. La classificazione è deterministica (verificata sull'export):
+// `Famiglia` è nata come coppia dunning/massive del registro ACEA; dal 31/07 è la chiave di TUTTO
+// il motore del registro (tabella dati, assegnabili, regole, rapportini), e `acqualatina` vi entra
+// come terza famiglia: stesso registro, stesse mani, un'altra commessa — la sostituzione
+// misuratori di Terracina, alimentata dal master invece che dall'export del Cruscotto.
+//
+// La classificazione da "Tipo di ordine" resta un fatto SOLO ACEA (verificata sull'export):
 //
 //   ASTR  Manutenzione Straordinaria   2.759 righe  → massive (Limitazione Massiva + saracinesche)
 //   ALIM  Limitazione Flusso           1.423        → dunning
@@ -10,13 +14,27 @@
 //   ARMO  Ripristino da morosità         433        → dunning (attivazioni RIAT/REVO)
 //   AVUF  Verifiche da Ufficio            53        → dunning (sigilli manomessi, si consuntivano)
 
-export type Famiglia = 'dunning' | 'massive';
+export type Famiglia = 'dunning' | 'massive' | 'acqualatina';
+
+/** Le due famiglie ACEA: le uniche che l'import del Cruscotto può produrre. */
+export type FamigliaAcea = 'dunning' | 'massive';
 
 export type EsitoFamiglia = {
-  famiglia: Famiglia;
+  famiglia: FamigliaAcea;
   /** false se il codice non è fra quelli noti: la riga entra comunque, ma va segnalata. */
   riconosciuto: boolean;
 };
+
+/**
+ * Famiglia da un valore qualunque (colonna di tabella, parametro di query).
+ *
+ * Il default è `dunning` — la regola piena — per la stessa ragione di `OrdineDaPianificare`:
+ * si sbaglia per difetto. Le route la usano al posto dei ternari sparsi, così l'arrivo di una
+ * famiglia nuova non lascia narrowing dimenticati che collassano tutto su dunning.
+ */
+export function parseFamiglia(v: unknown): Famiglia {
+  return v === 'massive' || v === 'acqualatina' ? v : 'dunning';
+}
 
 const MASSIVE = new Set(['ASTR']);
 const DUNNING = new Set(['ALIM', 'AMOR', 'ARMO', 'AVUF']);
@@ -40,6 +58,61 @@ const DUNNING = new Set(['ALIM', 'AMOR', 'ARMO', 'AVUF']);
 export const ATTIVITA_TABELLONE: Record<Famiglia, { frammenti: string[]; etichetta: string }> = {
   dunning: { frammenti: ['DUNNING'], etichetta: 'DUNNING' },
   massive: { frammenti: ['MASSIV'], etichetta: 'LIMITAZIONI MASSIVE' },
+  /*
+    La squadra AcquaLatina sta in tabellone come «CONTATORI» (verificato in produzione: territorio
+    ACQUA LATINA, righe reali dal 29/07). Il frammento prende il nome intero; come per le altre
+    famiglie il criterio resta l'ATTIVITÀ e non il territorio, quindi chi altrove avesse
+    «CONTATORI» in cronoprogramma comparirebbe fra gli assegnabili — è la stessa scelta del
+    dunning («chi satura la giornata deve comparire»), non un difetto nuovo.
+  */
+  acqualatina: { frammenti: ['CONTATORI'], etichetta: 'CONTATORI' },
+};
+
+/**
+ * Il profilo di COMMESSA di ogni famiglia: dove vivono gli ordini e come si chiamano le sue
+ * scritture. È la mappa che permette alle route del registro di servire tre famiglie con lo
+ * stesso codice — i valori ACEA sono quelli storici (`vociRapportino` li ri-esporta da qui).
+ *
+ * `unita` è la differenza di dominio più importante: per ACEA l'unità di lavoro è l'ODL (più
+ * operazioni dello stesso ordine sono lo stesso passaggio sul posto), per AcquaLatina è la coppia
+ * ODL+matricola — nel master 109 ordini coprono fino a 5 contatori (condomìni), e ogni contatore
+ * è un intervento suo: pianificazione, voci di rapportino e chiusura devono distinguerli.
+ */
+export type ProfiloCommessa = {
+  /** La tabella del registro. Due tabelle con la stessa forma: la select condivisa vale su entrambe. */
+  tabellaOrdini: 'acea_ordini' | 'acqualatina_ordini';
+  /** I committenti degli `interventi` di questa commessa (filtro di lettura). */
+  committenti: readonly string[];
+  /** Il committente con cui il registro CREA gli interventi. */
+  committenteScrittura: string;
+  /** Territorio dei piani-contenitore dei rapportini (`mappa_piani.territorio`). */
+  territorioPiani: string;
+  /** Unità di lavoro per pianificazione e voci: vedi sopra. */
+  unita: 'odl' | 'odl_matricola';
+};
+
+export const PROFILO_COMMESSA: Record<Famiglia, ProfiloCommessa> = {
+  dunning: {
+    tabellaOrdini: 'acea_ordini',
+    committenti: ['acea', 'lim_massive'],
+    committenteScrittura: 'acea',
+    territorioPiani: 'ACEA',
+    unita: 'odl',
+  },
+  massive: {
+    tabellaOrdini: 'acea_ordini',
+    committenti: ['acea', 'lim_massive'],
+    committenteScrittura: 'acea',
+    territorioPiani: 'ACEA',
+    unita: 'odl',
+  },
+  acqualatina: {
+    tabellaOrdini: 'acqualatina_ordini',
+    committenti: ['acqualatina'],
+    committenteScrittura: 'acqualatina',
+    territorioPiani: 'ACQUA LATINA',
+    unita: 'odl_matricola',
+  },
 };
 
 /**

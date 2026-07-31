@@ -155,13 +155,18 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
   const odlsChiusura = [...new Set([...odlMap.values()].filter(Boolean))];
   let positiviEsistenti = new Map<string, { id: string; data: string | null }>();
   if (odlsChiusura.length > 0) {
+    // `matricola_contatore` viaggia nell'indice: per acqualatina l'invariante è per contatore
+    // (un ODL copre più matricole), per gli altri committenti la chiave la ignora.
     const { data: posRows } = await supabaseAdmin
       .from('interventi')
-      .select('id, odl, data, committente')
+      .select('id, odl, data, committente, matricola_contatore')
       .eq('esito', 'eseguito_positivo')
       .in('odl', odlsChiusura);
     positiviEsistenti = indicizzaPositivi(
-      (posRows ?? []) as Array<{ id: string; odl: string | null; data: string | null; committente: string | null }>,
+      ((posRows ?? []) as Array<{
+        id: string; odl: string | null; data: string | null; committente: string | null;
+        matricola_contatore: string | null;
+      }>).map((r) => ({ ...r, matricola: r.matricola_contatore })),
     );
   }
 
@@ -189,8 +194,9 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     const decisione = decidiChiusuraConPositivi({
       interventoId: v.intervento_id,
       esitoPositivo: patch.esito === 'eseguito_positivo',
+      // La matricola della VOCE: per acqualatina distingue i contatori dello stesso ODL.
       originale: odlVoce
-        ? positiviEsistenti.get(chiavePositivo(committenteMap.get(v.intervento_id), odlVoce))
+        ? positiviEsistenti.get(chiavePositivo(committenteMap.get(v.intervento_id), odlVoce, v.matricola))
         : null,
     });
     if (decisione.tipo === 'annulla_doppio_positivo') {

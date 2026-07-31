@@ -92,7 +92,8 @@ export default function BarraAzioni({
       const res = await fetch('/api/acea/pianifica', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ chiavi, data: giorno, staffId }),
+        // La famiglia dice al server QUALE registro leggere (acea_ordini / acqualatina_ordini).
+        body: JSON.stringify({ chiavi, data: giorno, staffId, famiglia }),
       });
       const body = (await res.json()) as EsitoPianifica & { error?: string };
       if (!res.ok) {
@@ -126,7 +127,7 @@ export default function BarraAzioni({
     } finally {
       setBusy(false);
     }
-  }, [chiavi, giorno, staffId, operatori, onAnnullaSelezione, onPianificato]);
+  }, [chiavi, giorno, staffId, famiglia, operatori, onAnnullaSelezione, onPianificato]);
 
   const annulla = useCallback(async () => {
     if (!ultima) return;

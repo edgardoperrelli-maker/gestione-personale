@@ -1,14 +1,14 @@
-# Handoff — Modulo ACEA: pianificazione operativa sul registro (2026-07-30)
+# Handoff — Registro commesse: ACEA + AcquaLatina (2026-07-31)
 
 > Documento di ripresa per una NUOVA chat: autosufficiente, la sessione precedente non c'è più.
-> Lavoro sul branch **`claude/acea-commessa-feasibility-okoirs`** → **PR #175** verso `main`.
 > Sostituisce l'handoff del redesign Cronoprogramma (2026-07-23): quel contenuto resta in git —
 > `git show 528c4c4:HANDOFF.md`.
 
-**Branch**: `claude/acea-commessa-feasibility-okoirs` (78 commit sopra `origin/main` @ `8d8964c`)
-**Specchio**: `claude/acea-table-copy-schedule-filter-3xt700` — stesso SHA, si pusha su entrambi
-**Checkpoint**: `744de8f` — PR #175 aperta, corpo allineato al codice
-**Status**: modulo completo e testato; migration applicata in produzione il 30/07
+**Branch**: `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main` (`93a514d`,
+merge della PR #186; la vecchia PR #175 è chiusa, lo specchio `…okoirs` non si usa più)
+**Status**: modulo ACEA completo e in produzione dal 30/07. Il 31/07 il registro è diventato
+**multi-commessa**: la famiglia `acqualatina` (sostituzione misuratori Terracina) usa le stesse
+mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) applicati in prod
 
 ## Goal
 
@@ -181,6 +181,26 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   «Nessuno in tabellone» + title col nome intero, link corto «compila il tabellone», avviso
   ven/sab come badge «⚠ solo attivazioni» con tooltip, e `[&>*]:shrink-0` sul gruppo destro
   (un comando o sta intero o va a capo intero).
+- [x] **Registro AcquaLatina — terza famiglia** (31/07, dec. 46-47) — la sostituzione misuratori
+  di Terracina (4.196 punti dal master «Luglio») entra nel registro commesse come famiglia
+  `acqualatina`: STESSE mani (select condivisa, griglia, celle, Pianifica, modale Rapportini,
+  export) su **tabella propria `acqualatina_ordini`** (migration `20260731170000` + backfill,
+  entrambi in prod). `PROFILO_COMMESSA` in famiglia.ts dice per famiglia: tabella, committenti
+  interventi, territorio piani (`ACQUA LATINA`), **unità** (`odl_matricola`: 109 ODL coprono 2-5
+  contatori — pianificazione, voci, positivi e indici `interventi` declinati per contatore; per
+  ACEA nulla cambia, l'unità composta è opt-in). Tabellone: **CONTATORI**; ven/sab **esente**;
+  chiusura **dai nostri rapportini** (riconciliazione throttled in `/api/acea/ordini`, chiusa =
+  intervento completato via `ordine_id`, stato dice anche l'esito); sync **additivo** dal master
+  (`/api/acqualatina/ordini/sync` + «Aggiorna dal master» al posto di «Importa export»);
+  pagina `/hub/acqualatina/pianificazione` + foglietta nella landing. Le route condivise
+  ricevono `famiglia` nel body/query e scelgono il registro dal profilo.
+- [x] **Pallet sui misuratori AcquaLatina** (31/07, dec. 48) — a CESTA PIENA l'ufficio spunta i
+  misuratori nel registro «Misuratori rimossi — AcquaLatina» e assegna in blocco il numero del
+  pallet di riferimento (barra con input + Assegna/Togli/Annulla, `POST
+  /api/acqualatina/misuratori/pallet`, colonna `pallet` text solo su quella tabella — migration
+  `20260731190000` in prod). Filtro «Pallet» con «Senza pallet» (= ancora in cesta), colonna
+  ordinabile in tabella e nel PDF, che ora prende il titolo per commessa (`titoloPdf`) invece
+  del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati.
 
 ## Not Yet Done
 
@@ -199,6 +219,12 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - [ ] **Editor in cella per le Note**: oggi si scrivono solo per incolla. Data ed Esecutore
   hanno il loro editor; se serve anche per le Note, il pattern è in `TabellaOrdini` (rami
   `inEditor`/`inEditorEsecutore`) + `useEditingGriglia` (`apriEditor*`).
+- [ ] **AcquaLatina, esiti negativi**: oggi un intervento completato chiude la riga anche con
+  esito negativo (lo stato dice «Chiusa — non eseguita»). Se l'ufficio vorrà ripassare sugli
+  assenti servirà una «riapertura acqualatina» (riaprire la riga o crearne una nuova): deciso di
+  NON inventarla ora — il flusso vero non si conosce ancora.
+- [ ] **AcquaLatina, verifica a schermo**: schede Da lavorare/Chiusi, ordinamento per strada,
+  «Aggiorna dal master», menu esecutori con chi fa CONTATORI, modale rapportini sulla famiglia.
 
 ## Failed Approaches (da non ripetere)
 
@@ -245,14 +271,13 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 
 ## Current State
 
-**Working**: tutto. `npx tsc --noEmit` pulito · `npx eslint` pulito sui file toccati ·
-**2.754 test verdi su 301 file** (baseline `main`: 2.199/270) · `next build` exit 0 (con env
-Supabase segnaposto: nel container non c'è `.env.local`).
+**Working**: tutto. `npx tsc --noEmit` pulito · **3.000+ test verdi su 320 file** ·
+`next build` exit 0 (con env Supabase segnaposto: nel container non c'è `.env.local`).
 
-**Branch**: testa identica su `claude/acea-commessa-feasibility-okoirs` (PR #175) e
-`claude/acea-table-copy-schedule-filter-3xt700` — ultima feature `7bd84db` (+ commit docs).
-Push sempre su entrambi:
-`git push origin <sha>:claude/acea-commessa-feasibility-okoirs` dopo `git fetch` + verifica SHA.
+**Branch**: solo `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main`
+dopo il merge della PR #186 (la PR #175 e il suo branch specchio sono chiusi: niente più doppio
+push). In produzione (Supabase `aceztqfebringeaebvce`): migration `20260731170000`
+(acqualatina_ordini + indici `interventi` declinati) e backfill dal master «Luglio» già applicati.
 
 **Broken**: niente di noto. **Uncommitted**: niente.
 
@@ -263,10 +288,11 @@ Push sempre su entrambi:
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 45 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 48 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `lib/acqualatina/ordiniDaMaster.ts` | Sync dal master: identità (odl, matricola), numerazione operazioni stabile, spacco via/civico |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
-| `lib/acea/famiglia.ts` | `ATTIVITA_TABELLONE`: quale attività di tabellone rende assegnabili, e come si chiama nei messaggi |
+| `lib/acea/famiglia.ts` | `Famiglia` (ora anche `acqualatina`), `ATTIVITA_TABELLONE` (DUNNING/LIMITAZIONI MASSIVE/CONTATORI) e `PROFILO_COMMESSA`: tabella, committenti, territorio e unità per famiglia — la mappa che rende il registro multi-commessa |
 | `lib/acea/caricaComuniMassive.ts` | I comuni-scheda della vista massive (aperti > 0), usato da route e pagina |
 | `lib/acea/codaRiaperture.ts` | Coda e triangolo: `esitataNeiRapportini`, `pianificata`, `contaSenzaData` |
 | `lib/acea/righeAppunti.ts` | Copia/incolla per righe spuntate (TSV citato, incolla non contiguo) |

@@ -27,6 +27,11 @@ export interface MisuratoreRimosso {
   comune: string | null;
   matricola: string;
   pdr: string | null;
+  /**
+   * Numero del pallet di riferimento (solo registro AcquaLatina): assegnato in blocco quando la
+   * cesta si riempie, è il riferimento con cui la riconsegna viaggia. `null` = ancora in cesta.
+   */
+  pallet?: string | null;
   stato: StatoMisuratore;
   note: string | null;
   created_at: string;

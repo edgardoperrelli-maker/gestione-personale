@@ -5,6 +5,8 @@
 // sono state toccate e perché — in Excel una riga saltata sparisce senza dire niente, ed è uno
 // dei modi in cui il master si disallinea dalla realtà.
 
+import type { Famiglia } from './famiglia';
+
 export type OrdineDaPianificare = {
   odl: string;
   numero_operazione: string;
@@ -27,21 +29,24 @@ export type OrdineDaPianificare = {
    */
   riapertura?: boolean;
   /**
-   * Famiglia della riga (`dunning`/`massive`). Serve a due cose: alle route per il cancello del
-   * tabellone (`controllaAssegnazioni` filtra gli assegnabili sull'attività della famiglia), e
-   * QUI per il venerdì e il sabato — la regola «solo attivazioni» è del dunning, le limitazioni
-   * massive ne sono esenti. Assente = dunning, cioè la regola piena: si sbaglia per difetto.
+   * Famiglia della riga. Serve a due cose: alle route per il cancello del tabellone
+   * (`controllaAssegnazioni` filtra gli assegnabili sull'attività della famiglia), e QUI per il
+   * venerdì e il sabato — la regola «solo attivazioni» è del SOLO dunning: le limitazioni massive
+   * (dec. 38) e AcquaLatina (campagna per conto suo, i codici SLA di ACEA non la riguardano) sono
+   * esenti. Assente = dunning, cioè la regola piena: si sbaglia per difetto.
    */
-  famiglia?: 'dunning' | 'massive';
+  famiglia?: Famiglia;
 };
 
-/** Intervento già esistente sullo stesso ODL (qualunque data). */
+/** Intervento già esistente sulla stessa unità di lavoro (qualunque data). */
 export type InterventoEsistente = {
   id: string;
   odl: string;
   data: string;
   staff_id: string | null;
   stato: string;
+  /** Matricola dell'intervento: serve al confronto quando l'unità è `odl_matricola`. */
+  matricola?: string | null;
 };
 
 export type MotivoSalto = 'ordine_chiuso' | 'gia_completato' | 'solo_attivazioni';
@@ -74,6 +79,13 @@ export type ArgomentiPianifica = {
   staffId: string;
   /** `true` se quel giorno accetta solo attivazioni (venerdì e sabato). */
   soloAttivazioni?: boolean;
+  /**
+   * Unità su cui si confrontano ordini e interventi esistenti. `odl` (default, ACEA: più
+   * operazioni dello stesso ordine sono lo stesso passaggio sul posto) o `odl_matricola`
+   * (AcquaLatina: un ordine copre più contatori, ognuno si pianifica per conto suo — con la
+   * chiave sul solo ODL, pianificare il secondo contatore SPOSTEREBBE l'intervento del primo).
+   */
+  unita?: 'odl' | 'odl_matricola';
 };
 
 /**
@@ -92,13 +104,21 @@ export type ArgomentiPianifica = {
  *    pianificano anche in quei giorni.
  */
 export function pianoPianificazione({
-  ordini, esistenti, data, staffId, soloAttivazioni = false,
+  ordini, esistenti, data, staffId, soloAttivazioni = false, unita = 'odl',
 }: ArgomentiPianifica): PianoPianificazione {
-  const perOdl = new Map<string, InterventoEsistente[]>();
+  // Matricola normalizzata per la chiave composta: il registro e `interventi` possono differire
+  // per maiuscole o separatori, e una chiave che non coincide duplica l'intervento.
+  const normMatr = (m: string | null | undefined): string =>
+    String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+  const chiave = (odl: string, matricola: string | null | undefined): string =>
+    unita === 'odl_matricola' ? `${odl}#${normMatr(matricola)}` : odl;
+
+  const perUnita = new Map<string, InterventoEsistente[]>();
   for (const i of esistenti) {
-    const lista = perOdl.get(i.odl) ?? [];
+    const k = chiave(i.odl, i.matricola);
+    const lista = perUnita.get(k) ?? [];
     lista.push(i);
-    perOdl.set(i.odl, lista);
+    perUnita.set(k, lista);
   }
 
   const azioni: AzionePianifica[] = [];
@@ -108,13 +128,13 @@ export function pianoPianificazione({
       continue;
     }
     // Prima di guardare gli interventi: su un giorno di sole attivazioni una limitazione di
-    // dunning non ci va, nemmeno per SPOSTARCI un intervento che esiste già. Le massive passano:
-    // la regola è del dunning, non del giorno.
-    if (soloAttivazioni && o.famiglia !== 'massive' && o.riapertura !== true) {
+    // dunning non ci va, nemmeno per SPOSTARCI un intervento che esiste già. Massive e
+    // AcquaLatina passano: la regola è del dunning, non del giorno.
+    if (soloAttivazioni && (o.famiglia ?? 'dunning') === 'dunning' && o.riapertura !== true) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'solo_attivazioni' });
       continue;
     }
-    const suOdl = perOdl.get(o.odl) ?? [];
+    const suOdl = perUnita.get(chiave(o.odl, o.matricola)) ?? [];
     if (suOdl.some((i) => i.stato === 'completato')) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'gia_completato' });
       continue;

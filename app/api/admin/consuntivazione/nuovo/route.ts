@@ -96,13 +96,19 @@ export async function POST(req: Request) {
   const nowIso = new Date().toISOString();
 
   // Backstop doppio-positivo: positivo già presente per (committente, ODL)?
+  // La matricola pesa solo su acqualatina, dove l'invariante è per contatore.
   const odlNorm = normOdl(base.odl);
   let positivoOriginale = null as { id: string; data: string | null } | null;
   if (odlNorm) {
     const { data: pos } = await supabaseAdmin
-      .from('interventi').select('id, odl, data, committente')
+      .from('interventi').select('id, odl, data, committente, matricola_contatore')
       .eq('esito', 'eseguito_positivo').eq('committente', base.committente).eq('odl', base.odl!);
-    positivoOriginale = indicizzaPositivi((pos ?? []) as never).get(chiavePositivo(base.committente, base.odl)) ?? null;
+    positivoOriginale = indicizzaPositivi(
+      ((pos ?? []) as Array<{
+        id: string; odl: string | null; data: string | null; committente: string | null;
+        matricola_contatore: string | null;
+      }>).map((r) => ({ ...r, matricola: r.matricola_contatore })),
+    ).get(chiavePositivo(base.committente, base.odl, base.matricola_contatore)) ?? null;
   }
 
   const { patch, misuratore } = calcolaEsitazione({

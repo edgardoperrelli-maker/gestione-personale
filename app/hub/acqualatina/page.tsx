@@ -9,9 +9,14 @@ import FogliettaCard from '@/components/ui/FogliettaCard';
 export const dynamic = 'force-dynamic';
 
 // Landing della commessa AcquaLatina — pattern «foglietta» (DESIGN.md §7bis): una card
-// per vista. Oggi il modulo ha un solo registro; le viste che la commessa richiederà
-// (produzione, SAL) si aggiungono qui senza toccare la navigazione.
+// per vista. Le viste che la commessa richiederà (produzione, SAL) si aggiungono qui senza
+// toccare la navigazione.
 const VISTE = [
+  {
+    href: '/hub/acqualatina/pianificazione',
+    title: 'Pianificazione sostituzioni',
+    description: 'Il master di Terracina in tabella: esecutore e giorno, rapportini in modale',
+  },
   {
     href: '/hub/acqualatina/misuratori',
     title: 'Misuratori rimossi',

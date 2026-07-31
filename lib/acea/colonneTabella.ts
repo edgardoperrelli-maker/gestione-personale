@@ -191,6 +191,31 @@ export const COLONNE_DUNNING: DefColonna[] = [
   { chiave: 'cardine_al', intestazione: 'Scadenza ACEA', predefinita: false, mono: true, larghezza: 120 },
 ];
 
+/**
+ * Colonne della vista AcquaLatina (sostituzione misuratori, Terracina).
+ *
+ * La tabella dice quello che il master dice: ODL, matricola, indirizzo — più le NOSTRE tre
+ * (esecutore, giorno, note) e lo stato. Niente CAP (nel master di Terracina è vuoto su tutte le
+ * 4.196 righe), niente scadenza/SLA/impianto/saracinesche: sono concetti ACEA che qui non
+ * esistono, e una colonna sempre vuota si legge come un import rotto.
+ *
+ * «Chiusa il» è `data_completamento`, ma qui la scrive il NOSTRO motore (rapportino consegnato
+ * con esito), non un export del committente: AcquaLatina non ci rimanda indietro lo stato.
+ */
+export const COLONNE_ACQUALATINA: DefColonna[] = [
+  { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },
+  { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 150, filtro: F.matricola },
+  { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 260, filtro: F.indirizzo },
+  { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 130, filtro: F.stato },
+  { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 240, filtro: F.note },
+  // attivabili
+  { chiave: 'data_completamento', intestazione: 'Chiusa il', predefinita: false, mono: true, larghezza: 110 },
+  { chiave: 'comune', intestazione: 'Comune', predefinita: false, larghezza: 130, filtro: F.comune },
+  { chiave: 'data_creazione', intestazione: 'Caricata il', predefinita: false, mono: true, larghezza: 100 },
+];
+
 /** Colonne della vista Limitazioni massive: nessuna scadenza, questi ordini non scadono. */
 export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },

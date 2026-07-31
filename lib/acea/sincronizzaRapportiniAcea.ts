@@ -26,8 +26,9 @@ import { scadenzaIso } from '@/utils/rapportini/scadenza';
 import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
+import { PROFILO_COMMESSA, type Famiglia } from '@/lib/acea/famiglia';
 import {
-  COMMITTENTI_ACEA, TERRITORIO_ACEA, scegliRapportino, taskIdAcea, vociDaAggiungere,
+  scegliRapportino, taskIdAcea, vociDaAggiungere,
   type EsitoOperatore, type InterventoDaVoce, type VoceEsistente,
 } from '@/lib/acea/vociRapportino';
 
@@ -36,7 +37,7 @@ export type OpzioniAcea = {
   data: string;
   /** Utente che esegue: `mappa_piani.created_by` è NOT NULL. */
   attoreId: string;
-  /** Limita a questi operatori (default: tutti quelli con interventi ACEA quel giorno). */
+  /** Limita a questi operatori (default: tutti quelli con interventi della commessa quel giorno). */
   staffIds?: string[];
   /** Riapre i rapportini già inviati che devono ricevere voci nuove. */
   confermaRiaperture?: boolean;
@@ -44,6 +45,12 @@ export type OpzioniAcea = {
   confermaIncomplete?: boolean;
   /** Modello dei rapportini creati da zero. Sui rapportini esistenti non si tocca nulla. */
   templateId?: string;
+  /**
+   * La famiglia della vista che genera: decide registro, committenti e territorio-contenitore
+   * (vedi `PROFILO_COMMESSA`). Assente = dunning, cioè la commessa ACEA storica — le due famiglie
+   * ACEA condividono lo stesso profilo, quindi per loro il valore è indifferente.
+   */
+  famiglia?: Famiglia;
 };
 
 export type RisultatoAcea =
@@ -79,6 +86,7 @@ export async function sincronizzaRapportiniAcea(
   if (!RE_DATA.test(opts.data)) {
     return { ok: false, status: 400, error: 'Data non valida (atteso YYYY-MM-DD).' };
   }
+  const profilo = PROFILO_COMMESSA[opts.famiglia ?? 'dunning'];
   const avvisi: string[] = [];
 
   /*
@@ -98,7 +106,7 @@ export async function sincronizzaRapportiniAcea(
   */
   if (!opts.confermaIncomplete) {
     const { data: aMeta, error: eMeta } = await db
-      .from('acea_ordini')
+      .from(profilo.tabellaOrdini)
       .select('odl, pianificato_a_bozza')
       .eq('pianificato_il_bozza', opts.data);
     // Errore di lettura (tipicamente: migration non ancora passata) → si genera come prima, senza
@@ -119,14 +127,14 @@ export async function sincronizzaRapportiniAcea(
     }
   }
 
-  // ---- 1. Interventi ACEA del giorno ---------------------------------------------------------
+  // ---- 1. Interventi della commessa del giorno ------------------------------------------------
   const { data: intRows, error: eInt } = await db
     .from('interventi')
     .select(
       'id, odl, staff_id, stato, intervento_tipo, gruppo_attivita, committente, indirizzo, comune, cap, matricola_contatore, nominativo, pdr',
     )
     .eq('data', opts.data)
-    .in('committente', [...COMMITTENTI_ACEA]);
+    .in('committente', [...profilo.committenti]);
   if (eInt) return { ok: false, status: 500, error: eInt.message };
 
   const filtroStaff = opts.staffIds?.length ? new Set(opts.staffIds) : null;
@@ -162,7 +170,7 @@ export async function sincronizzaRapportiniAcea(
     volta per generazione, come avviso.
   */
   const { data: senzaData } = await db
-    .from('acea_ordini')
+    .from(profilo.tabellaOrdini)
     .select('odl')
     .not('pianificato_a_bozza', 'is', null)
     .is('pianificato_il_bozza', null);
@@ -196,7 +204,7 @@ export async function sincronizzaRapportiniAcea(
   if (rapportini.length > 0) {
     const { data: vociRows, error: eVoci } = await db
       .from('rapportino_voci')
-      .select('rapportino_id, task_id, intervento_id, odl, ordine, origine')
+      .select('rapportino_id, task_id, intervento_id, odl, ordine, origine, matricola')
       .in('rapportino_id', rapportini.map((r) => r.id));
     // `origine` è il perno di tutto il meccanismo: senza quella colonna le voci ACEA verrebbero
     // cancellate dal motore dei piani alla prima rigenerazione. Meglio fermarsi che scriverle.
@@ -214,6 +222,7 @@ export async function sincronizzaRapportiniAcea(
           intervento_id: (v.intervento_id as string | null) ?? null,
           odl: (v.odl as string | null) ?? null,
           ordine: typeof v.ordine === 'number' ? v.ordine : null,
+          matricola: (v.matricola as string | null) ?? null,
         },
       ]);
       if (v.origine === 'acea') conVociAcea.add(rid);
@@ -295,6 +304,9 @@ export async function sincronizzaRapportiniAcea(
     const { daAggiungere, giaPresenti, ordineIniziale } = vociDaAggiungere(
       miei,
       scelto ? (vociPerRapportino.get(scelto.id) ?? []) : [],
+      // Per acqualatina l'unità è il contatore: cinque matricole dello stesso ODL sono cinque
+      // voci, non quattro «già presenti».
+      profilo.unita,
     );
 
     const base = {
@@ -345,7 +357,7 @@ export async function sincronizzaRapportiniAcea(
         };
       }
       if (!pianoAcea) {
-        const p = await assicuraPianoAcea(db, opts.data, opts.attoreId);
+        const p = await assicuraPianoCommessa(db, opts.data, opts.attoreId, profilo.territorioPiani);
         if (!p.ok) return p;
         pianoAcea = p.pianoId;
       }
@@ -380,7 +392,7 @@ export async function sincronizzaRapportiniAcea(
     const odlDaAggiungere = [...new Set(daAggiungere.map((i) => i.odl).filter(Boolean))] as string[];
     for (let i = 0; i < odlDaAggiungere.length; i += 200) {
       const { data: conNota } = await db
-        .from('acea_ordini')
+        .from(profilo.tabellaOrdini)
         .select('odl, note')
         .in('odl', odlDaAggiungere.slice(i, i + 200));
       for (const r of (conNota ?? []) as Array<{ odl: string; note: string | null }>) {
@@ -451,22 +463,23 @@ export async function sincronizzaRapportiniAcea(
 }
 
 /**
- * Piano-contenitore del giorno, territorio ACEA.
+ * Piano-contenitore del giorno, nel territorio della commessa (ACEA / ACQUA LATINA).
  *
  * Esiste solo perché `rapportini.piano_id` è NOT NULL. Non ha operatori né task: è un guscio, e
  * deve restare tale — un piano con operatori sarebbe rigenerabile dalla Mappa, e la rigenerazione
  * possiede voci che qui non sono sue. Si riusa quello del giorno se c'è già.
  */
-async function assicuraPianoAcea(
+async function assicuraPianoCommessa(
   db: SupabaseClient,
   data: string,
   attoreId: string,
+  territorio: string,
 ): Promise<{ ok: true; pianoId: string } | { ok: false; status: number; error: string }> {
   const { data: esistenti, error: eSel } = await db
     .from('mappa_piani')
     .select('id')
     .eq('data', data)
-    .eq('territorio', TERRITORIO_ACEA);
+    .eq('territorio', territorio);
   if (eSel) return { ok: false, status: 500, error: eSel.message };
   const primo = (esistenti ?? [])[0] as { id: string } | undefined;
   if (primo) return { ok: true, pianoId: String(primo.id) };
@@ -474,13 +487,13 @@ async function assicuraPianoAcea(
   const { data: ins, error } = await db
     .from('mappa_piani')
     .insert({
-      data, territorio: TERRITORIO_ACEA, note: 'Contenitore dei rapportini della commessa ACEA.',
+      data, territorio, note: 'Contenitore dei rapportini generati dal registro commesse.',
       stato: 'confermato', created_by: attoreId, updated_by: attoreId,
     })
     .select('id')
     .single();
   if (error || !ins) {
-    return { ok: false, status: 500, error: error?.message ?? 'Creazione piano ACEA fallita.' };
+    return { ok: false, status: 500, error: error?.message ?? 'Creazione piano contenitore fallita.' };
   }
   return { ok: true, pianoId: String((ins as { id: string }).id) };
 }

@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'next/navigation';
 import type { RigaTabella } from '@/lib/acea/colonneTabella';
+import type { Famiglia } from '@/lib/acea/famiglia';
 import {
   OPZIONI_VUOTE, filtriVuoti, parametriQuery,
   type FiltriUI, type Opzioni, type ScadenzaFiltro, type StatoFiltro,
@@ -39,7 +40,7 @@ type Risposta = {
  * righe non ancora scese.
  */
 export function useOrdiniAcea(
-  famiglia: 'dunning' | 'massive',
+  famiglia: Famiglia,
   /**
    * I comuni-scheda al primo render, letti dal server nella pagina (solo massive). Servono
    * PRIMA della prima risposta: senza, la prima interrogazione partirebbe senza scheda e

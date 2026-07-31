@@ -6,9 +6,12 @@ import {
   pianoPianificazione, type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
-import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
+import { tassonomiaAttivitaAcea } from '@/lib/acea/tassonomiaAcea';
 import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
-import type { Famiglia } from '@/lib/acea/famiglia';
+import { PROFILO_COMMESSA, parseFamiglia, type Famiglia } from '@/lib/acea/famiglia';
+import {
+  ATTIVITA_SOSTITUZIONE_MISURATORE, GRUPPO_SOSTITUZIONE_MISURATORI,
+} from '@/lib/acqualatina/contratto';
 import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
@@ -30,7 +33,11 @@ type Modifica = {
   nota?: string | null;
 };
 
-type Corpo = { modifiche?: Modifica[] };
+type Corpo = {
+  modifiche?: Modifica[];
+  /** Famiglia della vista: decide il registro su cui leggere/scrivere. Assente = registro ACEA. */
+  famiglia?: string;
+};
 
 /**
  * POST /api/acea/celle — applica le modifiche fatte in griglia su `Esecutore` e `Data pianificata`.
@@ -47,11 +54,13 @@ export async function POST(req: Request) {
   if (auth instanceof NextResponse) return auth;
 
   try {
-    const { modifiche } = (await req.json()) as Corpo;
-    const lista = (Array.isArray(modifiche) ? modifiche : []).filter((m) => m && m.chiave);
+    const corpo = (await req.json()) as Corpo;
+    const lista = (Array.isArray(corpo.modifiche) ? corpo.modifiche : []).filter((m) => m && m.chiave);
     if (lista.length === 0) {
       return NextResponse.json({ error: 'Nessuna modifica.' }, { status: 400 });
     }
+    const famigliaVista = parseFamiglia(corpo.famiglia);
+    const profilo = PROFILO_COMMESSA[famigliaVista];
 
     const odlTutti = [...new Set(lista.map((m) => m.chiave.split('|')[0]))];
 
@@ -66,7 +75,7 @@ export async function POST(req: Request) {
       if (m.nota === undefined) continue;
       const [odl, operazione] = m.chiave.split('|');
       const { error } = await supabaseAdmin
-        .from('acea_ordini')
+        .from(profilo.tabellaOrdini)
         // Vuoto = cancellata: `null` e non stringa vuota, così «senza nota» ha una forma sola.
         .update({ note: (m.nota ?? '').trim() === '' ? null : m.nota })
         .eq('odl', odl)
@@ -102,7 +111,7 @@ export async function POST(req: Request) {
     const leggiRegistro = (async () => {
       for (const blocco of blocchi) {
         const { data: righe, error } = await supabaseAdmin
-          .from('acea_ordini')
+          .from(profilo.tabellaOrdini)
           .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
           .in('odl', blocco);
         if (error) throw error;
@@ -112,7 +121,7 @@ export async function POST(req: Request) {
             odl: String(r.odl),
             numero_operazione: String(r.numero_operazione),
             ordine_id: (r.id as string | null) ?? null,
-            famiglia: r.famiglia === 'massive' ? 'massive' : 'dunning',
+            famiglia: parseFamiglia(r.famiglia),
             aperto: r.aperto === true,
             attivita: (r.attivita as string | null) ?? null,
             comune: (r.comune as string | null) ?? null,
@@ -129,7 +138,7 @@ export async function POST(req: Request) {
     const leggiAppunti = (async () => {
       for (const blocco of blocchi) {
         const { data: righe, error } = await supabaseAdmin
-          .from('acea_ordini')
+          .from(profilo.tabellaOrdini)
           .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
           .in('odl', blocco);
         if (error) {
@@ -149,15 +158,16 @@ export async function POST(req: Request) {
       for (const blocco of blocchi) {
         const { data: righe, error } = await supabaseAdmin
           .from('interventi')
-          .select('id, odl, data, staff_id, stato')
+          .select('id, odl, data, staff_id, stato, matricola_contatore')
           .in('odl', blocco)
-          .in('committente', ['acea', 'lim_massive']);
+          .in('committente', [...profilo.committenti]);
         if (error) throw error;
         for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
           if (!r.odl) continue;
           esistenti.push({
             id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
             staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+            matricola: (r.matricola_contatore as string | null) ?? null,
           });
         }
       }
@@ -167,9 +177,19 @@ export async function POST(req: Request) {
       leggiRegistro, leggiAppunti, leggiInterventi, indiceTassonomiaCached(),
     ]);
 
+    /*
+      Gli esistenti, indicizzati per UNITÀ e non per ODL secco: su acqualatina la riga del
+      secondo contatore non deve né ereditare la data dall'intervento del primo, né vederselo
+      «spostare» — sono due lavori. Per le famiglie ACEA la chiave resta l'ODL.
+    */
+    const chiaveUnita = (odl: string, matricola: string | null | undefined): string =>
+      profilo.unita === 'odl_matricola'
+        ? `${odl}#${String(matricola ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')}`
+        : odl;
     const interventoPerOdl = new Map<string, InterventoEsistente[]>();
     for (const i of esistenti) {
-      interventoPerOdl.set(i.odl, [...(interventoPerOdl.get(i.odl) ?? []), i]);
+      const k = chiaveUnita(i.odl, i.matricola);
+      interventoPerOdl.set(k, [...(interventoPerOdl.get(k) ?? []), i]);
     }
 
     const azioniLog: Array<Record<string, unknown>> = [];
@@ -194,7 +214,8 @@ export async function POST(req: Request) {
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
       if (!ordine) continue;
-      const aperti = (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato !== 'annullato');
+      const aperti = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
+        .filter((i) => i.stato !== 'annullato');
       const corrente = [...aperti].sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
       const bozza = bozzePerChiave.get(m.chiave);
       const data = m.data ?? corrente?.data ?? bozza?.data ?? null;
@@ -223,7 +244,8 @@ export async function POST(req: Request) {
         rifiutate.push({ chiave: m.chiave, motivo: 'ordine non trovato' });
         continue;
       }
-      const apertiSuOdl = (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato !== 'annullato');
+      const apertiSuOdl = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
+        .filter((i) => i.stato !== 'annullato');
 
       const finale = finali.get(m.chiave);
       if (!finale) {
@@ -254,11 +276,13 @@ export async function POST(req: Request) {
       const piano = pianoPianificazione({
         ordini: [ordine],
         esistenti: apertiSuOdl.concat(
-          (interventoPerOdl.get(ordine.odl) ?? []).filter((i) => i.stato === 'completato'),
+          (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
+            .filter((i) => i.stato === 'completato'),
         ),
         data: dataFinale,
         staffId: staffFinale,
         soloAttivazioni: soloAttivazioni(dataFinale),
+        unita: profilo.unita,
       });
       const azione = piano.azioni[0];
       if (!azione) continue;                                   // già così: nulla da fare
@@ -292,11 +316,14 @@ export async function POST(req: Request) {
         continue;
       }
 
-      const tass = tassonomiaAttivitaAcea(ordine.attivita, indice);
+      // Tassonomia: ACEA risolve sugli alias; acqualatina scrive la sua unica attività canonica.
+      const tass = famigliaVista === 'acqualatina'
+        ? { tipo: ATTIVITA_SOSTITUZIONE_MISURATORE, gruppo: GRUPPO_SOSTITUZIONE_MISURATORI }
+        : tassonomiaAttivitaAcea(ordine.attivita, indice);
       const { data: creato, error } = await supabaseAdmin
         .from('interventi')
         .insert({
-          committente: COMMITTENTE_ACEA,
+          committente: profilo.committenteScrittura,
           odl: ordine.odl,
           ordine_id: ordine.ordine_id,
           data: dataFinale,
@@ -336,7 +363,7 @@ export async function POST(req: Request) {
       if (a.data !== undefined) patch.pianificato_il_bozza = a.data || null;
       if (Object.keys(patch).length === 0) continue;
       const { error } = await supabaseAdmin
-        .from('acea_ordini')
+        .from(profilo.tabellaOrdini)
         .update(patch)
         .eq('odl', odl)
         .eq('numero_operazione', operazione);
@@ -347,7 +374,7 @@ export async function POST(req: Request) {
     for (const chiave of appuntiDaPulire) {
       const [odl, operazione] = chiave.split('|');
       const { error } = await supabaseAdmin
-        .from('acea_ordini')
+        .from(profilo.tabellaOrdini)
         .update({ pianificato_a_bozza: null, pianificato_il_bozza: null })
         .eq('odl', odl)
         .eq('numero_operazione', operazione);

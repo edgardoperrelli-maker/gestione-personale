@@ -7,9 +7,12 @@ import {
   type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
-import { tassonomiaAttivitaAcea, COMMITTENTE_ACEA } from '@/lib/acea/tassonomiaAcea';
+import { tassonomiaAttivitaAcea } from '@/lib/acea/tassonomiaAcea';
 import { chiaveAssegnazione, controllaAssegnazioni } from '@/lib/acea/operatoriGiorno';
-import type { Famiglia } from '@/lib/acea/famiglia';
+import { PROFILO_COMMESSA, parseFamiglia, type Famiglia } from '@/lib/acea/famiglia';
+import {
+  ATTIVITA_SOSTITUZIONE_MISURATORE, GRUPPO_SOSTITUZIONE_MISURATORI,
+} from '@/lib/acqualatina/contratto';
 import { soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { partiRoma } from '@/lib/agente/orarioRoma';
@@ -21,6 +24,12 @@ type Corpo = {
   chiavi?: string[];
   data?: string;
   staffId?: string;
+  /**
+   * La famiglia della VISTA da cui arriva la selezione: decide il registro da cui leggere le
+   * righe (acea_ordini / acqualatina_ordini). Assente = dunning, che legge il registro ACEA —
+   * è il comportamento storico, e le famiglie ACEA convivono nella stessa tabella.
+   */
+  famiglia?: string;
 };
 
 /**
@@ -38,6 +47,8 @@ export async function POST(req: Request) {
     const chiavi = Array.isArray(corpo.chiavi) ? corpo.chiavi : [];
     const data = String(corpo.data ?? '');
     const staffId = String(corpo.staffId ?? '');
+    const famigliaVista = parseFamiglia(corpo.famiglia);
+    const profilo = PROFILO_COMMESSA[famigliaVista];
 
     if (chiavi.length === 0) {
       return NextResponse.json({ error: 'Nessuna riga selezionata.' }, { status: 400 });
@@ -76,17 +87,22 @@ export async function POST(req: Request) {
     */
     const [motivi, ordini, esistenti, indice] = await Promise.all([
       // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
-      controllaAssegnazioni([
-        { data, staffId, dataScritta: true, famiglia: 'dunning' },
-        { data, staffId, dataScritta: true, famiglia: 'massive' },
-      ], oggi),
+      // Nella vista acqualatina la famiglia è una sola; nelle viste ACEA si controllano entrambe
+      // upfront, perché la famiglia delle righe la dice il registro che si sta leggendo sotto.
+      controllaAssegnazioni(
+        (famigliaVista === 'acqualatina'
+          ? (['acqualatina'] as Famiglia[])
+          : (['dunning', 'massive'] as Famiglia[])
+        ).map((famiglia) => ({ data, staffId, dataScritta: true, famiglia })),
+        oggi,
+      ),
       (async () => {
         // 1) Ordini selezionati, letti dal registro (non dal client: il client potrebbe avere una
         //    fotografia vecchia, e su questi dati si decide chi va dove).
         const out: OrdineDaPianificare[] = [];
         for (const blocco of blocchi) {
           const { data: righe, error } = await supabaseAdmin
-            .from('acea_ordini')
+            .from(profilo.tabellaOrdini)
             .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
             .in('odl', blocco);
           if (error) throw error;
@@ -97,7 +113,7 @@ export async function POST(req: Request) {
               odl: String(r.odl),
               numero_operazione: String(r.numero_operazione),
               ordine_id: (r.id as string | null) ?? null,
-              famiglia: r.famiglia === 'massive' ? 'massive' : 'dunning',
+              famiglia: parseFamiglia(r.famiglia),
               aperto: r.aperto === true,
               attivita: (r.attivita as string | null) ?? null,
               comune: (r.comune as string | null) ?? null,
@@ -113,20 +129,22 @@ export async function POST(req: Request) {
       })(),
       (async () => {
         // 2) Interventi già esistenti su quegli ODL (qualunque data): servono a spostare invece
-        //    di duplicare, e a non toccare il lavoro già completato.
+        //    di duplicare, e a non toccare il lavoro già completato. La matricola viaggia per
+        //    l'unità acqualatina (ODL+matricola).
         const out: InterventoEsistente[] = [];
         for (const blocco of blocchi) {
           const { data: righe, error } = await supabaseAdmin
             .from('interventi')
-            .select('id, odl, data, staff_id, stato')
+            .select('id, odl, data, staff_id, stato, matricola_contatore')
             .in('odl', blocco)
-            .in('committente', ['acea', 'lim_massive']);
+            .in('committente', [...profilo.committenti]);
           if (error) throw error;
           for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
             if (!r.odl) continue;
             out.push({
               id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
               staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+              matricola: (r.matricola_contatore as string | null) ?? null,
             });
           }
         }
@@ -152,6 +170,7 @@ export async function POST(req: Request) {
 
     const piano = pianoPianificazione({
       ordini, esistenti, data, staffId, soloAttivazioni: soloAttivazioni(data),
+      unita: profilo.unita,
     });
 
     // 4) Scritture + registrazione dello stato precedente per l'annullamento.
@@ -174,11 +193,15 @@ export async function POST(req: Request) {
         });
         continue;
       }
-      const tass = tassonomiaAttivitaAcea(a.ordine.attivita, indice);
+      // Tassonomia: ACEA risolve l'attività sugli alias; acqualatina ha UNA attività di
+      // capitolato, e la si scrive canonica senza lookup (la tassonomia in prod ha quella riga).
+      const tass = famigliaVista === 'acqualatina'
+        ? { tipo: ATTIVITA_SOSTITUZIONE_MISURATORE, gruppo: GRUPPO_SOSTITUZIONE_MISURATORI }
+        : tassonomiaAttivitaAcea(a.ordine.attivita, indice);
       const { data: creato, error } = await supabaseAdmin
         .from('interventi')
         .insert({
-          committente: COMMITTENTE_ACEA,
+          committente: profilo.committenteScrittura,
           odl: a.ordine.odl,
           ordine_id: a.ordine.ordine_id,
           data,

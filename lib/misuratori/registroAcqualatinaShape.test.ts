@@ -49,6 +49,24 @@ describe('registro misuratori AcquaLatina — migrazione', () => {
   });
 });
 
+describe('registro misuratori AcquaLatina — pallet (migrazione 20260731190000)', () => {
+  const sqlPallet = readFileSync(
+    resolve(__dirname, '../../supabase/migrations/20260731190000_acqualatina_misuratori_pallet.sql'),
+    'utf8',
+  );
+
+  it('la colonna è TEXT e nullable: il riferimento lo scrive l\'ufficio, l\'assenza è «in cesta»', () => {
+    expect(sqlPallet).toMatch(/add column if not exists pallet text/i);
+    expect(sqlPallet).not.toMatch(/pallet\s+(integer|int|bigint)/i);
+    expect(sqlPallet).not.toMatch(/pallet[^\n]*not null/i);
+  });
+
+  it('tocca SOLO la tabella AcquaLatina: il registro ACEA ha un altro ciclo logistico', () => {
+    expect(sqlPallet).toMatch(/alter table public\.acqualatina_misuratori_rimossi/i);
+    expect(sqlPallet).not.toMatch(/alter table public\.misuratori_rimossi\b/i);
+  });
+});
+
 describe('registro misuratori AcquaLatina — modulo', () => {
   it('è registrato in moduleAccess e riservato agli admin', () => {
     const def = APP_MODULES.find((m) => m.key === 'acqualatina');

@@ -10,9 +10,10 @@
  */
 import { toast } from '@/components/ui/Toast';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { AlertTriangle, FileDown, Loader2, RefreshCw } from 'lucide-react';
+import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
+import { SENZA_PALLET, filtraPerPallet, valoriPallet } from '@/lib/misuratori/pallet';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
@@ -51,6 +52,14 @@ export type RegistroProps = {
   mostraRicalcola?: boolean;
   /** Colonna PDR: un misuratore d'acqua non ha un punto di riconsegna gas. */
   mostraPdr?: boolean;
+  /**
+   * Pallet di riferimento (solo AcquaLatina): a CESTA PIENA si selezionano i misuratori che ci
+   * sono finiti dentro e si assegna loro il numero del pallet, in blocco. Porta con sé la
+   * colonna in tabella, il filtro e la colonna nel PDF (la distinta del pallet).
+   */
+  mostraPallet?: boolean;
+  /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
+  titoloPdf?: string;
 };
 
 export default function MisuratoriClient({
@@ -60,6 +69,8 @@ export default function MisuratoriClient({
   sottotitolo = 'Riconsegna dei misuratori rimossi, dal deposito al committente',
   mostraRicalcola = true,
   mostraPdr = true,
+  mostraPallet = false,
+  titoloPdf,
 }: RegistroProps) {
   const [rows, setRows]               = useState<MisuratoreRimosso[]>([]);
   const [filters, setFilters]         = useState<Filters>(FILTERS_EMPTY);
@@ -67,6 +78,13 @@ export default function MisuratoriClient({
   const [loading, setLoading]         = useState(false);
   const [syncing, setSyncing]         = useState(false);
   const [error, setError]             = useState<string | null>(null);
+  /** Filtro rapido per pallet, client-side come quello di stato. '' = tutti. */
+  const [palletFiltro, setPalletFiltro] = useState('');
+  /** I misuratori spuntati: la cesta che si sta impallettando. */
+  const [selezione, setSelezione]     = useState<Set<string>>(new Set());
+  /** Numero di pallet da assegnare alla selezione. */
+  const [palletInput, setPalletInput] = useState('');
+  const [assegnando, setAssegnando]   = useState(false);
 
   // Esecutori e comuni univoci per le select dinamiche
   const esecutori = [...new Set(rows.map(r => r.esecutore).filter(Boolean))] as string[];
@@ -79,11 +97,14 @@ export default function MisuratoriClient({
     return { total: rows.length, byStato };
   }, [rows]);
 
-  // Righe visibili: applica il filtro rapido di stato (client-side).
-  const visibleRows = useMemo(
-    () => (statoFiltro ? rows.filter(r => r.stato === statoFiltro) : rows),
-    [rows, statoFiltro],
-  );
+  // Righe visibili: filtro rapido di stato + filtro pallet, entrambi client-side.
+  const visibleRows = useMemo(() => {
+    const perStato = statoFiltro ? rows.filter(r => r.stato === statoFiltro) : rows;
+    return mostraPallet ? filtraPerPallet(perStato, palletFiltro) : perStato;
+  }, [rows, statoFiltro, mostraPallet, palletFiltro]);
+
+  /** I pallet già assegnati, per la tendina del filtro. */
+  const pallets = useMemo(() => (mostraPallet ? valoriPallet(rows) : []), [mostraPallet, rows]);
 
   const fetchData = useCallback(async (f: Filters) => {
     setLoading(true);
@@ -159,6 +180,44 @@ export default function MisuratoriClient({
     }
   }, [apiBase, fetchData, filters]);
 
+  /**
+   * Assegna (o toglie, con valore nullo) il pallet ai misuratori spuntati: il gesto «cesta
+   * piena». Ottimistico come il resto del registro; la selezione si svuota a scrittura riuscita
+   * — la cesta è andata sul pallet, la prossima riparte vuota.
+   */
+  const handleAssegnaPallet = useCallback(async (valore: string | null) => {
+    const ids = [...selezione];
+    if (ids.length === 0) return;
+    const pallet = valore?.trim() || null;
+    setAssegnando(true);
+    const prima = rows;
+    setRows(prev => prev.map(r => (selezione.has(r.id) ? { ...r, pallet } : r)));
+    try {
+      const res = await fetch(`${apiBase}/pallet`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids, pallet }),
+      });
+      const json = await res.json().catch(() => ({})) as { aggiornati?: number; error?: string };
+      if (!res.ok) {
+        setRows(prima);
+        toast.error(json.error ?? 'Assegnazione pallet non riuscita.');
+        return;
+      }
+      const n = json.aggiornati ?? ids.length;
+      toast.success(pallet
+        ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} sul pallet ${pallet}.`
+        : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dal pallet.`);
+      setSelezione(new Set());
+      setPalletInput('');
+    } catch {
+      setRows(prima);
+      toast.error('Assegnazione pallet non riuscita.');
+    } finally {
+      setAssegnando(false);
+    }
+  }, [apiBase, rows, selezione]);
+
   const handleExportPdf = useCallback(() => {
     const pdfFilters: PdfFilters = {
       dataInizio: filters.dataInizio || undefined,
@@ -166,9 +225,12 @@ export default function MisuratoriClient({
       stato:      statoFiltro        || undefined,
       comune:     filters.comune     || undefined,
       esecutore:  filters.esecutore  || undefined,
+      pallet:     !mostraPallet || palletFiltro === ''
+        ? undefined
+        : palletFiltro === SENZA_PALLET ? 'senza pallet' : palletFiltro,
     };
-    exportMisuratoriPdf(visibleRows, pdfFilters);
-  }, [visibleRows, filters, statoFiltro]);
+    exportMisuratoriPdf(visibleRows, pdfFilters, { titolo: titoloPdf, mostraPdr, mostraPallet });
+  }, [visibleRows, filters, statoFiltro, mostraPallet, palletFiltro, titoloPdf, mostraPdr]);
 
   const setFilter = (key: keyof Filters, value: string) =>
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -274,7 +336,73 @@ export default function MisuratoriClient({
             {esecutori.map(e => <option key={e} value={e}>{e}</option>)}
           </Select>
         </label>
+        {mostraPallet && (
+          <label className="flex w-44 flex-col gap-1">
+            <span className="text-xs text-[var(--brand-text-muted)]">Pallet</span>
+            {/* «Senza pallet» è la domanda vera a fine giornata: cosa è ancora in cesta. */}
+            <Select value={palletFiltro} onChange={e => setPalletFiltro(e.target.value)}>
+              <option value="">Tutti</option>
+              <option value={SENZA_PALLET}>Senza pallet</option>
+              {pallets.map(p => <option key={p} value={p}>{p}</option>)}
+            </Select>
+          </label>
+        )}
       </div>
+
+      {/*
+        La barra della CESTA PIENA: compare con la selezione e scrive il pallet in blocco.
+        Fissa come i filtri (la tabella scorre sotto): mentre si spuntano trenta righe la barra
+        non deve scappare fuori schermo.
+      */}
+      {mostraPallet && selezione.size > 0 && (
+        <div className="flex shrink-0 flex-wrap items-center gap-3 rounded-[var(--radius-lg)] border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] px-3 py-2 shadow-[var(--shadow-sm)]">
+          <span className="inline-flex items-center gap-1.5 text-sm font-medium text-[var(--brand-text-main)]">
+            <Package className="h-4 w-4" aria-hidden />
+            {selezione.size} {selezione.size === 1 ? 'misuratore selezionato' : 'misuratori selezionati'}
+          </span>
+          <label className="flex items-center gap-2">
+            <span className="text-xs text-[var(--brand-text-muted)]">Numero pallet</span>
+            {/* La larghezza sta sul contenitore: Input porta un `w-full` suo. */}
+            <span className="w-28">
+              <Input
+                value={palletInput}
+                onChange={e => setPalletInput(e.target.value)}
+                onKeyDown={e => { if (e.key === 'Enter' && palletInput.trim()) void handleAssegnaPallet(palletInput); }}
+                placeholder="es. 3"
+                aria-label="Numero del pallet da assegnare alla selezione"
+              />
+            </span>
+          </label>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void handleAssegnaPallet(palletInput)}
+            disabled={!palletInput.trim()}
+            loading={assegnando}
+          >
+            Assegna pallet
+          </Button>
+          {/* La correzione: la selezione torna «in cesta» (pallet nullo). */}
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => void handleAssegnaPallet(null)}
+            loading={assegnando}
+            title="Toglie il numero di pallet dai misuratori selezionati"
+          >
+            Togli dal pallet
+          </Button>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setSelezione(new Set())}
+            disabled={assegnando}
+          >
+            <X className="h-4 w-4" aria-hidden />
+            Annulla selezione
+          </Button>
+        </div>
+      )}
 
       {/* Errore (fisso) */}
       {error && (
@@ -303,7 +431,15 @@ export default function MisuratoriClient({
             Caricamento…
           </div>
         )}
-        <MisuratoriTabella rows={visibleRows} onPatch={handlePatch} isAdminPlus={isAdminPlus} mostraPdr={mostraPdr} />
+        <MisuratoriTabella
+          rows={visibleRows}
+          onPatch={handlePatch}
+          isAdminPlus={isAdminPlus}
+          mostraPdr={mostraPdr}
+          mostraPallet={mostraPallet}
+          selezione={mostraPallet ? selezione : undefined}
+          onSelezione={mostraPallet ? setSelezione : undefined}
+        />
       </div>
     </div>
   );

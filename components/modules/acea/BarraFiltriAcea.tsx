@@ -9,6 +9,7 @@ import {
 import {
   applicaScheda, azzeraFiltri, haFiltriAttivi, schedeVista, valoreScheda, type FiltriUI,
 } from '@/lib/acea/filtriOrdini';
+import type { Famiglia } from '@/lib/acea/famiglia';
 
 type Props = {
   filtri: FiltriUI;
@@ -19,10 +20,10 @@ type Props = {
   caricate: number;
   /**
    * La vista decide QUALI schede esistono (vedi `schedeVista`): il dunning ha gli stati di
-   * sempre — le riaperture sono sue, e in massive quella scheda non si disegna proprio — mentre
-   * le massive hanno un tasto per comune più i riepiloghi.
+   * sempre — le riaperture sono sue, e in massive quella scheda non si disegna proprio — le
+   * massive hanno un tasto per comune più i riepiloghi, acqualatina due schede secche.
    */
-  famiglia: 'dunning' | 'massive';
+  famiglia: Famiglia;
   /** Comuni con ordini aperti: le schede della vista massive. In dunning resta vuoto. */
   comuni?: readonly string[];
   /**
