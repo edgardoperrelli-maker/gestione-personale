@@ -92,7 +92,13 @@ export default function TemplateMasterClient() {
         return;
       }
       const scartate = json.scartate > 0 ? ` (${json.scartate} righe senza ODL scartate)` : '';
-      setEsito({ type: 'ok', msg: `Caricate ${json.righe} righe${scartate}. Il master è attivo: già dentro il template.` });
+      // L'allineamento impianti si vede: un file senza colonna IMPIANTO non dice niente
+      // qui, e "0 ordini allineati" è l'unico modo per accorgersene subito invece che
+      // scoprirlo giorni dopo su un ordine senza impianto.
+      const imp = json.impianti
+        ? ` Impianti: ${json.impianti.interventi} ordini allineati.`
+        : '';
+      setEsito({ type: 'ok', msg: `Caricate ${json.righe} righe${scartate}. Il master è attivo: già dentro il template.${imp}` });
       setFile(null);
       setNome('');
       setGruppiDefault([]);
