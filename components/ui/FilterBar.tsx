@@ -15,6 +15,17 @@ export function FilterBar({ children }: { children: React.ReactNode }) {
   );
 }
 
+/*
+  Tutta la barra dei filtri sta a 30px, come un `Button size="sm"` — che le sta accanto (su
+  Interventi la riga finisce con «Esporta Excel»). Ci si arriva con due padding diversi, e non
+  e' una svista: il `py` da solo non decide l'altezza, decide il contenuto piu' alto.
+
+  · `FilterPill` resta a `py-1`: dentro ha il bottone ✕, che con il suo `py-0.5` misura 20px e
+    comanda lui — 8 + 20 + 2 di bordo = 30. Portarla a `py-1.5` la fa 34 (provato).
+  · `AddFilterButton` va a `py-1.5`: non ha il ✕, quindi comanda il testo — 12 + 16 + 2 = 30.
+    Con `py-1` erano 26.
+*/
+
 /** Pill di filtro attivo, rimovibile. */
 export function FilterPill({ children, onRemove, removeLabel }: {
   children: React.ReactNode;
@@ -42,7 +53,7 @@ export function AddFilterButton({ children = '+ Filtro', ...props }: React.Butto
     <button
       type="button"
       {...props}
-      className={`rounded-full border border-dashed border-[var(--brand-border-strong)] px-3.5 py-1 text-xs font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-50 ${props.className ?? ''}`}
+      className={`rounded-full border border-dashed border-[var(--brand-border-strong)] px-3.5 py-1.5 text-xs font-semibold text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-50 ${props.className ?? ''}`}
     >
       {children}
     </button>
