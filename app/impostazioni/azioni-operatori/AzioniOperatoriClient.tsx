@@ -17,9 +17,17 @@ import {
   type InfoChiave,
   type TemplateInfoCampo,
 } from '@/utils/rapportini/infoCampi';
+import {
+  resolveListaCampi,
+  testoRiga,
+  valoreRiga,
+  type ListaCampi,
+} from '@/utils/rapportini/rigaLista';
 import { VoceTitolo, VoceHeaderInfo, VoceDettagli, VoceCampi } from '@/components/modules/rapportini/VoceCard';
-import { RigaVoceCard, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
-import { SAMPLE_VOCE_INFO, sampleRisposte } from '@/utils/rapportini/sampleVoce';
+import { FiltriLista, RigaVoceCard, type Filtro, type RigaVoce } from '@/components/modules/rapportini/RapportinoLista';
+import { IntestazioneRiepilogo } from '@/components/modules/rapportini/IntestazioneRiepilogo';
+import type { RiepilogoRapportino, StatoVoce } from '@/utils/rapportini/riepilogo';
+import { SAMPLE_VOCE_INFO, SAMPLE_VOCI_LISTA, sampleRisposte } from '@/utils/rapportini/sampleVoce';
 import SezioneAccordion from './SezioneAccordion';
 import { erroreCommittenteManuale } from '@/lib/rapportini/templateScheda';
 import { chiaveTassonomia } from '@/lib/attivita/tassonomia';
@@ -43,6 +51,8 @@ type Template = {
   campi: TemplateCampo[];
   info_campi?: TemplateInfoCampo[];
   titolo_campi?: InfoChiave[];
+  /** Riga in lista: `{ sub, meta }`. Assente = default storici (via · comune, attività · fascia). */
+  lista_campi?: { sub?: InfoChiave[]; meta?: InfoChiave[] } | null;
   foto_id_priority?: FotoIdCampo[];
   active: boolean;
   solo_manuale?: boolean;
@@ -157,28 +167,103 @@ function ChipAzione({ campo }: { campo: TemplateCampo }) {
   );
 }
 
+/**
+ * Uno slot della riga in lista: i campi scelti in ordine (con ▲▼✕) e le chip per aggiungerne.
+ * Stesso idioma del blocco «Titolo», perché è la stessa domanda: quali dati, in che ordine.
+ */
+function SlotRiga({
+  titolo, aiuto, chiavi, voce, vuoto, onToggle, onMove,
+}: {
+  titolo: string;
+  aiuto: string;
+  chiavi: InfoChiave[];
+  voce: Parameters<typeof valoreRiga>[0];
+  vuoto: string;
+  onToggle: (chiave: InfoChiave) => void;
+  onMove: (idx: number, dir: -1 | 1) => void;
+}) {
+  return (
+    <div>
+      <p className="text-[13px] font-semibold text-[var(--brand-text-main)]">{titolo}</p>
+      <p className="mb-2.5 mt-0.5 text-xs text-[var(--brand-text-muted)]">{aiuto}</p>
+      {chiavi.length === 0 ? (
+        <p className="rounded-[var(--radius-lg)] border border-dashed border-[var(--brand-border-strong)] px-3 py-2 text-xs text-[var(--brand-text-muted)]">{vuoto}</p>
+      ) : (
+        <div className="space-y-1.5">
+          {chiavi.map((chiave, idx) => {
+            const def = INFO_CAMPI_DISPONIBILI.find((d) => d.chiave === chiave);
+            return (
+              <div key={chiave} className="flex flex-wrap items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] px-3 py-2">
+                <span className="text-[13px] font-medium text-[var(--brand-text-main)]">{idx + 1}. {def?.etichettaDefault ?? chiave}</span>
+                <span className="min-w-[110px] flex-1 truncate text-xs text-[var(--brand-text-muted)]">es. {valoreRiga(voce, chiave) || '—'}</span>
+                <span className="ml-auto flex shrink-0 items-center gap-1.5">
+                  <button type="button" onClick={() => onMove(idx, -1)} disabled={idx === 0} title="Sposta a sinistra" className="rounded-[var(--radius-sm)] border border-[var(--brand-border)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▲</button>
+                  <button type="button" onClick={() => onMove(idx, 1)} disabled={idx === chiavi.length - 1} title="Sposta a destra" className="rounded-[var(--radius-sm)] border border-[var(--brand-border)] px-2 py-0.5 text-xs text-[var(--brand-text-muted)] transition hover:border-[var(--brand-primary)] hover:text-[var(--brand-primary)] disabled:opacity-30 focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">▼</button>
+                  <button type="button" onClick={() => onToggle(chiave)} title="Togli dalla riga" className="rounded-[var(--radius-sm)] border border-[var(--danger)] px-2 py-0.5 text-xs text-[var(--danger)] transition hover:bg-[var(--danger-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">✕</button>
+                </span>
+              </div>
+            );
+          })}
+        </div>
+      )}
+      <div className="mt-2.5 flex flex-wrap gap-1.5">
+        {INFO_CAMPI_DISPONIBILI.filter((d) => d.chiave !== 'coordinate' && !chiavi.includes(d.chiave)).map((d) => (
+          <button key={d.chiave} type="button" onClick={() => onToggle(d.chiave)}
+            className="rounded-full border border-dashed border-[var(--brand-border-strong)] px-3 py-1 text-xs text-[var(--brand-text-muted)] transition hover:border-solid hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">
+            ＋ {d.etichettaDefault}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 /* ── Telefono: anteprima fedele coi componenti reali dell'app operatore ───── */
 
+/** Le due schermate dell'operatore: la lista di tutti i task e il dettaglio di uno. */
+type Schermata = 'lista' | 'dettaglio';
+
+const SCHERMATE: [Schermata, string][] = [['lista', 'Lista task'], ['dettaglio', 'Task aperto']];
+
+const STATI_ANTEPRIMA: StatoVoce[] = ['da_fare', 'eseguito', 'non_eseguito'];
+
+/** Riepilogo dell'intestazione coerente con le tre righe finte (1 da fare, 1 fatto, 1 non fatto). */
+const RIEPILOGO_ANTEPRIMA: RiepilogoRapportino = {
+  eseguiti: 1, nonEseguiti: 1, daFare: 1, annullati: 0, totali: 3, saracinesche: 0, lavorazioni: [],
+};
+
 function Telefono({
-  campi, infoCampi, titoloCampi, soloManuale, coordinataAbilitata, scoperto, nomeAttivita,
+  campi, infoCampi, titoloCampi, listaCampi, soloManuale, coordinataAbilitata, scoperto, nomeAttivita,
+  schermata, onSchermata,
 }: {
   campi: TemplateCampo[];
   infoCampi: TemplateInfoCampo[];
   titoloCampi: InfoChiave[];
+  listaCampi: ListaCampi;
   soloManuale: boolean;
   coordinataAbilitata: boolean;
   scoperto?: boolean;
   nomeAttivita?: string;
+  schermata: Schermata;
+  onSchermata: (s: Schermata) => void;
 }) {
+  const [filtro, setFiltro] = useState<Filtro>('tutti');
   const anteprimaVoce = { ...SAMPLE_VOCE_INFO, risposte: sampleRisposte(campi) };
   const dettaglio = partitionInfoCampi(infoCampi).dettaglio;
-  const riga: RigaVoce = {
-    index: 0,
-    titolo: titoloVoce(anteprimaVoce, titoloCampi, 0),
-    sub: [SAMPLE_VOCE_INFO.via, SAMPLE_VOCE_INFO.comune].filter(Boolean).join(' · '),
-    attivita: SAMPLE_VOCE_INFO.attivita,
-    fascia: SAMPLE_VOCE_INFO.fascia_oraria,
-    stato: 'da_fare',
+  // Le righe passano dalla STESSA composizione del rapportino vero (testoRiga): se qui si
+  // legge bene, in mano all'operatore si legge uguale.
+  const righe: RigaVoce[] = SAMPLE_VOCI_LISTA.map((v, i) => ({
+    index: i,
+    titolo: titoloVoce(v, titoloCampi, i),
+    sub: testoRiga(v, listaCampi.sub),
+    meta: testoRiga(v, listaCampi.meta),
+    stato: STATI_ANTEPRIMA[i] ?? 'da_fare',
+  }));
+  const visibili = righe.filter((r) => (filtro === 'tutti' ? true : filtro === 'dafare' ? r.stato === 'da_fare' : r.stato !== 'da_fare'));
+  const conteggi: Record<Filtro, number> = {
+    tutti: righe.length,
+    dafare: righe.filter((r) => r.stato === 'da_fare').length,
+    completati: righe.filter((r) => r.stato !== 'da_fare').length,
   };
   return (
     <div className="rounded-[34px] bg-[var(--phone-bezel)] p-2.5 shadow-[var(--shadow-lg)]">
@@ -192,13 +277,33 @@ function Telefono({
               Nessuna azione configurata: l&apos;operatore può solo dare l&apos;esito, senza letture né foto.
             </div>
           </div>
+        ) : schermata === 'lista' && !soloManuale ? (
+          /* Schermata 1 — la lista: intestazione, filtri e righe sono i componenti VERI
+             (IntestazioneRiepilogo, FiltriLista, RigaVoceCard), non una loro imitazione. */
+          <div className="space-y-1.5">
+            <IntestazioneRiepilogo staffName="GIULIA NERI" dataLabel="oggi" riepilogo={RIEPILOGO_ANTEPRIMA} />
+            <FiltriLista filtro={filtro} conteggi={conteggi} onFiltro={setFiltro} />
+            {visibili.length === 0 ? (
+              <p className="pt-6 text-center text-sm text-[var(--brand-text-muted)]">Nessun intervento in questo filtro.</p>
+            ) : (
+              visibili.map((r) => <RigaVoceCard key={r.index} riga={r} onApri={() => onSchermata('dettaglio')} />)
+            )}
+            {/* Il tasto d'invio è disegnato, non funzionante: qui non c'è niente da inviare. */}
+            <div aria-hidden className="mt-1 w-full rounded-[var(--radius-xl)] bg-[var(--brand-primary)] px-3 py-2.5 text-center text-sm font-semibold text-[var(--on-primary)]">
+              Invia rapportino
+            </div>
+          </div>
         ) : (
+          /* Schermata 2 — il dettaglio del task aperto. */
           <div className="space-y-2.5">
             {!soloManuale && (
-              <>
-                <RigaVoceCard riga={riga} onApri={() => {}} />
-                <p className="text-center text-[11px] text-[var(--brand-text-subtle)]">— aprendo la card —</p>
-              </>
+              <button
+                type="button"
+                onClick={() => onSchermata('lista')}
+                className="flex items-center gap-1 text-xs font-medium text-[var(--primary-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              >
+                ‹ Torna alla lista
+              </button>
             )}
             <div className="rounded-[var(--radius-lg)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] p-3 shadow-[var(--shadow-sm)]">
               <VoceTitolo voce={anteprimaVoce} titoloCampi={titoloCampi} indice={0} />
@@ -264,7 +369,10 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
   const [campi, setCampi] = useState<TemplateCampo[]>([]);
   const [infoCampi, setInfoCampi] = useState<TemplateInfoCampo[]>([]);
   const [titoloCampi, setTitoloCampi] = useState<InfoChiave[]>([]);
+  const [listaCampi, setListaCampi] = useState<ListaCampi>(() => resolveListaCampi(null));
   const [fotoIdPriority, setFotoIdPriority] = useState<FotoIdCampo[]>([]);
+  /** Quale delle due schermate dell'operatore mostra il telefono a destra. */
+  const [schermata, setSchermata] = useState<Schermata>('lista');
   const [saving, setSaving] = useState(false);
   const [feedback, setFeedback] = useState<Feedback | null>(null);
   const [autoState, setAutoState] = useState<'idle' | 'saving' | 'saved' | 'error'>('idle');
@@ -351,6 +459,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     setCampi(tpl.campi.map((c) => ({ ...c, opzioni: c.opzioni ?? [] })));
     setInfoCampi(resolveInfoCampi(tpl.info_campi));
     setTitoloCampi(tpl.titolo_campi ?? []);
+    setListaCampi(resolveListaCampi(tpl.lista_campi));
     setFotoIdPriority(tpl.foto_id_priority ?? []);
   }
 
@@ -378,6 +487,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     setCampi(preset.da ? preset.da.campi.map((c, i) => ({ ...c, ordine: i + 1, opzioni: c.opzioni ? [...c.opzioni] : [] })) : []);
     setInfoCampi(preset.da ? resolveInfoCampi(preset.da.info_campi) : []);
     setTitoloCampi(preset.da?.titolo_campi ? [...preset.da.titolo_campi] : []);
+    setListaCampi(resolveListaCampi(preset.da?.lista_campi));
     setFotoIdPriority(preset.da?.foto_id_priority ? [...preset.da.foto_id_priority] : []);
   }
 
@@ -505,6 +615,24 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       return arr;
     });
   }
+
+  /* ── Riga in lista (i due slot accanto al titolo) ─────────────────────── */
+
+  function toggleLista(slot: keyof ListaCampi, chiave: InfoChiave) {
+    setListaCampi((prev) => ({
+      ...prev,
+      [slot]: prev[slot].includes(chiave) ? prev[slot].filter((c) => c !== chiave) : [...prev[slot], chiave],
+    }));
+  }
+  function moveLista(slot: keyof ListaCampi, idx: number, dir: -1 | 1) {
+    const next = idx + dir;
+    setListaCampi((prev) => {
+      if (next < 0 || next >= prev[slot].length) return prev;
+      const arr = [...prev[slot]];
+      [arr[idx], arr[next]] = [arr[next], arr[idx]];
+      return { ...prev, [slot]: arr };
+    });
+  }
   function toggleFotoId(chiave: FotoIdCampo) {
     setFotoIdPriority((prev) => (prev.includes(chiave) ? prev.filter((c) => c !== chiave) : [...prev, chiave]));
   }
@@ -567,6 +695,8 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
       })),
       info_campi: infoCampi.map((c, i) => ({ ...c, ordine: i + 1 })),
       titolo_campi: titoloCampi,
+      // Sempre esplicita (anche vuota): è così che si spegne uno slot della riga.
+      lista_campi: { sub: listaCampi.sub, meta: listaCampi.meta },
       foto_id_priority: fotoIdPriority,
     };
   }
@@ -662,7 +792,7 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
     }, 800);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nome, committente, soloManuale, tipo, taskVia, taskViaIbrido, gruppoCommittente, gruppiAttivita, campi, infoCampi, titoloCampi, fotoIdPriority, isNew, selectedId]);
+  }, [nome, committente, soloManuale, tipo, taskVia, taskViaIbrido, gruppoCommittente, gruppiAttivita, campi, infoCampi, titoloCampi, listaCampi, fotoIdPriority, isNew, selectedId]);
 
   /* ── Anteprime derivate ───────────────────────────────────────────────── */
 
@@ -1340,6 +1470,59 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
         </div>
       </CardBox>
 
+      {/* Riga nella lista — la schermata PRIMA del dettaglio (non c'è per i modelli del «+»,
+          che partono dalla modale e non da una lista di task). */}
+      {!soloManuale && (
+        <CardBox>
+          <div className="flex flex-wrap items-center gap-2.5 border-b border-[var(--brand-border)] px-5 py-3.5">
+            <h3 className="text-sm font-semibold text-[var(--brand-text-main)]">Riga nella lista</h3>
+            <span className="text-xs text-[var(--brand-text-muted)]">la schermata con tutti i task, prima di aprirne uno</span>
+            <button
+              type="button"
+              onClick={() => setSchermata('lista')}
+              className="ml-auto rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              Vedila nel telefono
+            </button>
+          </div>
+          <div className="px-5 py-4">
+            <p className="mb-3 text-xs text-[var(--brand-text-muted)]">
+              Il titolo è quello scelto qui sopra: vale per la riga e per la card aperta. Qui decidi gli altri due pezzi della riga —
+              e valgono anche sui rapportini già in mano agli operatori.
+            </p>
+            <div className="mb-4 rounded-[var(--radius-lg)] border border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] px-3 py-2">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-[var(--primary-text)]">L&apos;operatore leggerà</p>
+              <p className="mt-0.5 flex flex-wrap items-baseline gap-2">
+                <span className="text-sm font-semibold text-[var(--brand-text-main)]">{titoloVoce(anteprimaVoce, titoloCampi, 0)}</span>
+                <span className="text-xs font-medium text-[var(--brand-text-muted)]">{testoRiga(anteprimaVoce, listaCampi.meta)}</span>
+              </p>
+              <p className="text-[13px] text-[var(--brand-text-muted)]">{testoRiga(anteprimaVoce, listaCampi.sub) || '—'}</p>
+            </div>
+
+            <SlotRiga
+              titolo="Sotto il titolo"
+              aiuto="La seconda riga, quella che l’operatore legge camminando. Di serie: VIA · COMUNE."
+              chiavi={listaCampi.sub}
+              voce={anteprimaVoce}
+              vuoto="Nessun campo: sotto al titolo non compare niente."
+              onToggle={(c) => toggleLista('sub', c)}
+              onMove={(i, d) => moveLista('sub', i, d)}
+            />
+            <div className="mt-5 border-t border-[var(--brand-border)] pt-4">
+              <SlotRiga
+                titolo="Accanto al titolo"
+                aiuto="Il testo compatto a destra, che si accorcia se la riga è stretta. Di serie: ATTIVITA · FASCIA ORARIA."
+                chiavi={listaCampi.meta}
+                voce={anteprimaVoce}
+                vuoto="Nessun campo: accanto al titolo non compare niente."
+                onToggle={(c) => toggleLista('meta', c)}
+                onMove={(i, d) => moveLista('meta', i, d)}
+              />
+            </div>
+          </div>
+        </CardBox>
+      )}
+
       {/* Avanzate — tutto il resto, chiuso di default */}
       <SezioneAccordion
         title="Impostazioni avanzate"
@@ -1525,14 +1708,36 @@ export default function AzioniOperatoriClient({ initial, tassonomia }: Props) {
             ? <span className="ml-auto"><Pill tone="warn">com&apos;è adesso</Pill></span>
             : <span className="ml-auto"><Pill tone="ok">anteprima fedele</Pill></span>}
         </p>
+        {/* Le due schermate sono entrambe visitabili: la lista è ciò che l'operatore vede per
+            primo, e finora dalla consolle non si poteva né vedere né regolare. */}
+        {!gruppoScoperto && !soloManuale && (
+          <div role="group" aria-label="Schermata da mostrare nel telefono" className="mb-2 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-0.5">
+            {SCHERMATE.map(([v, label]) => (
+              <button
+                key={v}
+                type="button"
+                aria-pressed={schermata === v}
+                onClick={() => setSchermata(v)}
+                className={`flex-1 rounded-full px-2 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                  schermata === v ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         <Telefono
           campi={campi}
           infoCampi={infoCampi}
           titoloCampi={titoloCampi}
+          listaCampi={listaCampi}
           soloManuale={soloManuale}
           coordinataAbilitata={infoCampi.some((c) => c.chiave === 'coordinate')}
           scoperto={gruppoScoperto}
           nomeAttivita={gruppoVista?.gruppo}
+          schermata={schermata}
+          onSchermata={setSchermata}
         />
         {isNew && <ChecklistVerifica campi={campi} titoloCampi={titoloCampi} />}
       </div>

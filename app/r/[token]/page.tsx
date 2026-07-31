@@ -5,6 +5,8 @@ import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import type { InfoChiave, TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
 import { coordinateFromRaw, diametroFromRaw } from '@/utils/rapportini/infoCampi';
+import { resolveListaCampi, type ListaCampi } from '@/utils/rapportini/rigaLista';
+import { selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 import { perimetroCensimento, type CommittenteCensimento } from '@/lib/rapportini/perimetroCensimento';
 import { notaUfficioFromRaw } from '@/utils/rapportini/notaUfficio';
 import { caricaNotePrecedenti } from '@/lib/interventi/caricaNotePrecedenti';
@@ -223,18 +225,20 @@ export default async function RapportinoPublicPage({
   // rapportini misti ogni card segue la config del SUO flusso, e modificarla in Azioni
   // operatori si riflette subito. Template cancellato o voce storica senza template_id →
   // si resta sulla config del rapportino (comportamento precedente, nessuna regressione).
-  const displayByTplId = new Map<string, { titolo: InfoChiave[]; info: TemplateInfoCampo[] }>();
+  const displayByTplId = new Map<string, { titolo: InfoChiave[]; info: TemplateInfoCampo[]; lista: ListaCampi }>();
   {
     const ids = [...new Set(tplIdByVoceId.values())];
     if (ids.length > 0) {
-      const { data: tplVoceRows } = await supabaseAdmin
-        .from('rapportino_template')
-        .select('id, titolo_campi, info_campi')
-        .in('id', ids);
-      for (const t of (tplVoceRows ?? []) as Array<{ id: string; titolo_campi: unknown; info_campi: unknown }>) {
+      // `lista_campi` è l'ultima colonna nata: se manca (migration non applicata) si rilegge
+      // senza, così titolo e dettagli per-voce non si perdono per colpa sua.
+      const { data: tplVoceRows } = await selectDegradante('id, titolo_campi, info_campi', ['lista_campi'], (colonne) =>
+        supabaseAdmin.from('rapportino_template').select(colonne).in('id', ids),
+      );
+      for (const t of (tplVoceRows ?? []) as Array<{ id: string; titolo_campi: unknown; info_campi: unknown; lista_campi?: unknown }>) {
         displayByTplId.set(t.id, {
           titolo: (Array.isArray(t.titolo_campi) ? t.titolo_campi : []) as InfoChiave[],
           info: (Array.isArray(t.info_campi) ? t.info_campi : []) as TemplateInfoCampo[],
+          lista: resolveListaCampi(t.lista_campi),
         });
       }
     }
@@ -302,6 +306,7 @@ export default async function RapportinoPublicPage({
     campi: campiVoceById.get(v.id),
     titolo_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.titolo,
     info_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.info,
+    lista_campi: displayByTplId.get(tplIdByVoceId.get(v.id) ?? '')?.lista,
   }));
 
   const campiSnapshot = ((rap.campi_snapshot ?? []) as TemplateCampo[])
@@ -313,6 +318,7 @@ export default async function RapportinoPublicPage({
   // (migrazione non applicata → select in errore), si resta sullo snapshot congelato + titolo storico.
   let infoCampiLive = (rap.info_snapshot ?? []) as TemplateInfoCampo[];
   let titoloCampi: InfoChiave[] = [];
+  let listaCampi: ListaCampi = resolveListaCampi(null);
   // Committente del censimento da scaricare in cache (null = questo flusso non ne ha uno,
   // e la modale di scaricamento non compare affatto).
   let committenteCensimento: CommittenteCensimento | null = null;
@@ -320,14 +326,16 @@ export default async function RapportinoPublicPage({
   // (così modificando lo standard il "+" segue). Il template manuale è solo un override.
   let campiStandardLive = campiSnapshot;
   if (rap.template_id) {
-    const { data: tpl } = await supabaseAdmin
-      .from('rapportino_template')
-      // `gruppo_committente` serve al perimetro del censimento offline: decide QUALE master
-      // il dispositivo dell'operatore si scarica (e se se ne scarica uno). Colonna in più su
-      // una select che c'era già: nessuna query aggiuntiva.
-      .select('campi, titolo_campi, info_campi, gruppo_committente')
-      .eq('id', rap.template_id)
-      .maybeSingle();
+    // `gruppo_committente` serve al perimetro del censimento offline: decide QUALE master
+    // il dispositivo dell'operatore si scarica (e se se ne scarica uno). Colonna in più su
+    // una select che c'era già: nessuna query aggiuntiva. `lista_campi` (colonna nuova) si
+    // stacca da sola se la migration non è ancora passata.
+    const { data: tplRows } = await selectDegradante<Array<Record<string, unknown>>>(
+      'campi, titolo_campi, info_campi, gruppo_committente',
+      ['lista_campi'],
+      (colonne) => supabaseAdmin.from('rapportino_template').select(colonne).eq('id', rap.template_id!),
+    );
+    const tpl = tplRows?.[0];
     if (tpl) {
       if (Array.isArray(tpl.campi) && tpl.campi.length > 0) {
         campiStandardLive = (tpl.campi as TemplateCampo[]).slice().sort((a, b) => a.ordine - b.ordine);
@@ -338,6 +346,7 @@ export default async function RapportinoPublicPage({
       if (Array.isArray(tpl.titolo_campi)) {
         titoloCampi = tpl.titolo_campi as InfoChiave[];
       }
+      listaCampi = resolveListaCampi(tpl.lista_campi);
       committenteCensimento = perimetroCensimento((tpl as { gruppo_committente?: string | null }).gruppo_committente);
     }
   }
@@ -397,6 +406,7 @@ export default async function RapportinoPublicPage({
         campiSnapshot={campiSnapshot}
         infoCampi={infoCampiLive}
         titoloCampi={titoloCampi}
+        listaCampi={listaCampi}
         readOnly={stato === 'inviato'}
         infoCampiManuale={infoCampiLive}
         templatesPerCommittente={templatesPerCommittente}

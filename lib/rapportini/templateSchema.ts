@@ -28,6 +28,17 @@ export const InfoCampoSchema = z.object({
 
 export const TitoloCampiSchema = z.array(z.enum(INFO_CHIAVI)).default([]);
 
+/**
+ * Riga in lista: i due slot configurabili accanto al titolo (che resta `titolo_campi`).
+ * Chiave assente = default storico; array vuoto = slot spento. Vedi `utils/rapportini/rigaLista`.
+ */
+export const ListaCampiSchema = z
+  .object({
+    sub: z.array(z.enum(INFO_CHIAVI)).optional(),
+    meta: z.array(z.enum(INFO_CHIAVI)).optional(),
+  })
+  .default({});
+
 // Deve specchiare FotoIdCampo in lib/interventi/manuali/fotoNaming.ts (enum inline, come INFO_CHIAVI).
 export const FotoIdPrioritySchema = z
   .array(z.enum(['pdr', 'matricola', 'odl', 'indirizzo']))
@@ -39,6 +50,7 @@ export const TemplateSchema = z.object({
   campi: z.array(CampoSchema).min(1),
   info_campi: z.array(InfoCampoSchema).default([]),
   titolo_campi: TitoloCampiSchema,
+  lista_campi: ListaCampiSchema,
   foto_id_priority: FotoIdPrioritySchema,
   tipo: z.enum(['standard', 'risanamento']).optional().default('standard'),
   active: z.boolean().optional().default(true),
