@@ -63,9 +63,9 @@ export async function POST(req: Request) {
     /*
       0) La finestra e il cronoprogramma, prima di toccare qualunque cosa.
 
-      Si programma solo per oggi e per il prossimo giorno lavorativo, e solo su chi quel giorno è
-      in tabellone. Il controllo sta qui e non solo nel menu perché la stessa scrittura si può
-      chiedere incollando da Excel — e una regola che vale solo per il menu è decorativa.
+      Si programma da oggi a due settimane avanti (domenica esclusa), e solo su chi quel giorno è
+      in tabellone. Il controllo sta qui e non solo nel campo data perché la stessa scrittura si
+      può chiedere incollando da Excel — e una regola che vale solo per la barra è decorativa.
     */
     const oggi = partiRoma(new Date()).oggi;
     const odlSelezionati = [...new Set(chiavi.map((k) => k.split('|')[0]))];
@@ -86,7 +86,7 @@ export async function POST(req: Request) {
       davvero presenti; le letture in più sono tre query piccole e indicizzate.
     */
     const [motivi, ordini, esistenti, indice] = await Promise.all([
-      // `dataScritta: true`: qui il giorno lo si sceglie dal menu, quindi la finestra vale piena.
+      // `dataScritta: true`: qui il giorno lo si sceglie in barra, quindi la finestra vale piena.
       // Nella vista acqualatina la famiglia è una sola; nelle viste ACEA si controllano entrambe
       // upfront, perché la famiglia delle righe la dice il registro che si sta leggendo sotto.
       controllaAssegnazioni(

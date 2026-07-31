@@ -13,7 +13,9 @@ import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
-import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
+import {
+  eProgrammabile, limitiFinestra, type GiornoProgrammabile,
+} from '@/lib/acea/giorniProgrammabili';
 import { useEditingGriglia, type Operatore } from './useEditingGriglia';
 import { useLayoutTabella } from './useLayoutTabella';
 import TabellaOrdini, { chiaveRiga } from './TabellaOrdini';
@@ -96,15 +98,21 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     Chi si può programmare, e quando.
 
     L'elenco NON è più l'anagrafica del personale: sono i nomi che il Cronoprogramma porta in
-    tabellone per oggi e per il prossimo giorno lavorativo. Chi programma ACEA la mattina deve
-    vedere le persone che quel giorno ci sono davvero — l'elenco completo degli attivi conteneva
-    anche chi è in ferie e chi sta su un'altra commessa, e non c'era modo di distinguerli se non
-    chiedendo. «Oggi» lo decide il server, in fuso Europe/Rome: con l'orologio del browser un PC
-    con la data sbagliata proporrebbe due giorni che il server poi rifiuta.
+    tabellone per il giorno scelto. Chi programma ACEA la mattina deve vedere le persone che quel
+    giorno ci sono davvero — l'elenco completo degli attivi conteneva anche chi è in ferie e chi
+    sta su un'altra commessa, e non c'era modo di distinguerli se non chiedendo. «Oggi» lo decide
+    il server, in fuso Europe/Rome: con l'orologio del browser un PC con la data sbagliata
+    proporrebbe giorni che il server poi rifiuta.
+
+    `giorni` sono quelli PRONTI (oggi e il prossimo lavorativo), che arrivano già col loro
+    tabellone; la finestra però è più larga — due settimane, dec. 49 — e il giorno scelto dal
+    campo data si aggiunge qui quando il suo tabellone torna.
   */
   const [giorni, setGiorni] = useState<GiornoProgrammabile[]>([]);
   const [operatoriPerGiorno, setOperatoriPerGiorno] = useState<Record<string, Operatore[]>>({});
   const [giorno, setGiorno] = useState('');
+  /** `true` mentre si legge il tabellone di un giorno che non era fra quelli pronti. */
+  const [caricandoOperatori, setCaricandoOperatori] = useState(false);
   /*
     Gli operatori ATTIVI, che sono quelli su cui la griglia risolve un nome incollato.
 
@@ -124,25 +132,68 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
         const res = await fetch(`/api/acea/operatori?famiglia=${famiglia}`);
         if (!res.ok || !vivo) return;
         const body = (await res.json()) as {
+          oggi: string;
           giorni: Array<GiornoProgrammabile & { operatori: Operatore[] }>;
         };
         const elenco = body.giorni ?? [];
-        // Gli operatori escono dal giorno e vanno nella mappa: `giorni` descrive la finestra e
+        // Gli operatori escono dal giorno e vanno nella mappa: `giorni` descrive i giorni e
         // basta, così passarlo alla griglia non si porta dietro due elenchi di nomi.
         setGiorni(elenco.map((g) => ({
           data: g.data, etichetta: g.etichetta, esteso: g.esteso, soloAttivazioni: g.soloAttivazioni,
         })));
         setOperatoriPerGiorno(Object.fromEntries(elenco.map((g) => [g.data, g.operatori])));
-        // Il giorno scelto si imposta una volta sola: se l'utente ha già scelto «domani» e nel
-        // frattempo qualcosa ricarica la finestra, riportarlo a oggi gli cambierebbe il bersaglio
-        // sotto le mani.
-        setGiorno((g) => (g && elenco.some((x) => x.data === g) ? g : (elenco[0]?.data ?? '')));
+        // Il giorno scelto si imposta una volta sola: se l'utente ha già scelto il lunedì e nel
+        // frattempo qualcosa ricarica il tabellone, riportarlo a oggi gli cambierebbe il bersaglio
+        // sotto le mani. Si tiene finché è programmabile, non solo se è fra i giorni pronti.
+        setGiorno((g) => (
+          g && eProgrammabile(g, body.oggi) ? g : (elenco[0]?.data ?? '')
+        ));
       } catch {
         /* senza finestra l'assegnazione resta ferma, ma la tabella si legge e si copia lo stesso */
       }
     })();
     return () => { vivo = false; };
   }, [famiglia]);
+
+  /*
+    Il tabellone di un giorno scelto dal campo data, chiesto quando serve.
+
+    I giorni pronti sono due; la finestra ne contiene una quindicina, e leggerli tutti in anticipo
+    sarebbe lavoro speso su giorni che quasi nessuna mattina si guardano. Il giorno scelto entra
+    nella mappa (anche vuoto: senza, si richiederebbe a ogni render) e nell'elenco dei giorni, così
+    lo vede anche il menu dell'Esecutore in cella.
+  */
+  useEffect(() => {
+    if (!giorno || operatoriPerGiorno[giorno] !== undefined) return;
+    let vivo = true;
+    setCaricandoOperatori(true);
+    void (async () => {
+      try {
+        const res = await fetch(`/api/acea/operatori?famiglia=${famiglia}&data=${giorno}`);
+        if (!res.ok || !vivo) return;
+        const body = (await res.json()) as {
+          giorni: Array<GiornoProgrammabile & { operatori: Operatore[] }>;
+        };
+        const scelto = (body.giorni ?? []).find((g) => g.data === giorno);
+        if (!vivo) return;
+        setOperatoriPerGiorno((m) => ({ ...m, [giorno]: scelto?.operatori ?? [] }));
+        if (!scelto) return;
+        setGiorni((elenco) => (
+          elenco.some((g) => g.data === scelto.data)
+            ? elenco
+            : [...elenco, {
+              data: scelto.data, etichetta: scelto.etichetta, esteso: scelto.esteso,
+              soloAttivazioni: scelto.soloAttivazioni,
+            }].sort((a, b) => a.data.localeCompare(b.data))
+        ));
+      } catch {
+        /* niente nomi per quel giorno: la barra lo dice, la tabella resta viva */
+      } finally {
+        if (vivo) setCaricandoOperatori(false);
+      }
+    })();
+    return () => { vivo = false; };
+  }, [giorno, famiglia, operatoriPerGiorno]);
 
   useEffect(() => {
     let vivo = true;
@@ -187,7 +238,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   const editing = useEditingGriglia({
     righe,
     operatori: operatoriTutti,
-    giorni,
+    oggi,
     righeSpuntate,
     colonneVisibili: chiaviVisibili,
     onSalvato: ricarica,
@@ -501,7 +552,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             }
           />
 
-          <GuidaTabella giorni={giorni} famiglia={famiglia} />
+          <GuidaTabella oggi={oggi} famiglia={famiglia} />
 
           {/*
             Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel
@@ -514,9 +565,10 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             onAnnullaSelezione={() => setSelezione({})}
             onPianificato={ricarica}
             operatori={operatoriDelGiorno}
-            giorni={giorni}
+            oggi={oggi}
             giorno={giorno}
             onGiorno={setGiorno}
+            caricandoOperatori={caricandoOperatori}
             onCopiaRighe={editing.copiaRigheSpuntate}
           />
         </div>
@@ -565,12 +617,10 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           })),
           // Per lo stato vuoto del menu: quale attività manca in tabellone, detta col suo nome.
           etichettaAttivita,
-          // I confini del calendario sono la finestra programmabile. La domenica fra sabato e
-          // lunedì resta cliccabile nel picker (min/max non sanno bucare), ma la validazione la
+          // I confini del calendario sono gli estremi della finestra. Le domeniche in mezzo
+          // restano cliccabili nel picker (min/max non sanno bucare), ma la validazione le
           // rifiuta col motivo — meglio un rifiuto spiegato che un calendario che sembra rotto.
-          finestraData: giorni.length > 0
-            ? { min: giorni[0].data, max: giorni[giorni.length - 1].data }
-            : undefined,
+          finestraData: limitiFinestra(oggi) ?? undefined,
         }}
       />
 
