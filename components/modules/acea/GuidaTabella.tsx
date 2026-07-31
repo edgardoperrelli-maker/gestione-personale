@@ -109,7 +109,12 @@ export default function GuidaTabella({ giorni, famiglia }: PropsGuida) {
         aria-label="Guida della tabella"
         title="Come si usa la tabella (modifica, copia/incolla, programmazione)"
       >
-        <CircleHelp size={14} aria-hidden="true" />
+        {/*
+          16 e non 14 come le icone che stanno ACCANTO a un testo: qui l'icona e` tutto il
+          contenuto del bottone, e a 14 il comando rendeva 28px contro i 30 degli altri della
+          riga — la differenza la fa il testo, che porta con se` un'interlinea di 16.
+        */}
+        <CircleHelp size={16} aria-hidden="true" />
       </Button>
       <Dialog open={aperta} onClose={() => setAperta(false)} title="Come si usa la tabella">
         <ContenutoGuida giorni={giorni} famiglia={famiglia} />

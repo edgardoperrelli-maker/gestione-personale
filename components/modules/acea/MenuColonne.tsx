@@ -41,6 +41,10 @@ export default function MenuColonne({
         <MultiSelect
           label="Colonne"
           ariaLabel="Colonne visibili"
+          // `sm`: nella riga dei comandi era l'unico a 38px e `text-sm` contro i 30px e
+          // `text-xs` di tutti gli altri, e sporgeva sopra e sotto. Sfondava anche di 2px il
+          // `min-h-9` che RegistroAcea dichiara per non far muovere la riga alla prima spunta.
+          size="sm"
           selezioneEsplicita
           options={colonne.map((c) => ({ value: c.chiave, label: c.intestazione }))}
           values={colonne.filter((c) => visibili.has(c.chiave)).map((c) => c.chiave)}
