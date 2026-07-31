@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
-import { MODULE_ICONS, DASHBOARD_HOME_ICON, RIEPILOGO_RAPPORTINI_ICON } from './moduleIcons';
+import {
+  MODULE_ICONS, DASHBOARD_HOME_ICON, MISURATORI_ACQUALATINA_ICON, RIEPILOGO_RAPPORTINI_ICON,
+} from './moduleIcons';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
 type SidebarProps = {
@@ -121,6 +123,20 @@ export default function Sidebar({
           return [
             renderLink('/hub/mappa?vista=pianifica', 'Pianificazione', MODULE_ICONS.mappa, suMappa && vistaMappa !== 'riepilogo'),
             renderLink('/hub/mappa?vista=riepilogo', 'Riepilogo rapportini', RIEPILOGO_RAPPORTINI_ICON, suMappa && vistaMappa === 'riepilogo'),
+          ];
+        }
+        /*
+          AcquaLatina come la mappa: due viste, due voci dirette — la sidebar porta nella stanza,
+          non nel corridoio (la landing resta raggiungibile dal breadcrumb e dall'hub). La voce
+          del modulo va alla PIANIFICAZIONE, che è il lavoro di tutti i giorni; sulla landing
+          resta accesa lei, perché il corridoio appartiene a quella stanza.
+        */
+        if (item.key === 'acqualatina') {
+          const suModulo = matchesPath(pathname, item.href, item.matchPrefixes);
+          const suMisuratori = pathname.startsWith('/hub/acqualatina/misuratori');
+          return [
+            renderLink('/hub/acqualatina/pianificazione', 'AcquaLatina', MODULE_ICONS.acqualatina, suModulo && !suMisuratori),
+            renderLink('/hub/acqualatina/misuratori', 'Misuratori rimossi', MISURATORI_ACQUALATINA_ICON, suMisuratori),
           ];
         }
         return [

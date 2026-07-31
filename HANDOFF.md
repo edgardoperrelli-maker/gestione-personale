@@ -206,6 +206,12 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   `20260731190000` in prod). Filtro «Pallet» con «Senza pallet» (= ancora in cesta), colonna
   ordinabile in tabella e nel PDF, che ora prende il titolo per commessa (`titoloPdf`) invece
   del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati.
+- [x] **AcquaLatina a ventaglio in sidebar e ⌘K** (31/07) — come la mappa: due voci dirette al
+  posto della sola landing. «AcquaLatina» (goccia) → `/hub/acqualatina/pianificazione`,
+  «Misuratori rimossi» (`Package`: la riconsegna su pallet, NON la `Gauge` del registro ACEA) →
+  `/hub/acqualatina/misuratori`. In palette le etichette portano il committente («AcquaLatina —
+  …») perché lì si cerca. La landing resta raggiungibile da breadcrumb e hub; `moduleAccess`
+  intatto (il gate è per modulo, le voci sono viste).
 
 ## Not Yet Done
 
