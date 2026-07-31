@@ -4,6 +4,7 @@ import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { parseMasterUpload } from '@/lib/attivita/masterUpload';
+import { chiaveOdl, righeNuoveMaster } from '@/lib/attivita/righeNuoveMaster';
 
 export const runtime = 'nodejs';
 
@@ -125,15 +126,62 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Nessuna riga valida (ODL assente).' }, { status: 422 });
   }
 
+  // ── Solo le righe DAVVERO nuove ───────────────────────────────────────────
+  // Prima ogni caricamento inseriva tutto: ricaricare lo stesso file (la cosa piu' normale
+  // quando si corregge una cella) creava un secondo master attivo e raddoppiava il
+  // censimento — con esso il peso dello scaricamento sul telefono degli operatori, perche'
+  // la versione della cache cambia e il campo riscarica.
+  // Si guardano solo i master ATTIVI dello stesso committente: uno spento e' fuori dal
+  // lookup, quindi ricaricarne le righe e' legittimo.
+  const odlEsistenti = new Set<string>();
+  {
+    const { data: attivi } = await supabaseAdmin
+      .from('template_master')
+      .select('id')
+      .eq('committente', committente)
+      .eq('attivo', true);
+    const ids = ((attivi ?? []) as Array<{ id: string }>).map((r) => r.id);
+    if (ids.length > 0) {
+      for (let from = 0; ; from += 1000) {
+        const { data, error } = await supabaseAdmin
+          .from('template_master_righe')
+          .select('odl')
+          .in('master_id', ids)
+          .range(from, from + 999);
+        if (error) break; // best-effort: senza catalogo si ricade sul comportamento storico
+        const batch = (data ?? []) as Array<{ odl: string | null }>;
+        for (const r of batch) odlEsistenti.add(chiaveOdl(r.odl));
+        if (batch.length < 1000) break;
+      }
+    }
+  }
+
+  const filtro = righeNuoveMaster(parsed.righe, odlEsistenti);
+
+  // Niente di nuovo: non si crea un master vuoto che sporcherebbe l'elenco. Si dice cosa e'
+  // successo, che e' l'informazione utile ("l'ho gia'" non e' un errore).
+  if (filtro.nuove.length === 0) {
+    return NextResponse.json({
+      ok: true,
+      id: null,
+      righe: 0,
+      totale: parsed.totale,
+      scartate: parsed.scartate,
+      giaPresenti: filtro.giaPresenti,
+      doppieNelFile: filtro.doppieNelFile,
+      impianti: null,
+    });
+  }
+
   const { data: master, error: eIns } = await supabaseAdmin
     .from('template_master')
-    .insert({ nome, committente, file_nome: nomeFile, gruppi_default: gruppiDefault, righe_totali: parsed.righe.length })
+    .insert({ nome, committente, file_nome: nomeFile, gruppi_default: gruppiDefault, righe_totali: filtro.nuove.length })
     .select('id')
     .single();
   if (eIns || !master) return NextResponse.json({ error: eIns?.message ?? 'Insert fallita.' }, { status: 500 });
   const masterId = (master as { id: string }).id;
 
-  const payload = parsed.righe.map((r) => ({ master_id: masterId, ...r }));
+  const payload = filtro.nuove.map((r) => ({ master_id: masterId, ...r }));
   for (let i = 0; i < payload.length; i += BATCH) {
     const { error } = await supabaseAdmin.from('template_master_righe').insert(payload.slice(i, i + BATCH));
     if (error) {
@@ -151,7 +199,7 @@ export async function POST(req: Request) {
   // allineamento fallito non è un buon motivo per far fallire il caricamento — al massimo
   // si ricarica il file.
   let impianti: { interventi: number; voci: number } | null = null;
-  if (parsed.righe.some((r) => r.impianto !== '')) {
+  if (filtro.nuove.some((r) => r.impianto !== '')) {
     try {
       const { data, error } = await supabaseAdmin.rpc('allinea_impianti_da_master', { p_master_id: masterId });
       if (error) throw error;
@@ -163,9 +211,11 @@ export async function POST(req: Request) {
   return NextResponse.json({
     ok: true,
     id: masterId,
-    righe: parsed.righe.length,
+    righe: filtro.nuove.length,
     totale: parsed.totale,
     scartate: parsed.scartate,
+    giaPresenti: filtro.giaPresenti,
+    doppieNelFile: filtro.doppieNelFile,
     impianti,
   });
 }

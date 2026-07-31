@@ -91,14 +91,23 @@ export default function TemplateMasterClient() {
         setEsito({ type: 'err', msg: json.error ?? 'Caricamento fallito.' });
         return;
       }
-      const scartate = json.scartate > 0 ? ` (${json.scartate} righe senza ODL scartate)` : '';
+      const scartate = json.scartate > 0 ? ` ${json.scartate} righe senza ODL scartate.` : '';
+      // Righe gia' a catalogo: si dice sempre, anche quando sono zero non fa rumore perche'
+      // la stringa resta vuota. Serve a capire al volo se il file portava davvero qualcosa:
+      // prima ogni ricarica dello stesso file creava un master doppione in silenzio.
+      const gia = json.giaPresenti > 0 ? ` ${json.giaPresenti} già a catalogo (ignorate).` : '';
+      const doppie = json.doppieNelFile > 0 ? ` ${json.doppieNelFile} ripetute nel file.` : '';
       // L'allineamento impianti si vede: un file senza colonna IMPIANTO non dice niente
       // qui, e "0 ordini allineati" è l'unico modo per accorgersene subito invece che
       // scoprirlo giorni dopo su un ordine senza impianto.
       const imp = json.impianti
         ? ` Impianti: ${json.impianti.interventi} ordini allineati.`
         : '';
-      setEsito({ type: 'ok', msg: `Caricate ${json.righe} righe${scartate}. Il master è attivo: già dentro il template.${imp}` });
+      setEsito(
+        json.righe === 0
+          ? { type: 'ok', msg: `Nessuna riga nuova: le ${json.giaPresenti} righe del file sono già a catalogo.${scartate}${doppie} Non è stato creato nessun master.` }
+          : { type: 'ok', msg: `Caricate ${json.righe} righe nuove.${gia}${scartate}${doppie} Il master è attivo: già dentro il template.${imp}` },
+      );
       setFile(null);
       setNome('');
       setGruppiDefault([]);
