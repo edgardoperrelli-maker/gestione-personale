@@ -294,8 +294,19 @@ export default function TabellaOrdini({
     fuori dallo schermo invece di scorrere. Vale su OGNI anello della catena, da qui fino alla
     pagina.
   */
+  /*
+    NIENTE `flex-1` sul riquadro qui sotto: `flex: 0 1 auto` (il default) vuol dire «alto quanto il
+    contenuto, ma comprimibile se lo spazio manca», che è il comportamento giusto per entrambi i
+    casi. Con `flex-1` il riquadro prendeva SEMPRE tutta l'altezza della catena: su una
+    scheda-comune da 11 righe restavano 472px di bianco su 901 — il 52% — e sulle schede-comune
+    le poche righe sono lo stato normale, non il caso limite.
+
+    Lo scorrimento con 5.000 righe non cambia: quando il contenuto eccede lo spazio il riquadro
+    viene compresso a un'altezza definita, e il `height: 100%` del contenitore interno si risolve
+    su quella, come prima.
+  */
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div className="flex min-h-0 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
       <div
         ref={contenitore}
         className="w-full overflow-auto focus-within:outline-none"
