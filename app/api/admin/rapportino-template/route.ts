@@ -5,20 +5,23 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { modelloPlusInConflitto, type ModelloPlusRow } from '@/lib/rapportini/modelloPlus';
 import { maiuscolo, maiuscolaEtichette } from '@/lib/testo/maiuscolo';
+import { COLONNE_TEMPLATE_OPZIONALI, scriviSenzaColonnaMancante, selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 
 export const runtime = 'nodejs';
 
 const COLONNE_GET = 'id, nome, committente, campi, info_campi, titolo_campi, foto_id_priority, tipo, active, solo_manuale, task_via, task_via_ibrido, gruppo_committente, gruppi_attivita, created_at, updated_at';
 
+/** Ciò che insert/update restituiscono: id e il nuovo version token del lock ottimistico. */
+type RigaSalvata = { id: string; updated_at: string };
+
 export async function GET() {
   // supabaseAdmin bypassa la RLS: senza guard la lista dei flussi era leggibile
   // da non autenticati (le route API non passano dal matcher del middleware).
   const guard = await requireAdmin(); if (guard instanceof NextResponse) return guard;
-  // riservato_pi con fallback: la colonna può non esistere finché la migration non è applicata.
-  const conFlag = await supabaseAdmin.from('rapportino_template').select(`${COLONNE_GET}, riservato_pi`).order('nome');
-  const res = conFlag.error
-    ? await supabaseAdmin.from('rapportino_template').select(COLONNE_GET).order('nome')
-    : conFlag;
+  // riservato_pi / lista_campi con fallback: possono mancare finché la migration non è applicata.
+  const res = await selectDegradante(COLONNE_GET, COLONNE_TEMPLATE_OPZIONALI, (colonne) =>
+    supabaseAdmin.from('rapportino_template').select(colonne).order('nome'),
+  );
   if (res.error) return NextResponse.json({ error: res.error.message }, { status: 500 });
   return NextResponse.json(res.data ?? []);
 }
@@ -56,10 +59,16 @@ export async function POST(req: Request) {
     solo_manuale: parsed.data.solo_manuale ?? false,
   });
   if (errPlus) return NextResponse.json({ error: errPlus }, { status: 409 });
-  const { data, error } = await supabaseAdmin.from('rapportino_template')
-    .insert({ nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false, ...normalizzaCollegamento(parsed.data) }).select('id, updated_at').single();
+  // `lista_campi` è l'ultima nata: se la migration non è ancora applicata il flusso si crea
+  // lo stesso, con la riga in lista ai default storici (vedi scriviSenzaColonnaMancante).
+  const { data, error } = await scriviSenzaColonnaMancante<RigaSalvata[]>(
+    { nome: maiuscolo(parsed.data.nome), committente: parsed.data.committente ?? null, campi: maiuscolaEtichette(parsed.data.campi), info_campi: maiuscolaEtichette(parsed.data.info_campi), titolo_campi: parsed.data.titolo_campi, lista_campi: parsed.data.lista_campi, foto_id_priority: parsed.data.foto_id_priority, tipo: parsed.data.tipo, active: parsed.data.active, solo_manuale: parsed.data.solo_manuale ?? false, task_via: parsed.data.task_via ?? false, task_via_ibrido: parsed.data.task_via_ibrido ?? false, ...normalizzaCollegamento(parsed.data) },
+    'lista_campi',
+    (valori) => supabaseAdmin.from('rapportino_template').insert(valori).select('id, updated_at'),
+  );
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ ok: true, id: data.id, updated_at: data.updated_at });
+  const creato = data?.[0];
+  return NextResponse.json({ ok: true, id: creato?.id, updated_at: creato?.updated_at });
 }
 
 export async function PATCH(req: Request) {
@@ -69,7 +78,7 @@ export async function PATCH(req: Request) {
   const parsed = TemplateSchema.partial().safeParse(body);
   if (!parsed.success) return NextResponse.json({ error: 'Dati non validi' }, { status: 400 });
   const patch: Record<string, unknown> = {};
-  for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'foto_id_priority', 'tipo', 'active', 'solo_manuale', 'task_via', 'task_via_ibrido'] as const) if (k in parsed.data) patch[k] = (parsed.data as Record<string, unknown>)[k];
+  for (const k of ['nome', 'committente', 'campi', 'info_campi', 'titolo_campi', 'lista_campi', 'foto_id_priority', 'tipo', 'active', 'solo_manuale', 'task_via', 'task_via_ibrido'] as const) if (k in parsed.data) patch[k] = (parsed.data as Record<string, unknown>)[k];
   // Collegamento "Azioni operatori": il client manda sempre la coppia; qui la si rende coerente
   // col check DB (committente + gruppi non vuoti, oppure entrambi null).
   if ('gruppo_committente' in parsed.data || 'gruppi_attivita' in parsed.data) {
@@ -103,9 +112,11 @@ export async function PATCH(req: Request) {
   // cambiato nel frattempo (es. una SQL diretta o un'altra sessione). Così l'editor non sovrascrive
   // più con uno stato vecchio: in caso di mismatch torna 409 e l'UI ricarica la versione aggiornata.
   const expected = typeof body.expected_updated_at === 'string' ? body.expected_updated_at : null;
-  let q = supabaseAdmin.from('rapportino_template').update(patch).eq('id', body.id);
-  if (expected) q = q.eq('updated_at', expected);
-  const { data, error } = await q.select('id, updated_at');
+  const { data, error } = await scriviSenzaColonnaMancante<RigaSalvata[]>(patch, 'lista_campi', (valori) => {
+    let q = supabaseAdmin.from('rapportino_template').update(valori).eq('id', body.id);
+    if (expected) q = q.eq('updated_at', expected);
+    return q.select('id, updated_at');
+  });
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
   if (expected && (!data || data.length === 0)) {
     const { data: cur } = await supabaseAdmin.from('rapportino_template').select('updated_at').eq('id', body.id).maybeSingle();

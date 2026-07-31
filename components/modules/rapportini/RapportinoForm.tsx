@@ -4,6 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import { partitionInfoCampi, titoloVoce, valoreInfo, type InfoChiave, type TemplateInfoCampo } from '@/utils/rapportini/infoCampi';
+import { resolveListaCampi, testoRiga, type ListaCampi } from '@/utils/rapportini/rigaLista';
 import { statoVoce, riepilogoRapportino } from '@/utils/rapportini/riepilogo';
 import { motivoVoceIncompleta, type MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 import type { SaveState } from './SaveBadge';
@@ -87,6 +88,8 @@ export type Voce = {
    *  esiste ancora); assenti = config del rapportino (storico e fallback). */
   titolo_campi?: InfoChiave[];
   info_campi?: TemplateInfoCampo[];
+  /** Riga in lista dal flusso della voce (stessa regola LIVE di titolo/dettagli). */
+  lista_campi?: ListaCampi;
 };
 
 type Props = {
@@ -96,6 +99,8 @@ type Props = {
   campiSnapshot: TemplateCampo[];
   infoCampi: TemplateInfoCampo[];
   titoloCampi?: InfoChiave[];
+  /** Riga in lista del flusso del rapportino; assente = default storici (via · comune, attività · fascia). */
+  listaCampi?: ListaCampi;
   readOnly: boolean;
   infoCampiManuale?: TemplateInfoCampo[];
   templatesPerCommittente?: Partial<Record<CommittenteManuale, TemplateCampo[]>>;
@@ -125,12 +130,6 @@ function formatData(raw: string): string {
   return d.toLocaleDateString('it-IT', { day: '2-digit', month: 'long', year: 'numeric' });
 }
 
-/** Fascia compatta per la riga: se il valore è "GG/MM/AAAA HH:MM" mostra solo l'orario. */
-function fasciaBreve(raw: string): string {
-  const t = raw.replace(/^\d{2}\/\d{2}\/\d{4}\s*/, '').trim();
-  return t || raw.trim();
-}
-
 /**
  * Campi effettivi per la voce: prima i SUOI (flusso del gruppo attività della voce, fallback
  * campi del rapportino), poi la regola "Ibrido acea" (`fotoSoloMassive`): foto e campo SIGILLO
@@ -155,6 +154,7 @@ export default function RapportinoForm({
   campiSnapshot,
   infoCampi,
   titoloCampi = [],
+  listaCampi,
   readOnly: readOnlyIniziale,
   infoCampiManuale = [],
   templatesPerCommittente = {},
@@ -425,19 +425,21 @@ export default function RapportinoForm({
     [campiUnione],
   );
 
+  // Riga in lista: la config del flusso della voce vince su quella del rapportino (rapportini
+  // misti), esattamente come per titolo e dettagli. Nessuna delle due = default storici.
+  const listaRapportino = useMemo(() => listaCampi ?? resolveListaCampi(null), [listaCampi]);
+
   const righe: RigaVoce[] = useMemo(
     () =>
       voci.map((v, idx) => {
         const titolo = titoloVoce(v, v.titolo_campi ?? titoloCampi, idx);
-        const sub = [valoreInfo(v, 'via'), valoreInfo(v, 'comune')].filter(Boolean).join(' · ');
-        const attivita = valoreInfo(v, 'attivita');
-        const fascia = fasciaBreve(valoreInfo(v, 'fascia_oraria'));
+        const lista = v.lista_campi ?? listaRapportino;
         const bloccoPositivo = v.bloccoPositivo
           ? `Già positivo il ${dataIt(v.bloccoPositivo.data)}${v.bloccoPositivo.esecutore ? ` (${v.bloccoPositivo.esecutore})` : ''} — ordine non da lavorare`
           : undefined;
-        return { index: idx, titolo, sub, attivita, fascia, stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
+        return { index: idx, titolo, sub: testoRiga(v, lista.sub), meta: testoRiga(v, lista.meta), stato: v.manuale ? 'eseguito' : statoVoce(v.risposte, campiDiVoce(v, campi)), nuovo: v.nuovo, annullato: v.annullato, bloccoPositivo, nota: v.notaUfficio, notaCollega: (v.notePrecedenti?.length ?? 0) > 0, badge: badgeVoceManuale(v.approvazione_stato ?? null), matricola: valoreInfo(v, 'matricola'), via: valoreInfo(v, 'via'), odl: valoreInfo(v, 'odl') };
       }),
-    [voci, campi, titoloCampi],
+    [voci, campi, titoloCampi, listaRapportino],
   );
 
   const mancanti = useMemo(
