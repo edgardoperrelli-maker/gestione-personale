@@ -39,14 +39,21 @@ describe('ATTIVITA_TABELLONE', () => {
       frammenti.some((f) => nome.toUpperCase().includes(f));
     expect(aggancia(ATTIVITA_TABELLONE.dunning.frammenti, 'DUNNING')).toBe(true);
     expect(aggancia(ATTIVITA_TABELLONE.massive.frammenti, 'LIMITAZIONI MASSIVE')).toBe(true);
-    // E non si agganciano a vicenda: le due viste hanno squadre diverse.
+    // «CONTATORI» è l'attività con cui la squadra AcquaLatina sta in tabellone (territorio
+    // ACQUA LATINA, righe reali dal 29/07 — verificato in produzione).
+    expect(aggancia(ATTIVITA_TABELLONE.acqualatina.frammenti, 'CONTATORI')).toBe(true);
+    // E non si agganciano a vicenda: le viste hanno squadre diverse.
     expect(aggancia(ATTIVITA_TABELLONE.dunning.frammenti, 'LIMITAZIONI MASSIVE')).toBe(false);
     expect(aggancia(ATTIVITA_TABELLONE.massive.frammenti, 'DUNNING')).toBe(false);
+    expect(aggancia(ATTIVITA_TABELLONE.acqualatina.frammenti, 'DUNNING')).toBe(false);
+    expect(aggancia(ATTIVITA_TABELLONE.dunning.frammenti, 'CONTATORI')).toBe(false);
+    expect(aggancia(ATTIVITA_TABELLONE.massive.frammenti, 'CONTATORI')).toBe(false);
   });
 
   it('le etichette dicono il nome per intero: finiscono nei messaggi', () => {
     expect(ATTIVITA_TABELLONE.dunning.etichetta).toBe('DUNNING');
     expect(ATTIVITA_TABELLONE.massive.etichetta).toBe('LIMITAZIONI MASSIVE');
+    expect(ATTIVITA_TABELLONE.acqualatina.etichetta).toBe('CONTATORI');
   });
 });
 

@@ -74,4 +74,10 @@ describe('nomeFileExport', () => {
   it('senza scheda-comune il nome resta quello di sempre', () => {
     expect(nomeFileExport({ ...base, comune: null })).toBe('acea-dunning-aperti-20260727.xlsx');
   });
+
+  it('acqualatina NON sta sotto il prefisso acea: è un altro committente', () => {
+    // «acea-acqualatina-…» direbbe il committente sbagliato a chi ritrova il file fra mesi.
+    expect(nomeFileExport({ ...base, famiglia: 'acqualatina' }))
+      .toBe('acqualatina-aperti-20260727.xlsx');
+  });
 });

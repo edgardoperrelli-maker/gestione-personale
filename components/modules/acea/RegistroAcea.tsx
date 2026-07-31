@@ -6,12 +6,12 @@ import { ClipboardList, Maximize2, Minimize2, RefreshCw, Upload } from 'lucide-r
 import Button from '@/components/Button';
 import { toast } from '@/components/ui/Toast';
 import {
-  COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
+  COLONNE_ACQUALATINA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato, dataIt,
   type DefColonna, type RigaTabella,
 } from '@/lib/acea/colonneTabella';
 import { MAX_RIGHE_EXPORT, nomeFileExport } from '@/lib/acea/exportVista';
 import { gruppiPerRapportino } from '@/lib/acea/caricaSuRapportino';
-import { ATTIVITA_TABELLONE } from '@/lib/acea/famiglia';
+import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
 import { contaFiltriColonna } from '@/lib/acea/filtriOrdini';
 import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
 import { useEditingGriglia, type Operatore } from './useEditingGriglia';
@@ -27,16 +27,28 @@ import { useOrdiniAcea } from './useOrdiniAcea';
 
 const numero = (n: number) => n.toLocaleString('it-IT');
 
-/** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso da Dunning e Massive. */
+const DEFINIZIONI: Record<Famiglia, DefColonna[]> = {
+  dunning: COLONNE_DUNNING,
+  massive: COLONNE_MASSIVE,
+  acqualatina: COLONNE_ACQUALATINA,
+};
+
+const TITOLI: Record<Famiglia, string> = {
+  dunning: 'Dunning',
+  massive: 'Limitazioni massive',
+  acqualatina: 'Sostituzione misuratori',
+};
+
+/** Registro ordini con filtri, tabella virtualizzata e selezione. Condiviso dalle tre famiglie. */
 export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
-  famiglia: 'dunning' | 'massive';
+  famiglia: Famiglia;
   /**
    * Le schede-comune al primo render (solo massive), lette dal server nella pagina: devono
    * esistere PRIMA della prima risposta, o la prima interrogazione partirebbe senza scheda.
    */
   comuniIniziali?: string[];
 }) {
-  const definizione: DefColonna[] = famiglia === 'dunning' ? COLONNE_DUNNING : COLONNE_MASSIVE;
+  const definizione: DefColonna[] = DEFINIZIONI[famiglia];
   /** Come si chiama, nei messaggi, l'attività di tabellone che rende assegnabili in questa vista. */
   const etichettaAttivita = ATTIVITA_TABELLONE[famiglia].etichetta;
   // `colonne` è la definizione RIORDINATA come l'ha lasciata l'utente. Da qui in giù nessuno deve
@@ -51,6 +63,8 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   const [ingrandita, setIngrandita] = useState(false);
   /** La modale dei rapportini: l'unica via dal registro, si sovrappone e la selezione resta. */
   const [rapportiniAperti, setRapportiniAperti] = useState(false);
+  /** Sync dal master (solo acqualatina): il registro si alimenta da lì, non da un export ACEA. */
+  const [sincronizzando, setSincronizzando] = useState(false);
 
   const {
     filtri, setFiltri, righe, totale, oggi, caricando, errore, opzioni, altre, tutteCaricate,
@@ -178,6 +192,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     colonneVisibili: chiaviVisibili,
     onSalvato: ricarica,
     attivo: true,
+    famiglia,
   });
 
   /**
@@ -284,6 +299,37 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     }
   }, [righe, tutteCaricate, query, totale, colonneVisibili, famiglia, filtri, oggi]);
 
+  /**
+   * Aggiorna il registro acqualatina dal master caricato in Impostazioni → Template master.
+   *
+   * Additivo e idempotente: le righe nuove entrano, quelle già presenti restano come sono
+   * (pianificazione compresa). È il gesto per quando l'ufficio carica il file del mese nuovo.
+   */
+  const sincronizzaDalMaster = useCallback(async () => {
+    setSincronizzando(true);
+    try {
+      const res = await fetch('/api/acqualatina/ordini/sync', { method: 'POST' });
+      const body = (await res.json()) as {
+        inseriti?: number; giaPresenti?: number; scartate?: number; master?: string[]; error?: string;
+      };
+      if (!res.ok) {
+        toast.error(body.error ?? 'Aggiornamento dal master non riuscito.');
+        return;
+      }
+      const inseriti = body.inseriti ?? 0;
+      toast.success(
+        inseriti > 0
+          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti).`
+          : 'Registro già allineato al master: nessuna riga nuova.',
+      );
+      if (inseriti > 0) ricarica();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Aggiornamento dal master non riuscito.');
+    } finally {
+      setSincronizzando(false);
+    }
+  }, [ricarica]);
+
   if (errore) {
     /*
       Token di stato, non di superficie: `--brand-surface-muted` vale esattamente quanto
@@ -335,7 +381,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
       {ingrandita && (
         <div className="flex items-baseline justify-between gap-2">
           <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">
-            {famiglia === 'dunning' ? 'Dunning' : 'Limitazioni massive'} — registro ordini
+            {TITOLI[famiglia]} — registro ordini
           </h2>
           <span className="text-xs text-[var(--brand-text-muted)]">
             <kbd>Esc</kbd> per tornare alla pagina
@@ -391,13 +437,31 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             vecchio collegamento agli Strumenti e il bottone «Sul rapportino» in barra: tre vie
             per la stessa cosa erano due di troppo).
           */}
-          <a
-            href="/hub/acea/strumenti#import"
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          >
-            <Upload size={14} aria-hidden="true" />
-            Importa export
-          </a>
+          {famiglia === 'acqualatina' ? (
+            /*
+              Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
+              (Impostazioni → Template master): il comando tira dentro le righe nuove del file
+              del mese, senza toccare quelle già presenti.
+            */
+            <button
+              type="button"
+              onClick={() => void sincronizzaDalMaster()}
+              disabled={sincronizzando}
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-60"
+              title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
+            >
+              <Upload size={14} aria-hidden="true" />
+              {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
+            </button>
+          ) : (
+            <a
+              href="/hub/acea/strumenti#import"
+              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+            >
+              <Upload size={14} aria-hidden="true" />
+              Importa export
+            </a>
+          )}
           <button
             type="button"
             onClick={() => setRapportiniAperti(true)}
@@ -464,6 +528,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
         pianoCarico={pianoCarico}
         selezionate={selezionate.length}
         onCaricato={ricarica}
+        famiglia={famiglia}
       />
 
       <TabellaOrdini

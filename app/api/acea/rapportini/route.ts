@@ -5,6 +5,7 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { sincronizzaRapportiniAcea } from '@/lib/acea/sincronizzaRapportiniAcea';
 import { anteprimeRapportini, parseCoppie } from '@/lib/acea/caricaSuRapportino';
 import { riepilogoEsiti } from '@/lib/acea/vociRapportino';
+import { parseFamiglia } from '@/lib/acea/famiglia';
 
 export const runtime = 'nodejs';
 
@@ -69,6 +70,8 @@ type Corpo = {
   confermaRiaperture?: boolean;
   /** Genera comunque, pur essendoci righe pianificate a metà per quel giorno. */
   confermaIncomplete?: boolean;
+  /** Famiglia della vista che genera: registro e committenti della commessa. Assente = ACEA. */
+  famiglia?: string;
 };
 
 /**
@@ -99,6 +102,7 @@ export async function POST(req: Request) {
       staffIds,
       confermaRiaperture: corpo.confermaRiaperture === true,
       confermaIncomplete: corpo.confermaIncomplete === true,
+      famiglia: parseFamiglia(corpo.famiglia),
     });
 
     if (!esito.ok) {

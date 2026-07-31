@@ -67,6 +67,48 @@ describe('vociDaAggiungere', () => {
   });
 });
 
+describe('vociDaAggiungere — unità ODL+matricola (AcquaLatina)', () => {
+  // Un ODL di Terracina copre fino a cinque contatori: ogni matricola è una voce SUA.
+  const aq = (over: Partial<InterventoDaVoce> = {}): InterventoDaVoce =>
+    int({ committente: 'acqualatina', odl: '100001', ...over });
+
+  it('cinque contatori dello stesso ODL sono cinque voci, non quattro «già presenti»', () => {
+    const r = vociDaAggiungere(
+      ['A', 'B', 'C', 'D', 'E'].map((m, k) => aq({ id: `i${k}`, matricola_contatore: `MTR-${m}` })),
+      [],
+      'odl_matricola',
+    );
+    expect(r.daAggiungere).toHaveLength(5);
+    expect(r.giaPresenti).toBe(0);
+  });
+
+  it('la voce esistente copre solo la SUA matricola', () => {
+    const gia = [voce({ task_id: 'x', odl: '100001', matricola: 'MTR-A', ordine: 1 })];
+    const r = vociDaAggiungere(
+      [aq({ id: 'a', matricola_contatore: 'MTR-A' }), aq({ id: 'b', matricola_contatore: 'MTR-B' })],
+      gia,
+      'odl_matricola',
+    );
+    expect(r.daAggiungere.map((i) => i.id)).toEqual(['b']);
+    expect(r.giaPresenti).toBe(1);
+  });
+
+  it('il confronto matricola è sul normalizzato: «mtr-a» copre «MTRA»', () => {
+    const gia = [voce({ odl: '100001', matricola: 'mtr-a', ordine: 1 })];
+    const r = vociDaAggiungere([aq({ matricola_contatore: 'MTRA' })], gia, 'odl_matricola');
+    expect(r.daAggiungere).toEqual([]);
+  });
+
+  it('con l\'unità di default (ACEA) il comportamento resta per ODL', () => {
+    const r = vociDaAggiungere(
+      [int({ id: 'a', matricola_contatore: 'X1' }), int({ id: 'b', matricola_contatore: 'X2' })],
+      [],
+    );
+    // Stesso ODL: la seconda è un doppione, come sempre — l'unità composta è OPT-IN.
+    expect(r.daAggiungere.map((i) => i.id)).toEqual(['a']);
+  });
+});
+
 describe('scegliRapportino', () => {
   const rap = (id: string, stato: string, created_at: string, conVociAcea = false) =>
     ({ id, stato, created_at, conVociAcea });

@@ -221,6 +221,63 @@ describe('pianoPianificazione — giorni di sole attivazioni', () => {
   });
 });
 
+describe('pianoPianificazione — unità ODL+matricola (AcquaLatina)', () => {
+  // Nel master di Terracina un ODL copre fino a cinque contatori: ogni matricola è un lavoro suo.
+  const A = ordine({ famiglia: 'acqualatina', numero_operazione: '1', matricola: 'MTR-A' });
+  const B = ordine({ famiglia: 'acqualatina', numero_operazione: '2', matricola: 'MTR-B' });
+
+  it('pianificare il secondo contatore NON sposta l\'intervento del primo', () => {
+    const p = pianoPianificazione({
+      ordini: [B],
+      esistenti: [intervento({ matricola: 'MTR-A' })],
+      ...ARG,
+      unita: 'odl_matricola',
+    });
+    // Con l'unità sul solo ODL sarebbe un «aggiorna» dell'intervento di MTR-A: due squadre in
+    // meno e un contatore mai pianificato. Qui invece nasce un intervento NUOVO.
+    expect(p.aggiornati).toBe(0);
+    expect(p.creati).toBe(1);
+  });
+
+  it('il completato di un contatore non blocca il fratello', () => {
+    const p = pianoPianificazione({
+      ordini: [B],
+      esistenti: [intervento({ matricola: 'MTR-A', stato: 'completato' })],
+      ...ARG,
+      unita: 'odl_matricola',
+    });
+    expect(p.creati).toBe(1);
+    expect(p.saltati).toBe(0);
+  });
+
+  it('sulla STESSA matricola le invarianti restano quelle di sempre', () => {
+    const sposta = pianoPianificazione({
+      ordini: [A], esistenti: [intervento({ matricola: 'mtr-a' })], ...ARG, unita: 'odl_matricola',
+    });
+    // Il confronto è sul normalizzato: maiuscole o trattini diversi non duplicano.
+    expect(sposta.aggiornati).toBe(1);
+    const fermo = pianoPianificazione({
+      ordini: [A],
+      esistenti: [intervento({ matricola: 'MTR-A', stato: 'completato' })],
+      ...ARG,
+      unita: 'odl_matricola',
+    });
+    expect(fermo.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'gia_completato' });
+  });
+
+  it('acqualatina è esente dal venerdì/sabato come le massive', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ famiglia: 'acqualatina', riapertura: false })],
+      esistenti: [],
+      data: '2026-07-31', // venerdì
+      staffId: 's2',
+      soloAttivazioni: true,
+      unita: 'odl_matricola',
+    });
+    expect(p.creati).toBe(1);
+  });
+});
+
 describe('etichettaMotivo', () => {
   it('spiega il motivo in italiano', () => {
     expect(etichettaMotivo('ordine_chiuso')).toMatch(/chiuso/i);

@@ -60,6 +60,28 @@ describe('indicizzaPositivi', () => {
   });
 });
 
+describe('chiavePositivo — acqualatina è per contatore', () => {
+  it('due matricole dello stesso ODL sono due invarianti distinte', () => {
+    // Un ODL di Terracina copre fino a 5 contatori: il positivo del secondo NON è un doppione
+    // del primo. Con la chiave sul solo ODL, il motore lo annullerebbe come «DOPPIO POSITIVO».
+    const m = indicizzaPositivi([
+      { id: 'a', odl: '100001', data: '2026-07-30', committente: 'acqualatina', matricola: 'MTR-A' },
+    ]);
+    expect(m.get(chiavePositivo('acqualatina', '100001', 'MTR-A'))?.id).toBe('a');
+    expect(m.get(chiavePositivo('acqualatina', '100001', 'MTR-B'))).toBeUndefined();
+  });
+
+  it('la matricola entra normalizzata: «mtr-a» e «MTRA» sono lo stesso contatore', () => {
+    expect(chiavePositivo('acqualatina', '100001', 'mtr-a'))
+      .toBe(chiavePositivo('acqualatina', '100001', 'MTRA'));
+  });
+
+  it('per gli altri committenti la matricola NON pesa: la chiave resta (committente, odl)', () => {
+    expect(chiavePositivo('acea', 'X', 'QUALSIASI')).toBe(chiavePositivo('acea', 'X'));
+    expect(chiavePositivo('italgas', 'X', 'ALTRO')).toBe(chiavePositivo('italgas', 'X', null));
+  });
+});
+
 describe('dataIt', () => {
   it('converte ISO in DD/MM/YYYY, robusto agli input sporchi', () => {
     expect(dataIt('2026-07-14')).toBe('14/07/2026');

@@ -8,12 +8,13 @@
 // le voci altrui non sono sue.
 
 import { normOdl } from '@/lib/interventi/odlPositivi';
+import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
 
 /** Territorio dei piani-contenitore creati dal motore. Vive solo per soddisfare la FK dei rapportini. */
-export const TERRITORIO_ACEA = 'ACEA';
+export const TERRITORIO_ACEA = PROFILO_COMMESSA.dunning.territorioPiani;
 
-/** I due marcatori di canale della commessa: in tassonomia sono lo stesso committente. */
-export const COMMITTENTI_ACEA = ['acea', 'lim_massive'] as const;
+/** I due marcatori di canale della commessa ACEA: in tassonomia sono lo stesso committente. */
+export const COMMITTENTI_ACEA = PROFILO_COMMESSA.dunning.committenti;
 
 /**
  * `task_id` della voce ACEA: funzione deterministica del suo intervento.
@@ -46,6 +47,8 @@ export type VoceEsistente = {
   intervento_id: string | null;
   odl: string | null;
   ordine: number | null;
+  /** Matricola della voce: serve al confronto quando l'unità è `odl_matricola` (AcquaLatina). */
+  matricola?: string | null;
 };
 
 export type EsitoVoci = {
@@ -56,45 +59,62 @@ export type EsitoVoci = {
   ordineIniziale: number;
 };
 
+/** Unità di confronto delle voci: l'ODL (ACEA) o la coppia ODL+matricola (AcquaLatina). */
+export type UnitaVoce = 'odl' | 'odl_matricola';
+
+/** Matricola normalizzata per il confronto: maiuscola, senza separatori. '' se assente. */
+const normMatricola = (m: string | null | undefined): string =>
+  String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+
 /**
  * Quali interventi non hanno ancora una voce nel rapportino.
  *
  * Tre chiavi di confronto, in ordine di robustezza:
  *  - `intervento_id`, il collegamento diretto;
  *  - `task_id`, che sopravvive all'azzeramento della FK;
- *  - **l'ODL, su qualunque origine** — ed è la più importante nel periodo di transizione: finché
- *    il vecchio flusso da master genera voci `origine='task'` per gli stessi ODL ACEA, senza
- *    questo controllo l'operatore si troverebbe lo stesso intervento due volte nel rapportino.
+ *  - **l'unità di lavoro, su qualunque origine** — per ACEA è l'ODL, ed è la chiave più
+ *    importante nel periodo di transizione: finché il vecchio flusso da master genera voci
+ *    `origine='task'` per gli stessi ODL, senza questo controllo l'operatore si troverebbe lo
+ *    stesso intervento due volte nel rapportino. Per AcquaLatina l'unità è ODL+matricola: un
+ *    ordine copre fino a cinque contatori dello stesso stabile, e ognuno è una voce SUA — la
+ *    chiave sul solo ODL ne farebbe sparire quattro come «già presenti».
  */
 export function vociDaAggiungere(
   interventi: readonly InterventoDaVoce[],
   esistenti: readonly VoceEsistente[],
+  unita: UnitaVoce = 'odl',
 ): EsitoVoci {
   const perId = new Set<string>();
   const perTask = new Set<string>();
-  const perOdl = new Set<string>();
+  const perUnita = new Set<string>();
+  // '' se la chiave non è calcolabile (ODL assente): il confronto per unità non si applica.
+  const chiaveUnita = (odl: string | null, matricola: string | null | undefined): string => {
+    const o = normOdl(odl);
+    if (o === '') return '';
+    return unita === 'odl_matricola' ? `${o}#${normMatricola(matricola)}` : o;
+  };
   let maxOrdine = 0;
   for (const v of esistenti) {
     if (v.intervento_id) perId.add(v.intervento_id);
     if (v.task_id) perTask.add(v.task_id);
-    const k = normOdl(v.odl);
-    if (k) perOdl.add(k);
+    const k = chiaveUnita(v.odl, v.matricola);
+    if (k) perUnita.add(k);
     if (typeof v.ordine === 'number' && v.ordine > maxOrdine) maxOrdine = v.ordine;
   }
 
   const daAggiungere: InterventoDaVoce[] = [];
   let giaPresenti = 0;
   for (const i of interventi) {
-    const odl = normOdl(i.odl);
-    const gia = perId.has(i.id) || perTask.has(taskIdAcea(i.id)) || (odl !== '' && perOdl.has(odl));
+    const k = chiaveUnita(i.odl, i.matricola_contatore);
+    const gia = perId.has(i.id) || perTask.has(taskIdAcea(i.id)) || (k !== '' && perUnita.has(k));
     if (gia) {
       giaPresenti++;
       continue;
     }
-    // Segna subito: due interventi aperti sullo stesso ODL non dovrebbero esistere, ma se
+    // Segna subito: due interventi aperti sulla stessa unità non dovrebbero esistere, ma se
     // esistessero produrrebbero due voci identiche nello stesso giro.
     perId.add(i.id);
-    if (odl !== '') perOdl.add(odl);
+    if (k !== '') perUnita.add(k);
     daAggiungere.push(i);
   }
 

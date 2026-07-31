@@ -611,6 +611,17 @@ describe('schede della vista (schedeVista / valoreScheda / applicaScheda)', () =
     expect(schedeVista('massive', []).map((s) => s.value)).toEqual(['chiusi', 'saracinesche']);
   });
 
+  it('acqualatina: due schede secche — riaperture e saracinesche sono concetti ACEA', () => {
+    expect(schedeVista('acqualatina', []).map((s) => s.value)).toEqual(['aperti', 'chiusi']);
+    // I comuni non dividono niente: la campagna è UN comune, la fila non li disegna.
+    expect(schedeVista('acqualatina', ['TERRACINA']).map((s) => s.value)).toEqual(['aperti', 'chiusi']);
+  });
+
+  it('la famiglia acqualatina viaggia in query e torna', () => {
+    expect(leggiFiltri(parametriQuery(filtriVuoti(), 'acqualatina', 300)).famiglia)
+      .toBe('acqualatina');
+  });
+
   it('click su un comune = gli APERTI di quel comune', () => {
     const f = applicaScheda(filtriVuoti(), 'comune:RIANO');
     expect(f.stato).toBe('aperti');

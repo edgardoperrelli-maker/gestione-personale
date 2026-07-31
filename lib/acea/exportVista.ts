@@ -10,6 +10,7 @@
 // tenere pure e testabili sono queste: quante pagine servono, e come si chiama il file.
 
 import type { StatoFiltro } from './filtriOrdini';
+import type { Famiglia } from './famiglia';
 
 /** Righe per richiesta durante l'export: è il tetto che `/api/acea/ordini` accetta. */
 export const PER_PAGINA_EXPORT = 500;
@@ -31,7 +32,7 @@ export function pagineExport(totale: number, perPagina: number = PER_PAGINA_EXPO
 }
 
 export type NomeExport = {
-  famiglia: 'dunning' | 'massive';
+  famiglia: Famiglia;
   /** Stato del segmented: è parte di cosa c'è dentro il file, non un dettaglio della vista. */
   stato: StatoFiltro;
   /** Scheda-comune attiva (massive): restringe il contenuto quanto lo stato, e il nome lo dice. */
@@ -65,7 +66,9 @@ function fettaComune(comune: string | null | undefined): string | null {
  * dice che ce n'erano, cioè che quel totale non è il totale della famiglia.
  */
 export function nomeFileExport({ famiglia, stato, comune, oggi, filtrato }: NomeExport): string {
-  const parti: string[] = ['acea', famiglia];
+  // Le famiglie ACEA stanno sotto il prefisso della commessa; acqualatina È la commessa, e
+  // «acea-acqualatina-…» direbbe il committente sbagliato a chi ritrova il file fra mesi.
+  const parti: string[] = famiglia === 'acqualatina' ? ['acqualatina'] : ['acea', famiglia];
   const c = fettaComune(comune);
   if (c) parti.push(c);
   parti.push(stato);

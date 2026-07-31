@@ -2,16 +2,18 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
+import { PROFILO_COMMESSA, type Famiglia } from '@/lib/acea/famiglia';
 
 export const runtime = 'nodejs';
 
 const PAGINA = 1000;
 
-/** Valori distinti di una colonna del registro, per popolare le tendine dei filtri. */
-async function distinti(colonna: string, famiglia: string | null): Promise<string[]> {
+/** Valori distinti di una colonna del registro della famiglia, per le tendine dei filtri. */
+async function distinti(colonna: string, famiglia: Famiglia | null): Promise<string[]> {
+  const tabella = PROFILO_COMMESSA[famiglia ?? 'dunning'].tabellaOrdini;
   const valori = new Set<string>();
   for (let offset = 0; ; offset += PAGINA) {
-    let q = supabaseAdmin.from('acea_ordini').select(colonna).range(offset, offset + PAGINA - 1);
+    let q = supabaseAdmin.from(tabella).select(colonna).range(offset, offset + PAGINA - 1);
     if (famiglia) q = q.eq('famiglia', famiglia);
     const { data, error } = await q;
     if (error) throw error;
@@ -55,13 +57,14 @@ const TUTTI: ChiaveOpzione[] = [...(Object.keys(ELENCHI) as ChiaveElenco[]), 'es
  * cercare in mezzo a nomi che su ACEA non compaiono mai. Chi non ha ancora nessun intervento non
  * serve in un filtro — filtrarci sopra darebbe zero righe comunque.
  */
-async function esecutori(): Promise<string[]> {
+async function esecutori(famiglia: Famiglia | null): Promise<string[]> {
+  const committenti = [...PROFILO_COMMESSA[famiglia ?? 'dunning'].committenti];
   const ids = new Set<string>();
   for (let offset = 0; ; offset += PAGINA) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
       .select('staff_id')
-      .in('committente', ['acea', 'lim_massive'])
+      .in('committente', committenti)
       .not('staff_id', 'is', null)
       .range(offset, offset + PAGINA - 1);
     if (error) throw error;
@@ -102,7 +105,8 @@ export async function GET(req: Request) {
   try {
     const { searchParams } = new URL(req.url);
     const fam = searchParams.get('famiglia');
-    const famiglia = fam === 'dunning' || fam === 'massive' ? fam : null;
+    const famiglia: Famiglia | null =
+      fam === 'dunning' || fam === 'massive' || fam === 'acqualatina' ? fam : null;
 
     const chiesti = (searchParams.get('campi') ?? '')
       .split(',')
@@ -111,7 +115,7 @@ export async function GET(req: Request) {
     const daServire: ChiaveOpzione[] = chiesti.length > 0 ? chiesti : TUTTI;
 
     const valori = await Promise.all(
-      daServire.map((c) => (c === 'esecutori' ? esecutori() : distinti(ELENCHI[c], famiglia))),
+      daServire.map((c) => (c === 'esecutori' ? esecutori(famiglia) : distinti(ELENCHI[c], famiglia))),
     );
 
     // Le chiavi non chieste tornano come array vuoti e non assenti: il client tipizza `Opzioni`

@@ -15,11 +15,27 @@ import {
 import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
+import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
 
 export const runtime = 'nodejs';
 
-/** I due committenti che alimentano questo registro. */
+/** I due committenti ACEA: restano cablati nei percorsi SOLO ACEA (riaperture, saracinesche). */
 const COMMITTENTI = ['acea', 'lim_massive'];
+
+/**
+ * Chiave con cui una riga del registro e i suoi `interventi` si agganciano.
+ *
+ * Per ACEA è l'ODL (più operazioni dello stesso ordine sono lo stesso passaggio sul posto); per
+ * ACQUALATINA è ODL+matricola — un ordine copre fino a cinque contatori, e agganciare per solo
+ * ODL mostrerebbe su tutt'e cinque le righe l'esecutore del primo pianificato.
+ */
+const normMatr = (m: string | null | undefined): string =>
+  String(m ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+const chiaveAggancioIntervento = (
+  famiglia: string | null,
+  odl: string,
+  matricola?: string | null,
+): string => (famiglia === 'acqualatina' ? `${odl}#${normMatr(matricola)}` : odl);
 
 /** Pagina delle scansioni interne (chiavi, interventi): non esce dal server, può essere ampia. */
 const PAGINA_SCAN = 1000;
@@ -68,9 +84,12 @@ type OrdineRow = Record<string, unknown> & { odl: string; numero_operazione: str
  * registro resta lo specchio immutabile di ACEA, il nostro lavoro vive altrove e si unisce qui
  * in lettura — è il "riporto" che prima l'agente scriveva dentro il file master.
  */
-/** La query sul registro con tutti i criteri ACEA e l'ordinamento canonico. */
+/** La query sul registro con tutti i criteri e l'ordinamento canonico. */
 function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
-  let q = supabaseAdmin.from('acea_ordini').select(selezione, { count: 'exact' });
+  // La tabella la decide la famiglia: acqualatina ha il SUO registro, con la stessa forma di
+  // colonne — è ciò che permette a questa query (e alla select condivisa) di valere su entrambi.
+  const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
+  let q = supabaseAdmin.from(profilo.tabellaOrdini).select(selezione, { count: 'exact' });
 
   if (f.famiglia) q = q.eq('famiglia', f.famiglia);
   if (f.stato === 'aperti') q = q.eq('aperto', true);
@@ -131,6 +150,16 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
     for (const campo of spareggi) {
       q = q.order(campo, { ascending: f.verso === 'asc', nullsFirst: false });
     }
+  } else if (f.famiglia === 'acqualatina') {
+    /*
+      Ordinamento canonico della campagna: la STRADA. Si lavora porta a porta, e senza un
+      ordinamento chiesto la tabella deve seguire il giro — via, poi civico numerico, poi il
+      testo del civico («12/A» prima di «12/B»). Niente riaperture o scadenze in testa: sono
+      colonne ACEA, qui vuote per costruzione, e ordinare sul vuoto è ordinare a caso.
+    */
+    q = q.order('via', { ascending: true, nullsFirst: false })
+      .order('civico_num', { ascending: true, nullsFirst: false })
+      .order('civico', { ascending: true, nullsFirst: false });
   } else if (f.stato === 'riaperture') {
     // Dentro la scheda sono riaperture tutte quante, e tutte APERTE (le esitate stanno in
     // «Chiusi»): l'unico criterio che serve è l'urgenza — prima chi scade prima.
@@ -161,13 +190,22 @@ function queryRegistro(selezione: string, f: FiltriOrdini, oggi: string) {
   return q.order('odl', { ascending: true }).order('numero_operazione', { ascending: true });
 }
 
-type Chiave = { odl: string; numero_operazione: string; attivita: string | null };
+type Chiave = {
+  odl: string;
+  numero_operazione: string;
+  attivita: string | null;
+  /** Solo acqualatina: entra nella chiave di aggancio con gli interventi. */
+  matricola?: string | null;
+};
 
-/** Tutte le chiavi che passano i criteri ACEA, nell'ordine della tabella. */
+/** Tutte le chiavi che passano i criteri della vista, nell'ordine della tabella. */
 async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]> {
+  const colonne = f.famiglia === 'acqualatina'
+    ? 'odl, numero_operazione, attivita, matricola'
+    : 'odl, numero_operazione, attivita';
   const chiavi: Chiave[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
-    const { data, error } = await queryRegistro('odl, numero_operazione, attivita', f, oggi)
+    const { data, error } = await queryRegistro(colonne, f, oggi)
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
     const blocco = (data ?? []) as unknown as Chiave[];
@@ -177,12 +215,15 @@ async function scansionaChiavi(f: FiltriOrdini, oggi: string): Promise<Chiave[]>
   return chiavi;
 }
 
-type VoceIntervento = { odl: string | null; data: string | null; staff_id: string | null; stato: string | null };
+type VoceIntervento = {
+  odl: string | null; data: string | null; staff_id: string | null; stato: string | null;
+  matricola_contatore?: string | null;
+};
 
 /**
- * Tutti gli interventi delle due famiglie: `odl` → chi, quando, e se è finita. Serve al predicato,
- * non al display. `completato` alimenta la coda delle riaperture: una riapertura completata nei
- * rapportini è esitata, e in una coda di lavoro non ci sta più.
+ * Tutti gli interventi della commessa: chiave di aggancio → chi, quando, e se è finita. Serve al
+ * predicato, non al display. `completato` alimenta la coda delle riaperture: una riapertura
+ * completata nei rapportini è esitata, e in una coda di lavoro non ci sta più.
  */
 type IndicePianificazione = Map<string, { staff: Set<string>; giorni: Set<string>; completato: boolean }>;
 
@@ -219,13 +260,14 @@ async function indicePianificazionePerOdl(odl: readonly string[]): Promise<Indic
   return indice;
 }
 
-async function indicePianificazione(): Promise<IndicePianificazione> {
+async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazione> {
+  const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
   const indice: IndicePianificazione = new Map();
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
-      .select('odl, data, staff_id, stato')
-      .in('committente', COMMITTENTI)
+      .select('odl, data, staff_id, stato, matricola_contatore')
+      .in('committente', [...profilo.committenti])
       .order('odl', { ascending: true })
       .order('data', { ascending: true })
       .range(offset, offset + PAGINA_SCAN - 1);
@@ -243,16 +285,84 @@ async function indicePianificazione(): Promise<IndicePianificazione> {
         che gli annullati li ha sempre trattati come inesistenti.
       */
       if (it.stato === 'annullato') continue;
-      const v = indice.get(it.odl)
+      const chiave = chiaveAggancioIntervento(f.famiglia, it.odl, it.matricola_contatore);
+      const v = indice.get(chiave)
         ?? { staff: new Set<string>(), giorni: new Set<string>(), completato: false };
       if (it.staff_id) v.staff.add(it.staff_id);
       if (it.data) v.giorni.add(it.data);
       if (it.stato === 'completato') v.completato = true;
-      indice.set(it.odl, v);
+      indice.set(chiave, v);
     }
     if (blocco.length < PAGINA_SCAN) break;
   }
   return indice;
+}
+
+/*
+  ---- Chiusura AcquaLatina: dai rapportini al registro --------------------------------------
+
+  ACEA chiude gli ordini con l'export del Cruscotto; AcquaLatina non ci rimanda niente, quindi
+  la chiusura la scrive il NOSTRO motore: un intervento della commessa `completato` (rapportino
+  consegnato con esito) chiude la sua riga di registro — per `ordine_id`, che è il collegamento
+  che la pianificazione scrive alla creazione, quindi regge anche gli ODL multi-matricola.
+
+  Gira qui, sulla strada della lettura, e non in un cron: la tabella è il momento in cui la
+  chiusura si guarda. Throttling a un minuto e best-effort — una riconciliazione in ritardo di
+  un giro è un dato vecchio di un minuto, una che blocca la lettura è il registro rotto.
+*/
+const TTL_RICONCILIAZIONE_MS = 60_000;
+let riconciliazioneAcquaAt = 0;
+
+async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
+  const ora = Date.now();
+  if (ora - riconciliazioneAcquaAt < TTL_RICONCILIAZIONE_MS) return;
+  riconciliazioneAcquaAt = ora;
+
+  type Completato = { ordine_id: string | null; data: string | null; esito: string | null };
+  const completati: Completato[] = [];
+  for (let offset = 0; ; offset += PAGINA_SCAN) {
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('ordine_id, data, esito')
+      .eq('committente', 'acqualatina')
+      .eq('stato', 'completato')
+      .not('ordine_id', 'is', null)
+      .range(offset, offset + PAGINA_SCAN - 1);
+    if (error) throw error;
+    const blocco = (data ?? []) as Completato[];
+    completati.push(...blocco);
+    if (blocco.length < PAGINA_SCAN) break;
+  }
+  if (completati.length === 0) return;
+
+  // Un aggiornamento per (giorno, esito): i giorni di campagna sono pochi, le righe tante.
+  const gruppi = new Map<string, { data: string | null; positivo: boolean; ids: string[] }>();
+  for (const c of completati) {
+    if (!c.ordine_id) continue;
+    const positivo = c.esito === 'eseguito_positivo';
+    const k = `${c.data ?? ''}|${positivo}`;
+    const g = gruppi.get(k) ?? { data: c.data, positivo, ids: [] };
+    g.ids.push(c.ordine_id);
+    gruppi.set(k, g);
+  }
+  for (const g of gruppi.values()) {
+    for (let i = 0; i < g.ids.length; i += 200) {
+      const { error } = await supabaseAdmin
+        .from('acqualatina_ordini')
+        .update({
+          aperto: false,
+          stato: 'CHIUSO',
+          // Lo stato dice anche COME è finita: la scheda «Chiusi» è l'unico posto dove si
+          // controlla il lavoro fatto, e «chiusa» senza esito obbligherebbe ad aprire ogni riga.
+          stato_desc: g.positivo ? 'Chiusa — eseguita' : 'Chiusa — non eseguita',
+          esito_positivo: g.positivo,
+          data_completamento: g.data,
+        })
+        .in('id', g.ids.slice(i, i + 200))
+        .eq('aperto', true);
+      if (error) throw error;
+    }
+  }
 }
 
 /**
@@ -391,12 +501,12 @@ async function indiceSostituzioni(): Promise<Map<string, Sostituzione>> {
  * altra colonna della tabella.
  */
 function passaPianificazione(
-  odl: string,
+  chiave: string,
   p: FiltriPianificazione,
   indice: Map<string, { staff: Set<string>; giorni: Set<string> }>,
   staffScelti: Set<string>,
 ): boolean {
-  const v = indice.get(odl);
+  const v = indice.get(chiave);
 
   if (p.esecutori.length > 0 || p.senzaEsecutore) {
     const assegnatoAUnoScelto = v ? [...v.staff].some((s) => staffScelti.has(s)) : false;
@@ -422,12 +532,21 @@ export async function GET(req: Request) {
     // un ordine in scadenza oggi risulterebbe scaduto.
     const oggi = partiRoma(new Date()).oggi;
     const { da, a } = intervalloPagina(f);
+    const acqua = f.famiglia === 'acqualatina';
+
+    // La chiusura acqualatina si riconcilia PRIMA di leggere: la pagina deve mostrare chiuso
+    // ciò che i rapportini hanno chiuso. Throttled e best-effort (vedi la funzione).
+    if (acqua) {
+      await chiudiOrdiniAcqualatinaCompletati().catch((e) => {
+        console.error('[acea/ordini] chiusure acqualatina non riconciliate:', e);
+      });
+    }
 
     // Il triangolo parte SUBITO e si riscuote alla fine: è indipendente da tutto il resto, e
     // messo in coda com'era aggiungeva le sue due letture alla latenza di ogni risposta.
     // È un dato di DUNNING (attivazioni fuori calendario): sulle risposte della vista massive non
     // si calcola — il client là non lo disegna, e sarebbero due letture pagate per un numero muto.
-    const triangolo = f.famiglia === 'massive'
+    const triangolo = f.famiglia === 'massive' || acqua
       ? Promise.resolve<number | null>(null)
       : riapertureSenzaData();
     /*
@@ -477,7 +596,7 @@ export async function GET(req: Request) {
         filtriPianificazioneAttivi(f.pianificazione) || ordinamentoDaIncrociare(f);
       const [chiavi, indiceCompleto, saracinesche] = await Promise.all([
         scansionaChiavi(f, oggi),
-        serveIndiceCompleto ? indicePianificazione() : Promise.resolve(null),
+        serveIndiceCompleto ? indicePianificazione(f) : Promise.resolve(null),
         f.stato === 'saracinesche'
           ? odlConSaracinescaDichiarata(supabaseAdmin)
           : Promise.resolve(new Set<string>()),
@@ -486,6 +605,9 @@ export async function GET(req: Request) {
         ?? (f.stato === 'riaperture'
           ? await indicePianificazionePerOdl(chiavi.map((k) => k.odl))
           : new Map<string, never>() as IndicePianificazione);
+      // La chiave con cui una riga della scansione cerca nei tre indici qui sopra.
+      const chiaveDi = (k: Chiave): string =>
+        chiaveAggancioIntervento(f.famiglia, k.odl, k.matricola);
 
       // Nomi scelti → staff_id. Il filtro parla di persone, il registro di identificativi.
       const staffScelti = new Set<string>();
@@ -502,8 +624,8 @@ export async function GET(req: Request) {
         (k) => (f.stato !== 'saracinesche' || saracinesche.has(k.odl))
           // La coda delle riaperture: fuori le completate nei rapportini. Le chiuse su ACEA sono
           // gia` fuori dalla query (`aperto=true` in `queryRegistro`).
-          && (f.stato !== 'riaperture' || indice.get(k.odl)?.completato !== true)
-          && passaPianificazione(k.odl, f.pianificazione, indice, staffScelti),
+          && (f.stato !== 'riaperture' || indice.get(chiaveDi(k))?.completato !== true)
+          && passaPianificazione(chiaveDi(k), f.pianificazione, indice, staffScelti),
       );
       /*
         Ordinamento delle due colonne che non stanno nel registro.
@@ -515,20 +637,20 @@ export async function GET(req: Request) {
       const scelto = f.ordina === null ? null : ORDINAMENTI[f.ordina];
       if (scelto?.tipo === 'incrocio') {
         const nomi = await nomiStaff();
-        const valore = (odl: string): string => {
-          const v = indice.get(odl);
+        const valore = (chiave: string): string => {
+          const v = indice.get(chiave);
           if (!v) return '';
           if (f.ordina === 'pianificato_il') {
             // Il giorno PIÙ RECENTE, come la colonna che si vede: ordinare su un altro
-            // intervento dello stesso ODL darebbe una tabella che non segue la sua colonna.
+            // intervento della stessa unità darebbe una tabella che non segue la sua colonna.
             return [...v.giorni].sort().at(-1) ?? '';
           }
           return [...v.staff].map((id) => nomi.get(id) ?? '').sort()[0] ?? '';
         };
         const segno = f.verso === 'asc' ? 1 : -1;
         passate = [...passate].sort((a, b) => {
-          const va = valore(a.odl);
-          const vb = valore(b.odl);
+          const va = valore(chiaveDi(a));
+          const vb = valore(chiaveDi(b));
           // I vuoti in fondo in ENTRAMBI i versi: «non pianificato» non e` un valore piccolo,
           // e` un valore assente, e in cima somiglierebbe a un risultato.
           if (va === '' && vb !== '') return 1;
@@ -547,7 +669,7 @@ export async function GET(req: Request) {
       } else {
         // Solo le righe della pagina: al massimo `perPagina` ODL, quindi un `in` corto.
         const { data, error } = await supabaseAdmin
-          .from('acea_ordini')
+          .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
           .select(COLONNE)
           .in('odl', [...new Set(pagina.map((k) => k.odl))]);
         if (error) throw error;
@@ -569,13 +691,14 @@ export async function GET(req: Request) {
     // e l'intervento PIÙ RECENTE, che il predicato non guarda.
     const pianificazione = new Map<string, { data: string | null; staff_id: string | null; stato: string | null }>();
     if (odlPagina.length > 0) {
+      const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
       for (let i = 0; i < odlPagina.length; i += 200) {
         const blocco = odlPagina.slice(i, i + 200);
         const { data: interventi, error: eInt } = await supabaseAdmin
           .from('interventi')
-          .select('odl, data, staff_id, stato')
+          .select('odl, data, staff_id, stato, matricola_contatore')
           .in('odl', blocco)
-          .in('committente', COMMITTENTI)
+          .in('committente', [...profilo.committenti])
           .order('data', { ascending: false });
         if (eInt) throw eInt;
         for (const it of (interventi ?? []) as VoceIntervento[]) {
@@ -583,9 +706,11 @@ export async function GET(req: Request) {
           // va — e il badge, che gli annullati li scarta, direbbe «senza esecutore» su una riga
           // che un nome lo mostra. Stessa esclusione dell'indice dei filtri, qui sopra.
           if (it.stato === 'annullato') continue;
-          // Più interventi sullo stesso ODL: vince il più recente (l'ordinamento è discendente).
-          if (it.odl && !pianificazione.has(it.odl)) {
-            pianificazione.set(it.odl, { data: it.data, staff_id: it.staff_id, stato: it.stato });
+          if (!it.odl) continue;
+          // Più interventi sulla stessa unità: vince il più recente (l'ordinamento è discendente).
+          const chiave = chiaveAggancioIntervento(f.famiglia, it.odl, it.matricola_contatore);
+          if (!pianificazione.has(chiave)) {
+            pianificazione.set(chiave, { data: it.data, staff_id: it.staff_id, stato: it.stato });
           }
         }
       }
@@ -600,14 +725,21 @@ export async function GET(req: Request) {
       il motivo per cui si apre questa schermata; la saracinesca e` un di piu` — degradarla in
       silenzio-con-log e` giusto, farci cadere tutto no.
     */
-    const dichiarati = await odlConSaracinescaDichiarata(supabaseAdmin).catch((e) => {
-      console.error('[acea/ordini] dichiarazioni saracinesca non lette:', e);
-      return new Set<string>();
-    });
-    const sostituzioni = await indiceSostituzioni().catch((e) => {
-      console.error('[acea/ordini] ordini di sostituzione non letti:', e);
-      return new Map<string, Sostituzione>();
-    });
+    // Le saracinesche sono un fatto ACEA (dichiarazioni del master, ordini di sostituzione):
+    // sulla vista acqualatina le due letture non partono proprio — pagherebbero due scansioni
+    // per decorare colonne che quella tabella nemmeno disegna.
+    const dichiarati = acqua
+      ? new Set<string>()
+      : await odlConSaracinescaDichiarata(supabaseAdmin).catch((e) => {
+        console.error('[acea/ordini] dichiarazioni saracinesca non lette:', e);
+        return new Set<string>();
+      });
+    const sostituzioni = acqua
+      ? new Map<string, Sostituzione>()
+      : await indiceSostituzioni().catch((e) => {
+        console.error('[acea/ordini] ordini di sostituzione non letti:', e);
+        return new Map<string, Sostituzione>();
+      });
 
     /*
       Gli APPUNTI della pagina: la pianificazione scritta a metà.
@@ -620,7 +752,7 @@ export async function GET(req: Request) {
     if (righe.length > 0) {
       const chiaviPagina = righe.map((r) => `${r.odl}|${r.numero_operazione}`);
       const { data: righeBozza, error: eBozza } = await supabaseAdmin
-        .from('acea_ordini')
+        .from(PROFILO_COMMESSA[f.famiglia ?? 'dunning'].tabellaOrdini)
         .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
         .in('odl', odlPagina);
       if (eBozza) {
@@ -650,7 +782,9 @@ export async function GET(req: Request) {
     }
 
     const conPianificazione = righe.map((r) => {
-      const p = pianificazione.get(r.odl);
+      const p = pianificazione.get(
+        chiaveAggancioIntervento(f.famiglia, r.odl, r.matricola as string | null),
+      );
       // L'ordine di sostituzione si cerca per impianto O per matricola, non per ODL: la
       // sostituzione e` un ordine SUO, con un numero diverso da quello della limitazione.
       const sost = chiaviAggancio({ impianto: r.impianto as string | null, matricola: r.matricola as string | null })

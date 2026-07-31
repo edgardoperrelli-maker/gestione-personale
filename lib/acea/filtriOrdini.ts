@@ -15,6 +15,8 @@
 // filtrerebbe su un insieme che l'utente non vede. Arrivano da `/api/acea/opzioni`, che li legge
 // sull'intero registro, e il filtro si applica lato server.
 
+import type { Famiglia } from './famiglia';
+
 /**
  * Le schede sopra la tabella.
  *
@@ -124,7 +126,7 @@ export type FiltriPianificazione = {
 };
 
 export type FiltriOrdini = {
-  famiglia: 'dunning' | 'massive' | null;
+  famiglia: Famiglia | null;
   stato: StatoFiltro;
   /**
    * Il comune della SCHEDA attiva, nella vista massive. Non è un filtro di colonna: è la scheda —
@@ -334,7 +336,9 @@ export function leggiFiltri(params: URLSearchParams): FiltriOrdini {
   for (const c of COLONNE_TESTO) testi[c] = terminoContiene(params.get(c));
 
   return {
-    famiglia: famiglia === 'dunning' || famiglia === 'massive' ? famiglia : null,
+    famiglia: famiglia === 'dunning' || famiglia === 'massive' || famiglia === 'acqualatina'
+      ? famiglia
+      : null,
     stato:
       stato === 'aperti' || stato === 'chiusi' || stato === 'saracinesche' || stato === 'riaperture'
         ? stato
@@ -444,7 +448,7 @@ export function filtriVuoti(): FiltriUI {
 /** Parametri per `GET /api/acea/ordini`. I valori vuoti non compaiono: URL corte e leggibili. */
 export function parametriQuery(
   f: FiltriUI,
-  famiglia: 'dunning' | 'massive',
+  famiglia: Famiglia,
   perPagina: number,
 ): URLSearchParams {
   const p = new URLSearchParams({ famiglia, perPagina: String(perPagina) });
@@ -529,13 +533,22 @@ export const PREFISSO_SCHEDA_COMUNE = 'comune:';
  * aperto-di-un-comune e chiuso-di-tutti coprono ogni riga, e la scheda in più diluiva le altre.
  * I comuni arrivano dal registro (quelli con almeno un ordine APERTO): un comune nuovo compare al
  * primo import che lo contiene, uno finito sparisce da solo — la sua storia resta in «Chiusi».
+ *
+ * ACQUALATINA — due schede sole: «Da lavorare» e «Chiusi». La campagna è UN comune (Terracina),
+ * quindi le schede-comune non dividerebbero niente; riaperture e saracinesche sono concetti ACEA
+ * (codici SLA, master snapshot) che qui non esistono. Aperto e chiuso coprono ogni riga: «Tutti»
+ * diluirebbe come nelle massive.
  */
 export function schedeVista(
-  famiglia: 'dunning' | 'massive',
+  famiglia: Famiglia,
   comuni: readonly string[],
 ): Scheda[] {
   if (famiglia === 'dunning') {
     return (['aperti', 'riaperture', 'chiusi', 'tutti', 'saracinesche'] as StatoFiltro[])
+      .map((s) => ({ value: s, label: ETICHETTE_STATO[s] }));
+  }
+  if (famiglia === 'acqualatina') {
+    return (['aperti', 'chiusi'] as StatoFiltro[])
       .map((s) => ({ value: s, label: ETICHETTE_STATO[s] }));
   }
   return [

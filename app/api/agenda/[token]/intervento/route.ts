@@ -49,11 +49,14 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
 
     const { data: intRow } = await supabaseAdmin
       .from('interventi')
-      .select('id, stato, committente, staff_id, data, odl')
+      .select('id, stato, committente, staff_id, data, odl, matricola_contatore')
       .eq('id', interventoId)
       .maybeSingle();
     const it = intRow as
-      | { id: string; stato: StatoIntervento; committente: string | null; staff_id: string | null; data: string; odl: string | null }
+      | {
+          id: string; stato: StatoIntervento; committente: string | null; staff_id: string | null;
+          data: string; odl: string | null; matricola_contatore: string | null;
+        }
       | null;
     if (!it || it.staff_id !== tok.staff_id || it.data !== tok.data) {
       return NextResponse.json({ error: 'Intervento non valido per questa agenda.' }, { status: 400 });
@@ -74,15 +77,19 @@ export async function POST(req: Request, { params }: { params: Promise<{ token: 
     // chiude normalmente ma viene comunque marcato (visita non dovuta). Non blocca l'operatore.
     let originale: { id: string; data: string | null } | undefined;
     if (it.odl && (it.odl ?? '').trim()) {
+      // Matricola nell'indice e nella chiave: per acqualatina l'invariante è per contatore.
       const { data: posRows } = await supabaseAdmin
         .from('interventi')
-        .select('id, odl, data, committente')
+        .select('id, odl, data, committente, matricola_contatore')
         .eq('esito', 'eseguito_positivo')
         .eq('odl', it.odl)
         .neq('id', interventoId);
       originale = indicizzaPositivi(
-        (posRows ?? []) as Array<{ id: string; odl: string | null; data: string | null; committente: string | null }>,
-      ).get(chiavePositivo(it.committente, it.odl));
+        ((posRows ?? []) as Array<{
+          id: string; odl: string | null; data: string | null; committente: string | null;
+          matricola_contatore: string | null;
+        }>).map((r) => ({ ...r, matricola: r.matricola_contatore })),
+      ).get(chiavePositivo(it.committente, it.odl, it.matricola_contatore));
     }
     const decisione = decidiChiusuraConPositivi({
       interventoId,

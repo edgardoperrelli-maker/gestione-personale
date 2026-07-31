@@ -29,21 +29,39 @@ export function setOdl(odls: Array<string | null | undefined>): Set<string> {
 
 export type PositivoOriginale = { id: string; data: string | null };
 
-export function chiavePositivo(committente: string | null | undefined, odl: string | null | undefined): string {
-  return `${(committente ?? 'acea').trim().toLowerCase()}|${normOdl(odl)}`;
+/**
+ * Chiave dell'invariante. Per quasi tutti i committenti è `(committente, odl)`; per ACQUALATINA
+ * è `(committente, odl, matricola)` — nel master di Terracina un ODL copre fino a cinque
+ * contatori (condomìni), e ogni contatore ha diritto al SUO positivo definitivo: con la chiave
+ * sul solo ODL, il secondo contatore eseguito verrebbe annullato come «DOPPIO POSITIVO».
+ * La matricola entra normalizzata (maiuscola, senza separatori), come nel resto del motore.
+ */
+export function chiavePositivo(
+  committente: string | null | undefined,
+  odl: string | null | undefined,
+  matricola?: string | null,
+): string {
+  const c = (committente ?? 'acea').trim().toLowerCase();
+  const base = `${c}|${normOdl(odl)}`;
+  if (c !== 'acqualatina') return base;
+  return `${base}|${String(matricola ?? '').toUpperCase().replace(/[^A-Z0-9]/g, '')}`;
 }
 
 /**
- * Indicizza i positivi esistenti per (committente, odl) tenendo l'ORIGINALE:
+ * Indicizza i positivi esistenti per chiave (vedi `chiavePositivo`) tenendo l'ORIGINALE:
  * il più vecchio per data (a parità, id minore per determinismo).
  */
 export function indicizzaPositivi(
-  rows: Array<{ id: string; odl: string | null; data: string | null; committente?: string | null }>,
+  rows: Array<{
+    id: string; odl: string | null; data: string | null; committente?: string | null;
+    /** `matricola_contatore` dell'intervento: pesa solo sulla chiave acqualatina. */
+    matricola?: string | null;
+  }>,
 ): Map<string, PositivoOriginale> {
   const map = new Map<string, PositivoOriginale>();
   for (const r of rows) {
     if (!normOdl(r.odl)) continue;
-    const k = chiavePositivo(r.committente, r.odl);
+    const k = chiavePositivo(r.committente, r.odl, r.matricola);
     const cur = map.get(k);
     const dNew = r.data ?? '9999-12-31';
     const dCur = cur ? (cur.data ?? '9999-12-31') : '';

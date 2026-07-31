@@ -69,9 +69,9 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
           Quando si programma, e su chi
         </h3>
         <ul className="list-disc space-y-1 pl-5">
-          {famiglia === 'massive'
-            ? <li>Si programma solo per <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non le massive.</li>
-            : <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>}
+          {famiglia === 'dunning'
+            ? <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>
+            : <li>Si programma solo per <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non questa vista.</li>}
           <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
             <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>
@@ -85,7 +85,9 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
         <ul className="list-disc space-y-1 pl-5">
           <li>Si <strong>trascinano</strong> per riordinarle e si <strong>tirano dal bordo</strong> per la larghezza (doppio click sul bordo per rimetterla com&apos;era).</li>
           <li>Dal menu «Colonne» si scelgono quelle visibili e si esporta la vista filtrata.</li>
-          <li>Una riga <strong>rossastra</strong> è una <strong>revoca</strong> (REVO) aperta: verifica sul sistema ACEA se è davvero una revoca o se va trasformata in Riattivazione o Regolarizzazione — l&apos;attività scritta non le distingue.</li>
+          {famiglia !== 'acqualatina' && (
+            <li>Una riga <strong>rossastra</strong> è una <strong>revoca</strong> (REVO) aperta: verifica sul sistema ACEA se è davvero una revoca o se va trasformata in Riattivazione o Regolarizzazione — l&apos;attività scritta non le distingue.</li>
+          )}
         </ul>
       </section>
     </div>

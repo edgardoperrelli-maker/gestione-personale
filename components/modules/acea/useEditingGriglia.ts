@@ -13,6 +13,7 @@ import {
 } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
+import type { Famiglia } from '@/lib/acea/famiglia';
 
 export type Operatore = {
   id: string;
@@ -72,6 +73,8 @@ type Props = {
   /** Chiamata dopo un salvataggio andato a buon fine, per ricaricare i dati veri. */
   onSalvato: (operazioneId: string | null) => void;
   attivo: boolean;
+  /** Famiglia della vista: il salvataggio deve scrivere sul registro giusto. */
+  famiglia: Famiglia;
 };
 
 /**
@@ -92,7 +95,7 @@ type Props = {
  * ogni cella è una chiamata di rete che può fallire, e l'utente deve vedere cosa non è passato.
  */
 export function useEditingGriglia({
-  righe, operatori, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo,
+  righe, operatori, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo, famiglia,
 }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
@@ -244,6 +247,8 @@ export function useEditingGriglia({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           modifiche: [...perChiave.entries()].map(([chiave, v]) => ({ chiave, ...v })),
+          // La famiglia dice al server su QUALE registro scrivere note e appunti.
+          famiglia,
         }),
       });
       const body = (await res.json()) as {
@@ -287,7 +292,7 @@ export function useEditingGriglia({
     } finally {
       setSalvando(false);
     }
-  }, [locali, operatori, giorni, giorniSoloAttivazioni, chiaveDi, onSalvato, editabile]);
+  }, [locali, operatori, giorni, giorniSoloAttivazioni, chiaveDi, onSalvato, editabile, famiglia]);
 
   /**
    * Il testo di una cella come esce negli appunti.
