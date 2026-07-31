@@ -10,15 +10,31 @@ export interface PdfFilters {
   stato?: string;
   comune?: string;
   esecutore?: string;
+  /** Filtro pallet attivo (registro AcquaLatina): il PDF di un pallet è la sua distinta. */
+  pallet?: string;
 }
 
-export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilters): void {
+export interface PdfOpzioni {
+  /** Titolo del documento: il PDF era cablato su «— ACEA» anche per l'altro registro. */
+  titolo?: string;
+  /** Colonna PDR (solo ACEA: un misuratore d'acqua non ha un punto di riconsegna gas). */
+  mostraPdr?: boolean;
+  /** Colonna Pallet (solo AcquaLatina): il riferimento con cui la riconsegna viaggia. */
+  mostraPallet?: boolean;
+}
+
+export function exportMisuratoriPdf(
+  rows: MisuratoreRimosso[],
+  filters: PdfFilters,
+  opzioni: PdfOpzioni = {},
+): void {
+  const { titolo = 'Registro Misuratori Rimossi — ACEA', mostraPdr = true, mostraPallet = false } = opzioni;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
   // Intestazione
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
-  doc.text('Registro Misuratori Rimossi — ACEA', 14, 18);
+  doc.text(titolo, 14, 18);
 
   // Filtri attivi
   const parts: string[] = [];
@@ -33,6 +49,7 @@ export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilte
   }
   if (filters.comune) parts.push(`Comune: ${filters.comune}`);
   if (filters.esecutore) parts.push(`Esecutore: ${filters.esecutore}`);
+  if (filters.pallet) parts.push(`Pallet: ${filters.pallet}`);
 
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
@@ -41,35 +58,34 @@ export function exportMisuratoriPdf(rows: MisuratoreRimosso[], filters: PdfFilte
   const printDate = new Date().toLocaleDateString('it-IT');
   doc.text(`Stampato: ${printDate}  ·  ${rows.length} righe`, 14, 32);
 
-  // Tabella
+  /*
+    Colonne per registro: la testa, la riga e le larghezze si costruiscono INSIEME, così una
+    colonna condizionale non può sfalsare le altre (l'errore classico delle tre liste parallele).
+  */
+  type Colonna = { testa: string; valore: (r: MisuratoreRimosso) => string; larghezza?: number | 'auto' };
+  const colonne: Colonna[] = [
+    { testa: 'ODS/ODL', valore: (r) => r.odl ?? '', larghezza: 22 },
+    { testa: 'Data', valore: (r) => formatItalian(r.data_esecuzione), larghezza: 20 },
+    { testa: 'Esecutore', valore: (r) => r.esecutore ?? '', larghezza: 28 },
+    { testa: 'Indirizzo', valore: (r) => r.indirizzo ?? '', larghezza: 45 },
+    { testa: 'Comune', valore: (r) => r.comune ?? '', larghezza: 24 },
+    { testa: 'Matricola', valore: (r) => r.matricola, larghezza: 26 },
+    ...(mostraPdr ? [{ testa: 'PDR', valore: (r: MisuratoreRimosso) => r.pdr ?? '', larghezza: 20 } as Colonna] : []),
+    ...(mostraPallet ? [{ testa: 'Pallet', valore: (r: MisuratoreRimosso) => r.pallet ?? '', larghezza: 18 } as Colonna] : []),
+    { testa: 'Stato', valore: (r) => STATO_LABEL[r.stato], larghezza: 36 },
+    { testa: 'Note', valore: (r) => r.note ?? '', larghezza: 'auto' },
+  ];
+
   autoTable(doc, {
     startY: 38,
-    head: [['ODS/ODL', 'Data', 'Esecutore', 'Indirizzo', 'Comune', 'Matricola', 'PDR', 'Stato', 'Note']],
-    body: rows.map(r => [
-      r.odl ?? '',
-      formatItalian(r.data_esecuzione),
-      r.esecutore ?? '',
-      r.indirizzo ?? '',
-      r.comune ?? '',
-      r.matricola,
-      r.pdr ?? '',
-      STATO_LABEL[r.stato],
-      r.note ?? '',
-    ]),
+    head: [colonne.map((c) => c.testa)],
+    body: rows.map((r) => colonne.map((c) => c.valore(r))),
     styles:     { fontSize: 7, cellPadding: 1.5 },
     headStyles: { fillColor: [...BRAND_EXPORT.accentRgb], textColor: 255, fontStyle: 'bold' },
     alternateRowStyles: { fillColor: [245, 247, 250] },
-    columnStyles: {
-      0: { cellWidth: 22 },
-      1: { cellWidth: 20 },
-      2: { cellWidth: 28 },
-      3: { cellWidth: 45 },
-      4: { cellWidth: 24 },
-      5: { cellWidth: 26 },
-      6: { cellWidth: 20 },
-      7: { cellWidth: 36 },
-      8: { cellWidth: 'auto' },
-    },
+    columnStyles: Object.fromEntries(
+      colonne.map((c, i) => [i, { cellWidth: c.larghezza ?? 'auto' }]),
+    ),
   });
 
   // Footer "Pagina X di Y" — post-processing

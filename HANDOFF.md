@@ -194,6 +194,13 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   (`/api/acqualatina/ordini/sync` + «Aggiorna dal master» al posto di «Importa export»);
   pagina `/hub/acqualatina/pianificazione` + foglietta nella landing. Le route condivise
   ricevono `famiglia` nel body/query e scelgono il registro dal profilo.
+- [x] **Pallet sui misuratori AcquaLatina** (31/07, dec. 48) — a CESTA PIENA l'ufficio spunta i
+  misuratori nel registro «Misuratori rimossi — AcquaLatina» e assegna in blocco il numero del
+  pallet di riferimento (barra con input + Assegna/Togli/Annulla, `POST
+  /api/acqualatina/misuratori/pallet`, colonna `pallet` text solo su quella tabella — migration
+  `20260731190000` in prod). Filtro «Pallet» con «Senza pallet» (= ancora in cesta), colonna
+  ordinabile in tabella e nel PDF, che ora prende il titolo per commessa (`titoloPdf`) invece
+  del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati.
 
 ## Not Yet Done
 
@@ -281,7 +288,7 @@ push). In produzione (Supabase `aceztqfebringeaebvce`): migration `2026073117000
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 47 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 48 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acqualatina/ordiniDaMaster.ts` | Sync dal master: identità (odl, matricola), numerazione operazioni stabile, spacco via/civico |
 | `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |

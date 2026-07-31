@@ -30,6 +30,8 @@ export default async function AcqualatinaMisuratoriPage() {
         sottotitolo="Contatori smontati in campo, dal deposito alla riconsegna al committente"
         mostraRicalcola={false}
         mostraPdr={false}
+        mostraPallet
+        titoloPdf="Registro Misuratori Rimossi — AcquaLatina"
       />
     </AuthGate>
   );

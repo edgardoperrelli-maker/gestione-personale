@@ -5,7 +5,7 @@ import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisura
 import { STATO_ACCENT } from './StatoBadge';
 import { formatItalian } from '@/utils/date-it';
 
-type SortKey = 'data_esecuzione' | 'stato' | 'comune';
+type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet';
 
 interface Props {
   rows: MisuratoreRimosso[];
@@ -14,9 +14,21 @@ interface Props {
   isAdminPlus: boolean;
   /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
   mostraPdr?: boolean;
+  /**
+   * Colonna Pallet + spunte di selezione (solo AcquaLatina): a cesta piena si selezionano i
+   * misuratori che ci sono finiti dentro e si assegna loro il numero del pallet, in blocco
+   * dalla barra del client. Senza questa prop la tabella resta quella di sempre.
+   */
+  mostraPallet?: boolean;
+  /** Id selezionati, posseduti dal client (la barra di assegnazione vive lì). */
+  selezione?: ReadonlySet<string>;
+  onSelezione?: (aggiorna: (prima: Set<string>) => Set<string>) => void;
 }
 
-export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPdr = true }: Props) {
+export default function MisuratoriTabella({
+  rows, onPatch, isAdminPlus, mostraPdr = true,
+  mostraPallet = false, selezione, onSelezione,
+}: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
   const [sortAsc, setSortAsc]         = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
@@ -63,6 +75,33 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPd
           : <ArrowDown className="ml-1 inline-block h-3 w-3 align-[-1px]" aria-hidden />)
       : null;
 
+  const conSpunte = mostraPallet && onSelezione !== undefined;
+  const spuntate = selezione ?? new Set<string>();
+  const visibiliSpuntate = conSpunte ? sorted.filter((r) => spuntate.has(r.id)).length : 0;
+  const tutteSpuntate = conSpunte && sorted.length > 0 && visibiliSpuntate === sorted.length;
+
+  const toggleRiga = useCallback((id: string) => {
+    onSelezione?.((prima) => {
+      const dopo = new Set(prima);
+      if (dopo.has(id)) dopo.delete(id);
+      else dopo.add(id);
+      return dopo;
+    });
+  }, [onSelezione]);
+
+  // La spunta di testa lavora sulle righe VISIBILI (filtri e ordinamento correnti): «tutta la
+  // cesta» nella pratica è «tutto ciò che ho davanti dopo aver filtrato».
+  const toggleTutte = useCallback(() => {
+    onSelezione?.((prima) => {
+      const dopo = new Set(prima);
+      const visibili = sorted.map((r) => r.id);
+      const giaTutte = visibili.length > 0 && visibili.every((id) => dopo.has(id));
+      if (giaTutte) visibili.forEach((id) => dopo.delete(id));
+      else visibili.forEach((id) => dopo.add(id));
+      return dopo;
+    });
+  }, [onSelezione, sorted]);
+
   if (rows.length === 0) {
     return (
       <p className="py-12 text-center text-sm text-[var(--brand-text-muted)]">
@@ -75,6 +114,18 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPd
     <table className="min-w-full divide-y divide-[var(--brand-border)] text-sm">
       <thead className="sticky top-0 z-10 bg-[var(--brand-surface-muted)]">
         <tr>
+            {conSpunte && (
+              <th className="w-8 px-3 py-2">
+                <input
+                  type="checkbox"
+                  checked={tutteSpuntate}
+                  onChange={toggleTutte}
+                  aria-label="Seleziona tutti i misuratori visibili"
+                  title="Seleziona tutti i visibili (con i filtri correnti)"
+                  className="h-4 w-4 accent-[var(--brand-primary)]"
+                />
+              </th>
+            )}
             {(
               [
                 { key: null,              label: 'ODS/ODL' },
@@ -84,6 +135,7 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPd
                 { key: 'comune',          label: 'Comune' },
                 { key: null,              label: 'Matricola' },
                 ...(mostraPdr ? [{ key: null, label: 'PDR' }] : []),
+                ...(mostraPallet ? [{ key: 'pallet' as SortKey, label: 'Pallet' }] : []),
                 { key: 'stato',           label: 'Stato' },
                 { key: null,              label: 'Note' },
               ] as Array<{ key: SortKey | null; label: string }>
@@ -104,11 +156,24 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPd
             return (
             <tr
               key={row.id}
-              className="transition-colors hover:bg-[var(--brand-surface-muted)]"
+              className={`transition-colors hover:bg-[var(--brand-surface-muted)]${
+                conSpunte && spuntate.has(row.id) ? ' bg-[var(--brand-primary-soft)]' : ''
+              }`}
             >
+              {conSpunte && (
+                <td className="w-8 px-3 py-2" style={{ boxShadow: `inset 3px 0 0 0 ${accent}` }}>
+                  <input
+                    type="checkbox"
+                    checked={spuntate.has(row.id)}
+                    onChange={() => toggleRiga(row.id)}
+                    aria-label={`Seleziona misuratore ${row.matricola}`}
+                    className="h-4 w-4 accent-[var(--brand-primary)]"
+                  />
+                </td>
+              )}
               <td
                 className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums"
-                style={{ boxShadow: `inset 3px 0 0 0 ${accent}` }}
+                style={conSpunte ? undefined : { boxShadow: `inset 3px 0 0 0 ${accent}` }}
               >{row.odl ?? '—'}</td>
               <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatItalian(row.data_esecuzione)}</td>
               <td className="whitespace-nowrap px-3 py-2">{row.esecutore ?? '—'}</td>
@@ -117,6 +182,11 @@ export default function MisuratoriTabella({ rows, onPatch, isAdminPlus, mostraPd
               <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.matricola}</td>
               {mostraPdr && (
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.pdr ?? '—'}</td>
+              )}
+              {mostraPallet && (
+                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">
+                  {row.pallet?.trim() || '—'}
+                </td>
               )}
 
               {/* Dropdown stato inline */}
