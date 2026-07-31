@@ -13,6 +13,7 @@ import {
   House,
   ListTodo,
   MapPinned,
+  Package,
   Settings,
   Siren,
   Sparkles,
@@ -71,3 +72,10 @@ export const DASHBOARD_HOME_ICON: ReactNode = <House {...ICON_PROPS} />;
  * diverse con lo stesso pin. Tabella = «stati per giorno e operatore».
  */
 export const RIEPILOGO_RAPPORTINI_ICON: ReactNode = <Table {...ICON_PROPS} />;
+
+/**
+ * Stesso ventaglio per `acqualatina`: Pianificazione (la goccia del modulo) e Misuratori
+ * rimossi come voci separate. Il pacco è la riconsegna — i misuratori viaggiano in ceste su
+ * pallet — e non è la `Gauge` del registro ACEA: due registri diversi, due icone diverse.
+ */
+export const MISURATORI_ACQUALATINA_ICON: ReactNode = <Package {...ICON_PROPS} />;
