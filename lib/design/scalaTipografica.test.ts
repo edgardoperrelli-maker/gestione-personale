@@ -1,5 +1,5 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { resolve, join } from 'node:path';
+import { resolve, join, relative, sep } from 'node:path';
 import { describe, expect, it } from 'vitest';
 
 // Guardia sulla SCALA TIPOGRAFICA (DESIGN.md §4).
@@ -38,14 +38,31 @@ function file(dir: string, out: string[] = []): string[] {
   return out;
 }
 
+/** La radice del repo: le posizioni si dicono RELATIVE a questa, mai assolute. */
+const RADICE_REPO = resolve(__dirname, '../..');
+
+/**
+ * Il percorso come lo scrive `ECCEZIONI`: relativo alla radice, separatori POSIX.
+ *
+ * Prima era `f.split('/gestione-personale/')[1] ?? f`, cioè il nome della cartella di
+ * checkout usato come punto di taglio. Reggeva solo in CI: su Windows i separatori sono
+ * `\` e non c'è nessuna `/` da tagliare, e su qualunque clone con un nome diverso — questo
+ * gira in `gestione-personale-main` — il segmento non esiste comunque. Il fallback lasciava
+ * il path ASSOLUTO, che non combacia con la chiave `components/ui/KpiCard.tsx`: il 26px
+ * dichiarato risultava fuori scala E la sua eccezione risultava orfana, cioè i due test si
+ * contraddicevano sullo stesso valore. Due rossi fissi in locale insegnano a ignorare il
+ * rosso, ed è così che una guardia smette di guardare.
+ */
+const posizione = (f: string) => relative(RADICE_REPO, f).split(sep).join('/');
+
 /** Ogni `text-[<n>px]` del codebase, con posizione. */
 function dimensioniArbitrarie(): { file: string; riga: number; valore: string }[] {
   const fuori: { file: string; riga: number; valore: string }[] = [];
   for (const radice of RADICI) {
-    for (const f of file(resolve(__dirname, '../..', radice))) {
+    for (const f of file(resolve(RADICE_REPO, radice))) {
       readFileSync(f, 'utf8').split('\n').forEach((linea, i) => {
         for (const m of linea.matchAll(/text-\[(\d+(?:\.\d+)?)px\]/g)) {
-          fuori.push({ file: f.split('/gestione-personale/')[1] ?? f, riga: i + 1, valore: m[1] });
+          fuori.push({ file: posizione(f), riga: i + 1, valore: m[1] });
         }
       });
     }
