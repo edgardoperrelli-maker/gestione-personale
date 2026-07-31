@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { AppModuleKey } from '@/lib/moduleAccess';
@@ -139,7 +139,17 @@ export default function AppShell({
 
   return (
     <RichiesteManualiProvider enabled={isAdmin}>
-    <div className="flex min-h-screen bg-[var(--brand-bg)]">
+    {/*
+      `--shell-sidebar-w`: la larghezza della sidebar in-flow, esposta ai figli `fixed` che
+      devono ancorarsi al bordo sinistro del CONTENUTO e non a quello del viewport — oggi il
+      solo `Toaster`. Segue il collasso (w-60 → w-16) perché è la stessa condizione che disegna
+      la sidebar. Fuori dall'AppShell (portale operatore `/r`) la variabile non esiste e il
+      fallback la annulla, che è giusto: là la sidebar non c'è.
+    */}
+    <div
+      className="flex min-h-screen bg-[var(--brand-bg)]"
+      style={{ '--shell-sidebar-w': collapsed ? '4rem' : '15rem' } as CSSProperties}
+    >
       {/* Sidebar desktop (in-flow) */}
       <div className="sticky top-0 hidden h-dvh md:block">
         <Sidebar
