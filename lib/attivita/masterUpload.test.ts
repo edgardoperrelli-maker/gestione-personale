@@ -48,10 +48,26 @@ describe('parseMasterUpload', () => {
     expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', impianto: '', indirizzo: '', cap: '', comune: '', operazione: '' });
   });
   it("legge l'IMPIANTO, comunque sia scritta l'intestazione", () => {
-    for (const header of ['IMPIANTO', 'Impianto', 'N. impianto', 'Cod. Impianto', 'CODICE IMPIANTO', 'PDR']) {
+    const headers = [
+      // Il nome REALE nell'estrazione AcquaLatina: il punto è la «fornitura».
+      'COD_FORNITURA', 'Cod. Fornitura', 'CODICE FORNITURA', 'FORNITURA',
+      'IMPIANTO', 'Impianto', 'N. impianto', 'Cod. Impianto', 'CODICE IMPIANTO', 'PDR',
+    ];
+    for (const header of headers) {
       const out = parseMasterUpload([['Ordine', header], ['12379743', '19633002']]);
       expect(out.righe[0].impianto, header).toBe('19633002');
     }
+  });
+  it('estrazione AcquaLatina: ODL + COD_FORNITURA + matricola, come arriva dal committente', () => {
+    const out = parseMasterUpload([
+      ['ODL', 'COD_FORNITURA', 'MATRICOLA', 'INDIRIZZO', 'COMUNE'],
+      ['12379743', '19633002', '640729', 'VIA CAMPANIA 3', 'TERRACINA'],
+      ['12384745', '74278859', '104690', 'VIA EMILIA SNC', 'TERRACINA'],
+    ]);
+    expect(out.righe.map((r) => [r.odl, r.impianto])).toEqual([
+      ['12379743', '19633002'],
+      ['12384745', '74278859'],
+    ]);
   });
   it('"DESCRIZIONE PDR/IMPIANTO" è la descrizione dell\'ordine, non il codice impianto', () => {
     const out = parseMasterUpload([

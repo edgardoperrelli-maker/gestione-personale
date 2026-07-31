@@ -31,9 +31,15 @@ const PATTERN: Record<Campo, RegExp> = {
   // L'IMPIANTO è la chiave stabile del punto (sopravvive alla sostituzione del contatore,
   // la matricola no) e su AcquaLatina è il numero d'ordine del committente: da noi finisce
   // in `interventi.pdr`, che è lo stesso slot — la UI lo etichetta «PDR / impianto».
+  //
+  // Nell'estrazione AcquaLatina la colonna NON si chiama impianto: si chiama
+  // **COD_FORNITURA** (il punto è la fornitura, nel loro gergo). È il nome che conta di
+  // più qui — è quello del file che si carica davvero — e senza di lui il master entra
+  // senza impianti senza dire niente a nessuno, che è esattamente com'è andata.
+  //
   // Ancorato a `^`: l'header ACEA "DESCRIZIONE PDR/IMPIANTO" è la descrizione dell'ordine,
   // non il codice, e non deve entrare qui.
-  impianto: /^(n|cod|codice)?impianto|^pdr/,
+  impianto: /^(n|cod|codice)?(impianto|fornitura)|^pdr/,
   indirizzo: /indirizzo|^via$|ubicazione|toponimo/,
   cap: /^cap$/, // l'header normalizzato riduce "C.A.P." a "cap"
   comune: /comune|citta|localita/,
