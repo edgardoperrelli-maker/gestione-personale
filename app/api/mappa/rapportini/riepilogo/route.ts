@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { tokenStatus } from '@/utils/rapportini/tokenStatus';
 import { territorioEffettivo } from '@/utils/rapportini/territorioEffettivo';
+import { idPianiPerLettura } from '@/utils/rapportini/idPiani';
 import { requireUser } from '@/lib/apiAuth';
 
 export const runtime = 'nodejs';
@@ -21,12 +22,15 @@ export async function GET(req: Request) {
     .lte('data', to)
     .order('data', { ascending: false });
   const list = (raps ?? []) as Array<{
-    id: string; piano_id: string; staff_id: string; staff_name: string | null;
+    id: string; piano_id: string | null; staff_id: string; staff_name: string | null;
     data: string; stato: string; token: string; expires_at: string; submitted_at: string | null; riaperto_at: string | null;
     territorio_override: string | null;
   }>;
 
-  const pianoIds = [...new Set(list.map((r) => r.piano_id))];
+  // Senza `idPianiPerLettura` un solo rapportino con `piano_id` NULL (Consuntivazione) faceva
+  // fallire la lettura dei piani qui sotto, e OGNI rapportino della finestra restava senza
+  // territorio — non solo quello senza piano. Vedi utils/rapportini/idPiani.
+  const pianoIds = idPianiPerLettura(list);
   const rapIds = list.map((r) => r.id);
   const pianoInfoById: Record<string, { territorio: string | null; creato_at: string | null }> = {};
   const aiPianoIds = new Set<string>();
@@ -62,16 +66,21 @@ export async function GET(req: Request) {
 
   const base = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');
   const nowIso = now.toISOString();
-  const out = list.map((r) => ({
-    ...r,
-    territorio: territorioEffettivo(r.territorio_override, pianoInfoById[r.piano_id]?.territorio),
-    territorio_override: r.territorio_override ?? null,
-    piano_creato_at: pianoInfoById[r.piano_id]?.creato_at ?? null,
-    aiCreato: aiPianoIds.has(r.piano_id),
-    url: `${base}/r/${r.token}`,
-    statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
-    nVoci: vociCount[r.id] ?? 0,
-    fotoInSospeso: fotoSospese[r.id] ?? 0,
-  }));
+  const out = list.map((r) => {
+    // Senza piano (rapportino-contenitore della Consuntivazione) non c'è nulla da cercare:
+    // resta il solo `territorio_override`, se l'ufficio gliene ha dato uno.
+    const piano = r.piano_id ? pianoInfoById[r.piano_id] : undefined;
+    return {
+      ...r,
+      territorio: territorioEffettivo(r.territorio_override, piano?.territorio),
+      territorio_override: r.territorio_override ?? null,
+      piano_creato_at: piano?.creato_at ?? null,
+      aiCreato: r.piano_id != null && aiPianoIds.has(r.piano_id),
+      url: `${base}/r/${r.token}`,
+      statoCalcolato: tokenStatus(r as { stato: 'in_corso' | 'inviato' | 'scaduto'; data: string; riaperto_at: string | null }, nowIso),
+      nVoci: vociCount[r.id] ?? 0,
+      fotoInSospeso: fotoSospese[r.id] ?? 0,
+    };
+  });
   return NextResponse.json(out);
 }

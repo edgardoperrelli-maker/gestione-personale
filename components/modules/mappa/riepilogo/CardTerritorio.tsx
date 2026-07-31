@@ -80,21 +80,26 @@ function AzioniPiano({
   onEliminaPiano: (pianoId: string) => void;
   onSpostaPiano: (pianoId: string, opts: { data?: string; territorio?: string | null }) => void;
 }) {
+  // Senza piano (rapportini-contenitore della Consuntivazione) non c'è nulla da riaprire,
+  // spostare o eliminare: i comandi punterebbero a `pianoId=null`.
+  const pianoId = piano.piano_id;
+  if (!pianoId) return null;
+
   const voci: VoceAzione[] = [
     {
       tipo: 'sposta',
       territori,
       territorioCorrente: etichettaTerritorio,
-      onSpostaTerritorio: (t) => onSpostaPiano(piano.piano_id, { territorio: t }),
-      onSpostaData: (d) => onSpostaPiano(piano.piano_id, { data: d }),
+      onSpostaTerritorio: (t) => onSpostaPiano(pianoId, { territorio: t }),
+      onSpostaData: (d) => onSpostaPiano(pianoId, { data: d }),
     },
-    { tipo: 'bottone', label: 'Elimina la pianificazione', danger: true, onClick: () => setConfirmPiano(piano.piano_id) },
+    { tipo: 'bottone', label: 'Elimina la pianificazione', danger: true, onClick: () => setConfirmPiano(pianoId) },
   ];
 
-  if (confirmPiano === piano.piano_id) {
+  if (confirmPiano === pianoId) {
     return (
       <span className="flex shrink-0 items-center gap-2">
-        <button type="button" onClick={() => onEliminaPiano(piano.piano_id)} disabled={busy} className={AZIONE_TESTO_DANGER}>
+        <button type="button" onClick={() => onEliminaPiano(pianoId)} disabled={busy} className={AZIONE_TESTO_DANGER}>
           Elimina
         </button>
         <button type="button" onClick={() => setConfirmPiano(null)} className={AZIONE_TESTO}>
@@ -106,7 +111,7 @@ function AzioniPiano({
 
   return (
     <span className="flex shrink-0 items-center gap-1">
-      <LinkIcona nome="Riapri questa pianificazione" href={onRiapriHref(piano.piano_id)}>
+      <LinkIcona nome="Riapri questa pianificazione" href={onRiapriHref(pianoId)}>
         <ExternalLink size={13} aria-hidden />
       </LinkIcona>
       <MenuAzioni voci={voci} busy={busy} ariaLabel="Altre azioni sulla pianificazione" />
@@ -193,7 +198,7 @@ export default function CardTerritorio({
 
       {/* Corpo: una sezione per piano */}
       {terr.piani.map((piano, i) => (
-        <div key={piano.piano_id}>
+        <div key={piano.piano_id ?? 'senza-piano'}>
           {/* Fascia intestazione piano (solo se multi-piano). Etichetta corta —
               «Piano 1 · 15:07» invece di «Pianificazione 1 · creata 15:07» —
               perché a 1280px la versione lunga veniva tagliata a «Pianific…»,
@@ -227,15 +232,24 @@ export default function CardTerritorio({
                   label: 'Scarica le foto',
                   onClick: () => setFotoModal({ id: r.id, etichetta: `${r.staff_name ?? 'Operatore'} · ${dataLabel}` }),
                 },
-                {
-                  tipo: 'sposta',
-                  territori,
-                  territorioCorrente: r.territorio_override ?? null,
-                  onSpostaTerritorio: (t) => onSpostaTerritorioOperatore(r.id, t),
-                  onSpostaData: (d) => onSpostaDataOperatore(r.id, d),
-                },
-                { tipo: 'bottone', label: 'Rimuovi dalla pianificazione', danger: true, onClick: () => setConfirmOp(r.id) },
               ];
+              // Spostare (territorio o giorno) e rimuovere sono operazioni SUL PIANO: muovono
+              // gli interventi dell'operatore, che stanno su `interventi.piano_id`. Sui
+              // rapportini-contenitore della Consuntivazione — nati senza piano — non c'è
+              // niente da muovere e il server risponderebbe 500: restano solo le voci che
+              // riguardano il rapportino in sé.
+              if (piano.piano_id) {
+                voci.push(
+                  {
+                    tipo: 'sposta',
+                    territori,
+                    territorioCorrente: r.territorio_override ?? null,
+                    onSpostaTerritorio: (t) => onSpostaTerritorioOperatore(r.id, t),
+                    onSpostaData: (d) => onSpostaDataOperatore(r.id, d),
+                  },
+                  { tipo: 'bottone', label: 'Rimuovi dalla pianificazione', danger: true, onClick: () => setConfirmOp(r.id) },
+                );
+              }
               return (
                 <li key={r.id} className="px-3 py-1.5">
                   <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
@@ -256,9 +270,9 @@ export default function CardTerritorio({
                       resto sta nel menu con un nome scritto. Prima erano otto
                       quadratini grigi identici, e a 1280px andavano a due righe. */}
                   <div className="mt-1 flex items-center gap-1">
-                    {confirmOp === r.id ? (
+                    {confirmOp === r.id && piano.piano_id ? (
                       <>
-                        <button type="button" onClick={() => onRimuoviOp(piano.piano_id, r.staff_id)} disabled={busy} className={AZIONE_TESTO_DANGER}>
+                        <button type="button" onClick={() => onRimuoviOp(piano.piano_id!, r.staff_id)} disabled={busy} className={AZIONE_TESTO_DANGER}>
                           Rimuovi
                         </button>
                         <button type="button" onClick={() => setConfirmOp(null)} className={AZIONE_TESTO}>
