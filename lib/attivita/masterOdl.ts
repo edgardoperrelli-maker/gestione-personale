@@ -13,6 +13,7 @@ export type RigaMasterOdl = {
   odl: string;
   descrizione: string; // canonica di tassonomia; '' se l'operazione non è risolvibile
   matricola: string;
+  impianto: string; // codice impianto/PDR → colonna «PdR / Impianto» del template
   indirizzo: string;
   cap: string;
   comune: string;
@@ -22,6 +23,7 @@ export type FonteMasterRiga = {
   odl?: string | null;
   operazione?: string | null; // testo grezzo attività/operazione della riga
   matricola?: string | null;
+  impianto?: string | null;
   indirizzo?: string | null;
   cap?: string | null;
   comune?: string | null;
@@ -86,6 +88,7 @@ export function costruisciMasterOdl(
         odl,
         descrizione: ris?.descrizione ?? '',
         matricola: t(r.matricola),
+        impianto: t(r.impianto),
         indirizzo: t(r.indirizzo),
         cap: t(r.cap),
         comune: t(r.comune),
@@ -95,6 +98,7 @@ export function costruisciMasterOdl(
         odl,
         descrizione: prima.descrizione || nuova.descrizione,
         matricola: prima.matricola || nuova.matricola,
+        impianto: prima.impianto || nuova.impianto,
         indirizzo: prima.indirizzo || nuova.indirizzo,
         cap: prima.cap || nuova.cap,
         comune: prima.comune || nuova.comune,
