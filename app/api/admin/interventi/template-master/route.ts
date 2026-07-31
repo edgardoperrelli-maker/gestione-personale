@@ -4,7 +4,7 @@ import * as XLSX from 'xlsx';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import { parseMasterUpload } from '@/lib/attivita/masterUpload';
-import { chiaveOdl, righeNuoveMaster } from '@/lib/attivita/righeNuoveMaster';
+import { chiaveRiga, righeNuoveMaster } from '@/lib/attivita/righeNuoveMaster';
 
 export const runtime = 'nodejs';
 
@@ -133,7 +133,11 @@ export async function POST(req: Request) {
   // la versione della cache cambia e il campo riscarica.
   // Si guardano solo i master ATTIVI dello stesso committente: uno spento e' fuori dal
   // lookup, quindi ricaricarne le righe e' legittimo.
-  const odlEsistenti = new Set<string>();
+  // L'identita' e' la COPPIA (ODL, matricola), non l'ODL: sotto un ODL AcquaLatina possono
+  // esserci fino a 5 contatori di un condominio, e confrontare il solo ordine ne butterebbe
+  // via 133 sul master di Terracina — contatori veri, che sparirebbero dal censimento
+  // (vedi righeNuoveMaster.ts).
+  const chiaviEsistenti = new Set<string>();
   {
     const { data: attivi } = await supabaseAdmin
       .from('template_master')
@@ -145,18 +149,18 @@ export async function POST(req: Request) {
       for (let from = 0; ; from += 1000) {
         const { data, error } = await supabaseAdmin
           .from('template_master_righe')
-          .select('odl')
+          .select('odl, matricola')
           .in('master_id', ids)
           .range(from, from + 999);
         if (error) break; // best-effort: senza catalogo si ricade sul comportamento storico
-        const batch = (data ?? []) as Array<{ odl: string | null }>;
-        for (const r of batch) odlEsistenti.add(chiaveOdl(r.odl));
+        const batch = (data ?? []) as Array<{ odl: string | null; matricola: string | null }>;
+        for (const r of batch) chiaviEsistenti.add(chiaveRiga(r));
         if (batch.length < 1000) break;
       }
     }
   }
 
-  const filtro = righeNuoveMaster(parsed.righe, odlEsistenti);
+  const filtro = righeNuoveMaster(parsed.righe, chiaviEsistenti);
 
   // Niente di nuovo: non si crea un master vuoto che sporcherebbe l'elenco. Si dice cosa e'
   // successo, che e' l'informazione utile ("l'ho gia'" non e' un errore).
