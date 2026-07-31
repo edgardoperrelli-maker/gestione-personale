@@ -23,7 +23,9 @@ vi.mock('@/lib/supabaseAdmin', () => ({
   },
 }));
 
-const { chiaveAssegnazione, controllaAssegnazioni, operatoriPerGiorno } = await import('./operatoriGiorno');
+const {
+  chiaveAssegnazione, controllaAssegnazioni, finestraProgrammabile, operatoriPerGiorno,
+} = await import('./operatoriGiorno');
 
 const GIOVEDI = '2026-07-30';
 const VENERDI = '2026-07-31';
@@ -177,6 +179,32 @@ describe('operatoriPerGiorno — solo chi fa DUNNING', () => {
   });
 });
 
+/*
+  I giorni PRONTI sono due, ma la finestra è di due settimane: il giorno scelto in barra si chiede
+  per nome, invece di leggere in anticipo un tabellone che quasi nessuno guarderà.
+*/
+describe('finestraProgrammabile', () => {
+  it('di suo porta i due giorni pronti, col loro tabellone', async () => {
+    tabelle.assignments = [assegna('g2', 's1', 'CIARALLO ANNA')];
+    const giorni = await finestraProgrammabile(VENERDI);
+    expect(giorni.map((g) => g.data)).toEqual([VENERDI, SABATO]);
+    expect(giorni[0].operatori.map((o) => o.id)).toEqual(['s1']);
+  });
+
+  it('un giorno in più della finestra entra in ordine, col suo tabellone', async () => {
+    tabelle.assignments = [assegna('g3', 's1', 'CIARALLO ANNA')];
+    const giorni = await finestraProgrammabile(VENERDI, 'dunning', [LUNEDI]);
+    expect(giorni.map((g) => g.data)).toEqual([VENERDI, SABATO, LUNEDI]);
+    expect(giorni[2].etichetta).toBe('Lunedì');
+    expect(giorni[2].operatori.map((o) => o.id)).toEqual(['s1']);
+  });
+
+  it('un giorno FUORI finestra non si fa nemmeno leggere', async () => {
+    const giorni = await finestraProgrammabile(VENERDI, 'dunning', ['2026-09-15', '2026-08-02']);
+    expect(giorni.map((g) => g.data)).toEqual([VENERDI, SABATO]);
+  });
+});
+
 // Il controllo sta sul server e non solo nel menu: la griglia accetta un incolla da Excel, e una
 // regola applicata alla sola UI si aggira con Ctrl+V.
 describe('controllaAssegnazioni', () => {
@@ -186,20 +214,28 @@ describe('controllaAssegnazioni', () => {
     expect(m.size).toBe(0);
   });
 
-  it('di venerdì il sabato passa (è lavorativo) e il lunedì no: è troppo in là', async () => {
-    tabelle.assignments = [assegna('g4', 's1', 'CIARALLO ANNA')];
+  it('dal venerdì passano sia il sabato sia IL LUNEDÌ: la finestra è di due settimane (dec. 49)', async () => {
+    tabelle.assignments = [assegna('g4', 's1', 'CIARALLO ANNA'), assegna('g3', 's1', 'CIARALLO ANNA')];
     const m = await controllaAssegnazioni(
       [{ data: SABATO, staffId: 's1', dataScritta: true }, { data: LUNEDI, staffId: 's1', dataScritta: true }],
       VENERDI,
     );
     expect(m.get(k(SABATO, 's1'))).toBeUndefined();
-    expect(m.get(k(LUNEDI, 's1'))).toMatch(/fuori finestra/);
+    expect(m.get(k(LUNEDI, 's1'))).toBeUndefined();
   });
 
-  it('rifiuta una data lontana nominando i giorni buoni', async () => {
+  it('la domenica resta fuori: non si lavora', async () => {
+    const m = await controllaAssegnazioni(
+      [{ data: '2026-08-02', staffId: 's1', dataScritta: true }],
+      VENERDI,
+    );
+    expect(m.get(k('2026-08-02', 's1'))).toMatch(/fuori finestra/);
+  });
+
+  it('rifiuta una data lontana dicendo fin dove arriva la finestra', async () => {
     const m = await controllaAssegnazioni([{ data: '2026-09-15', staffId: 's1', dataScritta: true }], VENERDI);
     expect(m.get(k('2026-09-15', 's1'))).toBe(
-      'martedì 15/09 è fuori finestra: si programma solo per venerdì 31/07 o sabato 01/08',
+      'martedì 15/09 è fuori finestra: si programma da venerdì 31/07 a venerdì 14/08, domenica esclusa',
     );
   });
 

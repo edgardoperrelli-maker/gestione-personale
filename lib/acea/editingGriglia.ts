@@ -10,6 +10,8 @@
 // disponibili, una cella singola su un intervallo, una data in formato italiano, un nome
 // operatore che non esiste — e vanno risolti dove si possono provare.
 
+import { eProgrammabile, spiegaFinestra } from './giorniProgrammabili';
+
 export type Cella = { riga: number; colonna: number };
 
 export type Intervallo = { da: Cella; a: Cella };
@@ -162,15 +164,13 @@ export type EsitoValore = ValoreAccettato | ValoreSaltato | ValoreRifiutato;
  * si digitano. Una cella vuota NON cancella: un incolla con celle vuote svuoterebbe la
  * pianificazione senza che nessuno l'abbia chiesto.
  *
- * `giorni`, se passato, è la finestra programmabile (oggi + prossimo feriale): una data fuori
- * finestra viene RIFIUTATA con l'elenco di quelle buone. Senza il controllo qui, la regola
- * varrebbe solo per il menu della barra azioni e basterebbe un incolla da Excel per aggirarla —
- * cioè esattamente il gesto che questo modulo esiste per rendere comodo.
+ * `oggi`, se passato, accende il controllo della finestra programmabile (da oggi a due settimane,
+ * domenica esclusa): una data fuori finestra viene RIFIUTATA dicendo dove arriva la finestra.
+ * Senza il controllo qui, la regola varrebbe solo per il campo data della barra azioni e
+ * basterebbe un incolla da Excel per aggirarla — cioè esattamente il gesto che questo modulo
+ * esiste per rendere comodo.
  */
-export function validaData(
-  v: string,
-  giorni?: readonly { data: string; esteso: string }[],
-): EsitoValore {
+export function validaData(v: string, oggi?: string): EsitoValore {
   const s = String(v ?? '').trim();
   if (s === '') return { ok: true, salta: true };
   const iso = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
@@ -185,11 +185,8 @@ export function validaData(
     return { ok: false, motivo: `"${s}" non è una data valida` };
   }
   const valore = `${y}-${String(m).padStart(2, '0')}-${String(g).padStart(2, '0')}`;
-  if (giorni && giorni.length > 0 && !giorni.some((x) => x.data === valore)) {
-    return {
-      ok: false,
-      motivo: `${s}: si programma solo per ${giorni.map((x) => x.esteso).join(' o ')}`,
-    };
+  if (oggi && !eProgrammabile(valore, oggi)) {
+    return { ok: false, motivo: `${s}: ${spiegaFinestra(oggi)}` };
   }
   return { ok: true, valore };
 }

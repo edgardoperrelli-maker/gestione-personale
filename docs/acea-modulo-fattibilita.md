@@ -207,6 +207,7 @@ volte (~1.527 €). Nessun campo oggi registra quel flag.
 | 46 | Registro AcquaLatina (terza famiglia) | La sostituzione misuratori di Terracina entra come **famiglia `acqualatina`** dello STESSO registro (stessa select, griglia, pianificazione, modale rapportini — `PROFILO_COMMESSA` dice tabella/committenti/territorio per famiglia), su **tabella propria `acqualatina_ordini`** con la forma di `acea_ordini` (migration `20260731170000`, applicata in prod): `acea_ordini` resta lo specchio immutabile del Cruscotto, qui invece scrive l'app. **Fonte = master del committente** (`template_master`, «Aggiorna dal master»: sync **additivo e idempotente**, mai cancellazioni; backfill Luglio: 4.196 righe, indirizzo spaccato in via+civico per l'ordinamento canonico **per strada**); **chiusura dai NOSTRI rapportini** (intervento `completato` → riga chiusa via `ordine_id`, riconciliazione throttled 60s nella route, stato «Chiusa — eseguita/non eseguita»): AcquaLatina non rimanda indietro nulla. Tabellone: attività **CONTATORI** (verificata in prod, territorio ACQUA LATINA); **ven/sab esente** come le massive; finestra uguale (oggi/prossimo lavorativo); schede **Da lavorare/Chiusi**; pagina `/hub/acqualatina/pianificazione`; export `acqualatina-*` (non `acea-*`: altro committente). ⚠️ chi allunga la select COLONNE deve migrare ENTRAMBE le tabelle |
 | 47 | Unità ODL+matricola (acqualatina) | Nel master di Terracina **109 ODL coprono 2–5 contatori** (condomìni; coppie odl+matricola uniche, CAP vuoto su tutte le righe): per acqualatina l'**unità di lavoro è (ODL, matricola)**, non l'ODL. In pratica: `numero_operazione` progressivo per ODL (stabile fra sync, mai rinumerato); `pianoPianificazione` e `vociDaAggiungere` con `unita: 'odl_matricola'` (pianificare il 2° contatore NON sposta l'intervento del 1°, cinque matricole = cinque voci); aggancio registro↔interventi per odl+matricola nelle route; **`chiavePositivo` con matricola** per il solo committente acqualatina (senza, il 2° positivo veniva annullato come «DOPPIO POSITIVO»); indici unici di `interventi` **declinati per committente** (dedup e positivo-definitivo con matricola per acqualatina, nomi storici conservati per gli altri: `spostaData` riconosce `interventi_dedup_idx` nel messaggio). Per ACEA non cambia nulla: l'unità composta è opt-in |
 | 48 | Pallet misuratori AcquaLatina | Il ciclo fisico della riconsegna: i misuratori smontati si accumulano in **ceste**, a cesta piena vanno su un **pallet** il cui NUMERO è il riferimento della riconsegna. Sul registro «Misuratori rimossi — AcquaLatina»: colonna **`pallet` text nullable** (solo tabella acqualatina, migration `20260731190000` in prod; `null` = ancora in cesta, che È l'informazione), **assegnazione in blocco** (spunte in tabella + barra «cesta piena»: numero → Assegna / Togli / Annulla, endpoint `POST /api/acqualatina/misuratori/pallet`), **filtro Pallet** client-side con «Senza pallet» (la domanda di fine giornata), colonna in tabella (ordinabile) e nel **PDF** — che ora ha titolo per commessa invece del fisso «— ACEA». Il testo libero (non integer) regge «PLT-3» senza migration; ortogonale agli stati logistici: impallettare non avanza lo stato |
+| 49 | Finestra a due settimane | La finestra di programmazione passa da **due giorni** (oggi + prossimo lavorativo) a un **intervallo**: da oggi a **oggi + 14 giorni**, **domenica esclusa** (`ORIZZONTE_GIORNI`). Ribalta il taglio di dec. 22, che era troppo stretto: dal venerdì **il lunedì non si poteva programmare affatto** — proprio il giorno in cui il dunning riparte pieno, visto che venerdì e sabato passano solo le attivazioni (dec. 24), e il lavoro del lunedì si prepara il venerdì. Il tetto resta perché la sua ragione non è cambiata (la pianificazione vale finché l'export del Cruscotto è fresco); 14 giorni = la scadenza standard del dunning, oltre la quale l'ordine è comunque fuori tempo. In barra il menu di due voci diventa un **campo data** (`min`/`max` sugli estremi veri): si scrive o si sceglie dal calendario, e una data fuori finestra non torna indietro di nascosto — si vede il badge «fuori finestra» e «Pianifica» si spegne. Il **tabellone** resta letto in anticipo solo per i due giorni pronti; il giorno scelto altrove si chiede a parte (`/api/acea/operatori?data=`), perché leggere due settimane di cronoprogramma a ogni apertura sarebbe lavoro speso su giorni che nessuno guarda |
 
 ---
 
@@ -327,11 +328,23 @@ evidenziate e conteggio in barra — mentre il cursore è un contorno su una cel
 
 ### Finestra di programmazione e operatori assegnabili
 
-Si programma per **oggi e il prossimo giorno lavorativo**, e per nessun altro giorno. Il **sabato è
-lavorativo**, la domenica no: da giovedì si arriva a venerdì, da venerdì a sabato, da sabato e da
-domenica a lunedì. Il campo data libero è sostituito da un menu di due voci, e la finestra è
-applicata anche sul server (`/api/acea/pianifica` e `/api/acea/celle`) — altrimenti basterebbe un
-incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste per rendere comodo.
+Si programma **da oggi a due settimane avanti**, **domenica esclusa** (dec. 49). Il **sabato è
+lavorativo**, la domenica no — l'unica eccezione è «oggi», che resta programmabile qualunque giorno
+sia: chi apre il registro di domenica per il lavoro del giorno stesso non deve trovare la porta
+chiusa. La finestra è applicata anche sul server (`/api/acea/pianifica` e `/api/acea/celle`) —
+altrimenti basterebbe un incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste
+per rendere comodo.
+
+La finestra era di **due soli giorni** (oggi e il prossimo lavorativo) e il menu ne aveva due voci:
+dal venerdì il **lunedì** — primo giorno pieno del dunning, dato che venerdì e sabato passano solo
+le attivazioni — non era raggiungibile affatto, e il lavoro del lunedì si prepara il venerdì. Il
+menu è quindi tornato a essere un **campo data**, ma non più libero: `min` e `max` sono gli estremi
+veri della finestra, e una data fuori (scritta a mano, o la domenica in mezzo che il calendario
+offre lo stesso) resta scritta ma si vede — badge «fuori finestra», «Pianifica» spento. Il tetto di
+due settimane resta perché la sua ragione non è cambiata: la pianificazione vale finché l'export del
+Cruscotto è fresco, e a un mese da oggi si assegnerebbe su uno stato degli ordini che nel frattempo
+è cambiato — l'ordine, intanto, può essere stato chiuso da qualcun altro. Quattordici giorni sono
+anche la scadenza standard del dunning (creazione + 14 gg): oltre, l'ordine è fuori tempo comunque.
 
 **Venerdì e sabato passano solo le attivazioni** — riaperture `RIAT`/`REVO`, quelle col cardine
 contrattuale a un giorno. Il resto del dunning e le massive aspettano il lunedì. La regola vive in
@@ -341,7 +354,11 @@ premere: senza, il venerdì si selezionavano quaranta righe e ne passavano tre, 
 un guasto.
 
 Gli operatori proponibili **nel menu** sono quelli in cronoprogramma per il giorno scelto, non
-l'anagrafica del personale: sono le persone che quel giorno ci sono davvero. Si sottraggono chi è a
+l'anagrafica del personale: sono le persone che quel giorno ci sono davvero. Il tabellone si legge
+in anticipo solo per i due **giorni pronti** (oggi e il prossimo lavorativo); scegliendo un altro
+giorno della finestra si chiede il suo (`/api/acea/operatori?data=…`) — due settimane di
+cronoprogramma lette a ogni apertura sarebbero lavoro speso su giorni che quasi nessuna mattina si
+guardano. Si sottraggono chi è a
 tabellone con un'attività di tipo assenza e chi ha un'assenza **intera** in
 `disponibilita_operatore` — le assenze parziali no, chi c'è mezza giornata un ordine lo può fare.
 Accanto al nome compare il territorio del tabellone, perché il primo passo della mattina è

@@ -8,9 +8,7 @@ import {
   type Cella, type ColonnaEditabile, type Intervallo,
 } from '@/lib/acea/editingGriglia';
 import { incollaSuRighe, testoRighe } from '@/lib/acea/righeAppunti';
-import {
-  MOTIVO_SOLO_ATTIVAZIONI, type GiornoProgrammabile,
-} from '@/lib/acea/giorniProgrammabili';
+import { MOTIVO_SOLO_ATTIVAZIONI, soloAttivazioni } from '@/lib/acea/giorniProgrammabili';
 import { eRiapertura } from '@/lib/acea/scadenza';
 import { valoreCella, type ChiaveColonna, type RigaTabella } from '@/lib/acea/colonneTabella';
 import type { Famiglia } from '@/lib/acea/famiglia';
@@ -49,8 +47,15 @@ type Props = {
    * menu della barra azioni resta invece limitato al cronoprogramma: li` il giorno si sceglie.
    */
   operatori: Operatore[];
-  /** Finestra programmabile (oggi + prossimo lavorativo): una data fuori finestra viene rifiutata. */
-  giorni?: GiornoProgrammabile[];
+  /**
+   * «Oggi» secondo il SERVER (fuso Europe/Rome): da lì si calcola la finestra programmabile, e una
+   * data fuori finestra viene rifiutata prima di partire.
+   *
+   * Vuoto finché la prima risposta non è arrivata: in quel caso il controllo resta spento e lo fa
+   * il server — meglio un rifiuto un attimo più tardi che uno calcolato sull'orologio del browser,
+   * che su un PC con la data sbagliata rifiuterebbe giorni buoni.
+   */
+  oggi?: string;
   /**
    * Le colonne A SCHERMO, nell'ordine in cui si vedono.
    *
@@ -95,7 +100,7 @@ type Props = {
  * ogni cella è una chiamata di rete che può fallire, e l'utente deve vedere cosa non è passato.
  */
 export function useEditingGriglia({
-  righe, operatori, giorni, colonneVisibili, righeSpuntate, onSalvato, attivo, famiglia,
+  righe, operatori, oggi, colonneVisibili, righeSpuntate, onSalvato, attivo, famiglia,
 }: Props) {
   const [focus, setFocus] = useState<Cella | null>(null);
   const [selezione, setSelezione] = useState<Intervallo | null>(null);
@@ -113,8 +118,9 @@ export function useEditingGriglia({
    * Cella dell'Esecutore con il MENU aperto: una `<select>` dentro la cella.
    *
    * Su una cella vuota si apre al primo click, ed è l'UNICO modo di inserire un nome a mano:
-   * niente testo libero — si sceglie fra chi è in cronoprogramma nella finestra di lavoro,
-   * perché sono le sole persone a cui un ordine può andare. L'incolla resta per i blocchi.
+   * niente testo libero — si sceglie fra chi è in cronoprogramma nei giorni a portata di mano
+   * (i due pronti più quello scelto in barra), perché sono le sole persone a cui un ordine può
+   * andare. L'incolla resta per i blocchi.
    */
   const [editorEsecutore, setEditorEsecutore] = useState<Cella | null>(null);
   const righeRef = useRef(righe);
@@ -162,12 +168,6 @@ export function useEditingGriglia({
     return r ? `${r.odl}|${r.numero_operazione}` : null;
   }, []);
 
-  /** I giorni della finestra che accettano solo attivazioni: venerdì e sabato. */
-  const giorniSoloAttivazioni = useMemo(
-    () => new Set((giorni ?? []).filter((g) => g.soloAttivazioni).map((g) => g.data)),
-    [giorni],
-  );
-
   /** Applica le scritture: valida, mostra subito, poi salva. */
   const applica = useCallback(async (scritture: Array<{ riga: number; colonna: number; valore: string }>) => {
     if (scritture.length === 0) return;
@@ -202,7 +202,7 @@ export function useEditingGriglia({
         const nome = operatori.find((o) => o.id === e.valore)?.display_name ?? s.valore;
         nuoviLocali.set(chiave, { ...nuoviLocali.get(chiave), pianificato_a: nome });
       } else {
-        const e = validaData(s.valore, giorni);
+        const e = validaData(s.valore, oggi);
         if (daSaltare(e)) continue;
         if (!e.ok) { errori.push(e.motivo); continue; }
         /*
@@ -215,7 +215,7 @@ export function useEditingGriglia({
           stessa definizione che decide la scadenza a un giorno (`eRiapertura`), non una copia —
           e la famiglia pure, la stessa che il server usa in `pianoPianificazione`.
         */
-        if (giorniSoloAttivazioni.has(e.valore)) {
+        if (soloAttivazioni(e.valore)) {
           const riga = righeRef.current[s.riga];
           if (riga?.famiglia !== 'massive' && !eRiapertura(riga?.codice_sla)) {
             errori.push(MOTIVO_SOLO_ATTIVAZIONI);
@@ -292,7 +292,7 @@ export function useEditingGriglia({
     } finally {
       setSalvando(false);
     }
-  }, [locali, operatori, giorni, giorniSoloAttivazioni, chiaveDi, onSalvato, editabile, famiglia]);
+  }, [locali, operatori, oggi, chiaveDi, onSalvato, editabile, famiglia]);
 
   /**
    * Il testo di una cella come esce negli appunti.
