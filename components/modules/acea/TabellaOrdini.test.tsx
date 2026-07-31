@@ -41,7 +41,17 @@ describe('TabellaOrdini — altezza della vista', () => {
   it('può rimpicciolirsi sotto il proprio contenuto', () => {
     // Senza `min-h-0` un figlio flex non scende sotto l'altezza del contenuto: 5.000 righe
     // virtualizzate uscirebbero dallo schermo invece di scorrere.
-    expect(html).toContain('flex min-h-0 flex-1');
+    expect(html).toContain('flex min-h-0');
+  });
+
+  it('non si allarga oltre il proprio contenuto', () => {
+    // `flex-1` faceva prendere al riquadro SEMPRE tutta l'altezza della catena: su una
+    // scheda-comune da 11 righe erano 472px di bianco su 901. Col default `flex: 0 1 auto`
+    // resta alto quanto il contenuto e si comprime solo quando lo spazio manca.
+    //
+    // L'asserzione e` sul RIQUADRO (`flex min-h-0`) e non su `flex-1` da solo: quest'ultimo
+    // vive legittimamente nei bottoni delle intestazioni, che devono riempire la colonna.
+    expect(html).not.toContain('flex min-h-0 flex-1');
   });
 
   it('ha una rete sotto e una sopra', () => {
