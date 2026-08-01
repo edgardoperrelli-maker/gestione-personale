@@ -27,11 +27,16 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   Comando «Copia righe» in barra per chi non cerca la scorciatoia. Celle con tab/a-capo/virgolette
   escono citate come fa Excel (una nota con a-capo spezzava la riga copiata). Lib pura:
   `lib/acea/righeAppunti.ts`.
-- [x] **Finestra di programmazione** (`95f1e27`, corretta in `52869d1`) — si programma solo per
-  OGGI e per il PROSSIMO GIORNO LAVORATIVO. Sabato lavorativo, domenica no (gio→ven, ven→sab,
-  sab/dom→lun). Menu di due voci al posto del campo data libero. **Venerdì e sabato passano solo
-  le attivazioni** (`RIAT`/`REVO`): motivo di salto in `pianoPianificazione`, avvisato in barra
-  PRIMA di premere. Lib pura: `lib/acea/giorniProgrammabili.ts`.
+- [x] **Finestra di programmazione** (`95f1e27`, corretta in `52869d1`, allargata dopo — dec. 49)
+  — si programma **da oggi a oggi + 14 giorni, domenica esclusa** (`ORIZZONTE_GIORNI`). Sabato
+  lavorativo; «oggi» resta programmabile anche di domenica. Erano due giorni soli (oggi +
+  prossimo lavorativo) e **dal venerdì il lunedì non si raggiungeva**: in barra il menu di due
+  voci è tornato un **campo data** con `min`/`max` sugli estremi veri, badge «fuori finestra» +
+  «Pianifica» spento su una data che il campo non doveva accettare. Il tabellone si legge in
+  anticipo solo per i due **giorni pronti**; per gli altri c'è `/api/acea/operatori?data=`.
+  **Venerdì e sabato passano solo le attivazioni** (`RIAT`/`REVO`): motivo di salto in
+  `pianoPianificazione`, avvisato in barra PRIMA di premere. Lib pura:
+  `lib/acea/giorniProgrammabili.ts` (`eProgrammabile`/`limitiFinestra`/`giorniRapidi`).
 - [x] **Operatori dal cronoprogramma** (`95f1e27`) — il menu «Assegna a» elenca chi è in
   tabellone per il giorno scelto (via `/api/acea/operatori`), meno chi è a tabellone come assenza
   e chi ha un'assenza INTERA in `disponibilita_operatore` (le parziali restano assegnabili).
@@ -201,6 +206,12 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   `20260731190000` in prod). Filtro «Pallet» con «Senza pallet» (= ancora in cesta), colonna
   ordinabile in tabella e nel PDF, che ora prende il titolo per commessa (`titoloPdf`) invece
   del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati.
+- [x] **AcquaLatina a ventaglio in sidebar e ⌘K** (31/07) — come la mappa: due voci dirette al
+  posto della sola landing. «AcquaLatina» (goccia) → `/hub/acqualatina/pianificazione`,
+  «Misuratori rimossi» (`Package`: la riconsegna su pallet, NON la `Gauge` del registro ACEA) →
+  `/hub/acqualatina/misuratori`. In palette le etichette portano il committente («AcquaLatina —
+  …») perché lì si cerca. La landing resta raggiungibile da breadcrumb e hub; `moduleAccess`
+  intatto (il gate è per modulo, le voci sono viste).
 
 ## Not Yet Done
 
@@ -209,7 +220,7 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   version `20260730094446`. Verificato dopo: le due colonne ci sono (`uuid`/`date`), l'indice
   parziale c'è, `authenticated` resta SELECT-only. Sul registro c'erano 6.444 righe.
 - [ ] **Verifica a schermo**: niente di questa sessione è stato visto nel browser (container
-  senza `.env.local`). Da guardare: barra azioni a due menu, triangolo sul tasto (13px — se
+  senza `.env.local`). Da guardare: barra azioni (campo data + menu operatore), triangolo sul tasto (13px — se
   piccolo, si ingrandisce), calendario in cella, corsivo warn delle righe a metà, colonne
   «Operatore ACEA»/«Esecuzione ACEA» nel layout; in MASSIVE: la fila delle schede-comune (oggi
   5 paesi — se crescono molto, la fila andrà a capo: valutare uno scroll orizzontale), il menu
@@ -288,15 +299,15 @@ push). In produzione (Supabase `aceztqfebringeaebvce`): migration `2026073117000
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 48 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 49 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acqualatina/ordiniDaMaster.ts` | Sync dal master: identità (odl, matricola), numerazione operazioni stabile, spacco via/civico |
-| `lib/acea/giorniProgrammabili.ts` | Finestra, sabato lavorativo, `soloAttivazioni`, etichette dei rifiuti |
+| `lib/acea/giorniProgrammabili.ts` | Finestra (oggi → +14 gg, domenica esclusa), giorni pronti, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |
 | `lib/acea/famiglia.ts` | `Famiglia` (ora anche `acqualatina`), `ATTIVITA_TABELLONE` (DUNNING/LIMITAZIONI MASSIVE/CONTATORI) e `PROFILO_COMMESSA`: tabella, committenti, territorio e unità per famiglia — la mappa che rende il registro multi-commessa |
 | `lib/acea/caricaComuniMassive.ts` | I comuni-scheda della vista massive (aperti > 0), usato da route e pagina |
 | `lib/acea/codaRiaperture.ts` | Coda e triangolo: `esitataNeiRapportini`, `pianificata`, `contaSenzaData` |
 | `lib/acea/righeAppunti.ts` | Copia/incolla per righe spuntate (TSV citato, incolla non contiguo) |
-| `lib/acea/editingGriglia.ts` | Validazioni pure: `validaData(giorni)`, `validaOperatore` |
+| `lib/acea/editingGriglia.ts` | Validazioni pure: `validaData(valore, oggi)` (finestra compresa), `validaOperatore` |
 | `lib/acea/pianificazione.ts` | `pianoPianificazione`: le invarianti + `solo_attivazioni`; unica per le due rotte |
 | `components/modules/acea/useEditingGriglia.ts` | Tastiera/appunti globali, editor data, precedenza copia |
 | `components/modules/acea/RegistroAcea.tsx` | Collante: finestra, operatori, spunte, badge, editor |

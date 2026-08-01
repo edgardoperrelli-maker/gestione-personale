@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { groupByDayTerritory } from './groupByDayTerritory';
 import type { RapRiepilogo } from './groupByDay';
 
-const rap = (o: Partial<RapRiepilogo> & { id: string; piano_id: string; data: string }): RapRiepilogo => ({
+const rap = (o: Partial<RapRiepilogo> & { id: string; piano_id: string | null; data: string }): RapRiepilogo => ({
   staff_id: 's', staff_name: 'Op', token: 't', stato: 'in_corso',
   expires_at: '', submitted_at: null, url: '', statoCalcolato: 'valido', nVoci: 0,
   territorio: null, piano_creato_at: null, ...o,
@@ -119,5 +119,22 @@ describe('groupByDayTerritory', () => {
     ];
     const out = groupByDayTerritory(raps, '2026-06-18');
     expect(out[0].territori[0].nOperatori).toBe(3);
+  });
+
+  it('rapportini senza piano (Consuntivazione) → gruppo unico "Senza territorio", piano_id null', () => {
+    const raps = [
+      rap({ id: 'a', piano_id: 'p1', data: '2026-07-31', territorio: 'LAZIO EST', piano_creato_at: '2026-07-31T08:00:00Z' }),
+      rap({ id: 'b', piano_id: null, data: '2026-07-31', territorio: null, staff_id: 's2' }),
+      rap({ id: 'c', piano_id: null, data: '2026-07-31', territorio: null, staff_id: 's3' }),
+    ];
+    const out = groupByDayTerritory(raps, '2026-07-31');
+    const etichette = out[0].territori.map((t) => t.etichetta);
+    // Il territorio vero NON si perde per colpa dei rapportini senza piano.
+    expect(etichette).toContain('LAZIO EST');
+    const senza = out[0].territori.find((t) => t.etichetta === 'Senza territorio')!;
+    // I due senza piano stanno in UN solo gruppo, non uno per rapportino.
+    expect(senza.piani).toHaveLength(1);
+    expect(senza.piani[0].piano_id).toBeNull();
+    expect(senza.nOperatori).toBe(2);
   });
 });

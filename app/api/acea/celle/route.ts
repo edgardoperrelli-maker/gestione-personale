@@ -3,7 +3,8 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireAdmin } from '@/lib/apiAuth';
 import {
-  pianoPianificazione, type InterventoEsistente, type OrdineDaPianificare,
+  etichettaMotivo, pianoPianificazione,
+  type InterventoEsistente, type OrdineDaPianificare,
 } from '@/lib/acea/pianificazione';
 import { indiceTassonomiaCached } from '@/lib/acea/indiceTassonomia';
 import { tassonomiaAttivitaAcea } from '@/lib/acea/tassonomiaAcea';
@@ -158,7 +159,7 @@ export async function POST(req: Request) {
       for (const blocco of blocchi) {
         const { data: righe, error } = await supabaseAdmin
           .from('interventi')
-          .select('id, odl, data, staff_id, stato, matricola_contatore')
+          .select('id, odl, data, staff_id, stato, esito, matricola_contatore')
           .in('odl', blocco)
           .in('committente', [...profilo.committenti]);
         if (error) throw error;
@@ -167,6 +168,7 @@ export async function POST(req: Request) {
           esistenti.push({
             id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
             staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+            esito: (r.esito as string | null) ?? null,
             matricola: (r.matricola_contatore as string | null) ?? null,
           });
         }
@@ -214,8 +216,14 @@ export async function POST(req: Request) {
     for (const m of lista) {
       const ordine = ordiniPerChiave.get(m.chiave);
       if (!ordine) continue;
+      /*
+        Data e operatore si EREDITANO solo da un intervento APERTO: quella è la pianificazione
+        corrente. Da un'uscita già registrata (completato) no — quel giorno è consumato, e su una
+        riga con sole uscite a vuoto la cella scritta da sola diventa un APPUNTO, come su una riga
+        mai pianificata: la nuova uscita il suo giorno lo deve ancora ricevere.
+      */
       const aperti = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
-        .filter((i) => i.stato !== 'annullato');
+        .filter((i) => i.stato !== 'annullato' && i.stato !== 'completato');
       const corrente = [...aperti].sort((a, b) => b.data.localeCompare(a.data))[0] ?? null;
       const bozza = bozzePerChiave.get(m.chiave);
       const data = m.data ?? corrente?.data ?? bozza?.data ?? null;
@@ -244,8 +252,9 @@ export async function POST(req: Request) {
         rifiutate.push({ chiave: m.chiave, motivo: 'ordine non trovato' });
         continue;
       }
-      const apertiSuOdl = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
-        .filter((i) => i.stato !== 'annullato');
+      // TUTTI gli interventi dell'unità, annullati compresi: le invarianti (positivo, giorno
+      // occupato, spostamento) le distingue la funzione pura, che è l'unico posto dove vivono.
+      const suOdl = interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [];
 
       const finale = finali.get(m.chiave);
       if (!finale) {
@@ -260,6 +269,21 @@ export async function POST(req: Request) {
           rifiuta di generare finché non lo si conferma.
         */
         if (m.staffId !== undefined || m.data !== undefined) {
+          /*
+            L'appunto non aggira le invarianti: su un ordine chiuso o un'unità già eseguita con
+            esito positivo non c'è nessuna pianificazione da annotare — la mezza scrittura
+            diventerebbe una riga a metà perpetua, che blocca i rapportini per lavoro finito.
+          */
+          if (!ordine.aperto) {
+            rifiutate.push({ chiave: m.chiave, motivo: etichettaMotivo('ordine_chiuso') });
+            continue;
+          }
+          const positivo = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
+            .some((i) => i.stato !== 'annullato' && i.esito === 'eseguito_positivo');
+          if (positivo) {
+            rifiutate.push({ chiave: m.chiave, motivo: etichettaMotivo('gia_completato') });
+            continue;
+          }
           appunti.push({ chiave: m.chiave, staffId: m.staffId, data: m.data });
         }
         continue;
@@ -275,32 +299,29 @@ export async function POST(req: Request) {
       // Stesse invarianti della pianificazione in blocco: stessa funzione pura, nessuna divergenza.
       const piano = pianoPianificazione({
         ordini: [ordine],
-        esistenti: apertiSuOdl.concat(
-          (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
-            .filter((i) => i.stato === 'completato'),
-        ),
+        esistenti: suOdl,
         data: dataFinale,
         staffId: staffFinale,
         soloAttivazioni: soloAttivazioni(dataFinale),
         unita: profilo.unita,
       });
       const azione = piano.azioni[0];
-      if (!azione) continue;                                   // già così: nulla da fare
-      if (azione.tipo === 'salta') {
+      if (azione?.tipo === 'salta') {
         rifiutate.push({
           chiave: m.chiave,
-          motivo: azione.motivo === 'ordine_chiuso'
-            ? 'ordine già chiuso su ACEA'
-            : azione.motivo === 'solo_attivazioni'
-              ? MOTIVO_SOLO_ATTIVAZIONI
-              : 'intervento già completato',
+          motivo: azione.motivo === 'solo_attivazioni'
+            ? MOTIVO_SOLO_ATTIVAZIONI
+            : etichettaMotivo(azione.motivo),
         });
         continue;
       }
 
-      // Da qui in giù la riga diventa un intervento vero: l'appunto, se c'era, ha finito.
+      // La riga o è già come chiesto o sta per diventare un intervento vero: in entrambi i casi
+      // l'appunto ha finito il suo compito — anche ri-incollare gli stessi valori lo pulisce.
       const bozza = bozzePerChiave.get(m.chiave);
       if (bozza && (bozza.staffId || bozza.data)) appuntiDaPulire.push(m.chiave);
+
+      if (!azione) continue;                                   // già così: nulla da fare
 
       if (azione.tipo === 'aggiorna') {
         const { error } = await supabaseAdmin
@@ -309,6 +330,15 @@ export async function POST(req: Request) {
           .eq('id', azione.interventoId);
         if (error) throw error;
         aggiornati++;
+        // Lo snapshot segue la scrittura: la riga dopo — un'altra operazione dello stesso ODL
+        // nello stesso incolla — deve vedere l'intervento dov'è ADESSO, non a inizio richiesta.
+        const spostato = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
+          .find((i) => i.id === azione.interventoId);
+        if (spostato) {
+          spostato.data = dataFinale;
+          spostato.staff_id = staffFinale;
+          spostato.stato = 'assegnato';
+        }
         azioniLog.push({
           odl: ordine.odl, numero_operazione: ordine.numero_operazione,
           azione: 'aggiornato', intervento_id: azione.interventoId, prima: azione.prima,
@@ -341,6 +371,16 @@ export async function POST(req: Request) {
         .single();
       if (error) throw error;
       creati++;
+      // Come per l'aggiornamento: l'intervento appena nato entra nello snapshot, così la riga
+      // dopo della stessa unità lo SPOSTA invece di crearne un secondo (l'unique esploderebbe).
+      const kUnita = chiaveUnita(ordine.odl, ordine.matricola);
+      interventoPerOdl.set(kUnita, [
+        ...(interventoPerOdl.get(kUnita) ?? []),
+        {
+          id: String(creato?.id ?? ''), odl: ordine.odl, data: dataFinale,
+          staff_id: staffFinale, stato: 'assegnato', esito: null, matricola: ordine.matricola,
+        },
+      ]);
       azioniLog.push({
         odl: ordine.odl, numero_operazione: ordine.numero_operazione,
         azione: 'creato', intervento_id: creato?.id ?? null, prima: null,

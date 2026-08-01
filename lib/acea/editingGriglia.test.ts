@@ -151,29 +151,35 @@ describe('validaData', () => {
 // La finestra programmabile non può valere solo per il menu della barra azioni: basterebbe un
 // incolla da Excel per aggirarla, cioè proprio il gesto che la griglia esiste per rendere comodo.
 describe('validaData — finestra programmabile', () => {
-  const giorni = [
-    { data: '2026-07-31', esteso: 'venerdì 31/07' },
-    { data: '2026-08-03', esteso: 'lunedì 03/08' },
-  ];
+  const VENERDI = '2026-07-31';
 
-  it('accetta i giorni della finestra, in ISO e all’italiana', () => {
-    expect(validaData('2026-07-31', giorni)).toEqual({ ok: true, valore: '2026-07-31' });
-    expect(validaData('03/08/2026', giorni)).toEqual({ ok: true, valore: '2026-08-03' });
+  it('accetta i giorni della finestra, in ISO e all’italiana — lunedì compreso', () => {
+    expect(validaData(VENERDI, VENERDI)).toEqual({ ok: true, valore: '2026-07-31' });
+    expect(validaData('01/08/2026', VENERDI)).toEqual({ ok: true, valore: '2026-08-01' });
+    expect(validaData('03/08/2026', VENERDI)).toEqual({ ok: true, valore: '2026-08-03' });
+    expect(validaData('14/08/2026', VENERDI)).toEqual({ ok: true, valore: '2026-08-14' });
   });
 
-  it('rifiuta una data fuori finestra dicendo quali sono i giorni buoni', () => {
-    const e = validaData('01/08/2026', giorni);   // il sabato in mezzo
+  it('rifiuta una data fuori finestra dicendo fin dove si arriva', () => {
+    const e = validaData('15/09/2026', VENERDI);
     expect(e.ok).toBe(false);
-    if (!e.ok) expect(e.motivo).toBe('01/08/2026: si programma solo per venerdì 31/07 o lunedì 03/08');
+    if (!e.ok) {
+      expect(e.motivo).toBe('15/09/2026: si programma da venerdì 31/07 a venerdì 14/08, domenica esclusa');
+    }
   });
 
-  it('senza finestra si comporta come prima: qualunque data valida passa', () => {
+  it('rifiuta la domenica in mezzo e il passato', () => {
+    expect(validaData('02/08/2026', VENERDI).ok).toBe(false);
+    expect(validaData('30/07/2026', VENERDI).ok).toBe(false);
+  });
+
+  it('senza «oggi» si comporta come prima: qualunque data valida passa', () => {
     expect(validaData('2026-09-15')).toEqual({ ok: true, valore: '2026-09-15' });
-    expect(validaData('2026-09-15', [])).toEqual({ ok: true, valore: '2026-09-15' });
+    expect(validaData('2026-09-15', '')).toEqual({ ok: true, valore: '2026-09-15' });
   });
 
   it('la cella vuota resta un salto anche con la finestra attiva', () => {
-    expect(daSaltare(validaData('', giorni))).toBe(true);
+    expect(daSaltare(validaData('', VENERDI))).toBe(true);
   });
 });
 

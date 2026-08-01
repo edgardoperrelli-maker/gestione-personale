@@ -2,7 +2,9 @@
 import type { RapRiepilogo } from './groupByDay';
 import { ordinaGiorni } from './giorniRiepilogo';
 
-export type PianoGruppo = { piano_id: string; creato_at: string | null; aiCreato: boolean; operatori: RapRiepilogo[] };
+/** `piano_id` NULL = rapportini-contenitore della Consuntivazione: nessun piano dietro, quindi
+ *  nessuna azione di piano (riapri / sposta / elimina) ha senso su questo gruppo. */
+export type PianoGruppo = { piano_id: string | null; creato_at: string | null; aiCreato: boolean; operatori: RapRiepilogo[] };
 export type TerritorioGruppo = { chiave: string; etichetta: string; piani: PianoGruppo[]; nOperatori: number; aiCreato: boolean };
 export type GiornoTerritori = { data: string; territori: TerritorioGruppo[] };
 
@@ -26,15 +28,17 @@ export function groupByDayTerritory(raps: RapRiepilogo[], oggi: string): GiornoT
     const tk = chiaveTerr(r.territorio ?? null);
     if (!byTerr.has(tk)) byTerr.set(tk, new Map());
     const byPiano = byTerr.get(tk)!;
-    if (!byPiano.has(r.piano_id)) {
-      byPiano.set(r.piano_id, {
-        piano_id: r.piano_id,
+    // Chiave '' per i rapportini senza piano: stanno insieme in un unico gruppo del giorno.
+    const pk = r.piano_id ?? '';
+    if (!byPiano.has(pk)) {
+      byPiano.set(pk, {
+        piano_id: r.piano_id ?? null,
         creato_at: r.piano_creato_at ?? null,
         aiCreato: r.aiCreato ?? false,
         operatori: [],
       });
     }
-    byPiano.get(r.piano_id)!.operatori.push(r);
+    byPiano.get(pk)!.operatori.push(r);
   }
 
   const giorniOrdinati = ordinaGiorni([...byDay.keys()], oggi);

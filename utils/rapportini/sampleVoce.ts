@@ -16,6 +16,40 @@ export const SAMPLE_VOCE_INFO = {
   coordinate: '41.853305, 12.782855',
 } as const;
 
+/**
+ * Tre voci d'esempio per l'anteprima della LISTA: dati diversi in ogni campo, così l'admin
+ * vede subito quale colonna sta guardando e come si comporta la riga quando il testo cresce.
+ */
+export const SAMPLE_VOCI_LISTA = [
+  SAMPLE_VOCE_INFO,
+  {
+    ...SAMPLE_VOCE_INFO,
+    nominativo: 'Anna Verdi',
+    matricola: 'MAT0067890',
+    pdr: '00594202207781',
+    odl: '20043151149',
+    via: 'VIA APPIA NUOVA 128/SC',
+    comune: 'Latina',
+    cap: '04100',
+    recapito: '333 7654321',
+    attivita: 'S-PR-012',
+    fascia_oraria: '10:00-12:00',
+  },
+  {
+    ...SAMPLE_VOCE_INFO,
+    nominativo: 'Luca Bianchi',
+    matricola: 'MAT0099887',
+    pdr: '00594202209912',
+    odl: '20043151150',
+    via: 'VIA EMILIA 5',
+    comune: 'Terracina',
+    cap: '04019',
+    recapito: '333 1122334',
+    attivita: 'S-PR-003',
+    fascia_oraria: '14:00-16:00',
+  },
+] as const;
+
 /** Risposte d'esempio per i campi del template, così l'anteprima appare "compilata". */
 export function sampleRisposte(campi: TemplateCampo[]): Record<string, unknown> {
   const out: Record<string, unknown> = {};

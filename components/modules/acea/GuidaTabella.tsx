@@ -5,7 +5,7 @@ import { CircleHelp } from 'lucide-react';
 import Button from '@/components/Button';
 import Dialog from '@/components/ui/Dialog';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
-import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
+import { spiegaFinestra } from '@/lib/acea/giorniProgrammabili';
 
 /**
  * La guida della tabella, in una modale aperta dal «?».
@@ -16,17 +16,18 @@ import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
  */
 
 type PropsGuida = {
-  giorni: GiornoProgrammabile[];
+  /** «Oggi» secondo il server: la guida ne ricava la finestra vera, con le sue date. */
+  oggi: string;
   /** La famiglia della vista: la guida nomina l'attività di tabellone giusta (DUNNING / MASSIVE). */
   famiglia: Famiglia;
 };
 
 /** Contenuto della guida, esportato nudo: si prova con un render statico, senza stato né Dialog. */
-export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
+export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
   const { etichetta: attivita } = ATTIVITA_TABELLONE[famiglia];
-  const finestra = giorni.length > 0
-    ? giorni.map((g) => g.esteso).join(' o ')
-    : 'oggi o il giorno lavorativo successivo';
+  // Senza «oggi» (il server non ha ancora risposto) la frase resta vera ma senza date: meglio
+  // generica che sbagliata, e sbagliata sarebbe se la calcolassimo sull'orologio del browser.
+  const finestra = spiegaFinestra(oggi).replace(/^si programma /, '');
   return (
     <div className="space-y-4 text-sm text-[var(--brand-text-main)]">
       <section>
@@ -70,8 +71,9 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
         </h3>
         <ul className="list-disc space-y-1 pl-5">
           {famiglia === 'dunning'
-            ? <li>Si programma solo per <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>
-            : <li>Si programma solo per <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non questa vista.</li>}
+            ? <li>Si programma <strong>{finestra}</strong>; il venerdì e il sabato passano solo le attivazioni.</li>
+            : <li>Si programma <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non questa vista.</li>}
+          <li>Il <strong>giorno</strong> si scrive o si sceglie dal calendario nella barra di assegnazione: dentro la finestra ci si può spostare liberamente, lunedì compreso.</li>
           <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
             <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>
@@ -94,7 +96,7 @@ export function ContenutoGuida({ giorni, famiglia }: PropsGuida) {
   );
 }
 
-export default function GuidaTabella({ giorni, famiglia }: PropsGuida) {
+export default function GuidaTabella({ oggi, famiglia }: PropsGuida) {
   const [aperta, setAperta] = useState(false);
   return (
     <>
@@ -117,7 +119,7 @@ export default function GuidaTabella({ giorni, famiglia }: PropsGuida) {
         <CircleHelp size={16} aria-hidden="true" />
       </Button>
       <Dialog open={aperta} onClose={() => setAperta(false)} title="Come si usa la tabella">
-        <ContenutoGuida giorni={giorni} famiglia={famiglia} />
+        <ContenutoGuida oggi={oggi} famiglia={famiglia} />
       </Dialog>
     </>
   );

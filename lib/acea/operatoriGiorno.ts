@@ -2,7 +2,9 @@ import 'server-only';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { isAssenzaIntera, isNomeAttivitaAssenza } from '@/lib/disponibilita';
 import { ATTIVITA_TABELLONE, type Famiglia } from './famiglia';
-import { giorniProgrammabili, giornoEsteso, spiegaFinestra } from './giorniProgrammabili';
+import {
+  descriviGiorno, eProgrammabile, giorniRapidi, giornoEsteso, spiegaFinestra,
+} from './giorniProgrammabili';
 
 /**
  * Chi si può mandare su un ordine ACEA in un dato giorno.
@@ -29,6 +31,8 @@ export type GiornoConOperatori = {
   data: string;
   etichetta: string;
   esteso: string;
+  /** `true` di venerdì e di sabato: il dunning ci programma solo riaperture. */
+  soloAttivazioni: boolean;
   operatori: OperatoreGiorno[];
 };
 
@@ -160,13 +164,29 @@ export async function operatoriPerGiorno(
   return esito;
 }
 
-/** I giorni programmabili con dentro i rispettivi operatori: una lettura sola per la pagina. */
+/**
+ * I giorni con dentro i rispettivi operatori: una lettura sola per la pagina.
+ *
+ * Di suo porta solo i giorni PRONTI (oggi e il prossimo lavorativo): sono quelli che il registro
+ * usa appena aperto, e leggere il tabellone di tutte e due le settimane della finestra sarebbe
+ * lavoro speso su giorni che nella maggior parte delle mattine nessuno guarda. Gli altri si
+ * chiedono per nome in `altreDate` — è quello che fa la barra quando si sceglie il lunedì — e
+ * quelli fuori finestra si scartano qui: nessuno può farsi leggere il tabellone di settembre.
+ */
 export async function finestraProgrammabile(
   oggi: string,
   famiglia: Famiglia = 'dunning',
+  altreDate: readonly string[] = [],
 ): Promise<GiornoConOperatori[]> {
-  const giorni = giorniProgrammabili(oggi);
+  const giorni = giorniRapidi(oggi);
   if (giorni.length === 0) return [];
+  const viste = new Set(giorni.map((g) => g.data));
+  for (const data of altreDate) {
+    if (viste.has(data) || !eProgrammabile(data, oggi)) continue;
+    viste.add(data);
+    giorni.push(descriviGiorno(data, oggi));
+  }
+  giorni.sort((a, b) => a.data.localeCompare(b.data));
   const perGiorno = await operatoriPerGiorno(giorni.map((g) => g.data), famiglia);
   return giorni.map((g) => ({ ...g, operatori: perGiorno.get(g.data) ?? [] }));
 }
@@ -221,7 +241,7 @@ export async function controllaAssegnazioni(
   const motivi = new Map<string, string>();
   if (assegnazioni.length === 0) return motivi;
 
-  const ammessi = new Set(giorniProgrammabili(oggi).map((g) => g.data));
+  const dentroFinestra = (data: string) => eProgrammabile(data, oggi);
 
   // Per famiglia, perché il tabellone si legge con il filtro della famiglia. In pratica un
   // salvataggio arriva da UNA vista e il gruppo è uno solo: il caso misto resta corretto, non
@@ -239,8 +259,8 @@ export async function controllaAssegnazioni(
       Una data fuori finestra che NON viene scritta (si cambia il solo esecutore su un intervento
       vecchio) passa senza controlli: non si sta decidendo quel giorno, lo si sta ereditando.
     */
-    const daControllare = lista.filter((a) => a.dataScritta || ammessi.has(a.data));
-    const dateDaLeggere = [...new Set(daControllare.map((a) => a.data))].filter((d) => ammessi.has(d));
+    const daControllare = lista.filter((a) => a.dataScritta || dentroFinestra(a.data));
+    const dateDaLeggere = [...new Set(daControllare.map((a) => a.data))].filter(dentroFinestra);
     const perGiorno = dateDaLeggere.length > 0
       ? await operatoriPerGiorno(dateDaLeggere, famiglia)
       : new Map<string, OperatoreGiorno[]>();
@@ -249,7 +269,7 @@ export async function controllaAssegnazioni(
     for (const a of daControllare) {
       const chiave = chiaveAssegnazione(a);
       if (motivi.has(chiave)) continue;
-      if (!ammessi.has(a.data)) {
+      if (!dentroFinestra(a.data)) {
         motivi.set(chiave, `${giornoEsteso(a.data)} è fuori finestra: ${spiegaFinestra(oggi)}`);
         continue;
       }

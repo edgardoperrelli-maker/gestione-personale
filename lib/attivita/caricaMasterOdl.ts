@@ -5,16 +5,16 @@ import { costruisciMasterOdl, type FonteMaster, type FonteMasterRiga, type RigaM
 
 const PAGE = 1000;
 
-type RigaMasterDb = { odl: string | null; matricola: string | null; indirizzo: string | null; cap: string | null; comune: string | null; operazione: string | null };
+type RigaMasterDb = { odl: string | null; matricola: string | null; impianto: string | null; indirizzo: string | null; cap: string | null; comune: string | null; operazione: string | null };
 type RigaSnapshotDb = { odl: string | null; attivita: string | null; matricola: string | null; comune: string | null; indirizzo?: string | null };
-type RigaOrdineDb = { odl: string | null; attivita: string | null; matricola: string | null; via: string | null; civico: string | null; cap: string | null; comune: string | null };
+type RigaOrdineDb = { odl: string | null; attivita: string | null; matricola: string | null; impianto: string | null; via: string | null; civico: string | null; cap: string | null; comune: string | null };
 
 async function righeMasterCaricato(masterId: string): Promise<FonteMasterRiga[]> {
   const righe: FonteMasterRiga[] = [];
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('template_master_righe')
-      .select('odl, matricola, indirizzo, cap, comune, operazione')
+      .select('odl, matricola, impianto, indirizzo, cap, comune, operazione')
       .eq('master_id', masterId)
       .range(off, off + PAGE - 1);
     if (error) throw error;
@@ -33,7 +33,7 @@ async function righeRegistroAcea(): Promise<RigaOrdineDb[]> {
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('acea_ordini')
-      .select('odl, attivita, matricola, via, civico, cap, comune')
+      .select('odl, attivita, matricola, impianto, via, civico, cap, comune')
       .order('odl', { ascending: true })
       .order('aperto', { ascending: false })
       .order('numero_operazione', { ascending: true })
@@ -101,6 +101,7 @@ export async function caricaMasterOdl(tassonomia: TassonomiaRiga[]): Promise<Rig
         odl: r.odl,
         operazione: r.attivita,
         matricola: r.matricola,
+        impianto: r.impianto,
         indirizzo: [t(r.via), t(r.civico)].filter(Boolean).join(' '),
         cap: r.cap,
         comune: r.comune,

@@ -31,6 +31,7 @@ const MASTER_ODL_COLONNE = [
   { header: 'INDIRIZZO', template: 'Indirizzo' },
   { header: 'CAP', template: 'CAP' },
   { header: 'COMUNE', template: 'COMUNE' },
+  { header: 'PDR / IMPIANTO', template: 'PdR / Impianto' },
 ] as const;
 
 const RIGHE_DEFAULT = 300;
@@ -79,7 +80,7 @@ export async function buildTemplateImport(
     // restituirebbe 0, e uno 0 in MATRICOLA/COMUNE sporcherebbe l'import.
     for (const { col, vlookupN } of colonneDaOdl) {
       row.getCell(col).value = {
-        formula: `IFERROR(T(VLOOKUP(${odlCorrente},${FOGLIO_MASTER_ODL}!$A$2:$F$${master.length + 1},${vlookupN},FALSE)),"")`,
+        formula: `IFERROR(T(VLOOKUP(${odlCorrente},${FOGLIO_MASTER_ODL}!$A$2:$G$${master.length + 1},${vlookupN},FALSE)),"")`,
       } as ExcelJS.CellFormulaValue;
     }
     // L'ODL si digita come TESTO: senza il formato '@' Excel lo convertirebbe in numero
@@ -154,7 +155,7 @@ export async function buildTemplateImport(
     wm.addRow(MASTER_ODL_COLONNE.map((c) => c.header));
     wm.getRow(1).font = { bold: true };
     for (const r of master) {
-      wm.addRow([r.odl, r.descrizione, r.matricola, r.indirizzo, r.cap, r.comune]);
+      wm.addRow([r.odl, r.descrizione, r.matricola, r.indirizzo, r.cap, r.comune, r.impianto]);
     }
     wm.columns.forEach((c) => { c.width = 28; });
     await wm.protect('', { selectLockedCells: true, selectUnlockedCells: true });

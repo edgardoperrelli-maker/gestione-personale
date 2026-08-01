@@ -6,7 +6,9 @@ import Button from '@/components/Button';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import { ATTIVITA_TABELLONE, type Famiglia } from '@/lib/acea/famiglia';
-import type { GiornoProgrammabile } from '@/lib/acea/giorniProgrammabili';
+import {
+  eProgrammabile, etichettaGiorno, giornoEsteso, limitiFinestra, soloAttivazioni, spiegaFinestra,
+} from '@/lib/acea/giorniProgrammabili';
 
 type Operatore = {
   id: string;
@@ -40,11 +42,18 @@ type Props = {
    * nomi incollati in griglia, e una seconda chiamata identica arrivava a ogni montaggio.
    */
   operatori: Operatore[];
-  /** I due giorni su cui si può programmare: oggi e il prossimo giorno lavorativo. */
-  giorni: GiornoProgrammabile[];
+  /** «Oggi» secondo il server (fuso Europe/Rome): da lì si calcolano gli estremi della finestra. */
+  oggi: string;
   /** Giorno scelto, condiviso con la griglia: è per quel giorno che si stanno leggendo i nomi. */
   giorno: string;
   onGiorno: (data: string) => void;
+  /**
+   * `true` mentre si sta chiedendo il tabellone del giorno scelto.
+   *
+   * Serve a non far comparire «Nessuno in tabellone» nel mezzo di una lettura: sarebbe una
+   * risposta, e la risposta non c'è ancora.
+   */
+  caricandoOperatori?: boolean;
   /** Copia negli appunti le righe spuntate. Torna `false` se non c'era niente da copiare. */
   onCopiaRighe: () => Promise<boolean>;
 };
@@ -60,8 +69,8 @@ type Props = {
  * "ho assegnato 200 righe alla persona sbagliata", che senza undo si ripara solo riga per riga.
  */
 export default function BarraAzioni({
-  famiglia, chiavi, onAnnullaSelezione, onPianificato, operatori, giorni, giorno, onGiorno,
-  onCopiaRighe,
+  famiglia, chiavi, onAnnullaSelezione, onPianificato, operatori, oggi, giorno, onGiorno,
+  caricandoOperatori = false, onCopiaRighe,
 }: Props) {
   const { etichetta: etichettaAttivita } = ATTIVITA_TABELLONE[famiglia];
   const [staffId, setStaffId] = useState('');
@@ -161,7 +170,15 @@ export default function BarraAzioni({
 
   if (chiavi.length === 0 && !ultima) return null;
 
-  const giornoScelto = giorni.find((g) => g.data === giorno);
+  const limiti = limitiFinestra(oggi);
+  /*
+    Una data che il campo non avrebbe dovuto accettare: `min`/`max` fermano il calendario ma non
+    la digitazione, e la domenica dentro i due estremi il calendario la offre comunque.
+
+    Non si torna indietro di nascosto — la data resta quella scritta — ma lo si DICE e si spegne
+    «Pianifica»: rimettere il giorno di prima senza spiegare farebbe sembrare il campo rotto.
+  */
+  const fuoriFinestra = Boolean(oggi) && giorno !== '' && !eProgrammabile(giorno, oggi);
 
   return (
     /*
@@ -186,20 +203,43 @@ export default function BarraAzioni({
             vedono. Invertirli faceva scegliere una persona e poi vedersela sparire cambiando
             data — l'ordine di lettura deve seguire quello di dipendenza.
 
-            Un menu di due voci e non più un campo data: si programma solo per oggi e per il
-            prossimo giorno lavorativo, e un campo libero accettava qualunque giorno per poi
-            farlo rifiutare dal server.
+            UN CAMPO DATA, non più il menu di due voci: la finestra ora arriva a due settimane
+            (dec. 49) e il lunedì — il primo giorno pieno del dunning, visto che venerdì e sabato
+            passano solo le attivazioni — con due voci non era raggiungibile affatto. Si scrive o
+            si sceglie dal calendario; `min`/`max` sono gli estremi veri della finestra.
+
+            L'etichetta accanto («oggi», «domani», «lunedì») resta perché il campo mostra il
+            numero e non il giorno della settimana, ed è il giorno della settimana a decidere se
+            passano solo le attivazioni.
           */}
-          <Select
+          <input
+            type="date"
             value={giorno}
             onChange={(e) => onGiorno(e.target.value)}
+            min={limiti?.min}
+            max={limiti?.max}
             aria-label="Giorno di lavoro"
-            className="h-8 w-40"
-          >
-            {giorni.map((g) => (
-              <option key={g.data} value={g.data}>{`${g.etichetta} · ${g.esteso}`}</option>
-            ))}
-          </Select>
+            aria-invalid={fuoriFinestra || undefined}
+            title={oggi ? `${spiegaFinestra(oggi)}.` : undefined}
+            className={`h-8 w-[8.75rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+              fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
+            }`}
+          />
+          {giorno !== '' && !fuoriFinestra && (
+            <span className="whitespace-nowrap text-xs text-[var(--brand-text-muted)]">
+              {etichettaGiorno(giorno, oggi).toLowerCase()}
+            </span>
+          )}
+          {fuoriFinestra && (
+            <span
+              className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-ko)]"
+              title={`${giornoEsteso(giorno)}: ${spiegaFinestra(oggi)}.`}
+            >
+              <TriangleAlert size={12} aria-hidden="true" />
+              fuori finestra
+              <span className="sr-only">: {spiegaFinestra(oggi)}.</span>
+            </span>
+          )}
 
           <Select
             value={staffId}
@@ -209,12 +249,19 @@ export default function BarraAzioni({
             disabled={operatori.length === 0}
             // Il nome dell'attività per esteso sta qui: dentro una select da w-48
             // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
-            title={operatori.length === 0
+            title={operatori.length === 0 && !caricandoOperatori
               ? `Nessun operatore con attività ${etichettaAttivita} in cronoprogramma`
               : undefined}
           >
+            {/*
+              «Nessuno in tabellone» è una RISPOSTA, e finché il tabellone del giorno si sta
+              leggendo la risposta non c'è: scegliendo un giorno nuovo dal campo data comparirebbe
+              per un istante, e chi legge veloce va a compilare un cronoprogramma che è pieno.
+            */}
             <option value="">
-              {operatori.length === 0 ? 'Nessuno in tabellone' : 'Assegna a…'}
+              {caricandoOperatori
+                ? 'Carico il tabellone…'
+                : operatori.length === 0 ? 'Nessuno in tabellone' : 'Assegna a…'}
             </option>
             {/*
               Il territorio accanto al nome: il primo passo della mattina è «assegnazione in base
@@ -227,7 +274,15 @@ export default function BarraAzioni({
             ))}
           </Select>
 
-          <Button variant="primary" size="sm" onClick={() => void pianifica()} disabled={!staffId} loading={busy}>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={() => void pianifica()}
+            // Fuori finestra non parte: il server rifiuterebbe comunque, e un rifiuto che si può
+            // prevedere si dice prima di far premere.
+            disabled={!staffId || fuoriFinestra}
+            loading={busy}
+          >
             <CalendarCheck size={14} aria-hidden="true" />
             Pianifica
           </Button>
@@ -253,11 +308,11 @@ export default function BarraAzioni({
             riga e schiacciava tutti i comandi a sinistra. Il fatto lo dice già la select
             («Nessuno in tabellone», col nome per esteso nel suo title): qui resta solo l'AZIONE.
           */}
-          {operatori.length === 0 && giornoScelto && (
+          {operatori.length === 0 && !caricandoOperatori && !fuoriFinestra && giorno !== '' && (
             <a
               href="/dashboard"
               className="whitespace-nowrap text-xs text-[var(--brand-text-muted)] underline"
-              title={`Nessun operatore con attività ${etichettaAttivita} in cronoprogramma per ${giornoScelto.esteso}: compila il tabellone.`}
+              title={`Nessun operatore con attività ${etichettaAttivita} in cronoprogramma per ${giornoEsteso(giorno)}: compila il tabellone.`}
             >
               compila il tabellone
             </a>
@@ -273,15 +328,15 @@ export default function BarraAzioni({
             esenti (dec. 38) — venerdì e sabato lì si pianifica normalmente, e un avviso su una
             regola che non morde sarebbe un falso allarme che insegna a ignorare quello vero.
           */}
-          {giornoScelto?.soloAttivazioni && famiglia !== 'massive' && operatori.length > 0 && (
+          {soloAttivazioni(giorno) && famiglia !== 'massive' && operatori.length > 0 && (
             <span
               className="inline-flex items-center gap-1 whitespace-nowrap text-xs text-[var(--status-warn)]"
-              title={`${giornoScelto.esteso}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}
+              title={`${giornoEsteso(giorno)}: passano solo le attivazioni (riaperture). Le altre righe vengono saltate.`}
             >
               <TriangleAlert size={12} aria-hidden="true" />
               solo attivazioni
               <span className="sr-only">
-                : {giornoScelto.esteso} passano solo le attivazioni, le altre righe vengono saltate.
+                : {giornoEsteso(giorno)} passano solo le attivazioni, le altre righe vengono saltate.
               </span>
             </span>
           )}

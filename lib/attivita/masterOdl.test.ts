@@ -27,10 +27,10 @@ describe('isOdlReale', () => {
 describe('costruisciMasterOdl', () => {
   it('trim dei campi, descrizione canonica dalla tassonomia (case-insensitive)', () => {
     const out = costruisciMasterOdl([fonte([
-      { odl: ' 912000001 ', operazione: 'SOSPENSIONE', matricola: ' M1 ', indirizzo: ' VIA ROMA 1 ', cap: ' 00030 ', comune: ' LABICO ' },
+      { odl: ' 912000001 ', operazione: 'SOSPENSIONE', matricola: ' M1 ', impianto: ' 19633002 ', indirizzo: ' VIA ROMA 1 ', cap: ' 00030 ', comune: ' LABICO ' },
     ])], index);
     expect(out).toEqual([{
-      odl: '912000001', descrizione: 'Sospensione', matricola: 'M1', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO',
+      odl: '912000001', descrizione: 'Sospensione', matricola: 'M1', impianto: '19633002', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO',
     }]);
   });
 
@@ -77,12 +77,13 @@ describe('costruisciMasterOdl', () => {
 
   it('fusione difensiva: la prima fonte vince, i campi vuoti si riempiono dalle successive', () => {
     const caricato = fonte([{ odl: '5', operazione: 'LIMITAZIONI MASSIVE', indirizzo: 'VIA VERDI 2', cap: '00060', comune: '' }]);
-    const snapshot = fonte([{ odl: '5', operazione: 'Sospensione', matricola: 'M5', comune: 'RIANO' }]);
+    const snapshot = fonte([{ odl: '5', operazione: 'Sospensione', matricola: 'M5', impianto: '74278859', comune: 'RIANO' }]);
     const out = costruisciMasterOdl([caricato, snapshot], index);
     expect(out).toEqual([{
       odl: '5',
       descrizione: 'LIMITAZIONI MASSIVE', // della prima fonte, non sovrascritta
       matricola: 'M5',                    // vuoto nella prima → riempito dalla seconda
+      impianto: '74278859',               // idem: arriva dalla fonte successiva
       indirizzo: 'VIA VERDI 2',
       cap: '00060',
       comune: 'RIANO',

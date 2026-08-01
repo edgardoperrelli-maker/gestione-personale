@@ -14,7 +14,13 @@ import { CondividiPdfButton } from './CondividiPdfButton';
 import { rigaMatchRicerca } from '@/utils/rapportini/rigaMatchRicerca';
 import type { MotivoIncompleto } from '@/utils/rapportini/voceMancante';
 
-export type RigaVoce = { index: number; titolo: string; sub: string; attivita?: string; fascia?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
+/**
+ * Riga della lista. `sub` (seconda riga) e `meta` (testo accanto al titolo) sono TESTI GIÀ
+ * COMPOSTI: quali campi ci finiscano lo decide il flusso in «Azioni operatori» (`lista_campi`,
+ * vedi utils/rapportini/rigaLista). `matricola`/`via`/`odl` restano per la ricerca, che cerca
+ * nel dato e non in ciò che è a schermo.
+ */
+export type RigaVoce = { index: number; titolo: string; sub: string; meta?: string; stato: StatoVoce; nuovo?: boolean; annullato?: boolean; /** Avviso "ODL già positivo il … (…)": voce bloccata, non compilabile. */ bloccoPositivo?: string; nota?: string; notaCollega?: boolean; badge?: { label: string; tono: 'attesa' | 'rifiutato' } | null; matricola?: string; via?: string; odl?: string };
 export type Filtro = 'tutti' | 'dafare' | 'completati';
 
 /** Chip di stato della riga: reso col primitivo Badge, toni d'intento --status-* (DESIGN.md §3). */
@@ -93,9 +99,9 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
             </span>
           )}
           <span className={`min-w-[10ch] flex-1 truncate text-base font-semibold text-[var(--brand-text-main)] ${spenta ? 'line-through' : ''}`}>{r.titolo}</span>
-          {(r.attivita || r.fascia) && (
+          {r.meta && (
             <span className="max-w-[45%] truncate text-xs font-medium text-[var(--brand-text-muted)]">
-              {[r.attivita, r.fascia].filter(Boolean).join(' · ')}
+              {r.meta}
             </span>
           )}
         </span>
@@ -120,6 +126,52 @@ export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (ind
       </span>
       <ChevronRight size={16} strokeWidth={2} aria-hidden className="shrink-0 text-[var(--brand-text-subtle)]" />
     </button>
+  );
+}
+
+/**
+ * Segmented dei filtri: `role=group` + `aria-pressed` sui tre bottoni — è lo stesso
+ * pattern delle card-contatore §7ter. Senza, uno screen reader legge tre bottoni
+ * identici e non dice quale filtro è attivo (il colore da solo non basta).
+ * Estratto perché lo rimonta anche l'anteprima di «Azioni operatori»: la consolle deve
+ * mostrare la lista VERA, non una sua imitazione che invecchia da sola.
+ */
+export function FiltriLista({
+  filtro,
+  conteggi,
+  onFiltro,
+}: {
+  filtro: Filtro;
+  conteggi: Record<Filtro, number>;
+  onFiltro: (f: Filtro) => void;
+}) {
+  return (
+    /* `p-0.5`: il `min-height: 46px` globale sui <button> (globals.css, ≤768px) fissa già
+       l'altezza dei tre segmenti — il padding del contenitore ci si sommava sopra. */
+    <div role="group" aria-label="Filtra gli interventi" className="mt-1.5 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-0.5">
+      {FILTRI.map(([k, lbl]) => (
+        <button
+          key={k}
+          type="button"
+          aria-pressed={filtro === k}
+          onClick={() => onFiltro(k)}
+          /* 44px, non 48: è il minimo WCAG sull'area di tocco, e qui i tre segmenti
+             sono affiancati — ogni pixel in più si paga in altezza della lista. */
+          className={`flex min-h-[44px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] min-[380px]:text-sm ${
+            filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
+          }`}
+        >
+          <span className="truncate">{lbl}</span>
+          <span
+            className={`min-w-[1.25rem] shrink-0 rounded-full px-1 font-mono text-xs font-semibold tabular-nums ${
+              filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
+            }`}
+          >
+            {conteggi[k]}
+          </span>
+        </button>
+      ))}
+    </div>
   );
 }
 
@@ -186,35 +238,7 @@ export function RapportinoLista({
     <div className="flex h-dvh flex-col">
       <div className="shrink-0 px-3 pt-2">
         <IntestazioneRiepilogo staffName={staffName} dataLabel={dataLabel} riepilogo={riepilogo} mostraSaracinesche={mostraSaracinesche} />
-        {/* Segmented dei filtri: `role=group` + `aria-pressed` sui tre bottoni — è lo stesso
-            pattern delle card-contatore §7ter. Senza, uno screen reader legge tre bottoni
-            identici e non dice quale filtro è attivo (il colore da solo non basta). */}
-        {/* `p-0.5`: il `min-height: 46px` globale sui <button> (globals.css, ≤768px) fissa già
-            l'altezza dei tre segmenti — il padding del contenitore ci si sommava sopra. */}
-        <div role="group" aria-label="Filtra gli interventi" className="mt-1.5 flex gap-1 rounded-full border border-[var(--brand-border)] bg-[var(--brand-surface-muted)] p-0.5">
-          {FILTRI.map(([k, lbl]) => (
-            <button
-              key={k}
-              type="button"
-              aria-pressed={filtro === k}
-              onClick={() => onFiltro(k)}
-              /* 44px, non 48: è il minimo WCAG sull'area di tocco, e qui i tre segmenti
-                 sono affiancati — ogni pixel in più si paga in altezza della lista. */
-              className={`flex min-h-[44px] min-w-0 flex-auto items-center justify-center gap-1 rounded-full px-1 py-1 text-[13px] font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] min-[380px]:text-sm ${
-                filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'text-[var(--brand-text-muted)]'
-              }`}
-            >
-              <span className="truncate">{lbl}</span>
-              <span
-                className={`min-w-[1.25rem] shrink-0 rounded-full px-1 font-mono text-xs font-semibold tabular-nums ${
-                  filtro === k ? 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)]' : 'bg-[var(--brand-surface)] text-[var(--brand-text-subtle)]'
-                }`}
-              >
-                {conteggi[k]}
-              </span>
-            </button>
-          ))}
-        </div>
+        <FiltriLista filtro={filtro} conteggi={conteggi} onFiltro={onFiltro} />
         {ricerca.trim() && (
           <p className="mt-2 px-1 text-xs text-[var(--brand-text-subtle)]">
             {righeCercate.length} risultat{righeCercate.length === 1 ? 'o' : 'i'} per «{ricerca.trim()}»

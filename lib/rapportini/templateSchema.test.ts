@@ -36,6 +36,21 @@ describe('TemplateSchema', () => {
     });
     expect(r.success).toBe(false);
   });
+
+  it('senza lista_campi il default è vuoto = riga ai valori storici', () => {
+    const r = TemplateSchema.safeParse(base);
+    expect(r.success && r.data.lista_campi).toEqual({});
+  });
+
+  it('accetta lista_campi con slot pieni e slot spenti', () => {
+    const r = TemplateSchema.safeParse({ ...base, lista_campi: { sub: ['via', 'cap'], meta: [] } });
+    expect(r.success && r.data.lista_campi).toEqual({ sub: ['via', 'cap'], meta: [] });
+  });
+
+  it('rifiuta una chiave sconosciuta dentro lista_campi', () => {
+    const r = TemplateSchema.safeParse({ ...base, lista_campi: { sub: ['pippo'] } });
+    expect(r.success).toBe(false);
+  });
 });
 
 describe('CampoSchema scope_foto', () => {
