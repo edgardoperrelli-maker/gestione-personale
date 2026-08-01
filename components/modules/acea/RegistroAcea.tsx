@@ -511,30 +511,33 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           </Button>
 
           {/*
-            Colonne, export e guida sono del MODO VISTA: si scelgono prima di selezionare, non
-            mentre si assegna. «Esporta vista» in particolare esporta i FILTRI e non le spunte,
-            quindi durante una selezione dice una cosa che non è quella che si sta facendo.
-          */}
-          {selezionate.length === 0 && (
-            <>
-              <MenuColonne
-                colonne={colonneVista}
-                visibili={visibili}
-                onChange={setVisibili}
-                onEsporta={() => void esporta()}
-                esportando={esportando}
-                vuota={totale === 0}
-                onAzzeraLayout={personalizzato ? azzera : undefined}
-                nota={
-                  esportando && !tutteCaricate
-                    ? `${numero(scaricate)} di ${numero(totale)} righe`
-                    : undefined
-                }
-              />
+            Colonne ed «Esporta vista» restano anche in selezione, per richiesta dell'ufficio:
+            capita di cambiare le colonne visibili con delle righe gia` spuntate, e perderle
+            costringeva a deselezionare e ricominciare.
 
-              <GuidaTabella giorni={giorni} famiglia={famiglia} />
-            </>
-          )}
+            Il rischio e` il `flex-wrap` di cui sopra — e` il gruppo piu` largo della riga — ed e`
+            per questo che l'etichetta si accorcia a «Colonne (15)» quando c'e` una selezione:
+            «Colonne: 15 selezionati» accanto alla barra azioni piena mandava la riga a capo su
+            uno schermo da 1280, cioe` esattamente il salto che questa riga esiste per evitare.
+          */}
+          <MenuColonne
+            colonne={colonneVista}
+            visibili={visibili}
+            onChange={setVisibili}
+            onEsporta={() => void esporta()}
+            esportando={esportando}
+            vuota={totale === 0}
+            compatto={selezionate.length > 0}
+            onAzzeraLayout={personalizzato ? azzera : undefined}
+            nota={
+              esportando && !tutteCaricate
+                ? `${numero(scaricate)} di ${numero(totale)} righe`
+                : undefined
+            }
+          />
+
+          {/* Il «?» resta del modo vista: la guida si legge prima, non con le righe spuntate. */}
+          {selezionate.length === 0 && <GuidaTabella giorni={giorni} famiglia={famiglia} />}
 
           {/*
             Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel

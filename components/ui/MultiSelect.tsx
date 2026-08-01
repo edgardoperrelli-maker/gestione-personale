@@ -42,6 +42,13 @@ type MultiSelectProps = {
    * (DESIGN.md §8). Scegliendo qui le classi base il conflitto non nasce.
    */
   size?: 'sm' | 'md';
+  /**
+   * Trigger stretto: «Colonne (15)» invece di «Colonne: 15 selezionati».
+   *
+   * Serve dove il comando divide la riga con altri e la sua larghezza decide se quella riga va
+   * a capo. Additiva: senza la prop il testo resta quello di sempre.
+   */
+  compatto?: boolean;
 };
 
 const TRIGGER_SIZE = {
@@ -60,6 +67,7 @@ export default function MultiSelect({
   error = false,
   selezioneEsplicita = false,
   size = 'md',
+  compatto = false,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -114,7 +122,9 @@ export default function MultiSelect({
               : 'hover:border-[var(--brand-primary-border)]'
         }`}
       >
-        <span className="truncate text-left">{label}: {riepilogo}</span>
+        <span className="truncate text-left">
+          {compatto ? `${label} (${values.length})` : `${label}: ${riepilogo}`}
+        </span>
         <ChevronDown size={14} aria-hidden className="shrink-0 text-[var(--brand-text-muted)]" />
       </button>
 

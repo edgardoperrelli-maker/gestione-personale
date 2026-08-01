@@ -18,6 +18,15 @@ type Props = {
   nota?: string;
   /** Presente solo se l'utente ha spostato o ridimensionato qualcosa: rimette tutto com'era. */
   onAzzeraLayout?: () => void;
+  /**
+   * Trigger stretto: «Colonne (15)» invece di «Colonne: 15 selezionati», e larghezza sul
+   * contenuto invece di `w-52`.
+   *
+   * Lo usa il registro quando c'è una selezione: lì questo comando divide la riga con la barra
+   * azioni piena, ed è la sua larghezza a decidere se la riga va a capo — cioè se la tabella
+   * scende di una riga sotto il mouse di chi sta mirando le spunte.
+   */
+  compatto?: boolean;
 };
 
 /**
@@ -31,13 +40,13 @@ type Props = {
  * una tabella senza colonne. È la semantica opt-in del primitivo, fatta esattamente per questo caso.
  */
 export default function MenuColonne({
-  colonne, visibili, onChange, onEsporta, esportando, vuota, nota, onAzzeraLayout,
+  colonne, visibili, onChange, onEsporta, esportando, vuota, nota, onAzzeraLayout, compatto = false,
 }: Props) {
   const avviso = nota ?? (vuota ? 'nessuna riga da esportare' : null);
 
   return (
     <div className="flex items-center gap-2">
-      <div className="w-52">
+      <div className={compatto ? '' : 'w-52'}>
         <MultiSelect
           label="Colonne"
           ariaLabel="Colonne visibili"
@@ -45,6 +54,7 @@ export default function MenuColonne({
           // `text-xs` di tutti gli altri, e sporgeva sopra e sotto. Sfondava anche di 2px il
           // `min-h-9` che RegistroAcea dichiara per non far muovere la riga alla prima spunta.
           size="sm"
+          compatto={compatto}
           selezioneEsplicita
           options={colonne.map((c) => ({ value: c.chiave, label: c.intestazione }))}
           values={colonne.filter((c) => visibili.has(c.chiave)).map((c) => c.chiave)}
