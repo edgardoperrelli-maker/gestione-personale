@@ -175,6 +175,14 @@ export default function TabellaOrdini({
   const griglia = useRef<HTMLDivElement>(null);
   // Indice dell'ultima riga cliccata: base dello shift-click.
   const ultimaCliccata = useRef<number | null>(null);
+  /**
+   * Lo Shift del gesto in corso sul quadratino, catturato al `pointerdown`.
+   *
+   * Il gestore della spunta vive sul `change`, che i modificatori non li porta: questo ref fa
+   * da ponte per il solo attimo fra pressione e change, e chi lo legge lo azzera. Un ref e non
+   * uno stato: cambia a ogni gesto e non deve disegnare niente.
+   */
+  const shiftPremuto = useRef(false);
 
   const visibili = useMemo(
     () => colonne.filter((c) => colonneVisibili.has(c.chiave)),
@@ -294,8 +302,19 @@ export default function TabellaOrdini({
     fuori dallo schermo invece di scorrere. Vale su OGNI anello della catena, da qui fino alla
     pagina.
   */
+  /*
+    NIENTE `flex-1` sul riquadro qui sotto: `flex: 0 1 auto` (il default) vuol dire «alto quanto il
+    contenuto, ma comprimibile se lo spazio manca», che è il comportamento giusto per entrambi i
+    casi. Con `flex-1` il riquadro prendeva SEMPRE tutta l'altezza della catena: su una
+    scheda-comune da 11 righe restavano 472px di bianco su 901 — il 52% — e sulle schede-comune
+    le poche righe sono lo stato normale, non il caso limite.
+
+    Lo scorrimento con 5.000 righe non cambia: quando il contenuto eccede lo spazio il riquadro
+    viene compresso a un'altezza definita, e il `height: 100%` del contenitore interno si risolve
+    su quella, come prima.
+  */
   return (
-    <div className="flex min-h-0 flex-1 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
+    <div className="flex min-h-0 overflow-hidden rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)]">
       <div
         ref={contenitore}
         className="w-full overflow-auto focus-within:outline-none"
@@ -524,25 +543,44 @@ export default function TabellaOrdini({
                       gestore resta UNO SOLO: raddoppiarlo rimetterebbe due toggle sullo stesso
                       gesto, che si annullano a vicenda.
                     */}
-                    <label className="flex h-full w-full cursor-pointer items-center justify-center">
+                    {/*
+                      Un gestore solo, su `change` — e NIENTE `preventDefault` sul click.
+
+                      Il difetto che questa forma cura: annullare il click di un checkbox innesca
+                      il RIPRISTINO post-evento del browser (legacy-canceled-activation), che
+                      riporta la spunta al valore di prima DOPO che React ha già scritto il suo.
+                      Il flush di React è sincrono e vive dentro il dispatch; il ripristino arriva
+                      a dispatch finito, quindi vince lui — e siccome il tracker di React crede di
+                      aver già scritto il valore giusto, i render successivi non riscrivono nulla.
+                      Risultato misurato sul vivo: stato «1 riga» con la casella SPENTA (riga
+                      tinta, quadratino vuoto), stabile; e allo speculare, deselezionando dal
+                      quadratino una riga scelta col click-riga, la casella restava ACCESA con lo
+                      stato già scarico — «dice 1 riga, ma le flaggate sono 2».
+
+                      Lo shift dell'intervallo non può arrivare dal `change` (che non porta i
+                      modificatori): lo cattura il `pointerdown` sulla label un attimo prima, in
+                      un ref che il change consuma e azzera. Da tastiera il pointerdown non c'è e
+                      il ref resta com'è: Space = toggle secco, Shift+Space = intervallo — che è
+                      il gesto previsto dal pattern grid, non un caso degenere.
+
+                      La storia di questo blocco ha già due lezioni scritte: un gesto = un
+                      percorso (il doppio onChange+onClick si sovrascriveva), e la label piena
+                      come bersaglio (16px in una cella da 40 mancava il click). Restano vere
+                      entrambe: il gestore è UNO e la label resta.
+                    */}
+                    <label
+                      className="flex h-full w-full cursor-pointer items-center justify-center"
+                      onPointerDown={(e) => { shiftPremuto.current = e.shiftKey; }}
+                    >
                     <input
                       type="checkbox"
                       aria-label={`Seleziona ordine ${r.odl}`}
                       className="h-4 w-4 cursor-pointer accent-[var(--brand-primary)]"
                       checked={scelta}
-                      /*
-                        Tutto nel `click`, niente nel `change`.
-
-                        React ricava l'evento `change` di un checkbox DAL CLICK, e `preventDefault()`
-                        non lo sopprime: tenendo un gestore su ciascuno, uno shift-click ne faceva
-                        partire due, che ricostruivano la selezione dallo stesso stato di render e
-                        si sovrascrivevano a vicenda — l'intervallo spariva e restava il toggle.
-                        La spunta e` controllata da `checked`, quindi il toggle nativo non serve.
-                      */
-                      onChange={() => { /* la selezione la decide il click */ }}
-                      onClick={(e) => {
-                        e.preventDefault();
-                        clickRiga(vi.index, e.shiftKey);
+                      onChange={() => {
+                        const shift = shiftPremuto.current;
+                        shiftPremuto.current = false;
+                        clickRiga(vi.index, shift);
                       }}
                     />
                     </label>

@@ -140,12 +140,27 @@ export default function MisuratoriTabella({
                 { key: null,              label: 'Note' },
               ] as Array<{ key: SortKey | null; label: string }>
             ).map(({ key, label }) => (
+              /*
+                L'ordinamento sta su un VERO <button> dentro il th, non su un onClick del th:
+                col solo click la tastiera non ci arrivava mai (niente Tab, niente Invio) e il
+                lettore di schermo non sentiva né il comando né il verso. `aria-sort` sul th
+                dice il verso corrente, come in TabellaOrdini.
+              */
               <th
                 key={label}
-                onClick={key ? () => toggleSort(key) : undefined}
-                className={`whitespace-nowrap px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-[var(--brand-text-muted)]${key ? ' cursor-pointer select-none hover:text-[var(--brand-text-main)]' : ''}`}
+                aria-sort={key && sortKey === key ? (sortAsc ? 'ascending' : 'descending') : undefined}
+                className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-[var(--brand-text-muted)]"
               >
-                {label}{key && <SortArrow k={key} />}
+                {key ? (
+                  <button
+                    type="button"
+                    onClick={() => toggleSort(key)}
+                    title={`Ordina per ${label}`}
+                    className="inline-flex select-none items-center gap-0.5 rounded-[var(--radius-sm)] uppercase tracking-wide hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  >
+                    {label}<SortArrow k={key} />
+                  </button>
+                ) : label}
               </th>
             ))}
           </tr>
@@ -196,8 +211,14 @@ export default function MisuratoriTabella({
                   value={row.stato}
                   onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
                   title={isAdminPlus ? undefined : 'Solo Admin Plus può riportare indietro lo stato'}
-                  style={{ color: accent, borderColor: accent, fontWeight: 600 }}
-                  className="rounded-[var(--radius-sm)] border bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  /*
+                    Peso in classe (`font-medium`) e non in style: 500 è il gradino dei
+                    controlli (§4 — il 600 è dei titoli), e uno style inline sfuggirebbe a
+                    qualunque bonifica via classi. Colore e bordo restano inline perché
+                    dinamici sull'accent di stato.
+                  */
+                  style={{ color: accent, borderColor: accent }}
+                  className="rounded-[var(--radius-sm)] border bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
                   {STATI_MISURATORE.map((s, i) => (
                     <option
@@ -223,15 +244,20 @@ export default function MisuratoriTabella({
                     className="w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   />
                 ) : (
-                  <span
-                    role="button"
+                  /*
+                    Un VERO bottone, non uno span con role="button": quello prometteva un
+                    comando che la tastiera non trovava — niente tabIndex, niente Invio/Spazio.
+                    Il bottone nativo porta tutto da sé; l'aspetto resta quello del testo.
+                  */
+                  <button
+                    type="button"
                     aria-label={`Modifica note per ${row.matricola}`}
                     onClick={() => startNoteEdit(row)}
-                    className="cursor-text text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)]"
+                    className="w-full cursor-text rounded-[var(--radius-sm)] text-left text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                     title="Clicca per modificare"
                   >
                     {row.note || '—'}
-                  </span>
+                  </button>
                 )}
               </td>
             </tr>

@@ -15,13 +15,25 @@ type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
   loading?: boolean;
 };
 
+/*
+  OGNI variante dichiara un bordo, anche quelle che non lo disegnano (`border-transparent`).
+
+  L'altezza qui non e` fissata: nasce da padding + contenuto + BORDO. Senza il bordo trasparente
+  un `primary` e un `outline` della stessa `size` rendevano 28 e 30px — e DESIGN.md §3 chiede
+  proprio di affiancarli («un solo primario per volta, tutto il resto outline»), quindi i due
+  pixel si vedevano ovunque ci fosse una coppia di comandi. Misurato su ACEA → Strumenti:
+  «Geocodifica» (primary) 28px accanto a «Rinumera le microaree» (outline) 30px.
+
+  Il bordo trasparente non cambia il disegno di nessuna variante: cambia solo la scatola, e la
+  rende una sola per tutte.
+*/
 const variantClasses: Record<ButtonVariant, string> = {
-  primary: 'bg-[var(--brand-primary)] text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]',
+  primary: 'border border-transparent bg-[var(--brand-primary)] text-[var(--on-primary)] hover:bg-[var(--brand-primary-hover)]',
   secondary: 'border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]',
   outline: 'border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]',
-  ghost: 'text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]',
-  soft: 'bg-[var(--brand-primary-soft)] text-[var(--primary-text)] hover:bg-[var(--brand-primary-border)]',
-  danger: 'bg-[var(--danger)] text-[var(--on-danger)] hover:opacity-90',
+  ghost: 'border border-transparent text-[var(--brand-text-main)] hover:bg-[var(--brand-surface-muted)]',
+  soft: 'border border-transparent bg-[var(--brand-primary-soft)] text-[var(--primary-text)] hover:bg-[var(--brand-primary-border)]',
+  danger: 'border border-transparent bg-[var(--danger)] text-[var(--on-danger)] hover:opacity-90',
   gold: 'bg-[var(--brand-surface-muted)] text-[var(--brand-text-main)] border border-[var(--brand-border-strong)] hover:bg-[var(--brand-surface)]',
 };
 

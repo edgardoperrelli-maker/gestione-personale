@@ -149,12 +149,12 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // Il gruppo viene dalle COORDINATE, non dal CAP: a Roma un CAP e` largo chilometri, e due
   // misuratori con lo stesso CAP possono essere a mezz'ora l'uno dall'altro. Ordinando per questa
   // colonna le righe da fare nello stesso giro finiscono una sotto l'altra.
-  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76, filtro: F.gruppo },
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 92, filtro: F.gruppo },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
-  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
   /*
     Le due colonne di ACEA, subito accanto alle nostre, e PREDEFINITE.
 
@@ -208,7 +208,7 @@ export const COLONNE_ACQUALATINA: DefColonna[] = [
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 260, filtro: F.indirizzo },
   { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
-  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
   { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 240, filtro: F.note },
   // attivabili
   { chiave: 'data_completamento', intestazione: 'Chiusa il', predefinita: false, mono: true, larghezza: 110 },
@@ -230,7 +230,7 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 220, filtro: F.indirizzo },
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
-  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 76, filtro: F.gruppo },
+  { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 92, filtro: F.gruppo },
   { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
   /*
     «Data pianificata», non «Data esecuzione»: questa colonna è `pianificato_il`, cioè il giorno
@@ -240,7 +240,7 @@ export const COLONNE_MASSIVE: DefColonna[] = [
     la colonna qui sotto.
   */
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
-  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 120, filtro: F.dataPianificata },
+  { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
   { chiave: 'operatore_cognome', intestazione: 'Operatore ACEA', predefinita: true, larghezza: 150, filtro: F.operatore },
   { chiave: 'data_completamento', intestazione: 'Esecuzione ACEA', predefinita: true, mono: true, larghezza: 120 },
   { chiave: 'esito', intestazione: 'Esito', predefinita: true, larghezza: 200 },

@@ -64,7 +64,7 @@ export default function CandeleSettimanali() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 py-0 text-xs print:hidden"
+            className="print:hidden"
             onClick={() => setLunedi((l) => spostaGiorni(l, -7))}
             aria-label="Settimana precedente"
           >
@@ -77,7 +77,7 @@ export default function CandeleSettimanali() {
             type="button"
             variant="ghost"
             size="sm"
-            className="h-7 px-2 py-0 text-xs print:hidden"
+            className="print:hidden"
             onClick={() => setLunedi((l) => spostaGiorni(l, 7))}
             aria-label="Settimana successiva"
           >

@@ -37,7 +37,12 @@ export default async function AcqualatinaPianificazionePage() {
           <Breadcrumb
             items={[{ label: 'AcquaLatina', href: '/hub/acqualatina' }, { label: 'Pianificazione' }]}
           />
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
+          {/*
+            `text-xl`, il gradino delle teste slim (§4): le viste gemelle sullo stesso registro
+            full-screen — Dunning, Massive, Collaudo — stanno tutte lì, e questa a text-2xl era
+            l'unica a sporgere di un gradino.
+          */}
+          <h1 className="mt-1 text-xl font-semibold tracking-[-0.015em] text-[var(--brand-text-main)]">
             Sostituzione misuratori — Terracina
           </h1>
         </div>

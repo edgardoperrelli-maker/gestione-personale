@@ -160,8 +160,8 @@ export default function EditorListinoAcea({ onSaved }: { onSaved?: () => void })
                 </td>
                 <td className="py-1 pr-2">
                   <div className="flex gap-1">
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs" onClick={() => salva(r)}>Salva</Button>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 px-2 py-0 text-xs text-[var(--danger)]" onClick={() => elimina(r.id)}>Elimina</Button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => salva(r)}>Salva</Button>
+                    <Button type="button" variant="ghost" size="sm" className="text-[var(--danger)]" onClick={() => elimina(r.id)}>Elimina</Button>
                   </div>
                 </td>
               </tr>

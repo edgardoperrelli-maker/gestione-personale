@@ -1,5 +1,21 @@
 [
   {
+    "date": "2026-08-01",
+    "scope": "audit",
+    "macrostructure": "(audit+fix — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed)",
+    "enrichment": "none",
+    "brief": "Ultima passata ACEA+AcquaLatina+Misuratori: 29 agenti su 4 lenti, 25 finding confermati dedotti a 16 fix. I due grossi: le regole input/select/textarea FUORI @layer battevano ogni utility (il bordo rosso fuori-finestra non si era MAI visto — stessa classe del reset bottoni gia documentato) -> spostate in @layer base; i contatori scadenza globali spacciati per numeri della vista massive (che ne ha 0: erano tutti del dunning) -> endpoint con conte per famiglia. Poi: campi barra azioni a 30px, banner errore in text-main su danger-soft (§3), StatoBadge sui token -soft, ObjectHeader sulla landing AcquaLatina, testa slim text-xl su pianificazione, sort e note della tabella misuratori resi veri bottoni con aria-sort, focus dentro FiltroColonna per tutti i tipi, inert sulla cromatura shell in vista ingrandita, Input primitivo sui due date nudi, aria-label distinti sugli apri, sr-only sul semaforo collaudo, regioni live su ModaleRapportini e MisuratoriClient."
+  },
+  {
+    "date": "2026-08-01",
+    "scope": "app",
+    "macrostructure": "Workbench (vista-foglietta registro)",
+    "theme": "DESIGN.md (system-managed, tema unico)",
+    "enrichment": "none",
+    "brief": "redesign ACEA/Dunning — densita della testa. Tre mosse, tutte dentro il sistema (nessun token, font o accento toccato). 1) I comandi della vista e la barra azioni si DANNO IL CAMBIO invece di sommarsi: il salto della tabella alla selezione non era l'altezza dei bottoni ma il flex-wrap, e con la barra piena (Annulla ultima sopravvive alla deselezione) il registro scendeva di una riga intera nel momento in cui lo si sta mirando. Misurato a 1280: 36->44px con UNA spunta, ora 0. Resta Ingrandisci, l'unico comando vista utile MENTRE si seleziona. 2) ContatoriAcea prende una prop famiglia: sulle viste-foglietta i 5 KPI diventano una riga (DESIGN.md §7ter, le figlie restano sul pattern slim), e sul dunning esce il totale delle massive, che e dell'altra foglietta. L'hub tiene il pannello pieno: li i numeri SONO il contenuto. 3) La nota degli ordini senza impianto entra nella riga come ultima voce invece di occuparne una propria. Risultato: cromatura 319->219px, +3 righe a 1270 e +21% su un laptop. Contrasto verificato a 12px: danger 5.51, warning 5.10, subtle 4.58, tutti AA."
+  },
+  {
     "date": "2026-07-27",
     "scope": "sistema",
     "macrostructure": "(intervento di sistema — nessuna macrostruttura)",
@@ -142,21 +158,5 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Interventi (/hub/interventi) — cleanup dei residui pre-Cockpit nei pezzi periferici (la spina §7ter del 22/07 era già a norma): emoji 📷/✎/🗑 e frecce ←/→/▲/▼ → icone lucide; 3 portali bg-black (AnnuncioOdlPositivi, AnnuncioGruppoAttivita del Novità center, ModaleErroreImport della Mappa) → primitivo Dialog; ModaleModificaVoce ai primitivi Input/Select/Textarea/Button; bottone elimina-foto text-white → --on-danger; StoricoFiltri bottoni → Button e raggi in scala. Dati/logica invariati; niente API"
-  },
-  {
-    "date": "2026-07-24",
-    "scope": "app",
-    "macrostructure": "Workbench",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Calendario hotel (/hub/hotel-calendar) — allineamento al sistema Cockpit: testa ObjectHeader + control-bar (nav ‹ Oggi › + periodo mono + vista settimana/2 settimane/mese), Modal fatti a mano → Dialog (nuova/modifica/esporta + SendRequestModal), <select>/<input>/<textarea> → primitivi, ospiti → MultiSelect, importi → € in mono, glifi ✕ e label inglesi → lucide, via il link Hub e l'evento globale hotel-edit. Fetch/realtime/export invariati; niente API. + follow-up audit: HotelCard chip SENZA bordo (risolto card-in-card, un solo livello bordato = la cella-giorno), vista agenda a colonna singola sotto md (la griglia 7-col era illeggibile a 375px), colori territorio dalla scala --chart-* (via --brand-violet e semantici), title ridondanti rimossi"
-  },
-  {
-    "date": "2026-07-24",
-    "scope": "app",
-    "macrostructure": "Workbench",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Assegnazione AI (/hub/assegnazione-ai) — allineamento al sistema Cockpit: glifi→lucide, modale territorio + annuncio→Dialog, breadcrumb→primitivo condiviso, #fff→--on-danger, raggi in scala, numeri mono, select→primitivo, icone coerenti nelle griglie. IA drill-down e logica invariate; niente API/driver"
   }
 ]

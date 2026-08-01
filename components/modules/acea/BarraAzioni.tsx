@@ -187,8 +187,8 @@ export default function BarraAzioni({
       Prima era un riquadro con la sua aria attorno (py-2, riga a parte): comparendo alla prima
       spunta faceva crescere la riga e la tabella slittava in giù — il click successivo cadeva
       su una riga diversa da quella mirata. Ora comparire e sparire non muove NIENTE: dentro i
-      36px stanno select h-8 e bottoni sm, e il riquadro resta un riquadro (fondo primario) ma
-      della taglia dei comandi che ha accanto.
+      36px stanno campi e bottoni TUTTI a 30px (la scatola dei Button sm), e il riquadro resta
+      un riquadro (fondo primario) ma della taglia dei comandi che ha accanto.
     */
     <div className="flex h-9 items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-primary-border)] bg-[var(--brand-primary-soft)] px-2">
       {chiavi.length > 0 && (
@@ -221,7 +221,12 @@ export default function BarraAzioni({
             aria-label="Giorno di lavoro"
             aria-invalid={fuoriFinestra || undefined}
             title={oggi ? `${spiegaFinestra(oggi)}.` : undefined}
-            className={`h-8 w-[8.75rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+            /*
+              `h-[30px]` come i Button sm che gli stanno in fila (py-1.5 + testo 12 + bordo = 30):
+              a h-8 campo e menu sporgevano di 2px sui bottoni della stessa barra — la classe
+              esatta di disallineamento bonificata su tutta la console in questa PR.
+            */
+            className={`h-[30px] w-[8.75rem] shrink-0 rounded-[var(--radius-md)] border bg-[var(--brand-surface)] px-2 text-sm text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
               fuoriFinestra ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]'
             }`}
           />
@@ -245,7 +250,7 @@ export default function BarraAzioni({
             value={staffId}
             onChange={(e) => setStaffId(e.target.value)}
             aria-label="Assegna a"
-            className="h-8 w-48"
+            className="h-[30px] w-48 py-0 text-xs"
             disabled={operatori.length === 0}
             // Il nome dell'attività per esteso sta qui: dentro una select da w-48
             // «LIMITAZIONI MASSIVE» usciva tagliato a metà parola.
@@ -311,7 +316,7 @@ export default function BarraAzioni({
           {operatori.length === 0 && !caricandoOperatori && !fuoriFinestra && giorno !== '' && (
             <a
               href="/dashboard"
-              className="whitespace-nowrap text-xs text-[var(--brand-text-muted)] underline"
+              className="whitespace-nowrap rounded-[var(--radius-sm)] text-xs text-[var(--brand-text-muted)] underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
               title={`Nessun operatore con attività ${etichettaAttivita} in cronoprogramma per ${giornoEsteso(giorno)}: compila il tabellone.`}
             >
               compila il tabellone

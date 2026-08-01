@@ -21,7 +21,7 @@ import RegistroAcea from './RegistroAcea';
 export default function DunningClient() {
   return (
     <div className="flex min-h-0 flex-1 flex-col gap-2">
-      <ContatoriAcea />
+      <ContatoriAcea famiglia="dunning" />
       <RegistroAcea famiglia="dunning" />
     </div>
   );

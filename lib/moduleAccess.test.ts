@@ -73,7 +73,9 @@ describe('normalizeAllowedModules (moduli requiresAdminRole forzati per gli admi
     // per gli admin TUTTI i moduli requiresAdminRole sono forzati (46663960)
     // L'elenco è volutamente esplicito: aggiungere `requiresAdminRole` a un modulo allarga
     // l'accesso forzato di ogni admin e deve passare da qui.
-    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['acea', 'assistenza', 'impostazioni']);
+    // `acqualatina` dal 01/08/2026: commessa gemella di ACEA, stesso flag per la stessa
+    // ragione — senza, un modulo nuovo non compare a nessuno che abbia già la lista salvata.
+    expect(normalizeAllowedModules(undefined, 'admin')).toEqual(['acea', 'acqualatina', 'assistenza', 'impostazioni']);
   });
 });
 

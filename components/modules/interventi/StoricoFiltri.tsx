@@ -124,7 +124,9 @@ export default function StoricoFiltri({
                 type="button"
                 aria-pressed={attivo}
                 onClick={() => onPatch(attivo ? { dal: '', al: '' } : { dal: r.dal, al: r.al })}
-                className={`rounded-full border px-3 py-1 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
+                // `py-1.5` come le pill e «+ Filtro» che gli stanno in fila: con `py-1` erano
+                // 26px contro i 30 di «Esporta Excel», nella stessa barra.
+                className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] ${
                   attivo
                     ? 'border-[var(--brand-primary)] bg-[var(--brand-primary-soft)] text-[var(--primary-text)]'
                     : 'border-[var(--brand-border-strong)] text-[var(--brand-text-muted)] hover:border-[var(--brand-primary)] hover:text-[var(--primary-text)]'

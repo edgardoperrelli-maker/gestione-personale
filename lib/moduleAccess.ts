@@ -97,6 +97,30 @@ export const APP_MODULES: AppModuleDefinition[] = [
     requiresAdminRole: true,
   },
   {
+    key: 'acqualatina',
+    href: '/hub/acqualatina',
+    label: 'AcquaLatina',
+    description: 'Commessa AcquaLatina: registro ordini, pianificazione e misuratori rimossi',
+    section: 'modules',
+    /*
+      QUI, subito dopo ACEA, e nello stesso gruppo: l'ordine dell'array e` l'ordine della
+      sidebar e dell'hub, e le due commesse sono la stessa classe di modulo — il registro di
+      un committente con la sua pianificazione. Si cercano insieme, quindi stanno insieme.
+      Stava in `operativita` da quando il modulo era il solo registro dei misuratori rimossi.
+    */
+    group: 'pianificazione',
+    matchPrefixes: ['/hub/acqualatina'],
+    adminOnly: true,
+    /*
+      Come ACEA, e per la stessa ragione: senza, il modulo NON COMPARIVA A NESSUNO.
+      `getAllowedModulesForUser` mostra solo le chiavi della lista salvata nei metadata
+      dell'utente, e una chiave nuova non sta nella lista di nessuno — l'eccezione «moduli
+      nuovi, sempre visibili agli admin» di `normalizeAllowedModules` scatta solo su questo
+      flag. La svista era qui: la commessa gemella lo portava, questa no.
+    */
+    requiresAdminRole: true,
+  },
+  {
     key: 'interventi',
     href: '/hub/interventi',
     label: 'Interventi',
@@ -169,20 +193,10 @@ export const APP_MODULES: AppModuleDefinition[] = [
     key: 'misuratori',
     href: '/hub/misuratori',
     label: 'Misuratori',
-    description: 'Registro misuratori rimossi',
+    description: 'Misuratori rimossi, un registro per commessa',
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/misuratori'],
-    adminOnly: true,
-  },
-  {
-    key: 'acqualatina',
-    href: '/hub/acqualatina',
-    label: 'AcquaLatina',
-    description: 'Commessa AcquaLatina: registro misuratori rimossi',
-    section: 'modules',
-    group: 'operativita',
-    matchPrefixes: ['/hub/acqualatina'],
     adminOnly: true,
   },
   {

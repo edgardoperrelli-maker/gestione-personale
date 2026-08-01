@@ -54,7 +54,15 @@ export function Toaster() {
     <div
       role="status"
       aria-live="polite"
-      className="pointer-events-none fixed bottom-4 right-4 z-[90] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2"
+      /*
+        In basso a SINISTRA: a destra copriva le ultime colonne della tabella proprio mentre si
+        assegna operatore e giorno, cioè quando la conferma serve e la tabella si sta leggendo.
+        `left` parte dal bordo del CONTENUTO, non del viewport: `--shell-sidebar-w` è esposta
+        dall'AppShell e segue il collasso, altrimenti 223px di toast finivano sopra la sidebar
+        (misurato) e la prima parola spariva dietro l'avatar. Sotto `md` la sidebar è un drawer
+        e non occupa spazio, quindi resta `left-4`; fuori dalla shell il fallback fa lo stesso.
+      */
+      className="pointer-events-none fixed bottom-4 left-4 z-[90] flex w-[min(24rem,calc(100vw-2rem))] flex-col gap-2 transition-[left] duration-200 motion-reduce:transition-none md:left-[calc(var(--shell-sidebar-w,0px)+1rem)]"
     >
       <AnimatePresence initial={false}>
         {items.map((t) => (

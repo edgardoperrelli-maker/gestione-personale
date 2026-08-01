@@ -75,7 +75,7 @@ export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
             : <li>Si programma <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non questa vista.</li>}
           <li>Il <strong>giorno</strong> si scrive o si sceglie dal calendario nella barra di assegnazione: dentro la finestra ci si può spostare liberamente, lunedì compreso.</li>
           <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
-            <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
+            <a href="/dashboard" className="rounded-[var(--radius-sm)] underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>
         </ul>
       </section>
@@ -111,7 +111,12 @@ export default function GuidaTabella({ oggi, famiglia }: PropsGuida) {
         aria-label="Guida della tabella"
         title="Come si usa la tabella (modifica, copia/incolla, programmazione)"
       >
-        <CircleHelp size={14} aria-hidden="true" />
+        {/*
+          16 e non 14 come le icone che stanno ACCANTO a un testo: qui l'icona e` tutto il
+          contenuto del bottone, e a 14 il comando rendeva 28px contro i 30 degli altri della
+          riga — la differenza la fa il testo, che porta con se` un'interlinea di 16.
+        */}
+        <CircleHelp size={16} aria-hidden="true" />
       </Button>
       <Dialog open={aperta} onClose={() => setAperta(false)} title="Come si usa la tabella">
         <ContenutoGuida oggi={oggi} famiglia={famiglia} />

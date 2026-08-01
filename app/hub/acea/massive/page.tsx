@@ -30,7 +30,7 @@ export default async function AceaMassivePage() {
   return (
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-2">
       <AceaNav attivo="massive" />
-      <ContatoriAcea />
+      <ContatoriAcea famiglia="massive" />
       <RegistroAcea famiglia="massive" comuniIniziali={comuni} />
     </div>
   );

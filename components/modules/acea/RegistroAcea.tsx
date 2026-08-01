@@ -294,7 +294,20 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     if (!ingrandita) return undefined;
     const precedente = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = precedente; };
+    /*
+      La cromatura coperta diventa `inert`: il riquadro copre sidebar e TopBar (z-45 sopra il
+      loro z-40) ma senza inert restavano TABBABILI — il giro di Tab finiva su comandi
+      invisibili, e il lettore di schermo li leggeva come se la pagina fosse ancora lì.
+      `inert` toglie in un colpo focus e albero accessibile; al rientro si rimette com'era.
+      Si marca la cromatura della SHELL (nav e header), non i fratelli del riquadro: i portali
+      di filtri, conferme e toast montano su body e devono restare vivi.
+    */
+    const cromatura = Array.from(document.querySelectorAll<HTMLElement>('nav, header'));
+    for (const el of cromatura) el.inert = true;
+    return () => {
+      document.body.style.overflow = precedente;
+      for (const el of cromatura) el.inert = false;
+    };
   }, [ingrandita]);
 
   const cursoreAttivo = editing.focus !== null;
@@ -455,9 +468,25 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
       />
 
       {/*
-        La riga dei comandi è a min-h-9 e TUTTO ciò che vi compare e scompare — la barra azioni
-        in testa — è alto esattamente h-9: alla prima spunta la pagina non si muove di un pixel,
-        e il click successivo cade sulla riga mirata. La barra sta a DESTRA, dopo il «?».
+        UNA RIGA SOLA, E UN GRUPPO DI COMANDI ALLA VOLTA.
+
+        Il commento qui sopra diceva che alla prima spunta la pagina non si muoveva di un pixel.
+        Non era vero, e il modo in cui non lo era spiega perché: l'altezza dei singoli comandi
+        c'entrava poco, a mandare la tabella più in basso era il `flex-wrap`. Comandi della vista
+        e barra azioni convivevano sulla stessa riga, e appena la barra si riempiva — l'operatore,
+        la data, Pianifica, Copia, Deseleziona, l'avviso e «Annulla ultima (n righe → NOME)» — i
+        due gruppi non ci stavano più: uno andava a capo e il registro scendeva di una riga
+        INTERA. Peggio, «Annulla ultima» sopravvive alla deselezione (BarraAzioni si smonta solo
+        se non ha nemmeno quello), quindi dopo la prima pianificazione la riga in più restava lì.
+
+        Misurato prima: a 1280px basta UNA spunta perché la riga passi da 36 a 44px; con la barra
+        piena il salto è una riga di tabella. Il dato si sposta sotto il mouse nel momento esatto
+        in cui lo si sta mirando — che è il gesto centrale di questa pagina.
+
+        Ora i due gruppi si danno il cambio invece di sommarsi: sono due MODI dello stesso
+        strumento, non due strumenti. Senza selezione si guarda, si filtra, si esporta; con una
+        selezione si assegna. Resta «Ingrandisci», che è l'unico comando della vista che serve
+        MENTRE si seleziona; gli altri cinque servono prima o dopo, e tornano alla deselezione.
       */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -488,39 +517,47 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             vecchio collegamento agli Strumenti e il bottone «Sul rapportino» in barra: tre vie
             per la stessa cosa erano due di troppo).
           */}
-          {famiglia === 'acqualatina' ? (
-            /*
-              Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
-              (Impostazioni → Template master): il comando tira dentro le righe nuove del file
-              del mese, senza toccare quelle già presenti.
-            */
-            <button
-              type="button"
-              onClick={() => void sincronizzaDalMaster()}
-              disabled={sincronizzando}
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:opacity-60"
-              title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
-            >
-              <Upload size={14} aria-hidden="true" />
-              {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
-            </button>
-          ) : (
-            <a
-              href="/hub/acea/strumenti#import"
-              className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-            >
-              <Upload size={14} aria-hidden="true" />
-              Importa export
-            </a>
+          {/* Comandi del MODO VISTA: si ritirano quando c'è una selezione (vedi la testa della riga). */}
+          {selezionate.length === 0 && (
+            <>
+              {famiglia === 'acqualatina' ? (
+                /*
+                  Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
+                  (Impostazioni → Template master): il comando tira dentro le righe nuove del file
+                  del mese, senza toccare quelle già presenti.
+                */
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void sincronizzaDalMaster()}
+                  loading={sincronizzando}
+                  title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
+                >
+                  {!sincronizzando && <Upload size={14} aria-hidden="true" />}
+                  {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
+                </Button>
+              ) : (
+                /*
+                  Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e
+                  `Button` rende solo `<button>`. Le classi ricalcano `Button variant="outline"
+                  size="sm"` e vanno tenute allineate a quelle: `px-3` e `gap-2` come il
+                  primitivo, non `px-2.5` e `gap-1.5` — con quelli era 2px per lato piu` stretto
+                  dei vicini identici.
+                */
+                <a
+                  href="/hub/acea/strumenti#import"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                >
+                  <Upload size={14} aria-hidden="true" />
+                  Importa export
+                </a>
+              )}
+              <Button variant="outline" size="sm" onClick={() => setRapportiniAperti(true)}>
+                <ClipboardList size={14} aria-hidden="true" />
+                Rapportini
+              </Button>
+            </>
           )}
-          <button
-            type="button"
-            onClick={() => setRapportiniAperti(true)}
-            className="inline-flex items-center gap-1.5 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-2.5 py-1.5 text-xs text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-          >
-            <ClipboardList size={14} aria-hidden="true" />
-            Rapportini
-          </button>
 
           {/*
             Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
@@ -537,6 +574,16 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             {ingrandita ? 'Riduci' : 'Ingrandisci'}
           </Button>
 
+          {/*
+            Colonne ed «Esporta vista» restano anche in selezione, per richiesta dell'ufficio:
+            capita di cambiare le colonne visibili con delle righe gia` spuntate, e perderle
+            costringeva a deselezionare e ricominciare.
+
+            Il rischio e` il `flex-wrap` di cui sopra — e` il gruppo piu` largo della riga — ed e`
+            per questo che l'etichetta si accorcia a «Colonne (15)» quando c'e` una selezione:
+            «Colonne: 15 selezionati» accanto alla barra azioni piena mandava la riga a capo su
+            uno schermo da 1280, cioe` esattamente il salto che questa riga esiste per evitare.
+          */}
           <MenuColonne
             colonne={colonneVista}
             visibili={visibili}
@@ -544,6 +591,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             onEsporta={() => void esporta()}
             esportando={esportando}
             vuota={totale === 0}
+            compatto={selezionate.length > 0}
             onAzzeraLayout={personalizzato ? azzera : undefined}
             nota={
               esportando && !tutteCaricate
@@ -552,7 +600,12 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
             }
           />
 
-          <GuidaTabella oggi={oggi} famiglia={famiglia} />
+          {/*
+            Il «?» resta del modo vista: la guida si legge prima, non con le righe spuntate.
+            (Risoluzione del merge: da main arriva il contratto nuovo — `oggi` dal server, la
+            finestra la deriva la guida — dal branch il gating sulla selezione. Servono entrambi.)
+          */}
+          {selezionate.length === 0 && <GuidaTabella oggi={oggi} famiglia={famiglia} />}
 
           {/*
             Sempre montata: tiene in vita l'annullamento dell'ultima pianificazione, che vive nel

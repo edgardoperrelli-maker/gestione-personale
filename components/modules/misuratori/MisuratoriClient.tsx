@@ -9,7 +9,7 @@
  * flusso di riconsegna invariati.
  */
 import { toast } from '@/components/ui/Toast';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
@@ -60,6 +60,14 @@ export type RegistroProps = {
   mostraPallet?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
   titoloPdf?: string;
+  /**
+   * Breadcrumb di rientro, montato SOPRA la testa (DESIGN.md §7bis: le viste-foglietta hanno
+   * la via del ritorno). Sta qui dentro e non nella pagina che lo passa perché la radice è
+   * `h-[calc(100dvh-6rem)]`: una riga aggiunta FUORI dal riquadro sfonda la viewport e la
+   * pagina scorre, una riga dentro la catena flex viene assorbita dalla tabella, che è
+   * `flex-1` e cede i suoi ~28px senza muovere nient'altro.
+   */
+  breadcrumb?: ReactNode;
 };
 
 export default function MisuratoriClient({
@@ -71,6 +79,7 @@ export default function MisuratoriClient({
   mostraPdr = true,
   mostraPallet = false,
   titoloPdf,
+  breadcrumb,
 }: RegistroProps) {
   const [rows, setRows]               = useState<MisuratoreRimosso[]>([]);
   const [filters, setFilters]         = useState<Filters>(FILTERS_EMPTY);
@@ -241,6 +250,19 @@ export default function MisuratoriClient({
 
   return (
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
+      {/*
+        Rientro della vista-foglietta, quando c'è: dentro il riquadro full-screen (vedi la prop).
+        `shrink-0` come ogni altro fratello fisso di questa colonna (KPI, filtri, conteggio):
+        oggi il minimo automatico flex lo proteggerebbe comunque, ma il contratto qui si
+        dichiara, non si eredita per caso — è la stessa forma di StoricoInterventiClient.
+
+        DEROGA DICHIARATA a §7ter (le pagine-foglietta col Breadcrumb stanno sul pattern slim):
+        sotto il rientro resta l'ObjectHeader pieno, perché le azioni primarie del registro
+        (Ricalcola, Esporta PDF) vivono nelle sue `actions` e §3 vieta le teste su misura.
+        Titolo doppio col breadcrumb, ~70px alla tabella: accettato finché il client non
+        passa allo slim con le azioni sulla riga del rientro, come lo Storico.
+      */}
+      {breadcrumb && <div className="shrink-0">{breadcrumb}</div>}
       {/* Testa di modulo (fissa) */}
       <ObjectHeader
         title={titolo}
@@ -404,14 +426,18 @@ export default function MisuratoriClient({
         </div>
       )}
 
-      {/* Errore (fisso) */}
+      {/*
+        Errore (fisso). Il TESTO va in --brand-text-main e non in --danger: è un banner di
+        prosa (il messaggio della fetch fallita), e su un testo lungo il colore serve alla
+        leggibilità, non a dire lo stato — DESIGN.md §3 marca proprio questa come «la scelta
+        che sbaglia più spesso». Il rosso resta a bordo e icona, che lo stato lo dicono già.
+      */}
       {error && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border px-4 py-2 text-sm"
-          style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
+          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--brand-text-main)]"
         >
-          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--danger)]" aria-hidden />
           {error}
         </div>
       )}
@@ -421,6 +447,15 @@ export default function MisuratoriClient({
         {statoFiltro
           ? `${visibleRows.length} di ${counts.total} (${STATO_LABEL[statoFiltro]})`
           : `${counts.total} ${counts.total === 1 ? 'misuratore' : 'misuratori'}`}
+      </p>
+
+      {/*
+        Regione live per i lettori di schermo, montata SEMPRE (una regione inserita insieme al
+        testo spesso non viene annunciata): dice il caricamento in corso e, a fetch concluso,
+        il conteggio — a chi vede, le stesse cose le dicono l'overlay e la riga qui sopra.
+      */}
+      <p role="status" className="sr-only">
+        {loading ? 'Caricamento del registro…' : `${counts.total} misuratori nel registro.`}
       </p>
 
       {/* Area tabella: UNICA parte che scorre */}

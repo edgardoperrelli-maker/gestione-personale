@@ -281,27 +281,37 @@ body {
 
 html, body { height: 100%; margin: 0; }
 
-input, select, textarea {
-  background-color: var(--brand-surface);
-  color: var(--brand-text-main);
-  border: 1px solid var(--brand-border);
+/* TUTTE le regole d'elemento stanno DENTRO @layer base, per la stessa ragione
+   scritta qui sotto per i bottoni: fuori dai layer battevano ogni utility
+   Tailwind. I campi l'hanno pagata per mesi senza che si vedesse: il campo
+   data di BarraAzioni dichiarava `border-[var(--status-ko)]` sul fuori
+   finestra e il bordo restava grigio — l'avviso c'era, il rosso mai. Stessa
+   sorte per qualunque `border-*`/`bg-*` su input, select, textarea, celle.
+   Dentro `base` i default valgono ancora per gli elementi senza classi, e le
+   utility tornano a vincere, che è l'ordine giusto delle cose. */
+@layer base {
+  input, select, textarea {
+    background-color: var(--brand-surface);
+    color: var(--brand-text-main);
+    border: 1px solid var(--brand-border);
+  }
+  input:focus, select:focus, textarea:focus {
+    outline: none;
+    border-color: var(--brand-primary);
+    box-shadow: 0 0 0 2px var(--brand-primary);
+  }
+  input::placeholder, textarea::placeholder { color: var(--brand-text-subtle); }
+  label { color: var(--brand-text-main); }
+  table { color: var(--brand-text-main); background-color: var(--brand-surface); }
+  th, td { border-color: var(--brand-border); }
 }
-input:focus, select:focus, textarea:focus {
-  outline: none;
-  border-color: var(--brand-primary);
-  box-shadow: 0 0 0 2px var(--brand-primary);
-}
-input::placeholder, textarea::placeholder { color: var(--brand-text-subtle); }
-label { color: var(--brand-text-main); }
-table { color: var(--brand-text-main); background-color: var(--brand-surface); }
-th, td { border-color: var(--brand-border); }
-/* Il reset dei bottoni sta DENTRO @layer base, e non fuori dai layer come le
-   regole qui sopra. Fuori, in cascata batteva ogni utility Tailwind — che vive
-   in @layer utilities — e qualunque `bg-*` o `border-*` scritta su un <button>
-   non disegnava nulla: la barra comandi di Pianificazione rendeva cinque
-   etichette di testo nudo pur dichiarando un primario accentato e quattro
-   secondari bordati. Dentro `base` il reset vale ancora per i bottoni senza
-   classi, ma le utility tornano a vincere. */
+/* Il reset dei bottoni sta DENTRO @layer base, e non fuori dai layer. Fuori,
+   in cascata batteva ogni utility Tailwind — che vive in @layer utilities — e
+   qualunque `bg-*` o `border-*` scritta su un <button> non disegnava nulla: la
+   barra comandi di Pianificazione rendeva cinque etichette di testo nudo pur
+   dichiarando un primario accentato e quattro secondari bordati. Dentro `base`
+   il reset vale ancora per i bottoni senza classi, ma le utility tornano a
+   vincere. */
 @layer base {
   button { background-color: transparent; color: inherit; border: none; }
 }

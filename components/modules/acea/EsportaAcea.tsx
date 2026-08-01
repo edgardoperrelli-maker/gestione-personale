@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from 'react';
 import { Download, FileSpreadsheet } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
+import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import { toast } from '@/components/ui/Toast';
 import type { Famiglia } from '@/lib/acea/saracinesche';
@@ -98,13 +99,16 @@ export default function EsportaAcea({ famiglia }: { famiglia: Famiglia }) {
       <div className="mt-3 space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm text-[var(--brand-text-main)]">Pianificato del giorno</span>
-          <input
-            type="date"
-            value={data}
-            onChange={(e) => setData(e.target.value)}
-            aria-label="Giorno da esportare"
-            className="h-9 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 text-sm text-[var(--brand-text-main)]"
-          />
+          {/* Il primitivo Input, non una replica a mano: la copia perdeva hover del bordo,
+              focus ring e stati disabled — le cose per cui il primitivo esiste (§7). */}
+          <div className="w-40">
+            <Input
+              type="date"
+              value={data}
+              onChange={(e) => setData(e.target.value)}
+              aria-label="Giorno da esportare"
+            />
+          </div>
           {/* `aria-label` distinti: due bottoni chiamati entrambi «Scarica» sono indistinguibili
               nell'elenco dei comandi di uno screen reader. */}
           <Button

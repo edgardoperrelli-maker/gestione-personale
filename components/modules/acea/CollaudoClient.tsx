@@ -70,6 +70,12 @@ function BloccoConfronto({
     <div className="rounded-[var(--radius-md)] border border-[var(--brand-border)] p-3">
       <div className="flex items-center gap-2">
         {ICONA[c.semaforo]}
+        {/*
+          Il glifo distingue il semaforo per chi vede (i tre sono diversi apposta), ma è
+          aria-hidden: a chi ascolta serve la parola. Uno span sr-only, non un aria-label sul
+          contenitore — il titolo resta un h3 navigabile pulito.
+        */}
+        <span className="sr-only">stato: {c.semaforo}.</span>
         <h3 className="text-sm font-semibold text-[var(--brand-text-main)]">{titolo}</h3>
       </div>
       <p className="mt-1 text-xs text-[var(--brand-text-muted)]">{spiegazione}</p>
@@ -98,20 +104,61 @@ function BloccoConfronto({
         />
       </div>
 
+      {/*
+        Elenchi, non prosa. Erano due paragrafi da 900 caratteri con gli ODL appiattiti da un
+        `join('; ')`: per trovarne uno si leggeva a occhio un muro di testo, ed e` la cosa
+        precisa che si viene a fare qui prima del cut-over. Gli ODL vanno in mono tabulare
+        (DESIGN.md §4: matricole e dati numerici) cosi` le cifre si incolonnano e la lettura e`
+        verticale; l'elenco scorre dentro la sua altezza invece di spingere giu` la pagina.
+      */}
       {c.statoDiverso.totale > 0 && (
-        <div className="mt-2 text-xs text-[var(--brand-text-muted)]">
-          <span className="font-semibold text-[var(--brand-text-main)]">Stati discordi</span> —{' '}
-          {c.statoDiverso.esempi.map((d) => `${d.odl} (modulo ${d.modulo}, ${nomeAltra} ${d.altra})`).join('; ')}
-          {c.statoDiverso.totale > c.statoDiverso.esempi.length
-            && ` e altri ${c.statoDiverso.totale - c.statoDiverso.esempi.length}`}
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-[var(--brand-text-main)]">
+            Stati discordi{' '}
+            <span className="font-normal text-[var(--brand-text-muted)]">({c.statoDiverso.totale})</span>
+          </p>
+          <ul className="mt-1 max-h-32 space-y-0.5 overflow-auto text-xs text-[var(--brand-text-muted)]">
+            {c.statoDiverso.esempi.map((d) => (
+              <li key={d.odl}>
+                <span className="font-mono tabular-nums text-[var(--brand-text-main)]">{d.odl}</span>
+                {' '}— modulo {d.modulo}, {nomeAltra} {d.altra}
+              </li>
+            ))}
+          </ul>
+          {c.statoDiverso.totale > c.statoDiverso.esempi.length && (
+            <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
+              e altri {c.statoDiverso.totale - c.statoDiverso.esempi.length}
+            </p>
+          )}
         </div>
       )}
       {c.soloAltra.totale > 0 && (
-        <div className="mt-1 text-xs text-[var(--brand-text-muted)]">
-          <span className="font-semibold text-[var(--brand-text-main)]">Assenti dal modulo</span> —{' '}
-          {c.soloAltra.esempi.join(', ')}
-          {c.soloAltra.totale > c.soloAltra.esempi.length
-            && ` e altri ${c.soloAltra.totale - c.soloAltra.esempi.length}`}
+        <div className="mt-3">
+          <p className="text-xs font-semibold text-[var(--brand-text-main)]">
+            Assenti dal modulo{' '}
+            <span className="font-normal text-[var(--brand-text-muted)]">({c.soloAltra.totale})</span>
+          </p>
+          {/*
+            Il mono va sul solo ODL e non su tutta la riga: qui gli esempi a volte sono il
+            numero nudo e a volte il numero piu` una descrizione ("... assegnare"), e la
+            descrizione in monospace si legge peggio, non meglio.
+          */}
+          <ul className="mt-1 max-h-32 space-y-0.5 overflow-auto text-xs text-[var(--brand-text-muted)]">
+            {c.soloAltra.esempi.map((v) => {
+              const [odl, ...resto] = v.split(' ');
+              return (
+                <li key={v}>
+                  <span className="font-mono tabular-nums text-[var(--brand-text-main)]">{odl}</span>
+                  {resto.length > 0 && ` ${resto.join(' ')}`}
+                </li>
+              );
+            })}
+          </ul>
+          {c.soloAltra.totale > c.soloAltra.esempi.length && (
+            <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
+              e altri {c.soloAltra.totale - c.soloAltra.esempi.length}
+            </p>
+          )}
         </div>
       )}
     </div>

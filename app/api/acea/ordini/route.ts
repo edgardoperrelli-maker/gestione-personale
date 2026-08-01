@@ -888,13 +888,27 @@ export async function POST() {
       return supabaseAdmin.from('acea_ordini').select('odl', { count: 'exact', head: true });
     }
 
-    const [apertiDunning, apertiMassive, scaduti, inScadenza, senzaMisuratore] = await Promise.all([
+    const traSetteGiorni = new Date(Date.parse(`${oggi}T00:00:00Z`) + 7 * 86_400_000)
+      .toISOString().slice(0, 10);
+    /*
+      Le scadenze anche PER FAMIGLIA, oltre che globali: le viste-foglietta mostrano i propri
+      numeri, e il totale globale spacciato per numero della vista era una bugia silenziosa —
+      sulla scheda massive «oltre la scadenza» contava anche tutto il dunning. I globali
+      restano: sull'hub del modulo sono loro il dato giusto.
+    */
+    const [
+      apertiDunning, apertiMassive, scaduti, inScadenza, senzaMisuratore,
+      scadutiDunning, inScadenzaDunning, scadutiMassive, inScadenzaMassive,
+    ] = await Promise.all([
       conta((q) => q.eq('famiglia', 'dunning').eq('aperto', true)),
       conta((q) => q.eq('famiglia', 'massive').eq('aperto', true)),
       conta((q) => q.eq('aperto', true).lt('scadenza', oggi)),
-      conta((q) => q.eq('aperto', true).gte('scadenza', oggi)
-        .lte('scadenza', new Date(Date.parse(`${oggi}T00:00:00Z`) + 7 * 86_400_000).toISOString().slice(0, 10))),
+      conta((q) => q.eq('aperto', true).gte('scadenza', oggi).lte('scadenza', traSetteGiorni)),
       conta((q) => q.is('impianto', null).is('matricola', null)),
+      conta((q) => q.eq('famiglia', 'dunning').eq('aperto', true).lt('scadenza', oggi)),
+      conta((q) => q.eq('famiglia', 'dunning').eq('aperto', true).gte('scadenza', oggi).lte('scadenza', traSetteGiorni)),
+      conta((q) => q.eq('famiglia', 'massive').eq('aperto', true).lt('scadenza', oggi)),
+      conta((q) => q.eq('famiglia', 'massive').eq('aperto', true).gte('scadenza', oggi).lte('scadenza', traSetteGiorni)),
     ]);
 
     const { data: ultimo } = await supabaseAdmin
@@ -912,6 +926,7 @@ export async function POST() {
         // un orologio sbagliato produce esattamente l'errore che il contatore dovrebbe impedire.
         adesso: new Date().toISOString(),
         apertiDunning, apertiMassive, scaduti, inScadenza, senzaMisuratore,
+        scadutiDunning, inScadenzaDunning, scadutiMassive, inScadenzaMassive,
         ultimoImport: ultimo ?? null,
       },
       { headers: { 'Cache-Control': 'no-store' } },

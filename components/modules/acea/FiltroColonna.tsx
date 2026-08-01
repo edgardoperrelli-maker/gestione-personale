@@ -139,6 +139,23 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
     };
   }, [aperto, chiudi]);
 
+  /*
+    All'apertura il focus ENTRA nel pannello, per ogni tipo di filtro.
+
+    I tipi con una ricerca (`elenco`, `testo`) ci pensavano da soli con `autoFocus`; per
+    esecutore, data pianificata e scadenza il focus restava sull'imbuto FUORI dal dialog:
+    Tab girava sulla tabella sotto, Esc funzionava solo per caso di bubbling, e il lettore di
+    schermo non annunciava mai il pannello. Il fallback è il dialog stesso (`tabIndex={-1}`);
+    la guardia sul `contains` lascia vincere gli `autoFocus` dove esistono.
+  */
+  useEffect(() => {
+    if (!aperto) return;
+    // `pos` nelle dipendenze e non solo `aperto`: il portale monta al render DOPO il calcolo
+    // della posizione, e un effect legato al solo `aperto` correrebbe a pannello ancora nullo.
+    const p = pannello.current;
+    if (p && !p.contains(document.activeElement)) p.focus();
+  }, [aperto, pos]);
+
   const visibili = useMemo(() => {
     const q = cercaValore.trim().toLowerCase();
     return q === '' ? valori : valori.filter((v) => v.toLowerCase().includes(q));
@@ -200,6 +217,7 @@ export default function FiltroColonna({ intestazione, filtro, filtri, onChange, 
       ref={pannello}
       id={idPannello}
       role="dialog"
+      tabIndex={-1}
       aria-label={`Filtro ${intestazione}`}
       style={{ position: 'fixed', top: pos?.top ?? 0, left: pos?.left ?? 0, width: LARGHEZZA }}
       className="z-50 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] p-2 shadow-[var(--shadow-md)]"

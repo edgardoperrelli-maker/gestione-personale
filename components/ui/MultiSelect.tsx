@@ -31,7 +31,30 @@ type MultiSelectProps = {
    * moduli (Assistenza, Consuntivazione, Interventi, Performance).
    */
   selezioneEsplicita?: boolean;
+  /**
+   * Taglia del trigger. `md` (default) e` quella storica, tarata sui form; `sm` lo porta alla
+   * misura dei comandi `Button size="sm"` — 30px e `text-xs` — per stare in una barra di comandi
+   * senza sporgere.
+   *
+   * E` una prop e non una classe passata da fuori perche` in Tailwind v4 dentro lo stesso gruppo
+   * di utility (`px-*`, `py-*`, `text-*`) vince l'ordine di EMISSIONE del CSS, non quello
+   * nell'attributo: un `px-3` di default non si sovrascrive con un `px-2.5` concatenato dopo
+   * (DESIGN.md §8). Scegliendo qui le classi base il conflitto non nasce.
+   */
+  size?: 'sm' | 'md';
+  /**
+   * Trigger stretto: «Colonne (15)» invece di «Colonne: 15 selezionati».
+   *
+   * Serve dove il comando divide la riga con altri e la sua larghezza decide se quella riga va
+   * a capo. Additiva: senza la prop il testo resta quello di sempre.
+   */
+  compatto?: boolean;
 };
+
+const TRIGGER_SIZE = {
+  sm: 'px-3 py-1.5 text-xs',
+  md: 'px-3 py-2 text-sm',
+} as const;
 
 export default function MultiSelect({
   label,
@@ -43,6 +66,8 @@ export default function MultiSelect({
   triggerClassName = 'border border-[var(--brand-border-strong)] bg-[var(--brand-bg)]',
   error = false,
   selezioneEsplicita = false,
+  size = 'md',
+  compatto = false,
 }: MultiSelectProps) {
   const [open, setOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
@@ -89,7 +114,7 @@ export default function MultiSelect({
         aria-expanded={open}
         aria-label={ariaLabel ?? label}
         data-error={error || undefined}
-        className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] px-3 py-2 text-sm text-[var(--brand-text-main)] transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none ${triggerClassName} ${
+        className={`flex w-full items-center justify-between gap-2 rounded-[var(--radius-md)] ${TRIGGER_SIZE[size]} text-[var(--brand-text-main)] transition disabled:cursor-not-allowed disabled:opacity-60 focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:outline-none ${triggerClassName} ${
           error
             ? 'border-[var(--danger)]'
             : values.length > 0
@@ -97,7 +122,9 @@ export default function MultiSelect({
               : 'hover:border-[var(--brand-primary-border)]'
         }`}
       >
-        <span className="truncate text-left">{label}: {riepilogo}</span>
+        <span className="truncate text-left">
+          {compatto ? `${label} (${values.length})` : `${label}: ${riepilogo}`}
+        </span>
         <ChevronDown size={14} aria-hidden className="shrink-0 text-[var(--brand-text-muted)]" />
       </button>
 
