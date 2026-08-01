@@ -45,11 +45,20 @@ export type InterventoEsistente = {
   data: string;
   staff_id: string | null;
   stato: string;
+  /**
+   * Esito registrato (`eseguito_positivo` = lavoro fatto). La distinzione è tutta qui: nel
+   * dunning `completato` significa «uscita chiusa dall'operatore», e la maggior parte delle
+   * uscite si chiude a vuoto (utente assente, contatore inaccessibile) con esito nullo — l'ordine
+   * su ACEA resta aperto e la squadra ci deve TORNARE. Solo il positivo chiude l'unità per
+   * sempre: è l'invariante «ODL positivo = definitivamente chiuso», la stessa dell'indice unique
+   * e dello sweep.
+   */
+  esito?: string | null;
   /** Matricola dell'intervento: serve al confronto quando l'unità è `odl_matricola`. */
   matricola?: string | null;
 };
 
-export type MotivoSalto = 'ordine_chiuso' | 'gia_completato' | 'solo_attivazioni';
+export type MotivoSalto = 'ordine_chiuso' | 'gia_completato' | 'solo_attivazioni' | 'giorno_occupato';
 
 export type AzionePianifica =
   | { tipo: 'crea'; ordine: OrdineDaPianificare }
@@ -93,11 +102,18 @@ export type ArgomentiPianifica = {
  *
  * Invarianti rispettate:
  *  - un ordine ACEA già chiuso (COMP/ANNL) non si pianifica: non c'è più niente da fare;
- *  - un ODL con un intervento GIÀ COMPLETATO non si sposta — stessa regola di
- *    `spostamento_completato` nel motore rapportini: il lavoro registrato non si tocca;
+ *  - un ODL con un ESITO POSITIVO non si ripianifica: «ODL positivo = definitivamente chiuso».
+ *    Un'uscita chiusa a vuoto (completato senza esito positivo) invece NON blocca: l'ordine su
+ *    ACEA è ancora aperto e la prossima uscita è esattamente il lavoro da pianificare — è il
+ *    caso normale del dunning, che sullo stesso ODL torna anche sei volte;
+ *  - il lavoro registrato non si tocca: un intervento completato non è MAI candidato allo
+ *    spostamento — stessa regola di `spostamento_completato` nel motore rapportini. Si crea
+ *    un'uscita nuova, la vecchia resta con la sua data e il suo operatore;
+ *  - un giorno che ha già un'uscita registrata su quell'unità non si riusa: crearcene o
+ *    spostarcene una violerebbe l'unique `(committente, odl, data)` — meglio un rifiuto che si
+ *    legge di un errore 500;
  *  - un ODL con un intervento aperto viene SPOSTATO (data e operatore), non duplicato: due
- *    interventi sullo stesso ODL violerebbero l'unique `(committente, odl, data)` e, peggio,
- *    manderebbero due squadre allo stesso indirizzo;
+ *    interventi aperti sullo stesso ODL manderebbero due squadre allo stesso indirizzo;
  *  - il venerdì e il sabato il DUNNING manda solo le ATTIVAZIONI: hanno un giorno di cardine
  *    contrattuale e non possono aspettare il lunedì, il resto del dunning sì. Le limitazioni
  *    MASSIVE sono ESENTI per decisione esplicita (dec. 38): sono campagne per paese e si
@@ -122,6 +138,8 @@ export function pianoPianificazione({
   }
 
   const azioni: AzionePianifica[] = [];
+  /** Unità già decise in QUESTA chiamata: la seconda riga della stessa unità non ripete. */
+  const decise = new Set<string>();
   for (const o of ordini) {
     if (!o.aperto) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'ordine_chiuso' });
@@ -134,19 +152,43 @@ export function pianoPianificazione({
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'solo_attivazioni' });
       continue;
     }
-    const suOdl = perUnita.get(chiave(o.odl, o.matricola)) ?? [];
-    if (suOdl.some((i) => i.stato === 'completato')) {
+    const k = chiave(o.odl, o.matricola);
+    /*
+      Più operazioni della stessa unità nella stessa chiamata sono righe diverse in griglia ma LO
+      STESSO passaggio sul posto: la prima riga decide, le successive non aggiungono niente. Senza
+      questo cancello uscivano due `crea` identiche — e la seconda INSERT esplodeva sull'unique
+      `(committente, odl, data)` a scrittura già iniziata.
+    */
+    if (decise.has(k)) continue;
+    const suOdl = perUnita.get(k) ?? [];
+    // Il POSITIVO chiude l'unità per sempre. Il solo stato `completato` no: è un'uscita chiusa,
+    // non un lavoro riuscito — e con l'ordine ancora aperto la squadra ci deve tornare.
+    if (suOdl.some((i) => i.stato !== 'annullato' && i.esito === 'eseguito_positivo')) {
       azioni.push({ tipo: 'salta', ordine: o, motivo: 'gia_completato' });
       continue;
     }
     // Fra gli aperti si sposta il più recente: è quello che qualcuno ha in mano adesso.
+    // I completati non sono candidati: il lavoro registrato non si tocca.
     const aperto = [...suOdl]
-      .filter((i) => i.stato !== 'annullato')
+      .filter((i) => i.stato !== 'annullato' && i.stato !== 'completato')
       .sort((a, b) => b.data.localeCompare(a.data))[0];
+    // Il giorno scelto è già occupato da un ALTRO intervento dell'unità (un'uscita registrata,
+    // un annullato, un secondo aperto): scriverci violerebbe l'unique `(committente, odl, data)`.
+    // Gli annullati qui CONTANO — per la pianificazione non esistono, ma la riga in tabella c'è
+    // e l'indice unique la vede.
+    const giornoOccupato = suOdl.some((i) => i.data === data && i.id !== aperto?.id);
     if (aperto) {
       // Già su questo giorno e questo operatore: nessuna scrittura, ma non è un "salto" da
       // segnalare come problema — si conta come aggiornamento a vuoto solo se qualcosa cambia.
       if (aperto.data === data && aperto.staff_id === staffId) continue;
+      // Il cancello vale solo se la data CAMBIA: a data invariata (cambio del solo esecutore)
+      // l'UPDATE non tocca la tupla dell'unique, e il giorno «occupato» — per forza una riga di
+      // un altro committente, o un'altra matricola normalizzata — non ha niente da dire.
+      if (aperto.data !== data && giornoOccupato) {
+        azioni.push({ tipo: 'salta', ordine: o, motivo: 'giorno_occupato' });
+        continue;
+      }
+      decise.add(k);
       azioni.push({
         tipo: 'aggiorna',
         ordine: o,
@@ -155,6 +197,11 @@ export function pianoPianificazione({
       });
       continue;
     }
+    if (giornoOccupato) {
+      azioni.push({ tipo: 'salta', ordine: o, motivo: 'giorno_occupato' });
+      continue;
+    }
+    decise.add(k);
     azioni.push({ tipo: 'crea', ordine: o });
   }
 
@@ -170,5 +217,6 @@ export function pianoPianificazione({
 export function etichettaMotivo(m: MotivoSalto): string {
   if (m === 'ordine_chiuso') return 'ordine già chiuso su ACEA';
   if (m === 'solo_attivazioni') return 'non è un’attivazione: venerdì e sabato passano solo quelle';
-  return 'intervento già completato: non si sposta';
+  if (m === 'giorno_occupato') return 'quel giorno è già occupato su questo ODL';
+  return 'già eseguito con esito positivo: non si ripianifica';
 }

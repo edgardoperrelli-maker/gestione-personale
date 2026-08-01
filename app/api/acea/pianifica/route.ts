@@ -135,7 +135,7 @@ export async function POST(req: Request) {
         for (const blocco of blocchi) {
           const { data: righe, error } = await supabaseAdmin
             .from('interventi')
-            .select('id, odl, data, staff_id, stato, matricola_contatore')
+            .select('id, odl, data, staff_id, stato, esito, matricola_contatore')
             .in('odl', blocco)
             .in('committente', [...profilo.committenti]);
           if (error) throw error;
@@ -144,6 +144,7 @@ export async function POST(req: Request) {
             out.push({
               id: String(r.id), odl: String(r.odl), data: String(r.data ?? ''),
               staff_id: (r.staff_id as string | null) ?? null, stato: String(r.stato ?? ''),
+              esito: (r.esito as string | null) ?? null,
               matricola: (r.matricola_contatore as string | null) ?? null,
             });
           }
@@ -223,6 +224,41 @@ export async function POST(req: Request) {
         odl: a.ordine.odl, numero_operazione: a.ordine.numero_operazione,
         azione: 'creato', intervento_id: creato?.id ?? null, prima: null,
       });
+    }
+
+    /*
+      Gli appunti (`pianificato_*_bozza`) hanno finito il loro compito sulle righe arrivate in
+      fondo — pianificate ora o già nello stato chiesto. La barra prima non li puliva, e la bozza
+      orfana, invisibile in tabella dove l'intervento vince, restava a bloccare la generazione
+      dei rapportini come riga a metà. Best-effort come la lettura in /celle: una colonna di
+      migration non ancora passata non deve far fallire la pianificazione.
+    */
+    try {
+      const saltate = new Set<string>();
+      for (const a of piano.azioni) {
+        if (a.tipo === 'salta') saltate.add(`${a.ordine.odl}|${a.ordine.numero_operazione}`);
+      }
+      const lavorate = new Set(ordini.map((o) => `${o.odl}|${o.numero_operazione}`));
+      for (const blocco of blocchi) {
+        const { data: righeBozza, error: eBozza } = await supabaseAdmin
+          .from(profilo.tabellaOrdini)
+          .select('odl, numero_operazione, pianificato_a_bozza, pianificato_il_bozza')
+          .in('odl', blocco);
+        if (eBozza) throw eBozza;
+        for (const r of (righeBozza ?? []) as Array<Record<string, unknown>>) {
+          const chiaveRiga = `${String(r.odl)}|${String(r.numero_operazione)}`;
+          if (!lavorate.has(chiaveRiga) || saltate.has(chiaveRiga)) continue;
+          if (!r.pianificato_a_bozza && !r.pianificato_il_bozza) continue;
+          const { error: ePulizia } = await supabaseAdmin
+            .from(profilo.tabellaOrdini)
+            .update({ pianificato_a_bozza: null, pianificato_il_bozza: null })
+            .eq('odl', String(r.odl))
+            .eq('numero_operazione', String(r.numero_operazione));
+          if (ePulizia) throw ePulizia;
+        }
+      }
+    } catch (e) {
+      console.error('[acea/pianifica] appunti di pianificazione non puliti:', e);
     }
 
     // 5) L'operazione si registra solo se qualcosa è stato scritto: un'operazione vuota nello

@@ -17,30 +17,38 @@
 export type InterventoDellOdl = {
   staff_id: string | null;
   stato: string | null;
+  /** `eseguito_positivo` = lavoro fatto. Un completato senza esito è un'uscita a vuoto. */
+  esito: string | null;
 };
 
 /**
- * `true` se la riapertura è stata ESITATA nei nostri rapportini: un intervento completato.
+ * `true` se la riapertura è stata ESITATA nei nostri rapportini: un intervento con esito
+ * POSITIVO («ODL positivo = definitivamente chiuso», la stessa invariante della pianificazione).
  *
- * Gli annullati non contano — un intervento annullato è lavoro che non è mai successo — e nemmeno
- * gli assegnati: assegnata non vuol dire fatta, e la scheda serve proprio a chi controlla che le
- * assegnate del giorno arrivino in fondo.
+ * Il solo stato `completato` non basta: un'uscita chiusa a vuoto (utente assente, contatore
+ * inaccessibile) lascia l'ordine aperto e il cardine che incombe — è la riga che questa coda
+ * esiste per non far sfuggire, non una riga finita. Gli annullati non contano — un intervento
+ * annullato è lavoro che non è mai successo — e nemmeno gli assegnati: assegnata non vuol dire
+ * fatta, e la scheda serve proprio a chi controlla che le assegnate del giorno arrivino in fondo.
  */
 export function esitataNeiRapportini(interventi: readonly InterventoDellOdl[]): boolean {
-  return interventi.some((i) => i.stato === 'completato');
+  return interventi.some((i) => i.stato !== 'annullato' && i.esito === 'eseguito_positivo');
 }
 
 /**
- * `true` se la riapertura è IN CALENDARIO: esiste un intervento vivo (non annullato).
+ * `true` se la riapertura è IN CALENDARIO: esiste un intervento IN CORSO (né annullato, né
+ * completato).
  *
  * Un intervento vivo ha per costruzione una data (`interventi.data` è NOT NULL), quindi «ha un
- * intervento vivo» e «ha una data di pianificazione» sono la stessa domanda. L'appunto
+ * intervento vivo» e «ha una data di pianificazione» sono la stessa domanda. Un'uscita già
+ * registrata non è in calendario: quel giorno è consumato, e se è finita a vuoto la prossima
+ * uscita una data non ce l'ha ancora — il triangolo la deve contare. L'appunto
  * (`pianificato_il_bozza`) NON conta, di proposito: finché la coppia non si completa l'intervento
  * non esiste, quindi non esiste il rapportino — e il triangolo esiste per contare il lavoro che
  * non arriverà a nessuno, che è esattamente la condizione della riga a metà.
  */
 export function pianificata(interventi: readonly InterventoDellOdl[]): boolean {
-  return interventi.some((i) => i.stato !== 'annullato');
+  return interventi.some((i) => i.stato !== 'annullato' && i.stato !== 'completato');
 }
 
 /**

@@ -13,8 +13,17 @@ const ordine = (over: Partial<OrdineDaPianificare> = {}): OrdineDaPianificare =>
 
 const intervento = (over: Partial<InterventoEsistente> = {}): InterventoEsistente => ({
   id: 'int-1', odl: '912215286', data: '2026-07-20', staff_id: 's1', stato: 'assegnato',
+  esito: null,
   ...over,
 });
+
+/** Uscita chiusa col lavoro FATTO: l'unica che chiude l'unità per sempre. */
+const positivo = (over: Partial<InterventoEsistente> = {}): InterventoEsistente =>
+  intervento({ stato: 'completato', esito: 'eseguito_positivo', ...over });
+
+/** Uscita chiusa A VUOTO (utente assente, contatore inaccessibile): il caso normale del dunning. */
+const uscitaAVuoto = (over: Partial<InterventoEsistente> = {}): InterventoEsistente =>
+  intervento({ stato: 'completato', esito: null, ...over });
 
 const ARG = { data: '2026-07-27', staffId: 's2' };
 
@@ -25,9 +34,30 @@ describe('pianoPianificazione — creazione', () => {
     expect(p.azioni[0]).toMatchObject({ tipo: 'crea' });
   });
 
-  it('due operazioni dello stesso ordine sono due righe da pianificare', () => {
+  it('due operazioni dello stesso ordine sono UN passaggio sul posto: un intervento solo', () => {
+    // Due `crea` sulla stessa unità violerebbero l'unique (committente, odl, data) a metà
+    // scrittura: la prima riga decide, la seconda viaggia con lei.
     const p = pianoPianificazione({
       ordini: [ordine({ numero_operazione: '0040' }), ordine({ numero_operazione: '0050' })],
+      esistenti: [], ...ARG,
+    });
+    expect(p.creati).toBe(1);
+    expect(p.saltati).toBe(0);
+  });
+
+  it('e vale anche quando l\'unità riparte dopo un\'uscita a vuoto', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ numero_operazione: '0040' }), ordine({ numero_operazione: '0050' })],
+      esistenti: [intervento({ stato: 'completato', esito: null, data: '2026-07-06' })],
+      ...ARG,
+    });
+    expect(p.creati).toBe(1);
+    expect(p.saltati).toBe(0);
+  });
+
+  it('ODL diversi restano righe indipendenti', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine({ odl: 'A' }), ordine({ odl: 'B' })],
       esistenti: [], ...ARG,
     });
     expect(p.creati).toBe(2);
@@ -106,24 +136,119 @@ describe('pianoPianificazione — salti', () => {
     expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'ordine_chiuso' });
   });
 
-  it('un ODL con intervento già completato non si sposta', () => {
-    // Stessa invariante di `spostamento_completato` nel motore rapportini: il lavoro registrato
-    // non si tocca.
+  it('un ODL con esito POSITIVO non si ripianifica', () => {
+    // «ODL positivo = definitivamente chiuso»: la stessa invariante dell'indice unique e dello
+    // sweep. Il lavoro è fatto, anche se il registro ACEA non l'ha ancora recepito.
     const p = pianoPianificazione({
       ordini: [ordine()],
-      esistenti: [intervento({ stato: 'completato' })],
+      esistenti: [positivo()],
       ...ARG,
     });
     expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'gia_completato' });
   });
 
-  it('il completato vince anche se c\'è pure un intervento aperto', () => {
+  it('il positivo vince anche se c\'è pure un intervento aperto', () => {
     const p = pianoPianificazione({
       ordini: [ordine()],
-      esistenti: [intervento({ id: 'a', stato: 'assegnato' }), intervento({ id: 'b', stato: 'completato' })],
+      esistenti: [intervento({ id: 'a', stato: 'assegnato' }), positivo({ id: 'b' })],
       ...ARG,
     });
     expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'gia_completato' });
+  });
+});
+
+/*
+  Il caso normale del dunning: la squadra esce, non riesce (utente assente, contatore
+  inaccessibile), l'uscita si chiude a vuoto — e l'ordine su ACEA RESTA APERTO. Sullo stesso ODL
+  si torna anche sei volte. Un'uscita a vuoto non può bloccare la successiva: era il difetto per
+  cui la griglia rispondeva «intervento già completato» a un ordine ancora da lavorare.
+*/
+describe('pianoPianificazione — uscite a vuoto', () => {
+  it('un\'uscita a vuoto non blocca: nasce un\'uscita NUOVA', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [uscitaAVuoto()],
+      ...ARG,
+    });
+    expect(p.saltati).toBe(0);
+    expect(p.azioni[0]).toMatchObject({ tipo: 'crea' });
+  });
+
+  it('l\'uscita a vuoto non è MAI candidata allo spostamento: si sposta l\'aperto', () => {
+    // Il lavoro registrato non si tocca (stessa regola di `spostamento_completato`): la
+    // ripianificazione muove l'intervento APERTO, anche se l'uscita a vuoto è più recente.
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [
+        intervento({ id: 'aperto', data: '2026-06-23' }),
+        uscitaAVuoto({ id: 'vuoto', data: '2026-07-06' }),
+      ],
+      ...ARG,
+    });
+    expect(p.azioni[0]).toMatchObject({
+      tipo: 'aggiorna',
+      interventoId: 'aperto',
+      prima: { data: '2026-06-23', staff_id: 's1' },
+    });
+  });
+
+  it('sei uscite a vuoto e un aperto: si sposta sempre e solo l\'aperto', () => {
+    const vuote = ['2026-06-24', '2026-06-25', '2026-06-30', '2026-07-01', '2026-07-02', '2026-07-06']
+      .map((data, i) => uscitaAVuoto({ id: `v${i}`, data }));
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [...vuote, intervento({ id: 'aperto', data: '2026-06-23' })],
+      ...ARG,
+    });
+    expect(p.aggiornati).toBe(1);
+    expect(p.azioni[0]).toMatchObject({ tipo: 'aggiorna', interventoId: 'aperto' });
+  });
+
+  it('sul giorno di un\'uscita già registrata non si crea: giorno occupato', () => {
+    // L'unique `(committente, odl, data)` esploderebbe in un 500: meglio un rifiuto che si legge.
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [uscitaAVuoto({ data: ARG.data })],
+      ...ARG,
+    });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'giorno_occupato' });
+  });
+
+  it('nemmeno l\'aperto si può SPOSTARE su un giorno con un\'uscita registrata', () => {
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [
+        intervento({ id: 'aperto', data: '2026-06-23' }),
+        uscitaAVuoto({ id: 'vuoto', data: ARG.data }),
+      ],
+      ...ARG,
+    });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'giorno_occupato' });
+  });
+
+  it('un annullato sul giorno scelto occupa comunque la riga in tabella', () => {
+    // Per la pianificazione l'annullato non esiste, ma l'indice unique la sua riga la vede.
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [intervento({ stato: 'annullato', data: ARG.data })],
+      ...ARG,
+    });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'salta', motivo: 'giorno_occupato' });
+  });
+
+  it('a data INVARIATA il giorno «occupato» non blocca il cambio di esecutore', () => {
+    // L'aperto sta già sul giorno scelto e cambia solo la mano: l'UPDATE non tocca la tupla
+    // dell'unique. La riga che «occupa» — qui un'uscita di un altro committente, che l'indice
+    // per-committente ammette — non ha autorità su chi ci va.
+    const p = pianoPianificazione({
+      ordini: [ordine()],
+      esistenti: [
+        intervento({ id: 'aperto', data: ARG.data, staff_id: 's1' }),
+        uscitaAVuoto({ id: 'altra-commessa', data: ARG.data }),
+      ],
+      ...ARG,
+    });
+    expect(p.azioni[0]).toMatchObject({ tipo: 'aggiorna', interventoId: 'aperto' });
   });
 });
 
@@ -138,7 +263,7 @@ describe('pianoPianificazione — riepilogo misto', () => {
       ],
       esistenti: [
         intervento({ id: 'i-b', odl: 'B', stato: 'assegnato' }),
-        intervento({ id: 'i-d', odl: 'D', stato: 'completato' }),
+        positivo({ id: 'i-d', odl: 'D' }),
       ],
       ...ARG,
     });
@@ -239,10 +364,10 @@ describe('pianoPianificazione — unità ODL+matricola (AcquaLatina)', () => {
     expect(p.creati).toBe(1);
   });
 
-  it('il completato di un contatore non blocca il fratello', () => {
+  it('il positivo di un contatore non blocca il fratello', () => {
     const p = pianoPianificazione({
       ordini: [B],
-      esistenti: [intervento({ matricola: 'MTR-A', stato: 'completato' })],
+      esistenti: [positivo({ matricola: 'MTR-A' })],
       ...ARG,
       unita: 'odl_matricola',
     });
@@ -258,7 +383,7 @@ describe('pianoPianificazione — unità ODL+matricola (AcquaLatina)', () => {
     expect(sposta.aggiornati).toBe(1);
     const fermo = pianoPianificazione({
       ordini: [A],
-      esistenti: [intervento({ matricola: 'MTR-A', stato: 'completato' })],
+      esistenti: [positivo({ matricola: 'MTR-A' })],
       ...ARG,
       unita: 'odl_matricola',
     });
@@ -281,7 +406,8 @@ describe('pianoPianificazione — unità ODL+matricola (AcquaLatina)', () => {
 describe('etichettaMotivo', () => {
   it('spiega il motivo in italiano', () => {
     expect(etichettaMotivo('ordine_chiuso')).toMatch(/chiuso/i);
-    expect(etichettaMotivo('gia_completato')).toMatch(/completato/i);
+    expect(etichettaMotivo('gia_completato')).toMatch(/positivo/i);
     expect(etichettaMotivo('solo_attivazioni')).toMatch(/attivazion/i);
+    expect(etichettaMotivo('giorno_occupato')).toMatch(/giorno/i);
   });
 });
