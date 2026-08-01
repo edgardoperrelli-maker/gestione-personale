@@ -44,7 +44,22 @@ function oreDa(iso: string | undefined, adesso: string | undefined): number | nu
  * (`oklch(0.965 0.006 250)`, globals.css). Sul canvas i cinque riquadri sparivano — restavano solo
  * le etichette a mezz'aria. Sopra `--brand-surface` (bianco) il well si vede come previsto.
  */
-export default function ContatoriAcea() {
+export default function ContatoriAcea({ famiglia }: {
+  /**
+   * Presente = vista-foglietta (Dunning / Massive): i contatori scendono a UNA RIGA.
+   *
+   * DESIGN.md §7ter: la testa a card-KPI è del MODULO — l'hub, dove quei numeri sono il
+   * contenuto della pagina — mentre «le pagine-foglietta con Breadcrumb restano sul pattern
+   * slim». Qui sotto c'è un registro da 800 ordini e la striscia piena costa 90px, cioè due
+   * righe e mezza di lavoro a ogni schermata, per numeri che cambiano una o due volte al
+   * giorno (agli import).
+   *
+   * La famiglia decide anche QUALE totale si mostra: sul dunning il numero delle massive è
+   * quello dell'altra foglietta, e si prendeva un quinto della striscia in una vista dove non
+   * si può farci niente.
+   */
+  famiglia?: 'dunning' | 'massive';
+} = {}) {
   const [dati, setDati] = useState<Riepilogo | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -75,7 +90,11 @@ export default function ContatoriAcea() {
     );
   }
   if (!dati) {
-    return (
+    // Lo scheletro ha la FORMA che avrà il contenuto: in riga non si monta il pannello, o alla
+    // prima risposta la pagina si accorcerebbe di 60px trascinando su la tabella.
+    return famiglia ? (
+      <Skeleton className="h-7 w-full max-w-xl" />
+    ) : (
       <Card className="p-2.5">
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
           {Array.from({ length: 5 }, (_, i) => <Skeleton key={i} className="h-[62px]" />)}
@@ -95,6 +114,59 @@ export default function ContatoriAcea() {
     primitivo (valore a `text-base` invece di `text-lg`) — non si tocca `StatTile`, che è condiviso
     con altri sedici moduli.
   */
+  /*
+    Vista-foglietta: una riga, non un pannello.
+
+    Stessi numeri, stessi token di tono di `StatTile` (`--danger` / `--warning`), un decimo
+    dell'altezza. La nota degli ordini incompleti smette di essere un paragrafo suo e diventa
+    l'ultima voce della riga: è un'eccezione nota e attesa (le rimozioni allacci abusivi), non
+    una notizia che meriti una riga propria sopra il registro.
+  */
+  if (famiglia) {
+    const aperti = famiglia === 'dunning'
+      ? { n: dati.apertiDunning, testo: 'dunning aperti' }
+      : { n: dati.apertiMassive, testo: 'massive aperte' };
+    const voci: { n: number | string; testo: string; colore?: string }[] = [
+      aperti,
+      { n: dati.scaduti, testo: 'oltre la scadenza', colore: dati.scaduti > 0 ? 'var(--danger)' : undefined },
+      { n: dati.inScadenza, testo: 'in scadenza (7 gg)', colore: dati.inScadenza > 0 ? 'var(--warning)' : undefined },
+    ];
+    if (dati.senzaMisuratore > 0) {
+      voci.push({ n: dati.senzaMisuratore, testo: 'senza impianto né matricola' });
+    }
+    return (
+      <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1 text-xs text-[var(--brand-text-muted)]">
+        {voci.map((v, i) => (
+          <span key={v.testo} className="flex items-baseline gap-1.5">
+            {i > 0 && <span aria-hidden="true" className="mr-1.5 text-[var(--brand-border-strong)]">·</span>}
+            <span
+              className="font-mono tabular-nums font-semibold"
+              style={{ color: v.colore ?? 'var(--brand-text-main)' }}
+            >
+              {v.n}
+            </span>
+            {v.testo}
+          </span>
+        ))}
+        <span className="flex items-baseline gap-1.5">
+          <span aria-hidden="true" className="mr-1.5 text-[var(--brand-border-strong)]">·</span>
+          import
+          <span
+            className="font-mono tabular-nums font-semibold"
+            style={{ color: ore === null || vecchio ? 'var(--warning)' : 'var(--brand-text-main)' }}
+          >
+            {ore === null ? 'mai' : ore === 0 ? 'ora' : `${ore} h fa`}
+          </span>
+          {dati.ultimoImport && (
+            <span className="text-[var(--brand-text-subtle)]">
+              (<span className="font-mono tabular-nums">{dati.ultimoImport.righe_totali}</span> righe)
+            </span>
+          )}
+        </span>
+      </div>
+    );
+  }
+
   return (
     <Card className="space-y-1.5 p-2.5">
       <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
