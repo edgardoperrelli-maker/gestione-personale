@@ -193,7 +193,7 @@ export const APP_MODULES: AppModuleDefinition[] = [
     key: 'misuratori',
     href: '/hub/misuratori',
     label: 'Misuratori',
-    description: 'Registro misuratori rimossi',
+    description: 'Misuratori rimossi, un registro per commessa',
     section: 'modules',
     group: 'operativita',
     matchPrefixes: ['/hub/misuratori'],

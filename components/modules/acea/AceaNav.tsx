@@ -34,7 +34,9 @@ export const VISTE_ACEA = {
   },
   misuratori: {
     titolo: 'Misuratori',
-    href: '/hub/misuratori',
+    // Dritto al registro ACEA: `/hub/misuratori` ora è la landing delle commesse, e da
+    // dentro ACEA passare per un'altra scelta di commessa sarebbe una domanda già risposta.
+    href: '/hub/misuratori/acea',
     desc: 'Registro dei misuratori rimossi',
     icon: <Gauge {...ICON} />,
   },

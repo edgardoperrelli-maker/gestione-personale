@@ -9,7 +9,7 @@
  * flusso di riconsegna invariati.
  */
 import { toast } from '@/components/ui/Toast';
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
@@ -60,6 +60,14 @@ export type RegistroProps = {
   mostraPallet?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
   titoloPdf?: string;
+  /**
+   * Breadcrumb di rientro, montato SOPRA la testa (DESIGN.md §7bis: le viste-foglietta hanno
+   * la via del ritorno). Sta qui dentro e non nella pagina che lo passa perché la radice è
+   * `h-[calc(100dvh-6rem)]`: una riga aggiunta FUORI dal riquadro sfonda la viewport e la
+   * pagina scorre, una riga dentro la catena flex viene assorbita dalla tabella, che è
+   * `flex-1` e cede i suoi ~28px senza muovere nient'altro.
+   */
+  breadcrumb?: ReactNode;
 };
 
 export default function MisuratoriClient({
@@ -71,6 +79,7 @@ export default function MisuratoriClient({
   mostraPdr = true,
   mostraPallet = false,
   titoloPdf,
+  breadcrumb,
 }: RegistroProps) {
   const [rows, setRows]               = useState<MisuratoreRimosso[]>([]);
   const [filters, setFilters]         = useState<Filters>(FILTERS_EMPTY);
@@ -241,6 +250,19 @@ export default function MisuratoriClient({
 
   return (
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-4">
+      {/*
+        Rientro della vista-foglietta, quando c'è: dentro il riquadro full-screen (vedi la prop).
+        `shrink-0` come ogni altro fratello fisso di questa colonna (KPI, filtri, conteggio):
+        oggi il minimo automatico flex lo proteggerebbe comunque, ma il contratto qui si
+        dichiara, non si eredita per caso — è la stessa forma di StoricoInterventiClient.
+
+        DEROGA DICHIARATA a §7ter (le pagine-foglietta col Breadcrumb stanno sul pattern slim):
+        sotto il rientro resta l'ObjectHeader pieno, perché le azioni primarie del registro
+        (Ricalcola, Esporta PDF) vivono nelle sue `actions` e §3 vieta le teste su misura.
+        Titolo doppio col breadcrumb, ~70px alla tabella: accettato finché il client non
+        passa allo slim con le azioni sulla riga del rientro, come lo Storico.
+      */}
+      {breadcrumb && <div className="shrink-0">{breadcrumb}</div>}
       {/* Testa di modulo (fissa) */}
       <ObjectHeader
         title={titolo}
