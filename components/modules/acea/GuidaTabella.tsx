@@ -75,7 +75,7 @@ export function ContenutoGuida({ oggi, famiglia }: PropsGuida) {
             : <li>Si programma <strong>{finestra}</strong>, venerdì e sabato compresi: la regola «solo attivazioni» di quei giorni riguarda il dunning, non questa vista.</li>}
           <li>Il <strong>giorno</strong> si scrive o si sceglie dal calendario nella barra di assegnazione: dentro la finestra ci si può spostare liberamente, lunedì compreso.</li>
           <li>I nomi assegnabili sono quelli con l&apos;attività {attivita} nel{' '}
-            <a href="/dashboard" className="underline">cronoprogramma</a> di quel giorno.</li>
+            <a href="/dashboard" className="rounded-[var(--radius-sm)] underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]">cronoprogramma</a> di quel giorno.</li>
           <li>Una riga con <em>solo</em> esecutore o <em>solo</em> data resta un appunto (in corsivo): non genera rapportini finché la coppia non è completa.</li>
         </ul>
       </section>

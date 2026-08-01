@@ -239,6 +239,17 @@ export default function ModaleRapportini({
             </p>
           )}
 
+          {/*
+            Regione live, montata SEMPRE: gli esiti della generazione compaiono per riga nella
+            lista qui sopra, ma senza una regione live il lettore di schermo non sente ne' il
+            lavoro in corso ne' il suo esito — solo il footer che cambia in «Chiudi».
+          */}
+          <p role="status" className="sr-only">
+            {busy && 'Generazione dei rapportini in corso…'}
+            {!busy && fatto
+              && `Generazione conclusa: ${esiti.size} ${esiti.size === 1 ? 'rapportino elaborato' : 'rapportini elaborati'} su ${gruppi.length}.`}
+          </p>
+
           <p className="text-xs text-[var(--brand-text-muted)]">
             Ogni rapportino riceve <strong>tutti</strong> gli interventi ACEA del suo operatore in
             quel giorno; le voci nuove arrivano col badge «Nuovo», e rigenerare non duplica niente.

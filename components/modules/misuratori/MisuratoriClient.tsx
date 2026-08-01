@@ -426,14 +426,18 @@ export default function MisuratoriClient({
         </div>
       )}
 
-      {/* Errore (fisso) */}
+      {/*
+        Errore (fisso). Il TESTO va in --brand-text-main e non in --danger: è un banner di
+        prosa (il messaggio della fetch fallita), e su un testo lungo il colore serve alla
+        leggibilità, non a dire lo stato — DESIGN.md §3 marca proprio questa come «la scelta
+        che sbaglia più spesso». Il rosso resta a bordo e icona, che lo stato lo dicono già.
+      */}
       {error && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border px-4 py-2 text-sm"
-          style={{ borderColor: 'var(--danger)', backgroundColor: 'var(--danger-soft)', color: 'var(--danger)' }}
+          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--brand-text-main)]"
         >
-          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
+          <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--danger)]" aria-hidden />
           {error}
         </div>
       )}
@@ -443,6 +447,15 @@ export default function MisuratoriClient({
         {statoFiltro
           ? `${visibleRows.length} di ${counts.total} (${STATO_LABEL[statoFiltro]})`
           : `${counts.total} ${counts.total === 1 ? 'misuratore' : 'misuratori'}`}
+      </p>
+
+      {/*
+        Regione live per i lettori di schermo, montata SEMPRE (una regione inserita insieme al
+        testo spesso non viene annunciata): dice il caricamento in corso e, a fetch concluso,
+        il conteggio — a chi vede, le stesse cose le dicono l'overlay e la riga qui sopra.
+      */}
+      <p role="status" className="sr-only">
+        {loading ? 'Caricamento del registro…' : `${counts.total} misuratori nel registro.`}
       </p>
 
       {/* Area tabella: UNICA parte che scorre */}

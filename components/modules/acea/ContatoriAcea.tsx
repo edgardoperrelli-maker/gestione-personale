@@ -13,6 +13,11 @@ type Riepilogo = {
   apertiMassive: number;
   scaduti: number;
   inScadenza: number;
+  /** Scadenze PER FAMIGLIA: i numeri delle viste-foglietta. I globali restano per l'hub. */
+  scadutiDunning: number;
+  inScadenzaDunning: number;
+  scadutiMassive: number;
+  inScadenzaMassive: number;
   senzaMisuratore: number;
   ultimoImport: { caricato_il: string; righe_totali: number; finestra_dal: string | null; finestra_al: string | null } | null;
 };
@@ -123,13 +128,21 @@ export default function ContatoriAcea({ famiglia }: {
     una notizia che meriti una riga propria sopra il registro.
   */
   if (famiglia) {
+    /*
+      I numeri della PROPRIA famiglia, non i globali: «oltre la scadenza» col totale del
+      registro intero contava anche tutto il dunning sulla scheda massive — un numero vero al
+      posto sbagliato, che è il modo peggiore di sbagliare. Il fallback `?? dati.scaduti`
+      copre il minuto di deploy in cui il client nuovo interroga l'endpoint vecchio.
+    */
     const aperti = famiglia === 'dunning'
       ? { n: dati.apertiDunning, testo: 'dunning aperti' }
       : { n: dati.apertiMassive, testo: 'massive aperte' };
+    const scaduti = (famiglia === 'dunning' ? dati.scadutiDunning : dati.scadutiMassive) ?? dati.scaduti;
+    const inScadenza = (famiglia === 'dunning' ? dati.inScadenzaDunning : dati.inScadenzaMassive) ?? dati.inScadenza;
     const voci: { n: number | string; testo: string; colore?: string }[] = [
       aperti,
-      { n: dati.scaduti, testo: 'oltre la scadenza', colore: dati.scaduti > 0 ? 'var(--danger)' : undefined },
-      { n: dati.inScadenza, testo: 'in scadenza (7 gg)', colore: dati.inScadenza > 0 ? 'var(--warning)' : undefined },
+      { n: scaduti, testo: 'oltre la scadenza', colore: scaduti > 0 ? 'var(--danger)' : undefined },
+      { n: inScadenza, testo: 'in scadenza (7 gg)', colore: inScadenza > 0 ? 'var(--warning)' : undefined },
     ];
     if (dati.senzaMisuratore > 0) {
       voci.push({ n: dati.senzaMisuratore, testo: 'senza impianto né matricola' });

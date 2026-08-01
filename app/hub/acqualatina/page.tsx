@@ -5,6 +5,7 @@ import { getAllowedModulesForUser, resolveUserRole } from '@/lib/moduleAccess';
 import AuthGate from '@/components/AuthGate';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import FogliettaCard from '@/components/ui/FogliettaCard';
+import ObjectHeader from '@/components/ui/ObjectHeader';
 
 export const dynamic = 'force-dynamic';
 
@@ -37,15 +38,13 @@ export default async function AcqualatinaPage() {
   return (
     <AuthGate>
       <div className="space-y-4">
-        <div>
-          <Breadcrumb items={[{ label: 'AcquaLatina' }]} />
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-[var(--brand-text-main)]">
-            AcquaLatina
-          </h1>
-          <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-            Sostituzione misuratori — Terracina.
-          </p>
-        </div>
+        <Breadcrumb items={[{ label: 'AcquaLatina' }]} />
+        {/*
+          ObjectHeader e non un h1 su misura: è la testa della landing di modulo (DESIGN.md §3,
+          «nessuna testa su misura»), e le landing gemelle — ACEA, Misuratori — stanno già lì.
+          Tre landing di commessa, UNA tipografia di testa.
+        */}
+        <ObjectHeader title="AcquaLatina" sub="Sostituzione misuratori — Terracina." />
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
           {VISTE.map((v) => (
             <FogliettaCard key={v.href} href={v.href} title={v.title} description={v.description} />

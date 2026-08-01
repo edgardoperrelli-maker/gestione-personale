@@ -4,6 +4,7 @@ import { useCallback, useState } from 'react';
 import { ClipboardList, ExternalLink, LockOpen } from 'lucide-react';
 import Button from '@/components/Button';
 import { Card } from '@/components/Card';
+import Input from '@/components/Input';
 import { toast } from '@/components/ui/Toast';
 import { chiediConferma } from '@/components/ui/chiediConferma';
 import type { EsitoOperatore, TipoEsito } from '@/lib/acea/vociRapportino';
@@ -131,13 +132,16 @@ export default function RapportiniGiorno() {
         <h2 className="text-sm font-semibold text-[var(--brand-text-main)]">
           Rapportini del giorno
         </h2>
-        <input
-          type="date"
-          value={data}
-          onChange={(e) => { setData(e.target.value); setRisposta(null); }}
-          aria-label="Giorno dei rapportini"
-          className="ml-auto h-9 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 text-sm text-[var(--brand-text-main)]"
-        />
+        {/* Il primitivo Input, non una replica a mano (§7): la copia perdeva hover del bordo,
+            focus ring e stati disabled. La larghezza sta sul contenitore. */}
+        <div className="ml-auto w-40">
+          <Input
+            type="date"
+            value={data}
+            onChange={(e) => { setData(e.target.value); setRisposta(null); }}
+            aria-label="Giorno dei rapportini"
+          />
+        </div>
         <Button variant="primary" size="sm" onClick={() => void genera(false)} loading={busy}>
           Genera
         </Button>
@@ -179,7 +183,12 @@ export default function RapportiniGiorno() {
                         href={e.url}
                         target="_blank"
                         rel="noopener noreferrer"
-                        className="inline-flex items-center gap-1 text-xs text-[var(--brand-primary)] hover:underline"
+                        /*
+                          Nome accessibile DISTINTO per riga: N link tutti chiamati «apri»
+                          nell'elenco comandi di un lettore di schermo sono indistinguibili.
+                        */
+                        aria-label={`Apri il rapportino di ${e.staff_name ?? e.staff_id}`}
+                        className="inline-flex items-center gap-1 rounded-[var(--radius-sm)] text-xs text-[var(--brand-primary)] hover:underline focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                       >
                         apri
                         <ExternalLink size={12} aria-hidden="true" />

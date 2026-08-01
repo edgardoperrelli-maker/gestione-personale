@@ -1,6 +1,14 @@
 [
   {
     "date": "2026-08-01",
+    "scope": "audit",
+    "macrostructure": "(audit+fix — nessuna macrostruttura)",
+    "theme": "DESIGN.md (system-managed)",
+    "enrichment": "none",
+    "brief": "Ultima passata ACEA+AcquaLatina+Misuratori: 29 agenti su 4 lenti, 25 finding confermati dedotti a 16 fix. I due grossi: le regole input/select/textarea FUORI @layer battevano ogni utility (il bordo rosso fuori-finestra non si era MAI visto — stessa classe del reset bottoni gia documentato) -> spostate in @layer base; i contatori scadenza globali spacciati per numeri della vista massive (che ne ha 0: erano tutti del dunning) -> endpoint con conte per famiglia. Poi: campi barra azioni a 30px, banner errore in text-main su danger-soft (§3), StatoBadge sui token -soft, ObjectHeader sulla landing AcquaLatina, testa slim text-xl su pianificazione, sort e note della tabella misuratori resi veri bottoni con aria-sort, focus dentro FiltroColonna per tutti i tipi, inert sulla cromatura shell in vista ingrandita, Input primitivo sui due date nudi, aria-label distinti sugli apri, sr-only sul semaforo collaudo, regioni live su ModaleRapportini e MisuratoriClient."
+  },
+  {
+    "date": "2026-08-01",
     "scope": "app",
     "macrostructure": "Workbench (vista-foglietta registro)",
     "theme": "DESIGN.md (system-managed, tema unico)",
@@ -150,13 +158,5 @@
     "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
     "enrichment": "none",
     "brief": "Interventi (/hub/interventi) — cleanup dei residui pre-Cockpit nei pezzi periferici (la spina §7ter del 22/07 era già a norma): emoji 📷/✎/🗑 e frecce ←/→/▲/▼ → icone lucide; 3 portali bg-black (AnnuncioOdlPositivi, AnnuncioGruppoAttivita del Novità center, ModaleErroreImport della Mappa) → primitivo Dialog; ModaleModificaVoce ai primitivi Input/Select/Textarea/Button; bottone elimina-foto text-white → --on-danger; StoricoFiltri bottoni → Button e raggi in scala. Dati/logica invariati; niente API"
-  },
-  {
-    "date": "2026-07-24",
-    "scope": "app",
-    "macrostructure": "Workbench",
-    "theme": "DESIGN.md (system-managed, nessun tema di catalogo)",
-    "enrichment": "none",
-    "brief": "Calendario hotel (/hub/hotel-calendar) — allineamento al sistema Cockpit: testa ObjectHeader + control-bar (nav ‹ Oggi › + periodo mono + vista settimana/2 settimane/mese), Modal fatti a mano → Dialog (nuova/modifica/esporta + SendRequestModal), <select>/<input>/<textarea> → primitivi, ospiti → MultiSelect, importi → € in mono, glifi ✕ e label inglesi → lucide, via il link Hub e l'evento globale hotel-edit. Fetch/realtime/export invariati; niente API. + follow-up audit: HotelCard chip SENZA bordo (risolto card-in-card, un solo livello bordato = la cella-giorno), vista agenda a colonna singola sotto md (la griglia 7-col era illeggibile a 375px), colori territorio dalla scala --chart-* (via --brand-violet e semantici), title ridondanti rimossi"
   }
 ]

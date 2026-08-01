@@ -294,7 +294,20 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
     if (!ingrandita) return undefined;
     const precedente = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    return () => { document.body.style.overflow = precedente; };
+    /*
+      La cromatura coperta diventa `inert`: il riquadro copre sidebar e TopBar (z-45 sopra il
+      loro z-40) ma senza inert restavano TABBABILI — il giro di Tab finiva su comandi
+      invisibili, e il lettore di schermo li leggeva come se la pagina fosse ancora lì.
+      `inert` toglie in un colpo focus e albero accessibile; al rientro si rimette com'era.
+      Si marca la cromatura della SHELL (nav e header), non i fratelli del riquadro: i portali
+      di filtri, conferme e toast montano su body e devono restare vivi.
+    */
+    const cromatura = Array.from(document.querySelectorAll<HTMLElement>('nav, header'));
+    for (const el of cromatura) el.inert = true;
+    return () => {
+      document.body.style.overflow = precedente;
+      for (const el of cromatura) el.inert = false;
+    };
   }, [ingrandita]);
 
   const cursoreAttivo = editing.focus !== null;
@@ -533,7 +546,7 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
                 */
                 <a
                   href="/hub/acea/strumenti#import"
-                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                 >
                   <Upload size={14} aria-hidden="true" />
                   Importa export

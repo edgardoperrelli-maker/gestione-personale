@@ -70,6 +70,12 @@ function BloccoConfronto({
     <div className="rounded-[var(--radius-md)] border border-[var(--brand-border)] p-3">
       <div className="flex items-center gap-2">
         {ICONA[c.semaforo]}
+        {/*
+          Il glifo distingue il semaforo per chi vede (i tre sono diversi apposta), ma è
+          aria-hidden: a chi ascolta serve la parola. Uno span sr-only, non un aria-label sul
+          contenitore — il titolo resta un h3 navigabile pulito.
+        */}
+        <span className="sr-only">stato: {c.semaforo}.</span>
         <h3 className="text-sm font-semibold text-[var(--brand-text-main)]">{titolo}</h3>
       </div>
       <p className="mt-1 text-xs text-[var(--brand-text-muted)]">{spiegazione}</p>
