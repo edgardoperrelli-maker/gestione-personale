@@ -28,10 +28,12 @@ export function exportMisuratoriPdf(
   filters: PdfFilters,
   opzioni: PdfOpzioni = {},
 ): void {
-  const { titolo = 'Registro Misuratori Rimossi — ACEA', mostraPdr = true, mostraPallet = false } = opzioni;
+  // Sentence case (§4): era «Registro Misuratori Rimossi», il Title Case che il sistema vieta.
+  const { titolo = 'Registro misuratori rimossi — ACEA', mostraPdr = true, mostraPallet = false } = opzioni;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
-  // Intestazione
+  // Intestazione: inchiostro di brand, non il nero di default di jsPDF.
+  doc.setTextColor(...BRAND_EXPORT.inkRgb);
   doc.setFontSize(14);
   doc.setFont('helvetica', 'bold');
   doc.text(titolo, 14, 18);
@@ -51,6 +53,7 @@ export function exportMisuratoriPdf(
   if (filters.esecutore) parts.push(`Esecutore: ${filters.esecutore}`);
   if (filters.pallet) parts.push(`Pallet: ${filters.pallet}`);
 
+  doc.setTextColor(...BRAND_EXPORT.mutedRgb);
   doc.setFontSize(8);
   doc.setFont('helvetica', 'normal');
   if (parts.length) doc.text(parts.join('  ·  '), 14, 26);
@@ -80,9 +83,10 @@ export function exportMisuratoriPdf(
     startY: 38,
     head: [colonne.map((c) => c.testa)],
     body: rows.map((r) => colonne.map((c) => c.valore(r))),
-    styles:     { fontSize: 7, cellPadding: 1.5 },
+    styles:     { fontSize: 7, cellPadding: 1.5, textColor: [...BRAND_EXPORT.inkRgb] },
     headStyles: { fillColor: [...BRAND_EXPORT.accentRgb], textColor: 255, fontStyle: 'bold' },
-    alternateRowStyles: { fillColor: [245, 247, 250] },
+    // La zebra di BRAND: era 245,247,250 mentre gli altri due PDF di casa stavano a 246,249,251.
+    alternateRowStyles: { fillColor: [...BRAND_EXPORT.zebraRgb] },
     columnStyles: Object.fromEntries(
       colonne.map((c, i) => [i, { cellWidth: c.larghezza ?? 'auto' }]),
     ),

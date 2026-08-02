@@ -1,8 +1,8 @@
 'use client';
-import { useCallback, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
-import { STATO_ACCENT } from './StatoBadge';
+import { STATO_ACCENT, STATO_TESTO } from './StatoBadge';
 import { formatItalian } from '@/utils/date-it';
 
 type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet';
@@ -23,16 +23,26 @@ interface Props {
   /** Id selezionati, posseduti dal client (la barra di assegnazione vive lì). */
   selezione?: ReadonlySet<string>;
   onSelezione?: (aggiorna: (prima: Set<string>) => Set<string>) => void;
+  /**
+   * Righe con una PATCH in volo: il loro select di stato si disabilita. Una scrittura per
+   * riga alla volta — due cambi rapidi sulla stessa riga erano due PATCH senza ordine
+   * garantito, e l'ottimistica poteva mostrare uno stato che il server non aveva.
+   */
+  salvando?: ReadonlySet<string>;
 }
 
 export default function MisuratoriTabella({
   rows, onPatch, isAdminPlus, mostraPdr = true,
-  mostraPallet = false, selezione, onSelezione,
+  mostraPallet = false, selezione, onSelezione, salvando,
 }: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
   const [sortAsc, setSortAsc]         = useState(false);
   const [editingNote, setEditingNote] = useState<string | null>(null);
   const [noteValue, setNoteValue]     = useState('');
+  /** `true` per un solo giro: l'Escape ha annullato, il blur che segue non deve committare. */
+  const annullaNota = useRef(false);
+  /** La riga la cui nota è appena uscita dall'editor: il focus torna al suo bottone. */
+  const notaAppenaChiusa = useRef<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -61,12 +71,33 @@ export default function MisuratoriTabella({
   }, []);
 
   const commitNote = useCallback(
-    async (id: string) => {
-      await onPatch(id, { note: noteValue });
+    async (id: string, notaOriginale: string | null) => {
+      // Guard di rientro: su Invio l'editor si smonta e il blur che segue richiamerebbe il
+      // commit una seconda volta — due PATCH identiche per un solo gesto.
+      if (editingNote !== id) return;
       setEditingNote(null);
+      notaAppenaChiusa.current = id;
+      // Nessuna modifica = nessuna PATCH: aprire la nota e cliccare fuori non è un salvataggio,
+      // e ogni PATCH a vuoto muoveva `updated_at` sul server.
+      if (noteValue === (notaOriginale ?? '')) return;
+      await onPatch(id, { note: noteValue });
     },
-    [onPatch, noteValue]
+    [onPatch, noteValue, editingNote]
   );
+
+  /*
+    Il focus torna al bottone della nota appena l'editor si smonta — su commit E su
+    annullamento. Senza, cadeva sul body e il giro di Tab ripartiva dall'inizio della pagina:
+    per chi lavora di tastiera, ogni nota salvata costava la traversata del modulo.
+  */
+  useEffect(() => {
+    if (editingNote !== null || !notaAppenaChiusa.current) return;
+    const btn = document.querySelector<HTMLButtonElement>(
+      `[data-nota-btn="${CSS.escape(notaAppenaChiusa.current)}"]`,
+    );
+    notaAppenaChiusa.current = null;
+    btn?.focus();
+  }, [editingNote]);
 
   const SortArrow = ({ k }: { k: SortKey }) =>
     sortKey === k
@@ -111,14 +142,24 @@ export default function MisuratoriTabella({
   }
 
   return (
-    <table className="min-w-full divide-y divide-[var(--brand-border)] text-sm">
+    <table
+      aria-label="Registro dei misuratori rimossi"
+      className="min-w-full divide-y divide-[var(--brand-border)] text-sm"
+    >
       <thead className="sticky top-0 z-10 bg-[var(--brand-surface-muted)]">
         <tr>
             {conSpunte && (
-              <th className="w-8 px-3 py-2">
+              <th scope="col" className="w-8 px-3 py-2">
                 <input
                   type="checkbox"
                   checked={tutteSpuntate}
+                  /*
+                    `indeterminate` a selezione parziale: si scrive solo via DOM, e senza il
+                    quadratino diceva «niente di selezionato» con trenta spunte sotto i filtri.
+                  */
+                  ref={(el) => {
+                    if (el) el.indeterminate = !tutteSpuntate && visibiliSpuntate > 0;
+                  }}
                   onChange={toggleTutte}
                   aria-label="Seleziona tutti i misuratori visibili"
                   title="Seleziona tutti i visibili (con i filtri correnti)"
@@ -148,6 +189,7 @@ export default function MisuratoriTabella({
               */
               <th
                 key={label}
+                scope="col"
                 aria-sort={key && sortKey === key ? (sortAsc ? 'ascending' : 'descending') : undefined}
                 className="whitespace-nowrap px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-[var(--brand-text-muted)]"
               >
@@ -190,7 +232,9 @@ export default function MisuratoriTabella({
                 className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums"
                 style={conSpunte ? undefined : { boxShadow: `inset 3px 0 0 0 ${accent}` }}
               >{row.odl ?? '—'}</td>
-              <td className="whitespace-nowrap px-3 py-2 font-mono tabular-nums">{formatItalian(row.data_esecuzione)}</td>
+              {/* `text-xs` come OGNI cella-dato mono della riga (ODL, Matricola, PDR, Pallet):
+                  era l'unica a 14, e i dati densi stanno al gradino 12 (§4). */}
+              <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{formatItalian(row.data_esecuzione)}</td>
               <td className="whitespace-nowrap px-3 py-2">{row.esecutore ?? '—'}</td>
               <td className="max-w-[180px] truncate px-3 py-2" title={row.indirizzo ?? undefined}>{row.indirizzo ?? '—'}</td>
               <td className="whitespace-nowrap px-3 py-2">{row.comune ?? '—'}</td>
@@ -207,18 +251,26 @@ export default function MisuratoriTabella({
               {/* Dropdown stato inline */}
               <td className="whitespace-nowrap px-3 py-2">
                 <select
-                  aria-label={`Stato misuratore ${row.matricola}`}
+                  /*
+                    Il vincolo di regressione DETTO anche a chi non ha il mouse: il `title` lo
+                    vede solo l'hover, e per un lettore di schermo le opzioni disabilitate
+                    senza motivo sono un mistero.
+                  */
+                  aria-label={`Stato misuratore ${row.matricola}${
+                    isAdminPlus ? '' : '. Solo Admin Plus può riportare indietro lo stato'}`}
                   value={row.stato}
                   onChange={e => handleStatoChange(row.id, e.target.value as StatoMisuratore)}
+                  // Una scrittura per riga alla volta: chiude la corsa fra PATCH concorrenti.
+                  disabled={salvando?.has(row.id)}
                   title={isAdminPlus ? undefined : 'Solo Admin Plus può riportare indietro lo stato'}
                   /*
-                    Peso in classe (`font-medium`) e non in style: 500 è il gradino dei
-                    controlli (§4 — il 600 è dei titoli), e uno style inline sfuggirebbe a
-                    qualunque bonifica via classi. Colore e bordo restano inline perché
-                    dinamici sull'accent di stato.
+                    Il TESTO usa `STATO_TESTO`, non l'accent nudo: `--status-idle` è un token
+                    da pallini (0.62) e come testo a 12px faceva 3,64:1 — sotto l'AA. Bordo e
+                    rail restano sull'accent, dove il colore è segnale e non lettura. Peso in
+                    classe (`font-medium`, §4): uno style inline sfugge alle bonifiche.
                   */
-                  style={{ color: accent, borderColor: accent }}
-                  className="rounded-[var(--radius-sm)] border bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                  style={{ color: STATO_TESTO[row.stato], borderColor: accent }}
+                  className="rounded-[var(--radius-sm)] border bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] disabled:cursor-wait disabled:opacity-60"
                 >
                   {STATI_MISURATORE.map((s, i) => (
                     <option
@@ -239,8 +291,24 @@ export default function MisuratoriTabella({
                     autoFocus
                     value={noteValue}
                     onChange={e => setNoteValue(e.target.value)}
-                    onBlur={() => commitNote(row.id)}
-                    onKeyDown={e => e.key === 'Enter' && commitNote(row.id)}
+                    aria-label={`Note per ${row.matricola}`}
+                    /*
+                      Escape = ANNULLA: prima non c'era via d'uscita — qualunque uscita
+                      committava, refuso compreso. Il flag ferma il blur che l'unmount
+                      dell'editor fa scattare subito dopo.
+                    */
+                    onBlur={() => {
+                      if (annullaNota.current) { annullaNota.current = false; return; }
+                      void commitNote(row.id, row.note);
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') void commitNote(row.id, row.note);
+                      if (e.key === 'Escape') {
+                        annullaNota.current = true;
+                        notaAppenaChiusa.current = row.id;
+                        setEditingNote(null);
+                      }
+                    }}
                     className="w-full rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 text-xs focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
                   />
                 ) : (
@@ -248,9 +316,11 @@ export default function MisuratoriTabella({
                     Un VERO bottone, non uno span con role="button": quello prometteva un
                     comando che la tastiera non trovava — niente tabIndex, niente Invio/Spazio.
                     Il bottone nativo porta tutto da sé; l'aspetto resta quello del testo.
+                    `data-nota-btn`: bersaglio del ritorno del focus a editor chiuso.
                   */
                   <button
                     type="button"
+                    data-nota-btn={row.id}
                     aria-label={`Modifica note per ${row.matricola}`}
                     onClick={() => startNoteEdit(row)}
                     className="w-full cursor-text rounded-[var(--radius-sm)] text-left text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"

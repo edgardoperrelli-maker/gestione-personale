@@ -77,6 +77,12 @@ export const BRAND_EXPORT = {
   lineRgb: [227, 232, 238] as [number, number, number],
   /** Accento di stampa (blu GestiLab). */
   accentRgb: [10, 143, 176] as [number, number, number],
+  /**
+   * Zebra delle tabelle PDF. ADDITIVO 2026-08-03: il valore vive qui perché era già
+   * hardcoded — e DIVERGENTE — in tre export (rapportinoPdf e pdfRisanamento a 246,249,251;
+   * misuratori a 245,247,250). Questo è il valore dei due che concordavano.
+   */
+  zebraRgb: [246, 249, 251] as [number, number, number],
   /** Header tabelle Excel = navy brand (#13243f). */
   navyArgb: 'FF13243F',
 } as const;

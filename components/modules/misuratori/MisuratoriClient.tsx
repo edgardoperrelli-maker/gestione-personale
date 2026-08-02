@@ -9,7 +9,8 @@
  * flusso di riconsegna invariati.
  */
 import { toast } from '@/components/ui/Toast';
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react';
+import { chiediConferma } from '@/components/ui/chiediConferma';
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
@@ -73,7 +74,7 @@ export type RegistroProps = {
 export default function MisuratoriClient({
   isAdminPlus,
   apiBase = '/api/misuratori',
-  titolo = 'Misuratori Rimossi',
+  titolo = 'Misuratori rimossi',
   sottotitolo = 'Riconsegna dei misuratori rimossi, dal deposito al committente',
   mostraRicalcola = true,
   mostraPdr = true,
@@ -115,7 +116,19 @@ export default function MisuratoriClient({
   /** I pallet già assegnati, per la tendina del filtro. */
   const pallets = useMemo(() => (mostraPallet ? valoriPallet(rows) : []), [mostraPallet, rows]);
 
+  /*
+    Una fetch alla volta: quella nuova ANNULLA la precedente.
+
+    Senza, due cambi di filtro ravvicinati erano una corsa: la risposta lenta del filtro
+    vecchio poteva arrivare DOPO quella del filtro nuovo e sovrascriverla — la tabella
+    mostrava i dati di ieri sotto i filtri di oggi, senza nessun segno. L'AbortError non è
+    un errore: è la conferma che l'annullamento ha funzionato, e non deve sporcare il banner.
+  */
+  const fetchInCorso = useRef<AbortController | null>(null);
   const fetchData = useCallback(async (f: Filters) => {
+    fetchInCorso.current?.abort();
+    const controller = new AbortController();
+    fetchInCorso.current = controller;
     setLoading(true);
     setError(null);
     try {
@@ -125,20 +138,34 @@ export default function MisuratoriClient({
       if (f.comune)     params.set('comune', f.comune);
       if (f.esecutore)  params.set('esecutore', f.esecutore);
 
-      const res = await fetch(`${apiBase}?${params}`);
+      const res = await fetch(`${apiBase}?${params}`, { signal: controller.signal });
       if (!res.ok) throw new Error((await res.json() as { error?: string }).error ?? 'Errore fetch');
       setRows(await res.json() as MisuratoreRimosso[]);
     } catch (e) {
+      if (e instanceof DOMException && e.name === 'AbortError') return;
       setError(e instanceof Error ? e.message : 'Errore sconosciuto');
     } finally {
-      setLoading(false);
+      if (fetchInCorso.current === controller) setLoading(false);
     }
   }, [apiBase]);
 
   useEffect(() => { fetchData(filters); }, [fetchData, filters]);
 
+  /*
+    Le righe con una PATCH in volo: il loro select si disabilita finché non torna l'esito.
+
+    Senza, due cambi rapidi sulla stessa riga erano due PATCH concorrenti senza ordine
+    garantito — A→B e B→C potevano atterrare come C poi B, e l'ottimistica mostrava uno
+    stato che il server non aveva. Una scrittura per riga alla volta chiude la corsa
+    alla radice, e il costo è mezzo secondo di tendina grigia.
+  */
+  const [salvando, setSalvando] = useState<Set<string>>(new Set());
+  /** L'area che scorre: destinazione del focus quando la barra della cesta si smonta. */
+  const areaTabella = useRef<HTMLDivElement>(null);
+
   const handlePatch = useCallback(
     async (id: string, patch: { stato?: StatoMisuratore; note?: string }) => {
+      setSalvando(prev => new Set(prev).add(id));
       // Ottimistic update
       setRows(prev =>
         prev.map(r => r.id === id ? { ...r, ...patch } : r)
@@ -150,13 +177,22 @@ export default function MisuratoriClient({
           body: JSON.stringify(patch),
         });
         if (!res.ok) {
-          // Rollback: ricarica dati + mostra il motivo (es. 403 regressione vietata)
+          /*
+            Rollback PARLANTE, sempre: la riga che torna indietro da sola, senza una parola,
+            insegna a non fidarsi del registro. `toast.error` e non `info` — un salvataggio
+            rifiutato è un errore anche quando il motivo è legittimo (403 regressione vietata),
+            e il fallback copre le risposte senza corpo JSON (proxy, 502).
+          */
           const msg = (await res.json().catch(() => ({})) as { error?: string }).error;
           await fetchData(filters);
-          if (msg) toast.info(msg);
+          toast.error(msg ?? 'Salvataggio rifiutato dal server: la riga è tornata com\'era.');
         }
       } catch {
+        // Il caso peggiore era QUESTO: rete giù, rollback muto. La riga torna indietro e lo dice.
         await fetchData(filters);
+        toast.error('Salvataggio non riuscito (rete): la riga è tornata com\'era.');
+      } finally {
+        setSalvando(prev => { const s = new Set(prev); s.delete(id); return s; });
       }
     },
     [apiBase, fetchData, filters]
@@ -165,8 +201,11 @@ export default function MisuratoriClient({
   const handleSync = useCallback(async () => {
     setSyncing(true);
     try {
+      // `catch` sotto e parse tollerante qui: prima un ricalcolo caduto per rete o per una
+      // risposta non-JSON moriva in silenzio — lo spinner si fermava e basta, e chi aveva
+      // cliccato restava convinto che il registro fosse stato ricalcolato.
       const res = await fetch(`${apiBase}/sync`, { method: 'POST' });
-      const json = await res.json() as { ok?: boolean; inseriti?: number; rimossi?: number; aggiornati?: number; error?: string };
+      const json = await res.json().catch(() => ({})) as { ok?: boolean; inseriti?: number; rimossi?: number; aggiornati?: number; error?: string };
       if (json.ok) {
         await fetchData(filters);
         const inseriti   = json.inseriti   ?? 0;
@@ -182,8 +221,10 @@ export default function MisuratoriClient({
           toast.info('Nessuna modifica: registro già allineato.');
         }
       } else {
-        toast.error(`Errore sync: ${json.error}`);
+        toast.error(`Errore sync: ${json.error ?? 'risposta non valida dal server'}`);
       }
+    } catch {
+      toast.error('Ricalcolo non riuscito (rete): il registro è rimasto com\'era.');
     } finally {
       setSyncing(false);
     }
@@ -195,11 +236,44 @@ export default function MisuratoriClient({
    * — la cesta è andata sul pallet, la prossima riparte vuota.
    */
   const handleAssegnaPallet = useCallback(async (valore: string | null) => {
+    // Il guard di rientro: Invio nell'input non passava da `disabled`, e due Invii rapidi
+    // erano due POST in blocco sulla stessa cesta.
+    if (assegnando) return;
     const ids = [...selezione];
     if (ids.length === 0) return;
     const pallet = valore?.trim() || null;
+
+    /*
+      Sovrascrivere un pallet GIÀ DIVERSO si dichiara, non si fa in silenzio: la spunta di
+      testa prende anche le righe già impallettate, e una cesta scritta sopra un'altra è il
+      tipo di errore che in deposito si scopre solo contando i contatori.
+    */
+    if (pallet !== null) {
+      const sovrascritti = rows.filter(
+        (r) => selezione.has(r.id) && r.pallet?.trim() && r.pallet.trim() !== pallet,
+      );
+      if (sovrascritti.length > 0) {
+        const ok = await chiediConferma({
+          title: sovrascritti.length === 1
+            ? '1 misuratore selezionato è già su un altro pallet'
+            : `${sovrascritti.length} misuratori selezionati sono già su un altro pallet`,
+          message: `Il numero verrà sovrascritto con «${pallet}».`,
+          confirmLabel: 'Sovrascrivi',
+        });
+        if (!ok) return;
+      }
+    }
+
     setAssegnando(true);
-    const prima = rows;
+    /*
+      Rollback PER RIGA, non per fotografia: `setRows(prima)` ripristinava l'intera tabella,
+      e con lei si portava via anche i cambi di stato fatti su ALTRE righe mentre la POST era
+      in volo. Si ricordano i soli pallet toccati e si rimettono solo quelli.
+    */
+    const palletPrima = new Map(rows.filter((r) => selezione.has(r.id)).map((r) => [r.id, r.pallet]));
+    const ripristina = () => setRows(prev => prev.map(
+      (r) => (palletPrima.has(r.id) ? { ...r, pallet: palletPrima.get(r.id) ?? null } : r),
+    ));
     setRows(prev => prev.map(r => (selezione.has(r.id) ? { ...r, pallet } : r)));
     try {
       const res = await fetch(`${apiBase}/pallet`, {
@@ -209,7 +283,7 @@ export default function MisuratoriClient({
       });
       const json = await res.json().catch(() => ({})) as { aggiornati?: number; error?: string };
       if (!res.ok) {
-        setRows(prima);
+        ripristina();
         toast.error(json.error ?? 'Assegnazione pallet non riuscita.');
         return;
       }
@@ -217,15 +291,17 @@ export default function MisuratoriClient({
       toast.success(pallet
         ? `${n} ${n === 1 ? 'misuratore' : 'misuratori'} sul pallet ${pallet}.`
         : `${n} ${n === 1 ? 'misuratore tolto' : 'misuratori tolti'} dal pallet.`);
-      setSelezione(new Set());
+      // Si scaricano dalla cesta le sole righe SCRITTE: una spunta aggiunta durante il volo
+      // non c'entra con questo pallet, e azzerarla in blocco la faceva sparire senza motivo.
+      setSelezione(prev => new Set([...prev].filter((id) => !palletPrima.has(id))));
       setPalletInput('');
     } catch {
-      setRows(prima);
+      ripristina();
       toast.error('Assegnazione pallet non riuscita.');
     } finally {
       setAssegnando(false);
     }
-  }, [apiBase, rows, selezione]);
+  }, [apiBase, rows, selezione, assegnando]);
 
   const handleExportPdf = useCallback(() => {
     const pdfFilters: PdfFilters = {
@@ -389,7 +465,10 @@ export default function MisuratoriClient({
               <Input
                 value={palletInput}
                 onChange={e => setPalletInput(e.target.value)}
-                onKeyDown={e => { if (e.key === 'Enter' && palletInput.trim()) void handleAssegnaPallet(palletInput); }}
+                // `!assegnando` anche qui: l'Invio non passa dal `disabled` del bottone, e
+                // due Invii rapidi erano due POST in blocco sulla stessa cesta.
+                onKeyDown={e => { if (e.key === 'Enter' && palletInput.trim() && !assegnando) void handleAssegnaPallet(palletInput); }}
+                disabled={assegnando}
                 placeholder="es. 3"
                 aria-label="Numero del pallet da assegnare alla selezione"
               />
@@ -417,7 +496,15 @@ export default function MisuratoriClient({
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => setSelezione(new Set())}
+            onClick={() => {
+              setSelezione(new Set());
+              /*
+                Il bottone sparisce CON la barra che lo ospita: senza una destinazione il
+                focus cadrebbe sul body e il giro di Tab ripartirebbe dall'inizio della
+                pagina. L'area tabella (tabIndex -1) è il posto dove il lavoro continua.
+              */
+              areaTabella.current?.focus();
+            }}
             disabled={assegnando}
           >
             <X className="h-4 w-4" aria-hidden />
@@ -435,7 +522,9 @@ export default function MisuratoriClient({
       {error && (
         <div
           role="alert"
-          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-md)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--brand-text-main)]"
+          // `radius-lg` come ogni superficie sorella di questa pila (KPI, filtri, tabella):
+          // era l'unico riquadro a `md`, che è il raggio di input e bottoni (§5).
+          className="flex shrink-0 items-center gap-2 rounded-[var(--radius-lg)] border border-[var(--danger)] bg-[var(--danger-soft)] px-4 py-2 text-sm text-[var(--brand-text-main)]"
         >
           <AlertTriangle className="h-4 w-4 shrink-0 text-[var(--danger)]" aria-hidden />
           {error}
@@ -451,15 +540,26 @@ export default function MisuratoriClient({
 
       {/*
         Regione live per i lettori di schermo, montata SEMPRE (una regione inserita insieme al
-        testo spesso non viene annunciata): dice il caricamento in corso e, a fetch concluso,
-        il conteggio — a chi vede, le stesse cose le dicono l'overlay e la riga qui sopra.
+        testo spesso non viene annunciata). Dice il VISIBILE, non il totale: i filtri rapidi
+        sono client-side e non rifanno la fetch, quindi «60 nel registro» a filtro attivo era
+        una risposta alla domanda sbagliata. E dice anche la cesta, che compare e cambia senza
+        che un lettore di schermo ne sappia nulla.
       */}
       <p role="status" className="sr-only">
-        {loading ? 'Caricamento del registro…' : `${counts.total} misuratori nel registro.`}
+        {loading
+          ? 'Caricamento del registro…'
+          : `${visibleRows.length === counts.total
+              ? `${counts.total} misuratori nel registro`
+              : `${visibleRows.length} misuratori visibili su ${counts.total}`}${
+              selezione.size > 0 ? `, ${selezione.size} selezionati` : ''}.`}
       </p>
 
-      {/* Area tabella: UNICA parte che scorre */}
-      <div className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)]">
+      {/* Area tabella: UNICA parte che scorre. `tabIndex -1`: destinazione del focus quando
+          la barra della cesta si smonta da sotto il bottone che l'ha chiusa. */}
+      <div
+        ref={areaTabella}
+        tabIndex={-1}
+        className="relative min-h-0 flex-1 overflow-auto rounded-[var(--radius-lg)] border border-[var(--brand-border)] bg-[var(--brand-surface)] shadow-[var(--shadow-sm)] focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-[var(--brand-primary)]">
         {loading && (
           <div className="absolute inset-0 z-20 flex items-center justify-center gap-3 bg-[var(--brand-surface)]/70 text-sm text-[var(--brand-text-muted)]">
             <Loader2 className="h-6 w-6 animate-spin text-[var(--brand-primary)]" aria-hidden />
@@ -474,6 +574,7 @@ export default function MisuratoriClient({
           mostraPallet={mostraPallet}
           selezione={mostraPallet ? selezione : undefined}
           onSelezione={mostraPallet ? setSelezione : undefined}
+          salvando={salvando}
         />
       </div>
     </div>
