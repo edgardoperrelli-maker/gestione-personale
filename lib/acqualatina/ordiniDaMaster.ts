@@ -24,6 +24,8 @@ export type RigaMaster = {
   indirizzo: string | null;
   comune: string | null;
   cap: string | null;
+  /** Codice fornitura (COD_FORNITURA) del master: stesso campo `impianto` di ACEA. */
+  impianto: string | null;
 };
 
 export type OrdineEsistente = {
@@ -41,6 +43,7 @@ export type NuovoOrdine = {
   civico: string | null;
   comune: string | null;
   cap: string | null;
+  impianto: string | null;
   master_riga_id: string;
 };
 
@@ -147,6 +150,7 @@ export function ordiniDaMaster(
         civico,
         comune: String(r.comune ?? '').trim() || null,
         cap: String(r.cap ?? '').trim() || null,
+        impianto: String(r.impianto ?? '').trim() || null,
         master_riga_id: r.id,
       });
     }

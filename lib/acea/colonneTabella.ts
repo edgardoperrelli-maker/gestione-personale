@@ -194,10 +194,15 @@ export const COLONNE_DUNNING: DefColonna[] = [
 /**
  * Colonne della vista AcquaLatina (sostituzione misuratori, Terracina).
  *
- * La tabella dice quello che il master dice: ODL, matricola, indirizzo — più le NOSTRE tre
- * (esecutore, giorno, note) e lo stato. Niente CAP (nel master di Terracina è vuoto su tutte le
- * 4.196 righe), niente scadenza/SLA/impianto/saracinesche: sono concetti ACEA che qui non
- * esistono, e una colonna sempre vuota si legge come un import rotto.
+ * La tabella dice quello che il master dice: ODL, matricola, indirizzo, codice fornitura — più
+ * le NOSTRE tre (esecutore, giorno, note) e lo stato. Niente CAP (nel master di Terracina è
+ * vuoto su tutte le 4.196 righe), niente scadenza/SLA/saracinesche: sono concetti ACEA che qui
+ * non esistono, e una colonna sempre vuota si legge come un import rotto.
+ *
+ * Il codice fornitura INVECE esiste: è `impianto` (stesso campo di ACEA, la select condivisa lo
+ * porta già), popolato dalla colonna COD_FORNITURA del master (migration 20260731120000). Qui si
+ * chiama «Codice fornitura», non «Impianto»: è il termine del committente, e questa vista non ha
+ * nessun altro «impianto» ACEA con cui confondersi.
  *
  * «Chiusa il» è `data_completamento`, ma qui la scrive il NOSTRO motore (rapportino consegnato
  * con esito), non un export del committente: AcquaLatina non ci rimanda indietro lo stato.
@@ -205,6 +210,7 @@ export const COLONNE_DUNNING: DefColonna[] = [
 export const COLONNE_ACQUALATINA: DefColonna[] = [
   { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },
   { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 150, filtro: F.matricola },
+  { chiave: 'impianto', intestazione: 'Codice fornitura', predefinita: true, mono: true, larghezza: 140, filtro: F.impianto },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 260, filtro: F.indirizzo },
   { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },

@@ -47,7 +47,7 @@ export async function POST() {
       for (let offset = 0; ; offset += PAGINA) {
         const { data, error } = await supabaseAdmin
           .from('template_master_righe')
-          .select('id, odl, matricola, indirizzo, comune, cap')
+          .select('id, odl, matricola, indirizzo, comune, cap, impianto')
           .eq('master_id', m.id)
           .range(offset, offset + PAGINA - 1);
         if (error) throw error;
@@ -90,6 +90,7 @@ export async function POST() {
         civico: n.civico,
         cap: n.cap,
         comune: n.comune,
+        impianto: n.impianto,
         matricola: n.matricola,
         matricola_norm: n.matricola_norm,
         master_id: masterDiRiga.get(n.master_riga_id) ?? null,

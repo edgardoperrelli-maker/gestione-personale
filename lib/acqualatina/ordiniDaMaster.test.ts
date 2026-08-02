@@ -9,6 +9,7 @@ const riga = (sovrascrivi: Partial<RigaMaster> & { id: string }): RigaMaster => 
   indirizzo: 'VIA DEI PLATANI 12',
   comune: 'TERRACINA',
   cap: null,
+  impianto: null,
   ...sovrascrivi,
 });
 
@@ -125,5 +126,17 @@ describe('ordiniDaMaster — additivo e difensivo', () => {
       via: 'VIA LARGA', civico: '7/B', comune: 'TERRACINA', master_riga_id: 'r9',
       matricola_norm: 'MTR001',
     });
+  });
+
+  it('porta con sé il codice fornitura (impianto) del master, o null se assente', () => {
+    const { nuovi } = ordiniDaMaster(
+      [
+        riga({ id: 'r10', odl: '100002', matricola: 'MTR010', impianto: ' 4003635716 ' }),
+        riga({ id: 'r11', odl: '100003', matricola: 'MTR011' }),
+      ],
+      [],
+    );
+    expect(nuovi.find((n) => n.master_riga_id === 'r10')?.impianto).toBe('4003635716');
+    expect(nuovi.find((n) => n.master_riga_id === 'r11')?.impianto).toBeNull();
   });
 });
