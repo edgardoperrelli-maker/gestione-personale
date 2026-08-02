@@ -485,8 +485,9 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
 
         Ora i due gruppi si danno il cambio invece di sommarsi: sono due MODI dello stesso
         strumento, non due strumenti. Senza selezione si guarda, si filtra, si esporta; con una
-        selezione si assegna. Resta «Ingrandisci», che è l'unico comando della vista che serve
-        MENTRE si seleziona; gli altri cinque servono prima o dopo, e tornano alla deselezione.
+        selezione si assegna. Restano «Rapportini» e «Ingrandisci», i comandi della vista che
+        servono MENTRE si seleziona — il primo lavora proprio sulle righe spuntate (vedi il suo
+        commento); gli altri servono prima o dopo, e tornano alla deselezione.
       */}
       <div className="flex min-h-9 flex-wrap items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-2">
@@ -519,45 +520,51 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
           */}
           {/* Comandi del MODO VISTA: si ritirano quando c'è una selezione (vedi la testa della riga). */}
           {selezionate.length === 0 && (
-            <>
-              {famiglia === 'acqualatina' ? (
-                /*
-                  Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
-                  (Impostazioni → Template master): il comando tira dentro le righe nuove del file
-                  del mese, senza toccare quelle già presenti.
-                */
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => void sincronizzaDalMaster()}
-                  loading={sincronizzando}
-                  title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
-                >
-                  {!sincronizzando && <Upload size={14} aria-hidden="true" />}
-                  {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
-                </Button>
-              ) : (
-                /*
-                  Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e
-                  `Button` rende solo `<button>`. Le classi ricalcano `Button variant="outline"
-                  size="sm"` e vanno tenute allineate a quelle: `px-3` e `gap-2` come il
-                  primitivo, non `px-2.5` e `gap-1.5` — con quelli era 2px per lato piu` stretto
-                  dei vicini identici.
-                */
-                <a
-                  href="/hub/acea/strumenti#import"
-                  className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
-                >
-                  <Upload size={14} aria-hidden="true" />
-                  Importa export
-                </a>
-              )}
-              <Button variant="outline" size="sm" onClick={() => setRapportiniAperti(true)}>
-                <ClipboardList size={14} aria-hidden="true" />
-                Rapportini
+            famiglia === 'acqualatina' ? (
+              /*
+                Qui il registro non si alimenta da un export ACEA ma dal MASTER del committente
+                (Impostazioni → Template master): il comando tira dentro le righe nuove del file
+                del mese, senza toccare quelle già presenti.
+              */
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void sincronizzaDalMaster()}
+                loading={sincronizzando}
+                title="Tira dentro dal master le righe che il registro non ha ancora (additivo: non tocca le esistenti)"
+              >
+                {!sincronizzando && <Upload size={14} aria-hidden="true" />}
+                {sincronizzando ? 'Aggiorno…' : 'Aggiorna dal master'}
               </Button>
-            </>
+            ) : (
+              /*
+                Unico comando della riga a non passare dal primitivo, perche' e` un `<a>` e
+                `Button` rende solo `<button>`. Le classi ricalcano `Button variant="outline"
+                size="sm"` e vanno tenute allineate a quelle: `px-3` e `gap-2` come il
+                primitivo, non `px-2.5` e `gap-1.5` — con quelli era 2px per lato piu` stretto
+                dei vicini identici.
+              */
+              <a
+                href="/hub/acea/strumenti#import"
+                className="inline-flex items-center justify-center gap-2 rounded-[var(--radius-md)] border border-[var(--brand-border-strong)] bg-[var(--brand-surface)] px-3 py-1.5 text-xs font-medium text-[var(--brand-text-main)] transition-colors hover:bg-[var(--brand-surface-muted)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+              >
+                <Upload size={14} aria-hidden="true" />
+                Importa export
+              </a>
+            )
           )}
+
+          {/*
+            «Rapportini» NON si ritira con gli altri comandi della vista: la sua modale lavora
+            PROPRIO sulle righe spuntate — le carica sui rapportini di chi le esegue — e chiuso
+            nel modo vista spariva nel momento esatto in cui serviva, senza altra via (il vecchio
+            «Sul rapportino» in barra azioni non esiste piu`). Resta in entrambi i modi: da vuoto
+            la modale spiega da sola che righe selezionare.
+          */}
+          <Button variant="outline" size="sm" onClick={() => setRapportiniAperti(true)}>
+            <ClipboardList size={14} aria-hidden="true" />
+            Rapportini
+          </Button>
 
           {/*
             Il comando sta DENTRO il riquadro ingrandito, non nella pagina sotto: cliccandolo il
