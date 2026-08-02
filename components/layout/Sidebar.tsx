@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from 'next/navigation';
 import { appNavigation, groupLabels, GROUP_ORDER } from '@/lib/appNavigation';
 import type { AppModuleKey } from '@/lib/moduleAccess';
 import {
-  MODULE_ICONS, DASHBOARD_HOME_ICON, MISURATORI_ACQUALATINA_ICON, RIEPILOGO_RAPPORTINI_ICON,
+  MODULE_ICONS, DASHBOARD_HOME_ICON, RIEPILOGO_RAPPORTINI_ICON,
 } from './moduleIcons';
 import { useRichiesteManualiContext } from './RichiesteManualiProvider';
 
@@ -126,17 +126,20 @@ export default function Sidebar({
           ];
         }
         /*
-          AcquaLatina come la mappa: due viste, due voci dirette — la sidebar porta nella stanza,
-          non nel corridoio (la landing resta raggiungibile dal breadcrumb e dall'hub). La voce
-          del modulo va alla PIANIFICAZIONE, che è il lavoro di tutti i giorni; sulla landing
-          resta accesa lei, perché il corridoio appartiene a quella stanza.
+          AcquaLatina: UNA voce, dritta alla pianificazione — il lavoro di tutti i giorni.
+          «La sidebar porta nella stanza, non nel corridoio» resta vero; la seconda voce del
+          ventaglio («Misuratori rimossi») invece è stata tolta: a due dita da «Misuratori» —
+          il modulo che raccoglie i registri di TUTTE le commesse — erano due voci che si
+          contendevano la stessa parola, e chi cercava il registro ACEA finiva in AcquaLatina.
+          La simmetria decide: il registro ACEA non ha una voce diretta (ci si arriva dalla
+          landing Misuratori), quindi non ce l'ha nemmeno quello AcquaLatina. Le vie restano
+          tre: landing Misuratori, landing AcquaLatina, e la voce ⌘K — che è disambiguata
+          («AcquaLatina — Misuratori rimossi») e lì il link profondo è un pregio, non un rischio.
         */
         if (item.key === 'acqualatina') {
           const suModulo = matchesPath(pathname, item.href, item.matchPrefixes);
-          const suMisuratori = pathname.startsWith('/hub/acqualatina/misuratori');
           return [
-            renderLink('/hub/acqualatina/pianificazione', 'AcquaLatina', MODULE_ICONS.acqualatina, suModulo && !suMisuratori),
-            renderLink('/hub/acqualatina/misuratori', 'Misuratori rimossi', MISURATORI_ACQUALATINA_ICON, suMisuratori),
+            renderLink('/hub/acqualatina/pianificazione', 'AcquaLatina', MODULE_ICONS.acqualatina, suModulo),
           ];
         }
         return [
