@@ -159,8 +159,10 @@ export default function TemplateMasterClient() {
       <div className="rounded-2xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-6">
         <h2 className="mb-1 font-semibold text-[var(--brand-text-main)]">Carica un master</h2>
         <p className="mb-4 text-xs text-[var(--brand-text-muted)]">
-          Excel/CSV con colonna ORDINE/ODL (obbligatoria); Matricola, Impianto (anche COD_FORNITURA), Indirizzo, CAP, Località/Comune e Operazione
-          si riconoscono per nome, se ci sono.
+          Excel/CSV con colonna ORDINE/ODL (obbligatoria); Matricola, Impianto (anche COD_FORNITURA), Indirizzo, CAP,
+          Località/Comune, Operazione, Nome utente (anche NOME_UTENTE/Intestatario) e Recapito/Telefono
+          si riconoscono per nome, se ci sono. Ricaricare lo stesso master con più colonne compila i vuoti
+          delle righe già a registro, senza toccarne la pianificazione.
         </p>
         <label htmlFor="file-master" className="mb-1 block text-xs font-semibold uppercase tracking-wide text-[var(--brand-text-muted)]">
           File master

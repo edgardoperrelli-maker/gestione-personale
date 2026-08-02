@@ -46,6 +46,12 @@ export type RigaTabella = {
   /** `true` se il gruppo e` PRESTATO dal CAP/comune e non calcolato dalle proprie coordinate. */
   microarea_stimata?: boolean;
   impianto: string | null;
+  /**
+   * L'anagrafica dell'UTENTE, dal master del committente. Vuota su ACEA: il suo export non la
+   * porta (la `denominazione` è la descrizione dell'ordine, non un intestatario).
+   */
+  nominativo: string | null;
+  recapito: string | null;
   matricola: string | null;
   valore_netto: number | null;
   escludi_consuntivazione: boolean;
@@ -81,7 +87,8 @@ export type ChiaveColonna =
   | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'data_completamento' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
-  | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note';
+  | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note'
+  | 'nominativo' | 'recapito';
 
 /**
  * Filtro disponibile nell'intestazione della colonna, come l'AutoFiltro di Excel.
@@ -123,6 +130,7 @@ const F = {
   matricola: { tipo: 'testo', campo: 'matricola_norm' },
   indirizzo: { tipo: 'testo', campo: 'via' },
   impianto: { tipo: 'testo', campo: 'impianto' },
+  nominativo: { tipo: 'testo', campo: 'nominativo' },
   note: { tipo: 'testo', campo: 'note' },
   comune: { tipo: 'elenco', campo: 'comune', opzioni: 'comuni' },
   cap: { tipo: 'elenco', campo: 'cap', opzioni: 'cap' },
@@ -194,18 +202,35 @@ export const COLONNE_DUNNING: DefColonna[] = [
 /**
  * Colonne della vista AcquaLatina (sostituzione misuratori, Terracina).
  *
- * La tabella dice quello che il master dice: ODL, matricola, indirizzo — più le NOSTRE tre
- * (esecutore, giorno, note) e lo stato. Niente CAP (nel master di Terracina è vuoto su tutte le
- * 4.196 righe), niente scadenza/SLA/impianto/saracinesche: sono concetti ACEA che qui non
- * esistono, e una colonna sempre vuota si legge come un import rotto.
+ * La tabella dice quello che il master dice: ODL, cod. fornitura, matricola, indirizzo e
+ * l'anagrafica dell'utente — più le NOSTRE tre (esecutore, giorno, note) e lo stato. Niente CAP
+ * (nel master di Terracina è vuoto su tutte le 4.196 righe), niente scadenza/SLA/saracinesche:
+ * sono concetti ACEA che qui non esistono, e una colonna sempre vuota si legge come un import
+ * rotto.
+ *
+ * Le tre dell'ANAGRAFICA arrivano da una segnalazione dell'ufficio: «mancano nome utente,
+ * recapito utente, codice fornitura». La prima è la più istruttiva — il cod. fornitura c'era su
+ * tutte e 4.196 le righe del registro e nessuna cella lo mostrava, cioè il dato più utile per
+ * identificare il punto (sopravvive alla sostituzione del contatore, la matricola no) era
+ * arrivato fin qui per non essere letto da nessuno.
+ *
+ * «Cod. fornitura» e non «Impianto»: è la parola del committente (COD_FORNITURA nel suo file),
+ * ed è quella che l'ufficio usa al telefono con loro. Sotto è la stessa colonna `impianto` che
+ * ACEA chiama a modo suo — la chiave non cambia, cambia l'etichetta della vista.
  *
  * «Chiusa il» è `data_completamento`, ma qui la scrive il NOSTRO motore (rapportino consegnato
  * con esito), non un export del committente: AcquaLatina non ci rimanda indietro lo stato.
  */
 export const COLONNE_ACQUALATINA: DefColonna[] = [
   { chiave: 'odl', intestazione: 'ODL', predefinita: true, mono: true, larghezza: 110, filtro: F.odl },
+  { chiave: 'impianto', intestazione: 'Cod. fornitura', predefinita: true, mono: true, larghezza: 130, filtro: F.impianto },
   { chiave: 'matricola', intestazione: 'Matricola', predefinita: true, mono: true, larghezza: 150, filtro: F.matricola },
+  { chiave: 'nominativo', intestazione: 'Nome utente', predefinita: true, larghezza: 200, filtro: F.nominativo },
   { chiave: 'indirizzo', intestazione: 'Indirizzo', predefinita: true, larghezza: 260, filtro: F.indirizzo },
+  // Il recapito non porta l'imbuto: un numero di telefono non si filtra «per contenuto», e
+  // l'imbuto in più su una colonna che nessuno filtra è rumore in testata. Si cerca comunque
+  // dalla ricerca libera, che attraversa anche il nome utente.
+  { chiave: 'recapito', intestazione: 'Recapito', predefinita: true, mono: true, larghezza: 130 },
   { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 130, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },

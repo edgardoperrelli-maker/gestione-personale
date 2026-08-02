@@ -366,27 +366,36 @@ export default function RegistroAcea({ famiglia, comuniIniziali = [] }: {
   /**
    * Aggiorna il registro acqualatina dal master caricato in Impostazioni → Template master.
    *
-   * Additivo e idempotente: le righe nuove entrano, quelle già presenti restano come sono
-   * (pianificazione compresa). È il gesto per quando l'ufficio carica il file del mese nuovo.
+   * Additivo e idempotente: le righe nuove entrano, quelle già presenti conservano la loro
+   * pianificazione — il master può solo RIEMPIRNE i campi anagrafici vuoti (cod. fornitura,
+   * nome utente, recapito). È il gesto per quando l'ufficio carica il file del mese nuovo, e
+   * anche per quando ricarica lo stesso file perché arrivato più completo.
    */
   const sincronizzaDalMaster = useCallback(async () => {
     setSincronizzando(true);
     try {
       const res = await fetch('/api/acqualatina/ordini/sync', { method: 'POST' });
       const body = (await res.json()) as {
-        inseriti?: number; giaPresenti?: number; scartate?: number; master?: string[]; error?: string;
+        inseriti?: number; arricchiti?: number; giaPresenti?: number; scartate?: number;
+        master?: string[]; error?: string;
       };
       if (!res.ok) {
         toast.error(body.error ?? 'Aggiornamento dal master non riuscito.');
         return;
       }
       const inseriti = body.inseriti ?? 0;
+      const arricchiti = body.arricchiti ?? 0;
+      // Le righe completate si dicono a parte: un «nessuna riga nuova» dopo aver ricaricato un
+      // master più ricco farebbe credere che il file non sia servito a niente.
+      const completate = arricchiti > 0 ? `, ${numero(arricchiti)} completate` : '';
       toast.success(
         inseriti > 0
-          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti).`
-          : 'Registro già allineato al master: nessuna riga nuova.',
+          ? `${numero(inseriti)} righe nuove dal master (${numero(body.giaPresenti ?? 0)} già presenti${completate}).`
+          : arricchiti > 0
+            ? `Nessuna riga nuova; ${numero(arricchiti)} righe completate col dato che mancava.`
+            : 'Registro già allineato al master: nessuna riga nuova.',
       );
-      if (inseriti > 0) ricarica();
+      if (inseriti > 0 || arricchiti > 0) ricarica();
     } catch (e) {
       toast.error(e instanceof Error ? e.message : 'Aggiornamento dal master non riuscito.');
     } finally {

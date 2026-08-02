@@ -131,7 +131,7 @@ export async function sincronizzaRapportiniAcea(
   const { data: intRows, error: eInt } = await db
     .from('interventi')
     .select(
-      'id, odl, staff_id, stato, intervento_tipo, gruppo_attivita, committente, indirizzo, comune, cap, matricola_contatore, nominativo, pdr',
+      'id, odl, staff_id, stato, intervento_tipo, gruppo_attivita, committente, indirizzo, comune, cap, matricola_contatore, nominativo, pdr, recapito',
     )
     .eq('data', opts.data)
     .in('committente', [...profilo.committenti]);
@@ -158,6 +158,7 @@ export async function sincronizzaRapportiniAcea(
       matricola_contatore: (r.matricola_contatore as string | null) ?? null,
       nominativo: (r.nominativo as string | null) ?? null,
       pdr: (r.pdr as string | null) ?? null,
+      recapito: (r.recapito as string | null) ?? null,
     });
   }
   if (senzaOperatore > 0) {
@@ -414,6 +415,10 @@ export async function sincronizzaRapportiniAcea(
         matricola: i.matricola_contatore,
         pdr: i.pdr,
         nominativo: i.nominativo,
+        // Il RECAPITO è fra i campi info di default del rapportino da sempre, ma sul percorso
+        // registro non aveva un canale: sul percorso mappa viaggia col Task fino alla voce,
+        // qui passa da `interventi.recapito` (colonna nata il 2026-08-02).
+        recapito: i.recapito ?? null,
         via: i.indirizzo,
         comune: i.comune,
         cap: i.cap,

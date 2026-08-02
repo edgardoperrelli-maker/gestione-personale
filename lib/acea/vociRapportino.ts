@@ -40,6 +40,11 @@ export type InterventoDaVoce = {
   matricola_contatore: string | null;
   nominativo: string | null;
   pdr: string | null;
+  /**
+   * Recapito dell'utente. Opzionale: la colonna su `interventi` è nata dopo il motore (2026-08-02,
+   * commessa AcquaLatina), e una lettura che non la seleziona non deve far cadere il tipo.
+   */
+  recapito?: string | null;
 };
 
 export type VoceEsistente = {

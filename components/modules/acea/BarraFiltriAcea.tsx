@@ -44,8 +44,8 @@ type Props = {
  * nelle intestazioni (`FiltroColonna`), com'è nell'AutoFiltro di Excel. Qui restano le tre cose che
  * in un'intestazione non starebbero:
  *
- * - **la ricerca libera**, che attraversa cinque colonne insieme (ODL, matricola, impianto, via,
- *   testo ordine) e quindi non appartiene a nessuna;
+ * - **la ricerca libera**, che attraversa sei colonne insieme (ODL, matricola, impianto, via,
+ *   testo ordine, nome utente) e quindi non appartiene a nessuna;
  * - **aperto / chiuso**, che è un taglio sull'intero dataset e non un valore di colonna — DESIGN.md
  *   §7bis lo vuole `Tabs` in pagina, non una pagina a parte;
  * - **le pill dei filtri attivi**, che rendono visibile e removibile anche un filtro posato su una
@@ -96,7 +96,15 @@ export default function BarraFiltriAcea({
             type="search"
             value={filtri.cerca}
             onChange={(e) => onChange({ ...filtri, cerca: e.target.value })}
-            placeholder="ODL, matricola, impianto, via"
+            /*
+              Il suggerimento dice le colonne che su QUESTA vista contengono qualcosa: il nome
+              utente esiste solo nel registro acqualatina (su ACEA la colonna è NULL per
+              costruzione), e prometterlo dove non c'è farebbe cercare a vuoto. Il campo è largo
+              w-64: l'elenco si accorcia dove si allunga.
+            */
+            placeholder={famiglia === 'acqualatina'
+              ? 'ODL, cod. fornitura, matricola, utente'
+              : 'ODL, matricola, impianto, via'}
             aria-label="Cerca nel registro"
             className="h-9 w-64 rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] pl-8 pr-3 text-sm text-[var(--brand-text-main)] placeholder:text-[var(--brand-text-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--brand-primary)]"
           />

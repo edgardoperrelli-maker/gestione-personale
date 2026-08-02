@@ -13,6 +13,8 @@ export type RigaMasterUpload = {
   cap: string;
   comune: string;
   operazione: string;
+  nominativo: string;
+  recapito: string;
 };
 
 export type ParseMasterResult = {
@@ -45,6 +47,25 @@ const PATTERN: Record<Campo, RegExp> = {
   comune: /comune|citta|localita/,
   // niente /descrizione/ nudo: prenderebbe "Descrizione Stato Ordine".
   operazione: /operazione|descrizioneattivita|^attivita/,
+  /*
+    L'INTESTATARIO della fornitura. Nel file AcquaLatina la colonna è NOME_UTENTE — «utente»
+    è il loro modo di dire cliente — ma lo stesso dato si chiama INTESTATARIO o NOMINATIVO
+    altrove, e i tre nomi convivono nei file che passano per l'ufficio.
+
+    `utente` NON è ancorato di proposito: prende NOME_UTENTE, NOME UTENTE, UTENTE. È il
+    motivo per cui `recapito` qui sotto sta attento a non prendere «RECAPITO UTENTE» due
+    volte — non può: il primo pattern che aggancia una colonna se la tiene (vedi
+    `mappaColonne`), e l'ordine di questa mappa mette `nominativo` prima.
+
+    Un header «CODICE UTENTE» finirebbe qui per errore: non compare in nessuno dei file in
+    uso, e la cella si vedrebbe subito sbagliata nella colonna «Nome utente» della tabella —
+    un buco silenzioso, che è il difetto vero, non lo produce.
+  */
+  nominativo: /nomeutente|intestatario|nominativo|^utente/,
+  // Telefono dell'utente. `recapito` nudo perché nei file arriva sia solo che come
+  // «RECAPITO UTENTE»/«RECAPITO TELEFONICO»; `telefono`/`cellulare` per i file che lo
+  // chiamano col nome del mezzo invece che con quello della cosa.
+  recapito: /recapito|telefono|cellulare|^tel$/,
 };
 
 function normHeader(v: unknown): string {
@@ -77,7 +98,9 @@ export function trovaHeaderMaster(rows: unknown[][], maxScan = 15): number {
   for (let i = 0; i < lim; i++) {
     const idx = mappaColonne(rows[i] ?? []);
     if (idx.odl === undefined) continue;
-    const altri = (['matricola', 'impianto', 'indirizzo', 'cap', 'comune', 'operazione'] as const)
+    const altri = ([
+      'matricola', 'impianto', 'indirizzo', 'cap', 'comune', 'operazione', 'nominativo', 'recapito',
+    ] as const)
       .filter((c) => idx[c] !== undefined).length;
     if (altri >= 1) return i;
     if (soloOdl === -1) soloOdl = i;
@@ -114,6 +137,8 @@ export function parseMasterUpload(rows: unknown[][]): ParseMasterResult {
       cap: get(row, 'cap'),
       comune: get(row, 'comune'),
       operazione: get(row, 'operazione'),
+      nominativo: get(row, 'nominativo'),
+      recapito: get(row, 'recapito'),
     });
   }
   return { righe, totale: dataRows.length, scartate };

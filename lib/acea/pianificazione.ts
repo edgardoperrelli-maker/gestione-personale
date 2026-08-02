@@ -19,6 +19,20 @@ export type OrdineDaPianificare = {
   civico: string | null;
   cap: string | null;
   matricola: string | null;
+  /*
+    L'anagrafica del punto e dell'utente, che l'intervento si porta dietro fino al rapportino.
+
+    Non è decorazione della tabella: sono i tre campi che l'operatore legge sul posto —
+    il codice con cui il committente identifica la fornitura, chi ci abita, il numero da
+    chiamare se non risponde nessuno. Prima non arrivavano: la pianificazione dal registro
+    creava l'intervento senza, e il rapportino nasceva monco (le 25 righe del 03/08).
+
+    Tutti nullable e vuoti su ACEA — il suo export non porta l'anagrafica dell'utente, e il
+    suo impianto sull'intervento arriva già per altre strade.
+  */
+  impianto?: string | null;
+  nominativo?: string | null;
+  recapito?: string | null;
   /**
    * `true` se l'ordine è un'attivazione (riapertura `RIAT`/`REVO`).
    *

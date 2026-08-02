@@ -78,7 +78,7 @@ export const COLONNE_ELENCO = [
 export type ColonnaElenco = (typeof COLONNE_ELENCO)[number];
 
 /** Colonne filtrabili per «contiene». `matricola_norm` e non `matricola`: la ricerca è sul normalizzato. */
-export const COLONNE_TESTO = ['odl', 'matricola_norm', 'impianto', 'via', 'note'] as const;
+export const COLONNE_TESTO = ['odl', 'matricola_norm', 'impianto', 'via', 'note', 'nominativo'] as const;
 export type ColonnaTesto = (typeof COLONNE_TESTO)[number];
 
 /**
@@ -141,7 +141,7 @@ export type FiltriOrdini = {
   scadenza: ScadenzaFiltro;
   /** Finestra per "in scadenza": giorni da oggi (default 7). */
   entroGiorni: number;
-  /** Ricerca libera su ODL, matricola, impianto, indirizzo. */
+  /** Ricerca libera su ODL, matricola, impianto, indirizzo, testo ordine e nome utente. */
   cerca: string | null;
   pianificazione: FiltriPianificazione;
   /** Colonna su cui ordinare. `null` = ordinamento canonico (scadenza, poi creazione). */
@@ -231,6 +231,10 @@ export const ORDINAMENTI = {
   data_creazione: { tipo: 'registro', campo: 'data_creazione' },
   scadenza: { tipo: 'registro', campo: 'scadenza' },
   impianto: { tipo: 'registro', campo: 'impianto' },
+  // Ordinare per intestatario mette in fila i nomi: è il modo in cui l'ufficio cerca «il
+  // signor …» quando ha il nome e non l'ODL. Il recapito resta fuori: un elenco di numeri di
+  // telefono in ordine crescente non risponde a nessuna domanda.
+  nominativo: { tipo: 'registro', campo: 'nominativo' },
   famiglia: { tipo: 'registro', campo: 'famiglia' },
   tipo_ordine: { tipo: 'registro', campo: 'tipo_ordine' },
   operatore_cognome: { tipo: 'registro', campo: 'operatore_cognome' },
@@ -583,7 +587,9 @@ export function espressioneRicerca(f: FiltriOrdini): string | null {
   // Le virgole e le parentesi spezzerebbero la sintassi `or=(...)` di PostgREST.
   const q = f.cerca.replace(/[(),*]/g, ' ').trim();
   if (q === '') return null;
-  return ['odl', 'matricola_norm', 'impianto', 'via', 'testo_ordine']
+  // `nominativo` c'è perché su AcquaLatina la chiamata dell'ufficio comincia spesso dal nome
+  // dell'utente e non da un codice. Su ACEA la colonna è sempre NULL, quindi non allarga niente.
+  return ['odl', 'matricola_norm', 'impianto', 'via', 'testo_ordine', 'nominativo']
     .map((c) => `${c}.ilike.*${q}*`)
     .join(',');
 }
