@@ -11,7 +11,9 @@ const q = (s: string) => leggiFiltri(new URLSearchParams(s));
 const ELENCHI_VUOTI = {
   comune: [], attivita: [], stato_desc: [], operatore_cognome: [], cap: [], microarea: [],
 };
-const TESTI_VUOTI = { odl: null, matricola_norm: null, impianto: null, via: null, note: null };
+const TESTI_VUOTI = {
+  odl: null, matricola_norm: null, impianto: null, via: null, note: null, nominativo: null,
+};
 
 describe('leggiFiltri', () => {
   it('senza parametri applica i default', () => {
@@ -293,9 +295,10 @@ describe('contaFiltriColonna e haFiltriAttivi', () => {
 });
 
 describe('espressioneRicerca', () => {
-  it('cerca su ODL, matricola, impianto, indirizzo e testo ordine', () => {
+  it('cerca su ODL, matricola, impianto, indirizzo, testo ordine e nome utente', () => {
     expect(espressioneRicerca(q('cerca=912215'))).toBe(
-      'odl.ilike.*912215*,matricola_norm.ilike.*912215*,impianto.ilike.*912215*,via.ilike.*912215*,testo_ordine.ilike.*912215*',
+      'odl.ilike.*912215*,matricola_norm.ilike.*912215*,impianto.ilike.*912215*,via.ilike.*912215*,'
+      + 'testo_ordine.ilike.*912215*,nominativo.ilike.*912215*',
     );
   });
 
@@ -304,7 +307,8 @@ describe('espressioneRicerca', () => {
     // cambierebbero la query: vengono sostituite con spazi prima di comporre il filtro.
     const e = espressioneRicerca(q('cerca=' + encodeURIComponent('a,b)c(*')));
     expect(e).toBe(
-      'odl.ilike.*a b c*,matricola_norm.ilike.*a b c*,impianto.ilike.*a b c*,via.ilike.*a b c*,testo_ordine.ilike.*a b c*',
+      'odl.ilike.*a b c*,matricola_norm.ilike.*a b c*,impianto.ilike.*a b c*,via.ilike.*a b c*,'
+      + 'testo_ordine.ilike.*a b c*,nominativo.ilike.*a b c*',
     );
     // il termine ripulito non contiene più caratteri di sintassi
     const termine = /odl\.ilike\.\*(.*?)\*,/.exec(e ?? '')?.[1] ?? '';

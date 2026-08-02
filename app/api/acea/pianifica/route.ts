@@ -103,7 +103,7 @@ export async function POST(req: Request) {
         for (const blocco of blocchi) {
           const { data: righe, error } = await supabaseAdmin
             .from(profilo.tabellaOrdini)
-            .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla')
+            .select('id, odl, numero_operazione, famiglia, aperto, attivita, comune, via, civico, cap, matricola, codice_sla, impianto, nominativo, recapito')
             .in('odl', blocco);
           if (error) throw error;
           for (const r of (righe ?? []) as Array<Record<string, unknown>>) {
@@ -121,6 +121,9 @@ export async function POST(req: Request) {
               civico: (r.civico as string | null) ?? null,
               cap: (r.cap as string | null) ?? null,
               matricola: (r.matricola as string | null) ?? null,
+              impianto: (r.impianto as string | null) ?? null,
+              nominativo: (r.nominativo as string | null) ?? null,
+              recapito: (r.recapito as string | null) ?? null,
               riapertura: eRiapertura(r.codice_sla as string | null),
             });
           }
@@ -215,6 +218,29 @@ export async function POST(req: Request) {
           indirizzo: [a.ordine.via, a.ordine.civico].filter(Boolean).join(' ') || null,
           comune: a.ordine.comune,
           cap: a.ordine.cap,
+          /*
+            L'anagrafica scende dal registro all'intervento, e da lì alla voce di rapportino
+            (`sincronizzaRapportiniAcea`): sono i campi PDR, NOMINATIVO e RECAPITO che
+            l'operatore vede sul telefono.
+
+            Mancavano, e non in astratto: le 25 righe pianificate per il 03/08 sono nate senza
+            PDR e senza nome utente, mentre le 254 arrivate dal vecchio percorso (il file di
+            pianificazione dell'ufficio) ce li avevano. Il registro conosceva il cod. fornitura
+            di tutte e 4.196 le righe e non lo passava a nessuno.
+
+            Vale per TUTTE le famiglie, non solo acqualatina. `pdr` e `impianto` sono lo stesso
+            slot con lo stesso significato — su ACEA 3.926 interventi su 4.998 ce l'hanno già,
+            arrivati per altre strade — e lasciare vuoti quelli pianificati da qui sarebbe lo
+            stesso difetto, con un altro committente sopra. Nome utente e recapito su ACEA
+            restano NULL da soli: il suo export non li porta, quindi non c'è niente da copiare.
+
+            `?? null` e non `|| null`: una stringa vuota nel registro resta vuota, ed è diverso
+            da «non lo so» — ma per la voce di rapportino l'effetto è lo stesso, quindi qui non
+            si complica oltre.
+          */
+          pdr: a.ordine.impianto ?? null,
+          nominativo: a.ordine.nominativo ?? null,
+          recapito: a.ordine.recapito ?? null,
         })
         .select('id')
         .single();

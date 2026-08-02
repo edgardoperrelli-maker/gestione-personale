@@ -35,7 +35,10 @@ describe('parseMasterUpload', () => {
       [],
     ]);
     expect(out.righe).toEqual([
-      { odl: '912000001', matricola: 'M1', impianto: '', indirizzo: 'VIA ROMA 1', cap: '00030', comune: 'LABICO', operazione: 'Limitazione' },
+      {
+        odl: '912000001', matricola: 'M1', impianto: '', indirizzo: 'VIA ROMA 1', cap: '00030',
+        comune: 'LABICO', operazione: 'Limitazione', nominativo: '', recapito: '',
+      },
     ]);
     expect(out.totale).toBe(2);
     expect(out.scartate).toBe(1);
@@ -45,7 +48,10 @@ describe('parseMasterUpload', () => {
       ['Ordine', 'Matricola'],
       ['1', 'M1'],
     ]);
-    expect(out.righe[0]).toEqual({ odl: '1', matricola: 'M1', impianto: '', indirizzo: '', cap: '', comune: '', operazione: '' });
+    expect(out.righe[0]).toEqual({
+      odl: '1', matricola: 'M1', impianto: '', indirizzo: '', cap: '', comune: '', operazione: '',
+      nominativo: '', recapito: '',
+    });
   });
   it("legge l'IMPIANTO, comunque sia scritta l'intestazione", () => {
     const headers = [
@@ -76,6 +82,34 @@ describe('parseMasterUpload', () => {
     ]);
     expect(out.righe[0].impianto).toBe('19633002');
   });
+  it("legge il NOME UTENTE, comunque sia scritta l'intestazione", () => {
+    // «Utente» è il modo di dire cliente del committente; «Intestatario» e «Nominativo» sono
+    // gli altri due nomi con cui lo stesso dato passa per l'ufficio.
+    for (const header of ['NOME_UTENTE', 'Nome Utente', 'UTENTE', 'INTESTATARIO', 'Nominativo']) {
+      const out = parseMasterUpload([['Ordine', header], ['12379743', 'BOCCIA SALVINO']]);
+      expect(out.righe[0].nominativo, header).toBe('BOCCIA SALVINO');
+    }
+  });
+  it('legge il RECAPITO, e non lo scambia col nome utente', () => {
+    for (const header of ['RECAPITO', 'Recapito utente', 'RECAPITO TELEFONICO', 'Telefono', 'CELLULARE']) {
+      const out = parseMasterUpload([['Ordine', header], ['12379743', '3331234567']]);
+      expect(out.righe[0].recapito, header).toBe('3331234567');
+      // Il caso insidioso: «RECAPITO UTENTE» contiene la parola «utente». Deve restare il
+      // recapito — un numero di telefono nella colonna «Nome utente» è un dato sbagliato che
+      // si legge come un dato buono.
+      expect(out.righe[0].nominativo, header).toBe('');
+    }
+  });
+  it('estrazione AcquaLatina completa: le due colonne convivono con le altre', () => {
+    const out = parseMasterUpload([
+      ['ODL', 'COD_FORNITURA', 'MATRICOLA', 'NOME_UTENTE', 'RECAPITO', 'INDIRIZZO', 'COMUNE'],
+      ['12379743', '19633002', '640729', 'ROSSI MARIO', '3331234567', 'VIA CAMPANIA 3', 'TERRACINA'],
+    ]);
+    expect(out.righe[0]).toMatchObject({
+      odl: '12379743', impianto: '19633002', matricola: '640729',
+      nominativo: 'ROSSI MARIO', recapito: '3331234567',
+    });
+  });
   it("l'IMPIANTO da solo basta a riconoscere la riga di intestazione", () => {
     const out = parseMasterUpload([
       ['ESTRAZIONE ACQUA LATINA — LUGLIO'],
@@ -83,7 +117,10 @@ describe('parseMasterUpload', () => {
       ['12379743', '19633002'],
     ]);
     expect(out.righe).toEqual([
-      { odl: '12379743', matricola: '', impianto: '19633002', indirizzo: '', cap: '', comune: '', operazione: '' },
+      {
+        odl: '12379743', matricola: '', impianto: '19633002', indirizzo: '', cap: '', comune: '',
+        operazione: '', nominativo: '', recapito: '',
+      },
     ]);
   });
   it('"DESCRIZIONE ATTIVITÀ" vale come operazione, "Descrizione Stato Ordine" no', () => {

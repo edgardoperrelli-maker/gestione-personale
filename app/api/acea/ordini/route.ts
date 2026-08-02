@@ -49,6 +49,10 @@ const COLONNE = [
   'causale', 'causale_desc', 'esito_positivo',
   'via', 'civico', 'cap', 'comune', 'provincia', 'microarea', 'microarea_stimata',
   'impianto', 'matricola', 'matricola_norm', 'sospetto_troncamento',
+  // L'anagrafica dell'utente: piena su acqualatina (dal master del committente), NULL su ACEA,
+  // che nel suo export non la manda. Le colonne esistono su entrambe le tabelle proprio perché
+  // questa select vale per tutt'e due — vedi la nota in 20260731170000_acqualatina_ordini.sql.
+  'nominativo', 'recapito',
   'valore_netto', 'escludi_consuntivazione', 'codice_sla', 'priorita_testo',
   'testo_ordine', 'centro_lavoro', 'note',
   // L'esecutore e la data di ACEA: sono nel registro dall'inizio, ma senza queste due qui non

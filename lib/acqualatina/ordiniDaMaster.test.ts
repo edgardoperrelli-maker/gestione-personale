@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { normMatricola, ordiniDaMaster, spezzaIndirizzo, type RigaMaster } from './ordiniDaMaster';
+import {
+  normMatricola, ordiniDaMaster, spezzaIndirizzo,
+  type OrdineEsistente, type RigaMaster,
+} from './ordiniDaMaster';
 
 // Dati INVENTATI: il repo è pubblico, e qui non entrano ODL, matricole o indirizzi reali.
 
@@ -9,6 +12,9 @@ const riga = (sovrascrivi: Partial<RigaMaster> & { id: string }): RigaMaster => 
   indirizzo: 'VIA DEI PLATANI 12',
   comune: 'TERRACINA',
   cap: null,
+  impianto: null,
+  nominativo: null,
+  recapito: null,
   ...sovrascrivi,
 });
 
@@ -125,5 +131,86 @@ describe('ordiniDaMaster — additivo e difensivo', () => {
       via: 'VIA LARGA', civico: '7/B', comune: 'TERRACINA', master_riga_id: 'r9',
       matricola_norm: 'MTR001',
     });
+  });
+  it("porta l'anagrafica del punto e dell'utente sulle righe nuove", () => {
+    // Il sync non la portava: le 4.196 righe di luglio sono entrate senza cod. fornitura, e
+    // nome utente e recapito non entravano affatto. Senza questi tre campi il file del mese
+    // prossimo rifarebbe lo stesso buco.
+    const { nuovi } = ordiniDaMaster(
+      [riga({ id: 'r1', impianto: ' 19633002 ', nominativo: 'ROSSI MARIO', recapito: '3331234567' })],
+      [],
+    );
+    expect(nuovi[0]).toMatchObject({
+      impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '3331234567',
+    });
+  });
+
+  it('i campi anagrafici assenti restano nulli, non stringhe vuote', () => {
+    // Un master più povero non è un file rotto: le righe entrano lo stesso, e la cella vuota
+    // deve dire «non lo so», che in tabella si legge come trattino.
+    const { nuovi } = ordiniDaMaster([riga({ id: 'r1', impianto: '   ' })], []);
+    expect(nuovi[0]).toMatchObject({ impianto: null, nominativo: null, recapito: null });
+  });
+});
+
+describe('arricchimenti: il master riempie i vuoti delle righe già a registro', () => {
+  /*
+    «Additivo» ha sempre voluto dire «non tocco le righe presenti», ed è la regola che protegge
+    la pianificazione. Ma vale per i dati che la riga HA: su un campo VUOTO non c'è niente da
+    proteggere, e la regola stretta rendeva inutile il gesto naturale — ricaricare il master
+    quando arriva più completo. È il caso reale del file di Terracina, entrato quando il parser
+    non leggeva ancora cod. fornitura, nome utente e recapito.
+  */
+  const presente = (over: Partial<OrdineEsistente> = {}): OrdineEsistente => ({
+    odl: '100001', numero_operazione: '1', matricola: 'MTR001', ...over,
+  });
+
+  it('riempie il campo vuoto della riga presente', () => {
+    const { nuovi, arricchimenti, giaPresenti } = ordiniDaMaster(
+      [riga({ id: 'r1', impianto: '19633002', nominativo: 'ROSSI MARIO' })],
+      [presente()],
+    );
+    expect(nuovi).toEqual([]);
+    expect(giaPresenti).toBe(1);
+    expect(arricchimenti).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { impianto: '19633002', nominativo: 'ROSSI MARIO' } },
+    ]);
+  });
+
+  it('NON sovrascrive un dato che la riga ha già', () => {
+    // Un impianto corretto a mano in ufficio non deve poter essere schiacciato da un
+    // ricaricamento del master: ricaricare un file è un'operazione di back office normale.
+    const { arricchimenti } = ordiniDaMaster(
+      [riga({ id: 'r1', impianto: '99999999', nominativo: 'ROSSI MARIO' })],
+      [presente({ impianto: '19633002' })],
+    );
+    expect(arricchimenti).toEqual([
+      { odl: '100001', numero_operazione: '1', patch: { nominativo: 'ROSSI MARIO' } },
+    ]);
+  });
+
+  it('niente da riempire, nessun arricchimento: il secondo giro è a vuoto', () => {
+    const master = [riga({ id: 'r1', impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '333' })];
+    const dopo = presente({ impianto: '19633002', nominativo: 'ROSSI MARIO', recapito: '333' });
+    expect(ordiniDaMaster(master, [dopo]).arricchimenti).toEqual([]);
+  });
+
+  it('una cella vuota nel master non cancella niente', () => {
+    // Il file che non porta il dato non è il file che dice «questo dato non c'è».
+    const { arricchimenti } = ordiniDaMaster(
+      [riga({ id: 'r1', impianto: '  ', nominativo: null })],
+      [presente({ impianto: '19633002' })],
+    );
+    expect(arricchimenti).toEqual([]);
+  });
+
+  it("punta al numero operazione della riga presente, non a uno ricalcolato", () => {
+    // La chiave `odl|numero_operazione` è in giro (selezioni, appunti, log operazioni): la
+    // update deve colpire la riga che esiste, non quella che si sarebbe numerata oggi.
+    const { arricchimenti } = ordiniDaMaster(
+      [riga({ id: 'r1', matricola: 'MTR009', impianto: '19633002' })],
+      [presente({ numero_operazione: '4', matricola: 'MTR009' })],
+    );
+    expect(arricchimenti[0]).toMatchObject({ numero_operazione: '4' });
   });
 });

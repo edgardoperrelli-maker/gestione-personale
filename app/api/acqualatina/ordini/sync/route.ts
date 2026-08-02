@@ -14,9 +14,12 @@ const PAGINA = 1000;
  * POST /api/acqualatina/ordini/sync — allinea il registro al master del committente.
  *
  * ADDITIVO e idempotente: tira dentro le coppie (ODL, matricola) che il registro non ha ancora,
- * dai master ATTIVI del committente acqualatina (Impostazioni → Template master). Le righe già
- * presenti non si toccano MAI — lì sopra vive la pianificazione — e rilanciarlo a vuoto non
- * scrive niente. È il gesto per il file del mese nuovo: si carica il master, si preme qui.
+ * dai master ATTIVI del committente acqualatina (Impostazioni → Template master). Rilanciarlo a
+ * vuoto non scrive niente. È il gesto per il file del mese nuovo: si carica il master, si preme qui.
+ *
+ * Delle righe già presenti tocca SOLO i campi anagrafici vuoti (cod. fornitura, nome utente,
+ * recapito): la pianificazione che vive lì sopra resta intatta, e ricaricare un master più
+ * completo diventa il modo di riempire i buchi invece di un gesto senza effetto.
  *
  * Niente cancellazioni: una riga sparita dal file del mese resta a registro con la sua storia.
  * Se un giorno servirà «ritirata dal committente», sarà uno stato, non una DELETE.
@@ -47,7 +50,7 @@ export async function POST() {
       for (let offset = 0; ; offset += PAGINA) {
         const { data, error } = await supabaseAdmin
           .from('template_master_righe')
-          .select('id, odl, matricola, indirizzo, comune, cap')
+          .select('id, odl, matricola, indirizzo, comune, cap, impianto, nominativo, recapito')
           .eq('master_id', m.id)
           .range(offset, offset + PAGINA - 1);
         if (error) throw error;
@@ -62,7 +65,7 @@ export async function POST() {
     for (let offset = 0; ; offset += PAGINA) {
       const { data, error } = await supabaseAdmin
         .from('acqualatina_ordini')
-        .select('odl, numero_operazione, matricola')
+        .select('odl, numero_operazione, matricola, impianto, nominativo, recapito')
         .range(offset, offset + PAGINA - 1);
       if (error) throw error;
       const blocco = (data ?? []) as OrdineEsistente[];
@@ -71,7 +74,7 @@ export async function POST() {
     }
 
     const masterDiRiga = new Map(righe.map((r) => [r.id, r.master_id]));
-    const { nuovi, giaPresenti, scartate } = ordiniDaMaster(righe, esistenti);
+    const { nuovi, arricchimenti, giaPresenti, scartate } = ordiniDaMaster(righe, esistenti);
 
     // 4) Inserimento a blocchi. `data_creazione` è il giorno del sync, in fuso di lavoro:
     //    è la data in cui la riga è ENTRATA nel registro, non una data del committente.
@@ -92,6 +95,13 @@ export async function POST() {
         comune: n.comune,
         matricola: n.matricola,
         matricola_norm: n.matricola_norm,
+        // L'anagrafica del punto e dell'utente. Il sync non la portava: l'impianto delle
+        // 4.196 righe di luglio è entrato con una correzione a parte, e nome utente e
+        // recapito non entravano affatto. Senza queste tre righe il file del mese prossimo
+        // rifarebbe lo stesso buco.
+        impianto: n.impianto,
+        nominativo: n.nominativo,
+        recapito: n.recapito,
         master_id: masterDiRiga.get(n.master_riga_id) ?? null,
         master_riga_id: n.master_riga_id,
       }));
@@ -99,9 +109,33 @@ export async function POST() {
       if (error) throw error;
     }
 
+    /*
+      5) I VUOTI che il master può riempire sulle righe già presenti.
+
+      È l'unica scrittura di questo endpoint su una riga esistente, ed è ristretta ai campi
+      anagrafici VUOTI (la funzione pura decide quali): la pianificazione, le note e gli stati
+      non si toccano. Serve al caso reale — il file di luglio è entrato quando il parser non
+      leggeva cod. fornitura, nome utente e recapito, e senza questo passaggio ricaricare il
+      master completo non avrebbe cambiato niente sulle 4.196 righe già a registro.
+
+      Una `update` per riga e non un upsert: l'upsert avrebbe bisogno di tutte le colonne NOT
+      NULL della riga, e sbagliarne una vorrebbe dire riscrivere il registro invece di
+      correggerlo. Le righe da toccare sono poche per costruzione (solo quelle con un vuoto),
+      e al secondo sync dello stesso file sono zero.
+    */
+    for (const a of arricchimenti) {
+      const { error } = await supabaseAdmin
+        .from('acqualatina_ordini')
+        .update(a.patch)
+        .eq('odl', a.odl)
+        .eq('numero_operazione', a.numero_operazione);
+      if (error) throw error;
+    }
+
     return NextResponse.json(
       {
         inseriti: nuovi.length,
+        arricchiti: arricchimenti.length,
         giaPresenti,
         scartate,
         master: elencoMaster.map((m) => m.nome ?? m.id),
