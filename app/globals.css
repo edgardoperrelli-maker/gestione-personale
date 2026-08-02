@@ -92,13 +92,15 @@
   --phone-bezel:  oklch(0.22 0.012 255);
   --phone-screen: oklch(0.965 0.006 250);
 
-  /* additivi portale operatore: visore dello scanner. Valori IDENTICI al dark —
-     sotto c'è la fotocamera, non il tema: vedi il blocco dark per il perché. */
+  /* additivi portale operatore: visore dello scanner. Valori FISSI, tema o non tema:
+     sotto c'è l'immagine della fotocamera, non una superficie — schiarirli lo spegne. */
   --scanner-veil: oklch(0 0 0 / 0.90);
   --scanner-chip: oklch(1 0 0 / 0.20);
   --on-scanner:   oklch(1 0 0);
 
-  /* additivi Cronoprogramma: velo dei bottoni sulle card — vedi blocco dark. */
+  /* additivi Cronoprogramma: velo dei bottoni sulle card operatore. Il fondo della card è
+     dinamico (colore del territorio): serve un velo neutro, non un colore pieno — un bordo
+     bianco su card chiara sparirebbe, da qui bordo scuro tenue e fondo bianco velato. */
   --chip-overlay-bd: oklch(0.27 0.02 255 / 0.20);
   --chip-overlay-bg: oklch(1 0 0 / 0.55);
 
@@ -132,40 +134,21 @@
   --elevation-2: var(--shadow-md);
   --elevation-3: var(--shadow-lg);
 
-  /* additivi portale operatore: visore dello scanner barcode (ScannerMisuratore).
-     Come --phone-bezel resta SCURO in entrambi i temi: sotto c'è l'immagine della
-     fotocamera, non una superficie del tema — schiarirlo in light spegnerebbe il
-     visore. --on-scanner è il testo/comando sopra l'immagine. */
-  --scanner-veil: oklch(0 0 0 / 0.90);
-  --scanner-chip: oklch(1 0 0 / 0.20);
-  --on-scanner:   oklch(1 0 0);
+  /*
+    QUI FINIVA LA CODA DEL TEMA SCURO — rimossa il 2026-08-02.
 
-  /* additivi Cronoprogramma: velo dei bottoni sulle card operatore. Il fondo
-     della card è dinamico (colore del territorio), quindi qui serve un velo
-     neutro e non un colore pieno: su scuro il bordo schiarisce e il fondo
-     scurisce, su chiaro si inverte — un bordo bianco su card chiara sparisce. */
-  --chip-overlay-bd: oklch(1 0 0 / 0.20);
-  --chip-overlay-bg: oklch(0 0 0 / 0.20);
+    Il refactor del 27/07 (`4a410046`) doveva eliminare il blocco scuro e promuovere i valori
+    chiari a `:root`; in realtà aveva CONCATENATO anche la coda scura dentro lo stesso `:root`,
+    dopo i chiari. Stessa specificità, vince l'ultima dichiarazione: per sei giorni TUTTA l'app
+    — a prescindere dal tema del sistema — ha renderizzato `--status-*` (0.72–0.80 su bianco,
+    fino a 1,9:1), `--chart-*` e `--chip-overlay-*` con la taratura del tema scuro. La guardia
+    dei contrasti non l'ha visto perché legge il file col parser, non col browser: validava la
+    prima dichiarazione, il browser applicava la seconda. La guardia nuova
+    (lib/design/tokenDuplicati.test.ts) fallisce su qualunque token dichiarato due volte nello
+    stesso blocco, così questa classe di guasto non può rientrare in silenzio.
 
-  --status-ok:        oklch(0.74 0.15 150);
-  --status-ok-soft:   oklch(0.74 0.15 150 / 0.18);
-  --status-ko:        oklch(0.72 0.17 25);
-  --status-ko-soft:   oklch(0.72 0.17 25 / 0.18);
-  --status-warn:      oklch(0.80 0.13 75);
-  --status-warn-soft: oklch(0.80 0.13 75 / 0.18);
-  --status-progress:      oklch(0.66 0.15 260);
-  --status-progress-soft: oklch(0.66 0.15 260 / 0.18);
-  --status-idle:      oklch(0.55 0.012 255);
-  --status-idle-soft: oklch(0.55 0.012 255 / 0.18);
-
-  --chart-1: oklch(0.66 0.15 260);
-  --chart-2: oklch(0.74 0.15 150);
-  --chart-3: oklch(0.80 0.13 75);
-  --chart-4: oklch(0.72 0.17 25);
-  --chart-5: oklch(0.66 0.10 300);
-  --chart-6: oklch(0.72 0.10 200);
-  --chart-7: oklch(0.62 0.04 255);
-  --chart-8: oklch(0.78 0.03 255);
+    Restano solo gli alias --elevation, che in quella coda avevano l'UNICA dichiarazione.
+  */
 }
 
 /* ===== Colori territorio — reattivi al tema via CSS var — tinte scure, tema unico). ===== */
