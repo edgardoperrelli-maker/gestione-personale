@@ -1,8 +1,16 @@
-import { STATO_LABEL, type StatoMisuratore } from '@/types/misuratori';
+import type { StatoMisuratore } from '@/types/misuratori';
+
+// Le mappe di colore degli stati del misuratore — sorgente unica per card-contatore, rail di
+// riga e select di stato. Solo token del sistema Cockpit, mai hex/neon.
+//
+// Il componente <StatoBadge> che dava il nome al file è stato rimosso il 2026-08-03: era
+// codice MORTO (nessun call-site in tutto il codebase) e divergeva dal primitivo Badge di
+// sistema, che le varianti di stato le ha già. Se un giorno serve un badge di stato del
+// misuratore, si usa quello (DESIGN.md §7), non se ne ridisegna uno qui.
 
 /**
- * Accento (token) per ogni stato del misuratore — sorgente unica per card-contatore,
- * rail di riga tabella e badge. Solo token del sistema Cockpit, mai hex/neon:
+ * Accento per ogni stato: il colore-SEGNALE — rail di riga, bordo del select, barra dei
+ * contatori. Dove il colore marca e non si legge.
  * idle → in attesa (warn) → verificato (viola) → in consegna (progress) → consegnato (ok).
  */
 export const STATO_ACCENT: Record<StatoMisuratore, string> = {
@@ -14,28 +22,17 @@ export const STATO_ACCENT: Record<StatoMisuratore, string> = {
 };
 
 /**
- * Fondo del badge: i token `-soft` DI SISTEMA, non un color-mix al 16%.
+ * Colore-TESTO per ogni stato: dove il colore si LEGGE (il select di stato, a 12px).
  *
- * Il mix sintetizzava una scala soft parallela: alpha fissa mentre i token veri stanno a
- * 0.10–0.16 tarati per coppia, e un eventuale ritocco di sistema non l'avrebbe mai raggiunto.
- * Ogni accent ha già il suo fondo con nome: si usa quello (DESIGN.md §3, «--status-warn su
- * --status-warn-soft»).
+ * Diverge dall'accent in un punto solo, ed è il punto che l'ha reso necessario:
+ * `--status-idle` è un token da pallini (L 0.62) e come testo normale fa 3,64:1 su bianco —
+ * sotto il 4,5 dell'AA. Il suo testo è `--brand-text-muted`, che è grigio quanto serve
+ * all'idle ma è un token DI TESTO, vincolato dalla guardia dei contrasti (7:1).
  */
-const STATO_SOFT: Record<StatoMisuratore, string> = {
-  da_consegnare_deposito:  'var(--status-idle-soft)',
-  scaricato_deposito:      'var(--status-warn-soft)',
-  verificato_deposito:     'var(--viola-soft)',
-  in_consegna_committente: 'var(--status-progress-soft)',
-  consegnato_committente:  'var(--status-ok-soft)',
+export const STATO_TESTO: Record<StatoMisuratore, string> = {
+  da_consegnare_deposito:  'var(--brand-text-muted)',
+  scaricato_deposito:      'var(--status-warn)',
+  verificato_deposito:     'var(--viola)',
+  in_consegna_committente: 'var(--status-progress)',
+  consegnato_committente:  'var(--status-ok)',
 };
-
-export default function StatoBadge({ stato }: { stato: StatoMisuratore }) {
-  return (
-    <span
-      className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium"
-      style={{ color: STATO_ACCENT[stato], backgroundColor: STATO_SOFT[stato] }}
-    >
-      {STATO_LABEL[stato] ?? stato}
-    </span>
-  );
-}
