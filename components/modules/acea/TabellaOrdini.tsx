@@ -57,6 +57,33 @@ const ALTEZZA_MAX = '100dvh';
 const COLONNE_CLICK_RIGA = new Set<string>(['odl', 'attivita', 'impianto', 'matricola']);
 
 /**
+ * Il colore della cella «Eseguito»: gli stessi tre casi del modulo Interventi (`StoricoTabella`).
+ *
+ * `NESSUN PASSAGGIO` resta smorzato con i vuoti, e non rosso: non è un esito negativo dell'uscita,
+ * è un'uscita che non c'è stata — e in colonna deve leggersi diverso da un «NO».
+ */
+function tonoEseguito(v: string): string {
+  if (v === 'SI') return 'font-semibold text-[var(--status-ok)]';
+  if (v === 'NO') return 'font-semibold text-[var(--status-ko)]';
+  return 'text-[var(--brand-text-muted)]';
+}
+
+/** Colonna-stato «Eseguito»: cerchio con spunta o croce più l'etichetta, come nel modulo Interventi. */
+function SegnoEseguito({ valore }: { valore: string }) {
+  if (valore !== 'SI' && valore !== 'NO') return <>{valore}</>;
+  const ok = valore === 'SI';
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <circle cx="12" cy="12" r="9" />
+        {ok ? <path d="m8.5 12.2 2.4 2.4 4.6-4.8" /> : <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />}
+      </svg>
+      {valore}
+    </span>
+  );
+}
+
+/**
  * Copia l'ODL nudo negli appunti — il numero che si cerca su ACEA e si detta al telefono.
  *
  * È il pezzo che il click-selezione si era mangiato: prima si cliccava la cella ODL e Ctrl+C
@@ -813,7 +840,9 @@ export default function TabellaOrdini({
                             : ''
                         } ${locale ? 'italic' : ''} ${
                           gruppoStimato ? 'italic text-[var(--brand-text-muted)]' : ''
-                        } ${aMeta ? 'italic text-[var(--status-warn)]' : ''}`}
+                        } ${aMeta ? 'italic text-[var(--status-warn)]' : ''} ${
+                          c.chiave === 'eseguito' ? tonoEseguito(testo) : ''
+                        }`}
                       >
                         {c.chiave === 'matricola' && r.sospetto_troncamento && (
                           <>
@@ -827,7 +856,7 @@ export default function TabellaOrdini({
                             <span className="sr-only">{AVVISO_MATRICOLA_TRONCA}{' '}</span>
                           </>
                         )}
-                        {testo}
+                        {c.chiave === 'eseguito' ? <SegnoEseguito valore={testo} /> : testo}
                         {/*
                           La copia dell'ODL nudo, ripristinata: il click sulla cella ora spunta
                           la riga, e questa icona — visibile al passaggio — è la via col mouse.
