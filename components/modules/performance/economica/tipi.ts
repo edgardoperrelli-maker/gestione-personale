@@ -6,11 +6,21 @@ import type { ProduzionePersonale } from '@/lib/produzione/aggregaPersonale';
 import type { EsitoOperatore } from '@/lib/produzione/aggregaEsiti';
 import type { ClasseDiscrepanza, Discrepanza, Totale } from '@/lib/produzione/riconciliazione';
 import type { SalStorico } from '@/lib/produzione/salUfficiale';
+import type { VistaCommittente } from '@/lib/produzione/committente';
 
 export interface DatiProduzione {
   from: string;
   to: string;
+  /** Di quale committente parla questo payload. */
+  vista: VistaCommittente;
+  /**
+   * `false` sulla vista AcquaLatina: SAL, pre-SAL, fuori-SAL, scarto e audit sono a zero perché
+   * non esiste un portale che li produca — non perché non ci abbiano pagato.
+   */
+  conContabilizzazione: boolean;
   produzione: ProduzioneAggregata;
+  /** La sola quota ACEA: l'unica confrontabile col SAL (vedi `load.ts`). */
+  produzioneAcea: { totale: Totale; perGiorno: Aggregato[] };
   sal: { totale: Totale; perVoce: Aggregato[]; perGiorno: Aggregato[] };
   scarto: Totale;
   salStorico: SalStorico[];

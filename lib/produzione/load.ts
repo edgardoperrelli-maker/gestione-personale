@@ -25,8 +25,17 @@ import {
   type Totale,
 } from './riconciliazione';
 import { odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
+import { PREFISSO_COMMESSA } from './composizioneVoce';
+import {
+  COMMESSE,
+  commessaDi,
+  committentiGrezzi,
+  inVista,
+  type Commessa,
+  type VistaCommittente,
+} from './committente';
 
-// Loader server-only della "Produzione economica" ACEA. Riusa la logica pura testata.
+// Loader server-only della "Produzione economica". Riusa la logica pura testata.
 // Condiviso tra l'endpoint dati (tab) e l'export Excel (così non si duplica il calcolo).
 
 const PAGE = 1000;
@@ -42,6 +51,19 @@ function risolviVoce(voceRaw: number | null, attivita: string | null): number | 
   return voceDaAttivita(attivita);
 }
 
+/*
+  Il gruppo con cui la riga entra nel donut «produzione per voce».
+
+  Per ACEA è il codice di fatturazione (EL/ES/ERC/ERA), e `null` quando non si riesce a dedurlo —
+  che è un problema vero, da vedere. Per le altre commesse la voce NON ESISTE: il gruppo è la
+  commessa stessa, così la loro produzione ha una fetta sua invece di finire in «Non classificata»,
+  dove sembrerebbe lavoro da sistemare e non lavoro di un altro committente.
+*/
+function gruppoVoce(commessa: Commessa, voce: number | null): string | null {
+  if (commessa !== 'acea') return `${PREFISSO_COMMESSA}${commessa}`;
+  return voce != null ? KPI_DA_VOCE[voce] ?? null : null;
+}
+
 export interface ProduzioneSal {
   totale: Totale;
   perVoce: { chiave: string; label: string; conteggio: number; valore: number }[];
@@ -51,8 +73,21 @@ export interface ProduzioneSal {
 export interface ProduzioneEconomica {
   from: string;
   to: string;
+  /** La vista con cui è stato calcolato: il payload dice di chi parla, non lo si deduce. */
+  vista: VistaCommittente;
+  /**
+   * SAL, pre-SAL, scarto, fuori-SAL e audit sono calcolati sulla sola fetta ACEA (l'unica con
+   * un portale). `false` quando la vista è AcquaLatina: là quei campi sono zeri, non «zero euro
+   * consuntivati».
+   */
+  conContabilizzazione: boolean;
   listino: ListinoRiga[];
   produzione: ProduzioneAggregata;
+  /**
+   * La sola quota ACEA della produzione: è l'unica confrontabile col SAL e con il portale.
+   * Nella vista ACEA coincide con `produzione`; in «Tutti» ne è la parte senza AcquaLatina.
+   */
+  produzioneAcea: { totale: Totale; perGiorno: Aggregato[] };
   sal: ProduzioneSal;
   scarto: Totale;
   salStorico: SalStorico[];
@@ -119,18 +154,13 @@ interface LavoroRow {
   comune: string | null;
 }
 
-// Committenti inclusi nella Produzione economica ACEA: il DUNNING (committente='acea') e le
-// limitazioni massive dei comuni con master — Labico, Zagarolo, … (committente='lim_massive' o
-// 'acea'), valorizzate con lo stesso listino.
-const COMMITTENTI = ['acea', 'lim_massive'];
-
-async function caricaInterventiAcea(): Promise<InterventoRow[]> {
+async function caricaInterventi(vista: VistaCommittente): Promise<InterventoRow[]> {
   const rows: InterventoRow[] = [];
   for (let off = 0; ; off += PAGE) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
       .select('id, odl, data, staff_id, territorio_id, voce, intervento_tipo, esito, stato, committente, comune, matricola_contatore')
-      .in('committente', COMMITTENTI)
+      .in('committente', committentiGrezzi(vista))
       .order('id', { ascending: true })
       .range(off, off + PAGE - 1);
     if (error) throw error;
@@ -201,13 +231,30 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
   return { staff, terr };
 }
 
-export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
+export async function caricaProduzioneEconomica(
+  from: string,
+  to: string,
+  vista: VistaCommittente = 'tutti',
+): Promise<ProduzioneEconomica> {
+  /*
+    La fetta ACEA c'è in «ACEA» e in «Tutti», non in «AcquaLatina». Comanda tutto ciò che nasce
+    dal portale SAP e dai SAL ufficiali: senza di lei quei giri si saltano interi, invece di
+    girare a vuoto e restituire zeri che poi qualcuno legge come «non ci hanno pagato niente».
+  */
+  const conAcea = inVista(vista, 'acea');
+
   const [listinoRows, interventi, registroRows, portaleRows, maps, alias, lavoroRows, salRows, comuniMassive, idSaracinesca, ordiniSostituzione] = await Promise.all([
+    /*
+      Il listino di TUTTE le commesse in vista, tenuto separato per committente e non appiattito
+      in un array unico: `prezzoPerData` sceglie per (attività, data), e due committenti che un
+      giorno chiamassero allo stesso modo la stessa attività — «RIMOZIONE CONTATORE» — si
+      ruberebbero la tariffa a vicenda, in silenzio e in modo pure deterministico.
+    */
     supabaseAdmin
       .from('listino')
-      .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
-      .eq('committente', 'acea'),
-    caricaInterventiAcea(),
+      .select('id, attivita, prezzo, valido_dal, valido_al, attivo, committente')
+      .in('committente', [...COMMESSE]),
+    caricaInterventi(vista),
     caricaSnapshot<RegistroRow>('acea_ordini', 'odl, attivita, comune'),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento'),
     nomi(),
@@ -242,27 +289,40 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     for (const k of chiaviAggancio(o)) if (!figlioPerChiave.has(k)) figlioPerChiave.set(k, o.odl);
   }
 
-  const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
+  const listino: ListinoRiga[] = [];
+  const listinoPerCommessa = new Map<Commessa, ListinoRiga[]>();
+  for (const r of (listinoRows.data ?? []) as Array<{
     id: string;
     attivita: string | null;
     prezzo: number;
     valido_dal: string;
     valido_al: string | null;
     attivo: boolean;
-  }>)
-    .filter((r) => r.attivita)
-    .map((r) => ({
+    committente: string | null;
+  }>) {
+    const commessa = commessaDi(r.committente);
+    if (!r.attivita || commessa == null) continue;
+    const riga: ListinoRiga = {
       id: r.id,
-      attivita: r.attivita as string,
+      attivita: r.attivita,
       prezzo: Number(r.prezzo),
       valido_dal: r.valido_dal,
       valido_al: r.valido_al,
       attivo: r.attivo,
-    }));
+    };
+    listino.push(riga);
+    const perC = listinoPerCommessa.get(commessa);
+    if (perC) perC.push(riga);
+    else listinoPerCommessa.set(commessa, [riga]);
+  }
 
-  const valore = (attivitaKey: string, data: string): number => {
+  /**
+   * Tariffa di una riga. La commessa è il primo argomento e non un dettaglio: è ciò che impedisce
+   * a una sostituzione AcquaLatina di prendere il prezzo di un'attività ACEA omonima.
+   */
+  const valore = (commessa: Commessa, attivitaKey: string, data: string): number => {
     if (!attivitaKey) return 0;
-    const sel = prezzoPerData(listino, attivitaKey, data);
+    const sel = prezzoPerData(listinoPerCommessa.get(commessa) ?? [], attivitaKey, data);
     return sel ? valoreRiga(sel.prezzo) : 0;
   };
 
@@ -280,8 +340,9 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     // attività pulita e voce. La riclassificazione (gas→italgas, massive→acea) vive qui, non nel DB.
     const canon = attivitaCanonica(it.committente, it.intervento_tipo, it.comune, alias, comuniMassive);
     if (odl && canon) effByOdl.set(odl, canon.committenteEff);
-    // Produzione economica ACEA: solo committente effettivo 'acea' e attività non scartata.
-    if (!canon || !canon.attivo || canon.committenteEff !== 'acea') continue;
+    // Nella vista: committente effettivo tra le commesse chieste, e attività non scartata.
+    if (!canon || !canon.attivo || !inVista(vista, canon.committenteEff)) continue;
+    const commessa = commessaDi(canon.committenteEff) as Commessa; // garantito da inVista
     const voce = canon.voce;
     const attivitaKey = canon.attivitaKey;
     const esitoOk = esitoOkDaIntervento(it.stato, it.esito);
@@ -290,7 +351,13 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const operatore = (it.staff_id && maps.staff.get(it.staff_id)) || 'Sconosciuto';
     const territorioId = it.territorio_id ?? '';
     const territorio = (it.territorio_id && maps.terr.get(it.territorio_id)) || 'Senza territorio';
-    if (odl) {
+    /*
+      Solo ACEA entra nell'audit. L'audit confronta i nostri ODL con il registro `acea_ordini` e
+      col portale SAP: un ordine AcquaLatina, che in nessuno dei due c'è mai stato, uscirebbe
+      classificato «nel DB ma non nel registro» — trecento discrepanze inventate a ogni apertura
+      della vista «Tutti», e le poche vere sepolte in mezzo.
+    */
+    if (odl && commessa === 'acea') {
       const prev = dbAudit.get(odl);
       if (!prev || (esitoOk === true && prev.esitoOk !== true)) {
         dbAudit.set(odl, { voce, esitoOk });
@@ -299,7 +366,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         dbInfo.set(odl, { staffId, operatore, territorioId, territorio, data });
       }
     }
-    // Esiti sull'assegnato (design 2026-07-02): ogni riga ACEA con operatore nel range,
+    // Esiti sull'assegnato (design 2026-07-02): ogni riga in vista con operatore nel range,
     // qualsiasi esito (anche mai lavorata). Niente dedup: vista di carico assegnato.
     if (staffId && data && data >= from && data <= to) {
       righeEsito.push({ staffId, operatore, esitoOk });
@@ -307,10 +374,10 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     // Produzione = positivo nel range
     if (esitoOk === true && data && data >= from && data <= to) {
       produzioneRighe.push({
-        odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+        odl, commessa, voce, kpi: gruppoVoce(commessa, voce),
         attivitaKey, attivitaLabel: canon.attivitaPulita, matricola: it.matricola_contatore ?? '',
         data, staffId, operatore, territorioId, territorio,
-        valore: valore(attivitaKey, data),
+        valore: valore(commessa, attivitaKey, data),
       });
       /*
         La SARACINESCA è una voce a sé, IN AGGIUNTA alla limitazione padre: stesso intervento,
@@ -324,10 +391,10 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
       */
       if (saracinescaDichiarata.has(it.id)) {
         produzioneRighe.push({
-          odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL,
+          odl, commessa: 'acea', voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL,
           matricola: it.matricola_contatore ?? '',
           data, staffId, operatore, territorioId, territorio,
-          valore: valore(SARA_KEY, data),
+          valore: valore('acea', SARA_KEY, data),
         });
       }
     }
@@ -347,7 +414,9 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   */
   const registroAudit = new Map<string, RegistroRiga>();
   const registroAttivita = new Map<string, string>();
-  for (const r of registroRows) {
+  // Senza la fetta ACEA il registro resta chiuso: `registroPopolato` deve dire «non pertinente»,
+  // non «popolato», o la vista AcquaLatina si porterebbe dietro un audit di ordini altrui.
+  for (const r of conAcea ? registroRows : []) {
     const odl = (r.odl ?? '').trim();
     if (!odl) continue;
     registroAudit.set(odl, { voce: risolviVoce(null, r.attivita) });
@@ -359,6 +428,16 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
   const righeDedup = deduplicaMassivePerMatricola(produzioneRighe);
   const produzione = aggregaProduzione(righeDedup);
+
+  /*
+    La produzione CONFRONTABILE col SAL: la sola fetta ACEA.
+
+    In «Tutti» il totale di pagina comprende AcquaLatina, che sul portale ACEA non esiste. Metterlo
+    a confronto col SAL gonfierebbe lo scarto — l'area gialla del grafico si chiama «da richiedere
+    ad ACEA», e ci finirebbero dentro euro che ad ACEA non si chiederanno mai.
+  */
+  const righeAcea = righeDedup.filter((r) => r.commessa === 'acea');
+  const produzioneAcea = aggregaProduzione(righeAcea);
 
   /*
     Riga "esitata a sistema" per un ODL: è la forma con cui un ODL completato sul portale entra
@@ -374,10 +453,11 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     const attivitaKey = dbAttivita.get(odl) ?? registroAttivita.get(odl) ?? '';
     const data = dbDataByOdl.get(odl) ?? to;
     return {
-      odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
+      odl, commessa: 'acea', voce, kpi: gruppoVoce('acea', voce),
       attivitaKey, attivitaLabel: attivitaKey, data,
       staffId: '', operatore: '', territorioId: '', territorio: '',
-      valore: valore(attivitaKey, data),
+      // Il SAL è ACEA per definizione: nasce dal portale SAP, dove AcquaLatina non esiste.
+      valore: valore('acea', attivitaKey, data),
     };
   };
 
@@ -385,7 +465,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const odlCompletatoAny = new Set<string>();
   const salRighe: RigaProduzione[] = [];
   const nonRemuneratoRighe: RigaProduzione[] = [];
-  for (const p of portaleRows) {
+  for (const p of conAcea ? portaleRows : []) {
     const odl = (p.odl ?? '').trim();
     if (!odl) continue;
     // il gas riclassificato (committente effettivo italgas) è fuori dalla vista ACEA (audit + SAL)
@@ -406,7 +486,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   const salAgg = aggregaProduzione(salRighe);
   const sal: ProduzioneSal = { totale: salAgg.totale, perVoce: salAgg.perVoce, perGiorno: salAgg.perGiorno };
 
-  const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
+  const scarto = scartoProduzioneSal(produzioneAcea.totale, sal.totale);
 
   /*
     «Fuori SAL» = prodotto ma non ancora consuntivato dal portale. Per una saracinesca la chiave
@@ -415,17 +495,23 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   */
   const figlioDiRiga = (r: RigaProduzione): string =>
     figlioPerChiave.get(`M:${normMatricola(r.matricola)}`) ?? '';
-  const fuoriSalRighe = righeDedup.filter((r) => {
+  /*
+    Solo ACEA, e non è un dettaglio: «fuori SAL» vuol dire «prodotto e non ancora consuntivato SUL
+    PORTALE». Le righe AcquaLatina non sono su nessun portale, quindi passerebbero TUTTE il filtro
+    e si sommerebbero al conto ACEA — nella vista «Tutti» la card diceva 110.437,51 € stando sotto
+    l'intestazione «sola quota ACEA», cioè un numero giusto per nessuno.
+  */
+  const fuoriSalRighe = righeAcea.filter((r) => {
     const k = r.attivitaKey === SARA_KEY ? figlioDiRiga(r) : r.odl;
     return !k || !odlCompletatoAny.has(k);
   });
   const fuoriSal: Totale = aggregaProduzione(fuoriSalRighe).totale;
 
-  // ODL "conosciuti" (controllo leggero dello storico SAL): presenti in DB, master o portale.
+  // ODL "conosciuti" (controllo leggero dello storico SAL): presenti in DB, registro o portale.
   const odlConosciuti = new Set<string>([...dbAudit.keys(), ...registroAudit.keys(), ...portaleAudit.keys()]);
   const odlGiaPagati = odlPagatiDaSal(salRows);
   const salPerN = new Map<number, SalRow[]>();
-  for (const r of salRows) {
+  for (const r of conAcea ? salRows : []) {
     if (!salPerN.has(r.sal_n)) salPerN.set(r.sal_n, []);
     salPerN.get(r.sal_n)!.push(r);
   }
@@ -436,7 +522,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         const canonSal = r.attivita ? attivitaCanonica('acea', r.attivita, null, alias, comuniMassive) : null;
         const attivitaKey = canonSal?.attivitaKey ?? '';
         const dataVal = r.data_completamento ?? r.data_registrazione ?? to;
-        return { ...r, valoreListino: attivitaKey ? valore(attivitaKey, dataVal) : 0 };
+        return { ...r, valoreListino: attivitaKey ? valore('acea', attivitaKey, dataVal) : 0 };
       });
       return riepilogoUnSal(arricchite, odlConosciuti);
     });
@@ -449,21 +535,28 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     totale: aggregaProduzione(preSalRighe).totale,
   };
 
-  // Giornate-uomo: frazione ACEA/totale per (operatore, giorno). ACEA = committente EFFETTIVO
-  // 'acea' via alias (stessa riclassificazione della produzione: il gas→italgas resta fuori).
+  /*
+    Giornate-uomo: frazione in-vista/totale per (operatore, giorno). Il DENOMINATORE resta tutto
+    il lavorato del giorno, qualunque committente — è il senso della frazione: chi fa mezza
+    giornata su ACEA e mezza su italgas non impegna una giornata intera sulla commessa.
+
+    Il numeratore segue la vista: in «Tutti» una giornata mista ACEA+AcquaLatina è una giornata
+    piena sulle nostre due commesse, ed è la lettura giusta per la resa €/giornata di pagina.
+  */
+  const grezziInVista = new Set(committentiGrezzi(vista));
   const righeLavoro: RigaLavoro[] = [];
   for (const l of lavoroRows) {
     const staffId = l.staff_id ?? '';
     const data = (l.data ?? '').slice(0, 10);
     if (!staffId || !data) continue;
-    const canon = COMMITTENTI.includes(l.committente ?? '')
+    const canon = grezziInVista.has(l.committente ?? '')
       ? attivitaCanonica(l.committente, l.intervento_tipo, l.comune, alias, comuniMassive)
       : null;
     righeLavoro.push({
       staffId,
       operatore: maps.staff.get(staffId) ?? 'Operatore',
       data,
-      acea: canon?.committenteEff === 'acea',
+      inCommessa: canon != null && inVista(vista, canon.committenteEff),
     });
   }
   // Split € feriale/sabato sulle stesse righe (dedup) della produzione: la resa deve essere
@@ -509,8 +602,11 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   return {
     from,
     to,
+    vista,
+    conContabilizzazione: conAcea,
     listino,
     produzione,
+    produzioneAcea: { totale: produzioneAcea.totale, perGiorno: produzioneAcea.perGiorno },
     sal,
     scarto,
     salStorico,

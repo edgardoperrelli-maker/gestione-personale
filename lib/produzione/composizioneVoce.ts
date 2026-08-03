@@ -3,9 +3,16 @@
 // estratte come fetta a sé (da perAttivita, chiave 'SOSTITUZIONE SARACINESCA'), lasciando in
 // NON_RISOLTA solo l'eventuale residuo davvero non classificato.
 
+import { ETICHETTA_VISTA, type VistaCommittente } from './committente';
 import type { Aggregato, ProduzioneAggregata } from './aggregaProduzione';
 
 const SARA_KEY = 'SOSTITUZIONE SARACINESCA';
+
+/**
+ * Prefisso dei gruppi che sono una COMMESSA e non una voce ACEA (vedi `gruppoVoce` in load.ts):
+ * le commesse senza tassonomia di voce si raggruppano per sé stesse.
+ */
+export const PREFISSO_COMMESSA = 'COMMESSA:';
 
 export const VOCE_LABEL: Record<string, string> = {
   EL: 'Limitazioni (EL)',
@@ -15,6 +22,20 @@ export const VOCE_LABEL: Record<string, string> = {
   SARACINESCA: 'Saracinesche',
   NON_RISOLTA: 'Non classificata',
 };
+
+/**
+ * Etichetta di un gruppo «per voce», comprese le fette che sono una commessa intera.
+ *
+ * Esportata perché la stessa chiave compare anche nella tabella operativa della pagina: usarla in
+ * un posto solo lasciava a schermo la chiave tecnica «COMMESSA:acqualatina».
+ */
+export function etichettaVoce(chiave: string): string {
+  if (chiave.startsWith(PREFISSO_COMMESSA)) {
+    const c = chiave.slice(PREFISSO_COMMESSA.length) as VistaCommittente;
+    return ETICHETTA_VISTA[c] ?? c;
+  }
+  return VOCE_LABEL[chiave] ?? chiave;
+}
 
 function round2(n: number): number {
   return Math.round((n + Number.EPSILON) * 100) / 100;
@@ -34,7 +55,7 @@ export function composizionePerVoce(p: ProduzioneAggregata): Aggregato[] {
       };
       if (resto.conteggio > 0) out.push(resto);
     } else {
-      out.push({ ...v, label: VOCE_LABEL[v.chiave] ?? v.chiave });
+      out.push({ ...v, label: etichettaVoce(v.chiave) });
     }
   }
   return out;

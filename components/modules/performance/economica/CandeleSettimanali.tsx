@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import Button from '@/components/Button';
 import { giorniSettimana, lunediSettimana } from '@/lib/produzione/settimana';
 import type { CandelaGiorno, CandelaOperatore } from '@/lib/produzione/aggregaCandele';
+import { etichettaCommessa, type VistaCommittente } from '@/lib/produzione/committente';
 import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from '../palette';
 import { eur, num, giornoIT } from './tipi';
 
@@ -27,8 +28,11 @@ function spostaGiorni(iso: string, n: number): string {
  * Candele settimanali per operatore (design 2026-07-02). A differenza degli altri componenti di
  * `economica/`, NON prende `dati` come prop: gestisce da solo stato-settimana e fetch, perché il
  * filtro periodo è esplicitamente scollegato dal periodo (mensile/range) del resto della pagina.
+ *
+ * Il COMMITTENTE invece lo eredita dalla pagina: è l'unico filtro che deve valere ovunque, o si
+ * finirebbe a guardare le candele di ACEA sotto i totali di AcquaLatina.
  */
-export default function CandeleSettimanali() {
+export default function CandeleSettimanali({ vista }: { vista: VistaCommittente }) {
   const cc = useChartColors();
   const [lunedi, setLunedi] = useState(() => lunediSettimana(new Date().toISOString().slice(0, 10)));
   const [dati, setDati] = useState<RispostaCandele | null>(null);
@@ -43,7 +47,7 @@ export default function CandeleSettimanali() {
     setErrore(null);
     (async () => {
       try {
-        const res = await fetch(`/api/admin/acea/produzione/candele?from=${lunedi}&to=${to}`, { cache: 'no-store' });
+        const res = await fetch(`/api/admin/acea/produzione/candele?from=${lunedi}&to=${to}&committente=${vista}`, { cache: 'no-store' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
         if (vivo) setDati((await res.json()) as RispostaCandele);
       } catch (e) {
@@ -53,7 +57,7 @@ export default function CandeleSettimanali() {
     return () => {
       vivo = false;
     };
-  }, [lunedi, to]);
+  }, [lunedi, to, vista]);
 
   return (
     <div className="rounded-xl border border-[var(--brand-border)] p-3">
@@ -90,7 +94,9 @@ export default function CandeleSettimanali() {
       {!dati && !errore && <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">Carico i dati…</p>}
 
       {dati && dati.operatori.length === 0 && (
-        <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">Nessun operatore con attività ACEA in questa settimana.</p>
+        <p className="py-10 text-center text-sm text-[var(--brand-text-muted)]">
+          Nessun operatore con attività {etichettaCommessa(vista)} in questa settimana.
+        </p>
       )}
 
       {dati && dati.operatori.length > 0 && (
@@ -136,8 +142,8 @@ export default function CandeleSettimanali() {
         </div>
       )}
       <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
-        Altezza = interventi ACEA assegnati (positivi + negativi + mai lavorati) per giorno, NON normalizzata.
-        € nel tooltip = produzione dedup per matricola.
+        Altezza = interventi {etichettaCommessa(vista)} assegnati (positivi + negativi + mai lavorati) per
+        giorno, NON normalizzata. € nel tooltip = produzione dedup per matricola.
       </p>
     </div>
   );

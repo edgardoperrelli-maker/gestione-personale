@@ -1,6 +1,7 @@
 'use client';
 import { Bar, BarChart, LabelList, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { EsitoOperatore } from '@/lib/produzione/aggregaEsiti';
+import { etichettaCommessa } from '@/lib/produzione/committente';
 import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from '../palette';
 import { eur, num, type DatiProduzione } from './tipi';
 
@@ -99,7 +100,8 @@ export default function EsitiOperatore({ dati }: { dati: DatiProduzione }) {
         </div>
       )}
       <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
-        Base = interventi ACEA assegnati nel periodo (positivi + negativi + mai lavorati). € = produzione del periodo.
+        Base = interventi {etichettaCommessa(dati.vista)} assegnati nel periodo (positivi + negativi + mai lavorati).
+        € = produzione del periodo.
       </p>
     </div>
   );
