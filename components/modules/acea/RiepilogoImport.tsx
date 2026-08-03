@@ -25,6 +25,11 @@ export type EsitoImport = {
   annullatiPianificati: Array<{ odl: string; numero_operazione: string; data: string | null; operatore: string | null }>;
   avvisi: AvvisoImport[];
   archiviato: boolean;
+  /**
+   * Interventi riportati a positivo perché il Cruscotto li dà per contabilizzati.
+   * Opzionale: un riepilogo salvato prima del 2026-08-03 non ce l'ha.
+   */
+  esitiCorretti?: number;
 };
 
 const data = (iso: string | null) => {
@@ -96,6 +101,18 @@ export default function RiepilogoImport({
           value={esito.nonCoperte}
           note="in registro, fuori dal file"
           tone={esito.nonCoperte > 0 ? 'warn' : 'neutral'}
+        />
+        {/*
+          Le correzioni d'esito si DICONO. Sono l'unica cosa che l'import scrive sopra a un
+          dato compilato da un operatore: contarle senza mostrarle sarebbe la magia che fa
+          perdere fiducia nel registro. Tono `primary` e non `warn` — è lavoro recuperato,
+          non un problema.
+        */}
+        <StatTile
+          label="Esiti corretti"
+          value={esito.esitiCorretti ?? 0}
+          note="ACEA li ha pagati"
+          tone={(esito.esitiCorretti ?? 0) > 0 ? 'primary' : 'neutral'}
         />
       </div>
 
