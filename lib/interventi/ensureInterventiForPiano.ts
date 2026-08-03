@@ -4,7 +4,7 @@
 // (L'arricchimento tassonomia sotto è un'eccezione best-effort: import DINAMICO, dentro try/
 // catch — se fallisce, es. nello script tsx, degrada a comportamento storico senza rompere il giro.)
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
+import { chiaveUnicita, planInterventi, type OperatorePiano, type InterventoEsistente } from './planInterventiForPiano';
 import { buildIdByName, reapplyOverridesInterventi } from './territorioOverride';
 import { caricaPositiviInfo, type PositivoDettaglio } from './caricaOdlPositivi';
 import { dettagliOdlBloccati, type OdlBloccatoDettaglio } from './odlPositivi';
@@ -63,29 +63,34 @@ export async function ensureInterventiForPiano(db: SupabaseClient, pianoId: stri
     .eq('piano_id', pianoId);
   const operatori = (opRows ?? []) as OperatorePiano[];
 
+  // TUTTI gli interventi del piano, non solo quelli creati dalla mappa: le righe manuali e di
+  // import non si rigenerano (`planInterventi` le riconosce da `created_from_mappa`) ma
+  // occupano comunque la loro chiave nell'indice unico. Filtrandole qui restavano invisibili
+  // alla pianificazione e visibili al database, che rifiutava l'insert e faceva fallire il
+  // salvataggio dell'intero piano con «duplicate key … interventi_dedup_acqualatina_idx».
   const { data: existing } = await db
     .from('interventi')
-    .select('id, odl, stato, matricola_contatore, indirizzo, intervento_tipo')
-    .eq('piano_id', pianoId)
-    .eq('created_from_mappa', true);
+    .select('id, odl, stato, matricola_contatore, indirizzo, intervento_tipo, committente, created_from_mappa')
+    .eq('piano_id', pianoId);
   const esistenti = (existing ?? []) as InterventoEsistente[];
 
-  // odl già presenti su ALTRE righe della stessa data (rispetta interventi_dedup_idx,
-  // che è globale: (committente, odl, data) — la chiave qui è `committente|odl`, perché
-  // dal 2026-07-21 i task derivano il committente VERO dalla tassonomia e un piano può
-  // produrre interventi di committenti diversi). Include sia gli altri piani sia gli import
-  // standalone con piano_id NULL (es. /api/interventi/import) — `neq` da solo li escluderebbe
-  // perché in SQL `piano_id <> x` è NULL per le righe con piano_id NULL.
+  // odl già presenti su ALTRE righe della stessa data. La chiave è quella degli indici unici
+  // (vedi `chiaveUnicita`): include il committente, perché dal 2026-07-21 i task lo derivano
+  // dalla tassonomia e un piano può produrre interventi di committenti diversi; e per
+  // acqualatina include la matricola, perché lì lo stesso ODL può coprire più misuratori.
+  // Include sia gli altri piani sia gli import standalone con piano_id NULL (es.
+  // /api/interventi/import) — `neq` da solo li escluderebbe, perché in SQL `piano_id <> x`
+  // è NULL per le righe con piano_id NULL.
   const { data: altri } = await db
     .from('interventi')
-    .select('odl, committente')
+    .select('odl, committente, matricola_contatore')
     .eq('data', piano.data)
     .or(`piano_id.is.null,piano_id.neq.${pianoId}`)
     .not('odl', 'is', null);
   const odlGiaPresenti = new Set(
-    ((altri ?? []) as Array<{ odl: string | null; committente: string | null }>)
-      .filter((r) => !!r.odl)
-      .map((r) => `${r.committente}|${r.odl}`),
+    ((altri ?? []) as Array<{ odl: string | null; committente: string | null; matricola_contatore: string | null }>)
+      .map((r) => chiaveUnicita(r))
+      .filter((k): k is string => !!k),
   );
 
   const indiceTassonomia = await caricaIndiceTassonomiaSafe();

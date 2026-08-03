@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
+import { attoreDa } from '@/lib/audit/registra';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 
@@ -124,7 +125,7 @@ export async function POST(req: Request) {
     // il motore: rapportini esistenti del piano → risanamento → default → primo attivo.
     const warnings: string[] = [];
     for (const id of pianiSalvati) {
-      const sync = await sincronizzaRapportini(supabaseAdmin, id, { skipInviati: true });
+      const sync = await sincronizzaRapportini(supabaseAdmin, id, { skipInviati: true, attore: attoreDa(auth.user) });
       if (!sync.ok) warnings.push(sync.error ?? `conflitto (${sync.status})`);
     }
 

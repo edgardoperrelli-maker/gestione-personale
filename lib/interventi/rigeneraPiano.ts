@@ -9,6 +9,7 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { ensureInterventiForPiano } from '@/lib/interventi/ensureInterventiForPiano';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 import { recuperaTemplateIdPiano } from '@/lib/interventi/templatePiano';
+import type { AttoreAudit } from '@/lib/audit/registra';
 import type { OdlBloccatoDettaglio } from '@/lib/interventi/odlPositivi';
 
 export type RigeneraResult =
@@ -26,7 +27,12 @@ export type RigeneraResult =
     }
   | { ok: false; status: number; error: string };
 
-export async function rigeneraPiano(db: SupabaseClient, pianoId: string): Promise<RigeneraResult> {
+export async function rigeneraPiano(
+  db: SupabaseClient,
+  pianoId: string,
+  /** Chi ha salvato: il sync può eliminare rapportini, e il registro deve saperlo da chi. */
+  attore?: AttoreAudit,
+): Promise<RigeneraResult> {
   const ens = await ensureInterventiForPiano(db, pianoId);
   if (ens.error) {
     const status = ens.error === 'Piano non trovato.' ? 404 : 500;
@@ -48,7 +54,7 @@ export async function rigeneraPiano(db: SupabaseClient, pianoId: string): Promis
   if (!templateId) return base;
 
   // skipInviati: un rapportino consegnato non va alterato senza conferma esplicita.
-  const sync = await sincronizzaRapportini(db, pianoId, { templateId, skipInviati: true });
+  const sync = await sincronizzaRapportini(db, pianoId, { templateId, skipInviati: true, attore });
   if (sync.ok) return { ...base, rapportiniSync: sync.rapportini.length };
   return { ...base, rapportiniWarning: sync.error ?? `conflitto rapportini (${sync.status})` };
 }

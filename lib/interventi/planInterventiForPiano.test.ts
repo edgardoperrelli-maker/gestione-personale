@@ -235,3 +235,111 @@ describe('idAnnullatiDaEliminare', () => {
     expect(idAnnullatiDaEliminare(esistenti, new Set<string>())).toEqual([]);
   });
 });
+
+/**
+ * Regressione del 03/08/2026: salvare un piano ACQUA LATINA rispondeva 500 con
+ * «duplicate key value violates unique constraint "interventi_dedup_acqualatina_idx"».
+ * Il chiamante leggeva gli interventi del piano filtrando `created_from_mappa = true`:
+ * le righe manuali/import restavano invisibili alla pianificazione ma non al database,
+ * che rifiutava l'insert e faceva fallire il salvataggio dell'intero piano.
+ */
+describe('planInterventi · righe che la mappa non ha creato', () => {
+  const piano = { data: '2026-08-03' };
+  const base = { piano, pianoId: 'p1', territorioId: null as string | null };
+
+  it('non reinserisce un task già coperto da una riga non-mappa dello stesso piano', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'A1' })] }],
+      esistenti: [{ id: 'man1', odl: 'A1', stato: 'completato', created_from_mappa: false }],
+    });
+    expect(r.daInserire).toHaveLength(0);
+  });
+
+  it('non cancella MAI una riga non-mappa, nemmeno se non è terminale', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'A1' })] }],
+      esistenti: [{ id: 'man1', odl: 'A1', stato: 'assegnato', created_from_mappa: false }],
+    });
+    expect(r.idDaEliminare).toEqual([]);
+    // La sua chiave è occupata: reinserirla violerebbe l'indice unico.
+    expect(r.daInserire).toHaveLength(0);
+  });
+
+  it('continua a rigenerare le righe create dalla mappa', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'A1' })] }],
+      esistenti: [{ id: 'map1', odl: 'A1', stato: 'assegnato', created_from_mappa: true }],
+    });
+    expect(r.idDaEliminare).toEqual(['map1']);
+    expect(r.daInserire.map((x) => x.odl)).toEqual(['A1']);
+  });
+
+  it('senza created_from_mappa si comporta come prima (riga della mappa)', () => {
+    const r = planInterventi({
+      ...base,
+      operatori: [{ staff_id: 's1', tasks: [task({ odl: 'A1' })] }],
+      esistenti: [{ id: 'e1', odl: 'A1', stato: 'assegnato' }],
+    });
+    expect(r.idDaEliminare).toEqual(['e1']);
+  });
+});
+
+/**
+ * Su ACQUA LATINA l'indice unico include la matricola: lo stesso ODL può coprire più
+ * misuratori. Deduplicare per solo ODL scartava come doppione del lavoro legittimo.
+ */
+describe('planInterventi · unicità per committente', () => {
+  const piano = { data: '2026-08-03' };
+  const acqua = { piano, pianoId: 'p1', territorioId: null as string | null, committente: 'acqualatina' };
+
+  it('acqualatina: stesso odl con matricola diversa è lavoro distinto', () => {
+    const r = planInterventi({
+      ...acqua,
+      operatori: [{ staff_id: 's1', tasks: [
+        task({ odl: 'A1', matricola: 'M1' }),
+        task({ odl: 'A1', matricola: 'M2' }),
+      ] }],
+      esistenti: [],
+    });
+    expect(r.daInserire.map((x) => x.matricola_contatore)).toEqual(['M1', 'M2']);
+  });
+
+  it('acqualatina: stesso odl E stessa matricola resta un doppione', () => {
+    const r = planInterventi({
+      ...acqua,
+      operatori: [{ staff_id: 's1', tasks: [
+        task({ odl: 'A1', matricola: 'M1' }),
+        task({ odl: 'A1', matricola: 'M1' }),
+      ] }],
+      esistenti: [],
+    });
+    expect(r.daInserire).toHaveLength(1);
+  });
+
+  it('acqualatina: la matricola già presente nel piano blocca solo la sua', () => {
+    const r = planInterventi({
+      ...acqua,
+      operatori: [{ staff_id: 's1', tasks: [
+        task({ odl: 'A1', matricola: 'M1' }),
+        task({ odl: 'A1', matricola: 'M2' }),
+      ] }],
+      esistenti: [{ id: 'x', odl: 'A1', stato: 'completato', matricola_contatore: 'M1', committente: 'acqualatina' }],
+    });
+    expect(r.daInserire.map((x) => x.matricola_contatore)).toEqual(['M2']);
+  });
+
+  it('altri committenti: la matricola non conta, l\'odl basta', () => {
+    const r = planInterventi({
+      piano, pianoId: 'p1', territorioId: null,
+      operatori: [{ staff_id: 's1', tasks: [
+        task({ odl: 'A1', matricola: 'M1' }),
+        task({ odl: 'A1', matricola: 'M2' }),
+      ] }],
+      esistenti: [],
+    });
+    expect(r.daInserire).toHaveLength(1);
+  });
+});

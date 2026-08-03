@@ -17,6 +17,7 @@ import { risolviFlussoPerGruppo } from '@/lib/rapportini/flussiGruppo';
 import { committenteEquivalente } from '@/lib/attivita/tassonomia';
 import { pickTemplateId } from '@/lib/interventi/templatePiano';
 import { pianoHaRisanamento, risolviTemplateRisanamento } from '@/lib/risanamento/templateRisanamento';
+import { registraAzione, type AttoreAudit } from '@/lib/audit/registra';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 
 export type SincronizzaOpts = {
@@ -37,6 +38,13 @@ export type SincronizzaOpts = {
    * senza una conferma esplicita (la riapertura resta competenza del flusso "Genera/Conferma").
    */
   skipInviati?: boolean;
+  /**
+   * Chi ha innescato il sync. Serve solo al registro (Impostazioni › Log): questo motore
+   * cancella rapportini — gli orfani e, con overwrite:'replace', quelli in conflitto — e senza
+   * un attore quelle sparizioni restano anonime. Facoltativo: i chiamanti che non lo passano
+   * registrano comunque l'evento, con utenza vuota.
+   */
+  attore?: AttoreAudit;
 };
 
 export type SincronizzaResult =
@@ -143,16 +151,53 @@ export async function sincronizzaRapportini(
     return { ok: false, status: 409, conflicts, error: 'submitted_richiede_conferma' };
   }
 
+  const attore: AttoreAudit = opts.attore ?? { id: null, email: null };
+
   const staffInConflitto = new Set(conflicts.map((c) => c.staff_id));
   if (opts.overwrite === 'replace' && conflicts.length > 0) {
     await db.from('rapportini').delete().in('id', conflicts.map((c) => c.rapportino_id));
+    await registraAzione({
+      azione: 'rapportino.conflitto.sostituisci',
+      attore,
+      entita: 'mappa_piani',
+      entitaId: pianoId,
+      dettaglio: {
+        data: piano.data,
+        n_rapportini_eliminati: conflicts.length,
+        // `submitted` = era già consegnato: la perdita più grave che questo ramo possa causare.
+        rapportini_eliminati: conflicts.map((c) => ({
+          rapportino_id: c.rapportino_id, staff_id: c.staff_id, staff_name: c.staff_name, inviato: c.submitted,
+        })),
+      },
+    });
   }
 
   const currentStaffIds = (ops ?? []).map((o) => String(o.staff_id));
   if (currentStaffIds.length > 0) {
-    const { data: existingRaps } = await db.from('rapportini').select('id, staff_id').eq('piano_id', pianoId);
-    const toRemove = orphanRapportini((existingRaps as { id: string; staff_id: string }[]) ?? [], currentStaffIds);
-    if (toRemove.length > 0) await db.from('rapportini').delete().in('id', toRemove);
+    const { data: existingRaps } = await db
+      .from('rapportini').select('id, staff_id, staff_name, stato, submitted_at').eq('piano_id', pianoId);
+    const righe = (existingRaps as Array<{
+      id: string; staff_id: string; staff_name: string | null; stato: string; submitted_at: string | null;
+    }>) ?? [];
+    const toRemove = orphanRapportini(righe, currentStaffIds);
+    if (toRemove.length > 0) {
+      const eliminati = righe.filter((r) => toRemove.includes(r.id));
+      await db.from('rapportini').delete().in('id', toRemove);
+      // Sparizione silenziosa per definizione: l'utente ha salvato un piano, non chiesto di
+      // cancellare un rapportino. Il 03/08 è mancata proprio questa riga.
+      await registraAzione({
+        azione: 'rapportino.orfano.elimina',
+        attore,
+        entita: 'mappa_piani',
+        entitaId: pianoId,
+        dettaglio: {
+          data: piano.data,
+          motivo: 'operatore non più nel piano',
+          n_rapportini_eliminati: eliminati.length,
+          rapportini_eliminati: eliminati,
+        },
+      });
+    }
   }
 
   const baseUrl = (process.env.NEXT_PUBLIC_SITE_URL ?? '').replace(/\/$/, '');

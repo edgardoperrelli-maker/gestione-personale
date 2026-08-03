@@ -15,6 +15,7 @@ import {
   Hotel,
   List,
   Map,
+  ScrollText,
   Tags,
   UsersRound,
   Workflow,
@@ -42,6 +43,12 @@ const MODULES: {
     description: 'Password, ruoli e moduli visibili per ogni utente di accesso.',
     icon: <UsersRound {...ICON_PROPS} />,
     requiresAdminPlus: true,
+  },
+  {
+    href: '/impostazioni/log',
+    title: 'Log accessi e azioni',
+    description: 'Chi è entrato e cosa ha fatto, con cosa si è portata via ogni cancellazione.',
+    icon: <ScrollText {...ICON_PROPS} />,
   },
   {
     href: '/impostazioni/personale',
