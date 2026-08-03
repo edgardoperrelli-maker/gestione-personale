@@ -26,7 +26,7 @@ const VISTE = [
   {
     href: '/hub/acqualatina/strumenti',
     title: 'Strumenti',
-    description: 'Carica il master del committente: gli ordini nuovi entrano a registro',
+    description: 'Il master del committente e i numeri delle ceste di magazzino',
   },
 ];
 

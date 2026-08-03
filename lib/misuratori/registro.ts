@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { STATI_MISURATORE } from '@/types/misuratori';
 import { resolveAssignableRole } from '@/lib/moduleAccess';
+import { selectDegradante } from '@/lib/rapportini/colonneOpzionali';
 
 // Logica condivisa dei registri misuratori rimossi. ACEA e AcquaLatina hanno DUE
 // tabelle (committenti, cicli logistici e responsabili diversi) ma gli STESSI stati e
@@ -18,14 +19,25 @@ const COLONNE_COMUNI =
 /**
  * Il PALLET ora è di ENTRAMBI i registri (migrazione 20260803140000): il ciclo fisico è lo
  * stesso — si accumula in cesta, a cesta piena si va su un pallet, e quel numero è il
- * riferimento con cui la riconsegna viaggia. A restare solo di ACEA è il PDR, che è del gas.
+ * riferimento con cui la riconsegna viaggia. A restare solo di ACEA è il PDR, che è del gas;
+ * solo di AcquaLatina è la CESTA, che l'operatore dichiara all'invio del rapportino.
  * Ognuno seleziona le SUE colonne: chiedere una colonna che la tabella non ha fa fallire la
  * query intera.
  */
 function colonne(tabella: TabellaRegistro): string {
-  return tabella === 'misuratori_rimossi'
-    ? `${COLONNE_COMUNI}, pdr, pallet`
-    : `${COLONNE_COMUNI}, pallet`;
+  return tabella === 'misuratori_rimossi' ? `${COLONNE_COMUNI}, pdr` : COLONNE_COMUNI;
+}
+
+/**
+ * Le colonne nate da migration recenti, dalla più vecchia alla più nuova.
+ *
+ * Si tolgono da destra man mano che la select fallisce: con il codice deployato prima della
+ * migration il registro resta VIVO (senza quella colonna) invece di spegnersi tutto — una
+ * select che nomina una colonna inesistente fallisce intera, non per campo. Stessa medicina
+ * già usata per le colonne bozza del registro ACEA.
+ */
+function colonneOpzionali(tabella: TabellaRegistro): string[] {
+  return tabella === 'misuratori_rimossi' ? ['pallet'] : ['pallet', 'cesta'];
 }
 
 /** GET del registro con i filtri di modulo (data, stato, comune, esecutore). */
@@ -37,24 +49,27 @@ export async function leggiRegistro(tabella: TabellaRegistro, url: string) {
   const comune = searchParams.get('comune');
   const esecutore = searchParams.get('esecutore');
 
-  let query = supabaseAdmin
-    .from(tabella)
-    .select(colonne(tabella))
-    .order('data_esecuzione', { ascending: false })
-    .order('created_at', { ascending: false });
+  const esegui = (selezione: string) => {
+    let query = supabaseAdmin
+      .from(tabella)
+      .select(selezione)
+      .order('data_esecuzione', { ascending: false })
+      .order('created_at', { ascending: false });
 
-  if (dataInizio) query = query.gte('data_esecuzione', dataInizio);
-  if (dataFine) query = query.lte('data_esecuzione', dataFine);
-  if (stato) query = query.eq('stato', stato);
-  if (comune) query = query.ilike('comune', `%${comune}%`);
-  if (esecutore) query = query.eq('esecutore', esecutore);
+    if (dataInizio) query = query.gte('data_esecuzione', dataInizio);
+    if (dataFine) query = query.lte('data_esecuzione', dataFine);
+    if (stato) query = query.eq('stato', stato);
+    if (comune) query = query.ilike('comune', `%${comune}%`);
+    if (esecutore) query = query.eq('esecutore', esecutore);
+    return query;
+  };
 
-  const { data, error } = await query;
+  const { data, error } = await selectDegradante(colonne(tabella), colonneOpzionali(tabella), esegui);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  // `pdr` e `pallet` sempre presenti nella risposta: il client è lo stesso per i due registri,
-  // e un campo assente diventerebbe `undefined` dove il tipo promette `| null`.
+  // `pdr`, `pallet` e `cesta` sempre presenti nella risposta: il client è lo stesso per i due
+  // registri, e un campo assente diventerebbe `undefined` dove il tipo promette `| null`.
   const righe = ((data ?? []) as unknown as Record<string, unknown>[])
-    .map((r) => ({ pdr: null, pallet: null, ...r }));
+    .map((r) => ({ pdr: null, pallet: null, cesta: null, ...r }));
   return NextResponse.json(righe);
 }
 
@@ -105,6 +120,17 @@ export async function aggiornaRegistro(
   // gesto («questa cesta è finita sul pallet N») è lo stesso per le due commesse.
   if ('pallet' in body) {
     patch.pallet = typeof body.pallet === 'string' ? body.pallet.trim() || null : null;
+  }
+
+  // La CESTA la scrive l'operatore dal campo; qui si CORREGGE. Un numero sbagliato dichiarato
+  // di sera è un contatore che l'ufficio cerca nella cesta sbagliata: doverlo far correggere
+  // dall'operatore, col rapportino ormai chiuso, sarebbe una porta murata. Solo AcquaLatina:
+  // la tabella ACEA non ha la colonna e la UPDATE fallirebbe.
+  if ('cesta' in body) {
+    if (tabella !== 'acqualatina_misuratori_rimossi') {
+      return NextResponse.json({ error: 'cesta non prevista su questo registro' }, { status: 400 });
+    }
+    patch.cesta = typeof body.cesta === 'string' ? body.cesta.trim() || null : null;
   }
 
   if (Object.keys(patch).length === 1) {
