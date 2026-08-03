@@ -742,29 +742,38 @@ export async function GET(req: Request) {
     }
 
     /*
-      ---- «Eseguito»: l'esito che ha scritto CHI CI È ANDATO ------------------------------------
+      ---- Le colonne che vengono DAL RAPPORTINO -------------------------------------------------
 
-      Stessa colonna del modulo Interventi e stessa fonte — `rapportino_voci.risposte.eseguito`,
-      normalizzata dalla stessa `siNo`, così le due schermate non possono dire cose diverse sullo
-      stesso lavoro.
+      Due colonne, due viste, una sola lettura di `rapportino_voci`:
 
-      Vince l'ULTIMO esito registrato, non l'intervento mostrato in colonna Esecutore: quello è la
+      · «Eseguito» (MASSIVE) — l'esito che ha scritto chi ci è andato. Stessa colonna del modulo
+        Interventi e stessa fonte, `risposte.eseguito`, normalizzata dalla stessa `siNo`, così le
+        due schermate non possono dire cose diverse sullo stesso lavoro.
+      · «Matricola nuova» (ACQUALATINA) — la matricola del misuratore INSTALLATO, `risposte
+        .matricola_nuova`, l'azione che l'operatore scansiona o digita sul posto. Il registro dice
+        già quale contatore va sostituito; questa dice quale ci è finito davvero.
+
+      Vince l'ULTIMO valore registrato, non l'intervento mostrato in colonna Esecutore: quello è la
       pianificazione corrente, e su un ordine ripianificato dopo un'uscita andata a buon fine
       sarebbe una cella vuota sopra un lavoro fatto. Gli interventi arrivano già dal più recente,
       quindi basta fermarsi al primo che una risposta ce l'ha.
 
-      DECORAZIONE, come le due della saracinesca: se la lettura fallisce la colonna resta vuota e
+      DECORAZIONE, come le due della saracinesca: se la lettura fallisce le colonne restano vuote e
       la tabella si carica lo stesso. Il registro è il motivo per cui si apre la schermata.
 
-      Solo sulla vista MASSIVE, che è l'unica a disegnare la colonna (`COLONNE_MASSIVE`): altrove
-      sarebbe una lettura in più a ogni pagina per un valore che nessuno guarda — la stessa regola
-      con cui il triangolo delle riaperture e le schede-comune non si calcolano fuori casa loro.
+      Ognuna solo sulla vista che la disegna: altrove sarebbe una lettura in più a ogni pagina per
+      un valore che nessuno guarda — la stessa regola con cui il triangolo delle riaperture e le
+      schede-comune non si calcolano fuori casa loro. Se un giorno le viste che leggono le risposte
+      diventassero tre, la lettura resta questa: si aggiunge un estrattore, non una query.
     */
     const eseguitoPerChiave = new Map<string, string>();
-    if (f.famiglia === 'massive' && interventiPerChiave.size > 0) {
+    const matricolaNuovaPerChiave = new Map<string, string>();
+    const serveEseguito = f.famiglia === 'massive';
+    if ((serveEseguito || acqua) && interventiPerChiave.size > 0) {
       try {
         const ids = [...new Set([...interventiPerChiave.values()].flat())];
-        const perIntervento = new Map<string, string>();
+        const eseguitoPerIntervento = new Map<string, string>();
+        const matricolaPerIntervento = new Map<string, string>();
         for (let i = 0; i < ids.length; i += 200) {
           const { data, error } = await supabaseAdmin
             .from('rapportino_voci')
@@ -772,19 +781,28 @@ export async function GET(req: Request) {
             .in('intervento_id', ids.slice(i, i + 200));
           if (error) throw error;
           for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
-            if (!v.intervento_id || perIntervento.has(v.intervento_id)) continue;
-            const val = siNo((v.risposte ?? {})['eseguito']);
-            // '—' = campo mai compilato: non è un esito, ed è la differenza fra «non ancora
-            // lavorato» e «lavorato e andato male».
-            if (val !== '—') perIntervento.set(v.intervento_id, val);
+            if (!v.intervento_id) continue;
+            const risposte = v.risposte ?? {};
+            if (serveEseguito && !eseguitoPerIntervento.has(v.intervento_id)) {
+              const val = siNo(risposte['eseguito']);
+              // '—' = campo mai compilato: non è un esito, ed è la differenza fra «non ancora
+              // lavorato» e «lavorato e andato male».
+              if (val !== '—') eseguitoPerIntervento.set(v.intervento_id, val);
+            }
+            if (acqua && !matricolaPerIntervento.has(v.intervento_id)) {
+              const m = String(risposte['matricola_nuova'] ?? '').trim();
+              if (m !== '') matricolaPerIntervento.set(v.intervento_id, m);
+            }
           }
         }
         for (const [chiave, lista] of interventiPerChiave) {
-          const val = lista.map((id) => perIntervento.get(id)).find(Boolean);
-          if (val) eseguitoPerChiave.set(chiave, val);
+          const eseguito = lista.map((id) => eseguitoPerIntervento.get(id)).find(Boolean);
+          if (eseguito) eseguitoPerChiave.set(chiave, eseguito);
+          const matricola = lista.map((id) => matricolaPerIntervento.get(id)).find(Boolean);
+          if (matricola) matricolaNuovaPerChiave.set(chiave, matricola);
         }
       } catch (e) {
-        console.error('[acea/ordini] esiti dei rapportini non letti:', e);
+        console.error('[acea/ordini] risposte dei rapportini non lette:', e);
       }
     }
 
@@ -892,6 +910,7 @@ export async function GET(req: Request) {
         pianificazione_parziale: parziale,
         stato_intervento: mostrato?.stato ?? null,
         eseguito: eseguitoPerChiave.get(chiaveRiga) ?? null,
+        matricola_nuova: matricolaNuovaPerChiave.get(chiaveRiga) ?? null,
       };
     });
 
