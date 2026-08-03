@@ -9,7 +9,10 @@ import type { CensitoMisuratore } from '@/lib/limitazione/autofillAnagrafica';
 import { matchVociMatricola, type VoceMatricola } from '@/lib/limitazione/matchVociMatricola';
 import { matricoleSimili } from '@/lib/limitazione/matricoleSimili';
 import { aggiornaCensimento, leggiCensimentoLocale } from '@/lib/offline/censimento';
-import { cercaCensimentoLocale } from '@/lib/limitazione/cercaCensimentoLocale';
+import { cercaCensimentoLocale, type EsitoCensimentoLocale } from '@/lib/limitazione/cercaCensimentoLocale';
+
+/** Cache del censimento mai scaricata: non si sa, quindi non si suggerisce e non si blocca. */
+const SENZA_CENSIMENTO: EsitoCensimentoLocale = { trovato: false, ambigui: false, suggerimenti: [] };
 
 export function CercaMatricolaLimitazione({
   token,
@@ -30,6 +33,10 @@ export function CercaMatricolaLimitazione({
   const [scanner, setScanner] = useState(false);
   const [cercando, setCercando] = useState(false);
   const [suggerimenti, setSuggerimenti] = useState<CensitoMisuratore[]>([]);
+  /* I suggerimenti sono tutti la matricola cercata, su ordini diversi (l'export ACEA tronca le
+     matricole lunghe, e più ordini finiscono a condividere lo stesso troncone). Non è un «forse
+     intendevi»: si sceglie l'INDIRIZZO, e sbagliarlo significa scrivere un ODL a caso. */
+  const [ambigui, setAmbigui] = useState(false);
   const [suggVoci, setSuggVoci] = useState<Array<VoceMatricola & { matricola: string }>>([]);
   const [altroOperatore, setAltroOperatore] = useState<string | null>(null);
   const [misuratore, setMisuratore] = useState<CensitoMisuratore | null>(null);
@@ -46,7 +53,7 @@ export function CercaMatricolaLimitazione({
   }, [token]);
 
   const reset = () => {
-    setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]);
+    setErrore(null); setCercato(false); setSuggerimenti([]); setSuggVoci([]); setAmbigui(false);
     setAltroOperatore(null); setMisuratore(null); setOffline(false); setDaVerificare(false); setBloccato(null);
   };
 
@@ -74,11 +81,11 @@ export function CercaMatricolaLimitazione({
     // l'assegnazione "ad altro operatore" è stato del giorno (non nel censimento) → verifica alla sync.
     if (typeof navigator !== 'undefined' && navigator.onLine === false) {
       const locale = await leggiCensimentoLocale();
-      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : { trovato: false as const, suggerimenti: [] as CensitoMisuratore[] };
+      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : SENZA_CENSIMENTO;
       setSuggVoci(simili);
       setOffline(true);
       if (esito.trovato) { setMisuratore(esito.misuratore); setDaVerificare(true); }
-      else setSuggerimenti(esito.suggerimenti);
+      else { setSuggerimenti(esito.suggerimenti); setAmbigui(esito.ambigui); }
       setCercato(true);
       return;
     }
@@ -92,7 +99,7 @@ export function CercaMatricolaLimitazione({
       type Esecuzione = { bloccato: boolean; fonte?: 'master' | 'db'; odl?: string | null; esecutore?: string | null };
       const j = (await res.json()) as
         | { trovato: true; misuratore: CensitoMisuratore; altroOperatore: string | null; esecuzione?: Esecuzione }
-        | { trovato: false; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null; esecuzione?: Esecuzione };
+        | { trovato: false; ambigui?: boolean; suggerimenti: CensitoMisuratore[]; altroOperatore: string | null; esecuzione?: Esecuzione };
       // BLOCCO anti-duplicato: la matricola risulta già eseguita → stop, niente Procedi/Inserisci.
       if (j.esecuzione?.bloccato) {
         setBloccato({ odl: j.esecuzione.odl, esecutore: j.esecuzione.esecutore, fonte: j.esecuzione.fonte });
@@ -106,16 +113,17 @@ export function CercaMatricolaLimitazione({
         if (!j.altroOperatore) { onTrovato(j.misuratore); return; }
       } else {
         setSuggerimenti(j.suggerimenti);
+        setAmbigui(j.ambigui === true);
       }
       setCercato(true);
     } catch {
       // Errore di rete: prova comunque la cache locale, poi rivela l'inserimento a mano.
       const locale = await leggiCensimentoLocale();
-      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : { trovato: false as const, suggerimenti: [] as CensitoMisuratore[] };
+      const esito = locale ? cercaCensimentoLocale(v, locale.righe) : SENZA_CENSIMENTO;
       setSuggVoci(simili);
       setOffline(true);
       if (esito.trovato) { setMisuratore(esito.misuratore); setDaVerificare(true); }
-      else setSuggerimenti(esito.suggerimenti);
+      else { setSuggerimenti(esito.suggerimenti); setAmbigui(esito.ambigui); }
       setCercato(true);
     } finally {
       setCercando(false);
@@ -208,13 +216,27 @@ export function CercaMatricolaLimitazione({
               )}
               {suggerimenti.length > 0 && (
                 <>
-                  <p className="text-xs font-semibold text-[var(--brand-text-muted)]">Forse intendevi:</p>
+                  {/* Due frasi diverse per due situazioni diverse: «forse intendevi» è una
+                      correzione, l'ambiguità è una SCELTA — stessa matricola, ordini a indirizzi
+                      diversi (l'export ACEA tronca le matricole lunghe e più ordini finiscono a
+                      condividerne il troncone). Chi è sul posto sa qual è il suo civico; noi no,
+                      e sceglierne uno vorrebbe dire scrivere un ODL a caso su un lavoro fatto. */}
+                  <p className="text-xs font-semibold text-[var(--brand-text-muted)]">
+                    {ambigui ? 'Più ordini su questa matricola: scegli l’indirizzo giusto.' : 'Forse intendevi:'}
+                  </p>
                   <ul className="space-y-1">
-                    {suggerimenti.map((s) => (
-                      <li key={s.matricola}>
-                        <button type="button" onClick={() => onTrovato(s)} className="flex min-h-[48px] w-full items-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:border-[var(--brand-primary)]">
-                          <span className="font-mono font-semibold tabular-nums">{s.matricola}</span>
-                          <span className="ml-2 min-w-0 truncate text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
+                    {/* Chiave con l'ODL: sui tronconi condivisi la matricola si ripete identica,
+                        e da sola non distingue una riga dall'altra. */}
+                    {suggerimenti.map((s, i) => (
+                      <li key={`${s.odl ?? ''}|${s.matricola}|${i}`}>
+                        <button type="button" onClick={() => onTrovato(s)} className="flex min-h-[48px] w-full flex-col items-start justify-center rounded-[var(--radius-md)] border border-[var(--brand-border)] bg-[var(--brand-surface)] px-3 py-2 text-left text-sm text-[var(--brand-text-main)] transition focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] active:border-[var(--brand-primary)]">
+                          <span className="flex w-full min-w-0 items-center">
+                            <span className="font-mono font-semibold tabular-nums">{s.matricola}</span>
+                            <span className="ml-2 min-w-0 truncate text-xs text-[var(--brand-text-muted)]">{[s.indirizzo, s.civico, s.comune].filter(Boolean).join(' ')}</span>
+                          </span>
+                          {s.odl && (
+                            <span className="font-mono text-[11px] tabular-nums text-[var(--brand-text-muted)]">ODL {s.odl}</span>
+                          )}
                         </button>
                       </li>
                     ))}

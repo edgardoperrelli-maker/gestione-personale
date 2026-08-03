@@ -1,19 +1,14 @@
-import { matricoleSimili } from './matricoleSimili';
 import type { CensitoMisuratore } from './autofillAnagrafica';
+import { decidiRicercaMisuratore, type EsitoRicercaMisuratore } from './ricercaMisuratore';
 
-export type EsitoCensimentoLocale =
-  | { trovato: true; misuratore: CensitoMisuratore }
-  | { trovato: false; suggerimenti: CensitoMisuratore[] };
+export type EsitoCensimentoLocale = EsitoRicercaMisuratore;
 
 /**
  * Ricerca OFFLINE nella cache del censimento, specchio della logica server di
- * /cerca-limitazione: match ESATTO sulla matricola → trovato; altrimenti i simili
- * (riusa `matricoleSimili`). Pura: nessun accesso a rete/IndexedDB.
+ * /cerca-limitazione: la regola è la stessa e sta in `decidiRicercaMisuratore` — un esatto
+ * compila, più esatti (matricole troncate dall'export) si fanno scegliere, nessuno propone i
+ * simili. Pura: nessun accesso a rete/IndexedDB.
  */
 export function cercaCensimentoLocale(q: string, righe: CensitoMisuratore[]): EsitoCensimentoLocale {
-  const v = q.trim();
-  if (!v) return { trovato: false, suggerimenti: [] };
-  const esatto = righe.find((r) => r.matricola === v);
-  if (esatto) return { trovato: true, misuratore: esatto };
-  return { trovato: false, suggerimenti: matricoleSimili(v, righe, 8) };
+  return decidiRicercaMisuratore(q, righe);
 }

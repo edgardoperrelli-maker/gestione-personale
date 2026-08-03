@@ -156,6 +156,32 @@ describe('valoreCella', () => {
       .toBe('Non eseguito');
   });
 
+  /*
+    «Eseguito» è la risposta del rapportino, «Esito» il verdetto di ACEA: due colonne diverse
+    perché sono due fatti diversi, e fra loro passano i giorni che separano il lavoro dall'import.
+    È la finestra in cui un ordine lavorato si leggeva identico a uno mai toccato.
+  */
+  it('«Eseguito» riporta la risposta del rapportino così com’è', () => {
+    expect(valoreCella(riga({ eseguito: 'SI' }), 'eseguito')).toBe('SI');
+    expect(valoreCella(riga({ eseguito: 'NO' }), 'eseguito')).toBe('NO');
+    // «Nessun passaggio» non si schiaccia su «NO»: è la distinzione su cui si decide se l'ordine
+    // va ripianificato o discusso col committente.
+    expect(valoreCella(riga({ eseguito: 'NESSUN PASSAGGIO' }), 'eseguito')).toBe('NESSUN PASSAGGIO');
+    expect(valoreCella(riga(), 'eseguito')).toBe('—');
+  });
+
+  it('«Eseguito» è a vista nella scheda massive, accanto alle altre due nostre', () => {
+    const pred = COLONNE_MASSIVE.filter((c) => c.predefinita).map((c) => c.chiave);
+    expect(pred.slice(pred.indexOf('pianificato_a'), pred.indexOf('pianificato_a') + 3))
+      .toEqual(['pianificato_a', 'pianificato_il', 'eseguito']);
+  });
+
+  // Senza `campo` e senza imbuto: il valore non sta nel registro e il server non lo sa filtrare.
+  // Un imbuto che filtrasse le sole righe scese direbbe una bugia sul conteggio.
+  it('«Eseguito» non porta un imbuto', () => {
+    expect(COLONNE_MASSIVE.find((c) => c.chiave === 'eseguito')?.filtro).toBeUndefined();
+  });
+
   it('formatta importi e date', () => {
     expect(valoreCella(riga(), 'valore_netto')).toBe('25.46');
     expect(valoreCella(riga({ valore_netto: null }), 'valore_netto')).toBe('—');

@@ -16,6 +16,9 @@ import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
+// La stessa normalizzazione della colonna «Eseguito» del modulo Interventi: una sola regola per
+// due schermate che parlano dello stesso lavoro.
+import { siNo } from '@/lib/interventi/storico/normalizza';
 
 export const runtime = 'nodejs';
 
@@ -223,6 +226,8 @@ type VoceIntervento = {
   odl: string | null; data: string | null; staff_id: string | null; stato: string | null;
   esito?: string | null;
   matricola_contatore?: string | null;
+  /** Presente solo sulla lettura della pagina: serve ad agganciare la voce di rapportino. */
+  id?: string;
 };
 
 /**
@@ -698,13 +703,16 @@ export async function GET(req: Request) {
     // registro). Anche nel percorso di incrocio si rilegge da qui, perché serve pure lo `stato`
     // e l'intervento PIÙ RECENTE, che il predicato non guarda.
     const pianificazione = new Map<string, { data: string | null; staff_id: string | null; stato: string | null }>();
+    // Gli interventi della pagina per unità, dal più recente: da qui si pesca l'esito scritto nel
+    // rapportino (colonna «Eseguito», più sotto).
+    const interventiPerChiave = new Map<string, string[]>();
     if (odlPagina.length > 0) {
       const profilo = PROFILO_COMMESSA[f.famiglia ?? 'dunning'];
       for (let i = 0; i < odlPagina.length; i += 200) {
         const blocco = odlPagina.slice(i, i + 200);
         const { data: interventi, error: eInt } = await supabaseAdmin
           .from('interventi')
-          .select('odl, data, staff_id, stato, matricola_contatore')
+          .select('id, odl, data, staff_id, stato, matricola_contatore')
           .in('odl', blocco)
           .in('committente', [...profilo.committenti])
           .order('data', { ascending: false });
@@ -728,7 +736,55 @@ export async function GET(req: Request) {
           if (!prev || (prev.stato === 'completato' && it.stato !== 'completato')) {
             pianificazione.set(chiave, { data: it.data, staff_id: it.staff_id, stato: it.stato });
           }
+          if (it.id) interventiPerChiave.set(chiave, [...(interventiPerChiave.get(chiave) ?? []), it.id]);
         }
+      }
+    }
+
+    /*
+      ---- «Eseguito»: l'esito che ha scritto CHI CI È ANDATO ------------------------------------
+
+      Stessa colonna del modulo Interventi e stessa fonte — `rapportino_voci.risposte.eseguito`,
+      normalizzata dalla stessa `siNo`, così le due schermate non possono dire cose diverse sullo
+      stesso lavoro.
+
+      Vince l'ULTIMO esito registrato, non l'intervento mostrato in colonna Esecutore: quello è la
+      pianificazione corrente, e su un ordine ripianificato dopo un'uscita andata a buon fine
+      sarebbe una cella vuota sopra un lavoro fatto. Gli interventi arrivano già dal più recente,
+      quindi basta fermarsi al primo che una risposta ce l'ha.
+
+      DECORAZIONE, come le due della saracinesca: se la lettura fallisce la colonna resta vuota e
+      la tabella si carica lo stesso. Il registro è il motivo per cui si apre la schermata.
+
+      Solo sulla vista MASSIVE, che è l'unica a disegnare la colonna (`COLONNE_MASSIVE`): altrove
+      sarebbe una lettura in più a ogni pagina per un valore che nessuno guarda — la stessa regola
+      con cui il triangolo delle riaperture e le schede-comune non si calcolano fuori casa loro.
+    */
+    const eseguitoPerChiave = new Map<string, string>();
+    if (f.famiglia === 'massive' && interventiPerChiave.size > 0) {
+      try {
+        const ids = [...new Set([...interventiPerChiave.values()].flat())];
+        const perIntervento = new Map<string, string>();
+        for (let i = 0; i < ids.length; i += 200) {
+          const { data, error } = await supabaseAdmin
+            .from('rapportino_voci')
+            .select('intervento_id, risposte')
+            .in('intervento_id', ids.slice(i, i + 200));
+          if (error) throw error;
+          for (const v of (data ?? []) as Array<{ intervento_id: string | null; risposte: Record<string, unknown> | null }>) {
+            if (!v.intervento_id || perIntervento.has(v.intervento_id)) continue;
+            const val = siNo((v.risposte ?? {})['eseguito']);
+            // '—' = campo mai compilato: non è un esito, ed è la differenza fra «non ancora
+            // lavorato» e «lavorato e andato male».
+            if (val !== '—') perIntervento.set(v.intervento_id, val);
+          }
+        }
+        for (const [chiave, lista] of interventiPerChiave) {
+          const val = lista.map((id) => perIntervento.get(id)).find(Boolean);
+          if (val) eseguitoPerChiave.set(chiave, val);
+        }
+      } catch (e) {
+        console.error('[acea/ordini] esiti dei rapportini non letti:', e);
       }
     }
 
@@ -798,9 +854,8 @@ export async function GET(req: Request) {
     }
 
     const conPianificazione = righe.map((r) => {
-      const p = pianificazione.get(
-        chiaveAggancioIntervento(f.famiglia, r.odl, r.matricola as string | null),
-      );
+      const chiaveRiga = chiaveAggancioIntervento(f.famiglia, r.odl, r.matricola as string | null);
+      const p = pianificazione.get(chiaveRiga);
       // L'ordine di sostituzione si cerca per impianto O per matricola, non per ODL: la
       // sostituzione e` un ordine SUO, con un numero diverso da quello della limitazione.
       const sost = chiaviAggancio({ impianto: r.impianto as string | null, matricola: r.matricola as string | null })
@@ -836,6 +891,7 @@ export async function GET(req: Request) {
           : null,
         pianificazione_parziale: parziale,
         stato_intervento: mostrato?.stato ?? null,
+        eseguito: eseguitoPerChiave.get(chiaveRiga) ?? null,
       };
     });
 

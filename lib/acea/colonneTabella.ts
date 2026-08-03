@@ -80,11 +80,21 @@ export type RigaTabella = {
   pianificato_il: string | null;
   pianificato_a: string | null;
   stato_intervento: string | null;
+  /**
+   * L'ESITO SCRITTO NEL RAPPORTINO — 'SI', 'NO', 'NESSUN PASSAGGIO' — dalla stessa risposta che
+   * il modulo Interventi mostra nella sua colonna «Eseguito» (`rapportino_voci.risposte.eseguito`).
+   *
+   * Non confonderla con «Esito», che è il verdetto di ACEA e arriva col loro export: quello dice
+   * come è finita per il committente, questo dice cosa ha dichiarato chi ci è andato. Fra i due
+   * passano giorni — il tempo di un import — ed è in quella finestra che il lavoro fatto sembrava
+   * non essere mai successo. Opzionale: il registro c'era prima che questa colonna esistesse.
+   */
+  eseguito?: string | null;
 };
 
 export type ChiaveColonna =
   | 'odl' | 'attivita' | 'matricola' | 'indirizzo' | 'comune' | 'cap' | 'gruppo' | 'stato'
-  | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il'
+  | 'data_creazione' | 'scadenza' | 'pianificato_a' | 'pianificato_il' | 'eseguito'
   | 'impianto' | 'famiglia' | 'tipo_ordine' | 'operatore_cognome' | 'data_completamento' | 'esito'
   | 'valore_netto' | 'codice_sla' | 'priorita_testo' | 'centro_lavoro' | 'cardine_al'
   | 'saracinesca' | 'odl_saracinesca' | 'stato_saracinesca' | 'note'
@@ -266,9 +276,18 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   */
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
+  /*
+    «Eseguito»: la stessa colonna del modulo Interventi, sulla stessa risposta del rapportino.
+
+    Le tre nostre stanno insieme — chi, quando, com'è andata — e le tre di ACEA subito dopo. Senza
+    questa, del nostro lavoro il registro mostrava solo che qualcuno era stato mandato: l'esito
+    esisteva solo in «Esito», che è di ACEA e arriva col loro export, giorni dopo. Nel frattempo un
+    ordine lavorato si legge identico a uno mai toccato.
+  */
+  { chiave: 'eseguito', intestazione: 'Eseguito', predefinita: true, larghezza: 150 },
   { chiave: 'operatore_cognome', intestazione: 'Operatore ACEA', predefinita: true, larghezza: 150, filtro: F.operatore },
   { chiave: 'data_completamento', intestazione: 'Esecuzione ACEA', predefinita: true, mono: true, larghezza: 120 },
-  { chiave: 'esito', intestazione: 'Esito', predefinita: true, larghezza: 200 },
+  { chiave: 'esito', intestazione: 'Esito ACEA', predefinita: true, larghezza: 200 },
   { chiave: 'attivita', intestazione: 'Attività', predefinita: false, larghezza: 210, filtro: F.attivita },
   { chiave: 'valore_netto', intestazione: 'Valore', predefinita: false, mono: true, larghezza: 90 },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: false, mono: true, larghezza: 100 },
@@ -397,6 +416,11 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
       if (r.esito_positivo === null) return '—';
       return r.causale_desc ?? r.causale ?? (r.esito_positivo ? 'Eseguito' : 'Non eseguito');
     }
+    // La risposta del rapportino così com'è stata data: 'SI', 'NO', 'NESSUN PASSAGGIO'. Non si
+    // riduce a un booleano — «nessun passaggio» non è un «no», ed è la distinzione su cui si
+    // decide se l'ordine va ripianificato o discusso col committente.
+    case 'eseguito':
+      return r.eseguito || '—';
     case 'gruppo':
       // Un trattino e non uno zero: «non ancora geocodificato» non e` un gruppo, e uno zero
       // finirebbe ordinato insieme ai gruppi veri come se fosse una zona.
