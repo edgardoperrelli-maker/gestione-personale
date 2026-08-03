@@ -96,7 +96,7 @@ describe('registro misuratori AcquaLatina — pallet (migrazione 20260731190000)
     expect(sqlPallet).not.toMatch(/alter table public\.misuratori_rimossi\b/i);
 
     const sqlAcea = readFileSync(
-      resolve(__dirname, '../../supabase/migrations/20260803140000_acea_misuratori_pallet.sql'),
+      resolve(__dirname, '../../supabase/migrations/20260803135000_acea_misuratori_pallet.sql'),
       'utf8',
     ).replace(/--[^\n]*/g, ''); // i commenti citano l'altra tabella: si spogliano prima
     expect(sqlAcea).toMatch(/alter table public\.misuratori_rimossi\b/i);
