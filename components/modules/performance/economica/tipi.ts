@@ -22,7 +22,7 @@ export interface DatiProduzione {
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
   auditTruncated: boolean;
-  masterPopolato: boolean;
+  registroPopolato: boolean;
   portalePopolato: boolean;
 }
 

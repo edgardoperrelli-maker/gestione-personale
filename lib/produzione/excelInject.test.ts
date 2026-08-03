@@ -41,11 +41,11 @@ const mockDati = {
     perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
   },
   esiti: [{ chiave: 's1', label: 'ROSSI', assegnati: 5, positivi: 3, negativi: 1, nonLavorati: 1, valore: 300 }],
-  audit: [{ odl: 'o1', classe: 'DB_NON_IN_MASTER' }],
+  audit: [{ odl: 'o1', classe: 'DB_NON_IN_REGISTRO' }],
   auditSummary: {} as Record<string, number>,
   auditTotale: 1,
   auditTruncated: false,
-  masterPopolato: true,
+  registroPopolato: true,
   portalePopolato: true,
 } as unknown as Dati;
 

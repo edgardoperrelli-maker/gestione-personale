@@ -1,11 +1,19 @@
-// PURA: audit a tre vie DB ↔ master ↔ portale, agganciato per ODL. SOLO segnalazione (nessuna
-// correzione). La produzione è ciò che è positivo per noi (DB+master); il SAL è ciò che il portale
-// ACEA ha consuntivato (stato_norm = COMPLETATO). Lo scarto Produzione−SAL evidenzia il lavorato non
-// ancora remunerato. Un ODL può ricadere in più classi di discrepanza (es. voce discorde + prod>SAL).
+/*
+  PURA: audit a tre vie DB ↔ REGISTRO ↔ portale, agganciato per ODL. SOLO segnalazione (nessuna
+  correzione). Il SAL è ciò che il portale ACEA ha consuntivato (stato_norm = COMPLETATO), e lo
+  scarto Produzione−SAL evidenzia il lavorato non ancora remunerato. Un ODL può ricadere in più
+  classi (es. voce discorde + prod>SAL).
+
+  La colonna di mezzo era il MASTER — la fotografia dei file SharePoint che un agente leggeva da
+  un PC acceso in ufficio. Dal 2026-08-03 è il REGISTRO del modulo ACEA (`acea_ordini`), che dice
+  le stesse cose, si aggiorna con l'import ufficiale del Cruscotto e non dipende da nessuna
+  macchina. L'agente resta vivo solo per Playwright, che è l'unico a sapere cosa ACEA ha davvero
+  contabilizzato — quella colonna, la terza, non si tocca.
+*/
 
 export type ClasseDiscrepanza =
-  | 'DB_NON_IN_MASTER'
-  | 'MASTER_NON_IN_DB'
+  | 'DB_NON_IN_REGISTRO'
+  | 'REGISTRO_NON_IN_DB'
   | 'POSITIVO_DB_NON_COMPLETATO_PORTALE'
   | 'COMPLETATO_PORTALE_NON_POSITIVO_DB'
   | 'VOCE_DISCORDE'
@@ -16,7 +24,7 @@ export interface DbRiga {
   voce: number | null;
   esitoOk: boolean | null; // true=positivo, false=lavorato-negativo, null=non lavorato
 }
-export interface MasterRiga {
+export interface RegistroRiga {
   voce: number | null;
 }
 export interface PortaleRiga {
@@ -24,7 +32,7 @@ export interface PortaleRiga {
 }
 export interface RiconciliazioneInput {
   db: Map<string, DbRiga>;
-  master: Map<string, MasterRiga>;
+  registro: Map<string, RegistroRiga>;
   portale: Map<string, PortaleRiga>;
 }
 export interface Discrepanza {
@@ -32,9 +40,9 @@ export interface Discrepanza {
   classe: ClasseDiscrepanza;
 }
 export interface RiconciliaOpts {
-  /** Default: master.size > 0. Se false, le classi che dipendono dal master NON vengono emesse
-   *  (uno snapshot vuoto non significa "tutto assente dal master" → eviterebbe migliaia di falsi). */
-  masterPopolato?: boolean;
+  /** Default: registro.size > 0. Se false, le classi che dipendono dal registro NON vengono emesse
+   *  (un registro vuoto non significa "tutto assente dal registro" → sarebbero migliaia di falsi). */
+  registroPopolato?: boolean;
   /** Default: portale.size > 0. Idem per le classi SAL (basate sullo stato portale). */
   portalePopolato?: boolean;
 }
@@ -46,8 +54,8 @@ export interface Totale {
 // ordine deterministico delle classi entro lo stesso ODL
 const ORDINE_CLASSI: ClasseDiscrepanza[] = [
   'SOLO_PORTALE',
-  'DB_NON_IN_MASTER',
-  'MASTER_NON_IN_DB',
+  'DB_NON_IN_REGISTRO',
+  'REGISTRO_NON_IN_DB',
   'POSITIVO_DB_NON_COMPLETATO_PORTALE',
   'COMPLETATO_PORTALE_NON_POSITIVO_DB',
   'VOCE_DISCORDE',
@@ -59,47 +67,47 @@ function round2(n: number): number {
 }
 
 export function riconcilia(input: RiconciliazioneInput, opts: RiconciliaOpts = {}): Discrepanza[] {
-  const { db, master, portale } = input;
-  const masterPop = opts.masterPopolato ?? master.size > 0;
+  const { db, registro, portale } = input;
+  const registroPop = opts.registroPopolato ?? registro.size > 0;
   const portalePop = opts.portalePopolato ?? portale.size > 0;
-  const odls = new Set<string>([...db.keys(), ...master.keys(), ...portale.keys()]);
+  const odls = new Set<string>([...db.keys(), ...registro.keys(), ...portale.keys()]);
   const out: Discrepanza[] = [];
 
   for (const odl of odls) {
     const d = db.get(odl);
-    const m = master.get(odl);
+    const m = registro.get(odl);
     const p = portale.get(odl);
     const inDb = d != null;
-    const inMaster = m != null;
+    const inRegistro = m != null;
     const inPortale = p != null;
     const positivo = inDb && d!.esitoOk === true;
     const completato = inPortale && p!.statoNorm === 'COMPLETATO';
     const produttivo = positivo || completato;
-    const voceNota = (inDb ? d!.voce : null) ?? (inMaster ? m!.voce : null);
+    const voceNota = (inDb ? d!.voce : null) ?? (inRegistro ? m!.voce : null);
 
     const classi: ClasseDiscrepanza[] = [];
 
-    // presenza (riconciliazione DB ↔ master, e ODL orfani del portale).
-    // Le classi master si emettono SOLO se lo snapshot master è popolato (altrimenti tutto risulterebbe
-    // "non nel master" → migliaia di falsi finché l'agente non ha caricato lo snapshot).
-    if (inPortale && !inDb && !inMaster) {
+    // presenza (riconciliazione DB ↔ registro, e ODL orfani del portale).
+    // Le classi del registro si emettono SOLO se il registro è popolato: con una lettura fallita
+    // ogni ODL risulterebbe «non nel registro», e l'audit diventerebbe un muro di falsi.
+    if (inPortale && !inDb && !inRegistro) {
       if (portalePop) classi.push('SOLO_PORTALE');
-    } else if (masterPop) {
-      if (inDb && !inMaster) classi.push('DB_NON_IN_MASTER');
-      if (inMaster && !inDb) classi.push('MASTER_NON_IN_DB');
+    } else if (registroPop) {
+      if (inDb && !inRegistro) classi.push('DB_NON_IN_REGISTRO');
+      if (inRegistro && !inDb) classi.push('REGISTRO_NON_IN_DB');
     }
 
     // produzione vs SAL (basata sul portale): solo se lo snapshot portale è popolato.
-    if (portalePop && (inDb || inMaster)) {
+    if (portalePop && (inDb || inRegistro)) {
       if (positivo && !completato) classi.push('POSITIVO_DB_NON_COMPLETATO_PORTALE');
       if (completato && !positivo) classi.push('COMPLETATO_PORTALE_NON_POSITIVO_DB');
     }
 
-    // voce discorde (richiede il master popolato)
-    if (masterPop && inDb && inMaster && d!.voce != null && m!.voce != null && d!.voce !== m!.voce) {
+    // voce discorde (richiede il registro popolato)
+    if (registroPop && inDb && inRegistro && d!.voce != null && m!.voce != null && d!.voce !== m!.voce) {
       classi.push('VOCE_DISCORDE');
     }
-    if (produttivo && (inDb || inMaster) && voceNota == null) {
+    if (produttivo && (inDb || inRegistro) && voceNota == null) {
       classi.push('VOCE_NON_RISOLTA');
     }
 

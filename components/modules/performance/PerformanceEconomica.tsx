@@ -18,8 +18,8 @@ import { eur, num, type DatiProduzione } from './economica/tipi';
 
 const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
   SOLO_PORTALE: 'Solo nel portale ACEA (assente da DB e master)',
-  DB_NON_IN_MASTER: 'Nel DB ma non nel master',
-  MASTER_NON_IN_DB: 'Nel master ma non nel DB',
+  DB_NON_IN_REGISTRO: 'Nel DB ma non nel master',
+  REGISTRO_NON_IN_DB: 'Nel master ma non nel DB',
   POSITIVO_DB_NON_COMPLETATO_PORTALE: 'Positivo nel DB ma non consuntivato sul portale (Produzione > SAL)',
   COMPLETATO_PORTALE_NON_POSITIVO_DB: 'Consuntivato sul portale ma non positivo nel DB',
   VOCE_DISCORDE: 'Voce DB ≠ voce master',
@@ -28,8 +28,8 @@ const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
 const ORDINE_AUDIT: ClasseDiscrepanza[] = [
   'POSITIVO_DB_NON_COMPLETATO_PORTALE',
   'COMPLETATO_PORTALE_NON_POSITIVO_DB',
-  'DB_NON_IN_MASTER',
-  'MASTER_NON_IN_DB',
+  'DB_NON_IN_REGISTRO',
+  'REGISTRO_NON_IN_DB',
   'SOLO_PORTALE',
   'VOCE_DISCORDE',
   'VOCE_NON_RISOLTA',
@@ -250,23 +250,23 @@ export default function PerformanceEconomica() {
           <div className="rounded-xl bg-[var(--brand-surface-muted)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
               <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">Audit a tre vie (DB · master · portale)</h3>
-              {(!dati.masterPopolato || !dati.portalePopolato) && (
+              {(!dati.registroPopolato || !dati.portalePopolato) && (
                 <Badge variant="warn">
-                  {!dati.masterPopolato && !dati.portalePopolato
+                  {!dati.registroPopolato && !dati.portalePopolato
                     ? 'Snapshot master e portale non ancora popolati'
-                    : !dati.masterPopolato
+                    : !dati.registroPopolato
                       ? 'Snapshot master non popolato'
                       : 'Snapshot portale non popolato'}
                 </Badge>
               )}
-              {dati.masterPopolato && dati.portalePopolato && auditClassi.length === 0 && (
+              {dati.registroPopolato && dati.portalePopolato && auditClassi.length === 0 && (
                 <Badge variant="success">Nessuna discrepanza</Badge>
               )}
               {auditClassi.map((c) => (
                 <Badge key={c} variant="warning">{AUDIT_LABEL[c]}: {num(dati.auditSummary[c])}</Badge>
               ))}
             </div>
-            {(!dati.masterPopolato || !dati.portalePopolato) && (
+            {(!dati.registroPopolato || !dati.portalePopolato) && (
               <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
                 L’audit DB↔master↔portale è limitato finché l’agente non carica gli snapshot. Usa
                 «Allinea master» e lancia il giro «Richiedi stato ACEA» dall’agente, poi ricarica.
