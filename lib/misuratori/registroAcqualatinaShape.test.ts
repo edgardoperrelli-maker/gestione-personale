@@ -85,9 +85,26 @@ describe('registro misuratori AcquaLatina — pallet (migrazione 20260731190000)
     expect(sqlPallet).not.toMatch(/pallet[^\n]*not null/i);
   });
 
-  it('tocca SOLO la tabella AcquaLatina: il registro ACEA ha un altro ciclo logistico', () => {
+  it('tocca SOLO la tabella AcquaLatina: ogni registro ha la SUA colonna', () => {
+    /*
+      L'invariante non è più «il pallet è di AcquaLatina» — dal 2026-08-03 ce l'hanno entrambi
+      (20260803140000), perché il ciclo fisico si è rivelato lo stesso e il pallet era solo
+      arrivato prima di qua. Quello che resta vero, ed è la cosa che questo test protegge, è
+      che ogni migrazione tocca la SUA tabella: due colonne gemelle, non una condivisa.
+    */
     expect(sqlPallet).toMatch(/alter table public\.acqualatina_misuratori_rimossi/i);
     expect(sqlPallet).not.toMatch(/alter table public\.misuratori_rimossi\b/i);
+
+    const sqlAcea = readFileSync(
+      resolve(__dirname, '../../supabase/migrations/20260803140000_acea_misuratori_pallet.sql'),
+      'utf8',
+    ).replace(/--[^\n]*/g, ''); // i commenti citano l'altra tabella: si spogliano prima
+    expect(sqlAcea).toMatch(/alter table public\.misuratori_rimossi\b/i);
+    expect(sqlAcea).not.toMatch(/alter table public\.acqualatina_misuratori_rimossi/i);
+    // Stessa forma della gemella: text, nullable, additiva.
+    expect(sqlAcea).toMatch(/add column if not exists pallet text/i);
+    expect(sqlAcea).not.toMatch(/pallet\s+(integer|int|bigint)/i);
+    expect(sqlAcea).not.toMatch(/pallet[^\n]*not null/i);
   });
 });
 

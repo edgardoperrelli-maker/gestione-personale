@@ -16,13 +16,15 @@ const COLONNE_COMUNI =
   'id, intervento_id, rapportino_id, odl, data_esecuzione, esecutore, indirizzo, comune, matricola, stato, note, created_at, updated_at';
 
 /**
- * Il registro ACEA porta anche il PDR; quello AcquaLatina ha il PALLET di riferimento
- * (il numero assegnato a cesta piena, con cui la riconsegna viaggia). Ognuno seleziona
- * le SUE colonne: chiedere una colonna che la tabella non ha fa fallire la query intera.
+ * Il PALLET ora è di ENTRAMBI i registri (migrazione 20260803140000): il ciclo fisico è lo
+ * stesso — si accumula in cesta, a cesta piena si va su un pallet, e quel numero è il
+ * riferimento con cui la riconsegna viaggia. A restare solo di ACEA è il PDR, che è del gas.
+ * Ognuno seleziona le SUE colonne: chiedere una colonna che la tabella non ha fa fallire la
+ * query intera.
  */
 function colonne(tabella: TabellaRegistro): string {
   return tabella === 'misuratori_rimossi'
-    ? `${COLONNE_COMUNI}, pdr`
+    ? `${COLONNE_COMUNI}, pdr, pallet`
     : `${COLONNE_COMUNI}, pallet`;
 }
 
@@ -99,12 +101,9 @@ export async function aggiornaRegistro(
     patch.note = typeof body.note === 'string' ? body.note || null : null;
   }
 
-  // Il pallet esiste solo sul registro AcquaLatina: sull'altro non c'è la colonna, e accettarlo
-  // farebbe fallire l'update intero con un errore che parla di schema invece che di dominio.
+  // Il pallet vale su entrambi i registri dal 2026-08-03: la colonna c'è di qua e di là, e il
+  // gesto («questa cesta è finita sul pallet N») è lo stesso per le due commesse.
   if ('pallet' in body) {
-    if (tabella !== 'acqualatina_misuratori_rimossi') {
-      return NextResponse.json({ error: 'pallet non previsto su questo registro' }, { status: 400 });
-    }
     patch.pallet = typeof body.pallet === 'string' ? body.pallet.trim() || null : null;
   }
 
@@ -124,7 +123,8 @@ export async function aggiornaRegistro(
  * legittimo («ancora in cesta»), non serve un secondo verbo.
  */
 export async function assegnaPallet(
-  tabella: Extract<TabellaRegistro, 'acqualatina_misuratori_rimossi'>,
+  // Non più ristretta ad AcquaLatina: entrambe le tabelle hanno la colonna e lo stesso gesto.
+  tabella: TabellaRegistro,
   ids: unknown,
   pallet: unknown,
 ) {

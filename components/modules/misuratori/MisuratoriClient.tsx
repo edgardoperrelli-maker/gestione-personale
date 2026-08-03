@@ -58,9 +58,11 @@ export type RegistroProps = {
   /** Colonna PDR: un misuratore d'acqua non ha un punto di riconsegna gas. */
   mostraPdr?: boolean;
   /**
-   * Pallet di riferimento (solo AcquaLatina): a CESTA PIENA si selezionano i misuratori che ci
-   * sono finiti dentro e si assegna loro il numero del pallet, in blocco. Porta con sé la
-   * colonna in tabella, il filtro e la colonna nel PDF (la distinta del pallet).
+   * Pallet di riferimento — di ENTRAMBE le commesse dal 2026-08-03, non più solo AcquaLatina:
+   * il ciclo fisico è identico e il pallet era semplicemente arrivato prima di là.
+   * A CESTA PIENA si selezionano i misuratori che ci sono finiti dentro e si assegna loro il
+   * numero, in blocco; la stessa cella si può anche scrivere una riga alla volta. Porta con sé
+   * la colonna in tabella, il filtro e la colonna nel PDF (la distinta del pallet).
    */
   mostraPallet?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
