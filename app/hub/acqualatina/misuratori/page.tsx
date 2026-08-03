@@ -9,8 +9,13 @@ import MisuratoriClient from '@/components/modules/misuratori/MisuratoriClient';
 export const dynamic = 'force-dynamic';
 
 // Stesso registro del modulo Misuratori (ACEA), su tabella e endpoint separati.
-// Niente «Ricalcola»: quello ripesca dalla consuntivazione ACEA. Il registro
-// AcquaLatina si popola da solo alla chiusura del rapportino (ESEGUITO = SI).
+//
+// «Ricalcola» ACCESO dal 2026-08-03, e non per comodità: il registro aveva UNA sola porta
+// d'ingresso — l'upsert alla chiusura del rapportino — e quella porta era murata. L'indice di
+// unicità era parziale, `ON CONFLICT` non lo agganciava, e l'errore non veniva letto: 212
+// rapportini chiusi in positivo, registro a zero, nessun segnale. Sistemato l'indice
+// (20260803120000), il ricalcolo è quello che recupera il pregresso — stesso motore della
+// commessa gemella.
 export default async function AcqualatinaMisuratoriPage() {
   const cookieStore = await cookies();
   const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
@@ -29,10 +34,11 @@ export default async function AcqualatinaMisuratoriPage() {
         apiBase="/api/acqualatina/misuratori"
         titolo="Misuratori rimossi — AcquaLatina"
         sottotitolo="Contatori smontati in campo, dal deposito alla riconsegna al committente"
-        mostraRicalcola={false}
+        mostraRicalcola
         mostraPdr={false}
         mostraPallet
-        titoloPdf="Registro Misuratori Rimossi — AcquaLatina"
+        // Sentence case (§4): era Title Case, l'ultimo rimasto dopo la ripulitura del PDF ACEA.
+        titoloPdf="Registro misuratori rimossi — AcquaLatina"
         // Il rientro mancava anche qui (§7bis): la casa è AcquaLatina, e il breadcrumb lo dice
         // pure a chi arriva dall'altra porta — la landing Misuratori.
         breadcrumb={

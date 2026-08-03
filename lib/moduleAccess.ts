@@ -258,15 +258,39 @@ export function isAssignableRole(value: unknown): value is AssignableRole {
 }
 
 /**
+ * Normalizza UN valore di ruolo grezzo (dai metadata o dalla tabella profiles) in un
+ * ruolo assegnabile, oppure `null` se quel valore non dice niente di utile.
+ * `editor`/`viewer` sono i nomi legacy dell'operatore.
+ */
+function normalizeRawRole(value: unknown): AssignableRole | null {
+  if (value === 'admin_plus') return 'admin_plus';
+  if (isValidRole(value)) return value;
+  if (value === 'editor' || value === 'viewer') return 'operatore';
+  return null;
+}
+
+/**
  * Ruolo "assegnabile" risolto per la UI Utenze: conserva la distinzione
  * `admin_plus` (presente in app_metadata.role), altrimenti ricade su admin/operatore.
+ *
+ * PRECEDENZA: `app_metadata` PRIMA, `profiles.role` solo come fallback legacy.
+ *
+ * Il perché, 2026-08-03. Il ruolo aveva due sorgenti che si contraddicevano: il
+ * middleware decide SOLO sui metadata (`canAccessPathFromMetadata` — sul bordo Edge non
+ * c'è una query a `profiles` che valga il suo costo), mentre le pagine leggevano prima
+ * `profiles.role`. Un profilo stantio poteva quindi far divergere le due decisioni: nel
+ * verso «metadata operatore, profilo admin» il middleware sbarrava comunque (il profilo
+ * era configurazione MORTA che sembrava viva); nel verso opposto la pagina negava una porta che
+ * il middleware aveva già aperto. Ora la sorgente è una sola, ed è quella su cui scrive
+ * l'area Utenze (`buildAppMetadataUpdate`). Il fallback su `profiles` resta per l'utente
+ * legacy senza ruolo nei metadata: non toglie accessi, ne aggiunge solo dove i metadata
+ * tacciono.
  */
 export function resolveAssignableRole(
   profileRole?: string | null,
   metadataRole?: unknown,
 ): AssignableRole {
-  if (profileRole === 'admin_plus' || metadataRole === 'admin_plus') return 'admin_plus';
-  return resolveUserRole(profileRole, metadataRole);
+  return normalizeRawRole(metadataRole) ?? normalizeRawRole(profileRole) ?? 'operatore';
 }
 
 /** Solo `admin_plus` vede il cruscotto premialità (dati economici riservati). */
@@ -297,16 +321,18 @@ export function isAdminAssignableRole(role: AssignableRole | null | undefined): 
   return role === 'admin' || role === 'admin_plus';
 }
 
+/**
+ * Ruolo di AUTORIZZAZIONE: `admin_plus` vale `admin` (la distinzione "plus" è un
+ * privilegio in più, non un altro cancello). Stessa precedenza di
+ * `resolveAssignableRole` — metadata prima, profilo come fallback legacy — perché è la
+ * stessa decisione vista da un'angolazione più grossolana.
+ */
 export function resolveUserRole(
   profileRole?: string | null,
   metadataRole?: unknown,
 ): ValidRole {
-  if (profileRole === 'admin_plus' || metadataRole === 'admin_plus') return 'admin';
-  if (isValidRole(profileRole)) return profileRole;
-  if (profileRole === 'editor' || profileRole === 'viewer') return 'operatore';
-  if (isValidRole(metadataRole)) return metadataRole;
-  if (metadataRole === 'editor' || metadataRole === 'viewer') return 'operatore';
-  return 'operatore';
+  const role = resolveAssignableRole(profileRole, metadataRole);
+  return role === 'admin_plus' ? 'admin' : role;
 }
 
 export function toStoredProfileRole(role: AssignableRole): 'admin' | 'viewer' {

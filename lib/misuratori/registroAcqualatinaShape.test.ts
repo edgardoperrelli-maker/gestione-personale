@@ -39,7 +39,31 @@ describe('registro misuratori AcquaLatina — migrazione', () => {
   it("l'unicità su intervento_id rende idempotente il rinvio di un rapportino", () => {
     // L'upsert in app/api/r/[token]/invia usa onConflict: 'intervento_id'.
     expect(sql).toMatch(/CREATE UNIQUE INDEX[\s\S]*?\(intervento_id\)/i);
-    expect(sql).toMatch(/WHERE intervento_id IS NOT NULL/i);
+  });
+
+  it("l'indice NON è parziale: ON CONFLICT non aggancia gli indici parziali", () => {
+    /*
+      La regressione da cui questo test nasce (2026-08-03). L'indice era stato creato con
+      `WHERE (intervento_id IS NOT NULL)`, e con un indice parziale Postgres rifiuta
+      `ON CONFLICT (intervento_id)` — «no unique or exclusion constraint matching». Cioè
+      l'upsert del gancio dell'invio, unica porta d'ingresso del registro, falliva a OGNI
+      rapportino AcquaLatina chiuso: 212 interventi positivi, registro a zero.
+
+      Il predicato non aggiungeva nulla: in un unique btree i NULL sono già distinti fra loro.
+      Si guarda lo stato FINALE — la migrazione originale resta com'è, è storia.
+    */
+    const correzione = readFileSync(
+      resolve(__dirname, '../../supabase/migrations/20260803120000_acqualatina_misuratori_indice_upsert.sql'),
+      'utf8',
+    );
+    // I commenti si tolgono PRIMA di cercare: quel file spiega l'indice vecchio citandolo per
+    // esteso, e senza questa riga il test leggeva la spiegazione invece dello statement.
+    const soloSql = correzione.replace(/--[^\n]*/g, '');
+    const create = soloSql.match(/CREATE UNIQUE INDEX[\s\S]*?;/i)?.[0] ?? '';
+    expect(create).toMatch(/\(intervento_id\)/i);
+    expect(create).not.toMatch(/WHERE/i);
+    // E l'indice vecchio deve essere tolto, altrimenti il parziale resta e vince lui.
+    expect(soloSql).toMatch(/DROP INDEX IF EXISTS public\.acqualatina_misuratori_rimossi_intervento_key/i);
   });
 
   it('RLS attiva, scrittura al solo service role', () => {
