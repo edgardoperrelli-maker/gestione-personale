@@ -6,6 +6,7 @@ import Button from '@/components/Button';
 import { Card } from '@/components/Card';
 import Tabs from '@/components/Tabs';
 import StatTile from '@/components/ui/StatTile';
+import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import { dataIt } from '@/lib/acea/colonneTabella';
 import type { DichiarazioneClassificata, Famiglia, OrdineAperto } from '@/lib/acea/saracinesche';
 
@@ -80,6 +81,37 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
       vista === 'da_richiedere' ? d.stato === 'da_richiedere' : true,
     );
   }, [dati, vista]);
+
+  /*
+    Celle copiabili come nel registro ordini. Le intestazioni cambiano con la vista («ODL
+    sostituzione» o «ODL intervento», «Creato il» o «Eseguita il»): il modello segue la vista,
+    così quello che si copia porta le etichette che si stanno guardando.
+  */
+  const colonne = useMemo(
+    () => vista === 'da_esitare'
+      ? ['ODL sostituzione', 'Impianto', 'Matricola', 'Comune', 'Creato il', 'Stato']
+      : ['ODL intervento', 'Impianto', 'Matricola', 'Comune', 'Eseguita il', 'Operatore'],
+    [vista],
+  );
+
+  const griglia = useGrigliaCopiabile({
+    righe: righe.length,
+    colonne,
+    valoreCella: (r, c) => {
+      const x = righe[r];
+      if (!x) return '';
+      const ordine = isOrdine(x);
+      switch (c) {
+        case 0: return x.odl ?? '';
+        case 1: return x.impianto ?? '';
+        case 2: return x.matricola ?? '';
+        case 3: return x.comune ?? '';
+        case 4: return dataIt(ordine ? x.data_creazione : x.data);
+        case 5: return ordine ? (x.stato ?? '') : (x.operatore ?? '');
+        default: return '';
+      }
+    },
+  });
 
   return (
     <Card className="p-4">
@@ -173,27 +205,35 @@ export default function Saracinesche({ famiglia }: { famiglia: Famiglia }) {
                 </tr>
               </thead>
               <tbody>
-                {righe.map((r) => {
+                {righe.map((r, iRiga) => {
                   const ordine = isOrdine(r);
+                  const cella = (c: number) => ({
+                    ...griglia.propsCella(iRiga, c),
+                    className: griglia.classeCella(iRiga, c),
+                  });
+                  const unisci = (c: number, base: string) => {
+                    const p = cella(c);
+                    return { ...p, className: `${base} ${p.className}` };
+                  };
                   return (
                     <tr
                       key={ordine ? `${r.odl}|${r.numero_operazione}` : `${r.odl}|${r.impianto ?? r.matricola}`}
                       className="border-t border-[var(--brand-border)]"
                     >
-                      <td className="px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-main)]">
+                      <td {...unisci(0, 'px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-main)]')}>
                         {r.odl}
                       </td>
-                      <td className="px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]">
+                      <td {...unisci(1, 'px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]')}>
                         {r.impianto ?? '—'}
                       </td>
-                      <td className="px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]">
+                      <td {...unisci(2, 'px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]')}>
                         {r.matricola ?? '—'}
                       </td>
-                      <td className="px-3 py-1.5 text-[var(--brand-text-muted)]">{r.comune ?? '—'}</td>
-                      <td className="px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]">
+                      <td {...unisci(3, 'px-3 py-1.5 text-[var(--brand-text-muted)]')}>{r.comune ?? '—'}</td>
+                      <td {...unisci(4, 'px-3 py-1.5 font-mono tabular-nums text-[var(--brand-text-muted)]')}>
                         {dataIt(ordine ? r.data_creazione : r.data)}
                       </td>
-                      <td className="px-3 py-1.5 text-[var(--brand-text-muted)]">
+                      <td {...unisci(5, 'px-3 py-1.5 text-[var(--brand-text-muted)]')}>
                         {ordine ? r.stato : (r.operatore ?? '—')}
                       </td>
                     </tr>

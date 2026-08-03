@@ -7,6 +7,7 @@ import { Card } from '@/components/Card';
 import Input from '@/components/Input';
 import { toast } from '@/components/ui/Toast';
 import { chiediConferma } from '@/components/ui/chiediConferma';
+import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import type { EsitoOperatore, TipoEsito } from '@/lib/acea/vociRapportino';
 
 type Risposta = {
@@ -51,6 +52,28 @@ export default function RapportiniGiorno() {
   const [data, setData] = useState(oggiIso);
   const [busy, setBusy] = useState(false);
   const [risposta, setRisposta] = useState<Risposta | null>(null);
+
+  /*
+    Celle copiabili come nel registro ordini. La colonna del link «apri» resta fuori: un
+    contenuto che negli appunti sarebbe una stringa vuota non è una colonna, è una lacuna in
+    mezzo al blocco incollato.
+  */
+  const esiti = risposta?.esiti ?? [];
+  const griglia = useGrigliaCopiabile({
+    righe: esiti.length,
+    colonne: ['Operatore', 'Interventi', 'Voci aggiunte', 'Esito'],
+    valoreCella: (r, c) => {
+      const e = esiti[r];
+      if (!e) return '';
+      switch (c) {
+        case 0: return e.staff_name ?? e.staff_id;
+        case 1: return String(e.interventi);
+        case 2: return String(e.voci_aggiunte);
+        case 3: return ETICHETTA[e.esito];
+        default: return '';
+      }
+    },
+  });
 
   const genera = useCallback(async (
     confermaRiaperture: boolean,
@@ -165,18 +188,23 @@ export default function RapportiniGiorno() {
               </tr>
             </thead>
             <tbody>
-              {risposta.esiti.map((e) => (
+              {risposta.esiti.map((e, iRiga) => {
+                const cella = (c: number, base: string) => {
+                  const p = griglia.propsCella(iRiga, c);
+                  return { ...p, className: `${base} ${griglia.classeCella(iRiga, c)}` };
+                };
+                return (
                 <tr key={e.staff_id} className="border-t border-[var(--brand-border)]">
-                  <td className="px-3 py-2 text-[var(--brand-text-main)]">
+                  <td {...cella(0, 'px-3 py-2 text-[var(--brand-text-main)]')}>
                     {e.staff_name ?? e.staff_id}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">
+                  <td {...cella(1, 'px-3 py-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]')}>
                     {e.interventi}
                   </td>
-                  <td className="px-3 py-2 text-right font-mono tabular-nums text-[var(--brand-text-main)]">
+                  <td {...cella(2, 'px-3 py-2 text-right font-mono tabular-nums text-[var(--brand-text-main)]')}>
                     {e.voci_aggiunte}
                   </td>
-                  <td className={`px-3 py-2 ${TONO[e.esito]}`}>{ETICHETTA[e.esito]}</td>
+                  <td {...cella(3, `px-3 py-2 ${TONO[e.esito]}`)}>{ETICHETTA[e.esito]}</td>
                   <td className="px-3 py-2 text-right">
                     {e.url && (
                       <a
@@ -196,7 +224,8 @@ export default function RapportiniGiorno() {
                     )}
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
