@@ -1,14 +1,93 @@
-# Handoff — Registro commesse: ACEA + AcquaLatina (2026-07-31)
+# Handoff — Registro commesse: ACEA + AcquaLatina (2026-07-31 → 2026-08-03)
 
 > Documento di ripresa per una NUOVA chat: autosufficiente, la sessione precedente non c'è più.
 > Sostituisce l'handoff del redesign Cronoprogramma (2026-07-23): quel contenuto resta in git —
 > `git show 528c4c4:HANDOFF.md`.
+>
+> **La sezione più recente è la prima** (2026-08-03, scarico misuratori in cesta). Sotto, dal
+> «Goal» in poi, c'è la sessione ACEA del 31/07: resta valida, non è storia da archiviare.
 
 **Branch**: `claude/acea-table-copy-schedule-filter-3xt700`, ripartito da `origin/main` (`93a514d`,
 merge della PR #186; la vecchia PR #175 è chiusa, lo specchio `…okoirs` non si usa più)
 **Status**: modulo ACEA completo e in produzione dal 30/07. Il 31/07 il registro è diventato
 **multi-commessa**: la famiglia `acqualatina` (sostituzione misuratori Terracina) usa le stesse
 mani su tabella propria — migration `20260731170000` + backfill (4.196 righe) applicati in prod
+
+---
+
+## Sessione 2026-08-03 — AcquaLatina: lo scarico in cesta lo dichiara l'operatore
+
+> Task ATLAS `70d360ae`. Branch `feat/acqualatina-scarico-ceste`, da `origin/main` (`d777a5d9`).
+> Il resto di questo documento è la sessione ACEA del 31/07 e resta valido: qui c'è solo il nuovo.
+
+**Il buco che è stato chiuso.** Il registro `acqualatina_misuratori_rimossi` sapeva *cosa* era
+stato smontato (lo scrive la chiusura del rapportino) e *su quale pallet* sarebbe finito (lo
+assegna l'ufficio a cesta piena). In mezzo mancava **in quale cesta** era stato messo il
+contatore: lo sapeva solo l'operatore, finché se lo ricordava — e per impallettare l'ufficio
+doveva aprire la cesta e leggere le matricole a mano.
+
+**Dove si chiede.** Subito dopo l'invio del rapportino, e **solo AcquaLatina**: è l'unico momento
+in cui la domanda ha una risposta vera (contatori ancora in furgone, operatore che passa dal
+magazzino). Il gancio è in `RapportinoForm.eseguiInvio`, dopo il successo: una GET decide, il
+server, se c'è da chiedere.
+
+**Le decisioni che non vanno riscoperte** (per esteso in
+`docs/superpowers/specs/2026-08-03-acqualatina-scarico-ceste-design.md`):
+
+- **Dichiarare la cesta È lo scarico a deposito**: si scrivono `cesta` e
+  `stato='scaricato_deposito'` insieme. Nessun sesto stato: il vocabolario del registro
+  (`types/misuratori.ts`) sa già nominare questo passaggio.
+- **Il «no» non scrive niente.** `da_consegnare_deposito` dice già «da scaricare»; un flag
+  «rimandato» sarebbe uno stato da tenere allineato a un altro che dice lo stesso.
+- **Gli arretrati sono TUTTO ciò che è ancora da consegnare**, non «ieri». Chi risponde no per
+  tre sere, alla quarta se li ritrova tutti. La modale li divide in «di oggi» / «dei giorni
+  scorsi» perché è la distinzione che l'operatore ha in testa guardando il furgone.
+- **L'intervallo delle ceste è un dato del magazzino**, non del codice: tabella singleton
+  `acqualatina_ceste` (riga unica garantita dal DB), configurabile in **AcquaLatina → Strumenti**.
+  Con l'intervallo l'operatore sceglie da un **menu** (un tap; un refuso su un numero di cesta è
+  un contatore cercato nel posto sbagliato), senza resta il **campo libero** — il modulo funziona
+  dal primo giorno. **Fuori intervallo avvisa e passa**: se il magazzino aggiunge una cesta prima
+  che l'ufficio aggiorni, la realtà vince — bloccare costringerebbe a scrivere un numero falso.
+- **Le spunte per riga** (tutte accese) esistono per chi ne scarica una parte o ne ha uno rotto in
+  furgone. Stessa forma della selezione con cui l'ufficio assegna il pallet.
+- **Sicurezza su endpoint a token**: l'operatore lo dice il **token**, mai il corpo. `registraScarico`
+  scrive solo su righe con `esecutore = <operatore del token>` **e** `stato='da_consegnare_deposito'`:
+  gli id che arrivano dal client sono un **filtro**, non un'autorizzazione.
+- **Offline**: l'invio in coda non fa comparire la domanda (senza server non si sa cosa c'è a
+  registro). Limite dichiarato, non buco: gli arretrati lo coprono al primo invio online.
+
+**Dove sta il codice.**
+
+| Cosa | Dove |
+|---|---|
+| Logica pura (partizione, menu numeri, validazione) | `lib/acqualatina/ceste.ts` (+ `.test.ts`) |
+| Accesso dati + regole di scrittura | `lib/acqualatina/scaricoMisuratori.ts` |
+| Endpoint operatore (GET/POST) | `app/api/r/[token]/scarico-misuratori/route.ts` |
+| Configurazione ceste (GET/PUT admin) | `app/api/acqualatina/ceste/route.ts` |
+| Modale a due passi | `components/modules/rapportini/acqualatina/ModaleScaricoMisuratori.tsx` |
+| Card di configurazione | `components/modules/acqualatina/CesteCard.tsx` |
+| Colonna/filtro/PDF ufficio | `MisuratoriTabella`, `MisuratoriClient`, `exportMisuratoriPdf` |
+
+**Rinomina:** `lib/misuratori/pallet.ts` → **`riferimenti.ts`**. Cesta e pallet sono lo stesso
+tipo di riferimento di magazzino (testo scritto a mano, non una quantità): i filtri prendono ora
+il **campo come parametro** (`valoriRiferimento`, `filtraPerRiferimento`, `SENZA_RIFERIMENTO`)
+invece di essere due gemelle destinate a divergere alla prima modifica.
+
+**Resilienza deploy/migration** — la regola di casa, applicata: `pallet` e `cesta` sono passate
+fra le **colonne opzionali** di `selectDegradante` in `leggiRegistro`. Verificato **davvero**, col
+codice nuovo sul DB non ancora migrato: il registro AcquaLatina si carica intero, la colonna Cesta
+c'è ed è vuota. Il gancio dell'operatore **non compare** finché la colonna non esiste
+(`misuratoriDaScaricare` chiede `cesta` proprio per accorgersene): meglio nessuna domanda che una
+conferma che poi non può scrivere.
+
+**⚠️ Da fare al deploy**: applicare `supabase/migrations/20260803180000_acqualatina_ceste.sql`.
+
+**Non ancora visto sul campo**: la modale dell'operatore end-to-end. Serve un rapportino
+AcquaLatina chiuso in positivo **dopo** la migration; il resto (registro con colonna e filtro,
+card Strumenti, endpoint) è stato guardato a schermo sul DB vero. Da provare al primo giro utile:
+invio → elenco → conferma su una cesta → la riga in registro con cesta e «Scaricato deposito».
+
+---
 
 ## Goal
 
@@ -205,7 +284,9 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
   /api/acqualatina/misuratori/pallet`, colonna `pallet` text solo su quella tabella — migration
   `20260731190000` in prod). Filtro «Pallet» con «Senza pallet» (= ancora in cesta), colonna
   ordinabile in tabella e nel PDF, che ora prende il titolo per commessa (`titoloPdf`) invece
-  del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati.
+  del fisso «— ACEA». Helper puri in `lib/misuratori/pallet.ts`, testati — **dal 03/08 il file è
+  `lib/misuratori/riferimenti.ts`** e le funzioni prendono il campo (cesta o pallet) come
+  parametro; vedi la sezione della sessione 2026-08-03 in cima.
 - [x] **AcquaLatina a ventaglio in sidebar e ⌘K** (31/07) — come la mappa: due voci dirette al
   posto della sola landing. «AcquaLatina» (goccia) → `/hub/acqualatina/pianificazione`,
   «Misuratori rimossi» (`Package`: la riconsegna su pallet, NON la `Gauge` del registro ACEA) →
