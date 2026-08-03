@@ -34,7 +34,7 @@ describe('migrazione del registro', () => {
   });
 
   it('indicizza la domanda "cosa è successo a questa entità"', () => {
-    expect(MIGRAZIONE).toMatch(/audit_azioni_entita_idx.*\(entita, entita_id/s);
+    expect(MIGRAZIONE).toMatch(/audit_azioni_entita_idx[\s\S]*\(entita, entita_id/);
     expect(MIGRAZIONE).toMatch(/audit_azioni_occorso_idx/);
   });
 });

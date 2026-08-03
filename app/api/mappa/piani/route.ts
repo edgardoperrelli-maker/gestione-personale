@@ -365,6 +365,26 @@ export async function PUT(req: Request) {
     const { error: eOp } = await supabaseAdmin.from('mappa_piani_operatori').insert(opRows);
     if (eOp) throw new Error(eOp.message);
 
+    // Un operatore tolto dal piano si porta via il suo lavoro NON ancora iniziato: altrimenti
+    // resta assegnato a lui dentro un piano dove non figura più, e il sync qui sotto gli
+    // cancella pure il rapportino — lavoro irraggiungibile, che nessuno può né eseguire né
+    // vedere. I TERMINALI (completato/annullato) non si toccano: quelli sono lavoro fatto e
+    // restano al piano insieme al loro esito.
+    let interventiLiberati = 0;
+    if (operatoriRimossi.length > 0) {
+      const { data: liberati, error: eLib } = await supabaseAdmin
+        .from('interventi')
+        .delete()
+        .eq('piano_id', id)
+        .in('staff_id', operatoriRimossi.map((o) => String(o.staff_id)))
+        .eq('stato', 'assegnato')
+        .is('iniziato_at', null)
+        .is('chiuso_at', null)
+        .select('id');
+      if (eLib) throw new Error(eLib.message);
+      interventiLiberati = (liberati ?? []).length;
+    }
+
     // Elimina definitiva (azione utente in pianificazione): cancella gli interventi canonici
     // ANNULLATI il cui task è stato rimosso dal piano. Scoped a created_from_mappa di QUESTO
     // piano e SOLO alle identità inviate dal client → NON intacca l'invariante della
@@ -425,6 +445,9 @@ export async function PUT(req: Request) {
         n_operatori: opRows.length,
         n_operatori_rimossi: operatoriRimossi.length,
         operatori_rimossi: operatoriRimossi,
+        // Interventi non iniziati restituiti al "da pianificare" perché il loro operatore
+        // è uscito dal piano: senza questo resterebbero appesi e irraggiungibili.
+        n_interventi_liberati: interventiLiberati,
         // Se qui compare qualcosa, il sync successivo ne cancella il rapportino: è il punto
         // esatto in cui una giornata di lavoro può sparire senza che nessuno l'abbia chiesto.
         rapportini_a_rischio: rapportiniARischio,

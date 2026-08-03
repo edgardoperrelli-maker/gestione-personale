@@ -15,6 +15,13 @@ export type InterventoEsistente = {
   matricola_contatore?: string | null;
   indirizzo?: string | null;
   intervento_tipo?: string | null;
+  committente?: string | null;
+  /**
+   * `false` = riga che la mappa NON ha creato (inserimento manuale, import): non si rigenera
+   * mai, ma occupa comunque la sua chiave nell'indice unico del database. Assente = trattata
+   * come creata dalla mappa (comportamento storico dei chiamanti che non la passano).
+   */
+  created_from_mappa?: boolean;
 };
 
 export type PianoPlanInput = {
@@ -28,8 +35,8 @@ export type PianoPlanInput = {
    *  dei task manuali (task.territorio). Assente → sempre territorioId del piano. */
   territorioIdByName?: Map<string, string>;
   /**
-   * Chiavi `committente|odl` già presenti in `interventi` su ALTRE righe della stessa data
-   * (rispecchia l'indice unico globale (committente, odl, data)).
+   * Chiavi di unicità (vedi `chiaveUnicita`) già presenti in `interventi` su ALTRE righe della
+   * stessa data: rispecchia gli indici unici del database.
    */
   odlGiaPresenti?: Set<string>;
   /** Indice tassonomia (Task 2) per la derivazione soft di intervento_tipo canonico + gruppo_attivita. */
@@ -77,6 +84,31 @@ export function identitaIntervento(r: {
 }
 
 /**
+ * Chiave di unicità di un intervento a parità di giornata, calcata sugli indici del database:
+ *   • `interventi_dedup_idx`             → (committente, odl, data)              committente ≠ acqualatina
+ *   • `interventi_dedup_acqualatina_idx` → (committente, odl, data, matricola)   committente = acqualatina
+ *
+ * Su ACQUA LATINA un ODL può coprire PIÙ misuratori — è la ragione per cui quell'indice
+ * esiste separato — quindi la matricola fa parte dell'identità: ignorarla scarterebbe come
+ * doppione del lavoro legittimo. `data` non entra: qui si ragiona sempre a parità di giorno.
+ *
+ * Tenere questa chiave allineata agli indici è ciò che impedisce i due errori opposti:
+ * scartare lavoro vero, e tentare un insert che viola l'unicità facendo fallire il salvataggio.
+ */
+export function chiaveUnicita(r: {
+  committente?: string | null;
+  odl?: string | null;
+  matricola_contatore?: string | null;
+}): string | null {
+  const odl = (r.odl ?? '').trim();
+  if (!odl) return null;
+  const committente = (r.committente ?? '').trim().toLowerCase();
+  return committente === 'acqualatina'
+    ? `${committente}|${odl}|${(r.matricola_contatore ?? '').trim()}`
+    : `${committente}|${odl}`;
+}
+
+/**
  * Id degli interventi canonici da cancellare per un'azione ESPLICITA di "Elimina" in
  * pianificazione: tra gli esistenti, solo gli ANNULLATI la cui identità è tra le chiavi
  * inviate dall'utente. Separato da `planInterventi` per NON intaccare l'invariante
@@ -106,13 +138,29 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
   // della VOCE del rapportino (_annullato), non sullo stato dell'intervento.
   const isTerminale = (stato: string) => stato === 'completato' || stato === 'annullato';
 
-  // Identità degli interventi GIÀ TERMINALI (completati): sono preservati,
-  // quindi i task corrispondenti NON vanno re-inseriti (sennò si duplicano — caso
-  // ACEA con ODL null, dove il dedup per solo ODL non bastava).
-  const keyTerminali = new Set(
-    input.esistenti.filter((e) => isTerminale(e.stato)).map(identitaIntervento).filter((x): x is string => !!x),
+  // Si rigenera SOLO ciò che ha creato la mappa: le righe manuali e di import non si toccano.
+  const rigenerabili = input.esistenti.filter((e) => e.created_from_mappa !== false);
+  const idDaEliminare = rigenerabili.filter((e) => !isTerminale(e.stato)).map((e) => e.id);
+
+  // Chi resta in piedi dopo la cancellazione: i terminali rigenerabili E tutte le righe che la
+  // mappa non ha creato. Le loro chiavi sono OCCUPATE — reinserirle viola l'indice unico e fa
+  // fallire l'intero salvataggio del piano, non solo il singolo task. Le non-mappa mancavano:
+  // erano invisibili qui (il chiamante filtrava su created_from_mappa) ma non al database.
+  const sopravvissuti = input.esistenti.filter((e) => e.created_from_mappa === false || isTerminale(e.stato));
+  const chiaviOccupate = new Set(
+    sopravvissuti
+      .map((e) => chiaveUnicita({ ...e, committente: e.committente ?? committente }))
+      .filter((x): x is string => !!x),
   );
-  const idDaEliminare = input.esistenti.filter((e) => !isTerminale(e.stato)).map((e) => e.id);
+  // Identità composta (indirizzo+matricola+tipo): copre i committenti che arrivano SENZA ODL
+  // (ACEA), dove il confronto per ODL non ha appiglio. Con l'ODL comanda `chiaviOccupate`,
+  // che distingue le matricole dove il database le distingue.
+  const keyComposte = new Set(
+    sopravvissuti
+      .filter((e) => !(e.odl ?? '').trim())
+      .map(identitaIntervento)
+      .filter((x): x is string => !!x),
+  );
 
   const odlGiaPresenti = input.odlGiaPresenti ?? new Set<string>();
   const odlGiaPositivi = input.odlGiaPositivi ?? new Set<string>();
@@ -134,15 +182,20 @@ export function planInterventi(input: PianoPlanInput): PianoPlan {
         },
         input.indiceTassonomia,
       );
-      // Già chiuso (per ODL o per identità composta indirizzo+matricola) → preserva, non duplicare.
+      // Senza ODL (ACEA): l'unico appiglio è l'identità composta indirizzo+matricola+tipo.
       const key = identitaIntervento(rec);
-      if (key && keyTerminali.has(key)) continue;
-      if (rec.odl) {
+      if (key && keyComposte.has(key)) continue;
+      const chiave = chiaveUnicita(rec);
+      // Prima di tutto: se la riga è già in QUESTO piano e sopravvive alla rigenerazione, il
+      // task è già servito. Va prima del blocco sui positivi, altrimenti un terminale di questo
+      // stesso piano verrebbe segnalato come «già positivo altrove» — che altrove non è.
+      if (chiave && chiaviOccupate.has(chiave)) continue;
+      if (chiave && rec.odl) {
         // ODL già eseguito positivo altrove: definitivamente chiuso, non si ripianifica.
         if (odlGiaPositivi.has(normOdl(rec.odl))) { odlBloccati.push(rec.odl); continue; }
-        if (odlGiaPresenti.has(`${rec.committente}|${rec.odl}`)) continue; // esiste su altra riga stessa data (stesso committente)
-        if (visti.has(rec.odl)) continue; // dedup interno al batch
-        visti.add(rec.odl);
+        if (odlGiaPresenti.has(chiave)) continue;  // esiste su altra riga della stessa data
+        if (visti.has(chiave)) continue;           // dedup interno al batch
+        visti.add(chiave);
       }
       daInserire.push(rec);
     }
