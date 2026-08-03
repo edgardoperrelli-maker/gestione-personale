@@ -46,6 +46,8 @@ import { ModaleFotoMancanti } from './ModaleFotoMancanti';
 import { campiObbligatoriMancantiVoci, type CampoMancanteVoce } from '@/utils/rapportini/campiObbligatoriVoci';
 import { ModaleCampiMancanti } from './ModaleCampiMancanti';
 import { ModaleNotaCollega } from './NotaCollega';
+import ModaleScaricoMisuratori from './acqualatina/ModaleScaricoMisuratori';
+import type { ConfigCeste, MisuratoreDaScaricare } from '@/lib/acqualatina/ceste';
 import type { NotaPrecedente } from '@/lib/interventi/notePrecedenti';
 import { campiDiVoce, unioneCampi } from '@/utils/rapportini/campiDiVoce';
 import { dataIt } from '@/lib/interventi/odlPositivi';
@@ -196,6 +198,8 @@ export default function RapportinoForm({
   const [avvisoManuale, setAvvisoManuale] = useState<string | null>(null);
   const [campiMancanti, setCampiMancanti] = useState<CampoMancanteVoce[] | null>(null); // blocco pre-invio
   const [notaCollega, setNotaCollega] = useState<NotaPrecedente[] | null>(null); // avviso "nota dal collega"
+  /** Misuratori AcquaLatina da scaricare in cesta: la domanda di fine giro, dopo l'invio. */
+  const [scarico, setScarico] = useState<{ oggi: MisuratoreDaScaricare[]; arretrati: MisuratoreDaScaricare[]; ceste: ConfigCeste } | null>(null);
   /** Voci per cui l'avviso "nota dal collega" è già comparso in questa sessione (una volta a card). */
   const notaCollegaVistaRef = useRef<Set<string>>(new Set());
 
@@ -517,6 +521,24 @@ export default function RapportinoForm({
       setInviato(true);
       setReadOnly(true);
       setVista('lista');
+      /*
+        Misuratori AcquaLatina: «stai scaricando i misuratori?».
+
+        Qui e non prima: l'operatore ha appena finito il giro, ha i contatori in furgone e sta
+        passando dal magazzino — è l'unico momento in cui la domanda ha una risposta vera. Il
+        server decide da sé se c'è da chiedere (commessa e righe ancora da scaricare); una
+        risposta storta non deve rovinare la schermata di fine giro, quindi si tace e domani la
+        domanda torna con gli arretrati.
+
+        Solo online, per costruzione: l'invio offline finisce in coda e questo ramo non parte.
+      */
+      try {
+        const r = await fetch(`/api/r/${token}/scarico-misuratori`);
+        if (r.ok) {
+          const p = (await r.json()) as { mostra: boolean; oggi: MisuratoreDaScaricare[]; arretrati: MisuratoreDaScaricare[]; ceste: ConfigCeste };
+          if (p.mostra && mountedRef.current) setScarico({ oggi: p.oggi, arretrati: p.arretrati, ceste: p.ceste });
+        }
+      } catch { /* nessuna domanda: i misuratori restano da scaricare e si ripresentano domani */ }
     } catch {
       toast.error('Invio non riuscito. Controlla la connessione e riprova.');
     } finally {
@@ -708,6 +730,15 @@ export default function RapportinoForm({
       )}
       {notaCollega && notaCollega.length > 0 && (
         <ModaleNotaCollega note={notaCollega} onChiudi={() => setNotaCollega(null)} />
+      )}
+      {scarico && (
+        <ModaleScaricoMisuratori
+          token={token}
+          oggi={scarico.oggi}
+          arretrati={scarico.arretrati}
+          ceste={scarico.ceste}
+          onChiudi={() => setScarico(null)}
+        />
       )}
       {campiMancanti && campiMancanti.length > 0 && (
         <ModaleCampiMancanti

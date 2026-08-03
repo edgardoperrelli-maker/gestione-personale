@@ -14,7 +14,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { AlertTriangle, FileDown, Loader2, Package, RefreshCw, X } from 'lucide-react';
 import type { MisuratoreRimosso, StatoMisuratore } from '@/types/misuratori';
 import { STATI_MISURATORE, STATO_LABEL } from '@/types/misuratori';
-import { SENZA_PALLET, filtraPerPallet, valoriPallet } from '@/lib/misuratori/pallet';
+import { SENZA_RIFERIMENTO, filtraPerRiferimento, valoriRiferimento } from '@/lib/misuratori/riferimenti';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
@@ -65,6 +65,13 @@ export type RegistroProps = {
    * la colonna in tabella, il filtro e la colonna nel PDF (la distinta del pallet).
    */
   mostraPallet?: boolean;
+  /**
+   * Cesta di magazzino (solo AcquaLatina): il gradino PRIMA del pallet, e l'unico che non
+   * scrive l'ufficio — lo dichiara l'operatore all'invio del rapportino, scaricando i contatori.
+   * Porta con sé la colonna in tabella, il filtro («cosa c'è nella cesta 3?», che è la domanda
+   * da cui parte l'impallettamento) e la colonna nel PDF.
+   */
+  mostraCesta?: boolean;
   /** Titolo del PDF esportato. Assente = quello storico del registro ACEA. */
   titoloPdf?: string;
   /**
@@ -85,6 +92,7 @@ export default function MisuratoriClient({
   mostraRicalcola = true,
   mostraPdr = true,
   mostraPallet = false,
+  mostraCesta = false,
   titoloPdf,
   breadcrumb,
 }: RegistroProps) {
@@ -96,6 +104,8 @@ export default function MisuratoriClient({
   const [error, setError]             = useState<string | null>(null);
   /** Filtro rapido per pallet, client-side come quello di stato. '' = tutti. */
   const [palletFiltro, setPalletFiltro] = useState('');
+  /** Filtro rapido per cesta: «cosa c'è nella cesta 3?» è la domanda da cui parte il pallet. */
+  const [cestaFiltro, setCestaFiltro] = useState('');
   /** I misuratori spuntati: la cesta che si sta impallettando. */
   const [selezione, setSelezione]     = useState<Set<string>>(new Set());
   /** Numero di pallet da assegnare alla selezione. */
@@ -113,14 +123,18 @@ export default function MisuratoriClient({
     return { total: rows.length, byStato };
   }, [rows]);
 
-  // Righe visibili: filtro rapido di stato + filtro pallet, entrambi client-side.
+  // Righe visibili: filtro rapido di stato + cesta + pallet, tutti client-side. I due
+  // riferimenti si compongono (cesta 3 E senza pallet = «cosa della cesta 3 è da impallettare»).
   const visibleRows = useMemo(() => {
     const perStato = statoFiltro ? rows.filter(r => r.stato === statoFiltro) : rows;
-    return mostraPallet ? filtraPerPallet(perStato, palletFiltro) : perStato;
-  }, [rows, statoFiltro, mostraPallet, palletFiltro]);
+    const perCesta = mostraCesta ? filtraPerRiferimento(perStato, cestaFiltro, 'cesta') : perStato;
+    return mostraPallet ? filtraPerRiferimento(perCesta, palletFiltro, 'pallet') : perCesta;
+  }, [rows, statoFiltro, mostraCesta, cestaFiltro, mostraPallet, palletFiltro]);
 
   /** I pallet già assegnati, per la tendina del filtro. */
-  const pallets = useMemo(() => (mostraPallet ? valoriPallet(rows) : []), [mostraPallet, rows]);
+  const pallets = useMemo(() => (mostraPallet ? valoriRiferimento(rows, 'pallet') : []), [mostraPallet, rows]);
+  /** Le ceste già dichiarate dagli operatori. */
+  const ceste = useMemo(() => (mostraCesta ? valoriRiferimento(rows, 'cesta') : []), [mostraCesta, rows]);
 
   /*
     Una fetch alla volta: quella nuova ANNULLA la precedente.
@@ -171,7 +185,8 @@ export default function MisuratoriClient({
 
   const handlePatch = useCallback(
     // `pallet` incluso: si scrive anche una cella alla volta, non solo in blocco dalla barra.
-    async (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string }) => {
+    // `cesta`: la scrive l'operatore allo scarico, qui la si CORREGGE (rapportino ormai chiuso).
+    async (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string; cesta?: string }) => {
       setSalvando(prev => new Set(prev).add(id));
       // Ottimistic update
       setRows(prev =>
@@ -319,10 +334,13 @@ export default function MisuratoriClient({
       esecutore:  filters.esecutore  || undefined,
       pallet:     !mostraPallet || palletFiltro === ''
         ? undefined
-        : palletFiltro === SENZA_PALLET ? 'senza pallet' : palletFiltro,
+        : palletFiltro === SENZA_RIFERIMENTO ? 'senza pallet' : palletFiltro,
+      cesta:      !mostraCesta || cestaFiltro === ''
+        ? undefined
+        : cestaFiltro === SENZA_RIFERIMENTO ? 'senza cesta' : cestaFiltro,
     };
-    exportMisuratoriPdf(visibleRows, pdfFilters, { titolo: titoloPdf, mostraPdr, mostraPallet });
-  }, [visibleRows, filters, statoFiltro, mostraPallet, palletFiltro, titoloPdf, mostraPdr]);
+    exportMisuratoriPdf(visibleRows, pdfFilters, { titolo: titoloPdf, mostraPdr, mostraPallet, mostraCesta });
+  }, [visibleRows, filters, statoFiltro, mostraPallet, palletFiltro, mostraCesta, cestaFiltro, titoloPdf, mostraPdr]);
 
   const setFilter = (key: keyof Filters, value: string) =>
     setFilters(prev => ({ ...prev, [key]: value }));
@@ -441,13 +459,24 @@ export default function MisuratoriClient({
             {esecutori.map(e => <option key={e} value={e}>{e}</option>)}
           </Select>
         </label>
+        {mostraCesta && (
+          <label className="flex w-44 flex-col gap-1">
+            <span className="text-xs text-[var(--brand-text-muted)]">Cesta</span>
+            {/* «Senza cesta» = quello che l'operatore non ha ancora scaricato in magazzino. */}
+            <Select value={cestaFiltro} onChange={e => setCestaFiltro(e.target.value)}>
+              <option value="">Tutte</option>
+              <option value={SENZA_RIFERIMENTO}>Senza cesta</option>
+              {ceste.map(c => <option key={c} value={c}>{c}</option>)}
+            </Select>
+          </label>
+        )}
         {mostraPallet && (
           <label className="flex w-44 flex-col gap-1">
             <span className="text-xs text-[var(--brand-text-muted)]">Pallet</span>
             {/* «Senza pallet» è la domanda vera a fine giornata: cosa è ancora in cesta. */}
             <Select value={palletFiltro} onChange={e => setPalletFiltro(e.target.value)}>
               <option value="">Tutti</option>
-              <option value={SENZA_PALLET}>Senza pallet</option>
+              <option value={SENZA_RIFERIMENTO}>Senza pallet</option>
               {pallets.map(p => <option key={p} value={p}>{p}</option>)}
             </Select>
           </label>
@@ -578,6 +607,7 @@ export default function MisuratoriClient({
           onPatch={handlePatch}
           isAdminPlus={isAdminPlus}
           mostraPdr={mostraPdr}
+          mostraCesta={mostraCesta}
           mostraPallet={mostraPallet}
           selezione={mostraPallet ? selezione : undefined}
           onSelezione={mostraPallet ? setSelezione : undefined}

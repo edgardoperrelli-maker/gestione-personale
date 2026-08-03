@@ -2,12 +2,13 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { requireAdminPlus } from '@/lib/apiAuth';
 import { caricaCandeleSettimanali } from '@/lib/produzione/loadCandele';
+import { vistaDaParam } from '@/lib/produzione/committente';
 
 export const runtime = 'nodejs';
 
 const MAX_GIORNI = 6; // (to - from) massimo consentito: 7 giorni inclusi
 
-/** GET ?from&to (YYYY-MM-DD, intervallo ≤7 giorni): candele settimanali per operatore (design 2026-07-02). */
+/** GET ?from&to (YYYY-MM-DD, intervallo ≤7 giorni) [&committente]: candele settimanali per operatore. */
 export async function GET(req: Request) {
   const auth = await requireAdminPlus();
   if (auth instanceof NextResponse) return auth;
@@ -24,7 +25,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const dati = await caricaCandeleSettimanali(from, to);
+    const dati = await caricaCandeleSettimanali(from, to, vistaDaParam(searchParams.get('committente')));
     return NextResponse.json(dati, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Errore candele settimanali.';

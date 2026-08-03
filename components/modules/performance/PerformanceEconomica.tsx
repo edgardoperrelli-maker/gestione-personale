@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Button from '@/components/Button';
 import Badge from '@/components/Badge';
+import Tabs from '@/components/Tabs';
 import { ArrowRight } from 'lucide-react';
 import type { Aggregato } from '@/lib/produzione/aggregaProduzione';
 import type { ClasseDiscrepanza } from '@/lib/produzione/riconciliazione';
+import { ETICHETTA_VISTA, VISTE, type VistaCommittente } from '@/lib/produzione/committente';
+import { etichettaVoce } from '@/lib/produzione/composizioneVoce';
 import EditorListinoAcea from './EditorListinoAcea';
 import KpiDirezione from './economica/KpiDirezione';
 import TrendProduzioneSal from './economica/TrendProduzioneSal';
@@ -16,13 +19,18 @@ import EsitiOperatore from './economica/EsitiOperatore';
 import CandeleSettimanali from './economica/CandeleSettimanali';
 import { eur, num, type DatiProduzione } from './economica/tipi';
 
+/*
+  La colonna di mezzo dell'audit è il REGISTRO del modulo ACEA da luglio 2026 (il motore ha
+  smesso di leggere i file master su SharePoint), ma queste etichette dicevano ancora «master»:
+  chi leggeva «nel DB ma non nel master» andava a cercare in un file che il conto non l'ha fatto.
+*/
 const AUDIT_LABEL: Record<ClasseDiscrepanza, string> = {
-  SOLO_PORTALE: 'Solo nel portale ACEA (assente da DB e master)',
-  DB_NON_IN_REGISTRO: 'Nel DB ma non nel master',
-  REGISTRO_NON_IN_DB: 'Nel master ma non nel DB',
+  SOLO_PORTALE: 'Solo nel portale ACEA (assente da DB e registro)',
+  DB_NON_IN_REGISTRO: 'Nel DB ma non nel registro ordini',
+  REGISTRO_NON_IN_DB: 'Nel registro ordini ma non nel DB',
   POSITIVO_DB_NON_COMPLETATO_PORTALE: 'Positivo nel DB ma non consuntivato sul portale (Produzione > SAL)',
   COMPLETATO_PORTALE_NON_POSITIVO_DB: 'Consuntivato sul portale ma non positivo nel DB',
-  VOCE_DISCORDE: 'Voce DB ≠ voce master',
+  VOCE_DISCORDE: 'Voce DB ≠ voce del registro',
   VOCE_NON_RISOLTA: 'Voce non derivabile dall’attività',
 };
 const ORDINE_AUDIT: ClasseDiscrepanza[] = [
@@ -56,6 +64,12 @@ export default function PerformanceEconomica() {
 
   const [from, setFrom] = useState(trentaGiorniFa);
   const [to, setTo] = useState(today);
+  /*
+    Apre su «Tutti»: è il totale vero delle commesse. Aprire su ACEA — com'era la pagina finché
+    ACEA era l'unica — mostrerebbe un numero parziale con l'aria di essere il totale, e chi non
+    sa che esiste un filtro non ha modo di accorgersene.
+  */
+  const [vista, setVista] = useState<VistaCommittente>('tutti');
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [loading, setLoading] = useState(false);
   const [errore, setErrore] = useState<string | null>(null);
@@ -65,7 +79,7 @@ export default function PerformanceEconomica() {
     setLoading(true);
     setErrore(null);
     try {
-      const res = await fetch(`/api/admin/acea/produzione?from=${from}&to=${to}`, { cache: 'no-store' });
+      const res = await fetch(`/api/admin/acea/produzione?from=${from}&to=${to}&committente=${vista}`, { cache: 'no-store' });
       if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
       setDati((await res.json()) as DatiProduzione);
     } catch (e) {
@@ -74,7 +88,7 @@ export default function PerformanceEconomica() {
     } finally {
       setLoading(false);
     }
-  }, [from, to]);
+  }, [from, to, vista]);
 
   useEffect(() => {
     void carica();
@@ -111,23 +125,32 @@ export default function PerformanceEconomica() {
     }
   };
 
-  const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}`;
+  const exportUrl = `/api/admin/acea/produzione/export?from=${from}&to=${to}&committente=${vista}`;
   const invalid = Boolean(from && to && from > to);
 
   const auditClassi = dati ? ORDINE_AUDIT.filter((c) => dati.auditSummary[c] > 0) : [];
+  // La pagina si fida del payload, non del proprio stato: fra un clic sulla scheda e la risposta
+  // il `vista` locale è già cambiato mentre i numeri a schermo sono ancora quelli di prima.
+  const conSal = dati?.conContabilizzazione ?? true;
 
   return (
     <section className="rounded-xl border border-[var(--brand-border)] bg-[var(--brand-surface)] p-4 shadow-[var(--shadow-sm)]">
       <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
-        <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica (ACEA)</h2>
+        <h2 className="text-base font-semibold text-[var(--brand-text-main)]">Produzione economica</h2>
         <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[11px] text-[var(--brand-text-subtle)]">Allinea master:</span>
-          <Button type="button" variant="ghost" size="sm" onClick={() => allinea('dunning')}>Dunning</Button>
-          <Button type="button" variant="ghost" size="sm" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
-          <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
-          <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
-            {editorOpen ? 'Chiudi listino' : 'Listino tariffe'}
-          </Button>
+          {/* Master e listino sono roba ACEA: nella vista AcquaLatina sparirebbero comandi che lì
+              non hanno un effetto. */}
+          {vista !== 'acqualatina' && (
+            <>
+              <span className="text-[11px] text-[var(--brand-text-subtle)]">Allinea master:</span>
+              <Button type="button" variant="ghost" size="sm" onClick={() => allinea('dunning')}>Dunning</Button>
+              <Button type="button" variant="ghost" size="sm" onClick={() => allinea('TUTTI')}>Limitazioni massive</Button>
+              <span className="mx-1 h-4 w-px bg-[var(--brand-border)]" aria-hidden />
+              <Button type="button" variant="ghost" size="sm" onClick={() => setEditorOpen((v) => !v)}>
+                {editorOpen ? 'Chiudi listino' : 'Listino tariffe ACEA'}
+              </Button>
+            </>
+          )}
           <a
             href={invalid ? undefined : exportUrl}
             /*
@@ -142,7 +165,7 @@ export default function PerformanceEconomica() {
             Scarica Excel (dashboard)
           </a>
           <a
-            href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}`}
+            href={invalid ? undefined : `/presentazione/produzione-acea?from=${from}&to=${to}&committente=${vista}`}
             target="_blank"
             rel="noreferrer"
             className={`inline-flex items-center rounded-[var(--radius-md)] border border-[var(--brand-primary)] px-3 py-1.5 text-xs font-medium text-[var(--brand-primary)] transition hover:bg-[var(--brand-primary-soft)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)] focus-visible:ring-offset-2 focus-visible:ring-offset-[var(--brand-surface)] ${invalid ? 'pointer-events-none opacity-50' : ''}`}
@@ -153,12 +176,32 @@ export default function PerformanceEconomica() {
       </div>
       {allineaMsg && <p className="mb-2 text-xs text-[var(--brand-text-muted)]">{allineaMsg}</p>}
 
-      {editorOpen && (
+      {editorOpen && vista !== 'acqualatina' && (
         <div className="mb-4 rounded-xl bg-[var(--brand-surface-muted)] p-3">
-          <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Listino tariffe per voce (con validità)</h3>
+          <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Listino tariffe ACEA per voce (con validità)</h3>
+          {/* Dice ACEA perché mostra solo ACEA: la tariffa AcquaLatina esiste ed è in uso nei conti
+              qui sopra, ma questo editor non la vede ancora — senza l'avviso sembrerebbe mancante. */}
+          <p className="mb-2 text-[11px] text-[var(--brand-text-subtle)]">
+            Le tariffe AcquaLatina sono già attive nei conti ma non compaiono in questo editor.
+          </p>
           <EditorListinoAcea onSaved={carica} />
         </div>
       )}
+
+      {/*
+        Filtro di dato e non vista di modulo: stessa pagina, stesso dataset, tre tagli — quindi
+        `Tabs` in pagina e non fogliette con route dedicate (DESIGN.md §7bis). Trasformarlo in
+        pagine costringerebbe a un giro completo per confrontare due commesse.
+
+        Sta SOPRA la barra del periodo perché comanda più cose: il periodo ritaglia i numeri,
+        il committente decide di CHI sono.
+      */}
+      <Tabs
+        className="mb-3"
+        value={vista}
+        onValueChange={(v) => setVista(v as VistaCommittente)}
+        items={VISTE.map((v) => ({ value: v, label: ETICHETTA_VISTA[v] }))}
+      />
 
       {/* Barra periodo */}
       <div className="mb-3 flex flex-wrap items-center gap-2 rounded-[var(--radius-md)] bg-[var(--brand-surface-muted)] px-3 py-2">
@@ -183,9 +226,12 @@ export default function PerformanceEconomica() {
             <TrendProduzioneSal dati={dati} />
           </div>
 
-          <div className="mb-4">
-            <SalStorico dati={dati} />
-          </div>
+          {/* Lo storico dei SAL è il file ufficiale ACEA: nella vista AcquaLatina non esiste. */}
+          {conSal && (
+            <div className="mb-4">
+              <SalStorico dati={dati} />
+            </div>
+          )}
 
           {/* Composizione: donut per voce + top attività */}
           <div className="mb-4">
@@ -204,19 +250,22 @@ export default function PerformanceEconomica() {
 
           {/* Candele settimanali per operatore (settimana navigabile, filtro indipendente dal periodo di pagina) */}
           <div className="mb-4">
-            <CandeleSettimanali />
+            <CandeleSettimanali vista={vista} />
           </div>
 
           {/* Produzione vs SAL per voce (tabella operativa) */}
           <div className="mb-4 rounded-xl bg-[var(--brand-surface-muted)] p-3">
-            <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">Produzione vs Esitato ACEA per voce</h3>
+            <h3 className="mb-2 text-[13px] font-medium text-[var(--brand-text-main)]">
+              {conSal ? 'Produzione vs Esitato ACEA per voce' : 'Produzione per voce'}
+            </h3>
             <div className="overflow-x-auto">
               <table className="w-full text-xs">
                 <thead>
                   <tr className="text-left text-[var(--brand-text-muted)]">
                     <th className="py-1 pr-2">Voce</th>
                     <th className="py-1 pr-2 text-right">Produzione</th>
-                    <th className="py-1 pr-2 text-right">Esitato ACEA</th>
+                    {/* Senza portale la colonna sarebbe una colonna di zeri: si toglie, non si azzera. */}
+                    {conSal && <th className="py-1 pr-2 text-right">Esitato ACEA</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -224,9 +273,13 @@ export default function PerformanceEconomica() {
                     const sal = dati.sal.perVoce.find((s) => s.chiave === v.chiave);
                     return (
                       <tr key={v.chiave} className="border-t border-[var(--brand-border)]">
-                        <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{v.chiave}</td>
+                        {/* `etichettaVoce` e non `v.chiave`: la chiave delle commesse senza voce è
+                            tecnica («COMMESSA:acqualatina») e non va mai a schermo. */}
+                        <td className="py-1 pr-2 font-medium text-[var(--brand-text-main)]">{etichettaVoce(v.chiave)}</td>
                         <td className="py-1 pr-2 text-right font-mono tabular-nums">{eur(v.valore)}</td>
-                        <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
+                        {conSal && (
+                          <td className="py-1 pr-2 text-right font-mono tabular-nums text-[var(--brand-text-muted)]">{eur(sal?.valore ?? 0)}</td>
+                        )}
                       </tr>
                     );
                   })}
@@ -240,22 +293,40 @@ export default function PerformanceEconomica() {
             <TabellaAgg titolo="Produzione per attività" righe={dati.produzione.perAttivita} max={30} />
           </div>
 
+          {/*
+            Il taglio per commessa compare solo quando ce n'è più di una sotto lo stesso totale:
+            è la domanda che si fa chi guarda «Tutti» — quanto di questo è ACEA e quanto no.
+            Nelle viste singole sarebbe una tabella con una riga sola uguale al totale.
+          */}
+          {dati.produzione.perCommessa.length > 1 && (
+            <div className="mb-4">
+              <TabellaAgg titolo="Per committente" righe={dati.produzione.perCommessa} />
+            </div>
+          )}
+
           {/* Per operatore / territorio */}
           <div className="mb-4 grid grid-cols-1 gap-4 md:grid-cols-2">
             <TabellaAgg titolo="Per operatore" righe={dati.produzione.perOperatore} />
             <TabellaAgg titolo="Per territorio" righe={dati.produzione.perTerritorio} />
           </div>
 
-          {/* Audit a tre vie */}
+          {/*
+            Audit a tre vie: solo dove le tre vie esistono. Su AcquaLatina il registro ordini ACEA
+            e il portale SAP non c'entrano nulla, e un pannello «nessuna discrepanza» lì darebbe
+            una rassicurazione che nessuno ha verificato.
+          */}
+          {conSal && (
           <div className="rounded-xl bg-[var(--brand-surface-muted)] p-3">
             <div className="mb-2 flex flex-wrap items-center gap-2">
-              <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">Audit a tre vie (DB · master · portale)</h3>
+              <h3 className="text-[13px] font-medium text-[var(--brand-text-main)]">
+                Audit a tre vie (DB · registro ordini · portale){dati.vista === 'tutti' ? ' — solo ACEA' : ''}
+              </h3>
               {(!dati.registroPopolato || !dati.portalePopolato) && (
                 <Badge variant="warn">
                   {!dati.registroPopolato && !dati.portalePopolato
-                    ? 'Snapshot master e portale non ancora popolati'
+                    ? 'Registro ordini e snapshot portale non ancora popolati'
                     : !dati.registroPopolato
-                      ? 'Snapshot master non popolato'
+                      ? 'Registro ordini vuoto'
                       : 'Snapshot portale non popolato'}
                 </Badge>
               )}
@@ -268,8 +339,9 @@ export default function PerformanceEconomica() {
             </div>
             {(!dati.registroPopolato || !dati.portalePopolato) && (
               <p className="mb-2 text-xs text-[var(--brand-text-muted)]">
-                L’audit DB↔master↔portale è limitato finché l’agente non carica gli snapshot. Usa
-                «Allinea master» e lancia il giro «Richiedi stato ACEA» dall’agente, poi ricarica.
+                L’audit DB↔registro↔portale è limitato finché mancano le due colonne di riscontro. Il
+                registro ordini si popola con l’import del Cruscotto nel modulo ACEA; lo snapshot del
+                portale con il giro «Richiedi stato ACEA» dell’agente. Poi ricarica.
               </p>
             )}
             {dati.audit.length > 0 && (
@@ -296,6 +368,7 @@ export default function PerformanceEconomica() {
               </div>
             )}
           </div>
+          )}
         </>
       )}
     </section>

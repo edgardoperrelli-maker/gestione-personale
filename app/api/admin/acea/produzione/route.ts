@@ -2,10 +2,16 @@ import 'server-only';
 import { NextResponse } from 'next/server';
 import { requireAdminPlus } from '@/lib/apiAuth';
 import { caricaProduzioneEconomica } from '@/lib/produzione/load';
+import { vistaDaParam } from '@/lib/produzione/committente';
 
 export const runtime = 'nodejs';
 
-/** GET ?from&to (YYYY-MM-DD): produzione economica ACEA + SAL + scarto + audit a tre vie. */
+/*
+  Il percorso dice ancora `acea` perché è quello che l'app chiama da mesi, ma dal 2026-08 la
+  rotta serve tutte le commesse: il committente arriva in `?committente=`.
+*/
+
+/** GET ?from&to (YYYY-MM-DD) [&committente]: produzione economica + SAL + scarto + audit a tre vie. */
 export async function GET(req: Request) {
   const auth = await requireAdminPlus();
   if (auth instanceof NextResponse) return auth;
@@ -18,7 +24,7 @@ export async function GET(req: Request) {
   }
 
   try {
-    const dati = await caricaProduzioneEconomica(from, to);
+    const dati = await caricaProduzioneEconomica(from, to, vistaDaParam(searchParams.get('committente')));
     return NextResponse.json(dati, { headers: { 'Cache-Control': 'no-store' } });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Errore produzione economica.';

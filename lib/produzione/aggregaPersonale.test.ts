@@ -4,7 +4,7 @@ import type { Aggregato } from './aggregaProduzione';
 
 // 2026-06-01 = lunedì, 2026-06-05 = venerdì, 2026-06-06 = SABATO, 2026-06-07 = DOMENICA.
 const r = (p: Partial<RigaLavoro>): RigaLavoro => ({
-  staffId: 's1', operatore: 'ROSSI', data: '2026-06-01', acea: true, ...p,
+  staffId: 's1', operatore: 'ROSSI', data: '2026-06-01', inCommessa: true, ...p,
 });
 const ZERO = { valoreFeriale: 0, sabatoValore: 0 };
 const agg = (
@@ -36,21 +36,21 @@ describe('aggregaPersonale', () => {
   it('giornata piena ACEA feriale → frazione 1', () => {
     const p = agg([r({}), r({})], [{ chiave: 's1', label: 'ROSSI', conteggio: 2, valore: 100 }]);
     expect(p.totaleGiornate).toBe(1);
-    expect(p.perOperatore[0]).toMatchObject({ chiave: 's1', giornate: 1, interventiAcea: 2, valore: 100 });
+    expect(p.perOperatore[0]).toMatchObject({ chiave: 's1', giornate: 1, interventiCommessa: 2, valore: 100 });
   });
 
   it('giornata mista → frazione proporzionale sui LAVORATI (2 ACEA su 10 → 0,2)', () => {
     const righe = [
-      ...Array.from({ length: 2 }, () => r({ acea: true })),
-      ...Array.from({ length: 8 }, () => r({ acea: false })),
+      ...Array.from({ length: 2 }, () => r({ inCommessa: true })),
+      ...Array.from({ length: 8 }, () => r({ inCommessa: false })),
     ];
     const p = agg(righe);
     expect(p.perOperatore[0].giornate).toBe(0.2);
-    expect(p.perOperatore[0].interventiAcea).toBe(2);
+    expect(p.perOperatore[0].interventiCommessa).toBe(2);
   });
 
   it('giorno senza interventi ACEA → non conta (né giornate né perGiorno)', () => {
-    const p = agg([r({ acea: false })]);
+    const p = agg([r({ inCommessa: false })]);
     expect(p.totaleGiornate).toBe(0);
     expect(p.perGiorno).toEqual([]);
   });
@@ -71,17 +71,17 @@ describe('aggregaPersonale', () => {
   });
 
   it('sabato misto: solo la frazione ACEA finisce nel sabato', () => {
-    const p = agg([r({ data: '2026-06-06', acea: true }), r({ data: '2026-06-06', acea: false })]);
+    const p = agg([r({ data: '2026-06-06', inCommessa: true }), r({ data: '2026-06-06', inCommessa: false })]);
     expect(p.sabato.giornate).toBe(0.5);
   });
 
   it('perGiorno separa dedicati (frazione ≥ 0,8) da saturazione', () => {
     const righe = [
-      r({ staffId: 's1', data: '2026-06-01', acea: true }),
-      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', acea: true }),
-      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', acea: false }),
-      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', acea: false }),
-      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', acea: false }),
+      r({ staffId: 's1', data: '2026-06-01', inCommessa: true }),
+      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', inCommessa: true }),
+      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', inCommessa: false }),
+      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', inCommessa: false }),
+      r({ staffId: 's2', operatore: 'VERDI', data: '2026-06-01', inCommessa: false }),
     ];
     const p = agg(righe);
     expect(p.perGiorno).toEqual([{ data: '2026-06-01', dedicate: 1, saturazione: 0.25, operatori: 2 }]);

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { composizionePerVoce, VOCE_LABEL } from './composizioneVoce';
+import { composizionePerVoce, PREFISSO_COMMESSA, VOCE_LABEL } from './composizioneVoce';
 import type { ProduzioneAggregata } from './aggregaProduzione';
 
 const base: ProduzioneAggregata = {
@@ -9,6 +9,7 @@ const base: ProduzioneAggregata = {
   perOperatore: [],
   perTerritorio: [],
   perGiorno: [],
+  perCommessa: [],
   nonRisolte: 0,
 };
 
@@ -52,5 +53,24 @@ describe('composizionePerVoce', () => {
       perVoce: [{ chiave: 'NON_RISOLTA', label: 'NON_RISOLTA', conteggio: 2, valore: 10 }],
     });
     expect(out).toEqual([{ chiave: 'NON_RISOLTA', label: VOCE_LABEL.NON_RISOLTA, conteggio: 2, valore: 10 }]);
+  });
+
+  it('una commessa senza voci ha una fetta sua, col suo nome', () => {
+    /*
+      Le righe AcquaLatina non hanno una voce ACEA e non ne avranno mai: arrivano già raggruppate
+      sotto la loro commessa (vedi `gruppoVoce` in load.ts). Qui si controlla che l'etichetta sia
+      il nome del committente e non la chiave tecnica «COMMESSA:acqualatina».
+    */
+    const out = composizionePerVoce({
+      ...base,
+      perVoce: [
+        { chiave: 'EL', label: 'EL', conteggio: 2, valore: 40 },
+        { chiave: `${PREFISSO_COMMESSA}acqualatina`, label: 'x', conteggio: 263, valore: 5846.49 },
+      ],
+    });
+    expect(out).toEqual([
+      { chiave: 'EL', label: VOCE_LABEL.EL, conteggio: 2, valore: 40 },
+      { chiave: `${PREFISSO_COMMESSA}acqualatina`, label: 'AcquaLatina', conteggio: 263, valore: 5846.49 },
+    ]);
   });
 });

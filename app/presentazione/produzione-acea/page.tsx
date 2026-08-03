@@ -1,5 +1,6 @@
 import { assertKpiAccess } from '@/lib/performance/kpiGate';
 import PresentazioneProduzione from '@/components/modules/performance/economica/PresentazioneProduzione';
+import { vistaDaParam } from '@/lib/produzione/committente';
 
 export const dynamic = 'force-dynamic';
 
@@ -11,16 +12,16 @@ function trentaGiorniFa(oggi: string): string {
   return d.toISOString().slice(0, 10);
 }
 
-/** Vista presentazione (fuori da /hub → nessuna AppShell): ?from&to, default ultimi 30 giorni. */
+/** Vista presentazione (fuori da /hub → nessuna AppShell): ?from&to&committente, default ultimi 30 giorni. */
 export default async function PresentazioneProduzioneAceaPage({
   searchParams,
 }: {
-  searchParams: Promise<{ from?: string; to?: string }>;
+  searchParams: Promise<{ from?: string; to?: string; committente?: string }>;
 }) {
   await assertKpiAccess();
   const sp = await searchParams;
   const oggi = new Date().toISOString().slice(0, 10);
   const to = ISO.test(sp.to ?? '') ? (sp.to as string) : oggi;
   const from = ISO.test(sp.from ?? '') ? (sp.from as string) : trentaGiorniFa(to);
-  return <PresentazioneProduzione from={from} to={to} />;
+  return <PresentazioneProduzione from={from} to={to} vista={vistaDaParam(sp.committente)} />;
 }

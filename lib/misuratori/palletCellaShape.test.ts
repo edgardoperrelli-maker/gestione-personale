@@ -55,8 +55,13 @@ describe('pallet scrivibile nella cella', () => {
 
   it('il client accetta il pallet nella PATCH (e lo applica in ottimistica)', () => {
     // Senza `pallet` nel tipo la cella non compilerebbe; senza lo spread la riga tornerebbe
-    // al valore vecchio fino al prossimo caricamento.
-    expect(client).toMatch(/patch: \{ stato\?: StatoMisuratore; note\?: string; pallet\?: string \}/);
+    // al valore vecchio fino al prossimo caricamento. Il tipo si è allargato alla `cesta`
+    // (2026-08-03): si cerca il campo, non la forma esatta dell'oggetto — così la prossima
+    // colonna scrivibile non fa fallire un test che parla d'altro.
+    const firma = client.match(/patch: \{[^}]*\}/)?.[0] ?? '';
+    expect(firma).toMatch(/stato\?: StatoMisuratore/);
+    expect(firma).toMatch(/note\?: string/);
+    expect(firma).toMatch(/pallet\?: string/);
     expect(client).toMatch(/r\.id === id \? \{ \.\.\.r, \.\.\.patch \}/);
   });
 
@@ -107,8 +112,16 @@ describe('pallet: stessa funzione sulle due commesse', () => {
 
   it('la SELECT chiede il pallet su entrambe le tabelle, e il PDR solo dove esiste', () => {
     // Chiedere una colonna che la tabella non ha fa fallire la query INTERA, non solo il campo.
-    const fn = registro.match(/function colonne\([\s\S]*?\n\}/)?.[0] ?? '';
-    expect(fn).toMatch(/pdr, pallet/);
-    expect(fn).toMatch(/COLONNE_COMUNI\}, pallet/);
+    // Dal 2026-08-03 pallet e cesta viaggiano fra le OPZIONALI (`selectDegradante`): il codice
+    // deployato prima della migration lascia il registro vivo invece di spegnerlo.
+    const base = registro.match(/function colonne\([\s\S]*?\n\}/)?.[0] ?? '';
+    expect(base).toMatch(/COLONNE_COMUNI\}, pdr/);
+    expect(base).not.toMatch(/pallet|cesta/);
+
+    const opz = registro.match(/function colonneOpzionali\([\s\S]*?\n\}/)?.[0] ?? '';
+    expect(opz).toMatch(/\['pallet'\]/);              // ACEA: pallet sì, cesta no
+    expect(opz).toMatch(/\['pallet', 'cesta'\]/);     // AcquaLatina: entrambe
+    // L'ordine conta: `selectDegradante` toglie da DESTRA, e la più giovane deve cadere prima.
+    expect(opz).not.toMatch(/\['cesta', 'pallet'\]/);
   });
 });

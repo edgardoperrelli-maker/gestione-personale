@@ -6,15 +6,22 @@ import { STATO_ACCENT, STATO_TESTO } from './StatoBadge';
 import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import { formatItalian } from '@/utils/date-it';
 
-type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet';
+type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet' | 'cesta';
 
 interface Props {
   rows: MisuratoreRimosso[];
-  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string }) => Promise<void>;
+  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string; cesta?: string }) => Promise<void>;
   /** Solo admin_plus può riportare indietro lo stato; gli altri possono solo avanzarlo. */
   isAdminPlus: boolean;
   /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
   mostraPdr?: boolean;
+  /**
+   * Colonna Cesta (solo AcquaLatina): il numero che l'OPERATORE dichiara all'invio del
+   * rapportino, scaricando i contatori in magazzino. Qui si legge — e si corregge, perché un
+   * numero sbagliato di sera è un contatore cercato nella cesta sbagliata e il rapportino è
+   * ormai chiuso. È il gradino prima del pallet, e sta prima anche in tabella.
+   */
+  mostraCesta?: boolean;
   /**
    * Colonna Pallet + spunte di selezione: a cesta piena si selezionano i misuratori che ci sono
    * finiti dentro e si assegna loro il numero del pallet, in blocco dalla barra del client —
@@ -34,7 +41,7 @@ interface Props {
 }
 
 export default function MisuratoriTabella({
-  rows, onPatch, isAdminPlus, mostraPdr = true,
+  rows, onPatch, isAdminPlus, mostraPdr = true, mostraCesta = false,
   mostraPallet = false, selezione, onSelezione, salvando,
 }: Props) {
   const [sortKey, setSortKey]         = useState<SortKey>('data_esecuzione');
@@ -58,6 +65,18 @@ export default function MisuratoriTabella({
   const [palletValue, setPalletValue]     = useState('');
   const annullaPallet = useRef(false);
   const palletAppenaChiuso = useRef<string | null>(null);
+
+  /*
+    Cesta: stesso editor, gemello dichiarato del pallet. Restano due blocchi separati e non uno
+    generico perché i due campi hanno proprietari diversi — la cesta la SCRIVE l'operatore dal
+    campo e qui si corregge, il pallet nasce e vive in ufficio — e perché unificarli vorrebbe
+    dire riscrivere l'editor del pallet, che funziona e che le sue guardie (Escape, niente
+    PATCH a vuoto, niente doppio commit) se l'è già pagate una volta.
+  */
+  const [editingCesta, setEditingCesta] = useState<string | null>(null);
+  const [cestaValue, setCestaValue]     = useState('');
+  const annullaCesta = useRef(false);
+  const cestaAppenaChiusa = useRef<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -92,11 +111,14 @@ export default function MisuratoriTabella({
       { label: 'Matricola', key: null,              valore: r => r.matricola },
     ];
     if (mostraPdr) c.push({ label: 'PDR', key: null, valore: r => r.pdr ?? '' });
+    // Cesta prima di Pallet: è l'ordine del ciclo fisico (si scarica in cesta, poi la cesta
+    // piena finisce su un pallet) e leggere la riga da sinistra racconta il percorso.
+    if (mostraCesta) c.push({ label: 'Cesta', key: 'cesta', valore: r => r.cesta?.trim() ?? '' });
     if (mostraPallet) c.push({ label: 'Pallet', key: 'pallet', valore: r => r.pallet?.trim() ?? '' });
     c.push({ label: 'Stato', key: 'stato', valore: r => STATO_LABEL[r.stato] });
     c.push({ label: 'Note',  key: null,    valore: r => r.note ?? '' });
     return c;
-  }, [mostraPdr, mostraPallet]);
+  }, [mostraPdr, mostraCesta, mostraPallet]);
 
   /** Indice di una colonna per etichetta: le celle non contano le posizioni a mano. */
   const iCol = useCallback((label: string) => colonne.findIndex(c => c.label === label), [colonne]);
@@ -147,6 +169,25 @@ export default function MisuratoriTabella({
     setPalletValue(row.pallet ?? '');
   }, []);
 
+  const startCestaEdit = useCallback((row: MisuratoreRimosso) => {
+    setEditingCesta(row.id);
+    setCestaValue(row.cesta ?? '');
+  }, []);
+
+  const commitCesta = useCallback(
+    async (id: string, cestaOriginale: string | null | undefined) => {
+      if (editingCesta !== id) return;
+      setEditingCesta(null);
+      cestaAppenaChiusa.current = id;
+      const pulito = cestaValue.trim();
+      if (pulito === (cestaOriginale ?? '').trim()) return;
+      // Stringa vuota = TOGLIE la cesta: è la correzione di un «l'ho scaricato» dato per
+      // sbaglio, e «ancora in furgone» è uno stato legittimo.
+      await onPatch(id, { cesta: pulito });
+    },
+    [onPatch, cestaValue, editingCesta],
+  );
+
   const commitPallet = useCallback(
     // `undefined` ammesso: il registro ACEA non ha la colonna, e il tipo condiviso lo riflette.
     async (id: string, palletOriginale: string | null | undefined) => {
@@ -188,6 +229,11 @@ export default function MisuratoriTabella({
     if (editingPallet !== null) return;
     tornaAlBottone('data-pallet-btn', palletAppenaChiuso);
   }, [editingPallet]);
+
+  useEffect(() => {
+    if (editingCesta !== null) return;
+    tornaAlBottone('data-cesta-btn', cestaAppenaChiusa);
+  }, [editingCesta]);
 
   const SortArrow = ({ k }: { k: SortKey }) =>
     sortKey === k
@@ -325,6 +371,44 @@ export default function MisuratoriTabella({
               <td {...cella('Matricola').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Matricola').classe}`}>{row.matricola}</td>
               {mostraPdr && (
                 <td {...cella('PDR').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('PDR').classe}`}>{row.pdr ?? '—'}</td>
+              )}
+              {mostraCesta && (
+                <td {...cella('Cesta').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Cesta').classe}`}>
+                  {editingCesta === row.id ? (
+                    <input
+                      autoFocus
+                      value={cestaValue}
+                      onChange={e => setCestaValue(e.target.value)}
+                      aria-label={`Cesta per il misuratore ${row.matricola}`}
+                      // `inputMode` e non `type="number"`, come il pallet: è un riferimento.
+                      inputMode="numeric"
+                      onBlur={() => {
+                        if (annullaCesta.current) { annullaCesta.current = false; return; }
+                        void commitCesta(row.id, row.cesta);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void commitCesta(row.id, row.cesta);
+                        if (e.key === 'Escape') {
+                          annullaCesta.current = true;
+                          cestaAppenaChiusa.current = row.id;
+                          setEditingCesta(null);
+                        }
+                      }}
+                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      data-cesta-btn={row.id}
+                      aria-label={`Modifica cesta per il misuratore ${row.matricola}`}
+                      onClick={() => startCestaEdit(row)}
+                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      title="La dichiara l'operatore allo scarico. Clicca per correggerla."
+                    >
+                      {row.cesta?.trim() || '—'}
+                    </button>
+                  )}
+                </td>
               )}
               {mostraPallet && (
                 <td {...cella('Pallet').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Pallet').classe}`}>

@@ -3,6 +3,7 @@ import { useMemo } from 'react';
 import { Bar, BarChart, CartesianGrid, Legend, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { PersonaleOperatore } from '@/lib/produzione/aggregaPersonale';
 import { lunediSettimana } from '@/lib/produzione/settimana';
+import { etichettaCommessa } from '@/lib/produzione/committente';
 import { useChartColors, chartTooltipContent, chartItemStyle, chartLabelStyle } from '../palette';
 import { eur, num, giornoIT, type DatiProduzione } from './tipi';
 
@@ -60,8 +61,8 @@ export default function PersonaleImpegno({ dati }: { dati: DatiProduzione }) {
           </div>
         )}
         <p className="mt-1 text-[11px] text-[var(--brand-text-subtle)]">
-          Giornate = quota di interventi ACEA lavorati sul totale lavorato nel giorno, nei soli giorni feriali lun–ven
-          (gli assegnati non eseguiti non contano).
+          Giornate = quota di interventi {etichettaCommessa(dati.vista)} lavorati sul totale lavorato nel giorno, nei
+          soli giorni feriali lun–ven (gli assegnati non eseguiti non contano).
         </p>
       </div>
 

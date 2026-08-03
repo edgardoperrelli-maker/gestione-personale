@@ -14,7 +14,7 @@ export default async function ProduzioneEconomicaPage() {
         <Link href="/hub/performance" className="text-xs text-[var(--brand-text-muted)] hover:underline">← KPI</Link>
         <ObjectHeader
           title="Produzione economica"
-          sub="Valorizzazione in € degli esiti positivi ACEA: Produzione vs SAL, audit a tre vie, export Excel."
+          sub="Valorizzazione in € degli esiti positivi, per committente: ACEA, AcquaLatina o la somma. Produzione vs SAL, audit a tre vie, export Excel."
         />
       </div>
       <PerformanceEconomica />

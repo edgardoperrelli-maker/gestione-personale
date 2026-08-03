@@ -213,10 +213,10 @@ export function fogliPersonale(dati: ProduzioneEconomica): FoglioSemplice[] {
     {
       nome: 'Dati - personale',
       righe: [
-        ['Operatore', 'Giornate (feriali)', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg', 'Assegnati', 'Positivi', 'Negativi', 'Non lavorati'],
+        ['Operatore', 'Giornate (feriali)', 'Interventi in commessa', 'Produzione EUR', 'Resa EUR/gg', 'Assegnati', 'Positivi', 'Negativi', 'Non lavorati'],
         ...dati.personale.perOperatore.map((o): Array<string | number> => {
           const e = dati.esiti.find((x) => x.chiave === o.chiave);
-          return [o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? '', e?.assegnati ?? 0, e?.positivi ?? 0, e?.negativi ?? 0, e?.nonLavorati ?? 0];
+          return [o.label, o.giornate, o.interventiCommessa, o.valore, o.resa ?? '', e?.assegnati ?? 0, e?.positivi ?? 0, e?.negativi ?? 0, e?.nonLavorati ?? 0];
         }),
         ['Sabati (attivazioni)', dati.personale.sabato.giornate, '', dati.personale.sabato.valore, '', '', '', '', ''],
         ['TOTALE (feriali)', dati.personale.totaleGiornate, '', dati.personale.valoreFeriale, '', '', '', '', ''],

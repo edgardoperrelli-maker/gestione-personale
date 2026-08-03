@@ -1,9 +1,13 @@
-// PURA: giornate-uomo ACEA per operatore e per giorno. Regola business (design 2026-07-02):
-// una giornata vale la FRAZIONE di interventi ACEA lavorati sul totale lavorato nel giorno
-// (gli operatori "doppio territorio" fanno ACEA a saturazione: la giornata intera gonfierebbe
+// PURA: giornate-uomo di commessa per operatore e per giorno. Regola business (design 2026-07-02):
+// una giornata vale la FRAZIONE di interventi della commessa lavorati sul totale lavorato nel
+// giorno (gli operatori "doppio territorio" lavorano a saturazione: la giornata intera gonfierebbe
 // l'impegno). "Lavorato" = intervento con esito (positivo o negativo), non gli assegnati.
 // Contano SOLO i giorni FERIALI (lun–ven): il sabato è un canale a parte (solo attivazioni,
 // accantonato in `sabato`), la domenica non è lavorativa e si scarta del tutto.
+//
+// "Commessa" e non "ACEA": dal 2026-08 la pagina ha un filtro committente e questo modulo conta
+// le giornate della vista scelta — ACEA, AcquaLatina o la somma. Chi decide cosa è in commessa è
+// il chiamante (`load.ts`), qui arriva già deciso.
 
 import type { Aggregato } from './aggregaProduzione';
 
@@ -11,14 +15,14 @@ export interface RigaLavoro {
   staffId: string;
   operatore: string;
   data: string; // 'YYYY-MM-DD'
-  acea: boolean; // lavorato sulla commessa ACEA (committente effettivo, alias inclusi)
+  inCommessa: boolean; // lavorato su una commessa della vista (committente effettivo, alias inclusi)
 }
 
 export interface PersonaleOperatore {
   chiave: string; // staffId
   label: string; // display name
   giornate: number; // somma frazioni nei giorni FERIALI (2 decimali)
-  interventiAcea: number; // interventi ACEA lavorati nei giorni feriali
+  interventiCommessa: number; // interventi della commessa lavorati nei giorni feriali
   valore: number; // € produzione TOTALE del periodo (riconciliabile con la card Produzione)
   valoreFeriale: number; // € produzione dei soli giorni feriali (numeratore della resa)
   resa: number | null; // €/giornata FERIALE (valoreFeriale/giornate; null se giornate=0)
@@ -40,6 +44,9 @@ export interface ProduzionePersonale {
   perGiorno: PersonaleGiorno[]; // solo giorni feriali
 }
 
+/** Conta gli interventi in commessa e il totale lavorato di un (operatore, giorno). */
+type Cella = { staffId: string; operatore: string; data: string; commessa: number; totale: number };
+
 export const SOGLIA_DEDICATO = 0.8;
 
 /** Giorno della settimana di 'YYYY-MM-DD' in UTC: 0=domenica … 6=sabato. */
@@ -58,39 +65,38 @@ export function aggregaPersonale(
   extra: { valoreFeriale: number; sabatoValore: number },
 ): ProduzionePersonale {
   // (staffId, giorno) → conteggi lavorati
-  type Cella = { staffId: string; operatore: string; data: string; acea: number; totale: number };
   const celle = new Map<string, Cella>();
   for (const r of righe) {
     if (!r.staffId || !r.data) continue;
     const k = `${r.staffId}|${r.data}`;
     let c = celle.get(k);
     if (!c) {
-      c = { staffId: r.staffId, operatore: r.operatore, data: r.data, acea: 0, totale: 0 };
+      c = { staffId: r.staffId, operatore: r.operatore, data: r.data, commessa: 0, totale: 0 };
       celle.set(k, c);
     }
     c.totale += 1;
-    if (r.acea) c.acea += 1;
+    if (r.inCommessa) c.commessa += 1;
   }
 
   const perOp = new Map<string, PersonaleOperatore>();
   const perG = new Map<string, PersonaleGiorno>();
   let sabatoGiornate = 0;
   for (const c of celle.values()) {
-    if (c.acea === 0) continue; // quel giorno l'operatore non ha toccato ACEA
+    if (c.commessa === 0) continue; // quel giorno l'operatore non ha toccato la commessa
     const gs = giornoSettimana(c.data);
     if (gs === 0) continue; // domenica: non lavorativa, scartata ovunque
-    const frazione = c.acea / c.totale;
+    const frazione = c.commessa / c.totale;
     if (gs === 6) {
       sabatoGiornate += frazione; // sabato: canale a parte (attivazioni)
       continue;
     }
     let op = perOp.get(c.staffId);
     if (!op) {
-      op = { chiave: c.staffId, label: c.operatore, giornate: 0, interventiAcea: 0, valore: 0, valoreFeriale: 0, resa: null };
+      op = { chiave: c.staffId, label: c.operatore, giornate: 0, interventiCommessa: 0, valore: 0, valoreFeriale: 0, resa: null };
       perOp.set(c.staffId, op);
     }
     op.giornate += frazione;
-    op.interventiAcea += c.acea;
+    op.interventiCommessa += c.commessa;
     let g = perG.get(c.data);
     if (!g) {
       g = { data: c.data, dedicate: 0, saturazione: 0, operatori: 0 };

@@ -28,10 +28,16 @@ export interface MisuratoreRimosso {
   matricola: string;
   pdr: string | null;
   /**
-   * Numero del pallet di riferimento (solo registro AcquaLatina): assegnato in blocco quando la
-   * cesta si riempie, è il riferimento con cui la riconsegna viaggia. `null` = ancora in cesta.
+   * Numero del pallet di riferimento: assegnato in blocco quando la cesta si riempie, è il
+   * riferimento con cui la riconsegna viaggia. `null` = ancora in cesta.
    */
   pallet?: string | null;
+  /**
+   * Numero della cesta di magazzino (solo registro AcquaLatina): lo dichiara l'OPERATORE
+   * all'invio del rapportino, quando scarica i contatori. È il gradino prima del pallet.
+   * `null` = ancora da scaricare (e infatti si accompagna a `da_consegnare_deposito`).
+   */
+  cesta?: string | null;
   stato: StatoMisuratore;
   note: string | null;
   created_at: string;
