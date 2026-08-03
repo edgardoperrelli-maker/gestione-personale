@@ -72,6 +72,14 @@ describe('maiuscolaRisposteTesto', () => {
   it('gestisce risposte/campi null', () => {
     expect(maiuscolaRisposteTesto(null, null)).toEqual({});
   });
+  it("maiuscola anche i campi 'matricola': scanner e tastiera devono lasciare lo stesso codice", () => {
+    const campiMatricola: TemplateCampo[] = [
+      { chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', ordine: 1 },
+    ];
+    expect(maiuscolaRisposteTesto({ matricola_nuova: 'al26a0012345' }, campiMatricola)).toEqual({
+      matricola_nuova: 'AL26A0012345',
+    });
+  });
   it("non muta l'oggetto originale", () => {
     const orig = { note: 'x' };
     maiuscolaRisposteTesto(orig, campi);

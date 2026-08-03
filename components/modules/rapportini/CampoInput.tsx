@@ -2,13 +2,14 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { Camera, Check, CloudOff, Images } from 'lucide-react';
+import { Camera, Check, CloudOff, Images, ScanLine } from 'lucide-react';
 import type { TemplateCampo } from '@/utils/rapportini/buildVoci';
 import Button from '@/components/Button';
 import Input from '@/components/Input';
 import Select from '@/components/ui/Select';
 import Textarea from '@/components/ui/Textarea';
 import { comprimiImmagine } from './CampoFoto';
+import { ScannerMisuratore } from './risanamento/ScannerMisuratore';
 import { useUploadFoto } from './RapportinoFotoCtx';
 import { isPlaceholderFoto } from '@/lib/offline/fotoPlaceholder';
 import { leggiBlobFoto } from '@/lib/offline/persistFoto';
@@ -115,10 +116,82 @@ export function CampoInput({
     return <CampoFotoInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} />;
   }
 
+  if (campo.tipo === 'matricola') {
+    return <CampoMatricolaInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} />;
+  }
+
   return (
     <div>
       {labelEl}
       <TextareaAuto valore={typeof valore === 'string' ? valore : ''} disabilitato={disabilitato} onChange={onChange} evidenzia={evidenzia} />
+    </div>
+  );
+}
+
+/**
+ * Campo MATRICOLA: la si scansiona dal codice a barre o la si scrive a mano.
+ *
+ * Le due vie scrivono lo STESSO valore nella stessa risposta — lo scanner è una scorciatoia,
+ * non un percorso separato: fotocamera negata, buio, etichetta rovinata o codice illeggibile
+ * e l'operatore digita, senza restare bloccato sul posto. Per la stessa ragione qui non c'è
+ * nessuna verifica a catalogo: il misuratore INSTALLATO è nuovo, in nessun elenco nostro (il
+ * controllo sul censito riguarda quello RIMOSSO, e sta in `CercaMatricolaAcqualatina`).
+ *
+ * Il testo va in MAIUSCOLO come gli altri campi liberi: stessa meccanica IME-safe della
+ * textarea (`maiuscoloDigitando` + `onCompositionEnd`), col server che normalizza comunque.
+ */
+function CampoMatricolaInput({
+  campo, valore, disabilitato, onChange,
+}: {
+  campo: TemplateCampo;
+  valore: unknown;
+  disabilitato: boolean;
+  onChange: (v: unknown) => void;
+}) {
+  const [scanner, setScanner] = useState(false);
+  const testo = typeof valore === 'string' ? valore : '';
+
+  return (
+    <div>
+      <label className="mb-1 block text-xs font-semibold uppercase tracking-tight text-[var(--brand-text-muted)]">
+        {campo.etichetta}
+        {campo.obbligatoria && <span className="ml-1 font-semibold text-[var(--danger)]">*</span>}
+      </label>
+      <div className="flex gap-2">
+        <Input
+          type="text"
+          inputMode="text"
+          autoCapitalize="characters"
+          autoCorrect="off"
+          spellCheck={false}
+          placeholder="Matricola"
+          aria-label={campo.etichetta}
+          value={testo}
+          disabled={disabilitato}
+          onChange={(e) => onChange(maiuscoloDigitando(e))}
+          onCompositionEnd={(e) => onChange(e.currentTarget.value.toUpperCase())}
+          className={`${campoCls} min-w-0 flex-1 font-mono uppercase tabular-nums`}
+        />
+        <Button
+          variant="soft"
+          size="touch"
+          disabled={disabilitato}
+          onClick={() => setScanner(true)}
+          aria-label={`Scansiona ${campo.etichetta}`}
+          title="Scansiona il codice a barre"
+          className="shrink-0"
+        >
+          <ScanLine className="h-5 w-5" strokeWidth={1.8} aria-hidden />
+        </Button>
+      </div>
+
+      {scanner && (
+        <ScannerMisuratore
+          etichetta="Inquadra il codice del misuratore installato"
+          onCodice={(codice) => { setScanner(false); onChange(codice.trim().toUpperCase()); }}
+          onChiudi={() => setScanner(false)}
+        />
+      )}
     </div>
   );
 }

@@ -49,16 +49,22 @@ export function maiuscolaStringhe<T extends Record<string, unknown>>(obj: T | nu
 }
 
 /**
- * Copia delle risposte con i SOLI valori dei campi `tipo === 'testo'` portati in MAIUSCOLO.
- * Select / crocetta / numero / foto restano intatti: opzioni fisse, booleani, numeri e
- * percorsi foto (case-sensitive) non vanno toccati.
+ * Copia delle risposte con i SOLI valori dei campi di testo (`testo` e `matricola`) portati
+ * in MAIUSCOLO. Select / crocetta / numero / foto restano intatti: opzioni fisse, booleani,
+ * numeri e percorsi foto (case-sensitive) non vanno toccati.
+ *
+ * La `matricola` entra qui e non fra gli intatti perché è un codice letto a occhio o da un
+ * barcode: "a12b" e "A12B" sono lo stesso misuratore, e con due grafie in giro il confronto
+ * con il registro non torna.
  */
 export function maiuscolaRisposteTesto(
   risposte: Record<string, unknown> | null | undefined,
   campi: TemplateCampo[] | null | undefined,
 ): Record<string, unknown> {
   const out: Record<string, unknown> = { ...(risposte ?? {}) };
-  const chiaviTesto = new Set((campi ?? []).filter((c) => c.tipo === 'testo').map((c) => c.chiave));
+  const chiaviTesto = new Set(
+    (campi ?? []).filter((c) => c.tipo === 'testo' || c.tipo === 'matricola').map((c) => c.chiave),
+  );
   for (const k of chiaviTesto) {
     if (typeof out[k] === 'string') out[k] = (out[k] as string).toUpperCase();
   }

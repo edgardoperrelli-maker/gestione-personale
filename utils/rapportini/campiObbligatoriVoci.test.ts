@@ -53,6 +53,25 @@ describe('campiObbligatoriMancantiVoci', () => {
     ]);
   });
 
+  it('MATRICOLA obbligatoria: blocca la voce eseguita, non quella non eseguita', () => {
+    // Il flusso AcquaLatina: la matricola del misuratore INSTALLATO si pretende solo dove
+    // l'installazione c'è stata. Su ESEGUITO = NO non esiste nessun contatore nuovo da leggere.
+    const campi = [
+      campo('eseguito', { tipo: 'select', etichetta: 'ESEGUITO', obbligatoria: true }),
+      campo('matricola_nuova', { tipo: 'matricola', etichetta: 'MATRICOLA NUOVO MISURATORE', obbligatoria: true }),
+    ];
+    const nonEseguita = [{ nominativo: 'Mario', risposte: { eseguito: 'NO' } }];
+    expect(campiObbligatoriMancantiVoci(nonEseguita, campi)).toEqual([]);
+
+    const eseguitaSenzaMatricola = [{ nominativo: 'Mario', risposte: { eseguito: 'SI' } }];
+    expect(campiObbligatoriMancantiVoci(eseguitaSenzaMatricola, campi, ['nominativo'])).toEqual([
+      { index: 0, titolo: 'Mario', campi: ['MATRICOLA NUOVO MISURATORE'] },
+    ]);
+
+    const eseguitaConMatricola = [{ nominativo: 'Mario', risposte: { eseguito: 'SI', matricola_nuova: 'AL26A0012345' } }];
+    expect(campiObbligatoriMancantiVoci(eseguitaConMatricola, campi)).toEqual([]);
+  });
+
   it('fotoSoloMassive: sigillo obbligatorio solo sulle voci massive, non sulle sospensioni', () => {
     const campi = [
       campo('eseguito', { tipo: 'select', obbligatoria: true, etichetta: 'ESEGUITO' }),

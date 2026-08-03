@@ -1,6 +1,9 @@
 export interface TemplateCampo {
   chiave: string; etichetta: string;
-  tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto' | 'ora';
+  // 'matricola': campo di testo con lo SCANNER accanto (codice a barre del misuratore).
+  // Il valore resta una stringa come 'testo' — scansione e digitazione scrivono lo stesso
+  // dato, quindi ogni consumatore (obbligatorietà, export, PDF) lo tratta già bene.
+  tipo: 'crocetta' | 'testo' | 'select' | 'numero' | 'foto' | 'ora' | 'matricola';
   opzioni?: string[];
   obbligatoria?: boolean; // campo obbligatorio: foto = slot richiesto; non-foto = blocco rigido all'invio (tutti i template)
   scope_foto?: 'misuratore' | 'fase' | 'accessoria'; // solo per tipo='foto' nei template risanamento
