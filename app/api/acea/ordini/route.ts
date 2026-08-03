@@ -16,6 +16,7 @@ import { odlConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { comuniMassiveAperti } from '@/lib/acea/caricaComuniMassive';
 import { contaSenzaData, type InterventoDellOdl } from '@/lib/acea/codaRiaperture';
 import { PROFILO_COMMESSA } from '@/lib/acea/famiglia';
+import { gruppiChiusura, type InterventoConcluso } from '@/lib/acqualatina/chiusuraRegistro';
 // La stessa normalizzazione della colonna «Eseguito» del modulo Interventi: una sola regola per
 // due schermate che parlano dello stesso lavoro.
 import { siNo } from '@/lib/interventi/storico/normalizza';
@@ -314,8 +315,12 @@ async function indicePianificazione(f: FiltriOrdini): Promise<IndicePianificazio
 
   ACEA chiude gli ordini con l'export del Cruscotto; AcquaLatina non ci rimanda niente, quindi
   la chiusura la scrive il NOSTRO motore: un intervento della commessa `completato` (rapportino
-  consegnato con esito) chiude la sua riga di registro — per `ordine_id`, che è il collegamento
-  che la pianificazione scrive alla creazione, quindi regge anche gli ODL multi-matricola.
+  consegnato con esito) porta lo stato sulla sua riga di registro — per `ordine_id`, che è il
+  collegamento che la pianificazione scrive alla creazione, quindi regge anche gli ODL
+  multi-matricola.
+
+  CHIUDE solo il positivo: un'uscita negativa lascia la riga aperta, perché il contatore è ancora
+  lì da sostituire. La regola sta tutta in `gruppiChiusura`, insieme al perché.
 
   Gira qui, sulla strada della lettura, e non in un cron: la tabella è il momento in cui la
   chiusura si guarda. Throttling a un minuto e best-effort — una riconciliazione in ritardo di
@@ -329,8 +334,7 @@ async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
   if (ora - riconciliazioneAcquaAt < TTL_RICONCILIAZIONE_MS) return;
   riconciliazioneAcquaAt = ora;
 
-  type Completato = { ordine_id: string | null; data: string | null; esito: string | null };
-  const completati: Completato[] = [];
+  const completati: InterventoConcluso[] = [];
   for (let offset = 0; ; offset += PAGINA_SCAN) {
     const { data, error } = await supabaseAdmin
       .from('interventi')
@@ -340,37 +344,34 @@ async function chiudiOrdiniAcqualatinaCompletati(): Promise<void> {
       .not('ordine_id', 'is', null)
       .range(offset, offset + PAGINA_SCAN - 1);
     if (error) throw error;
-    const blocco = (data ?? []) as Completato[];
+    const blocco = (data ?? []) as InterventoConcluso[];
     completati.push(...blocco);
     if (blocco.length < PAGINA_SCAN) break;
   }
   if (completati.length === 0) return;
 
-  // Un aggiornamento per (giorno, esito): i giorni di campagna sono pochi, le righe tante.
-  const gruppi = new Map<string, { data: string | null; positivo: boolean; ids: string[] }>();
-  for (const c of completati) {
-    if (!c.ordine_id) continue;
-    const positivo = c.esito === 'eseguito_positivo';
-    const k = `${c.data ?? ''}|${positivo}`;
-    const g = gruppi.get(k) ?? { data: c.data, positivo, ids: [] };
-    g.ids.push(c.ordine_id);
-    gruppi.set(k, g);
-  }
-  for (const g of gruppi.values()) {
+  for (const g of gruppiChiusura(completati)) {
     for (let i = 0; i < g.ids.length; i += 200) {
-      const { error } = await supabaseAdmin
+      const q = supabaseAdmin
         .from('acqualatina_ordini')
-        .update({
-          aperto: false,
-          stato: 'CHIUSO',
-          // Lo stato dice anche COME è finita: la scheda «Chiusi» è l'unico posto dove si
-          // controlla il lavoro fatto, e «chiusa» senza esito obbligherebbe ad aprire ogni riga.
-          stato_desc: g.positivo ? 'Chiusa — eseguita' : 'Chiusa — non eseguita',
-          esito_positivo: g.positivo,
-          data_completamento: g.data,
-        })
-        .in('id', g.ids.slice(i, i + 200))
-        .eq('aperto', true);
+        .update(g.patch)
+        .in('id', g.ids.slice(i, i + 200));
+      /*
+        Le due guardie. Servono a due cose insieme: non contraddire il positivo (che è
+        definitivo, e nessuna uscita successiva può riaprire) e restare IDEMPOTENTI — questa
+        riconciliazione rigira a ogni lettura della tabella, e senza guardia riscriverebbe ogni
+        minuto righe già a posto.
+
+        Il positivo chiude tutto ciò che non è già chiuso positivo: anche una riga che un'uscita
+        negativa aveva lasciato aperta, che è il caso normale del ripasso riuscito.
+
+        Il negativo tocca solo la riga che ha qualcosa da correggere — mai esitata, oppure chiusa
+        negativa dalla vecchia regola, che è la riga da riaprire (le 12 del 03/08). Su una riga
+        già «aperta e non eseguita» non scrive, e su una chiusa POSITIVA non entra mai.
+      */
+      const { error } = await (g.positivo
+        ? q.not('esito_positivo', 'is', true)
+        : q.or('esito_positivo.is.null,and(esito_positivo.is.false,aperto.is.false)'));
       if (error) throw error;
     }
   }

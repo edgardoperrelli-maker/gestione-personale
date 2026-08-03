@@ -5,6 +5,9 @@ import { requireAdmin } from '@/lib/apiAuth';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import { COMMITTENTE_ACQUALATINA, ATTIVITA_SOSTITUZIONE_MISURATORE } from '@/lib/acqualatina/contratto';
 import { ordiniDaMaster, type OrdineEsistente, type RigaMaster } from '@/lib/acqualatina/ordiniDaMaster';
+// Lo stato della riga mai lavorata, dalla stessa fonte degli altri due: sono le voci dell'imbuto
+// «Stato», e una scritta a mano qui diventerebbe una quarta voce che nessuno si aspetta.
+import { STATO_APERTA } from '@/lib/acqualatina/chiusuraRegistro';
 
 export const runtime = 'nodejs';
 
@@ -86,7 +89,7 @@ export async function POST() {
         famiglia: 'acqualatina',
         attivita: ATTIVITA_SOSTITUZIONE_MISURATORE,
         stato: 'APERTO',
-        stato_desc: 'Aperta',
+        stato_desc: STATO_APERTA,
         aperto: true,
         data_creazione: oggi,
         via: n.via,

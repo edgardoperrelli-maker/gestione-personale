@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, COLONNE_DUNNING, COLONNE_MASSIVE, colonnePerStato,
-  dataIt, eRevocaDaVerificare, valoreCella, tonoScadenza,
+  dataIt, eRevocaDaVerificare, valoreCella, tonoScadenza, statoOrdine,
   type RigaTabella,
 } from './colonneTabella';
 import { COLONNE_ELENCO, COLONNE_TESTO, OPZIONI_VUOTE } from './filtriOrdini';
@@ -148,6 +148,17 @@ describe('valoreCella', () => {
     expect(valoreCella(riga({ stato_desc: null }), 'stato')).toBe('DAPI');
   });
 
+  /*
+    «completato» sta sopra un lavoro riuscito e sopra un accesso negato: sono 3.303 righe su 5.293,
+    e per sapere quale delle due si doveva accendere «Esito ACEA», che di default non c'è.
+  */
+  it('lo stato porta anche l’esito, quando ACEA l’ha dato', () => {
+    expect(valoreCella(riga({ stato_desc: 'completato', esito_positivo: true }), 'stato'))
+      .toBe('completato — eseguito');
+    expect(valoreCella(riga({ stato_desc: 'completato', esito_positivo: false }), 'stato'))
+      .toBe('completato — non eseguito');
+  });
+
   it('l\'esito usa la causale ACEA quando c\'è', () => {
     expect(valoreCella(riga(), 'esito')).toBe('—');   // non ancora esitato
     expect(valoreCella(riga({ esito_positivo: true, causale_desc: 'Intervento Eseguito' }), 'esito'))
@@ -187,6 +198,33 @@ describe('valoreCella', () => {
     expect(valoreCella(riga({ valore_netto: null }), 'valore_netto')).toBe('—');
     expect(valoreCella(riga(), 'data_creazione')).toBe('22/05/2026');
     expect(valoreCella(riga({ pianificato_il: '2026-07-27' }), 'pianificato_il')).toBe('27/07/2026');
+  });
+});
+
+describe('statoOrdine', () => {
+  it('il tono segue l’esito, non lo stato', () => {
+    expect(statoOrdine(riga({ esito_positivo: true })).tono).toBe('eseguito');
+    expect(statoOrdine(riga({ esito_positivo: false })).tono).toBe('non_eseguito');
+  });
+
+  // Una riga senza esito non è né riuscita né fallita: è lavoro da fare (aperta) o archivio
+  // (chiusa senza verdetto, es. annullata). Colorarla la metterebbe alla pari delle altre due.
+  it('senza esito il tono distingue solo aperto da chiuso', () => {
+    expect(statoOrdine(riga({ esito_positivo: null, aperto: true })).tono).toBe('aperto');
+    expect(statoOrdine(riga({ esito_positivo: null, aperto: false })).tono).toBe('chiuso');
+  });
+
+  /*
+    Su AcquaLatina lo stato lo scriviamo noi, e `stato_desc` porta già i due pezzi: è su quel
+    valore che filtra l'imbuto della colonna, ed è così che «Aperta — non eseguita» diventa la coda
+    del ripasso in un clic. Ricomporlo qui lo direbbe due volte.
+  */
+  it('su AcquaLatina l’etichetta è quella del registro, non ricomposta', () => {
+    const r = riga({
+      famiglia: 'acqualatina', stato: 'APERTO', stato_desc: 'Aperta — non eseguita',
+      aperto: true, esito_positivo: false,
+    });
+    expect(statoOrdine(r)).toEqual({ testo: 'Aperta — non eseguita', tono: 'non_eseguito' });
   });
 });
 

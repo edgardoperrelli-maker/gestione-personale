@@ -314,7 +314,7 @@ export async function POST(req: Request) {
         .map((a) => ({
           odl: a.ordine.odl,
           numero_operazione: a.ordine.numero_operazione,
-          motivo: etichettaMotivo(a.motivo),
+          motivo: etichettaMotivo(a.motivo, a.ordine.famiglia),
         })),
     }, { headers: { 'Cache-Control': 'no-store' } });
   } catch (e) {

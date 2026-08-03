@@ -230,10 +230,13 @@ la coda delle riaperture e gli strumenti di cella. Lo studio con le decisioni nu
 - [ ] **Editor in cella per le Note**: oggi si scrivono solo per incolla. Data ed Esecutore
   hanno il loro editor; se serve anche per le Note, il pattern è in `TabellaOrdini` (rami
   `inEditor`/`inEditorEsecutore`) + `useEditingGriglia` (`apriEditor*`).
-- [ ] **AcquaLatina, esiti negativi**: oggi un intervento completato chiude la riga anche con
-  esito negativo (lo stato dice «Chiusa — non eseguita»). Se l'ufficio vorrà ripassare sugli
-  assenti servirà una «riapertura acqualatina» (riaprire la riga o crearne una nuova): deciso di
-  NON inventarla ora — il flusso vero non si conosce ancora.
+- [x] ~~**AcquaLatina, esiti negativi**~~ — **risolto il 03/08**, dal caso vero: le 12 righe di
+  via Tuccia esitate negative erano finite in «Chiusi» con `aperto = false`, e riassegnarle a un
+  altro operatore rispondeva «ordine già chiuso su ACEA». Ora chiude **solo il positivo**; il
+  negativo lascia la riga APERTA con stato «Aperta — non eseguita» (`lib/acqualatina/
+  chiusuraRegistro.ts`), che è anche la voce d'imbuto con cui l'ufficio richiama la coda del
+  ripasso. Nessuna migration: la riconciliazione della route riapre da sola le righe chiuse a
+  torto, e non tocca MAI una chiusa positiva.
 - [ ] **AcquaLatina, verifica a schermo**: schede Da lavorare/Chiusi, ordinamento per strada,
   «Aggiorna dal master», menu esecutori con chi fa CONTATORI, modale rapportini sulla famiglia.
 
@@ -299,7 +302,7 @@ push). In produzione (Supabase `aceztqfebringeaebvce`): migration `2026073117000
 
 | File | Perché conta |
 |---|---|
-| `docs/acea-modulo-fattibilita.md` | Le 49 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
+| `docs/acea-modulo-fattibilita.md` | Le 52 decisioni numerate; §3 è il registro delle scelte, aggiornarlo a ogni cambio |
 | `lib/acqualatina/ordiniDaMaster.ts` | Sync dal master: identità (odl, matricola), numerazione operazioni stabile, spacco via/civico |
 | `lib/acea/giorniProgrammabili.ts` | Finestra (oggi → +14 gg, domenica esclusa), giorni pronti, `soloAttivazioni`, etichette dei rifiuti |
 | `lib/acea/operatoriGiorno.ts` | Cronoprogramma → assegnabili **per famiglia**; `controllaAssegnazioni` con `dataScritta` (LA regola) e famiglia nella chiave |

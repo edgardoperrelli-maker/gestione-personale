@@ -178,7 +178,9 @@ export const COLONNE_DUNNING: DefColonna[] = [
   // misuratori con lo stesso CAP possono essere a mezz'ora l'uno dall'altro. Ordinando per questa
   // colonna le righe da fare nello stesso giro finiscono una sotto l'altra.
   { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 92, filtro: F.gruppo },
-  { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
+  // 190 e non 130: la cella porta ora anche l'esito («completato — non eseguito»), e a 130 la
+  // seconda metà — quella per cui la colonna è cambiata — sarebbe stata la prima a sparire.
+  { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 190, filtro: F.stato },
   { chiave: 'data_creazione', intestazione: 'Creazione', predefinita: true, mono: true, larghezza: 100 },
   { chiave: 'scadenza', intestazione: 'Scadenza', predefinita: true, mono: true, larghezza: 130, filtro: F.scadenza },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
@@ -261,7 +263,8 @@ export const COLONNE_ACQUALATINA: DefColonna[] = [
   // l'imbuto in più su una colonna che nessuno filtra è rumore in testata. Si cerca comunque
   // dalla ricerca libera, che attraversa anche il nome utente.
   { chiave: 'recapito', intestazione: 'Recapito', predefinita: true, mono: true, larghezza: 130 },
-  { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 130, filtro: F.stato },
+  // 175: «Aperta — non eseguita» è la riga da ripassare, e va letta per intero.
+  { chiave: 'stato', intestazione: 'Stato', predefinita: true, larghezza: 175, filtro: F.stato },
   { chiave: 'pianificato_a', intestazione: 'Esecutore', predefinita: true, larghezza: 140, filtro: F.esecutore },
   { chiave: 'pianificato_il', intestazione: 'Data pianificata', predefinita: true, mono: true, larghezza: 140, filtro: F.dataPianificata },
   { chiave: 'note', intestazione: 'Note', predefinita: true, larghezza: 240, filtro: F.note },
@@ -286,7 +289,9 @@ export const COLONNE_MASSIVE: DefColonna[] = [
   { chiave: 'comune', intestazione: 'Comune', predefinita: true, larghezza: 130, filtro: F.comune },
   { chiave: 'cap', intestazione: 'CAP', predefinita: true, mono: true, larghezza: 80, filtro: F.cap },
   { chiave: 'gruppo', intestazione: 'Gruppo', predefinita: true, mono: true, larghezza: 92, filtro: F.gruppo },
-  { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 130, filtro: F.stato },
+  // 190 e non 130: la cella porta ora anche l'esito («completato — non eseguito»), e a 130 la
+  // seconda metà — quella per cui la colonna è cambiata — sarebbe stata la prima a sparire.
+  { chiave: 'stato', intestazione: 'Stato ordine', predefinita: true, larghezza: 190, filtro: F.stato },
   /*
     «Data pianificata», non «Data esecuzione»: questa colonna è `pianificato_il`, cioè il giorno
     a cui l'abbiamo messa NOI. Chiamarla «Data esecuzione» accanto a un ordine che ACEA ha già
@@ -393,6 +398,36 @@ export function senzaFiltroColonna(colonne: DefColonna[], f: FiltriUI, chiave: C
   return agg;
 }
 
+export type TonoStato = 'eseguito' | 'non_eseguito' | 'aperto' | 'chiuso';
+
+/**
+ * Lo stato della riga DETTO PER INTERO: com'è messo l'ordine e com'è andata l'ultima uscita.
+ *
+ * La colonna diceva solo la prima metà. Su ACEA «completato» sta sia sopra un lavoro riuscito sia
+ * sopra un accesso negato — sono 3.303 righe su 5.293, e per sapere quale delle due si doveva
+ * accendere «Esito ACEA», una colonna che di default non c'è. La seconda metà arriva da
+ * `esito_positivo` (LED verde/rosso dell'export) e si attacca allo stato: «completato — eseguito»,
+ * «completato — non eseguito». Il tono la ripete in colore, con la spunta o la croce cerchiata del
+ * modulo Interventi: in una tabella da 300 righe è quello che si legge senza fermarsi a leggere.
+ *
+ * AcquaLatina è l'eccezione, e per una ragione: lì lo stato lo scriviamo NOI, e `stato_desc` porta
+ * già i due pezzi (`lib/acqualatina/chiusuraRegistro.ts`) perché l'imbuto della colonna filtra sul
+ * valore del registro — è così che «Aperta — non eseguita» diventa la coda del ripasso in un clic.
+ * Ricomporla qui la direbbe due volte.
+ */
+export function statoOrdine(
+  r: Pick<RigaTabella, 'stato' | 'stato_desc' | 'aperto' | 'esito_positivo' | 'famiglia'>,
+): { testo: string; tono: TonoStato } {
+  const base = (r.stato_desc ?? '').trim() || r.stato;
+  const tono: TonoStato = r.esito_positivo === true
+    ? 'eseguito'
+    : r.esito_positivo === false
+      ? 'non_eseguito'
+      : r.aperto ? 'aperto' : 'chiuso';
+  if (r.esito_positivo === null || r.famiglia === 'acqualatina') return { testo: base, tono };
+  return { testo: `${base} — ${r.esito_positivo ? 'eseguito' : 'non eseguito'}`, tono };
+}
+
 /** 'YYYY-MM-DD' → 'dd/MM/yyyy' (convenzione di casa per il display). */
 export function dataIt(iso: string | null | undefined): string {
   if (!iso) return '—';
@@ -418,7 +453,9 @@ export function valoreCella(r: RigaTabella, c: ChiaveColonna): string {
     case 'indirizzo':
       return [r.via, r.civico].filter(Boolean).join(' ') || '—';
     case 'stato':
-      return r.stato_desc ?? r.stato;
+      // Stato ED esito, in una cella sola: vedi `statoOrdine`. Passa di qui anche l'export della
+      // vista, che deve dire quello che si legge a schermo.
+      return statoOrdine(r).testo;
     /*
       Chi ha eseguito SU ACEA, e quando.
 

@@ -9,7 +9,8 @@ import { useVirtualizer } from '@tanstack/react-virtual';
 import { ArrowDown, ArrowUp, ChevronsUpDown, Copy, TriangleAlert } from 'lucide-react';
 import {
   AVVISO_MATRICOLA_TRONCA, AVVISO_REVOCA, eRevocaDaVerificare, valoreCella, tonoScadenza,
-  type DefColonna, type RigaTabella, type TonoScadenza,
+  statoOrdine,
+  type DefColonna, type RigaTabella, type TonoScadenza, type TonoStato,
 } from '@/lib/acea/colonneTabella';
 import { ordinabile, type FiltriUI, type Opzioni } from '@/lib/acea/filtriOrdini';
 import { selezionaRighe } from '@/lib/acea/selezioneRighe';
@@ -68,17 +69,49 @@ function tonoEseguito(v: string): string {
   return 'text-[var(--brand-text-muted)]';
 }
 
+/** Il segno dell'esito: spunta o croce cerchiata, la stessa del modulo Interventi. */
+function CerchioEsito({ ok }: { ok: boolean }) {
+  return (
+    <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      {ok ? <path d="m8.5 12.2 2.4 2.4 4.6-4.8" /> : <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />}
+    </svg>
+  );
+}
+
 /** Colonna-stato «Eseguito»: cerchio con spunta o croce più l'etichetta, come nel modulo Interventi. */
 function SegnoEseguito({ valore }: { valore: string }) {
   if (valore !== 'SI' && valore !== 'NO') return <>{valore}</>;
-  const ok = valore === 'SI';
   return (
     <span className="inline-flex items-center gap-1.5">
-      <svg viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-        <circle cx="12" cy="12" r="9" />
-        {ok ? <path d="m8.5 12.2 2.4 2.4 4.6-4.8" /> : <path d="M9.2 9.2l5.6 5.6M14.8 9.2l-5.6 5.6" />}
-      </svg>
+      <CerchioEsito ok={valore === 'SI'} />
       {valore}
+    </span>
+  );
+}
+
+/**
+ * Il colore della cella «Stato», che ora dice anche COM'È FINITA (vedi `statoOrdine`).
+ *
+ * Gli stessi tre toni di «Eseguito» — verde, rosso, smorzato — perché parlano della stessa cosa:
+ * qui il verdetto del committente, lì la dichiarazione di chi ci è andato. Una riga ancora aperta
+ * resta in nero: non è un esito, è lavoro da fare, e colorarla la metterebbe alla pari delle due
+ * che un esito ce l'hanno.
+ */
+const TONO_STATO: Record<TonoStato, string> = {
+  eseguito: 'font-semibold text-[var(--status-ok)]',
+  non_eseguito: 'font-semibold text-[var(--status-ko)]',
+  aperto: 'text-[var(--brand-text-main)]',
+  chiuso: 'text-[var(--brand-text-muted)]',
+};
+
+/** Colonna «Stato»: il segno dell'esito davanti all'etichetta, quando un esito c'è. */
+function SegnoStato({ tono, testo }: { tono: TonoStato; testo: string }) {
+  if (tono !== 'eseguito' && tono !== 'non_eseguito') return <>{testo}</>;
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <CerchioEsito ok={tono === 'eseguito'} />
+      {testo}
     </span>
   );
 }
@@ -627,6 +660,9 @@ export default function TabellaOrdini({
                     const locale = editing?.valoreLocale(r, c.chiave) ?? null;
                     const testo = locale ?? valoreCella(r, c.chiave);
                     const evidenzia = c.chiave === 'scadenza';
+                    // Stato ED esito nella stessa cella: il testo lo compone `valoreCella`, qui
+                    // serve il tono — cioè il colore e il segno che lo fanno leggere a colpo d'occhio.
+                    const tonoStato = c.chiave === 'stato' ? statoOrdine(r).tono : null;
                     // Il gruppo PRESTATO dal CAP/comune, non calcolato dalle coordinate della
                     // riga. Si smorza invece di marcare il numero: chi legge «162» deve poterlo
                     // dettare com'e`, ma chi ci monta sopra un giro deve vedere che e` una stima.
@@ -828,8 +864,19 @@ export default function TabellaOrdini({
                                 ? () => editing?.onApriEditorEsecutore(vi.index, iEdit)
                                 : undefined
                         }
+                        /*
+                          Il colore del testo si decide in UN posto solo — scadenza, stato, o il
+                          nero di sempre — invece di aggiungere una seconda classe in coda: due
+                          utility di colore sullo stesso nodo hanno la stessa specificità, e a
+                          vincere è quella che il foglio di stile mette per ultima, non quella
+                          scritta per ultima qui.
+                        */
                         className={`truncate px-2 py-2 ${c.mono ? 'font-mono tabular-nums' : ''} ${
-                          evidenzia ? TONO_CLASSE[tono] : 'text-[var(--brand-text-main)]'
+                          evidenzia
+                            ? TONO_CLASSE[tono]
+                            : tonoStato
+                              ? TONO_STATO[tonoStato]
+                              : 'text-[var(--brand-text-main)]'
                         } ${scrivibile ? 'cursor-cell' : ''} ${
                           COLONNE_CLICK_RIGA.has(c.chiave) ? 'cursor-pointer' : ''
                         } ${c.chiave === 'odl' ? 'group/odl relative' : ''} ${
@@ -856,7 +903,11 @@ export default function TabellaOrdini({
                             <span className="sr-only">{AVVISO_MATRICOLA_TRONCA}{' '}</span>
                           </>
                         )}
-                        {c.chiave === 'eseguito' ? <SegnoEseguito valore={testo} /> : testo}
+                        {c.chiave === 'eseguito'
+                          ? <SegnoEseguito valore={testo} />
+                          : tonoStato
+                            ? <SegnoStato tono={tonoStato} testo={testo} />
+                            : testo}
                         {/*
                           La copia dell'ODL nudo, ripristinata: il click sulla cella ora spunta
                           la riga, e questa icona — visibile al passaggio — è la via col mouse.
