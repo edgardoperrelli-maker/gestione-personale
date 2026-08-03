@@ -59,6 +59,7 @@ export function sampleRisposte(campi: TemplateCampo[]): Record<string, unknown> 
       case 'numero': out[c.chiave] = '1'; break;
       case 'select': out[c.chiave] = c.opzioni?.[0] ?? 'Opzione'; break;
       case 'testo': out[c.chiave] = 'esempio'; break;
+      case 'matricola': out[c.chiave] = 'AL2600123456'; break;
       default: break; // foto / altri tipi: nessun valore d'esempio
     }
   });

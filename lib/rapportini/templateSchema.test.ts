@@ -53,6 +53,24 @@ describe('TemplateSchema', () => {
   });
 });
 
+describe('CampoSchema tipo matricola', () => {
+  it("accetta il tipo 'matricola' (testo + scanner del codice a barre)", () => {
+    const r = CampoSchema.safeParse({
+      chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE',
+      tipo: 'matricola', obbligatoria: true, obbligatoria_se: null, ordine: 4,
+    });
+    expect(r.success).toBe(true);
+  });
+
+  it("il template intero con un campo 'matricola' passa la validazione dell'API admin", () => {
+    const r = TemplateSchema.safeParse({
+      ...base,
+      campi: [{ chiave: 'matricola_nuova', etichetta: 'MATRICOLA', tipo: 'matricola', ordine: 1 }],
+    });
+    expect(r.success).toBe(true);
+  });
+});
+
 describe('CampoSchema scope_foto', () => {
   it('accetta scope_foto valido', () => {
     expect(CampoSchema.safeParse({ chiave: 'f', etichetta: 'Foto', tipo: 'foto', ordine: 1, scope_foto: 'misuratore' }).success).toBe(true);

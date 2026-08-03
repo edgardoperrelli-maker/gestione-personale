@@ -96,6 +96,7 @@ const TIPO_LABELS: Record<TemplateCampo['tipo'], string> = {
   numero: 'Numero',
   foto: 'Foto',
   ora: 'Ora',
+  matricola: 'Matricola (scansione o a mano)',
 };
 
 function slugify(s: string): string {
