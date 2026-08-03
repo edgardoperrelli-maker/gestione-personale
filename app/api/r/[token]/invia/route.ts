@@ -152,10 +152,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     .map(v => v.intervento_id)
     .filter((id): id is string => !!id);
   const { data: interventiMeta } = interventoIds.length > 0
-    ? await supabaseAdmin.from('interventi').select('id, committente, intervento_tipo, odl').in('id', interventoIds)
-    : { data: [] as Array<{ id: string; committente: string; intervento_tipo: string | null; odl: string | null }> };
+    ? await supabaseAdmin.from('interventi').select('id, committente, intervento_tipo, odl, data').in('id', interventoIds)
+    : { data: [] as Array<{ id: string; committente: string; intervento_tipo: string | null; odl: string | null; data: string }> };
   const committenteMap = new Map((interventiMeta ?? []).map(i => [i.id, i.committente as string]));
   const tipoMap = new Map((interventiMeta ?? []).map(i => [i.id, (i.intervento_tipo ?? '') as string]));
+  // Giornata di lavoro a cui l'intervento appartiene: è la data che il registro misuratori deve
+  // riportare, e non coincide con l'istante in cui la voce viene compilata o rispedita.
+  const dataMap = new Map((interventiMeta ?? []).map(i => [i.id, (i.data as string | null) ?? null]));
   const odlMap = new Map((interventiMeta ?? []).map(i => [i.id, ((i.odl as string | null) ?? '').trim()]));
 
   // Backstop anti doppio esito: positivi GIÀ presenti per gli stessi ODL (qualsiasi data).
@@ -242,9 +245,13 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
         intervento_id:   v.intervento_id,
         rapportino_id:   rap.id,
         odl:             v.odl ?? null,
-        // Data ESECUZIONE = momento reale di chiusura voce (chiuso_at = v.updated_at),
-        // in fuso Europe/Rome. Fallback alla data del rapportino se assente.
-        data_esecuzione: v.updated_at ? ymdLocal(new Date(v.updated_at)) : (rap as { data: string }).data,
+        // Data ESECUZIONE = la GIORNATA DI LAVORO dell'intervento, non l'istante in cui la voce
+        // è stata toccata. Nascendo da `v.updated_at` bastava riaprire un rapportino e
+        // rispedirlo perché tutte le sue righe risultassero eseguite il giorno della
+        // rispedizione: il 03/08 sono così finite nel registro 39 rimozioni del 31/07,
+        // datate 03/08 — un magazzino e delle statistiche per giorno che dicono il falso.
+        // La data del rapportino resta il ripiego per gli interventi senza data propria.
+        data_esecuzione: dataMap.get(v.intervento_id) ?? (rap as { data: string }).data,
         esecutore:       (rap as { staff_name?: string | null }).staff_name ?? null,
         indirizzo:       v.via ?? null,
         comune:          v.comune ?? null,
