@@ -73,3 +73,29 @@ describe('colonneAnagraficaVoce (riallineamento voce in approvazione)', () => {
     expect(c.matricola).toBeNull();
   });
 });
+
+/**
+ * Regressione del 27/07 → 03/08. `rapportino_voci.origine` ha default 'task', e
+ * `sincronizzaRapportini` cancella tutte le voci 'task' per rigenerarle dai task del piano.
+ * Una voce del «+» lasciata al default veniva rasa via alla prima rigenerazione e non ricreata
+ * — non è un task del piano — facendo sparire il lavoro aggiunto in campo, senza errori.
+ */
+describe('buildVoceManuale · proprietà della voce', () => {
+  const dati: DatiInterventoManuale = {
+    committente: 'acea',
+    anagrafica: { odl: '123', via: 'VIA ROMA 1' },
+    risposte: {},
+  };
+
+  it("dichiara origine 'manuale': il motore dei piani non deve poterla toccare", () => {
+    const voce = buildVoceManuale({ rapportinoId: 'r1', richiestaId: 'q1', ordine: 3, dati });
+    expect(voce.origine).toBe('manuale');
+  });
+
+  it('non lascia mai origine al default del database', () => {
+    const voce = buildVoceManuale({ rapportinoId: 'r1', richiestaId: 'q1', ordine: 1, dati });
+    expect(voce.origine).not.toBe('task');
+    // `manuale` da solo non basta più: dal 27/07 il motore filtra su `origine`, non su questo.
+    expect(voce.manuale).toBe(true);
+  });
+});

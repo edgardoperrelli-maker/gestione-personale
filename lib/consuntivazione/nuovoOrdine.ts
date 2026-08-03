@@ -83,6 +83,13 @@ export type VoceConsuntivoInsert = {
   rapportino_id: string;
   ordine: number;
   manuale: true;
+  /**
+   * Come per il «+»: senza questa, il default 'task' consegnerebbe la voce a
+   * `sincronizzaRapportini`, che cancella le 'task' a ogni rigenerazione del piano. Oggi il
+   * rapportino contenitore nasce con `piano_id` nullo e nessun motore lo raggiunge, ma la voce
+   * resterebbe a un solo spostamento di distanza dalla cancellazione silenziosa.
+   */
+  origine: 'manuale';
   approvazione_stato: 'approvato';
   nominativo: string | null;
   matricola: string | null;
@@ -124,6 +131,7 @@ export function buildVoceConsuntivo(args: {
     rapportino_id: args.rapportinoId,
     ordine: 1,
     manuale: true,
+    origine: 'manuale',
     approvazione_stato: 'approvato',
     ...cols,
     campi_snapshot: args.campi,
