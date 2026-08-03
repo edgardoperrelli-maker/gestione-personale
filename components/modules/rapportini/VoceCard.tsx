@@ -74,13 +74,18 @@ export function VoceDettagli({ voce, dettaglio }: { voce: VoceCardData; dettagli
 }
 
 /** Campi da compilare: campi "altri" + crocette "Lavorazioni". */
-export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota }: { campi: TemplateCampo[]; voce: VoceCardData; disabilitato: boolean; onChange: (chiave: string, valore: unknown) => void; evidenziaNota?: boolean }) {
+export function VoceCampi({ campi, voce, disabilitato, onChange, evidenziaNota, evidenziaMatricola }: { campi: TemplateCampo[]; voce: VoceCardData; disabilitato: boolean; onChange: (chiave: string, valore: unknown) => void; evidenziaNota?: boolean; evidenziaMatricola?: boolean }) {
   const crocette = campi.filter((c) => c.tipo === 'crocetta');
   const altri = campi.filter((c) => c.tipo !== 'crocetta');
+  // Il campo che tiene ferma la voce si accende, qualunque dei due sia: la card è lunga e
+  // «manca qualcosa» senza dire dove costa uno scorrimento a chi ha i guanti.
+  const daAccendere = (campo: TemplateCampo) =>
+    (Boolean(evidenziaNota) && isCampoNota(campo))
+    || (Boolean(evidenziaMatricola) && campo.tipo === 'matricola' && campo.obbligatoria === true);
   return (
     <div className="mt-4 space-y-3.5">
       {altri.map((campo) => (
-        <CampoInput key={campo.chiave} campo={campo} valore={voce.risposte[campo.chiave]} disabilitato={disabilitato} onChange={(v) => onChange(campo.chiave, v)} evidenzia={Boolean(evidenziaNota) && isCampoNota(campo)} />
+        <CampoInput key={campo.chiave} campo={campo} valore={voce.risposte[campo.chiave]} disabilitato={disabilitato} onChange={(v) => onChange(campo.chiave, v)} evidenzia={daAccendere(campo)} />
       ))}
       {crocette.length > 0 && (
         <div>
@@ -118,7 +123,9 @@ export function VoceCard({
   const badge = badgeVoceManuale(approvazioneStato ?? null);
   const coordinataAbilitata = dettaglio.some((c) => c.chiave === 'coordinate');
   const bordo = stato === 'eseguito' ? 'border-[var(--status-ok)]' : stato === 'non_eseguito' ? 'border-[var(--status-ko)]' : 'border-[var(--brand-border)]';
-  const notaMancante = motivoVoceIncompleta(voce.risposte, campi) === 'nota_mancante';
+  const motivo = motivoVoceIncompleta(voce.risposte, campi);
+  const notaMancante = motivo === 'nota_mancante';
+  const matricolaMancante = motivo === 'matricola_mancante';
 
   return (
     <section className={`rounded-[var(--radius-xl)] border bg-[var(--brand-surface)] p-4 shadow-sm ${bordo}`}>
@@ -152,8 +159,18 @@ export function VoceCard({
           </p>
         </div>
       )}
+      {/* Il gemello del banner qui sopra, sull'altro versante dell'esito: là il motivo di un NO,
+          qui il numero di ciò che si è installato. Si dice sul posto, non a fine giornata. */}
+      {matricolaMancante && (
+        <div className="mt-3 flex items-start gap-2 rounded-xl border border-[var(--status-ko)] bg-[var(--status-ko-soft)] px-3.5 py-2.5">
+          <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-[var(--status-ko)]" strokeWidth={1.8} aria-hidden />
+          <p className="text-sm font-semibold text-[var(--status-ko)]">
+            Manca la matricola del misuratore installato: scansionala o scrivila qui sotto per completare l&apos;intervento.
+          </p>
+        </div>
+      )}
       <VoceDettagli voce={voce} dettaglio={dettaglio} />
-      <VoceCampi campi={campi} voce={voce} disabilitato={disabilitato} onChange={onChange} evidenziaNota={notaMancante} />
+      <VoceCampi campi={campi} voce={voce} disabilitato={disabilitato} onChange={onChange} evidenziaNota={notaMancante} evidenziaMatricola={matricolaMancante} />
     </section>
   );
 }

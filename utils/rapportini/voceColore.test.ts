@@ -131,3 +131,46 @@ describe('select secondario "NO" NON è esito negativo (solo Eseguito/Esito guid
     expect(haEsitoNegativo({ eseguito: 'NO', sostituzione_valvola: 'SI' }, campi)).toBe(true);
   });
 });
+
+/*
+  LA MATRICOLA OBBLIGATORIA È PARTE DELL'ESITO POSITIVO.
+
+  Il gemello delle note sull'altro versante: là un NO senza il motivo non chiude la voce, qui un
+  SI senza il numero di ciò che si è installato non la chiude. Non è pignoleria sul modulo — una
+  voce verde chiude l'intervento, chiude l'ordine nel registro e apre la riga a magazzino, tutto
+  con un buco al posto del pezzo montato.
+*/
+describe('matricola obbligatoria: senza, il positivo non è un esito', () => {
+  const acqualatina: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 3 },
+  ];
+
+  it('ESEGUITO = SI con la matricola vuota → neutro, non verde', () => {
+    expect(voceEsitoColore({ eseguito: 'SI' }, acqualatina)).toBe('neutro');
+    // Spazi soli non sono una matricola.
+    expect(voceEsitoColore({ eseguito: 'SI', matricola_nuova: '   ' }, acqualatina)).toBe('neutro');
+  });
+
+  it('ESEGUITO = SI con la matricola → verde', () => {
+    expect(voceEsitoColore({ eseguito: 'SI', matricola_nuova: 'AL26A0012345' }, acqualatina)).toBe('verde');
+  });
+
+  it('ESEGUITO = NO resta rossa: un contatore non sostituito non ha una matricola nuova', () => {
+    expect(voceEsitoColore({ eseguito: 'NO', note: 'UTENTE ASSENTE' }, acqualatina)).toBe('rossa');
+    // E il gate delle note continua a valere per conto suo.
+    expect(voceEsitoColore({ eseguito: 'NO' }, acqualatina)).toBe('neutro');
+  });
+
+  it('una matricola FACOLTATIVA non trattiene niente', () => {
+    const facoltativa = acqualatina.map((c) =>
+      (c.chiave === 'matricola_nuova' ? { ...c, obbligatoria: false } : c));
+    expect(voceEsitoColore({ eseguito: 'SI' }, facoltativa)).toBe('verde');
+  });
+
+  it('i flussi senza campi matricola non cambiano di una virgola', () => {
+    expect(voceEsitoColore({ eseguito: 'SI' }, eseguito)).toBe('verde');
+    expect(voceEsitoColore({ att_cess: true }, standard)).toBe('verde');
+  });
+});

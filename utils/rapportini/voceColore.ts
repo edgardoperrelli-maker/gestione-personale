@@ -50,6 +50,78 @@ function noteCompilate(risposte: Record<string, unknown>, campi: TemplateCampo[]
   });
 }
 
+/**
+ * Con esito POSITIVO le MATRICOLE obbligatorie devono esserci: è il gemello di `noteCompilate`
+ * sull'altro versante dell'esito.
+ *
+ * Il motivo per cui una matricola obbligatoria entra qui e un campo di testo obbligatorio no: la
+ * matricola non è un dettaglio della lavorazione, è il VERBALE di che cosa è stato installato.
+ * Una sostituzione senza il numero di ciò che si è montato non è una sostituzione completata —
+ * è una sostituzione di cui non sappiamo il pezzo, e chiuderla in positivo significa chiudere
+ * anche l'ordine nel registro e la riga a magazzino con un buco che nessuno riaprirà.
+ *
+ * Prima di questo gate l'obbligo scattava solo all'INVIO, cioè a fine giornata, lontano dal
+ * posto: l'operatore scopriva a casa che gli mancava un numero che si legge solo sul contatore.
+ * Qui la voce resta «da fare» finché il campo è vuoto, e la si vede rossa in lista mentre si è
+ * ancora davanti all'impianto.
+ */
+export function matricoleObbligatorieCompilate(
+  risposte: Record<string, unknown>,
+  campi: TemplateCampo[],
+): boolean {
+  return campi
+    .filter((c) => c.tipo === 'matricola' && c.obbligatoria === true)
+    .every((c) => {
+      const v = risposte[c.chiave];
+      return typeof v === 'string' && v.trim().length > 0;
+    });
+}
+
+/**
+ * L'esito DICHIARATO nelle risposte, prima dei gate di completezza (nota, matricole).
+ *
+ * Serve a distinguere «non ha ancora un esito» da «ha un esito ma è incompleto», che per chi
+ * legge la lista sono due cose diverse e prima si leggevano uguali. `voceEsitoColore` ci applica
+ * sopra i gate; `motivoVoceIncompleta` lo usa per dire QUALE dei due casi è.
+ */
+export type EsitoDichiarato =
+  | 'positivo'
+  /** Negativo che pretende la nota col motivo. */
+  | 'negativo'
+  /** Negativo auto-esplicativo («NESSUN PASSAGGIO»): la nota non serve. */
+  | 'negativo_esplicito'
+  | 'nessuno';
+
+export function esitoDichiarato(
+  risposte: Record<string, unknown>,
+  campi: TemplateCampo[],
+): EsitoDichiarato {
+  let positivo = false;
+  for (const c of campi) {
+    const v = risposte[c.chiave];
+    if (c.tipo === 'crocetta') {
+      if (v === true) {
+        // Crocetta spuntata su un campo "negativo" (Assente / Non eseguito) → esito negativo.
+        if (nomeNegativo(c)) return 'negativo';
+        positivo = true;
+      }
+    } else if (c.tipo === 'select') {
+      const s = typeof v === 'string' ? v.trim() : '';
+      if (s !== '') {
+        // Valore negativo esplicito (NO / NESSUN PASSAGGIO) → esito negativo SOLO sul campo esito
+        // (Eseguito / Esito). Su select secondari (es. Sostituzione valvola) il "NO" non è un esito.
+        if (isEsitoSelect(c) && NEG_SELECT.test(s)) {
+          return NEG_SELECT_SENZA_NOTA.test(s) ? 'negativo_esplicito' : 'negativo';
+        }
+        // Tendina su un campo "negativo" (Assente / Non eseguito) valorizzata "SI" → esito negativo.
+        if (nomeNegativo(c)) return 'negativo';
+        positivo = true;
+      }
+    }
+  }
+  return positivo ? 'positivo' : 'nessuno';
+}
+
 /** True se un campo "negativo" (crocetta o select) è valorizzato → esito negativo. */
 export function haEsitoNegativo(
   risposte: Record<string, unknown>,
@@ -73,31 +145,13 @@ export function voceEsitoColore(
   risposte: Record<string, unknown>,
   campi: TemplateCampo[],
 ): 'verde' | 'rossa' | 'neutro' {
-  let positivo = false;
-  for (const c of campi) {
-    const v = risposte[c.chiave];
-    if (c.tipo === 'crocetta') {
-      if (v === true) {
-        // Crocetta spuntata su un campo "negativo" (Assente / Non eseguito) → esito negativo.
-        // Note obbligatorie: se assenti la voce resta "da fare" (neutro) fino a compilazione.
-        if (nomeNegativo(c)) return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
-        positivo = true;
-      }
-    } else if (c.tipo === 'select') {
-      const s = typeof v === 'string' ? v.trim() : '';
-      if (s !== '') {
-        // Valore negativo esplicito (NO / NESSUN PASSAGGIO) → esito negativo SOLO sul campo esito
-        // (Eseguito / Esito). Su select secondari (es. Sostituzione valvola) il "NO" non è un esito.
-        if (isEsitoSelect(c) && NEG_SELECT.test(s)) {
-          // "NESSUN PASSAGGIO" è auto-esplicativo: rossa diretta, nota non obbligatoria.
-          if (NEG_SELECT_SENZA_NOTA.test(s)) return 'rossa';
-          return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
-        }
-        // Tendina su un campo "negativo" (Assente / Non eseguito) valorizzata "SI" → esito negativo.
-        if (nomeNegativo(c)) return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
-        positivo = true;
-      }
-    }
-  }
-  return positivo ? 'verde' : 'neutro';
+  const esito = esitoDichiarato(risposte, campi);
+  // "NESSUN PASSAGGIO" è auto-esplicativo: rossa diretta, nota non obbligatoria.
+  if (esito === 'negativo_esplicito') return 'rossa';
+  // Note obbligatorie: se assenti la voce resta "da fare" (neutro) fino a compilazione.
+  if (esito === 'negativo') return noteCompilate(risposte, campi) ? 'rossa' : 'neutro';
+  if (esito === 'nessuno') return 'neutro';
+  // POSITIVO: verde solo con le matricole obbligatorie compilate — un'installazione senza il
+  // numero di ciò che si è installato non è un lavoro chiuso (vedi `matricoleObbligatorieCompilate`).
+  return matricoleObbligatorieCompilate(risposte, campi) ? 'verde' : 'neutro';
 }

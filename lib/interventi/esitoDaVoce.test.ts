@@ -39,3 +39,33 @@ describe('patchInterventoLiveDaVoce', () => {
     expect(patchInterventoLiveDaVoce({}, campi)).toEqual({ azione: 'riapri' });
   });
 });
+
+/*
+  IL PUNTO IN CUI IL GATE MORDE DAVVERO.
+
+  Una voce verde non è una spunta grafica: chiude l'intervento (`eseguito_positivo`), e da lì
+  scendono la chiusura dell'ordine nel registro AcquaLatina e la riga del misuratore rimosso a
+  magazzino. Senza questo test il gate potrebbe restare nel colore e non nella sostanza.
+*/
+describe('matricola obbligatoria: l\'intervento non si chiude senza', () => {
+  const acqualatina: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 3 },
+  ];
+
+  it('SI senza matricola → nessun esito: l\'intervento resta aperto', () => {
+    expect(esitoInterventoDaVoce({ eseguito: 'SI' }, acqualatina)).toBeNull();
+    expect(patchInterventoLiveDaVoce({ eseguito: 'SI' }, acqualatina)).toEqual({ azione: 'riapri' });
+  });
+
+  it('SI con matricola → chiude in positivo', () => {
+    expect(esitoInterventoDaVoce({ eseguito: 'SI', matricola_nuova: 'AL26A0012345' }, acqualatina))
+      .toEqual({ esito: 'eseguito_positivo', esito_motivo: null });
+  });
+
+  it('NO col motivo chiude comunque: là la matricola non esiste', () => {
+    expect(esitoInterventoDaVoce({ eseguito: 'NO', note: 'UTENTE ASSENTE' }, acqualatina))
+      .toEqual({ esito: null, esito_motivo: 'UTENTE ASSENTE' });
+  });
+});

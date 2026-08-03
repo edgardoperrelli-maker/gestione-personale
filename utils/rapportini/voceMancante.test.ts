@@ -42,3 +42,30 @@ describe('isCampoNota', () => {
     expect(isCampoNota({ chiave: 'note', etichetta: 'Note', tipo: 'crocetta', ordine: 1 })).toBe(false);
   });
 });
+
+describe('matricola obbligatoria mancante', () => {
+  const acqualatina: TemplateCampo[] = [
+    { chiave: 'eseguito', etichetta: 'ESEGUITO', tipo: 'select', opzioni: ['SI', 'NO'], obbligatoria: true, ordine: 1 },
+    { chiave: 'matricola_nuova', etichetta: 'MATRICOLA NUOVO MISURATORE', tipo: 'matricola', obbligatoria: true, ordine: 2 },
+    { chiave: 'note', etichetta: 'NOTE', tipo: 'testo', ordine: 3 },
+  ];
+
+  it('esito positivo con la matricola vuota → matricola_mancante, NON senza_esito', () => {
+    // È la ragione per cui il motivo esiste: l'esito c'è, e dire «senza esito» manderebbe
+    // l'operatore a cercare il campo sbagliato mentre è ancora davanti all'impianto.
+    expect(motivoVoceIncompleta({ eseguito: 'SI' }, acqualatina)).toBe('matricola_mancante');
+  });
+
+  it('con la matricola → null (completa)', () => {
+    expect(motivoVoceIncompleta({ eseguito: 'SI', matricola_nuova: 'AL26A0012345' }, acqualatina)).toBeNull();
+  });
+
+  it('voce ancora intonsa → senza_esito, come prima', () => {
+    expect(motivoVoceIncompleta({}, acqualatina)).toBe('senza_esito');
+  });
+
+  it('esito negativo → nota_mancante: la matricola non c\'entra', () => {
+    expect(motivoVoceIncompleta({ eseguito: 'NO' }, acqualatina)).toBe('nota_mancante');
+    expect(motivoVoceIncompleta({ eseguito: 'NO', note: 'UTENTE ASSENTE' }, acqualatina)).toBeNull();
+  });
+});

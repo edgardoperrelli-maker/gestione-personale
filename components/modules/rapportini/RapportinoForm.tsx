@@ -495,12 +495,18 @@ export default function RapportinoForm({
     try {
       const res = await fetch(`/api/r/${token}/invia`, { method: 'POST' });
       if (res.status === 409) {
-        const body = (await res.json().catch(() => ({}))) as { error?: string; inSospeso?: number };
+        const body = (await res.json().catch(() => ({}))) as { error?: string; inSospeso?: number; matricola_mancante?: number };
         if (body.error === 'voci_in_sospeso') {
           setBloccoSospese(body.inSospeso ?? 1); // banner soft, ritentabile dopo approvazione
         } else if (body.error === 'esiti_mancanti') {
           // Esiti mancanti (nessun esito o un NO senza motivo): azione dell'operatore, non terminale.
-          toast.error('Alcuni interventi non hanno l’esito (o hanno un NO senza la nota col motivo). Completa gli esiti e reinvia.');
+          // Se il blocco è (anche) la matricola, si dice QUELLA: «non hanno l'esito» manderebbe a
+          // cercare un campo che invece è compilato.
+          toast.error(
+            (body.matricola_mancante ?? 0) > 0
+              ? 'Alcuni interventi eseguiti non hanno la matricola del misuratore installato. Completala e reinvia.'
+              : 'Alcuni interventi non hanno l’esito (o hanno un NO senza la nota col motivo). Completa gli esiti e reinvia.',
+          );
         } else {
           setBloccatoInvia(true); // terminale: link scaduto / già inviato
         }
