@@ -124,11 +124,13 @@ export async function sincronizzaRegistro(c: CommessaRegistro): Promise<EsitoSyn
   const interventi = await interventiQualificanti(c);
   const qualificanti = new Set(interventi.map((i) => i.id));
 
-  // Data ESECUZIONE = momento reale di chiusura (`chiuso_at`) in fuso Europe/Rome.
-  // Ripiego sulla data pianificata dell'intervento quando `chiuso_at` manca.
-  const dataEsecuzione = new Map(
-    interventi.map((i) => [i.id, i.chiuso_at ? ymdLocal(new Date(i.chiuso_at)) : i.data]),
-  );
+  // Data ESECUZIONE = la GIORNATA DI LAVORO dell'intervento (`data`), non `chiuso_at`.
+  // `chiuso_at` è l'istante in cui il sistema ha chiuso la voce, e su un rapportino riaperto e
+  // rispedito giorni dopo vale il giorno della rispedizione, non quello in cui il misuratore è
+  // stato staccato. Con `chiuso_at` qui, il passo 2) qui sotto riscriveva a ogni sync la data
+  // corretta con quella sbagliata: la correzione va tenuta allineata fra i due scrittori
+  // (l'altro è `app/api/r/[token]/invia`).
+  const dataEsecuzione = new Map(interventi.map((i) => [i.id, i.data]));
 
   const esistenti = await registroCorrente(c);
   const giaDentro = new Set(esistenti.map((r) => r.intervento_id).filter(Boolean));
