@@ -68,8 +68,17 @@ export async function POST(_req: Request, { params }: { params: Promise<{ token:
     if (incomplete.length > 0) {
       const senzaEsito = incomplete.filter((m) => m.motivo === 'senza_esito').length;
       const notaMancante = incomplete.filter((m) => m.motivo === 'nota_mancante').length;
+      // Esito positivo dichiarato con la matricola obbligatoria vuota: la voce non è chiusa. Si
+      // conta a parte perché è l'unico dei tre che NON si risolve guardando l'esito.
+      const matricolaMancante = incomplete.filter((m) => m.motivo === 'matricola_mancante').length;
       return NextResponse.json(
-        { error: 'esiti_mancanti', voci: incomplete.length, senza_esito: senzaEsito, nota_mancante: notaMancante },
+        {
+          error: 'esiti_mancanti',
+          voci: incomplete.length,
+          senza_esito: senzaEsito,
+          nota_mancante: notaMancante,
+          matricola_mancante: matricolaMancante,
+        },
         { status: 409 },
       );
     }
