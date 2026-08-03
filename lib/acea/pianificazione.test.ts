@@ -410,4 +410,14 @@ describe('etichettaMotivo', () => {
     expect(etichettaMotivo('solo_attivazioni')).toMatch(/attivazion/i);
     expect(etichettaMotivo('giorno_occupato')).toMatch(/giorno/i);
   });
+
+  /*
+    «ordine già chiuso su ACEA» su una riga AcquaLatina nomina un committente che con quella
+    commessa non c'entra, e manda a cercare la causa dove non c'è: è il messaggio che il 03/08 ha
+    fatto sembrare un problema di import quello che era una chiusura sbagliata a monte.
+  */
+  it('non nomina ACEA su una riga AcquaLatina', () => {
+    expect(etichettaMotivo('ordine_chiuso', 'acqualatina')).not.toMatch(/acea/i);
+    expect(etichettaMotivo('ordine_chiuso', 'massive')).toMatch(/acea/i);
+  });
 });

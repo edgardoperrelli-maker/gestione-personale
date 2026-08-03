@@ -275,13 +275,19 @@ export async function POST(req: Request) {
             diventerebbe una riga a metà perpetua, che blocca i rapportini per lavoro finito.
           */
           if (!ordine.aperto) {
-            rifiutate.push({ chiave: m.chiave, motivo: etichettaMotivo('ordine_chiuso') });
+            rifiutate.push({
+              chiave: m.chiave,
+              motivo: etichettaMotivo('ordine_chiuso', ordine.famiglia),
+            });
             continue;
           }
           const positivo = (interventoPerOdl.get(chiaveUnita(ordine.odl, ordine.matricola)) ?? [])
             .some((i) => i.stato !== 'annullato' && i.esito === 'eseguito_positivo');
           if (positivo) {
-            rifiutate.push({ chiave: m.chiave, motivo: etichettaMotivo('gia_completato') });
+            rifiutate.push({
+              chiave: m.chiave,
+              motivo: etichettaMotivo('gia_completato', ordine.famiglia),
+            });
             continue;
           }
           appunti.push({ chiave: m.chiave, staffId: m.staffId, data: m.data });
@@ -311,7 +317,7 @@ export async function POST(req: Request) {
           chiave: m.chiave,
           motivo: azione.motivo === 'solo_attivazioni'
             ? MOTIVO_SOLO_ATTIVAZIONI
-            : etichettaMotivo(azione.motivo),
+            : etichettaMotivo(azione.motivo, azione.ordine.famiglia),
         });
         continue;
       }

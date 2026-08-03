@@ -227,10 +227,27 @@ export function pianoPianificazione({
   };
 }
 
-/** Etichetta leggibile del motivo di salto, per il messaggio all'utente. */
-export function etichettaMotivo(m: MotivoSalto): string {
-  if (m === 'ordine_chiuso') return 'ordine già chiuso su ACEA';
+/**
+ * Etichetta leggibile del motivo di salto, per il messaggio all'utente.
+ *
+ * La famiglia serve a UNA frase, e non è un dettaglio: «ordine già chiuso su ACEA» su una riga
+ * AcquaLatina nomina un committente che con quella commessa non c'entra, e manda a cercare la
+ * causa dove non c'è (è successo il 03/08, sulle 12 righe di via Tuccia). Lì la chiusura la
+ * scriviamo noi, e la si scrive per UN motivo solo: il lavoro è stato fatto.
+ */
+export function etichettaMotivo(m: MotivoSalto, famiglia: Famiglia = 'dunning'): string {
+  if (m === 'ordine_chiuso') {
+    return famiglia === 'acqualatina'
+      ? 'riga già chiusa: contatore sostituito, non si ripianifica'
+      : 'ordine già chiuso su ACEA';
+  }
   if (m === 'solo_attivazioni') return 'non è un’attivazione: venerdì e sabato passano solo quelle';
-  if (m === 'giorno_occupato') return 'quel giorno è già occupato su questo ODL';
+  if (m === 'giorno_occupato') {
+    // Su AcquaLatina l'unità è ODL+matricola: «su questo ODL» manderebbe a cercare il conflitto
+    // sull'ordine intero, che in un condominio sono fino a cinque contatori diversi.
+    return famiglia === 'acqualatina'
+      ? 'quel giorno c’è già un’uscita su questo contatore'
+      : 'quel giorno è già occupato su questo ODL';
+  }
   return 'già eseguito con esito positivo: non si ripianifica';
 }
