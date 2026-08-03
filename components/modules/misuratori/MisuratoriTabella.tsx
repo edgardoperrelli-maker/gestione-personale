@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp } from 'lucide-react';
 import { STATI_MISURATORE, STATO_LABEL, type MisuratoreRimosso, type StatoMisuratore } from '@/types/misuratori';
 import { STATO_ACCENT, STATO_TESTO } from './StatoBadge';
+import { useGrigliaCopiabile } from '@/components/ui/useGrigliaCopiabile';
 import { formatItalian } from '@/utils/date-it';
 
 type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet';
@@ -71,6 +72,48 @@ export default function MisuratoriTabella({
     if (sortKey === key) setSortAsc(v => !v);
     else { setSortKey(key); setSortAsc(true); }
   }, [sortKey]);
+
+  /*
+    Il MODELLO delle colonne: intestazione, chiave d'ordinamento e testo da copiare, in un posto
+    solo. Prima l'intestazione era un array inline e il corpo una sequenza di <td> scritti a
+    mano: due liste parallele che con PDR e Pallet condizionali erano già a rischio di sfalsarsi,
+    e che una terza lista (i valori da copiare) avrebbe reso ingestibili.
+
+    Il valore è il testo che si VEDE — data all'italiana, stato in chiaro — non il dato grezzo:
+    chi copia una riga la incolla in un foglio da leggere, non in un database.
+  */
+  const colonne = useMemo(() => {
+    const c: Array<{ label: string; key: SortKey | null; valore: (r: MisuratoreRimosso) => string }> = [
+      { label: 'ODS/ODL',   key: null,              valore: r => r.odl ?? '' },
+      { label: 'Data',      key: 'data_esecuzione', valore: r => formatItalian(r.data_esecuzione) },
+      { label: 'Esecutore', key: null,              valore: r => r.esecutore ?? '' },
+      { label: 'Indirizzo', key: null,              valore: r => r.indirizzo ?? '' },
+      { label: 'Comune',    key: 'comune',          valore: r => r.comune ?? '' },
+      { label: 'Matricola', key: null,              valore: r => r.matricola },
+    ];
+    if (mostraPdr) c.push({ label: 'PDR', key: null, valore: r => r.pdr ?? '' });
+    if (mostraPallet) c.push({ label: 'Pallet', key: 'pallet', valore: r => r.pallet?.trim() ?? '' });
+    c.push({ label: 'Stato', key: 'stato', valore: r => STATO_LABEL[r.stato] });
+    c.push({ label: 'Note',  key: null,    valore: r => r.note ?? '' });
+    return c;
+  }, [mostraPdr, mostraPallet]);
+
+  /** Indice di una colonna per etichetta: le celle non contano le posizioni a mano. */
+  const iCol = useCallback((label: string) => colonne.findIndex(c => c.label === label), [colonne]);
+
+  /*
+    Celle copiabili, come nel registro ordini: si clicca, si estende con shift o con le frecce,
+    Ctrl+C e il blocco è in Excel. Qui non si incolla — questa tabella ha i suoi editor per
+    cella, e il gancio si ferma sulla soglia di qualunque campo abbia il fuoco.
+  */
+  const griglia = useGrigliaCopiabile({
+    righe: sorted.length,
+    colonne: colonne.map(c => c.label),
+    valoreCella: (r, c) => {
+      const riga = sorted[r];
+      return riga ? (colonne[c]?.valore(riga) ?? '') : '';
+    },
+  });
 
   const handleStatoChange = useCallback(
     async (id: string, stato: StatoMisuratore) => {
@@ -214,20 +257,7 @@ export default function MisuratoriTabella({
                 />
               </th>
             )}
-            {(
-              [
-                { key: null,              label: 'ODS/ODL' },
-                { key: 'data_esecuzione', label: 'Data' },
-                { key: null,              label: 'Esecutore' },
-                { key: null,              label: 'Indirizzo' },
-                { key: 'comune',          label: 'Comune' },
-                { key: null,              label: 'Matricola' },
-                ...(mostraPdr ? [{ key: null, label: 'PDR' }] : []),
-                ...(mostraPallet ? [{ key: 'pallet' as SortKey, label: 'Pallet' }] : []),
-                { key: 'stato',           label: 'Stato' },
-                { key: null,              label: 'Note' },
-              ] as Array<{ key: SortKey | null; label: string }>
-            ).map(({ key, label }) => (
+            {colonne.map(({ key, label }) => (
               /*
                 L'ordinamento sta su un VERO <button> dentro il th, non su un onClick del th:
                 col solo click la tastiera non ci arrivava mai (niente Tab, niente Invio) e il
@@ -255,8 +285,13 @@ export default function MisuratoriTabella({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--brand-border)]">
-          {sorted.map(row => {
+          {sorted.map((row, iRiga) => {
             const accent = STATO_ACCENT[row.stato];
+            /* Props + classi di una cella copiabile, per etichetta di colonna. */
+            const cella = (label: string) => {
+              const c = iCol(label);
+              return { props: griglia.propsCella(iRiga, c), classe: griglia.classeCella(iRiga, c) };
+            };
             return (
             <tr
               key={row.id}
@@ -276,21 +311,23 @@ export default function MisuratoriTabella({
                 </td>
               )}
               <td
-                className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums"
+                {...cella('ODS/ODL').props}
+                className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('ODS/ODL').classe}`}
                 style={conSpunte ? undefined : { boxShadow: `inset 3px 0 0 0 ${accent}` }}
               >{row.odl ?? '—'}</td>
               {/* `text-xs` come OGNI cella-dato mono della riga (ODL, Matricola, PDR, Pallet):
                   era l'unica a 14, e i dati densi stanno al gradino 12 (§4). */}
-              <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{formatItalian(row.data_esecuzione)}</td>
-              <td className="whitespace-nowrap px-3 py-2">{row.esecutore ?? '—'}</td>
-              <td className="max-w-[180px] truncate px-3 py-2" title={row.indirizzo ?? undefined}>{row.indirizzo ?? '—'}</td>
-              <td className="whitespace-nowrap px-3 py-2">{row.comune ?? '—'}</td>
-              <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.matricola}</td>
+              <td {...cella('Data').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Data').classe}`}>{formatItalian(row.data_esecuzione)}</td>
+              <td {...cella('Esecutore').props} className={`whitespace-nowrap px-3 py-2 ${cella('Esecutore').classe}`}>{row.esecutore ?? '—'}</td>
+              {/* `title` con l'indirizzo intero: la cella tronca, ma la copia porta via il testo pieno. */}
+              <td {...cella('Indirizzo').props} className={`max-w-[180px] truncate px-3 py-2 ${cella('Indirizzo').classe}`} title={row.indirizzo ?? undefined}>{row.indirizzo ?? '—'}</td>
+              <td {...cella('Comune').props} className={`whitespace-nowrap px-3 py-2 ${cella('Comune').classe}`}>{row.comune ?? '—'}</td>
+              <td {...cella('Matricola').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Matricola').classe}`}>{row.matricola}</td>
               {mostraPdr && (
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">{row.pdr ?? '—'}</td>
+                <td {...cella('PDR').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('PDR').classe}`}>{row.pdr ?? '—'}</td>
               )}
               {mostraPallet && (
-                <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">
+                <td {...cella('Pallet').props} className={`whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums ${cella('Pallet').classe}`}>
                   {editingPallet === row.id ? (
                     <input
                       autoFocus
@@ -333,7 +370,7 @@ export default function MisuratoriTabella({
               )}
 
               {/* Dropdown stato inline */}
-              <td className="whitespace-nowrap px-3 py-2">
+              <td {...cella('Stato').props} className={`whitespace-nowrap px-3 py-2 ${cella('Stato').classe}`}>
                 <select
                   /*
                     Il vincolo di regressione DETTO anche a chi non ha il mouse: il `title` lo
@@ -369,7 +406,7 @@ export default function MisuratoriTabella({
               </td>
 
               {/* Note editabili inline */}
-              <td className="min-w-[140px] px-3 py-2">
+              <td {...cella('Note').props} className={`min-w-[140px] px-3 py-2 ${cella('Note').classe}`}>
                 {editingNote === row.id ? (
                   <input
                     autoFocus
