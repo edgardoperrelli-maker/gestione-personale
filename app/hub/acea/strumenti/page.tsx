@@ -1,3 +1,4 @@
+import { gatePagina } from '@/lib/auth/gatePagina';
 import { AceaNav } from '@/components/modules/acea/AceaNav';
 import StrumentiClient from '@/components/modules/acea/StrumentiClient';
 
@@ -10,7 +11,8 @@ export const dynamic = 'force-dynamic';
  * inizio e a fine giornata, non mentre si assegna. Tenendoli in fondo alle viste-tabella si
  * scorreva oltre la tabella per raggiungerli, ed erano duplicati fra Dunning e Massive.
  */
-export default function AceaStrumentiPage() {
+export default async function AceaStrumentiPage() {
+  await gatePagina('/hub/acea/strumenti');
   return (
     <div className="space-y-4">
       <AceaNav attivo="strumenti" />

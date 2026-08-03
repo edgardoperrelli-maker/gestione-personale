@@ -1,3 +1,4 @@
+import { gatePagina } from '@/lib/auth/gatePagina';
 import { AceaNav } from '@/components/modules/acea/AceaNav';
 import ContatoriAcea from '@/components/modules/acea/ContatoriAcea';
 import RegistroAcea from '@/components/modules/acea/RegistroAcea';
@@ -22,6 +23,9 @@ export const dynamic = 'force-dynamic';
  * famiglie, e tenerli in fondo a questa pagina significava ripeterli identici sotto due tabelle.
  */
 export default async function AceaMassivePage() {
+  // PRIMA del dato, non dopo: leggere i comuni per poi rimandare via chi non può vederli
+  // significa aver già interrogato il registro del committente per conto suo.
+  await gatePagina('/hub/acea/massive');
   const comuni = await comuniMassiveAperti(supabaseAdmin).catch((e) => {
     console.error('[acea/massive] comuni non letti:', e);
     return [];

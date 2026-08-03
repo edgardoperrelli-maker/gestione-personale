@@ -1,8 +1,5 @@
-import { cookies } from 'next/headers';
-import { createServerComponentClient } from '@supabase/auth-helpers-nextjs';
-import { redirect } from 'next/navigation';
 import { ClipboardCheck } from 'lucide-react';
-import { canAccessPathFromMetadata } from '@/lib/moduleAccess';
+import { gatePagina } from '@/lib/auth/gatePagina';
 import AuthGate from '@/components/AuthGate';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import FogliettaCard from '@/components/ui/FogliettaCard';
@@ -24,18 +21,13 @@ export const dynamic = 'force-dynamic';
  * era l'unica testa di modulo senza rete di sicurezza propria: bastava un domani un cambio
  * al `matcher` del middleware per scoprirla.
  *
- * Il controllo è `canAccessPathFromMetadata`, cioè LA STESSA funzione che decide sul bordo:
- * una sola decisione, non due che si somigliano. Da qui l'assenza della query a `profiles`
- * che le pagine sorelle si portano dietro — con la precedenza ai metadata quel giro non può
- * più cambiare l'esito, e un roundtrip che non decide niente è solo latenza.
+ * Il controllo è `gatePagina`, che dentro chiama LA STESSA funzione del middleware: una sola
+ * decisione, non due che si somigliano. Da qui l'assenza della query a `profiles` che le
+ * pagine sorelle si portano dietro — con la precedenza ai metadata quel giro non può più
+ * cambiare l'esito, e un roundtrip che non decide niente è solo latenza.
  */
 export default async function AceaHubPage() {
-  const cookieStore = await cookies();
-  const cookieMethods = (() => cookieStore) as unknown as () => ReturnType<typeof cookies>;
-  const supabase = createServerComponentClient({ cookies: cookieMethods });
-  const { data: { user } } = await supabase.auth.getUser();
-  if (!user) redirect('/login');
-  if (!canAccessPathFromMetadata('/hub/acea', user.app_metadata)) redirect('/hub');
+  await gatePagina('/hub/acea');
 
   return (
     <AuthGate>
