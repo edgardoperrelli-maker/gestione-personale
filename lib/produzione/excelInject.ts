@@ -7,8 +7,8 @@ import type { ProduzioneEconomica } from './load';
 
 const AUDIT_LABEL: Record<string, string> = {
   SOLO_PORTALE: 'Solo nel portale (assente da DB e master)',
-  DB_NON_IN_MASTER: 'Nel DB ma non nel master',
-  MASTER_NON_IN_DB: 'Nel master ma non nel DB',
+  DB_NON_IN_REGISTRO: 'Nel DB ma non nel master',
+  REGISTRO_NON_IN_DB: 'Nel master ma non nel DB',
   POSITIVO_DB_NON_COMPLETATO_PORTALE: 'Positivo DB non consuntivato (Produzione > SAL)',
   COMPLETATO_PORTALE_NON_POSITIVO_DB: 'Consuntivato portale non positivo nel DB',
   VOCE_DISCORDE: 'Voce DB ≠ voce master',

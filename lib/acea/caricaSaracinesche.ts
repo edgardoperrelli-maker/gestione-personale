@@ -77,10 +77,15 @@ async function vociConChiave(db: SupabaseClient, chiave: (typeof CHIAVI)[number]
  * non ha dichiarato niente. Il rapportino è la dichiarazione di chi c'è stato; il foglio è una
  * copia invecchiata, e usarlo riempiva la vista di righe che con le saracinesche non c'entrano.
  */
-export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<Set<string>> {
-  const ora = Date.now();
-  if (cache && ora - cache.quando < TTL_CACHE_MS) return cache.odl;
-
+/**
+ * Gli INTERVENTI su cui un operatore ha dichiarato una saracinesca sostituita.
+ *
+ * Estratta da `odlConSaracinescaDichiarata` il 2026-08-03, che la usa come primo passo. Serve a
+ * chi non può passare per l'ODL: la Produzione economica deve valorizzare anche il lavoro delle
+ * limitazioni massive nato SENZA ordine ACEA — 834 interventi positivi, che fermandosi all'ODL
+ * sparirebbero dai conti. L'intervento c'è sempre; l'ODL no.
+ */
+export async function interventiConSaracinescaDichiarata(db: SupabaseClient): Promise<string[]> {
   /*
     Si scaricano SOLO i due valori estratti, non l'oggetto `risposte` intero.
 
@@ -109,13 +114,20 @@ export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<S
     }
   }
 
-  const ids = [...new Set(
+  return [...new Set(
     voci
       .filter((v) => v.intervento_id
         && valoreSaracinesca(v.risposte?.['sostituzione_valvola'], v.risposte?.['sost_valvola'])
           .toUpperCase() === 'SI')
       .map((v) => v.intervento_id as string),
   )];
+}
+
+export async function odlConSaracinescaDichiarata(db: SupabaseClient): Promise<Set<string>> {
+  const ora = Date.now();
+  if (cache && ora - cache.quando < TTL_CACHE_MS) return cache.odl;
+
+  const ids = await interventiConSaracinescaDichiarata(db);
 
   const odl = new Set<string>();
   for (let i = 0; i < ids.length; i += CHUNK_ID) {

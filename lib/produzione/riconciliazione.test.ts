@@ -9,17 +9,17 @@ import {
 function mk(parts: Partial<RiconciliazioneInput>): RiconciliazioneInput {
   return {
     db: parts.db ?? new Map(),
-    master: parts.master ?? new Map(),
+    registro: parts.registro ?? new Map(),
     portale: parts.portale ?? new Map(),
   };
 }
 // per i test di regola "isolata" simuliamo snapshot popolati (l'audit ha senso solo allora)
-const POP = { masterPopolato: true, portalePopolato: true };
+const POP = { registroPopolato: true, portalePopolato: true };
 const classi = (odl: string, ds: { odl: string; classe: ClasseDiscrepanza }[]) =>
   ds.filter((d) => d.odl === odl).map((d) => d.classe);
 
 describe('riconcilia — gate su snapshot popolato', () => {
-  it('master VUOTO → niente falsi DB_NON_IN_MASTER (il bug dei 6252)', () => {
+  it('master VUOTO → niente falsi DB_NON_IN_REGISTRO (il bug dei 6252)', () => {
     const out = riconcilia(mk({ db: new Map([['o1', { voce: 10, esitoOk: true }]]) }));
     expect(out).toEqual([]); // master/portale vuoti → nessuna discrepanza di presenza/SAL
   });
@@ -28,7 +28,7 @@ describe('riconcilia — gate su snapshot popolato', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
-        master: new Map([['o1', { voce: 10 }]]),
+        registro: new Map([['o1', { voce: 10 }]]),
       }),
     );
     expect(classi('o1', out)).toEqual([]); // master coincide, portale vuoto → niente
@@ -36,7 +36,7 @@ describe('riconcilia — gate su snapshot popolato', () => {
 });
 
 describe('riconcilia — classi isolate (snapshot popolati)', () => {
-  it('DB positivo non presente nel master → DB_NON_IN_MASTER', () => {
+  it('DB positivo non presente nel master → DB_NON_IN_REGISTRO', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
@@ -44,19 +44,19 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
       }),
       POP,
     );
-    expect(classi('o1', out)).toEqual(['DB_NON_IN_MASTER']);
+    expect(classi('o1', out)).toEqual(['DB_NON_IN_REGISTRO']);
   });
 
-  it('master non presente nel DB → MASTER_NON_IN_DB', () => {
-    const out = riconcilia(mk({ master: new Map([['o1', { voce: 10 }]]) }), POP);
-    expect(classi('o1', out)).toEqual(['MASTER_NON_IN_DB']);
+  it('master non presente nel DB → REGISTRO_NON_IN_DB', () => {
+    const out = riconcilia(mk({ registro: new Map([['o1', { voce: 10 }]]) }), POP);
+    expect(classi('o1', out)).toEqual(['REGISTRO_NON_IN_DB']);
   });
 
   it('positivo nel DB ma portale non COMPLETATO → POSITIVO_DB_NON_COMPLETATO_PORTALE', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
-        master: new Map([['o1', { voce: 10 }]]),
+        registro: new Map([['o1', { voce: 10 }]]),
         portale: new Map([['o1', { statoNorm: 'ASSEGNATO' }]]),
       }),
       POP,
@@ -68,7 +68,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: false }]]),
-        master: new Map([['o1', { voce: 10 }]]),
+        registro: new Map([['o1', { voce: 10 }]]),
         portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
       }),
       POP,
@@ -80,7 +80,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
-        master: new Map([['o1', { voce: 11 }]]),
+        registro: new Map([['o1', { voce: 11 }]]),
         portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
       }),
       POP,
@@ -92,7 +92,7 @@ describe('riconcilia — classi isolate (snapshot popolati)', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: null, esitoOk: true }]]),
-        master: new Map([['o1', { voce: null }]]),
+        registro: new Map([['o1', { voce: null }]]),
         portale: new Map([['o1', { statoNorm: 'COMPLETATO' }]]),
       }),
       POP,
@@ -111,7 +111,7 @@ describe('riconcilia — combinazioni e ordinamento', () => {
     const out = riconcilia(
       mk({
         db: new Map([['o1', { voce: 10, esitoOk: true }]]),
-        master: new Map([['o1', { voce: 11 }]]),
+        registro: new Map([['o1', { voce: 11 }]]),
         portale: new Map([['zzz', { statoNorm: 'ASSEGNATO' }]]), // portale popolato, o1 assente
       }),
       POP,
@@ -124,7 +124,7 @@ describe('riconcilia — combinazioni e ordinamento', () => {
   it('output ordinato per ODL crescente', () => {
     const out = riconcilia(
       mk({
-        master: new Map([
+        registro: new Map([
           ['o2', { voce: 10 }],
           ['o1', { voce: 10 }],
         ]),

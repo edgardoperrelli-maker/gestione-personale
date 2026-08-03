@@ -4,11 +4,13 @@ import { esitoOkDaIntervento } from '@/lib/limitazione/exportLimMassive';
 import { voceDaAttivita } from './voceDaAttivita';
 import { prezzoPerData, valoreRiga, type ListinoRiga } from './valorizza';
 import { attivitaCanonica } from './attivitaCanonica';
-import { dataDaRaw } from './dataDaRaw';
+import { interventiConSaracinescaDichiarata } from '@/lib/acea/caricaSaracinesche';
 import { scostamentoPagato } from './statoPortale';
 import { caricaAliasAttivita } from './aliasAttivita';
 import { caricaComuniMassive } from './comuniMassive';
-import { saracinescaProdotta } from './saracinescaProdotta';
+import { caricaOrdiniSostituzione } from '@/lib/acea/caricaSaracinesche';
+import { chiaviAggancio } from '@/lib/acea/saracinesche';
+import { normMatricola } from '@/lib/limitazione/matricoleSimili';
 import { aggregaProduzione, deduplicaMassivePerMatricola, type Aggregato, type ProduzioneAggregata, type RigaProduzione } from './aggregaProduzione';
 import { aggregaPersonale, giornoSettimana, type ProduzionePersonale, type RigaLavoro } from './aggregaPersonale';
 import { aggregaEsiti, type EsitoOperatore, type RigaEsito } from './aggregaEsiti';
@@ -18,11 +20,11 @@ import {
   type ClasseDiscrepanza,
   type Discrepanza,
   type DbRiga,
-  type MasterRiga,
+  type RegistroRiga,
   type PortaleRiga,
   type Totale,
 } from './riconciliazione';
-import { chiaveSalEffettiva, odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
+import { odlPagatiDaSal, riepilogoUnSal, type SalRigaArricchita, type SalStorico } from './salUfficiale';
 
 // Loader server-only della "Produzione economica" ACEA. Riusa la logica pura testata.
 // Condiviso tra l'endpoint dati (tab) e l'export Excel (così non si duplica il calcolo).
@@ -62,7 +64,7 @@ export interface ProduzioneEconomica {
   auditSummary: Record<ClasseDiscrepanza, number>;
   auditTotale: number;
   auditTruncated: boolean;
-  masterPopolato: boolean;
+  registroPopolato: boolean;
   portalePopolato: boolean;
 }
 
@@ -80,15 +82,17 @@ interface InterventoRow {
   comune: string | null;
   matricola_contatore: string | null;
 }
-interface MasterRow {
+/*
+  La colonna di mezzo dell'audit: il REGISTRO del modulo ACEA, non più la fotografia dei file
+  SharePoint (`acea_master_snapshot`). Dice le stesse cose — quali ordini esistono, con che
+  attività — ma si aggiorna con l'import del Cruscotto invece che con un agente su un PC acceso.
+
+  Il registro NON ha una colonna `voce`: la si deriva dall'attività, che è ciò che
+  `risolviVoce(null, …)` fa già per gli interventi senza voce valida.
+*/
+interface RegistroRow {
   odl: string;
-  voce: number | null;
   attivita: string | null;
-  esito: string | null;
-  saracinesca: string | null;
-  odl_saracinesca: string | null;
-  esecutore: string | null;
-  data_raw: string | null;
   comune: string | null;
 }
 interface PortaleRow {
@@ -198,20 +202,45 @@ async function nomi(): Promise<{ staff: Map<string, string>; terr: Map<string, s
 }
 
 export async function caricaProduzioneEconomica(from: string, to: string): Promise<ProduzioneEconomica> {
-  const [listinoRows, interventi, masterRows, portaleRows, maps, alias, lavoroRows, salRows, comuniMassive] = await Promise.all([
+  const [listinoRows, interventi, registroRows, portaleRows, maps, alias, lavoroRows, salRows, comuniMassive, idSaracinesca, ordiniSostituzione] = await Promise.all([
     supabaseAdmin
       .from('listino')
       .select('id, attivita, prezzo, valido_dal, valido_al, attivo')
       .eq('committente', 'acea'),
     caricaInterventiAcea(),
-    caricaSnapshot<MasterRow>('acea_master_snapshot', 'odl, voce, attivita, esito, saracinesca, odl_saracinesca, esecutore, data_raw, comune'),
+    caricaSnapshot<RegistroRow>('acea_ordini', 'odl, attivita, comune'),
     caricaSnapshot<PortaleRow>('acea_portale_snapshot', 'odl, stato_norm, causa_scostamento'),
     nomi(),
     caricaAliasAttivita(),
     caricaLavoroGiornaliero(from, to),
     caricaSnapshot<SalRow>('acea_sal', 'sal_n, odl, doc_acquisti, posizione, valore, causa, attivita, data_completamento, data_registrazione'),
     caricaComuniMassive(),
+    /*
+      Le saracinesche dichiarate, per INTERVENTO. Prima venivano dalla colonna `saracinesca` del
+      master, e il modulo ACEA aveva già smesso di fidarsene: «è la fotografia del vecchio foglio
+      compilato a mano, e non concorda» (caricaSaracinesche.ts). Il motore KPI era l'ultimo posto
+      a usarla. Per intervento e non per ODL: le massive nate senza ordine ACEA — 834 positivi —
+      un ODL non ce l'hanno, e fermarsi lì le cancellerebbe dai conti.
+    */
+    interventiConSaracinescaDichiarata(supabaseAdmin),
+    /*
+      Gli ordini ACEA di sostituzione saracinesca, dal registro. Servono a sapere se la
+      saracinesca che abbiamo prodotto è stata poi CONSUNTIVATA: sul portale non compare sotto
+      l'ODL della limitazione ma sotto un ordine figlio suo.
+
+      Quel legame stava in una colonna del master compilata a mano (`odl_saracinesca`). Qui si
+      deriva per impianto o matricola, che è come il modulo ACEA lo deriva già nella sua vista
+      Saracinesche — e ha il pregio di funzionare anche sugli ordini che nessuno ha annotato.
+    */
+    caricaOrdiniSostituzione(supabaseAdmin),
   ]);
+  const saracinescaDichiarata = new Set(idSaracinesca);
+
+  // chiave d'aggancio (impianto o matricola) → ODL dell'ordine figlio di sostituzione.
+  const figlioPerChiave = new Map<string, string>();
+  for (const o of ordiniSostituzione) {
+    for (const k of chiaviAggancio(o)) if (!figlioPerChiave.has(k)) figlioPerChiave.set(k, o.odl);
+  }
 
   const listino: ListinoRiga[] = ((listinoRows.data ?? []) as Array<{
     id: string;
@@ -283,71 +312,66 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
         data, staffId, operatore, territorioId, territorio,
         valore: valore(attivitaKey, data),
       });
-    }
-  }
+      /*
+        La SARACINESCA è una voce a sé, IN AGGIUNTA alla limitazione padre: stesso intervento,
+        due righe di produzione. Prima nasceva dalla colonna del master; ora dalla dichiarazione
+        dell'operatore sul rapportino, che è la fonte che il modulo ACEA usa già.
 
-  // master per ODL (voce + attività) + PRODUZIONE "Sostituzione saracinesca" (voce a sé dai master massive, Labico/Zagarolo).
-  const masterAudit = new Map<string, MasterRiga>();
-  const masterAttivita = new Map<string, string>();
-  const saracinesca: Array<{ odlFiglio: string; data: string }> = [];
-  const saracinescaFiglioByParent = new Map<string, string>();
-  for (const m of masterRows) {
-    const odl = (m.odl ?? '').trim();
-    if (!odl) continue;
-    // Le chiavi per-matricola (prefisso "MAT:") sono righe massive senza ODL reale (manuali dal campo,
-    // "DA CHIEDERE"): valgono per la PRODUZIONE saracinesca ma NON per audit/SAL (non hanno un ODL sul
-    // portale, altrimenti gonfierebbero le discrepanze come "master non nel portale").
-    const odlReale = !odl.startsWith('MAT:');
-    if (odlReale) {
-      masterAudit.set(odl, { voce: risolviVoce(m.voce, m.attivita) });
-      // Attività CANONICA (via alias) anche per il master: la chiave GREZZA non aggancia il listino
-      // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
-      const canonM = attivitaCanonica('acea', m.attivita, m.comune, alias, comuniMassive);
-      if (canonM?.attivitaKey) masterAttivita.set(odl, canonM.attivitaKey);
-    }
-    // saracinesca prodotta → voce "Sostituzione saracinesca", IN AGGIUNTA alla limitazione padre.
-    // Massive (Labico/Zagarolo): fonte verità = colonna esito del master. DUNNING (senza quella
-    // colonna): fonte verità = il nostro DB (positivo sull'ODL) — vedi saracinescaProdotta().
-    if (saracinescaProdotta(m.saracinesca, m.esito, dbAudit.get(odl)?.esitoOk)) {
-      const info = dbInfo.get(odl);
-      const data = info?.data ?? dataDaRaw(m.data_raw) ?? '';
-      saracinesca.push({ odlFiglio: (m.odl_saracinesca ?? '').trim(), data });
-      saracinescaFiglioByParent.set(odl, (m.odl_saracinesca ?? '').trim());
-      if (data && data >= from && data <= to) {
+        Sta QUI dentro, e non in un giro a parte, perché la condizione è la stessa della riga
+        padre — positivo, nel range — e perché l'intervento porta con sé esecutore, giorno e
+        territorio: agganciandola all'ODL, come faceva il master, le 834 massive senza ordine
+        ACEA non avrebbero nessuna riga a cui attaccarsi.
+      */
+      if (saracinescaDichiarata.has(it.id)) {
         produzioneRighe.push({
-          odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
-          staffId: info?.staffId ?? '',
-          operatore: info?.operatore ?? ((m.esecutore ?? '').trim() || 'Sconosciuto'),
-          territorioId: info?.territorioId ?? '',
-          territorio: info?.territorio ?? ((m.comune ?? '').trim() || 'Senza territorio'),
+          odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL,
+          matricola: it.matricola_contatore ?? '',
+          data, staffId, operatore, territorioId, territorio,
           valore: valore(SARA_KEY, data),
         });
       }
     }
   }
+
+  /*
+    Il REGISTRO per ODL: voce e attività, per l'audit e per valorizzare il SAL.
+
+    Rispetto al master che sostituisce, sparisce tutta la gestione delle chiavi `MAT:` — le
+    righe massive senza ordine ACEA, che il master teneva dentro con un prefisso finto. Il
+    registro contiene ordini veri e basta: quel lavoro esiste ancora, come produzione, ma la
+    porta è l'intervento (vedi il giro qui sopra) e non un ODL inventato.
+
+    Sparisce anche il legame a mano padre→figlio della saracinesca (`odl_saracinesca`): il
+    registro gli ordini figli ce li ha come ORDINI, con la loro attività «Sostituzione
+    saracinesca o valvola», che l'alias porta sulla tariffa. Non serve più dirglielo.
+  */
+  const registroAudit = new Map<string, RegistroRiga>();
+  const registroAttivita = new Map<string, string>();
+  for (const r of registroRows) {
+    const odl = (r.odl ?? '').trim();
+    if (!odl) continue;
+    registroAudit.set(odl, { voce: risolviVoce(null, r.attivita) });
+    // Attività CANONICA (via alias): la chiave GREZZA non aggancia il listino
+    // (es. "LIMITAZIONE FLUSSO IDRICO" ≠ tariffa "LIMITAZIONE EROGAZIONE") → altrimenti SAL a 0.
+    const canonR = attivitaCanonica('acea', r.attivita, r.comune, alias, comuniMassive);
+    if (canonR?.attivitaKey) registroAttivita.set(odl, canonR.attivitaKey);
+  }
   // Produzione: le limitazioni massive contano per MATRICOLA (non per riga-intervento), come ACEA.
   const righeDedup = deduplicaMassivePerMatricola(produzioneRighe);
   const produzione = aggregaProduzione(righeDedup);
 
-  // Odl figli saracinesca → data del padre: valorizzano la "Sostituzione saracinesca" nel SAL
-  // quando l'Odl figlio risulta COMPLETATO sul portale (Fix B, niente riga fantasma a 0).
-  const saracinescaByFiglio = new Map<string, string>();
-  for (const s of saracinesca) if (s.odlFiglio) saracinescaByFiglio.set(s.odlFiglio, s.data);
+  /*
+    Riga "esitata a sistema" per un ODL: è la forma con cui un ODL completato sul portale entra
+    nel SAL. Usata da entrambi i rami, E% e non-E.
 
-  // Riga "esitata a sistema" per un ODL, valorizzata come limitazione o come saracinesca figlio
-  // (stessa logica del blocco SAL preesistente, estratta per essere riusata da entrambi i rami
-  // E%/non-E — comportamento identico, solo condivisione del codice).
+    Il ramo speciale per gli ODL figli di saracinesca non c'è più: prima serviva perché il
+    master non conosceva quegli ordini e bisognava dirgli a mano «questo figlio vale una
+    saracinesca». Il registro li ha come ordini propri, con la loro attività, quindi cadono
+    nel ramo normale qui sotto e prendono la tariffa dall'alias come qualunque altro.
+  */
   const rigaEsitataDa = (odl: string): RigaProduzione => {
-    if (saracinescaByFiglio.has(odl)) {
-      const data = saracinescaByFiglio.get(odl) || to;
-      return {
-        odl, voce: null, kpi: null, attivitaKey: SARA_KEY, attivitaLabel: SARA_LABEL, data,
-        staffId: '', operatore: '', territorioId: '', territorio: '',
-        valore: valore(SARA_KEY, data),
-      };
-    }
-    const voce = dbAudit.get(odl)?.voce ?? masterAudit.get(odl)?.voce ?? null;
-    const attivitaKey = dbAttivita.get(odl) ?? masterAttivita.get(odl) ?? '';
+    const voce = dbAudit.get(odl)?.voce ?? registroAudit.get(odl)?.voce ?? null;
+    const attivitaKey = dbAttivita.get(odl) ?? registroAttivita.get(odl) ?? '';
     const data = dbDataByOdl.get(odl) ?? to;
     return {
       odl, voce, kpi: voce != null ? KPI_DA_VOCE[voce] ?? null : null,
@@ -384,14 +408,21 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
 
   const scarto = scartoProduzioneSal(produzione.totale, sal.totale);
 
+  /*
+    «Fuori SAL» = prodotto ma non ancora consuntivato dal portale. Per una saracinesca la chiave
+    non è l'ODL della limitazione ma quello del suo ordine figlio, che ora si trova per impianto
+    o matricola invece che leggendolo da una colonna annotata a mano.
+  */
+  const figlioDiRiga = (r: RigaProduzione): string =>
+    figlioPerChiave.get(`M:${normMatricola(r.matricola)}`) ?? '';
   const fuoriSalRighe = righeDedup.filter((r) => {
-    const k = chiaveSalEffettiva(r, SARA_KEY, saracinescaFiglioByParent);
+    const k = r.attivitaKey === SARA_KEY ? figlioDiRiga(r) : r.odl;
     return !k || !odlCompletatoAny.has(k);
   });
   const fuoriSal: Totale = aggregaProduzione(fuoriSalRighe).totale;
 
   // ODL "conosciuti" (controllo leggero dello storico SAL): presenti in DB, master o portale.
-  const odlConosciuti = new Set<string>([...dbAudit.keys(), ...masterAudit.keys(), ...portaleAudit.keys()]);
+  const odlConosciuti = new Set<string>([...dbAudit.keys(), ...registroAudit.keys(), ...portaleAudit.keys()]);
   const odlGiaPagati = odlPagatiDaSal(salRows);
   const salPerN = new Map<number, SalRow[]>();
   for (const r of salRows) {
@@ -458,16 +489,16 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
   });
   const esiti = aggregaEsiti(righeEsito, produzione.perOperatore);
 
-  const masterPopolato = masterAudit.size > 0;
+  const registroPopolato = registroAudit.size > 0;
   const portalePopolato = portaleAudit.size > 0;
   const auditTutte = riconcilia(
-    { db: dbAudit, master: masterAudit, portale: portaleAudit },
-    { masterPopolato, portalePopolato },
+    { db: dbAudit, registro: registroAudit, portale: portaleAudit },
+    { registroPopolato, portalePopolato },
   );
   const auditSummary: Record<ClasseDiscrepanza, number> = {
     SOLO_PORTALE: 0,
-    DB_NON_IN_MASTER: 0,
-    MASTER_NON_IN_DB: 0,
+    DB_NON_IN_REGISTRO: 0,
+    REGISTRO_NON_IN_DB: 0,
     POSITIVO_DB_NON_COMPLETATO_PORTALE: 0,
     COMPLETATO_PORTALE_NON_POSITIVO_DB: 0,
     VOCE_DISCORDE: 0,
@@ -491,7 +522,7 @@ export async function caricaProduzioneEconomica(from: string, to: string): Promi
     auditSummary,
     auditTotale: auditTutte.length,
     auditTruncated: auditTutte.length > AUDIT_CAP,
-    masterPopolato,
+    registroPopolato,
     portalePopolato,
   };
 }
