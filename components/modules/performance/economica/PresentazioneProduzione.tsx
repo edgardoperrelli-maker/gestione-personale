@@ -8,12 +8,21 @@ import ComposizioneProduzione from './ComposizioneProduzione';
 import PersonaleImpegno from './PersonaleImpegno';
 import EsitiOperatore from './EsitiOperatore';
 import CandeleSettimanali from './CandeleSettimanali';
+import { ETICHETTA_VISTA, type VistaCommittente } from '@/lib/produzione/committente';
 import type { DatiProduzione } from './tipi';
 
 /** Vista presentazione per la dirigenza: schermo intero, TEMA CHIARO FORZATO, solo KPI + grafici.
  *  Il tema si forza aggiungendo la classe `light` su <html> (meccanismo di app/layout.tsx);
  *  all'uscita si ripristina lo stato precedente. */
-export default function PresentazioneProduzione({ from, to }: { from: string; to: string }) {
+export default function PresentazioneProduzione({
+  from,
+  to,
+  vista = 'tutti',
+}: {
+  from: string;
+  to: string;
+  vista?: VistaCommittente;
+}) {
   const [dati, setDati] = useState<DatiProduzione | null>(null);
   const [errore, setErrore] = useState<string | null>(null);
 
@@ -26,7 +35,7 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
     let vivo = true;
     (async () => {
       try {
-        const res = await fetch(`/api/admin/acea/produzione?from=${from}&to=${to}`, { cache: 'no-store' });
+        const res = await fetch(`/api/admin/acea/produzione?from=${from}&to=${to}&committente=${vista}`, { cache: 'no-store' });
         if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error ?? `HTTP ${res.status}`);
         if (vivo) setDati((await res.json()) as DatiProduzione);
       } catch (e) {
@@ -36,7 +45,7 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
     return () => {
       vivo = false;
     };
-  }, [from, to]);
+  }, [from, to, vista]);
 
   const dataIT = (iso: string) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 
@@ -45,9 +54,15 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
       <div className="mx-auto max-w-[1400px] p-6 lg:p-10">
         <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
           <div>
-            <h1 className="text-3xl font-semibold">Commessa ACEA — Produzione economica</h1>
+            {/* Il committente sta nel TITOLO: questa vista si proietta e si stampa in PDF, e un
+                foglio che non dice di quale commessa parla è un foglio che verrà attribuito a
+                quella sbagliata. */}
+            <h1 className="text-3xl font-semibold">
+              {vista === 'tutti' ? 'Tutte le commesse' : `Commessa ${ETICHETTA_VISTA[vista]}`} — Produzione economica
+            </h1>
             <p className="mt-1 text-sm text-[var(--brand-text-muted)]">
-              Periodo {dataIT(from)} → {dataIT(to)} · Produzione = lavorato valorizzato · SAL = ordini pagati (file ufficiale ACEA)
+              Periodo {dataIT(from)} → {dataIT(to)} · Produzione = lavorato valorizzato
+              {dati?.conContabilizzazione ? ' · SAL = ordini pagati (file ufficiale ACEA)' : ''}
             </p>
           </div>
           <div className="flex gap-2 print:hidden">
@@ -71,9 +86,11 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
             <section className="break-inside-avoid">
               <TrendProduzioneSal dati={dati} />
             </section>
-            <section className="break-inside-avoid">
-              <SalStorico dati={dati} />
-            </section>
+            {dati.conContabilizzazione && (
+              <section className="break-inside-avoid">
+                <SalStorico dati={dati} />
+              </section>
+            )}
             <section className="break-inside-avoid">
               <ComposizioneProduzione dati={dati} />
             </section>
@@ -84,13 +101,19 @@ export default function PresentazioneProduzione({ from, to }: { from: string; to
               <EsitiOperatore dati={dati} />
             </section>
             <section className="break-inside-avoid">
-              <CandeleSettimanali />
+              <CandeleSettimanali vista={vista} />
             </section>
             <p className="text-[11px] text-[var(--brand-text-subtle)]">
-              Fonte: gestionale (interventi + snapshot master/portale/SAL ACEA). SAL = ordini pagati dal file
-              ufficiale ACEA; Pre-SAL = ordini esitati (COMPLETATO, causale E%) non ancora in un SAL. Giornate-uomo =
-              quota di interventi ACEA lavorati sul totale lavorato, nei soli giorni feriali lun–ven (sabato =
-              attivazioni, mostrato a parte; domenica esclusa).
+              Fonte: gestionale (interventi + registro ordini e snapshot portale/SAL ACEA).
+              {dati.conContabilizzazione && (
+                <>
+                  {' '}SAL = ordini pagati dal file ufficiale ACEA; Pre-SAL = ordini esitati (COMPLETATO, causale
+                  E%) non ancora in un SAL
+                  {vista === 'tutti' ? ' — SAL e pre-SAL riguardano la sola quota ACEA' : ''}.
+                </>
+              )}{' '}
+              Giornate-uomo = quota di interventi in commessa lavorati sul totale lavorato, nei soli giorni
+              feriali lun–ven (sabato = attivazioni, mostrato a parte; domenica esclusa).
             </p>
           </div>
         )}

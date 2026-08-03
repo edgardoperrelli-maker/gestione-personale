@@ -5,6 +5,7 @@ import { caricaProduzioneEconomica, type ProduzioneEconomica } from '@/lib/produ
 import { buildWorkbookProduzione } from '@/lib/produzione/exportExcel';
 import { aggiungiFogli, fogliPersonale, fogliSal, iniettaTemplate, mappaCelleProduzione } from '@/lib/produzione/excelInject';
 import templateDashboard from '@/lib/produzione/templateDashboard.json';
+import { ETICHETTA_VISTA, vistaDaParam } from '@/lib/produzione/committente';
 
 export const runtime = 'nodejs';
 
@@ -29,7 +30,7 @@ async function costruisciBuffer(dati: ProduzioneEconomica): Promise<Buffer | Arr
   }
 }
 
-/** GET ?from&to (YYYY-MM-DD): scarica il workbook "Produzione economica ACEA" (Dashboard + grafici). */
+/** GET ?from&to (YYYY-MM-DD) [&committente]: scarica il workbook "Produzione economica" (Dashboard + grafici). */
 export async function GET(req: Request) {
   const auth = await requireAdminPlus();
   if (auth instanceof NextResponse) return auth;
@@ -42,11 +43,17 @@ export async function GET(req: Request) {
   }
 
   try {
-    const dati = await caricaProduzioneEconomica(from, to);
+    const vista = vistaDaParam(searchParams.get('committente'));
+    const dati = await caricaProduzioneEconomica(from, to, vista);
     const buf = await costruisciBuffer(dati);
+    /*
+      Il committente sta NEL NOME DEL FILE. Questi workbook finiscono in cartelle condivise e
+      allegati a mail: due file «Produzione-economica_giugno.xlsx» con dentro commesse diverse
+      sono indistinguibili il giorno dopo, e li si confronta credendo che siano lo stesso conto.
+    */
     return new NextResponse(buf as unknown as BodyInit, {
       status: 200,
-      headers: XLSX_HEADERS(`Produzione-economica-ACEA_${from}_${to}.xlsx`),
+      headers: XLSX_HEADERS(`Produzione-economica-${ETICHETTA_VISTA[vista]}_${from}_${to}.xlsx`),
     });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : 'Errore export Excel.';

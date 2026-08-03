@@ -37,7 +37,7 @@ const mockDati = {
     operatoriAttivi: 1,
     valoreFeriale: 250,
     sabato: { giornate: 0.5, valore: 50 },
-    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiCommessa: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
     perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
   },
   esiti: [{ chiave: 's1', label: 'ROSSI', assegnati: 5, positivi: 3, negativi: 1, nonLavorati: 1, valore: 300 }],
@@ -130,7 +130,7 @@ describe('aggiungiFogli', () => {
     const fogli = fogliPersonale(mockDati);
     expect(fogli.map((f) => f.nome)).toEqual(['Dati - personale', 'Dati - SAL giorni']);
     expect(fogli[0].righe[0]).toEqual([
-      'Operatore', 'Giornate (feriali)', 'Interventi ACEA', 'Produzione EUR', 'Resa EUR/gg',
+      'Operatore', 'Giornate (feriali)', 'Interventi in commessa', 'Produzione EUR', 'Resa EUR/gg',
       'Assegnati', 'Positivi', 'Negativi', 'Non lavorati',
     ]);
     expect(fogli[0].righe[1]).toEqual(['ROSSI', 1.5, 3, 300, 166.67, 5, 3, 1, 1]);

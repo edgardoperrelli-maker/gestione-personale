@@ -3,6 +3,7 @@ import { aggregaProduzione, deduplicaMassivePerMatricola, type RigaProduzione } 
 
 const base: RigaProduzione = {
   odl: '1',
+  commessa: 'acea',
   voce: 10,
   kpi: 'EL',
   attivitaKey: 'LIMITAZIONE FLUSSO IDRICO',

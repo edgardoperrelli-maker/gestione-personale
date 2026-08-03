@@ -34,7 +34,7 @@ const dati = {
     operatoriAttivi: 1,
     valoreFeriale: 250,
     sabato: { giornate: 0.5, valore: 50 },
-    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiAcea: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
+    perOperatore: [{ chiave: 's1', label: 'ROSSI', giornate: 1.5, interventiCommessa: 3, valore: 300, valoreFeriale: 250, resa: 166.67 }],
     perGiorno: [{ data: '2026-06-01', dedicate: 1, saturazione: 0.5, operatori: 2 }],
   },
   esiti: [{ chiave: 's1', label: 'ROSSI', assegnati: 5, positivi: 3, negativi: 1, nonLavorati: 1, valore: 300 }],

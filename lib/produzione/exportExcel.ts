@@ -2,8 +2,9 @@ import { BRAND_EXPORT } from '@/lib/brand';
 import 'server-only';
 import ExcelJS from 'exceljs';
 import type { ProduzioneEconomica } from './load';
+import { ETICHETTA_VISTA } from './committente';
 
-// Genera il workbook "Produzione economica ACEA" da presentare alla proprietà:
+// Genera il workbook "Produzione economica" da presentare alla proprietà:
 // foglio Dashboard (titolo + KPI + Produzione vs SAL per voce) + fogli Dati (per voce/operatore/
 // territorio/giorno + audit). Stile coerente col blu navy degli altri export (BRAND_EXPORT.navyArgb, navy brand).
 //
@@ -53,7 +54,9 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
 
   dash.mergeCells('A1:E1');
   const t = dash.getCell('A1');
-  t.value = 'Produzione economica — ACEA';
+  // Il committente nel titolo del foglio: il workbook gira per mail e cartelle condivise, e senza
+  // non c'è modo di sapere a quale commessa appartiene una dashboard che si sta guardando.
+  t.value = `Produzione economica — ${ETICHETTA_VISTA[dati.vista]}`;
   t.font = { bold: true, size: 16, color: { argb: NAVY } };
   dash.mergeCells('A2:E2');
   const sub = dash.getCell('A2');
@@ -141,11 +144,11 @@ export async function buildWorkbookProduzione(dati: ProduzioneEconomica): Promis
   // ── DATI: personale (giornate-uomo frazionarie) ─────────────
   const pe = wb.addWorksheet('Dati - personale');
   pe.columns = [{ width: 32 }, { width: 14 }, { width: 16 }, { width: 16 }, { width: 14 }, { width: 11 }, { width: 11 }, { width: 11 }, { width: 13 }];
-  intestazione(pe.addRow(['Operatore', 'Giornate (feriali)', 'Interventi ACEA', 'Produzione €', 'Resa €/gg', 'Assegnati', 'Positivi', 'Negativi', 'Non lavorati']));
+  intestazione(pe.addRow(['Operatore', 'Giornate (feriali)', 'Interventi in commessa', 'Produzione €', 'Resa €/gg', 'Assegnati', 'Positivi', 'Negativi', 'Non lavorati']));
   const esitiByOp = new Map(dati.esiti.map((e) => [e.chiave, e]));
   for (const o of dati.personale.perOperatore) {
     const e = esitiByOp.get(o.chiave);
-    const r = pe.addRow([o.label, o.giornate, o.interventiAcea, o.valore, o.resa ?? '', e?.assegnati ?? 0, e?.positivi ?? 0, e?.negativi ?? 0, e?.nonLavorati ?? 0]);
+    const r = pe.addRow([o.label, o.giornate, o.interventiCommessa, o.valore, o.resa ?? '', e?.assegnati ?? 0, e?.positivi ?? 0, e?.negativi ?? 0, e?.nonLavorati ?? 0]);
     r.getCell(4).numFmt = EUR;
     if (o.resa != null) r.getCell(5).numFmt = EUR;
   }
