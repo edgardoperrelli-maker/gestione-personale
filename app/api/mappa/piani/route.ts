@@ -5,6 +5,7 @@ import { cookies } from 'next/headers';
 import { requireUser } from '@/lib/apiAuth';
 import { parseRegole, buildRuleRows, buildLockRows } from './rulePayload';
 import { idAnnullatiDaEliminare, type InterventoEsistente } from '@/lib/interventi/planInterventiForPiano';
+import { attoreDa, fotografaPiano, registraAzione } from '@/lib/audit/registra';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -126,8 +127,19 @@ export async function POST(req: Request) {
         const { count, error: eCount } = await supabaseAdmin
           .from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', v.id);
         if (!eCount && (count ?? 0) === 0) {
+          // Eliminazione implicita: nessuno l'ha chiesta esplicitamente, è un effetto del
+          // "crea nuovo piano". Va registrata come le altre, altrimenti resta invisibile.
+          const fotografia = await fotografaPiano(v.id);
           await supabaseAdmin.from('interventi').delete().eq('piano_id', v.id);
           await supabaseAdmin.from('mappa_piani').delete().eq('id', v.id);
+          await registraAzione({
+            azione: 'piano.residuo.elimina',
+            attore: attoreDa(user),
+            entita: 'mappa_piani',
+            entitaId: v.id,
+            req,
+            dettaglio: { ...fotografia, motivo: 'anti-duplicato (data, territorio)', data: isoData, territorio: territorio ?? null },
+          });
         }
       }
     }
@@ -193,6 +205,21 @@ export async function POST(req: Request) {
 
     if (eDist) console.error('[POST /api/mappa/piani] upsert distribuzioni:', eDist.message);
 
+    await registraAzione({
+      azione: 'piano.crea',
+      attore: attoreDa(user),
+      entita: 'mappa_piani',
+      entitaId: pianoId,
+      req,
+      dettaglio: {
+        data: isoData,
+        territorio: territorio ?? null,
+        stato,
+        n_operatori: opRows.length,
+        operatori: opRows.map((o) => ({ staff_id: o.staff_id, staff_name: o.staff_name })),
+      },
+    });
+
     return NextResponse.json({ ok: true, id: pianoId });
   } catch (err: any) {
     console.error('[POST /api/mappa/piani]', err.message);
@@ -201,9 +228,11 @@ export async function POST(req: Request) {
 }
 
 export async function DELETE(req: Request) {
+  let attore = attoreDa(null);
   try {
     const auth = await requireUser();
     if (auth instanceof NextResponse) return auth;
+    attore = attoreDa(auth.user);
 
     const { searchParams } = new URL(req.url);
     const id = searchParams.get('id');
@@ -230,6 +259,9 @@ export async function DELETE(req: Request) {
         .eq('data', (piano as any).data);
     }
 
+    // Cosa sta per sparire: dopo il CASCADE su `rapportini` questi numeri non esistono più.
+    const fotografia = await fotografaPiano(id);
+
     // Elimina anche gli interventi creati da questo piano, altrimenti restano orfani
     // e visibili in torre. interventi.piano_id ha ON DELETE SET NULL: vanno cancellati
     // PRIMA del piano (dopo non sarebbero più trovabili per piano_id).
@@ -242,9 +274,28 @@ export async function DELETE(req: Request) {
       .eq('id', id);
 
     if (error) throw new Error(error.message);
+
+    await registraAzione({
+      azione: 'piano.elimina',
+      attore,
+      entita: 'mappa_piani',
+      entitaId: id,
+      req,
+      dettaglio: fotografia,
+    });
     return NextResponse.json({ ok: true });
   } catch (err: any) {
     console.error('[DELETE /api/mappa/piani]', err.message);
+    await registraAzione({
+      azione: 'piano.elimina',
+      attore,
+      entita: 'mappa_piani',
+      entitaId: new URL(req.url).searchParams.get('id'),
+      esito: 'errore',
+      statoHttp: 500,
+      req,
+      dettaglio: { errore: err.message },
+    });
     return NextResponse.json({ error: err.message }, { status: 500 });
   }
 }
@@ -283,6 +334,20 @@ export async function PUT(req: Request) {
       .update(headerUpdate)
       .eq('id', id);
     if (eUpd) throw new Error(eUpd.message);
+
+    // Chi c'era prima: togliere un operatore dalla lista e salvare non è un'azione esplicita di
+    // cancellazione, ma il sync che segue elimina il suo rapportino del piano come "orfano"
+    // (orphanRapportini). È la traccia che serviva per l'incidente del 03/08.
+    const { data: opPrima } = await supabaseAdmin
+      .from('mappa_piani_operatori').select('staff_id, staff_name').eq('piano_id', id);
+    const staffNuovi = new Set(operatori.map((op: any) => String(op.staff_id)));
+    const operatoriRimossi = ((opPrima ?? []) as Array<{ staff_id: string; staff_name: string | null }>)
+      .filter((o) => !staffNuovi.has(String(o.staff_id)));
+    const rapportiniARischio = operatoriRimossi.length
+      ? (await supabaseAdmin
+          .from('rapportini').select('id, staff_id, staff_name, stato, submitted_at')
+          .eq('piano_id', id).in('staff_id', operatoriRimossi.map((o) => String(o.staff_id)))).data ?? []
+      : [];
 
     // Rigenera gli operatori del piano
     await supabaseAdmin.from('mappa_piani_operatori').delete().eq('piano_id', id);
@@ -346,6 +411,25 @@ export async function PUT(req: Request) {
     const { error: eDist } = await supabaseAdmin
       .from('mappa_distribuzioni').upsert(distribuzioniRows, { onConflict: 'staff_id,data' });
     if (eDist) console.error('[PUT /api/mappa/piani] upsert distribuzioni:', eDist.message);
+
+    await registraAzione({
+      azione: 'piano.salva',
+      attore: attoreDa(user),
+      entita: 'mappa_piani',
+      entitaId: id,
+      req,
+      dettaglio: {
+        data: isoData,
+        territorio: territorio ?? null,
+        stato,
+        n_operatori: opRows.length,
+        n_operatori_rimossi: operatoriRimossi.length,
+        operatori_rimossi: operatoriRimossi,
+        // Se qui compare qualcosa, il sync successivo ne cancella il rapportino: è il punto
+        // esatto in cui una giornata di lavoro può sparire senza che nessuno l'abbia chiesto.
+        rapportini_a_rischio: rapportiniARischio,
+      },
+    });
 
     return NextResponse.json({ ok: true, id, eliminatiOk });
   } catch (err: any) {

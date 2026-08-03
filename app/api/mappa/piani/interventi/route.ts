@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
 import { rigeneraPiano } from '@/lib/interventi/rigeneraPiano';
+import { attoreDa } from '@/lib/audit/registra';
 
 export const runtime = 'nodejs';
 
@@ -21,7 +22,7 @@ export async function POST(req: Request) {
   const { pianoId } = (await req.json().catch(() => ({}))) as { pianoId?: string };
   if (!pianoId) return NextResponse.json({ error: 'pianoId mancante.' }, { status: 400 });
 
-  const res = await rigeneraPiano(supabaseAdmin, pianoId);
+  const res = await rigeneraPiano(supabaseAdmin, pianoId, attoreDa(auth.user));
   if (!res.ok) return NextResponse.json({ error: res.error }, { status: res.status });
   return NextResponse.json({
     creati: res.creati,

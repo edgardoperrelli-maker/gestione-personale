@@ -9,6 +9,7 @@ import { labelOdlBloccato } from '@/lib/interventi/odlPositivi';
 import { partizionaConflitti } from '@/lib/agente/partizionaConflitti';
 import { costruisciLogRows } from '@/lib/agente/costruisciLogRows';
 import { caricaRapportiniEsistenti } from '@/lib/agente/caricaRapportiniEsistenti';
+import { attoreDa } from '@/lib/audit/registra';
 import type { RapEsistente } from '@/utils/rapportini/rilevaConflitti';
 
 export const runtime = 'nodejs';
@@ -123,7 +124,7 @@ export async function POST(req: Request) {
         // rapportini (sincronizzaRapportini chiama ensureInterventiForPiano internamente).
         // NIENTE overwrite:'replace': i conflitti sono già esclusi a monte; un 409 residuo
         // (race) deve emergere come avviso, non sovrascrivere in silenzio.
-        const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id });
+        const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId: cfg.template_id, attore: attoreDa(auth.user) });
         if (!res.ok) {
           const { count: nRap } = await supabaseAdmin.from('rapportini').select('id', { count: 'exact', head: true }).eq('piano_id', pianoId);
           if (nRap === 0) {

@@ -3,6 +3,7 @@ import { supabaseAdmin } from '@/lib/supabaseAdmin';
 import { requireUser } from '@/lib/apiAuth';
 import { sincronizzaRapportini } from '@/lib/interventi/sincronizzaRapportini';
 import { risolviTerritorioIdPerPiano } from '@/lib/interventi/territorioOverride';
+import { attoreDa } from '@/lib/audit/registra';
 
 export const runtime = 'nodejs';
 
@@ -28,7 +29,7 @@ export async function POST(req: Request) {
       );
     }
 
-    const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId, overwrite, overwriteSubmitted, confermaInviati });
+    const res = await sincronizzaRapportini(supabaseAdmin, pianoId, { templateId, overwrite, overwriteSubmitted, confermaInviati, attore: attoreDa(auth.user) });
     if (!res.ok) {
       const body: Record<string, unknown> = {};
       if (res.error) body.error = res.error;
