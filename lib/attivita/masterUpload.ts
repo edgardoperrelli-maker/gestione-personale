@@ -61,7 +61,14 @@ const PATTERN: Record<Campo, RegExp> = {
     uso, e la cella si vedrebbe subito sbagliata nella colonna «Nome utente» della tabella —
     un buco silenzioso, che è il difetto vero, non lo produce.
   */
-  nominativo: /nomeutente|intestatario|nominativo|^utente/,
+  /*
+    `ragsoc` aggiunto il 2026-08-03: l'export di Latina di TERRACINA01 chiama l'intestatario
+    RAGSOC (ragione sociale), e nessuno degli altri tre nomi lo agganciava. Caricando quel
+    file dalla UI il nome utente non entrava affatto — silenziosamente, perché una colonna
+    non riconosciuta non è un errore: è una colonna che non c'è. Sono 3.940 righe di
+    anagrafica che sul campo l'operatore non vedeva.
+  */
+  nominativo: /nomeutente|intestatario|nominativo|ragsoc|ragionesociale|^utente/,
   // Telefono dell'utente. `recapito` nudo perché nei file arriva sia solo che come
   // «RECAPITO UTENTE»/«RECAPITO TELEFONICO»; `telefono`/`cellulare` per i file che lo
   // chiamano col nome del mezzo invece che con quello della cosa.
