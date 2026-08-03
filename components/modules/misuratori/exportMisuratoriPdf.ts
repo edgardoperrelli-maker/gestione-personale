@@ -12,6 +12,8 @@ export interface PdfFilters {
   esecutore?: string;
   /** Filtro pallet attivo (registro AcquaLatina): il PDF di un pallet è la sua distinta. */
   pallet?: string;
+  /** Filtro cesta attivo: il PDF di una cesta è l'elenco di cosa c'è dentro prima del pallet. */
+  cesta?: string;
 }
 
 export interface PdfOpzioni {
@@ -19,8 +21,10 @@ export interface PdfOpzioni {
   titolo?: string;
   /** Colonna PDR (solo ACEA: un misuratore d'acqua non ha un punto di riconsegna gas). */
   mostraPdr?: boolean;
-  /** Colonna Pallet (solo AcquaLatina): il riferimento con cui la riconsegna viaggia. */
+  /** Colonna Pallet: il riferimento con cui la riconsegna viaggia. */
   mostraPallet?: boolean;
+  /** Colonna Cesta (solo AcquaLatina): il gradino prima del pallet, dichiarato dall'operatore. */
+  mostraCesta?: boolean;
 }
 
 export function exportMisuratoriPdf(
@@ -29,7 +33,7 @@ export function exportMisuratoriPdf(
   opzioni: PdfOpzioni = {},
 ): void {
   // Sentence case (§4): era «Registro Misuratori Rimossi», il Title Case che il sistema vieta.
-  const { titolo = 'Registro misuratori rimossi — ACEA', mostraPdr = true, mostraPallet = false } = opzioni;
+  const { titolo = 'Registro misuratori rimossi — ACEA', mostraPdr = true, mostraPallet = false, mostraCesta = false } = opzioni;
   const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
 
   // Intestazione: inchiostro di brand, non il nero di default di jsPDF.
@@ -51,6 +55,7 @@ export function exportMisuratoriPdf(
   }
   if (filters.comune) parts.push(`Comune: ${filters.comune}`);
   if (filters.esecutore) parts.push(`Esecutore: ${filters.esecutore}`);
+  if (filters.cesta) parts.push(`Cesta: ${filters.cesta}`);
   if (filters.pallet) parts.push(`Pallet: ${filters.pallet}`);
 
   doc.setTextColor(...BRAND_EXPORT.mutedRgb);
@@ -74,6 +79,8 @@ export function exportMisuratoriPdf(
     { testa: 'Comune', valore: (r) => r.comune ?? '', larghezza: 24 },
     { testa: 'Matricola', valore: (r) => r.matricola, larghezza: 26 },
     ...(mostraPdr ? [{ testa: 'PDR', valore: (r: MisuratoreRimosso) => r.pdr ?? '', larghezza: 20 } as Colonna] : []),
+    // Cesta prima di Pallet, come in tabella: è l'ordine del ciclo fisico.
+    ...(mostraCesta ? [{ testa: 'Cesta', valore: (r: MisuratoreRimosso) => r.cesta ?? '', larghezza: 16 } as Colonna] : []),
     ...(mostraPallet ? [{ testa: 'Pallet', valore: (r: MisuratoreRimosso) => r.pallet ?? '', larghezza: 18 } as Colonna] : []),
     { testa: 'Stato', valore: (r) => STATO_LABEL[r.stato], larghezza: 36 },
     { testa: 'Note', valore: (r) => r.note ?? '', larghezza: 'auto' },

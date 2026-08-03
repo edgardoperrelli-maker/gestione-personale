@@ -5,6 +5,37 @@
 
 ## Fatto
 
+- ✅ **Misuratori rimossi AcquaLatina: lo scarico in cesta lo dichiara l'operatore** *(2026-08-03, task ATLAS)* —
+  il registro sapeva **cosa** era stato smontato e su **quale pallet** sarebbe finito; in mezzo mancava
+  la **cesta** di magazzino, che sapeva solo l'operatore finché se la ricordava — e a cesta piena
+  l'ufficio doveva aprirla e leggere i contatori a mano per impallettare. Ora la domanda si fa dove ha
+  una risposta vera: **subito dopo l'invio del rapportino** (solo AcquaLatina), con i contatori ancora
+  in furgone. Modale in **due passi** — «Stai scaricando i misuratori?» con l'elenco spuntabile (tutte
+  accese; chi ne scarica una parte non è costretto a mentire) e poi «In quale cesta li stai
+  mettendo?» — e **due vie d'uscita**: il «no» **non scrive niente**, perché lo stato
+  `da_consegnare_deposito` dice già «da scaricare» e domani la domanda torna da sé. Gli **arretrati**
+  sono *tutto* ciò che è ancora da consegnare, non solo «ieri»: chi risponde no per tre sere, alla
+  quarta se li ritrova tutti (divisi in «di oggi» / «dei giorni scorsi»).
+  **Dichiarare la cesta È lo scarico a deposito**: si scrivono `cesta` e `stato='scaricato_deposito'`
+  insieme — nessun sesto stato per un passaggio che il vocabolario del registro sa già nominare.
+  **Intervallo delle ceste** («da X a Y») configurabile in **AcquaLatina → Strumenti** (tabella
+  singleton `acqualatina_ceste`, riga garantita dal DB): con l'intervallo l'operatore sceglie da un
+  **menu** (un tap, zero refusi — un numero sbagliato è un contatore cercato nella cesta sbagliata),
+  senza resta il **campo libero** e il modulo funziona dal primo giorno; fuori intervallo **avvisa e
+  passa** (se il magazzino aggiunge una cesta prima che l'ufficio aggiorni, la realtà vince).
+  **Lato ufficio** il registro `/hub/acqualatina/misuratori` guadagna la colonna **Cesta**
+  (correggibile in cella: il rapportino è ormai chiuso), il **filtro** «cosa c'è nella cesta 3?» —
+  che è la domanda da cui parte l'impallettamento, componibile con «senza pallet» — e la colonna nel
+  **PDF**. **Sicurezza**: endpoint pubblico a token (`/api/r/[token]/scarico-misuratori`), ma
+  l'operatore lo dice il **token** e la scrittura tocca solo righe sue e ancora
+  `da_consegnare_deposito` — gli id dal client sono un filtro, non un'autorizzazione.
+  **Limite dichiarato**: invio offline → nessuna domanda (i misuratori tornano come arretrati al
+  primo invio online). Logica pura testata (`lib/acqualatina/ceste.test.ts`, forma della migration in
+  `cesteMigrationShape.test.ts`); `lib/misuratori/pallet.ts` → **`riferimenti.ts`** (cesta e pallet
+  sono lo stesso tipo di riferimento, il campo è un parametro). Migration
+  `20260803180000_acqualatina_ceste.sql` — **⚠️ da applicare al prod**; senza, il registro resta vivo
+  con la colonna vuota (`selectDegradante`) e la domanda allo scarico non compare. Spec:
+  `docs/superpowers/specs/2026-08-03-acqualatina-scarico-ceste-design.md`. Vedi HANDOFF.md.
 - ✅ **Template import: l'ODL compila la riga da sé (foglio MasterODL)** *(2026-07-30)* — il template
   Excel scaricabile (`/api/interventi/template`) acquisisce un terzo foglio **MasterODL** (sola lettura):
   scritto l'ODS/ODL, MATRICOLA / Indirizzo / CAP / COMUNE / DESCRIZIONE ATTIVITÀ si compilano da sole
