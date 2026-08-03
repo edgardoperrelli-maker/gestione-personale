@@ -117,7 +117,7 @@ export function CampoInput({
   }
 
   if (campo.tipo === 'matricola') {
-    return <CampoMatricolaInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} />;
+    return <CampoMatricolaInput campo={campo} valore={valore} disabilitato={disabilitato} onChange={onChange} evidenzia={evidenzia} />;
   }
 
   return (
@@ -141,12 +141,14 @@ export function CampoInput({
  * textarea (`maiuscoloDigitando` + `onCompositionEnd`), col server che normalizza comunque.
  */
 function CampoMatricolaInput({
-  campo, valore, disabilitato, onChange,
+  campo, valore, disabilitato, onChange, evidenzia,
 }: {
   campo: TemplateCampo;
   valore: unknown;
   disabilitato: boolean;
   onChange: (v: unknown) => void;
+  /** Acceso quando è QUESTO campo a tenere ferma la voce (vedi `VoceCampi`). */
+  evidenzia?: boolean;
 }) {
   const [scanner, setScanner] = useState(false);
   const testo = typeof valore === 'string' ? valore : '';
@@ -168,9 +170,10 @@ function CampoMatricolaInput({
           aria-label={campo.etichetta}
           value={testo}
           disabled={disabilitato}
+          error={evidenzia}
           onChange={(e) => onChange(maiuscoloDigitando(e))}
           onCompositionEnd={(e) => onChange(e.currentTarget.value.toUpperCase())}
-          className={`${campoCls} min-w-0 flex-1 font-mono uppercase tabular-nums`}
+          className={`${campoCls} min-w-0 flex-1 font-mono uppercase tabular-nums ${evidenzia ? 'ring-1 ring-[var(--status-ko)]' : ''}`}
         />
         <Button
           variant="soft"

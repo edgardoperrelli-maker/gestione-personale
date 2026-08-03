@@ -46,6 +46,9 @@ const FILTRI: [Filtro, string][] = [['tutti', 'Tutti'], ['dafare', 'Da fare'], [
 const MOTIVO_LABEL: Record<MotivoIncompleto, string> = {
   senza_esito: 'senza esito',
   nota_mancante: 'nota obbligatoria mancante',
+  // L'esito c'è: manca il numero di ciò che è stato installato. Dirgli «senza esito» lo
+  // manderebbe a cercare il campo sbagliato.
+  matricola_mancante: 'matricola del misuratore installato mancante',
 };
 
 export function RigaVoceCard({ riga: r, onApri }: { riga: RigaVoce; onApri: (index: number) => void }) {

@@ -8,6 +8,7 @@ import { riconciliaImport, type AnnullatoPianificato } from '@/lib/acea/riconcil
 import { applicaImport } from '@/lib/acea/applicaImport';
 import { ricalcolaGruppi, type EsitoGruppi } from '@/lib/acea/gruppiServer';
 import { isAnnullato } from '@/lib/acea/statiOrdine';
+import { correzioniDaImport, ESITO_POSITIVO, type InterventoDaCorreggere } from '@/lib/acea/correggiEsiti';
 import { daPotare, type ImportArchiviato } from '@/lib/acea/retentionArchivio';
 import { partiRoma } from '@/lib/agente/orarioRoma';
 import type { RigaOrdineAcea } from '@/lib/acea/tipi';
@@ -54,6 +55,52 @@ async function potaArchivio(): Promise<number> {
     if (eUp) throw eUp;
   }
   return scelti.length;
+}
+
+/**
+ * Porta a positivo gli interventi che ACEA ha contabilizzato e noi no. Torna quanti.
+ *
+ * Si guardano solo gli ODL POSITIVI del file, non tutto il registro: l'insieme è piccolo e
+ * la query resta corta. La decisione su chi correggere sta in `correzioniDaImport`, che è
+ * pura e provata; qui c'è solo il giro di lettura e scrittura.
+ */
+async function correggiEsitiPositivi(dalFile: readonly RigaOrdineAcea[]): Promise<number> {
+  const odlPositivi = [...new Set(
+    dalFile.filter((r) => r.esito_positivo === true).map((r) => String(r.odl ?? '').trim()).filter(Boolean),
+  )];
+  if (odlPositivi.length === 0) return 0;
+
+  const candidati: InterventoDaCorreggere[] = [];
+  // `in` con liste lunghe fa esplodere la query string: a blocchi, come altrove nel modulo.
+  for (let i = 0; i < odlPositivi.length; i += 200) {
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .select('id, odl, stato, esito')
+      .in('committente', ['acea', 'lim_massive'])
+      .eq('stato', 'completato')
+      .in('odl', odlPositivi.slice(i, i + 200));
+    if (error) throw error;
+    candidati.push(...((data ?? []) as InterventoDaCorreggere[]));
+  }
+
+  const correzioni = correzioniDaImport(
+    dalFile.map((r) => ({ odl: String(r.odl ?? ''), esito_positivo: r.esito_positivo })),
+    candidati,
+  );
+  if (correzioni.length === 0) return 0;
+
+  let fatte = 0;
+  for (let i = 0; i < correzioni.length; i += 200) {
+    const ids = correzioni.slice(i, i + 200).map((c) => c.id);
+    const { data, error } = await supabaseAdmin
+      .from('interventi')
+      .update({ esito: ESITO_POSITIVO })
+      .in('id', ids)
+      .select('id');
+    if (error) throw error;
+    fatte += (data ?? []).length;
+  }
+  return fatte;
 }
 
 /** Carica l'intero registro (PostgREST tronca a 1000 righe per chiamata). */
@@ -179,6 +226,32 @@ export async function POST(req: Request) {
     // 5) Scrittura.
     const scritture = await applicaImport(supabaseAdmin, piano, importId);
 
+    /*
+      5-ter) IL POSITIVO DI ACEA VINCE.
+
+      Se l'export dice che un ordine è stato contabilizzato e il nostro rapportino lo dà per
+      non riuscito, il «no» è un errore di compilazione: ACEA remunera solo ciò che è stato
+      fatto. Lasciarlo lì costa due volte — la Produzione economica perde soldi già incassati
+      e il KPI punisce l'operatore per una spunta sbagliata.
+
+      Si corregge SOLO in questo verso (vedi `correggiEsiti.ts`) e si DICE quante righe sono
+      state toccate: una correzione automatica silenziosa su un dato che l'operatore ha
+      scritto di suo pugno è il tipo di magia che fa perdere fiducia nel registro.
+
+      Best-effort come il resto del post-import: gli ordini sono già dentro, e una correzione
+      fallita non è un buon motivo per far fallire l'import — al massimo la riprende il
+      prossimo file.
+    */
+    let esitiCorretti = 0;
+    try {
+      esitiCorretti = await correggiEsitiPositivi(parse.righe);
+      if (esitiCorretti > 0) {
+        console.info(`[acea/import] esiti corretti dal Cruscotto: ${esitiCorretti}`);
+      }
+    } catch (e) {
+      console.warn('[acea/import] correzione esiti non riuscita:', e);
+    }
+
     // 5-bis) Microaree: gli ordini nuovi arrivano senza coordinate, e geocodificarli richiede
     // minuti (un indirizzo al secondo). Il ricalcolo presta loro il gruppo del CAP — a Roma — o del
     // comune, così una riga appena importata ha già una zona invece di restare a «—» proprio nei
@@ -233,6 +306,7 @@ export async function POST(req: Request) {
       scritture,
       archiviato: storagePath !== null,
       archivioPotati,
+      esitiCorretti,
       microaree: gruppi,
     };
 
