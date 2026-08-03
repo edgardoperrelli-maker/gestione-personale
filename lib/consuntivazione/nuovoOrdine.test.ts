@@ -63,3 +63,21 @@ describe('buildVoceConsuntivo', () => {
     expect('richiesta_id' in voce).toBe(false); // niente coda interventi_manuali
   });
 });
+
+/**
+ * Stessa regressione del «+»: `rapportino_voci.origine` ha default 'task', e le voci 'task'
+ * appartengono a `sincronizzaRapportini`, che le cancella a ogni rigenerazione del piano.
+ */
+describe('buildVoceConsuntivo · proprietà della voce', () => {
+  it("dichiara origine 'manuale', non il default 'task'", () => {
+    const voce = buildVoceConsuntivo({
+      rapportinoId: 'r1',
+      committente: 'acea',
+      anagrafica: { odl: '123' },
+      risposte: {},
+      campi: [],
+    });
+    expect(voce.origine).toBe('manuale');
+    expect(voce.manuale).toBe(true);
+  });
+});

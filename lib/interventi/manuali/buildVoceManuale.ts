@@ -8,6 +8,15 @@ export type VoceManualeInsert = {
   richiesta_id: string;
   ordine: number;
   manuale: true;
+  /**
+   * DEVE essere scritta: `rapportino_voci.origine` ha default 'task', e `sincronizzaRapportini`
+   * cancella tutte le voci 'task' per rigenerarle dai task del piano. Una voce del «+» lasciata
+   * al default viene quindi rasa via alla prima rigenerazione e NON ricreata (non è un task del
+   * piano): il lavoro dell'operatore sparisce senza un errore. È esattamente ciò che è successo
+   * fra il 27/07 — quando la colonna è nata (20260727091000) e il motore è passato da
+   * `manuale=false` a `origine='task'` — e il 03/08.
+   */
+  origine: 'manuale';
   approvazione_stato: 'in_attesa';
   nominativo: string | null;
   matricola: string | null;
@@ -74,6 +83,7 @@ export function buildVoceManuale(args: {
     richiesta_id: args.richiestaId,
     ordine: args.ordine,
     manuale: true,
+    origine: 'manuale',
     approvazione_stato: 'in_attesa',
     ...colonneAnagraficaVoce(args.dati),
     raw_json,
