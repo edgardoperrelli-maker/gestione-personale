@@ -46,8 +46,11 @@ server, se c'è da chiedere.
   `acqualatina_ceste` (riga unica garantita dal DB), configurabile in **AcquaLatina → Strumenti**.
   Con l'intervallo l'operatore sceglie da un **menu** (un tap; un refuso su un numero di cesta è
   un contatore cercato nel posto sbagliato), senza resta il **campo libero** — il modulo funziona
-  dal primo giorno. **Fuori intervallo avvisa e passa**: se il magazzino aggiunge una cesta prima
-  che l'ufficio aggiorni, la realtà vince — bloccare costringerebbe a scrivere un numero falso.
+  dal primo giorno. Il menu ha la voce **«Altra cesta…»** che riapre il campo libero, e il valore
+  **fuori intervallo avvisa e passa**: se il magazzino aggiunge una cesta prima che l'ufficio
+  aggiorni, la realtà vince — bloccare costringerebbe a scrivere un numero falso. La via d'uscita
+  è nata guardando la modale a schermo: senza, il menu chiuso rendeva l'avviso irraggiungibile e
+  il principio una frase.
 - **Le spunte per riga** (tutte accese) esistono per chi ne scarica una parte o ne ha uno rotto in
   furgone. Stessa forma della selezione con cui l'ufficio assegna il pallet.
 - **Sicurezza su endpoint a token**: l'operatore lo dice il **token**, mai il corpo. `registraScarico`

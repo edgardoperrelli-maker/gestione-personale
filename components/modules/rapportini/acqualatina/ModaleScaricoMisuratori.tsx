@@ -47,6 +47,16 @@ export default function ModaleScaricoMisuratori({
   const [scelti, setScelti] = useState<Set<string>>(() => new Set(tutti.map((m) => m.id)));
   const [cesta, setCesta] = useState('');
   const [salvando, setSalvando] = useState(false);
+  /*
+    Via d'uscita dal menu: «Altra cesta…» apre il campo libero.
+
+    Senza, il principio dichiarato — se il magazzino aggiunge una cesta prima che l'ufficio
+    aggiorni l'intervallo, la realtà vince — sarebbe una frase e basta: un menu chiuso sui soli
+    numeri configurati non lascia dire la verità, e l'avviso «fuori intervallo» non potrebbe mai
+    comparire. L'operatore finirebbe per scegliere un numero sbagliato pur di chiudere.
+  */
+  const [libero, setLibero] = useState(false);
+  const ALTRA = '__altra__';
 
   const numeri = useMemo(() => numeriCesta(ceste), [ceste]);
   const controllo = validaCesta(cesta, ceste);
@@ -195,13 +205,23 @@ export default function ModaleScaricoMisuratori({
           Numero cesta
         </label>
         {/* Col menu si sceglie con un tap e un refuso è impossibile; senza l'intervallo
-            configurato resta il campo libero, così il modulo funziona dal primo giorno. */}
-        {numeri.length > 0 ? (
-          <Select id="scarico-cesta" value={cesta} onChange={(e) => setCesta(e.target.value)} disabled={salvando}>
+            configurato — o scegliendo «Altra cesta…» — resta il campo libero, così il modulo
+            funziona dal primo giorno e una cesta nuova si può sempre dichiarare. */}
+        {numeri.length > 0 && !libero ? (
+          <Select
+            id="scarico-cesta"
+            value={cesta}
+            onChange={(e) => {
+              if (e.target.value === ALTRA) { setLibero(true); setCesta(''); return; }
+              setCesta(e.target.value);
+            }}
+            disabled={salvando}
+          >
             <option value="">Scegli…</option>
             {numeri.map((n) => (
               <option key={n} value={n}>{n}</option>
             ))}
+            <option value={ALTRA}>Altra cesta…</option>
           </Select>
         ) : (
           <Input

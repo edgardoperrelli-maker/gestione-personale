@@ -81,8 +81,14 @@ invece di una digitazione, e un refuso su un numero di cesta è un contatore che
 Senza intervallo configurato (stato iniziale) il campo resta **libero**: il modulo funziona dal
 primo giorno, la configurazione lo rende solo più stretto.
 
-Il valore fuori intervallo **non blocca**: se il magazzino aggiunge una cesta prima che l'ufficio
-aggiorni la configurazione, la realtà vince sul nostro campo. Passa con un avviso.
+Il menu ha una via d'uscita — **«Altra cesta…»**, che apre il campo libero — e il valore fuori
+intervallo **non blocca**: passa con un avviso. Se il magazzino aggiunge una cesta prima che
+l'ufficio aggiorni la configurazione, la realtà vince sul nostro campo.
+
+Senza quella voce il principio sarebbe una frase e basta: un menu chiuso sui soli numeri
+configurati non lascia dire la verità, l'avviso «fuori intervallo» non potrebbe mai comparire, e
+l'operatore finirebbe per scegliere un numero sbagliato pur di chiudere. È venuto fuori guardando
+la modale a schermo, non leggendo il codice.
 
 ### 6. La selezione è per riga, tutte spuntate
 
