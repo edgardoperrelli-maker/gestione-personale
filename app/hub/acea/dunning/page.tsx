@@ -1,3 +1,4 @@
+import { gatePagina } from '@/lib/auth/gatePagina';
 import { AceaNav } from '@/components/modules/acea/AceaNav';
 import DunningClient from '@/components/modules/acea/DunningClient';
 
@@ -16,7 +17,8 @@ export const dynamic = 'force-dynamic';
  * era corto di un'ottantina di pixel, quindi la pagina scorreva per mostrare una tabella che a sua
  * volta scorreva; e ogni ritocco alla testa avrebbe richiesto di riaggiornare quel numero.
  */
-export default function AceaDunningPage() {
+export default async function AceaDunningPage() {
+  await gatePagina('/hub/acea/dunning');
   return (
     <div className="flex h-[calc(100dvh-6rem)] flex-col gap-2">
       <AceaNav attivo="dunning" />

@@ -168,7 +168,8 @@ export default function MisuratoriClient({
   const areaTabella = useRef<HTMLDivElement>(null);
 
   const handlePatch = useCallback(
-    async (id: string, patch: { stato?: StatoMisuratore; note?: string }) => {
+    // `pallet` incluso: si scrive anche una cella alla volta, non solo in blocco dalla barra.
+    async (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string }) => {
       setSalvando(prev => new Set(prev).add(id));
       // Ottimistic update
       setRows(prev =>

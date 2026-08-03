@@ -9,7 +9,7 @@ type SortKey = 'data_esecuzione' | 'stato' | 'comune' | 'pallet';
 
 interface Props {
   rows: MisuratoreRimosso[];
-  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string }) => Promise<void>;
+  onPatch: (id: string, patch: { stato?: StatoMisuratore; note?: string; pallet?: string }) => Promise<void>;
   /** Solo admin_plus può riportare indietro lo stato; gli altri possono solo avanzarlo. */
   isAdminPlus: boolean;
   /** Colonna PDR: il registro AcquaLatina non ne ha una (misuratori d'acqua). */
@@ -43,6 +43,19 @@ export default function MisuratoriTabella({
   const annullaNota = useRef(false);
   /** La riga la cui nota è appena uscita dall'editor: il focus torna al suo bottone. */
   const notaAppenaChiusa = useRef<string | null>(null);
+
+  /*
+    Pallet scrivibile nella cella, stesse regole della nota (Escape annulla, niente PATCH a
+    vuoto, il focus torna dov'era). Prima si poteva assegnare SOLO in blocco dalla barra della
+    cesta: giusto per il gesto vero — «la cesta è piena, questi ci sono finiti dentro» — ma per
+    correggere un numero su una riga sola costringeva a selezionarla, aprire la barra e
+    riscrivere il pallet, cioè a rifare l'assegnazione per cambiare una cifra.
+    Le due strade scrivono lo stesso campo e convivono.
+  */
+  const [editingPallet, setEditingPallet] = useState<string | null>(null);
+  const [palletValue, setPalletValue]     = useState('');
+  const annullaPallet = useRef(false);
+  const palletAppenaChiuso = useRef<string | null>(null);
 
   const sorted = useMemo(() => {
     return [...rows].sort((a, b) => {
@@ -85,19 +98,52 @@ export default function MisuratoriTabella({
     [onPatch, noteValue, editingNote]
   );
 
+  const startPalletEdit = useCallback((row: MisuratoreRimosso) => {
+    setEditingPallet(row.id);
+    setPalletValue(row.pallet ?? '');
+  }, []);
+
+  const commitPallet = useCallback(
+    // `undefined` ammesso: il registro ACEA non ha la colonna, e il tipo condiviso lo riflette.
+    async (id: string, palletOriginale: string | null | undefined) => {
+      // Stessa guardia di rientro della nota: su Invio l'editor si smonta e il blur che segue
+      // richiamerebbe il commit una seconda volta.
+      if (editingPallet !== id) return;
+      setEditingPallet(null);
+      palletAppenaChiuso.current = id;
+      const pulito = palletValue.trim();
+      if (pulito === (palletOriginale ?? '').trim()) return;
+      // Stringa vuota = TOGLIE il pallet (il server la traduce in NULL): è la correzione di un
+      // errore, e «ancora in cesta» è uno stato legittimo — non serve un secondo verbo.
+      await onPatch(id, { pallet: pulito });
+    },
+    [onPatch, palletValue, editingPallet],
+  );
+
   /*
-    Il focus torna al bottone della nota appena l'editor si smonta — su commit E su
+    Il focus torna al bottone della cella appena l'editor si smonta — su commit E su
     annullamento. Senza, cadeva sul body e il giro di Tab ripartiva dall'inizio della pagina:
-    per chi lavora di tastiera, ogni nota salvata costava la traversata del modulo.
+    per chi lavora di tastiera, ogni valore salvato costava la traversata del modulo.
+    Una funzione sola per le due colonne: due copie sarebbero divergute alla prima modifica.
   */
-  useEffect(() => {
-    if (editingNote !== null || !notaAppenaChiusa.current) return;
+  const tornaAlBottone = (selettore: string, riferimento: { current: string | null }) => {
+    if (!riferimento.current) return;
     const btn = document.querySelector<HTMLButtonElement>(
-      `[data-nota-btn="${CSS.escape(notaAppenaChiusa.current)}"]`,
+      `[${selettore}="${CSS.escape(riferimento.current)}"]`,
     );
-    notaAppenaChiusa.current = null;
+    riferimento.current = null;
     btn?.focus();
+  };
+
+  useEffect(() => {
+    if (editingNote !== null) return;
+    tornaAlBottone('data-nota-btn', notaAppenaChiusa);
   }, [editingNote]);
+
+  useEffect(() => {
+    if (editingPallet !== null) return;
+    tornaAlBottone('data-pallet-btn', palletAppenaChiuso);
+  }, [editingPallet]);
 
   const SortArrow = ({ k }: { k: SortKey }) =>
     sortKey === k
@@ -244,7 +290,44 @@ export default function MisuratoriTabella({
               )}
               {mostraPallet && (
                 <td className="whitespace-nowrap px-3 py-2 font-mono text-xs tabular-nums">
-                  {row.pallet?.trim() || '—'}
+                  {editingPallet === row.id ? (
+                    <input
+                      autoFocus
+                      value={palletValue}
+                      onChange={e => setPalletValue(e.target.value)}
+                      aria-label={`Pallet per il misuratore ${row.matricola}`}
+                      /*
+                        `inputMode` e non `type="number"`: il pallet è un RIFERIMENTO, non una
+                        quantità. Col campo numerico gli zeri di testa sparirebbero e le frecce
+                        del mouse potrebbero cambiarlo per sbaglio scorrendo la tabella.
+                      */
+                      inputMode="numeric"
+                      onBlur={() => {
+                        if (annullaPallet.current) { annullaPallet.current = false; return; }
+                        void commitPallet(row.id, row.pallet);
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') void commitPallet(row.id, row.pallet);
+                        if (e.key === 'Escape') {
+                          annullaPallet.current = true;
+                          palletAppenaChiuso.current = row.id;
+                          setEditingPallet(null);
+                        }
+                      }}
+                      className="w-20 rounded-[var(--radius-sm)] border border-[var(--brand-primary)] bg-[var(--brand-surface)] px-1.5 py-0.5 font-mono text-xs tabular-nums focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                    />
+                  ) : (
+                    <button
+                      type="button"
+                      data-pallet-btn={row.id}
+                      aria-label={`Modifica pallet per il misuratore ${row.matricola}`}
+                      onClick={() => startPalletEdit(row)}
+                      className="w-full cursor-text rounded-[var(--radius-sm)] text-left font-mono text-xs tabular-nums text-[var(--brand-text-muted)] hover:text-[var(--brand-text-main)] focus:outline-none focus-visible:ring-2 focus-visible:ring-[var(--brand-primary)]"
+                      title="Clicca per scrivere il numero del pallet"
+                    >
+                      {row.pallet?.trim() || '—'}
+                    </button>
+                  )}
                 </td>
               )}
 

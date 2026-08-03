@@ -1,3 +1,4 @@
+import { gatePagina } from '@/lib/auth/gatePagina';
 import Breadcrumb from '@/components/ui/Breadcrumb';
 import CollaudoClient from '@/components/modules/acea/CollaudoClient';
 
@@ -9,7 +10,8 @@ export const dynamic = 'force-dynamic';
  * Non è una vista di lavoro quotidiano — per questo sta fuori dalle fogliette — ma il pannello che
  * si guarda prima di spegnere il master, e a cui si torna se qualcosa non torna.
  */
-export default function AceaCollaudoPage() {
+export default async function AceaCollaudoPage() {
+  await gatePagina('/hub/acea/collaudo');
   return (
     <div className="space-y-4">
       {/* Stessa scala delle altre viste ACEA (`AceaNav`): era l'unica pagina del modulo a `text-2xl`
